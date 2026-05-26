@@ -93,6 +93,25 @@ final class SettingsMapperTests: XCTestCase {
         )
     }
 
+    func test_set_SWIFT_DEFAULT_ACTOR_ISOLATION_when_main_actor() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(tool: .swift, name: .defaultIsolation, condition: nil, value: ["MainActor"]),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings
+        )
+
+        let resolvedSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            resolvedSettings["SWIFT_DEFAULT_ACTOR_ISOLATION"],
+            .string("MainActor")
+        )
+    }
+
     func test_set_HEADER_SEARCH_PATHS() throws {
         let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
             .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cPath"]),

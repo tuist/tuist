@@ -22,7 +22,7 @@ defmodule TuistWeb.SCIM.GroupsControllerTest do
     outsider = user_fixture()
 
     body =
-      Jason.encode!(%{
+      JSON.encode!(%{
         schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         Operations: [%{op: "add", value: [%{value: to_string(outsider.id)}]}]
       })

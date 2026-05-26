@@ -1,0 +1,80 @@
+name: Runners Staging Smoke Test
+
+# Manual smoke test for the staging Tuist Runners pool. Targets
+# `runs-on: tuist-staging-macos` so the staging tier's warm Pods
+# (configured in infra/helm/tuist/values-managed-staging.yaml as
+# `runnersFleet.replicas: 2`) pick up this job.
+#
+# Use this to validate, end-to-end:
+#   1. workflow_job: queued webhook reaches the staging server.
+#   2. Tuist.Runners.Dispatch finds an idle Pod and mints a JIT
+#      config from GitHub.
+#   3. The runner VM polls /api/internal/runners/dispatch on
+#      staging.tuist.dev, claims the JIT, registers as a runner.
+#   4. GH dispatches this job to the registered runner.
+#   5. The job runs on the runner VM.
+#   6. After completion the Pod terminates and the reconciler's
+#      next 60 s tick creates a replacement.
+#
+# Triggered manually only — we don't want every push to staging
+# burning runner cycles.
+
+on:
+  workflow_dispatch:
+  # Also fires when this workflow file itself changes on the
+  # feat/runners-shape-2 branch. The smoke isn't a default CI
+  # hook (would burn a runner slot on every PR), but during the
+  # staging bring-up we want edits to the smoke definition to
+  # re-validate against the live fleet without manual dispatch.
+  # The `paths` filter scopes the auto-fire to changes to this
+  # file alone; every other push to the branch needs an explicit
+  # `gh workflow run runners-staging-smoke.yml`.
+  push:
+    branches:
+      - feat/runners-shape-2
+    paths:
+      - .github/workflows/runners-staging-smoke.yml
+
+# Smoke job runs shell inside the Tart VM and curls public
+# github.com — it never reads or mutates repo state, so the
+# GITHUB_TOKEN needs zero scopes.
+permissions: {}
+
+jobs:
+  smoke:
+    # Single-label form. `tuist-staging-macos` is the pool's unique
+    # dispatch label and is sufficient to pick a runner — no need
+    # to also list `self-hosted` (which is advertised on the
+    # runner but isn't an authorization boundary).
+    runs-on: tuist-staging-macos
+    timeout-minutes: 10
+    steps:
+      - name: Show environment
+        run: |
+          echo "Hostname:    $(hostname)"
+          echo "macOS:       $(sw_vers -productVersion)"
+          echo "Architecture: $(uname -m)"
+          echo "Xcode path:  $(xcode-select -p)"
+          # Confirm we're inside a Tart VM. The VM's hostname is
+          # set by Tart and the host CPU model leaks via sysctl.
+          sysctl -n machdep.cpu.brand_string
+
+      - name: Public reachability check
+        run: |
+          set -euo pipefail
+          # Public GH should be reachable (the runner already
+          # registered, so this had better work). This is the
+          # only network assertion the smoke covers; the
+          # negative-isolation test that used to live here was
+          # removed because the previous shape leaned on
+          # KUBERNETES_SERVICE_HOST being injected (it isn't —
+          # Tart VMs don't get the K8s env contract that Pods
+          # do) so the assertion passed vacuously via DNS
+          # failure. Tart VM egress isolation is not enforced
+          # by the runner-namespace NetworkPolicy (vmnet
+          # bypasses CNI) and there's no in-cluster endpoint we
+          # can dial from inside the VM as a proxy for "is the
+          # cluster reachable" — the perimeter gate lives on the
+          # Mac mini's security group at the IaaS layer, not
+          # somewhere we can curl from the workflow.
+          curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com

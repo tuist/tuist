@@ -175,6 +175,24 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
+  @doc """
+  Whether managed Kura servers must wait for the global Cloudflare-
+  fronted endpoint before being projected active.
+
+  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
+  degrade gracefully while the global load-balancer layer is
+  unavailable or quota-limited.
+  """
+  def kura_require_global_endpoints? do
+    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
+    |> System.get_env()
+    |> case do
+      nil -> true
+      "" -> true
+      value -> not falsey?(value)
+    end
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -517,7 +535,7 @@ defmodule Tuist.Environment do
         prices
 
       is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+        prices_base64_json |> Base.decode64!() |> JSON.decode!()
 
       true ->
         nil
@@ -1004,6 +1022,17 @@ defmodule Tuist.Environment do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
 
+  @doc """
+  Kubernetes namespace customer runner Pods live in. The
+  webhook handler writes RunnerAssignment CRs into this
+  namespace; the runners-controller reconciles them into Pods.
+  Defaults to `tuist-runners` (matches the chart's
+  `runnersFleet.namespace`).
+  """
+  def runners_namespace do
+    System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
@@ -1041,6 +1070,10 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
+
+  defp falsey?(value) when is_binary(value) do
+    String.downcase(value) in ["0", "false", "no", "off"]
+  end
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

@@ -1,0 +1,173 @@
+# RunnerPool CRD for the runners-controller. Lives in `crds/` (not
+# `templates/`) so helm applies it BEFORE any RunnerPool CR the chart
+# renders during a fresh install — without that ordering, the
+# apiserver rejects the CR with "no matches for kind RunnerPool" and
+# the install fails on first deploy to a clean cluster.
+#
+# Trade-off vs. living in `templates/`: helm does NOT touch crds/ on
+# `helm upgrade`. Schema changes therefore have to be applied
+# out-of-band on existing installs (kubectl apply -f this file).
+# That's acceptable here — the chart is the source of truth for the
+# CRD, runners-controller is the only consumer, and we evolve the
+# spec rarely. Schema-evolution drill on upgrades: re-applying this
+# file manually (or via a one-shot Job) before the helm upgrade lands.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: runnerpools.tuist.dev
+spec:
+  group: tuist.dev
+  scope: Namespaced
+  names:
+    plural: runnerpools
+    singular: runnerpool
+    kind: RunnerPool
+    shortNames: [rpool]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Replicas
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Observed
+          type: integer
+          jsonPath: .status.observedReplicas
+        - name: DispatchLabel
+          type: string
+          jsonPath: .spec.dispatchLabel
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: [image, fleetSelector, dispatchLabel, runnerLabels]
+              properties:
+                labels:
+                  type: array
+                  items:
+                    type: string
+                  description: Labels stamped on Pods + SAs the controller creates.
+                replicas:
+                  type: integer
+                  default: 0
+                  minimum: 0
+                  description: Number of Pods the controller maintains for this pool.
+                image:
+                  type: string
+                  description: OCI ref of the runner Tart image, digest-pinned.
+                fleetSelector:
+                  type: string
+                  description: Value of `tuist.dev/fleet=<name>` Pods in this pool pin to via nodeSelector.
+                dispatchLabel:
+                  type: string
+                  description: GitHub Actions runner label customers put in `runs-on` to target this fleet. Webhook handler matches against `workflow_job.labels`; dispatch endpoint includes it in the JIT mint.
+                runnerLabels:
+                  type: array
+                  items:
+                    type: string
+                  description: |
+                    GitHub Actions runner labels stamped on the runner at JIT-mint
+                    time (in addition to `dispatchLabel`, which is always appended).
+                    Conventionally `["self-hosted", "<os>", "<arch>"]`. The chart
+                    renders this field for every pool (per-OS defaults applied in
+                    the helm template), so the server treats absent/empty as a
+                    chart bug rather than substituting a default.
+                os:
+                  type: string
+                  default: darwin
+                  enum: [darwin, linux]
+                  description: |
+                    Host OS the runner runs on. Drives Pod scheduling
+                    (nodeSelector + tolerations) on the controller side.
+                    `darwin` (the v1 default) selects Mac mini nodes
+                    running tart-kubelet and tolerates the
+                    `tuist.dev/macos` taint. `linux` selects standard
+                    Linux nodes (no Tart layer); no extra tolerations.
+                podCPUMilli:
+                  type: integer
+                  default: 8000
+                  description: Pod request shape so kube-scheduler bin-packs one Pod per host AND tart-kubelet's `tart set` matches host capacity minus VZ overhead (macOS) — for Linux pools, just a standard cgroup request matching the host VM's vCPU.
+                podMemoryMB:
+                  type: integer
+                  default: 14336
+                  description: Pod memory request matching the host's capacity minus substrate overhead.
+                runtimeClass:
+                  type: string
+                  description: |
+                    Optional `Pod.spec.runtimeClassName`. When set, Pods route
+                    through the named RuntimeClass instead of the cluster
+                    default. The chart's `kata-qemu` RuntimeClass runs each
+                    Pod as a Kata Containers + QEMU microVM (per-tenant
+                    kernel, real isolation). Empty keeps the default runtime
+                    (runc on containerd), which is fine for macOS pools and
+                    single-tenant bare-metal Linux pools during bring-up.
+                autoscaling:
+                  type: object
+                  description: |
+                    Optional queue-depth-driven autoscaling. When `enabled`,
+                    the runners-controller patches `spec.replicas` every 5 s
+                    using the desired-replicas endpoint on the Tuist server.
+                    Disabled by default; pools default to a static `replicas`
+                    value, which is what every v1 macOS pool uses today.
+
+                    Pod-level only — bare-metal Host count stays operator-
+                    managed via the CAPI cluster topology (Hetzner Robot
+                    hosts are monthly-billed; auto-scaling Host count from
+                    Pod demand would silently provision unused capacity).
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    minWarmPoolFloor:
+                      type: integer
+                      default: 1
+                      minimum: 0
+                      description: |
+                        Lower bound for the warm pool size. The server-side
+                        rolling p95 of concurrent claims over the last hour
+                        can lift the effective floor higher; this value
+                        only floors it, never caps it.
+                    maxReplicas:
+                      type: integer
+                      default: 0
+                      minimum: 0
+                      description: |
+                        Hard ceiling on `spec.replicas` the autoscaler may
+                        request. 0 disables autoscaling-driven changes (the
+                        static `spec.replicas` setting still applies).
+                    scaleDownCooldownSeconds:
+                      type: integer
+                      default: 300
+                      minimum: 0
+                      description: |
+                        Wait at least this many seconds of consistent low
+                        demand before scaling down. Anti-thrash guard so a
+                        single brief idle window doesn't deprovision warm
+                        capacity that's about to be reused.
+            status:
+              type: object
+              properties:
+                observedReplicas:
+                  type: integer
+                lastReconcile:
+                  type: string
+                  format: date-time
+                lastScaleDownAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp of the last autoscaler scale-down action; the controller's cooldown gate reads this.
+                observedImage:
+                  type: string
+                  description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                imageRolledAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the controller last observed spec.image change. The server-side dispatch endpoint uses this to stagger HTTP 410 drain responses across a rolling window so the warm pool doesn't drop to zero on every digest-pin bump.

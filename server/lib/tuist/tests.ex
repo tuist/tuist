@@ -24,7 +24,9 @@ defmodule Tuist.Tests do
   alias Tuist.Accounts.Account
   alias Tuist.Automations
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.KeyValueStore
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Shards
@@ -49,6 +51,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Webhooks.Dispatcher
 
   require OpenTelemetry.Tracer
 
@@ -56,12 +59,22 @@ defmodule Tuist.Tests do
   # (i.e. still part of the suite). Used by `list_test_cases/2` and by the Test
   # Cases / Flaky Tests analytics charts so they stay in sync.
   @active_window_days 14
+  @short_cache_ttl to_timeout(second: 10)
+  @unscoped_test_suite_runs_lookback_days 7
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
   is still considered part of the suite.
   """
   def active_window_days, do: @active_window_days
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:tests, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
 
   # State-change events emitted by `update_test_case` use the `muted` /
   # `unmuted` names. Pre-rename rows have already been backfilled to these
@@ -133,11 +146,14 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_run_count do
+    cached_count(:last_24h_test_run_count, &last_24h_test_run_count_query/0)
+  end
+
+  defp last_24h_test_run_count_query do
     twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
 
     ClickHouseRepo.one(
       from(t in Test,
-        hints: ["FINAL"],
         where: t.inserted_at >= ^twenty_four_hours_ago,
         select: count()
       )
@@ -146,6 +162,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_test_case_run_count do
+    cached_count(:last_24h_test_case_run_count, &last_24h_test_case_run_count_query/0)
+  end
+
+  defp last_24h_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -157,6 +177,10 @@ defmodule Tuist.Tests do
   end
 
   def last_24h_flaky_test_case_run_count do
+    cached_count(:last_24h_flaky_test_case_run_count, &last_24h_flaky_test_case_run_count_query/0)
+  end
+
+  defp last_24h_flaky_test_case_run_count_query do
     yesterday = Date.add(Date.utc_today(), -1)
 
     ClickHouseRepo.one(
@@ -290,12 +314,33 @@ defmodule Tuist.Tests do
   end
 
   def list_test_suite_runs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(TestSuiteRun, attrs, for: TestSuiteRun)
+    base_query =
+      if scoped_test_suite_run_attrs?(attrs) do
+        TestSuiteRun
+      else
+        seven_days_ago = DateTime.add(DateTime.utc_now(), -@unscoped_test_suite_runs_lookback_days, :day)
+        from(tsr in TestSuiteRun, where: tsr.inserted_at >= ^seven_days_ago)
+      end
+
+    Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestSuiteRun)
   end
 
   def list_test_module_runs(attrs) do
     Tuist.ClickHouseFlop.validate_and_run!(TestModuleRun, attrs, for: TestModuleRun)
   end
+
+  defp scoped_test_suite_run_attrs?(attrs) do
+    attrs
+    |> flop_filters()
+    |> Enum.any?(fn
+      %{field: field} when field in [:test_run_id, :test_module_run_id, :shard_id] -> true
+      _ -> false
+    end)
+  end
+
+  defp flop_filters(%Flop{filters: filters}), do: List.wrap(filters)
+  defp flop_filters(%{filters: filters}) when is_list(filters), do: filters
+  defp flop_filters(_attrs), do: []
 
   @doc """
   Constructs a CI run URL for a test run based on the CI provider and metadata.
@@ -456,7 +501,15 @@ defmodule Tuist.Tests do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
 
-          reported_count = count_reported_shards(existing_test.id) + 1
+          # Each shard can have multiple ShardRun rows (the controller
+          # inserts one with status=processing when the CLI is still
+          # uploading, the worker inserts another after parsing). Count
+          # distinct shard indexes that have already produced a non-
+          # processing row, and only count the current shard if its own
+          # status is non-processing too.
+          reported_count =
+            count_completed_shards(existing_test.id, shard_index) +
+              if shard_status == "processing", do: 0, else: 1
 
           merged_status =
             if reported_count >= expected_shard_count do
@@ -467,7 +520,11 @@ defmodule Tuist.Tests do
 
           merged_duration = max(existing_test.duration, shard_duration)
 
-          updated_test = %{existing_test | status: merged_status, duration: merged_duration}
+          updated_test =
+            existing_test
+            |> Map.put(:status, merged_status)
+            |> Map.put(:duration, merged_duration)
+            |> merge_shard_metadata(attrs)
 
           update_attrs =
             updated_test
@@ -507,11 +564,54 @@ defmodule Tuist.Tests do
     end
   end
 
-  defp count_reported_shards(test_run_id) do
+  # Carry forward metadata fields when a later shard report has them and
+  # the existing Test row left them blank. The first shard often arrives
+  # with status=processing before xcresult parsing has populated `scheme`
+  # and friends; without this merge the dashboard's title stays "Unknown"
+  # for the lifetime of the run.
+  @shard_mergeable_fields [
+    :scheme,
+    :macos_version,
+    :xcode_version,
+    :model_identifier,
+    :git_branch,
+    :git_commit_sha,
+    :git_ref,
+    :ci_run_id,
+    :ci_project_handle,
+    :ci_host,
+    :ci_provider,
+    :build_run_id,
+    :gradle_build_id
+  ]
+
+  defp merge_shard_metadata(existing_test, attrs) do
+    Enum.reduce(@shard_mergeable_fields, existing_test, fn field, acc ->
+      incoming = Map.get(attrs, field)
+      current = Map.get(acc, field)
+
+      if blank?(current) and not blank?(incoming) do
+        Map.put(acc, field, incoming)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
+
+  defp count_completed_shards(test_run_id, current_shard_index) do
+    # A shard counts as completed once any ShardRun row for it carries a
+    # non-processing status. The current shard is excluded because the
+    # caller decides whether to add it based on the incoming attrs.
     ClickHouseRepo.one(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
-        select: count()
+        where: sr.status != "processing",
+        where: sr.shard_index != ^(current_shard_index || -1),
+        select: fragment("uniqExact(?)", sr.shard_index)
       )
     ) || 0
   end
@@ -667,7 +767,7 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
   end
 
   defp collect_test_case_ids(project_id, test_modules) do
@@ -807,9 +907,24 @@ defmodule Tuist.Tests do
       # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
+      dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
 
       {:ok, updated_test_case}
     end
+  end
+
+  # Webhooks subscribe at the account-account level and fire on every state
+  # transition — both user-initiated and automation-driven — so receivers
+  # (e.g. a Jira ingest) see the full audit trail. Failures are swallowed
+  # inside the dispatcher; we don't want a webhook problem to abort the
+  # write that produced the event.
+  defp dispatch_webhooks(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  defp dispatch_webhooks(test_case, event_types, actor_id, alert_id) do
+    Dispatcher.dispatch_test_case_event(test_case, event_types,
+      actor_id: actor_id,
+      alert_id: alert_id
+    )
   end
 
   @doc """
@@ -991,15 +1106,43 @@ defmodule Tuist.Tests do
     ids = Enum.map(slim_results, & &1.id)
     project_ids = slim_results |> Enum.map(& &1.project_id) |> Enum.uniq()
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
+    {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    ClickHouseRepo.all(
-      from(tcr in TestCaseRun,
-        hints: ["FINAL"],
-        where: tcr.project_id in ^project_ids,
-        where: tcr.test_case_id in ^test_case_ids,
-        where: tcr.id in ^ids
-      )
+    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
+    # updates) leave multiple versions per id until background merges
+    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
+    # paying FINAL's full-part scan and in-memory merge for the page-sized
+    # set of ids that the slim MV already narrowed us to.
+    from(tcr in TestCaseRun,
+      where: tcr.project_id in ^project_ids,
+      where: tcr.test_case_id in ^test_case_ids,
+      where: tcr.ran_at >= ^min_ran_at,
+      where: tcr.ran_at <= ^max_ran_at,
+      where: tcr.id in ^ids,
+      order_by: [desc: tcr.inserted_at]
     )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp ran_at_bounds([first | rest]) do
+    Enum.reduce(rest, {first.ran_at, first.ran_at}, fn run, {min_ran_at, max_ran_at} ->
+      min_ran_at =
+        if NaiveDateTime.before?(run.ran_at, min_ran_at) do
+          run.ran_at
+        else
+          min_ran_at
+        end
+
+      max_ran_at =
+        if NaiveDateTime.after?(run.ran_at, max_ran_at) do
+          run.ran_at
+        else
+          max_ran_at
+        end
+
+      {min_ran_at, max_ran_at}
+    end)
   end
 
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
@@ -1379,7 +1522,7 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids, test_cases_created} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
         test_run_id: test.id,
         is_ci: test.is_ci
@@ -1460,7 +1603,15 @@ defmodule Tuist.Tests do
       end
     end)
 
-    create_first_run_events(test_case_runs, new_test_case_ids)
+    # The audit-log row and the outbound webhook fire on the same set:
+    # a test case whose row didn't exist before *and* whose run is the
+    # first one on the default branch. `test_case.updated` derives both
+    # signals from the same `event_types` list (see `update_test_case/3`);
+    # `test_case.created` mirrors that by deriving both from a single
+    # filtered run list here.
+    first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
+    create_first_run_events(first_run_test_case_runs)
+    dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
 
     {test_case_ids_with_flaky_run, test_case_runs}
   end
@@ -1582,29 +1733,47 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp create_first_run_events(test_case_runs, new_test_case_ids) do
-    new_test_case_runs =
-      Enum.filter(test_case_runs, fn run ->
-        run.is_new and run.test_case_id in new_test_case_ids
+  # The intersection of "this test case row is brand-new" and "the run
+  # is the first one observed on the default branch (in the last 90
+  # days)". Both signals must agree before we call it a first run.
+  defp filter_first_run_test_case_runs(test_case_runs, new_test_case_ids) do
+    Enum.filter(test_case_runs, fn run ->
+      run.is_new and run.test_case_id in new_test_case_ids
+    end)
+  end
+
+  defp create_first_run_events([]), do: :ok
+
+  defp create_first_run_events(first_run_test_case_runs) do
+    now = NaiveDateTime.utc_now()
+
+    events =
+      Enum.map(first_run_test_case_runs, fn run ->
+        %{
+          id: TestCaseEvent.first_run_id(run.test_case_id),
+          test_case_id: run.test_case_id,
+          event_type: "first_run",
+          actor_id: nil,
+          alert_id: nil,
+          inserted_at: now
+        }
       end)
 
-    if Enum.any?(new_test_case_runs) do
-      now = NaiveDateTime.utc_now()
+    TestCaseEvent.Buffer.insert_all(events)
+  end
 
-      events =
-        Enum.map(new_test_case_runs, fn run ->
-          %{
-            id: TestCaseEvent.first_run_id(run.test_case_id),
-            test_case_id: run.test_case_id,
-            event_type: "first_run",
-            actor_id: nil,
-            alert_id: nil,
-            inserted_at: now
-          }
-        end)
+  # Webhook fan-out for the same set of test cases that get a `first_run`
+  # audit-log row. The dispatcher swallows resolver / no-subscriber paths
+  # and wraps the `Oban.insert_all/1` call in its own try/rescue, so this
+  # function doesn't need an outer rescue — surfacing a real failure here
+  # is more useful than silently logging it.
+  defp dispatch_test_case_created_webhooks(_project_id, _test_cases, []), do: :ok
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+  defp dispatch_test_case_created_webhooks(project_id, test_cases, first_run_test_case_runs) do
+    first_run_ids = MapSet.new(first_run_test_case_runs, & &1.test_case_id)
+    new_test_cases = Enum.filter(test_cases, &MapSet.member?(first_run_ids, &1.id))
+    Dispatcher.dispatch_test_case_created(project_id, new_test_cases)
+    :ok
   end
 
   defp calculate_avg_test_case_duration(test_cases) do
@@ -2726,14 +2895,35 @@ defmodule Tuist.Tests do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
     now = NaiveDateTime.utc_now()
 
-    stale_runs =
+    # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
+    # selection across parts so duplicates can be merged. That defeats the
+    # `idx_status` skip index, which is the only thing that makes finding
+    # `in_progress` rows cheap. Find candidate ids without FINAL (the skip
+    # index then prunes granules), then re-resolve their latest version via
+    # the `proj_by_id` projection — FINAL over a small id set stays cheap.
+    candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
-          hints: ["FINAL"],
           where: t.status == "in_progress",
-          where: t.inserted_at < ^six_hours_ago
+          where: t.inserted_at < ^six_hours_ago,
+          select: t.id,
+          distinct: true
         )
       )
+
+    stale_runs =
+      if candidate_ids == [] do
+        []
+      else
+        ClickHouseRepo.all(
+          from(t in Test,
+            hints: ["FINAL"],
+            where: t.id in ^candidate_ids,
+            where: t.status == "in_progress",
+            where: t.inserted_at < ^six_hours_ago
+          )
+        )
+      end
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

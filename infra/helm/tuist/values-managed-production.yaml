@@ -6,6 +6,13 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# The production workload cluster still serves per-region Kura HTTPS and
+# gRPC traffic directly via Hetzner LoadBalancer Services. Disable the
+# Cloudflare-fronted global endpoint layer here too until the Cloudflare
+# pool quota is raised.
+kuraGlobalEndpointsEnabled: false
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 2
 
@@ -95,6 +102,16 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+kuraController:
+  cloudflareLoadBalancing:
+    # Keep Cloudflare credentials wired so destroy flows can still clean
+    # up any previously provisioned global endpoints after reconciliation
+    # is re-enabled.
+    enabled: true
+    zoneName: tuist.dev
+    apiTokenSecret:
+      managed: true
+      item: cloudflare-tuist-dns
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.
@@ -189,17 +206,128 @@ xcresultProcessor:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
+  # + node_exporter (host) over the tailnet. The pre-auth key lives
+  # in the production 1Password vault under TAILSCALE/auth-key.
+  tailscale:
+    enabled: true
+    tags: ["tag:tuist-macmini-production"]
+  # Claim pre-ordered Mac minis from the shared `tuist-pool-`
+  # pool. The CAPI controller has no auto-order path; operators
+  # pre-order capacity in the Scaleway console.
+  adoptPoolPrefix: "tuist-pool-"
   machine:
-    # M2-L while M4-S is out of stock at Scaleway (fr-par-1) — the
-    # first production rollout failed with `resource server is out
-    # of stock` against the chart default (M4-S). M2-L is the next
-    # SKU up that's been independently stocked when M4 capacity
-    # rotates out, and the M2 generation has its own pool. Flip
-    # back to the chart default once Scaleway restocks M4-S; canary
-    # stays on M4-S so we keep tracking that capacity.
+    # Production tracks the chart default — M2-L on Scaleway:
+    # M2 Pro 10-core / 16 GB. Explicit here so the matching
+    # `hostCPU` / `hostMemoryMB` stay in sync if a future operator
+    # flips to a different SKU.
     type: M2-L
+    # Leave 2 CPU + 2 GB for the macOS host + Apple
+    # Virtualization.framework reserve. Asking for the host's full
+    # 10 CPU / 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize` (and the matching
+    # CPU-count check).
+    hostCPU: 8
+    hostMemoryMB: 14336
   controlPlane:
     host: api.tuist.dev
+
+# Customer-runner Mac mini fleet. Sized to 9 hosts = 9 concurrent
+# customer runs. Apple's SLA permits up to two VMs per host; v1
+# runs one VM per host to keep capacity reasoning simple. Bump
+# this once the operational story for two-per-host is in place.
+# Runner images are digest-pinned so subsequent runner-image
+# releases can safely bump all enabled managed environments.
+runnersFleet:
+  enabled: true
+  hostCount: 9
+  # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
+  # console with names starting with `tuist-pool-` ahead of
+  # bringing this block live (Mac mini lead times can stretch
+  # several days). The CAPI controller claims them on demand;
+  # there is no auto-order fallback.
+  adoptPoolPrefix: "tuist-pool-"
+  networkPolicy:
+    enabled: true
+    exceptCIDRs:
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+  pools:
+    - name: default
+      replicas: 9
+      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
+      dispatchLabel: "tuist-macos"
+
+# Bare-metal vm-image-builder fleet — bakes the Tart VM images the
+# macosFleet and runnersFleet hosts run. Sized at 1 to start so the
+# cluster-managed builder lands alongside the existing hand-
+# bootstrapped `vm-image-builder-01` host (which carries the same
+# `vm-image-builder` runner label, so GitHub's scheduler routes
+# between them). Retire `-01` per the "Migrating from hand-
+# bootstrapped hosts" section of vm-image-builder.md once the
+# cluster-managed builder is comfortably taking jobs; scale up
+# `replicas` here to whatever capacity ends up needed.
+#
+# Shares the `tuist-pool-` host pool with macosFleet (2) and
+# runnersFleet (9), so this fleet adds 1 to the pool-demand
+# total. The operator's pre-order job for production already
+# tracks the macos + runners side; bump it by 1 ahead of the
+# first `helm upgrade` that flips this fleet's pool-claim path
+# on.
+buildersFleet:
+  enabled: true
+  replicas: 1
+  adoptPoolPrefix: "tuist-pool-"
+  externalSecrets:
+    enabled: true
+
+# Kata Containers + QEMU runtime for the Linux runner microVM pool.
+kataContainers:
+  enabled: true
+
+# Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
+#
+# Each AX162-R (48c/96t EPYC Genoa, 256 GB ECC, 2x1.92 TB NVMe DC
+# Edition) fits ~64 microVM slots at the 1 vCPU / 4 GB shape
+# (RAM-bound at 256 GB ÷ 4 GB; CPU undersubscribed at 96 threads /
+# 64 vCPU = 1.5× headroom).
+#
+# To grow capacity, order another `tuist-bm-production-*` host in
+# the Robot panel and bump the cluster topology's `runners-linux`
+# MD replicas. The hetzner-robot-controller picks the new server
+# up automatically once it carries the naming convention; the
+# autoscaler keeps Pod replicas inside `maxReplicas` and surfaces
+# saturation via `RunnerPool.status` and the
+# `/api/internal/runners/desired_replicas` rolling-P95 signal.
+runnersFleetLinux:
+  enabled: true
+  name: runners-linux
+  pools:
+    - name: ubuntu-22-04
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3d6052b299e87fec95f8e03abf8c049bf75d40b03a3858dac6e28db2d4501a32"
+      dispatchLabel: "tuist-production-linux"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      runtimeClass: kata-qemu
+      pod:
+        cpuMilli: 1000
+        memoryMB: 4096
+      # Pod-level autoscaling only. Bare-metal host count is operator-
+      # managed via the cluster topology — see staging values for the
+      # rationale.
+      autoscaling:
+        enabled: true
+        # ~50% of P95: keeps warm runners pre-thawed without paying
+        # for steady-state idle capacity equal to peak.
+        minWarmPoolFloor: 30
+        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
+        # reserved for system DaemonSets (Cilium agent, kube-proxy
+        # replacement, node-exporter) and per-Pod kata overhead.
+        maxReplicas: 120
+        scaleDownCooldownSeconds: 300
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

@@ -2,9 +2,9 @@ apiVersion: v2
 name: tuist-platform
 description: >
   Platform-level Helm chart installed once per Tuist-managed Kubernetes cluster.
-  Bundles cert-manager, ingress-nginx, external-dns (Cloudflare) and
-  external-secrets-operator as dependencies, plus the ClusterIssuer and
-  shared Secrets that wire them together.
+  Bundles cert-manager, ingress-nginx, external-dns (Cloudflare),
+  external-secrets-operator, and metrics-server as dependencies, plus the
+  ClusterIssuer and shared Secrets that wire them together.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
@@ -25,3 +25,7 @@ dependencies:
     version: 2.3.0  # ships ESO with the onepasswordSDK provider (added in 0.13+)
     repository: https://charts.external-secrets.io
     condition: external-secrets.enabled
+  - name: metrics-server
+    version: 3.12.2
+    repository: https://kubernetes-sigs.github.io/metrics-server/
+    condition: metrics-server.enabled

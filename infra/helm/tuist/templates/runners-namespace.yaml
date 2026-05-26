@@ -1,0 +1,255 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $serverSA := include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+{{- /*
+Customer runner Pods live in their own namespace, separate from
+the chart's release namespace. Reasons:
+
+1. Blast radius. The runners-controller's ServiceAccount needs
+   Pod create/delete + SA create/delete to materialize per-Pod
+   credentials; the server's SA needs RunnerPool read + Pod
+   patch + cluster-scoped TokenReview to mint JITs. Both are
+   scoped to exactly what they need. Pinning the runner workload
+   to a dedicated namespace keeps a controller or server
+   compromise from reaching the chart's other workloads.
+2. Pod-network policy. The NetworkPolicy below default-denies
+   ingress and gates egress for the runner Pod itself (the
+   tart-cri process that owns the VM, dispatch-poll's curl to
+   the Tuist server, projected-SA-token requests to apiserver).
+   See the long-form comment on the NetworkPolicy block for
+   what this DOES NOT cover — the Tart VM's own egress is not
+   subject to CNI policy and is gated separately at the node /
+   cluster perimeter.
+
+The Namespace is helm-owned (`helm.sh/resource-policy: keep`)
+because Pods inside it are short-lived but the namespace itself
+is load-bearing — uninstalling the chart shouldn't yank it from
+under in-flight Pods. Re-install picks the namespace back up.
+*/}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+    tuist.dev/runners-namespace: "true"
+  annotations:
+    helm.sh/resource-policy: keep
+---
+{{- if .Values.server.serviceAccount.create }}
+# Server-side namespaced RBAC. The dispatch endpoint reads
+# RunnerPool to discover the fleet name, reads SAs to resolve a
+# Pod's pool via its `tuist.dev/runner-pool` label, lists Pods
+# to count per-customer concurrency, and patches the polling
+# Pod with owner labels at JIT-mint time.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+rules:
+  - apiGroups: [tuist.dev]
+    resources: [runnerpools]
+    # Read-only: the chart renders RunnerPool CRs from
+    # `runnersFleet` values; the server only reads them at dispatch
+    # time to discover the fleet name.
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    # Read SA labels (`tuist.dev/runner-pool`) during the
+    # TokenReview-mediated JIT mint to resolve which fleet the
+    # caller is polling for.
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    # `list` is used to count Pods labeled with a customer's name
+    # (`tuist.dev/runner-pool-owner=<account>`) for max_concurrent
+    # enforcement at queue-claim time. `patch` stamps owner labels
+    # on the polling Pod the moment it claims a queue entry.
+    verbs: [get, list, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serverSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-pool-manager") }}
+---
+# Cluster-scoped TokenReview so the dispatch endpoint can validate
+# bearer tokens presented by runner Pods. Standard API the SA-as-
+# auth pattern depends on; no other path to verify a projected
+# SA token without it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-token-reviewer") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+rules:
+  - apiGroups: [authentication.k8s.io]
+    resources: [tokenreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-token-reviewer") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serverSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-token-reviewer") }}
+---
+# Cluster-scoped read on Nodes so the server can surface the
+# Pod -> Node mapping in audit logs / future ops dashboard.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+subjects:
+  - kind: ServiceAccount
+    name: {{ $serverSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-fleet-reader") }}
+{{- end }}
+{{- if .Values.runnersFleet.networkPolicy.enabled }}
+---
+# Pod-network policy for the runner Pod shell. Selects every Pod
+# in tuist-runners (the runners-controller stamps
+# `tuist.dev/runner=true` on every Pod it creates).
+#
+# Scope (what this gates):
+#   * The Pod's own network namespace: the tart-cri-hosted process
+#     that owns the VM, the dispatch-poll curl, projected-SA-token
+#     requests to apiserver, etc.
+#   * Ingress: default-deny. The polling model doesn't need any
+#     inbound connection to the Pod.
+#   * Egress: HTTPS / HTTP to the public internet, with
+#     `exceptCIDRs` carving out cluster-internal ranges (Pod
+#     CIDR, Service CIDR, Node CIDR). Closes the lateral-pivot
+#     path from the Pod into ClickHouse / Postgres / the
+#     server's admin endpoints.
+#
+# **What this DOES NOT gate**: the Tart VM's own network traffic.
+# Tart VMs do not live in the Pod network namespace — vmnet /
+# bridged networking on the macOS host puts the VM's interface
+# alongside the host's, NAT'd by Tart, and CNI-based NetworkPolicy
+# does not see that traffic. The "Customer CI workflow reaches
+# api.github.com / GHCR / npm / Homebrew" egress happens from
+# inside the VM and is unaffected by these rules.
+#
+# That gap is intentional for v1 — customer CI workflows
+# legitimately reach a long tail of third-party hosts, so any
+# closed allowlist would break real workloads. The real VM
+# egress gate lives on the Mac mini itself as a pfctl ruleset
+# installed by `macos-host-bootstrap`'s
+# `installVMEgressFirewall` step: it drops VM-source packets
+# (vmnet 192.168.64.0/22) destined for 10.0.0.0/8, 172.16.0.0/12,
+# and 169.254.0.0/16 (incl. cloud metadata 169.254.169.254). A
+# launchd daemon re-arms the ruleset at every host boot so the
+# filter survives reboots. An L7 domain-allowlist proxy is on
+# the v2 hardening list; until then VM egress is RFC1918-blocked
+# but otherwise unconstrained on the public internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "runners-default-deny") }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners
+spec:
+  podSelector:
+    matchLabels:
+      tuist.dev/runner: "true"
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    # DNS to kube-dns / coredns. Egress to the cluster DNS
+    # Service IP is the standard pattern; the cluster admin's
+    # NetworkPolicy provider implements it as a CNI rule rather
+    # than a literal Pod-to-Pod allow.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Public internet egress for HTTP(S) — required for the GH
+    # Actions runner binary to reach api.github.com, the actions
+    # cache, and the customer's package registries during builds.
+    # An L7 allowlist proxy (deferred to v2 hardening) tightens
+    # this; for v1 we accept "all of HTTPS".
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            {{- with .Values.runnersFleet.networkPolicy.exceptCIDRs }}
+            except:
+              {{- range $cidr := . }}
+              - {{ $cidr | quote }}
+              {{- end }}
+            {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # In-cluster Tuist server. Linux runner Pods (CNI-attached)
+    # call the dispatch endpoint via the in-cluster Service URL
+    # because Hetzner Cloud LBs don't hairpin — they can't reach
+    # the public ingress IP from inside the cluster. macOS Tart
+    # VMs use the public path (vmnet bypasses CNI), so this rule
+    # is essentially "Linux runners only," scoped to the server's
+    # Pod label so it doesn't widen access to ClickHouse / Postgres
+    # / Kura on the cluster network.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+{{- end }}
+{{- end }}

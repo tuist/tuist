@@ -1,8 +1,10 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistSupport
 import XcodeGraph
@@ -13,13 +15,20 @@ import XcodeGraph
 public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     private let fileSystem: FileSysteming
     private let manifestFilesLocator: ManifestFilesLocating
+    private let configLoader: ConfigLoading
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
-        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
+        manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator()
     ) {
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
+        self.configLoader = configLoader
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
     }
 
     public func map(
@@ -154,9 +163,16 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 
     private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
         if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
-            return packageManifest.parentDirectory.appending(
+            let config = try await configLoader.loadConfig(path: graph.path)
+            let arguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+            let scratchDirectory = try swiftPackageManagerScratchDirectoryLocator.locate(
+                packagePath: packageManifest.parentDirectory,
+                arguments: arguments,
+                environment: Environment.current.variables,
+                workingDirectory: try await Environment.current.currentWorkingDirectory()
+            )
+            return scratchDirectory.appending(
                 components: [
-                    Constants.SwiftPackageManager.packageBuildDirectoryName,
                     Constants.DerivedDirectory.dependenciesDerivedDirectory,
                     Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
                 ]
@@ -288,49 +304,53 @@ extension SettingsDictionary {
         }
     }
 
-    /// There are scenarios when the combined settings introduce duplicates for these setting keys.
-    /// We don't know how to reproduce – either in a reproducible sample or via unit tests.
-    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least test the
+    /// Combining target settings can introduce duplicates when a graph reaches the same dependency through multiple paths.
+    /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can test the
     /// method itself in isolation.
     fileprivate func removeDuplicates() -> SettingsDictionary {
         removeDuplicates(for: "FRAMEWORK_SEARCH_PATHS")
             .removeDuplicates(for: "HEADER_SEARCH_PATHS")
             .removeDuplicates(for: "OTHER_C_FLAGS")
+            .removeDuplicates(forConditionedKey: "FRAMEWORK_SEARCH_PATHS")
+            .removeDuplicates(forConditionedKey: "HEADER_SEARCH_PATHS")
+            .removeDuplicates(forConditionedKey: "OTHER_C_FLAGS")
             .removeOtherSwiftFlagsDuplicates()
     }
 
     func removeOtherSwiftFlagsDuplicates() -> SettingsDictionary {
-        let key = "OTHER_SWIFT_FLAGS"
         var settings = self
-        guard let value = settings[key] else { return settings }
-        switch value {
-        case let .string(value):
-            settings[key] = .string(value)
-        case let .array(value):
-            var seen = Set<String>()
-            let value = value.enumerated().filter {
-                if $0.element.isFlagWithArgument {
-                    if value.endIndex > $0.offset + 1 {
-                        return !seen.contains($0.element + value[$0.offset + 1])
-                    } else {
-                        return true
-                    }
-                } else {
-                    if $0.offset == 0 {
-                        return seen.insert($0.element).inserted
-                    } else {
-                        let previousElement = value[$0.offset - 1]
-                        if previousElement.isFlagWithArgument {
-                            return seen.insert(previousElement + $0.element).inserted
+        let keys = settings.keys.filter { $0 == "OTHER_SWIFT_FLAGS" || $0.hasPrefix("OTHER_SWIFT_FLAGS[") }
+        for key in keys {
+            guard let value = settings[key] else { continue }
+            switch value {
+            case let .string(value):
+                settings[key] = .string(value)
+            case let .array(value):
+                var seen = Set<String>()
+                let value = value.enumerated().filter {
+                    if $0.element.isFlagWithArgument {
+                        if value.endIndex > $0.offset + 1 {
+                            return !seen.contains($0.element + value[$0.offset + 1])
                         } else {
+                            return true
+                        }
+                    } else {
+                        if $0.offset == 0 {
                             return seen.insert($0.element).inserted
+                        } else {
+                            let previousElement = value[$0.offset - 1]
+                            if previousElement.isFlagWithArgument {
+                                return seen.insert(previousElement + $0.element).inserted
+                            } else {
+                                return seen.insert($0.element).inserted
+                            }
                         }
                     }
                 }
+                settings[key] = .array(
+                    value.map(\.element)
+                )
             }
-            settings[key] = .array(
-                value.map(\.element)
-            )
         }
         return settings
     }
@@ -347,6 +367,28 @@ extension SettingsDictionary {
             )
         }
         return settings
+    }
+
+    fileprivate func removeDuplicates(forConditionedKey key: String) -> SettingsDictionary {
+        var settings = self
+        let conditionedKeys = settings.keys.filter { $0.hasPrefix("\(key)[") }
+        for conditionedKey in conditionedKeys {
+            guard let value = settings[conditionedKey] else { continue }
+            switch value {
+            case let .string(value):
+                settings[conditionedKey] = .string(value)
+            case let .array(value):
+                settings[conditionedKey] = .array(value.uniquedPreservingOrder())
+            }
+        }
+        return settings
+    }
+}
+
+extension [String] {
+    fileprivate func uniquedPreservingOrder() -> [String] {
+        var seen = Set<String>()
+        return filter { seen.insert($0).inserted }
     }
 }
 

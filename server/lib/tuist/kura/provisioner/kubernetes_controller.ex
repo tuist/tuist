@@ -74,6 +74,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def global_public_url(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"globalPublicURL" => url}}} when is_binary(url) and url != "" -> url
+      {:ok, _} -> nil
+      {:error, _reason} -> nil
+    end
+  end
+
+  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
@@ -134,6 +143,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           "publicHost" => public_host(account.name, region),
           "grpcPublicHost" => grpc_public_host(account.name, region),
+          "globalPublicHost" => global_public_host(account.name, region),
+          "globalGrpcPublicHost" => global_grpc_public_host(account.name, region),
+          "cloudflarePoolLatitude" => cloudflare_pool_latitude(region),
+          "cloudflarePoolLongitude" => cloudflare_pool_longitude(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -158,7 +171,34 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp grpc_public_host(_handle, _region), do: nil
 
-  # Tuist-platform-wide secrets (license signing key, JWT verifier) are
+  def global_public_url_for_handle(handle, %Regions{} = region) do
+    case global_public_host(handle, region) do
+      nil -> nil
+      host -> "https://" <> host
+    end
+  end
+
+  defp global_public_host(handle, %Regions{provisioner_config: %{global_public_host_template: template} = config}) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp global_public_host(_handle, _region), do: nil
+
+  defp global_grpc_public_host(handle, %Regions{
+         provisioner_config: %{global_grpc_public_host_template: template} = config
+       }) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp global_grpc_public_host(_handle, _region), do: nil
+
+  defp cloudflare_pool_latitude(%Regions{provisioner_config: %{cloudflare_pool_latitude: latitude}}), do: latitude
+  defp cloudflare_pool_latitude(_), do: nil
+
+  defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
+  defp cloudflare_pool_longitude(_), do: nil
+
+  # Tuist-platform-wide secrets (JWT verifier) are
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so
@@ -268,10 +308,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp client_get_kura_instance(namespace, name, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.get_kura_instance(namespace, name)
-      opts -> Client.get_kura_instance(namespace, name, opts)
-    end
+    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do

@@ -13,6 +13,7 @@ use crate::{
     analytics::Analytics,
     config::Config,
     extension::SharedExtension,
+    geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
@@ -32,6 +33,7 @@ pub struct AppState {
     pub runtime: Arc<RuntimeState>,
     pub extension: Option<SharedExtension>,
     pub analytics: Option<Analytics>,
+    pub geoip: Option<GeoIp>,
     pub client: Client,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
@@ -77,7 +79,7 @@ pub struct RolloutStatusReport {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClusterStatusReport {
     pub generation: u64,
-    pub members: Vec<String>,
+    pub peer_regions: Vec<String>,
     pub connected_nodes: Vec<String>,
 }
 
@@ -287,7 +289,7 @@ impl AppState {
         let snapshot = self.readiness_snapshot().await;
         ClusterStatusReport {
             generation: snapshot.generation,
-            members: snapshot.members,
+            peer_regions: snapshot.members,
             connected_nodes: snapshot.known_peers,
         }
     }

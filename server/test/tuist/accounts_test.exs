@@ -2081,9 +2081,10 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates the password", %{user: user} do
-      {:ok, _} =
+      {:ok, %{user: updated_user}} =
         Accounts.reset_user_password(user, %{"password" => "new valid password"})
 
+      assert updated_user.id == user.id
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
     end
 
@@ -2091,6 +2092,15 @@ defmodule Tuist.AccountsTest do
       _ = Accounts.generate_user_session_token(user)
       {:ok, _} = Accounts.reset_user_password(user, %{"password" => "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
+    end
+
+    test "returns revoked session live socket ids", %{user: user} do
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert {:ok, %{revoked_session_live_socket_ids: [live_socket_id]}} =
+               Accounts.reset_user_password(user, %{"password" => "new valid password"})
+
+      assert live_socket_id == UserToken.live_socket_id(session_token)
     end
   end
 
@@ -4115,10 +4125,86 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
+    test "returns regional Kura endpoints until the global endpoint has been reconciled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-2.example.com",
+          technology: :kura
+        })
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert Enum.sort(endpoints) ==
+               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
+    end
+
+    test "returns the global Kura endpoint over regional Kura endpoints once reconciled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://#{account.name}.kura.tuist.dev",
+          technology: :kura
+        })
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://#{account.name}.kura.tuist.dev"]
+    end
+
     test "returns no Kura endpoints when account has none configured" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == []
+    end
+
+    test "does not return a stale global Kura endpoint without regional endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://#{account.name}.kura.tuist.dev",
+          technology: :kura
+        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)

@@ -206,6 +206,10 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def ops_write_access(subject, object) do
+    ops_access(subject, object)
+  end
+
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
     user_role(user, project, :user)
   end

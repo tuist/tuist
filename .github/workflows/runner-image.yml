@@ -1,17 +1,34 @@
-name: Build Runner Image
+name: Runner Image
+
+# On-demand build of the Tart VM image hosted on the customer-runner
+# Mac mini fleet. Invoke via `gh workflow run runner-image.yml --ref
+# <branch>` when probing image contents or smoke-testing a Packer
+# change before merging.
+#
+# The push-on-main flow lives in release.yml's release-runner-image
+# job — that's the path that produces digest-pinned tags and rewrites
+# the runnersFleet.runnerImage value in the chart. This workflow's
+# `:<git-sha>` tag is dispatch-only and not consumed by the chart.
+#
+# Runs on the same self-hosted bare-metal Mac mini as the
+# xcresult-processor image — Tart needs a live GUI session for
+# Virtualization.framework, so this can't run on hosted runners.
 
 on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Base Tart image (e.g. ghcr.io/cirruslabs/macos-tahoe-xcode:26.4)"
-        required: true
-      output_image:
-        description: "Output image name (e.g. tuist-runner-xcode-26.4)"
-        required: true
+        description: "Base Tart image"
+        required: false
+        default: "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4.1"
       runner_version:
-        description: "GitHub Actions runner version (e.g. 2.325.0)"
-        required: true
+        description: "GitHub Actions runner version"
+        required: false
+        default: "2.334.0"
+
+concurrency:
+  group: runner-image
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -19,31 +36,117 @@ permissions:
 
 jobs:
   build:
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 60
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Tart
-        run: brew install cirruslabs/cli/tart
-
-      - name: Install Packer
-        run: brew install hashicorp/tap/packer
-
       - name: Initialize Packer
-        working-directory: infra/runner-images
-        run: packer init runner.pkr.hcl
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      # Same anonymous-pull dance as xcresult-processor-image.yml:
+      # the bare-metal runner has tuist-bot creds cached for ghcr.io
+      # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
+      # consults Docker credential helpers, and this runner can have
+      # the macOS helper installed without the Docker CLI — clear
+      # both stores before Packer clones ghcr.io/cirruslabs/*.
+      - name: Drop cached ghcr.io credentials
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
+
+      - name: Reclaim Tart disk
+        # Delete every locally-cloned VM on this host, not just the
+        # one this workflow produces. The sibling
+        # `xcresult-processor-image` workflow runs on the same host
+        # and leaves its working VM behind (and vice versa); each
+        # VM is ~80 GB, and on an M1-M's 256 GB SSD they accumulate
+        # fast and the next `tart clone` fails with "The file
+        # couldn't be saved because there isn't enough space."
+        # Filtering on `Source=local` keeps the cached OCI base
+        # image (`ghcr.io/cirruslabs/macos-tahoe-xcode:26.4`,
+        # ~70 GB) so the next clone is still fast — `tart prune`
+        # below is what reclaims that cache when an image is
+        # upgraded. The `--older-than 1` vms prune doesn't catch
+        # the clones because `tart list` updates the access time.
+        # New image-bake workflows on this host don't need this
+        # step updated; their VMs get cleaned up the same way.
+        run: |
+          set -uo pipefail
+          tart list || true
+          df -h /
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+            tart stop "$vm" 2>/dev/null || true
+            tart delete "$vm" 2>/dev/null || true
+          done
+          tart prune --entries caches --older-than 0
+          df -h /
 
       - name: Build image
-        working-directory: infra/runner-images
+        working-directory: infra/runner-image
         run: |
-          packer build \
-            -var "base_image=${{ inputs.base_image }}" \
-            -var "output_image=${{ inputs.output_image }}" \
-            -var "runner_version=${{ inputs.runner_version }}" \
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          # Tart hardcodes ~/.docker/config.json when looking up Docker
+          # credential helpers. Move it aside so the public Cirrus image is
+          # pulled anonymously instead of through stale ghcr.io credentials.
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-xcode:26.4' }}" \
+            -var "output_image=tuist-runner" \
+            -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
 
-      - name: Log in to GHCR
-        run: tart login ghcr.io --username tuist-bot --password-stdin <<< "${{ secrets.GITHUB_TOKEN }}"
+      # GHCR auth for the Push step below. `crane` (installed by the
+      # builder bootstrap, alongside Tart and Packer) writes creds
+      # to ~/.docker/config.json; Tart's push reads from there via
+      # the Docker credential-helper protocol. Bypasses both the
+      # keychain (which `tart login` would use, and which gates on a
+      # Tahoe-LaunchAgent-incompatible "User interaction" prompt)
+      # and Tart 2.32.1's env-var-only push path (which hangs with
+      # "Error: The request timed out" — cause not investigated).
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Push image to GHCR
-        run: tart push ${{ inputs.output_image }} ghcr.io/tuist/${{ inputs.output_image }}:latest
+        id: push
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          GIT_SHA="${GITHUB_SHA::8}"
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${GIT_SHA}"
+          echo "Pushed ghcr.io/tuist/tuist-runner:${GIT_SHA}"
+          echo "tag=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true

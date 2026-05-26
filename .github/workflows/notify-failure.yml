@@ -15,12 +15,16 @@ on:
       - Kura
       - Mgmt Cluster Apply
       - Noora
+      - Noora Storybook Deployment
       - Processor
       - Processor Deploy
       - Release
       - Secret Scanning
+      - Slack
+      - Slack Deployment
       - Server
       - Server Deployment
+      - Server Kura Regional Deployment
       - Server Production Deployment
       - Xcode Processor
       - Xcode Processor Deploy

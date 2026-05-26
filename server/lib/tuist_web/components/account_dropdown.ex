@@ -141,7 +141,7 @@ defmodule TuistWeb.AccountDropdown do
         <.sun_high />
       </span>
       <span data-part="theme-toggle-dark-icon" aria-hidden="true">
-        <.moon_stars />
+        <.moon />
       </span>
     </.button>
     """

@@ -38,13 +38,24 @@ spec:
         # the container declares more than one named port.
         prometheus.io/port-name: metrics
     spec:
-      # Schedule onto a real macOS node — a Mac mini running
-      # tart-kubelet. The taint `tuist.dev/macos=true:NoSchedule` is
-      # set by tart-kubelet at registration so stray Linux Pods don't
+      # Schedule onto a Mac mini in the xcresult fleet specifically —
+      # not the customer-runner fleet. tart-kubelet stamps each Node
+      # with `tuist.dev/fleet=<fleetName>` from the --fleet flag the
+      # CAPI provider's bootstrap step renders into the launchd
+      # plist. Pinning the nodeSelector to the xcresult fleet's name
+      # is the load-bearing isolation primitive: customer-runner
+      # Pods (which live in the tuist-runners namespace and select
+      # on `tuist.dev/fleet=<runnersFleetName>`) physically can't
+      # land on the same Mac mini, so a runaway customer build can't
+      # preempt the xcresult queue consumer.
+      #
+      # The taint `tuist.dev/macos=true:NoSchedule` is set by
+      # tart-kubelet at Node registration so stray Linux Pods don't
       # land here.
       nodeSelector:
         kubernetes.io/os: darwin
         tuist.dev/runtime: tart
+        tuist.dev/fleet: {{ include "tuist.macosFleetName" . | quote }}
       tolerations:
         - key: tuist.dev/macos
           operator: Exists

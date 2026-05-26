@@ -22,6 +22,10 @@ defmodule TuistWeb.API.Schemas.Tests.TestCaseRun do
       is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
       is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
       is_new: %Schema{type: :boolean, description: "Whether this was a new test case."},
+      is_quarantined: %Schema{
+        type: :boolean,
+        description: "Whether the test case was quarantined at the time of the run."
+      },
       scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
       git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
       git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
@@ -32,6 +36,6 @@ defmodule TuistWeb.API.Schemas.Tests.TestCaseRun do
         description: "ISO 8601 timestamp when the run executed."
       }
     },
-    required: [:id, :name, :module_name, :status, :duration, :is_ci, :is_flaky, :is_new]
+    required: [:id, :name, :module_name, :status, :duration, :is_ci, :is_flaky, :is_new, :is_quarantined]
   })
 end

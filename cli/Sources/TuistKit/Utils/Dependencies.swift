@@ -59,13 +59,7 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
 }
 
 public func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
-    #if canImport(TuistCacheEE)
-        try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
-            try await action()
-        }
-    #else
-        try await action()
-    #endif
+    try await action()
 }
 
 private func withInitializedManifestLoader(_ action: () async throws -> Void) async throws {
@@ -128,7 +122,9 @@ private func initSession() async throws -> (Logger, SessionPaths) {
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-    if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+    if MachineReadableOutput.isEnabled(arguments: Environment.current.arguments)
+        || MachineReadableOutput.isQuiet(arguments: Environment.current.arguments)
+    {
         Noora(
             standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()

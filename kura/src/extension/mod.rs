@@ -412,6 +412,19 @@ impl ExtensionEngine {
         }
     }
 
+    pub async fn clear_caches(&self) -> usize {
+        let mut principal_cache = self.principal_cache.write().await;
+        let principal_evicted = principal_cache.len();
+        principal_cache.clear();
+        drop(principal_cache);
+
+        let mut decision_cache = self.decision_cache.write().await;
+        let decision_evicted = decision_cache.len();
+        decision_cache.clear();
+
+        principal_evicted + decision_evicted
+    }
+
     async fn run_authenticate(
         &self,
         ctx: &ExtensionContext,
@@ -1367,7 +1380,7 @@ end
 
     /// Exercises `kura/ops/helm/kura/hooks/tuist.lua` end-to-end through
     /// the real mlua engine. The hook lives in the chart so adopters
-    /// can read it; these tests are how we keep its three contracts
+    /// can read it; these tests are how we keep its two contracts
     /// honest:
     ///
     ///   * `authenticate` — mirror the existing cache service: first try
@@ -1380,9 +1393,6 @@ end
     ///     params, require the tenant to match
     ///     `ctx.server_tenant_id`, and then check it against the
     ///     principal's `projects`.
-    ///   * `response_headers` — for module-cache GETs, sign
-    ///     `ctx.query.hash` with HMAC-SHA256 so the CLI's existing
-    ///     `x-tuist-signature` verification works against Kura.
     mod tuist_hook {
         use super::*;
         use axum::{
@@ -1745,95 +1755,6 @@ end
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 403);
             assert!(deny.message.to_lowercase().contains("namespace"));
-        }
-
-        // --- response_headers -------------------------------------------
-
-        #[tokio::test]
-        async fn signs_module_cache_get_responses() {
-            let engine = test_engine(&script(), |_| unsafe {
-                // BASE_URL is required for the http client to build, even
-                // though the response_headers hook never calls it.
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/module/{id}".into();
-            context.status_code = Some(200);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-
-            let expected = sign_payload(
-                &HashMap::from([(
-                    "TUIST".into(),
-                    Signer {
-                        algorithm: SignerAlgorithm::HmacSha256,
-                        secret: b"shared-key".to_vec(),
-                    },
-                )]),
-                "tuist",
-                "deadbeef",
-            )
-            .expect("compute expected signature");
-            assert_eq!(headers.headers.get("x-tuist-signature"), Some(&expected));
-        }
-
-        #[tokio::test]
-        async fn skips_signature_for_non_module_routes() {
-            let engine = test_engine(&script(), |_| unsafe {
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/gradle/{cache_key}".into();
-            context.status_code = Some(200);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-            assert!(!headers.headers.contains_key("x-tuist-signature"));
-        }
-
-        #[tokio::test]
-        async fn skips_signature_for_error_status_codes() {
-            let engine = test_engine(&script(), |_| unsafe {
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/module/{id}".into();
-            context.status_code = Some(404);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-            assert!(!headers.headers.contains_key("x-tuist-signature"));
         }
 
         // --- helpers ----------------------------------------------------

@@ -8,6 +8,18 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# When false, the regional Kura controller stops reconciling the
+# Cloudflare-fronted global endpoint layer for Kura instances. Regional
+# HTTPS and gRPC traffic still uses the per-region Hetzner
+# LoadBalancer Services managed by the controller.
+kuraGlobalEndpointsEnabled: true
+
+# When false, the server and Kura controller keep reconciling workload
+# readiness even if the Cloudflare-fronted global Kura endpoints are not
+# available yet. This only relaxes readiness; it does not disable the
+# global endpoint wiring by itself.
+kuraGlobalEndpointsRequired: true
+
 kuraController:
   enabled: false
   namespace: kura
@@ -31,6 +43,28 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  # Reconciles DNS-only Cloudflare load balancers that steer the global
+  # Kura hostnames to healthy regional origins without proxying traffic.
+  cloudflareLoadBalancing:
+    enabled: false
+    zoneName: ""
+    accountID: ""
+    zoneID: ""
+    apiTokenSecret:
+      name: cloudflare-api-token
+      key: api-token
+      managed: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: cloudflare-tuist-dns
+      field: credential
+  telemetry:
+    # Default OTLP traces endpoint for controller-managed Kura pods.
+    # Leave empty to disable controller-injected tracing, or override
+    # per KuraInstance through spec.extraEnv.
+    otlpTracesEndpoint: ""
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
@@ -47,8 +81,6 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_SIGNER_TUIST_ALGORITHM: hmac-sha256
-    #   KURA_EXTENSION_SIGNER_TUIST_SECRET: "<license signing key>"
 
 kuraRuntime:
   image:
@@ -433,12 +465,36 @@ xcresultProcessor:
 #     operator pod's in-cluster service-account context. No 1P
 #     entries needed for cluster join material.
 #
+# Cluster API toggle. The Mac mini fleets render against
+# `cluster.x-k8s.io` + `infrastructure.cluster.x-k8s.io` CRDs which
+# are NOT installed by this chart — they ship via clusterctl /
+# `cluster-api-operator` outside the chart's lifecycle. Set to
+# `true` only after CAPI core CRDs are installed in the target
+# cluster; otherwise `helm upgrade` fails on the first
+# `kind: Cluster` it tries to apply. Existing managed envs that
+# already have CAPI core can leave the default.
+#
+# Operationally, `capi.enabled=false` is a useful escape hatch for
+# bringing this chart up on a green-field cluster before the CAPI
+# install runs: macosFleet / runnersFleet stay un-rendered until
+# CAPI is in place, then a follow-up `helm upgrade` flips this on
+# alongside `macosFleet.enabled`.
+capi:
+  enabled: true
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false
   name: ""             # default: <release>-macos-fleet
   replicas: 1
   kubeletVersion: 1.32.1
+  # Required. See `runnersFleet.adoptPoolPrefix` for the full
+  # operator workflow + adoption semantics. Sharing the same prefix
+  # with `runnersFleet.adoptPoolPrefix` lets one pool of pre-ordered
+  # Mac minis serve both fleets — the controller claims the first
+  # match per Machine, so whichever MachineDeployment scales first
+  # gets the next host.
+  adoptPoolPrefix: "tuist-pool-"
   controlPlane:
     host: ""           # API server endpoint Mac minis dial when joining
     port: 6443
@@ -463,7 +519,12 @@ macosFleet:
   # `macosFleet.image.tag` rolls a new kubelet.
   tartKubelet:
     # Capacity advertised by each Mac mini when it registers its Node.
-    # M4-S = 8 vCPU / 16 GB.
+    # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
+    # — M2 Pro chip, 12 vCPU, 16 GB RAM. 14336 leaves ~2 GB for the
+    # macOS host + Apple Virtualization.framework reserve (asking for
+    # the full 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize`).
+    # Override per-env if `machine.type` is bumped to a different SKU.
     #
     # maxPods=3 (not 2): Apple's macOS SLA caps virtualized macOS
     # instances at 2 per host, but max-pods is a Kubernetes-level
@@ -480,7 +541,7 @@ macosFleet:
     # start a third VM, so the SLA cap is enforced at the
     # virtualization layer regardless of what kubelet schedules.
     hostCPU: 8
-    hostMemoryMB: 16384
+    hostMemoryMB: 14336
     maxPods: 3
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
@@ -505,16 +566,408 @@ macosFleet:
         accessKey: access-key
         secretKey: secret-key
         projectID: project-id
+  # Tailscale wiring for the Mac mini fleet. When enabled the CAPI
+  # provider's bootstrap installs Tailscale on each mini, joins it
+  # to the tailnet under `tag:tuist-macmini-<env>`, and tart-kubelet
+  # advertises the tailnet IPv4 as the Node's InternalIP.
+  #
+  # Two scrape paths consume this:
+  #   - VM-Pod scrapes (PromEx on the xcresult-processor) ride the
+  #     standard annotationAutodiscovery pipeline: alloy-metrics
+  #     reads the Pod's IP from the cluster Pod object, which
+  #     tart-kubelet rewrites to the tailnet address.
+  #   - Host-level scrapes (node_exporter :9100, tart-kubelet's own
+  #     controller-runtime metrics :8080) go through the Tailscale
+  #     K8s operator's egress ProxyGroup. See `tailscaleEgress`
+  #     below for the cluster-Pod-to-tailnet plumbing; subnet-router
+  #     mode advertises cluster IPs INTO the tailnet, not the other
+  #     way round, so an egress proxy is the missing half.
+  #
+  # Off by default: the chart is self-hostable and most operators
+  # don't have a tailnet to join. Tuist-managed envs flip it on in
+  # their per-env values.
+  tailscale:
+    enabled: false
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`.
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`);
+    # the chart-default empty list lets the auth key's own tag
+    # binding apply if it carries one, but production deployments
+    # should always set this explicitly so the env boundary is
+    # load-bearing rather than auth-key-shape-derived. See
+    # infra/tailscale/acls.json for the full taxonomy.
+    tags: []
+    # Name of the Secret with key `auth-key` holding the Tailscale
+    # pre-auth key. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Same per-env convention as the Scaleway item: one TAILSCALE
+      # entry in each env's `tuist-k8s-<env>` vault with the
+      # pre-auth key for that env's tailnet. We don't share an auth
+      # key across envs so a leaked staging key can't add a node
+      # to the production tailnet.
+      item: TAILSCALE
+      fields:
+        authKey: auth-key
+  # Tailscale egress Services. When enabled, the CAPI operator
+  # creates one ExternalName Service per Mac mini in
+  # `.namespace` (matching the tailscale-operator wrapper chart's
+  # Release.Namespace), annotated to bind to the named
+  # ProxyGroup. alloy-metrics' Service-role discovery then scrapes
+  # those Services and the Tailscale operator bridges to the
+  # tailnet.
+  #
+  # Off by default — self-hosters without a tailnet never need this
+  # plumbing. When tailscale.enabled is on, flip this on too.
+  tailscaleEgress:
+    enabled: false
+    # Where the per-machine Services land. Must match the
+    # tailscale-operator wrapper chart's release namespace.
+    namespace: tailscale-operator
+    # Name of the ProxyGroup the Services bind to. Matches the
+    # tailscale-operator wrapper chart's `macminiEgress.proxyGroup.name`.
+    proxyGroup: macmini-egress
+    # MagicDNS suffix of the tailnet the Mac minis register
+    # under. Required when enabled — derived from
+    # `tailscale status --json | .MagicDNSSuffix` on any tailnet
+    # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
+    # actual value.
+    magicDNSSuffix: ""
   machine:
-    # M4-S is the smallest readily-stocked Apple Silicon SKU Scaleway
-    # carries in fr-par-1 today (M4 chip, base RAM). fr-par-3 only
-    # offers M1-M and it's been unstocked; fr-par-1 has the broader
-    # M2/M4 lineup. Override per-env if the workload calls for more
-    # CPU/RAM (M4-M, M4-XL) or a different generation (M2-L).
-    type: M4-S
+    # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
+    # it has the most reliable inventory in fr-par-1 and the
+    # capacity headroom we want for Tuist + customer build
+    # workloads. fr-par-3 only offers M1-M and it's been unstocked.
+    # Override per-env if a workload calls for more CPU/RAM
+    # (M4-M, M4-XL), a different generation (M4-S), or to track
+    # restocking pressure on a specific SKU.
+    type: M2-L
     zone: fr-par-1
-    os: macos-tahoe-26.0
+    os: macos-tahoe-26.3
 
+# Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
+# the same cluster-api-provider-scaleway-applesilicon operator and
+# the same tart-kubelet binary. Split out so customer-bought
+# concurrency lives on its own hardware and isn't preempted by
+# internal queue consumers (xcresult-processor, etc.).
+#
+# Two-level shape:
+#
+#   * `hostCount` is the CAPI MachineDeployment replica count —
+#     i.e. how many physical Mac mini hosts the operator orders.
+#     Apple's SLA permits up to two VMs per host; v1 runs one per
+#     host, so `hostCount` equals the max concurrent VMs.
+#
+#   * `pools[]` is the list of RunnerPool CRs. Each entry is one
+#     runner image variant (e.g. Xcode 16 baseline, Xcode-15
+#     compatibility, future per-OS variants). Customers route to
+#     a pool by putting its `dispatchLabel` in `runs-on`. The
+#     webhook handler matches `workflow_job.labels` against every
+#     pool's `dispatchLabel` and enqueues against the matching
+#     fleet; the dispatch endpoint includes the label in the JIT
+#     mint so the runner registers with it.
+#
+# Sum of `pools[*].replicas` must not exceed `hostCount` while
+# we're at one VM per host. The chart doesn't enforce that today
+# (intentional — we'd rather let a thin overcommit show up as
+# unscheduled Pods than fail a deploy on arithmetic).
+#
+# Per-customer concurrency is enforced server-side via
+# `accounts.runner_max_concurrent` (see server/lib/tuist/runners.ex).
+#
+# The Tuist server's ServiceAccount holds Pod create/list/get on
+# the runners namespace (templates/runners-namespace.yaml); a
+# default-deny NetworkPolicy + GitHub-only egress limits a
+# compromised runner's reachability into the cluster.
+runnersFleet:
+  enabled: false
+  name: ""              # default: <release>-runners-fleet — CAPI MachineDeployment name.
+  # Kubernetes namespace customer runner Pods live in. Helm-owned;
+  # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
+  # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
+  namespace: tuist-runners
+  # Number of Mac mini hosts the CAPI MachineDeployment adopts
+  # from the pool. Sum of `pools[*].replicas` must fit within
+  # `hostCount` (one VM per host today).
+  hostCount: 0
+  # Required. The controller claims a pre-ordered Mac mini whose
+  # Scaleway-side name starts with this prefix; there is no
+  # auto-order path. Scaleway Mac mini stock is unreliable and
+  # Apple's 24h licensing floor makes speculative auto-ordering
+  # expensive, so capacity planning is operator-owned via the
+  # Scaleway console.
+  #
+  # Operator workflow:
+  #
+  #   1. In the Scaleway console, order N Mac minis of the same
+  #      `machine.type` / `machine.os` / `machine.zone` as below.
+  #      Name each with this prefix (e.g. `tuist-pool-001`,
+  #      `tuist-pool-fr-par-1-a`) — the exact suffix doesn't matter.
+  #   2. Scale the MachineDeployment (`hostCount`). For each new
+  #      Machine, the controller picks the first matching host
+  #      whose name has this prefix, renames it to the Machine's
+  #      name (which IS the claim — the prefix is gone), then
+  #      bootstraps tart-kubelet on it.
+  #
+  # When no compatible pre-ordered host is available, the CR stays
+  # in `Adopting` phase with a `NoAvailableHost` event so the
+  # operator sees the queue and knows to pre-order more capacity.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Match the existing macosFleet shape — same M2-L baseline.
+    # Override per-env when product demands a beefier SKU (M4-M for
+    # memory-heavy iOS apps, etc.). The operator pre-orders Mac
+    # minis matching these `type` / `zone` / `os` values; the
+    # controller's adoption query filters on the same three.
+    type: M2-L
+    zone: fr-par-1
+    os: macos-tahoe-26.3
+  # Pod-network policy on the runners namespace. Default-deny
+  # ingress, constrained egress (HTTPS to public internet for
+  # GitHub + registries, DNS to kube-system). **Scope is the Pod
+  # network namespace only** — the customer workload runs inside
+  # a Tart VM whose vmnet interface bypasses CNI, so this gate
+  # does not constrain VM-originated traffic. See the long-form
+  # comment on the NetworkPolicy block in
+  # templates/runners-namespace.yaml.
+  networkPolicy:
+    enabled: true
+    # CIDRs excluded from the runner-Pod egress allow rule.
+    # Blocks the Pod (not the VM) from reaching internal cluster
+    # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
+    # databases). Override per-env with the real cluster ranges.
+    exceptCIDRs: []
+  # RunnerPool CRs rendered into `runnersFleet.namespace`. One
+  # entry per image variant. Required when `runnersFleet.enabled`
+  # is true; the chart fails the render with an empty list.
+  pools: []
+    # Example entry. Defaults are applied per field; only `name`,
+    # `runnerImage`, and `dispatchLabel` are required.
+    # - name: default          # Suffix for the RunnerPool CR name.
+    #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
+    #   runnerImage: ""        # Required. Digest-pinned in production.
+    #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
+    #   # GitHub runner labels stamped at JIT-mint time, in addition
+    #   # to `dispatchLabel` (always appended). Defaults per-OS in
+    #   # the helm template (`["self-hosted", "macOS", "ARM64"]` for
+    #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
+    #   # Linux block); override here to add extra labels.
+    #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
+    #   pod:
+    #     cpuMilli: 8000
+    #     memoryMB: 14336
+    #   # Optional queue-depth-driven autoscaling. When `enabled`, the
+    #   # runners-controller patches `spec.replicas` (and the bound
+    #   # CAPI MachineDeployment) every 15 s using the desired-replicas
+    #   # endpoint on the Tuist server. Omit the block (or leave
+    #   # `enabled: false`) for a static-replicas pool.
+    #   autoscaling:
+    #     enabled: false
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 0
+    #     scaleDownCooldownSeconds: 300
+
+# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U for
+# staging/canary, AX162-R for production) claimed via caph and
+# joined to the workload cluster as worker Nodes. caph rescue-boots
+# each box, runs `installimage` to write Ubuntu 24.04 LTS, and the
+# clusterclass cloud-init runs `kubeadm join` automatically. The
+# clusterclass `postKubeadmCommands` stamps
+# `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>` and the
+# `tuist.dev/runner-tier=bare-metal:NoSchedule` taint so only
+# runner Pods land on these hosts.
+#
+# To enable a runner fleet on a new env:
+#   1. Order one or more boxes from
+#      [robot.hetzner.com](https://robot.hetzner.com) (FSN1 if the
+#      Cloud cluster is in FSN1; co-location keeps cross-substrate
+#      latency to ~5-10ms over public internet, ~1ms via vSwitch).
+#   2. Add a `HetznerBareMetalHost` CR in
+#      `infra/k8s/clusters/bare-metal-<env>.yaml` carrying the
+#      Robot server number, root SSH key ref, and the pool selector
+#      label the `bare-metal-worker` MachineDeployment claims on.
+#      The mgmt-cluster-apply workflow picks it up; caph does
+#      rescue + installimage + kubeadm-join with no manual step.
+#   3. Flip `runnersFleetLinux.enabled: true` here, set `name` to
+#      match the pool label value, point `pools[].runnerImage` at a
+#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build, and
+#      set `pools[].autoscaling.maxReplicas` to the number of hosts
+#      you provisioned (the autoscaler won't request more Pods than
+#      the operator-provisioned host count can accommodate; Pending
+#      Pods are the signal to provision more hosts).
+runnersFleetLinux:
+  enabled: false
+  # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
+  # label-sync propagates from the runner MachineDeployment to
+  # each runner Node. Must match the
+  # `metadata.labels.node.cluster.x-k8s.io/pool` entry on the
+  # matching `machineDeployments[]` in
+  # `infra/k8s/clusters/cluster-<env>.yaml`. Defaults to
+  # `runners-linux` (the convention used in
+  # `cluster-staging.yaml`).
+  name: ""
+  # Namespace for the rendered RunnerPool CRs. Falls back to the
+  # macOS fleet's namespace when unset so a single chart install
+  # can share infra (RBAC, NetworkPolicy) across both fleets.
+  namespace: ""
+  # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
+  # One entry per image variant. Required when
+  # `runnersFleetLinux.enabled` is true.
+  pools: []
+    # Example entry:
+    # - name: ubuntu-22-04
+    #   replicas: 0          # static target; ignored when autoscaling is enabled.
+    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
+    #   runnerLabels:
+    #     - self-hosted
+    #     - Linux
+    #     - X64
+    #   pod:
+    #     cpuMilli: 4000
+    #     memoryMB: 16384
+    #   autoscaling:
+    #     enabled: true
+    #     minWarmPoolFloor: 3
+    #     maxReplicas: 30
+    #     scaleDownCooldownSeconds: 300
+
+# Bare-metal vm-image-builder fleet — sibling of macosFleet and
+# runnersFleet, provisioned by the same CAPI operator from the same
+# Scaleway IAM credentials and pre-ordered pool. Hosts register as
+# Kubernetes Nodes via tart-kubelet (same shape as the other fleets)
+# but no Pod targets `tuist.dev/fleet=<buildersFleet.name>`, so
+# kubelet stays idle and the host is used exclusively by an
+# additional launchd LaunchAgent: the GitHub Actions self-hosted
+# runner agent installed on top of the standard bootstrap when
+# `ghActionsRunner` is set on the MachineTemplate.
+#
+# The runner agent picks up image-bake workflow jobs from GitHub
+# (today: runner-image.yml, xcresult-processor-image.yml) and runs
+# `packer build` directly against the host's own Tart daemon.
+# Tart-in-Tart isn't supported on Apple Silicon — Virtualization.
+# framework doesn't nest macOS guests inside macOS guests — so this
+# workload can't live inside the Pod-as-VM model the other fleets
+# use; it has to run on bare-metal Tart with kubelet idle.
+buildersFleet:
+  enabled: false
+  name: ""              # default: <release>-builders-fleet — CAPI MachineDeployment name.
+  # Number of Mac mini builder hosts CAPI provisions / adopts.
+  # `kubectl scale machinedeployment <name> --replicas=N` after
+  # install if you'd rather drive scaling out-of-band.
+  replicas: 0
+  # Required. Adopts from the same `tuist-pool-` pre-ordered pool
+  # the other two fleets use. See `runnersFleet.adoptPoolPrefix`
+  # for the full operator workflow.
+  adoptPoolPrefix: "tuist-pool-"
+  # GitHub Actions runner agent configuration. The agent registers
+  # with GitHub at host bootstrap time and picks up jobs from then
+  # on; ghOrg + ghRunnerLabels must match the workflow `runs-on:`
+  # selectors of the workflows that schedule onto this fleet.
+  ghOrg: tuist
+  ghRunnerLabels: "self-hosted,macos,bare-metal,vm-image-builder"
+  # Keep in sync with `runner_version` in
+  # `infra/runner-image/runner.pkr.hcl` so the runner agent baked
+  # into the runner-image guest matches the one running on the
+  # host that bakes it. Renovate-tracked: bump both pins together.
+  ghRunnerVersion: "2.334.0"
+  # Override the auto-derived Secret name (default:
+  # `<fleetName>-gh-app`). Self-hosters who manage the Secret
+  # out-of-band point at their own name here. The Secret has three
+  # keys: `app-id`, `installation-id`, `private-key`.
+  ghAppSecretName: ""
+  externalSecrets:
+    # Sync the GitHub App credentials (App ID, installation ID,
+    # private key) from 1Password into the cluster Secret. Self-
+    # hosters can disable this and `kubectl create secret generic
+    # <name> --from-literal=app-id=… --from-literal=installation-id=…
+    # --from-file=private-key=…` instead.
+    enabled: false
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # Bare 1Password item name. The cluster's `ClusterSecretStore
+    # "onepassword"` is pre-configured per env to look in the
+    # matching `tuist-k8s-<env>` vault, so this name is the same
+    # across envs. The item holds three fields (see `fields` below);
+    # operators set it once at env bring-up and never rotate it.
+    item: BUILDERS_FLEET_GITHUB_APP
+    # Field names within the 1Password item. Defaults match the
+    # operator-documented shape; overrideable for self-hosters
+    # whose vault layout differs.
+    fields:
+      appID: app-id
+      installationID: installation-id
+      privateKey: private-key
+  machine:
+    # Match the macosFleet shape — same M2-L baseline. Same caveat
+    # applies: Scaleway's M2-L is M2 Pro 10-core / 16 GB despite
+    # the name. The MachineTemplate doesn't carry hostCPU /
+    # hostMemoryMB by default; tart-kubelet uses the operator-
+    # global defaults, which is fine because no Pods schedule here.
+    type: M2-L
+    zone: fr-par-1
+    os: macos-tahoe-26.3
+
+# runners-controller: standalone Go reconciler that owns Pod + SA
+# materialization for the RunnerPool CRD. The controller watches
+# the helm-rendered RunnerPool CRs and maintains `spec.replicas`
+# Pods + per-Pod ServiceAccounts as direct owner-ref children.
+# When a Pod hits a terminal phase, the controller reaps the Pod
+# and its sibling SA and boots a replacement. The Pod's projected
+# SA token is the dispatch-endpoint authentication anchor (server
+# validates it via TokenReview).
+# Kata Containers + QEMU support. When enabled, the chart renders a
+# `kata-qemu` RuntimeClass routed through the kata QEMU shim, with a
+# `katacontainers.io/kata-runtime=true` nodeSelector so Pods that opt
+# in fail to schedule until a Node carrying the label is available.
+#
+# Install model: Kata is baked into the bare-metal Node at OS install
+# time via the `postInstallScript` in
+# `infra/k8s/clusters/bare-metal-staging.yaml`. The script unpacks
+# `kata-static` under `/opt/kata` (which bundles
+# `qemu-system-x86_64`) and writes the containerd drop-in for the
+# kata-qemu handler — all chrooted in the freshly-installed OS
+# before the first boot. When the Node joins, containerd starts
+# with kata-qemu already registered; the bootstrap
+# `postKubeadmCommands` stamps the
+# `katacontainers.io/kata-runtime=true` label, and kata-qemu Pods
+# can schedule immediately. No runtime DaemonSet runs, no
+# containerd restart happens after the Node is up.
+#
+# Target nodes: bare-metal Linux worker Nodes ordered through the
+# `bare-metal-worker` MachineDeployment in
+# `infra/k8s/clusters/cluster-<env>.yaml`. Hetzner Cloud / Mac mini
+# nodes never carry the kata-runtime label and the RuntimeClass'
+# nodeSelector excludes them automatically.
+#
+# Disable (`enabled: false`) for dev clusters without bare metal —
+# pools that set `runtimeClass: kata-qemu` simply won't get the
+# matching RuntimeClass and will fail at schedule time, which is the
+# correct behavior (fail loud rather than silently fall back to runc
+# in an environment that asked for microVM isolation).
+kataContainers:
+  enabled: false
+
+runnersController:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
 cache:
   enabled: true
   replicaCount: 1

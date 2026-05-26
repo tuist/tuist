@@ -77,6 +77,7 @@ struct XcodeBuildTestCommandService {
         passthroughXcodebuildArguments: [String],
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
+        shardReference: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil
     ) async throws {
@@ -109,6 +110,7 @@ struct XcodeBuildTestCommandService {
                 shardIndex: shardIndex,
                 fullHandle: fullHandle,
                 serverURL: serverURL,
+                reference: shardReference,
                 testProductsPath: testProductsPath,
                 testProductsArchivePath: shardArchivePath
             )

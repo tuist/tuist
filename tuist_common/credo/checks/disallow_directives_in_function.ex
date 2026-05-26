@@ -1,20 +1,24 @@
 defmodule Credo.Checks.DisallowDirectivesInFunction do
   @moduledoc """
-  Ensure that `import`, `alias`, and `require` statements are not placed inside function bodies.
+  Ensure that `import`, `alias`, and `require` statements are not placed inside
+  function bodies or ExUnit block macros (`describe`, `test`, `setup`, `setup_all`).
 
-  These directives should be declared at the module level, not inside `def` or `defp` blocks.
+  These directives should be declared at the module level, not inside `def`, `defp`,
+  or test-block bodies.
   """
 
   use Credo.Check,
     category: :warning,
     explanations: [
       check: """
-      `import`, `alias`, and `require` statements should be at the module level, not inside
-      function bodies. Move them to the top of the module alongside other directives.
+      `import`, `alias`, and `require` statements should be at the module level, not
+      inside function bodies or ExUnit block macros (`describe`, `test`, `setup`,
+      `setup_all`). Move them to the top of the module alongside other directives.
       """
     ]
 
   @directives [:import, :alias, :require]
+  @exunit_blocks [:describe, :test, :setup, :setup_all]
 
   def run(source_file, params \\ []) do
     issue_meta = IssueMeta.for(source_file, params)
@@ -44,7 +48,22 @@ defmodule Credo.Checks.DisallowDirectivesInFunction do
     {nil, issues ++ collect_directives(body)}
   end
 
+  defp do_traverse({op, _meta, args} = ast, issues)
+       when op in @exunit_blocks and is_list(args) do
+    case extract_do_block(args) do
+      nil -> {ast, issues}
+      body -> {nil, issues ++ collect_directives(body)}
+    end
+  end
+
   defp do_traverse(ast, issues), do: {ast, issues}
+
+  defp extract_do_block(args) do
+    case List.last(args) do
+      kw when is_list(kw) -> Keyword.get(kw, :do)
+      _ -> nil
+    end
+  end
 
   defp collect_directives(ast) do
     {_ast, directives} =
@@ -66,7 +85,8 @@ defmodule Credo.Checks.DisallowDirectivesInFunction do
   defp issue_for({directive, meta}, issue_meta) do
     format_issue(
       issue_meta,
-      message: "Move `#{directive}` to the module level instead of inside a function body.",
+      message:
+        "Move `#{directive}` to the module level instead of inside a function or block body.",
       line_no: meta[:line],
       column: meta[:column]
     )

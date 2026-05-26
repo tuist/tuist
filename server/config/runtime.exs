@@ -293,6 +293,9 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
     http: [
       ip: http_ip,
       port: port,
+      http_options: [
+        log_protocol_errors: :verbose
+      ],
       thousand_island_options: [
         read_timeout: to_timeout(second: 15)
       ]
@@ -434,7 +437,11 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 #     flags the server would race the processors on SKIP LOCKED, and
 #     on Linux the xcresult parse would crash because the macOS-only
 #     NIF isn't loaded.
-base_queues = [default: 10]
+# Webhook deliveries get their own queue so a slow or down upstream
+# can't starve unrelated work — each job can block for up to 10s and
+# retries six times, and a single `test_case.created` event fans out
+# to one job per subscribed endpoint.
+base_queues = [default: 10, vcs_comments: 20, webhooks: 20]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 

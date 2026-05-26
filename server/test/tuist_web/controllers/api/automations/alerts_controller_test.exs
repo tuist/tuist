@@ -46,7 +46,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(api_path(project), Jason.encode!(body))
+        |> post(api_path(project), JSON.encode!(body))
         |> json_response(:created)
 
       assert response["name"] == "Auto-quarantine"
@@ -65,7 +65,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> post(api_path(project), Jason.encode!(body))
+        |> post(api_path(project), JSON.encode!(body))
         |> json_response(:unprocessable_entity)
 
       assert response["message"] =~ "name"
@@ -102,7 +102,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       response =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(api_path(project, "/#{automation.id}"), Jason.encode!(%{"enabled" => false}))
+        |> put(api_path(project, "/#{automation.id}"), JSON.encode!(%{"enabled" => false}))
         |> json_response(:ok)
 
       refute response["enabled"]
@@ -114,7 +114,7 @@ defmodule TuistWeb.API.Automations.AlertsControllerTest do
       conn =
         conn
         |> put_req_header("content-type", "application/json")
-        |> put(api_path(project, "/#{other.id}"), Jason.encode!(%{"enabled" => false}))
+        |> put(api_path(project, "/#{other.id}"), JSON.encode!(%{"enabled" => false}))
 
       assert json_response(conn, :not_found)
     end

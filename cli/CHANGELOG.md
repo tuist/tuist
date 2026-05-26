@@ -1,7 +1,52 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.193.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
+* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
+* respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
+* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft) in [#10920](https://github.com/tuist/tuist/pull/10920)
+* ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew) in [#10771](https://github.com/tuist/tuist/pull/10771)
+* preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft) in [#10911](https://github.com/tuist/tuist/pull/10911)
+* emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek) in [#10885](https://github.com/tuist/tuist/pull/10885)
+* pass explicit workingDirectory to swift package commands by [@fortmarek](https://github.com/fortmarek) in [#10891](https://github.com/tuist/tuist/pull/10891)
+* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft) in [#10874](https://github.com/tuist/tuist/pull/10874)
+* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek) in [#10872](https://github.com/tuist/tuist/pull/10872)
+* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek) in [#10870](https://github.com/tuist/tuist/pull/10870)
+* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek) in [#10864](https://github.com/tuist/tuist/pull/10864)
+* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh) in [#10853](https://github.com/tuist/tuist/pull/10853)
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+### ⚡ Performance
+
+* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403) in [#10033](https://github.com/tuist/tuist/pull/10033)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+
+## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
+* add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
+### 🐛 Bug Fixes
+
+* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek) in [#10813](https://github.com/tuist/tuist/pull/10813)
+* bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek) in [#10805](https://github.com/tuist/tuist/pull/10805)
+* avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek) in [#10795](https://github.com/tuist/tuist/pull/10795)
+* map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek) in [#10779](https://github.com/tuist/tuist/pull/10779)
+* synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10746](https://github.com/tuist/tuist/pull/10746)
+* release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.195.0
+
+## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -19,7 +64,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.193.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.192.3...4.193.3
 
 ## What's Changed in 4.192.3<!-- RELEASE NOTES START -->
 

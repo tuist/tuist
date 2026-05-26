@@ -6,6 +6,22 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
+public struct AnalyticsCommandMetadata: Equatable, Sendable {
+    public let name: String
+    public let subcommand: String?
+    public let commandArguments: [String]
+
+    public init(
+        name: String,
+        subcommand: String?,
+        commandArguments: [String]
+    ) {
+        self.name = name
+        self.subcommand = subcommand
+        self.commandArguments = commandArguments
+    }
+}
+
 /// Storage for run metadata, such as binary cache.
 public actor RunMetadataStorage {
     @TaskLocal public static var current: RunMetadataStorage = .init()
@@ -86,6 +102,12 @@ public actor RunMetadataStorage {
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {
         self.cacheEndpoint = cacheEndpoint
+    }
+
+    /// Canonical command metadata derived during command execution.
+    public private(set) var resolvedCommandMetadata: AnalyticsCommandMetadata?
+    public func update(resolvedCommandMetadata: AnalyticsCommandMetadata?) {
+        self.resolvedCommandMetadata = resolvedCommandMetadata
     }
 
     /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`

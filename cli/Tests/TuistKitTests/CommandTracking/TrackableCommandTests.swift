@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistCore
 import TuistGit
 import TuistLogging
@@ -253,6 +254,70 @@ final class TrackableCommandTests: TuistTestCase {
             .called(0)
     }
 
+    func test_whenCommandConfigurationHasNoName_usesArgumentsAsFallbackName() async throws {
+        // Given
+        try makeSubject(
+            command: UnnamedCommand(),
+            commandArguments: ["mystery"]
+        )
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                fullHandle: "tuist/tuist",
+                serverURL: .test(),
+                shouldTrackAnalytics: true
+            )
+        }
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(
+                commandEvent: .matching { event in
+                    event.name == "mystery" && event.subcommand == nil
+                },
+                fullHandle: .any,
+                serverURL: .any,
+                sessionDirectory: .any
+            )
+            .called(1)
+        XCTAssertEqual(alertController.warnings().count, 1)
+        XCTAssertEqual(
+            alertController.warnings().first?.message.plain(),
+            "Failed to resolve canonical command metadata for analytics. Falling back to command arguments."
+        )
+    }
+
+    func test_whenCommandStoresResolvedAnalyticsMetadata_uploadsCanonicalValues() async throws {
+        // Given
+        try makeSubject(
+            command: ResolvedMetadataCommand(),
+            commandArguments: ["xcodebuild", "-workspace", "App.xcworkspace", "build"]
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(uploadAnalyticsService)
+            .upload(
+                commandEvent: .matching { event in
+                    event.name == "xcodebuild" &&
+                        event.subcommand == "build" &&
+                        event.commandArguments == ["xcodebuild", "build", "-workspace", "App.xcworkspace"]
+                },
+                fullHandle: .any,
+                serverURL: .any,
+                sessionDirectory: .any
+            )
+            .called(1)
+    }
+
     func test_whenOptionalAuthenticationIsEnabled_background_upload_does_not_add_a_flag() async throws {
         // Given
         try makeSubject(analyticsRequired: false)
@@ -336,5 +401,33 @@ private struct ConfigObservingCommand: TrackableParsableCommand, AsyncParsableCo
 
     func run() async throws {
         await ConfigObservingCommandState.recorder.record(ServerAuthenticationConfig.current.optionalAuthentication)
+    }
+}
+
+private struct UnnamedCommand: TrackableParsableCommand, ParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration()
+    }
+
+    var analyticsRequired: Bool { true }
+
+    func run() throws {}
+}
+
+private struct ResolvedMetadataCommand: TrackableParsableCommand, AsyncParsableCommand {
+    static var configuration: CommandConfiguration {
+        CommandConfiguration()
+    }
+
+    var analyticsRequired: Bool { true }
+
+    func run() async throws {
+        await RunMetadataStorage.current.update(
+            resolvedCommandMetadata: AnalyticsCommandMetadata(
+                name: "xcodebuild",
+                subcommand: "build",
+                commandArguments: ["xcodebuild", "build", "-workspace", "App.xcworkspace"]
+            )
+        )
     }
 }

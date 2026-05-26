@@ -1,0 +1,122 @@
+{{- $labels := include "tuist.labels" . }}
+{{- /*
+RunnerPool CRs — one per entry in `runnersFleet.pools` (macOS,
+Scaleway Mac minis) and `runnersFleetLinux.pools` (Linux,
+Hetzner Cloud). Each pool is a runner image variant (Xcode
+version, base OS, toolchain bundle, etc.). Customers route to a
+pool by putting its `spec.dispatchLabel` in `runs-on`; the Tuist
+server's webhook handler matches `workflow_job.labels` against
+every pool's `dispatchLabel`. The dispatch endpoint reads the
+pool a caller belongs to from the polling SA's
+`tuist.dev/runner-pool` label and uses that pool's
+`dispatchLabel` in the JIT mint.
+
+Per-fleet rendering: one block per fleet, each scoping to its
+own `pools` list. Empty list with `enabled: true` fails the
+render with a clear message; disabled fleet renders nothing.
+*/}}
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $hostFleetName := include "tuist.runnersFleetName" . }}
+{{- $pools := .Values.runnersFleet.pools | default list }}
+{{- if not $pools }}
+  {{- fail "runnersFleet.pools must contain at least one entry when runnersFleet.enabled is true" }}
+{{- end }}
+{{- $defaultRunnerLabels := list "self-hosted" "macOS" "ARM64" }}
+{{- range $pool := $pools }}
+{{- $name := required "runnersFleet.pools[].name required" $pool.name }}
+{{- $image := required (printf "runnersFleet.pools[%s].runnerImage required" $name) $pool.runnerImage }}
+{{- $dispatchLabel := required (printf "runnersFleet.pools[%s].dispatchLabel required" $name) $pool.dispatchLabel }}
+{{- $replicas := $pool.replicas | default 0 }}
+{{- $podCPU := dig "pod" "cpuMilli" 8000 $pool }}
+{{- $podMem := dig "pod" "memoryMB" 14336 $pool }}
+{{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
+{{- $autoscaling := $pool.autoscaling }}
+{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) $name }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+spec:
+  labels: []
+  replicas: {{ $replicas }}
+  image: {{ $image | quote }}
+  os: darwin
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ $dispatchLabel | quote }}
+  runnerLabels:
+    {{- range $runnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
+  podCPUMilli: {{ $podCPU }}
+  podMemoryMB: {{ $podMem }}
+  {{- if $autoscaling }}
+  autoscaling:
+    enabled: {{ dig "enabled" false $autoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.runnersFleetLinux.enabled }}
+{{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $hostFleetName := include "tuist.runnersFleetLinuxName" . }}
+{{- $pools := .Values.runnersFleetLinux.pools | default list }}
+{{- if not $pools }}
+  {{- fail "runnersFleetLinux.pools must contain at least one entry when runnersFleetLinux.enabled is true" }}
+{{- end }}
+{{- $defaultRunnerLabels := list "self-hosted" "Linux" "X64" }}
+{{- range $pool := $pools }}
+{{- $name := required "runnersFleetLinux.pools[].name required" $pool.name }}
+{{- $image := required (printf "runnersFleetLinux.pools[%s].runnerImage required" $name) $pool.runnerImage }}
+{{- $dispatchLabel := required (printf "runnersFleetLinux.pools[%s].dispatchLabel required" $name) $pool.dispatchLabel }}
+{{- $replicas := $pool.replicas | default 0 }}
+{{- $podCPU := dig "pod" "cpuMilli" 4000 $pool }}
+{{- $podMem := dig "pod" "memoryMB" 16384 $pool }}
+{{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
+{{- $autoscaling := $pool.autoscaling }}
+{{- $runtimeClass := $pool.runtimeClass | default "" }}
+{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+spec:
+  labels: []
+  replicas: {{ $replicas }}
+  image: {{ $image | quote }}
+  os: linux
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ $dispatchLabel | quote }}
+  runnerLabels:
+    {{- range $runnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
+  podCPUMilli: {{ $podCPU }}
+  podMemoryMB: {{ $podMem }}
+  {{- if $runtimeClass }}
+  runtimeClass: {{ $runtimeClass | quote }}
+  {{- end }}
+  {{- if $autoscaling }}
+  autoscaling:
+    enabled: {{ dig "enabled" false $autoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- end }}
+{{- end }}
+{{- end }}

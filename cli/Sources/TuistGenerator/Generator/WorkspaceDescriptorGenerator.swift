@@ -49,6 +49,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating
+    private let foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerating
     private let fileSystem: FileSysteming
     private let config: Config
 
@@ -70,6 +71,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             workspaceStructureGenerator: WorkspaceStructureGenerator(),
             schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
             workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerator(),
+            foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerator(),
             config: config,
             fileSystem: fileSystem
         )
@@ -80,6 +82,8 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         workspaceStructureGenerator: WorkspaceStructureGenerating,
         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
+        foreignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerating =
+            ForeignBuildCrossProjectDependencyGenerator(),
         config: Config = .default,
         fileSystem: FileSysteming = FileSystem()
     ) {
@@ -87,6 +91,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.workspaceSettingsGenerator = workspaceSettingsGenerator
+        self.foreignBuildCrossProjectDependencyGenerator = foreignBuildCrossProjectDependencyGenerator
         self.fileSystem = fileSystem
         self.config = config
     }
@@ -112,6 +117,12 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             }
             .sorted(by: { $0.path < $1.path })
         Logger.current.debug("Finished concurrent generation of \(projects.count) projects")
+
+        Logger.current.debug("Wiring cross-project foreign build dependencies")
+        try foreignBuildCrossProjectDependencyGenerator.generate(
+            graphTraverser: graphTraverser,
+            projectDescriptors: projects
+        )
 
         Logger.current.debug("Creating generated projects dictionary")
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in

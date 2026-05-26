@@ -399,10 +399,18 @@ defmodule CacheWeb.RegistryController do
 
   defp swift_version_candidates(swift_version) do
     Enum.uniq([
-      String.replace_trailing(swift_version, ".0.0", ""),
-      String.replace_trailing(swift_version, ".0", ""),
-      swift_version
+      swift_version,
+      strip_suffix_once(swift_version, ".0"),
+      strip_suffix_once(swift_version, ".0.0")
     ])
+  end
+
+  defp strip_suffix_once(string, suffix) do
+    if String.ends_with?(string, suffix) do
+      binary_part(string, 0, byte_size(string) - byte_size(suffix))
+    else
+      string
+    end
   end
 
   defp build_alternate_manifests_link(scope, name, version, manifests) do

@@ -235,9 +235,45 @@ url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/
 [tools.gradle."platforms.windows-x64"]
 url = "https://github.com/gradle/gradle-distributions/releases/download/v8.12.1/gradle-8.12.1-bin.zip"
 
+[[tools.helm]]
+version = "4.2.0"
+backend = "aqua:helm/helm"
+
+[tools.helm."platforms.linux-arm64"]
+checksum = "sha256:1f8de130dfbd04de64978e7b852a7a547be1404956a366608276d2520b678670"
+url = "https://get.helm.sh/helm-v4.2.0-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-arm64-musl"]
+checksum = "sha256:1f8de130dfbd04de64978e7b852a7a547be1404956a366608276d2520b678670"
+url = "https://get.helm.sh/helm-v4.2.0-linux-arm64.tar.gz"
+
+[tools.helm."platforms.linux-x64"]
+checksum = "sha256:97dbeb971be4ac4b27e3839976d9564c0fb35c6f3b1da89dd1e292d236af4096"
+url = "https://get.helm.sh/helm-v4.2.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.linux-x64-musl"]
+checksum = "sha256:97dbeb971be4ac4b27e3839976d9564c0fb35c6f3b1da89dd1e292d236af4096"
+url = "https://get.helm.sh/helm-v4.2.0-linux-amd64.tar.gz"
+
+[tools.helm."platforms.macos-arm64"]
+checksum = "sha256:f13f959015447b6bc309f9fd506509926543988a39035c088b52522ec95e2acb"
+url = "https://get.helm.sh/helm-v4.2.0-darwin-arm64.tar.gz"
+
+[tools.helm."platforms.macos-x64"]
+checksum = "sha256:1376ea697140e4db316736e760d5a47d12afc1524dce704476ef06fd7fdeddc6"
+url = "https://get.helm.sh/helm-v4.2.0-darwin-amd64.tar.gz"
+
+[tools.helm."platforms.windows-x64"]
+checksum = "sha256:34bf9659f8f04f3841a60131183b8e2acc44e260db4c93b889ff09718cacca6f"
+url = "https://get.helm.sh/helm-v4.2.0-windows-amd64.tar.gz"
+
 [[tools.java]]
 version = "21.0.2"
 backend = "core:java"
+
+[tools.java."platforms.linux-arm64"]
+checksum = "sha256:08db1392a48d4eb5ea5315cf8f18b89dbaf36cda663ba882cf03c704c9257ec2"
+url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-aarch64_bin.tar.gz"
 
 [tools.java."platforms.linux-x64"]
 checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f"
@@ -246,6 +282,14 @@ url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c55847602
 [tools.java."platforms.macos-arm64"]
 checksum = "sha256:b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4"
 url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-aarch64_bin.tar.gz"
+
+[tools.java."platforms.macos-x64"]
+checksum = "sha256:8fd09e15dc406387a0aba70bf5d99692874e999bf9cd9208b452b5d76ac922d3"
+url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-x64_bin.tar.gz"
+
+[tools.java."platforms.windows-x64"]
+checksum = "sha256:b6c17e747ae78cdd6de4d7532b3164b277daee97c007d3eaa2b39cca99882664"
+url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_windows-x64_bin.zip"
 
 [[tools.jq]]
 version = "1.8.1"
@@ -278,6 +322,38 @@ url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
 [tools.jq."platforms.windows-x64"]
 checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+
+[[tools.kubectl]]
+version = "1.36.1"
+backend = "aqua:kubernetes/kubernetes/kubectl"
+
+[tools.kubectl."platforms.linux-arm64"]
+checksum = "sha256:59f7ee8e477fae658447607dc3c8790ac17a1b016c01c622c12070e969e2d4e7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/arm64/kubectl"
+
+[tools.kubectl."platforms.linux-arm64-musl"]
+checksum = "sha256:59f7ee8e477fae658447607dc3c8790ac17a1b016c01c622c12070e969e2d4e7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/arm64/kubectl"
+
+[tools.kubectl."platforms.linux-x64"]
+checksum = "sha256:629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/amd64/kubectl"
+
+[tools.kubectl."platforms.linux-x64-musl"]
+checksum = "sha256:629d3f410e09bf49b64ae7079f7f0bda1191efed311f7d37fdbab0ad5b0ec2b7"
+url = "https://dl.k8s.io/v1.36.1/bin/linux/amd64/kubectl"
+
+[tools.kubectl."platforms.macos-arm64"]
+checksum = "sha256:9092778abaef3079449da4cd70ded0e4be112480c93efcdeace3155968d1d133"
+url = "https://dl.k8s.io/v1.36.1/bin/darwin/arm64/kubectl"
+
+[tools.kubectl."platforms.macos-x64"]
+checksum = "sha256:b4973e90ebb00537d735b63d6f8293c1959156e6ff435f6a43c08aeaa1a2e7d7"
+url = "https://dl.k8s.io/v1.36.1/bin/darwin/amd64/kubectl"
+
+[tools.kubectl."platforms.windows-x64"]
+checksum = "sha256:538f4229eee91a17b34724da7daade7687393d6988e33b723c6c306572c13900"
+url = "https://dl.k8s.io/v1.36.1/bin/windows/amd64/kubectl.exe"
 
 [[tools."npm:opencode-ai"]]
 version = "1.14.39"
@@ -458,32 +534,32 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.193.3"
+version = "4.195.6"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:0040d95d3e67b8f9ea39a13b9e2be2ed4b572c885e1edc484f192a5644eb305d"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:2d682e151576682dac317615a68af71fb7a4e36b1e2b9d4482fdf29c2a38e67d"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:0040d95d3e67b8f9ea39a13b9e2be2ed4b572c885e1edc484f192a5644eb305d"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:2d682e151576682dac317615a68af71fb7a4e36b1e2b9d4482fdf29c2a38e67d"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:a56331611a792c829b24ad34e2c457d89592a7cf5fb4b4968bd7d8cedcc0dcc7"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:0551d475ebe7eed8ae3e83bca78d04989990ccb7f68889438a2ef3a6f2196b27"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:a56331611a792c829b24ad34e2c457d89592a7cf5fb4b4968bd7d8cedcc0dcc7"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:0551d475ebe7eed8ae3e83bca78d04989990ccb7f68889438a2ef3a6f2196b27"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:72a2614c961f0ce05ad6ffc669224447c325cc716e9fea44a527bd8d2cd10b94"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist.zip"
+checksum = "sha256:80fcee88c5db419215453abafef4fe89768e820f4c0feaf38a3221ceb241b043"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:72a2614c961f0ce05ad6ffc669224447c325cc716e9fea44a527bd8d2cd10b94"
-url = "https://github.com/tuist/tuist/releases/download/4.193.3/tuist.zip"
+checksum = "sha256:80fcee88c5db419215453abafef4fe89768e820f4c0feaf38a3221ceb241b043"
+url = "https://github.com/tuist/tuist/releases/download/4.195.6/tuist.zip"
 
 [[tools.yq]]
 version = "4.52.5"

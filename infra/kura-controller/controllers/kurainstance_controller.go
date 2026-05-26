@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -29,11 +30,11 @@ import (
 const (
 	KuraInstanceFinalizer = "kurainstances.kura.tuist.dev/finalizer"
 
-	httpPort          int32 = 4000
-	httpsPort         int32 = 443
-	httpsTargetPort   int32 = 4443
-	grpcPort          int32 = 50051
-	peerPort          int32 = 7443
+	httpPort        int32 = 4000
+	httpsPort       int32 = 443
+	httpsTargetPort int32 = 4443
+	grpcPort        int32 = 50051
+	peerPort        int32 = 7443
 
 	// drainCompletionTimeoutMs and preStopDelaySeconds together set how
 	// long a Kura pod is given to bleed connections off before SIGTERM.
@@ -44,7 +45,8 @@ const (
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
 
-	sharedSecretsName = "kura-shared-secrets"
+	sharedSecretsName        = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 
 	grpcTLSVolumeName = "grpc-tls"
 	grpcTLSMountPath  = "/etc/kura/grpc-tls"
@@ -68,7 +70,10 @@ type KuraInstanceReconciler struct {
 	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
-	GRPCClusterIssuer string
+	GRPCClusterIssuer  string
+	OTLPTracesEndpoint string
+
+	CloudflareLoadBalancing CloudflareLoadBalancingConfig
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -112,6 +117,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		if r.CloudflareLoadBalancing.Enabled() {
+			if err := newCloudflareClient(r.CloudflareLoadBalancing).deleteKuraLoadBalancers(ctx, instance); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -153,6 +163,21 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	statusGlobalPublicURL := ""
+	statusGlobalGRPCPublicURL := ""
+	globalStatusWarnings := []string{}
+	if r.CloudflareLoadBalancing.Enabled() && r.CloudflareLoadBalancing.ReconcileGlobalEndpoints {
+		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
+			if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
+				return ctrl.Result{}, err
+			}
+			logger.Error(err, "global endpoint reconciliation degraded; continuing with workload status update")
+			globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
+		} else {
+			statusGlobalPublicURL = globalPublicURL(instance)
+			statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
+		}
+	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
@@ -162,9 +187,11 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
 	instance.Status.GRPCPublicURL = grpcPublicURL(instance)
+	instance.Status.GlobalPublicURL = statusGlobalPublicURL
+	instance.Status.GlobalGRPCPublicURL = statusGlobalGRPCPublicURL
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
-	instance.Status.Message = rollout.message
+	instance.Status.Message = joinStatusMessage(rollout.message, globalStatusWarnings...)
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -173,6 +200,19 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	logger.Info("reconciled Kura instance", "phase", rollout.phase, "readyReplicas", rollout.readyReplicas)
 	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+}
+
+func joinStatusMessage(primary string, extras ...string) string {
+	parts := make([]string, 0, 1+len(extras))
+	if primary != "" {
+		parts = append(parts, primary)
+	}
+	for _, extra := range extras {
+		if extra != "" {
+			parts = append(parts, extra)
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -273,9 +313,12 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 // reconcilePublicCertificate provisions a cert-manager Certificate so
 // the runtime can terminate TLS for the public HTTPS LoadBalancer. The
 // LB is configured as TCP-passthrough; TLS termination happens in the
-// Kura pod from a cert-manager-issued Secret. No-ops when either
-// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
-// installed in the cluster before --grpc-cluster-issuer is set.
+// Kura pod from a cert-manager-issued Secret. When DNS-only global
+// steering is enabled, the global hostname is added as a SAN because
+// clients connect directly to this regional origin with the global SNI.
+// No-ops when either GRPCClusterIssuer or spec.publicHost is unset.
+// cert-manager must be installed in the cluster before
+// --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
@@ -296,7 +339,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.PublicHost},
+			"dnsNames":   dnsNames(instance.Spec.PublicHost, instance.Spec.GlobalPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -313,7 +356,8 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 }
 
 // reconcileGRPCCertificate provisions a cert-manager Certificate so the
-// runtime can terminate TLS for the gRPC LoadBalancer. No-ops when
+// runtime can terminate TLS for the gRPC LoadBalancer. The global gRPC
+// hostname is added as a SAN for DNS-only global steering. No-ops when
 // either GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager
 // must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -336,7 +380,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.GRPCPublicHost},
+			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost, instance.Spec.GlobalGRPCPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -350,6 +394,19 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		return unstructured.SetNestedField(cert.Object, spec, "spec")
 	})
 	return err
+}
+
+func dnsNames(names ...string) []any {
+	seen := map[string]bool{}
+	result := make([]any, 0, len(names))
+	for _, name := range names {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	return result
 }
 
 func (r *KuraInstanceReconciler) deleteLegacyIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -392,7 +449,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance)
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint)
 		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
 		// Drop the PVC when the StatefulSet itself is deleted (server
 		// destroy), but keep it around when scaling down so a replica
@@ -465,9 +522,12 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance)},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      labels(instance),
+			Annotations: podAnnotations(),
+		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
@@ -476,18 +536,30 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 				Name:            "kura",
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
-				Ports: containerPorts(instance),
-				Env:            append(baseEnv(instance), instance.Spec.ExtraEnv...),
-				EnvFrom:        sharedSecretsEnvFrom(),
-				Resources:      defaultResources(),
-				VolumeMounts:   volumeMounts(instance),
-				Lifecycle:      preStopLifecycle(),
-				ReadinessProbe: httpProbe("/ready", 5, 10),
-				LivenessProbe:  httpProbe("/up", 20, 20),
-				StartupProbe:   httpProbe("/up", 0, 10),
+				Ports:           containerPorts(instance),
+				Env:             append(baseEnv(instance, otlpTracesEndpoint), instance.Spec.ExtraEnv...),
+				EnvFrom:         sharedSecretsEnvFrom(),
+				Resources:       defaultResources(),
+				VolumeMounts:    volumeMounts(instance),
+				Lifecycle:       preStopLifecycle(),
+				ReadinessProbe:  httpProbe("/ready", 5, 10),
+				LivenessProbe:   httpProbe("/up", 20, 20),
+				StartupProbe:    httpProbe("/up", 0, 10),
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+}
+
+// podAnnotations exposes Kura's Prometheus metrics to the managed
+// clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
+// with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
+// publish the same telemetry surface as chart-managed ones.
+func podAnnotations() map[string]string {
+	return map[string]string{
+		"prometheus.io/scrape":    "true",
+		"prometheus.io/port-name": "http",
+		"prometheus.io/path":      "/metrics",
 	}
 }
 
@@ -540,25 +612,21 @@ func defaultResources() corev1.ResourceRequirements {
 // publicServiceAnnotations returns the Hetzner Cloud LoadBalancer
 // annotations for the public Service. The LB runs in tcp-passthrough
 // mode and TLS is terminated inside the Kura pod from a cert-manager-
-// issued Secret. Health checks talk plain HTTP to the pod's HTTP port
-// because cluster DNS for kura.tuist.dev sits on Cloudflare and the
-// previous Hetzner-managed-certificate flow could not validate against
-// a zone Hetzner does not own.
+// issued Secret. Health checks use TCP against the Service NodePort
+// because Hetzner targets nodes, not pods; HTTP health checks would
+// speak cleartext to the TLS passthrough port.
 func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.PublicHost == "" {
 		return nil
 	}
 
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":          instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/name":                   instance.Name,
-		"load-balancer.hetzner.cloud/protocol":               "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":         "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":          "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol":  "http",
-		"load-balancer.hetzner.cloud/health-check-port":      strconv.Itoa(int(httpPort)),
-		"load-balancer.hetzner.cloud/health-check-http-path": "/ready",
-		"load-balancer.hetzner.cloud/http-status-codes":      "200",
+		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PublicHost,
+		"load-balancer.hetzner.cloud/name":                  instance.Name,
+		"load-balancer.hetzner.cloud/protocol":              "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
 }
 
@@ -568,15 +636,12 @@ func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]stri
 	}
 
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":            instance.Spec.GRPCPublicHost,
-		"load-balancer.hetzner.cloud/name":                     grpcServiceName(instance),
-		"load-balancer.hetzner.cloud/protocol":                 "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":           "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":            "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol":    "http",
-		"load-balancer.hetzner.cloud/health-check-port":        strconv.Itoa(int(httpPort)),
-		"load-balancer.hetzner.cloud/health-check-http-path":   "/ready",
-		"load-balancer.hetzner.cloud/http-status-codes":        "200",
+		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.GRPCPublicHost,
+		"load-balancer.hetzner.cloud/name":                  grpcServiceName(instance),
+		"load-balancer.hetzner.cloud/protocol":              "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
 	}
 }
 
@@ -604,15 +669,24 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			},
 			{
-				// LoadBalancer / Hetzner LB health probes and the
-				// Tuist server's pod-list calls. Limit to in-cluster
-				// peers without further restriction; the JWT layer in
-				// the runtime is the auth boundary.
+				// Tuist server pod-list calls and internal health
+				// checks. Limit plain HTTP and plaintext gRPC to
+				// in-cluster peers; the JWT layer in the runtime is
+				// the auth boundary.
 				From: []networkingv1.NetworkPolicyPeer{
 					{NamespaceSelector: &metav1.LabelSelector{}},
 				},
 				Ports: []networkingv1.NetworkPolicyPort{
 					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
+					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			},
+			{
+				// Public LoadBalancer traffic. With externalTrafficPolicy=Local
+				// the original client/LB source IP is preserved, so these ports
+				// need an explicit all-sources rule.
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("https")), Protocol: ptr(corev1.ProtocolTCP)},
 					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
@@ -653,7 +727,7 @@ func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.Top
 // are derived from the pod's cgroup and rlimit at runtime startup, so
 // the controller deliberately doesn't override them. See
 // kura/src/config.rs::DerivedRuntimeDefaults.
-func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
+func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -669,6 +743,9 @@ func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
 		{Name: "KURA_OTEL_DEPLOYMENT_ENVIRONMENT", Value: "production"},
+	}
+	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
+		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
 	}
 	if instance.Spec.ExtensionScript != "" {
 		env = append(env,
@@ -690,6 +767,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
 		)
 	}
 	return env
+}
+
+func hasEnvVar(env []corev1.EnvVar, name string) bool {
+	for _, envVar := range env {
+		if envVar.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // containerPorts always exposes the plain HTTP, gRPC, and peer ports;
@@ -819,6 +905,20 @@ func grpcPublicURL(instance *kurav1alpha1.KuraInstance) string {
 		return ""
 	}
 	return "grpcs://" + instance.Spec.GRPCPublicHost
+}
+
+func globalPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalPublicHost == "" {
+		return ""
+	}
+	return "https://" + instance.Spec.GlobalPublicHost
+}
+
+func globalGRPCPublicURL(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.GlobalGRPCPublicHost == "" {
+		return ""
+	}
+	return "grpcs://" + instance.Spec.GlobalGRPCPublicHost
 }
 
 func labels(instance *kurav1alpha1.KuraInstance) map[string]string {

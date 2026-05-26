@@ -26,13 +26,21 @@ env:
 
 jobs:
   test:
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/cluster-api-provider-scaleway-applesilicon/go.mod
           cache-dependency-path: infra/cluster-api-provider-scaleway-applesilicon/go.sum
+      - name: Check formatting (provider)
+        working-directory: infra/cluster-api-provider-scaleway-applesilicon
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
       - name: Test (provider)
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: go test ./...
@@ -41,13 +49,21 @@ jobs:
         run: go vet ./...
 
   test-macos-host-bootstrap:
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/macos-host-bootstrap/go.mod
           cache-dependency-path: infra/macos-host-bootstrap/go.sum
+      - name: Check formatting (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
       - name: Test (macos-host-bootstrap)
         working-directory: infra/macos-host-bootstrap
         run: go test ./...
@@ -56,13 +72,21 @@ jobs:
         run: go vet ./...
 
   test-tart-kubelet:
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: infra/tart-kubelet/go.mod
           cache-dependency-path: infra/tart-kubelet/go.sum
+      - name: Check formatting (tart-kubelet)
+        working-directory: infra/tart-kubelet
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
       - name: Test (tart-kubelet)
         working-directory: infra/tart-kubelet
         run: go test ./...
@@ -73,6 +97,8 @@ jobs:
   build:
     needs: [test, test-macos-host-bootstrap, test-tart-kubelet]
     if: github.event_name != 'pull_request'
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default
     steps:
       - uses: actions/checkout@v4

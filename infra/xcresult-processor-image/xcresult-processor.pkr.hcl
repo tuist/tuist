@@ -60,7 +60,15 @@ source "tart-cli" "xcresult_processor" {
   memory_gb    = var.memory_gb
   ssh_username = "admin"
   ssh_password = "admin"
-  ssh_timeout  = "120s"
+  # First boot of a freshly-cloned Tart base image runs macOS first-time
+  # setup (kextcache rebuild, Spotlight indexing, APFS expansion,
+  # AssetCacheLocator, first-run launchd jobs) which can take 10+ min
+  # to reach an SSH-ready state. Cached re-clones (the state of long-
+  # lived builder hosts) skip that work and answer in ~30s, which is why
+  # tight values held for years on the original Mac mini but timed out
+  # on newly-onboarded hosts. 15m gives headroom for the cold path on a
+  # cirruslabs Tahoe base; the warm path returns long before then.
+  ssh_timeout  = "15m"
   headless     = true
 }
 

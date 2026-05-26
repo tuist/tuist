@@ -14,7 +14,17 @@ serviceAccount:
   annotations: {}
   name: ""
 
-podAnnotations: {}
+# Exposes Kura's Prometheus /metrics endpoint to annotation-based
+# scrapers. The managed clusters' k8s-monitoring release discovers
+# targets via these prometheus.io/* keys (annotationAutodiscovery), and
+# the embedded Prometheus self-hosters opt into reads the same keys.
+# port-name pins discovery to the single `http` container port (the pod
+# also declares grpc and peer) so /metrics is scraped once per pod.
+# Inert when no scraper is present.
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port-name: "http"
+  prometheus.io/path: "/metrics"
 podLabels: {}
 
 podSecurityContext: {}
@@ -105,6 +115,15 @@ config:
     deploymentEnvironment: production
   discovery:
     enabled: true
+  # The Kura image vendors a DB-IP Lite City MMDB at
+  # `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution
+  # (country + ISO 3166-2 subdivision) is on whenever that file is
+  # present (Kura soft-fails if it isn't). `refreshIntervalSecs`
+  # controls how often the pod re-downloads the monthly dump in the
+  # background. Set to 0 to pin to the vendored copy for the pod
+  # lifetime.
+  geoip:
+    refreshIntervalSecs: 86400
 
 # Use extraEnv or extraEnvFrom to inject optional secrets such as KURA_SENTRY_DSN.
 extraEnv: []

@@ -33,12 +33,26 @@ func main() {
 	var enableLeaderElection bool
 	var watchNamespace string
 	var grpcClusterIssuer string
+	var otlpTracesEndpoint string
+	var cloudflareZoneName string
+	var cloudflareAccountID string
+	var cloudflareZoneID string
+	var cloudflareAPIToken string
+	var reconcileGlobalEndpoints bool
+	var requireGlobalEndpoints bool
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Single-leader election")
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
+	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
+	flag.StringVar(&cloudflareZoneName, "cloudflare-zone-name", "", "Cloudflare zone name for Kura global DNS steering")
+	flag.StringVar(&cloudflareAccountID, "cloudflare-account-id", "", "Cloudflare account ID for Kura global DNS steering")
+	flag.StringVar(&cloudflareZoneID, "cloudflare-zone-id", "", "Cloudflare zone ID for Kura global DNS steering")
+	flag.StringVar(&cloudflareAPIToken, "cloudflare-api-token", "", "Cloudflare API token for Kura global DNS steering")
+	flag.BoolVar(&reconcileGlobalEndpoints, "reconcile-global-endpoints", true, "Reconcile Cloudflare global endpoints for Kura instances")
+	flag.BoolVar(&requireGlobalEndpoints, "require-global-endpoints", true, "Require global Cloudflare endpoints to reconcile before marking a Kura instance ready")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -66,9 +80,18 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		GRPCClusterIssuer: grpcClusterIssuer,
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		GRPCClusterIssuer:  grpcClusterIssuer,
+		OTLPTracesEndpoint: otlpTracesEndpoint,
+		CloudflareLoadBalancing: controllers.CloudflareLoadBalancingConfig{
+			ZoneName:                 cloudflareZoneName,
+			AccountID:                cloudflareAccountID,
+			ZoneID:                   cloudflareZoneID,
+			APIToken:                 cloudflareAPIToken,
+			ReconcileGlobalEndpoints: reconcileGlobalEndpoints,
+			RequireGlobalEndpoints:   requireGlobalEndpoints,
+		},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)

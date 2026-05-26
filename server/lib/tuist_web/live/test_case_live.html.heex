@@ -289,9 +289,12 @@
                 {format_event_subtitle(event)}
               </span>
             </div>
-            <div data-part="overview-history-time">
-              {Timex.from_now(event.inserted_at)}
-            </div>
+            <.relative_time_with_tooltip
+              id={"overview-history-event-#{event.id}-time-tooltip"}
+              part="overview-history-time"
+              time={event.inserted_at}
+              timezone={@user_timezone}
+            />
           </div>
         </div>
         <div :if={@overview_history_has_more} data-part="overview-history-footer">
@@ -636,9 +639,12 @@
               {format_event_subtitle(event)}
             </span>
           </div>
-          <span data-part="timeline-time">
-            {Timex.from_now(event.inserted_at)}
-          </span>
+          <.relative_time_with_tooltip
+            id={"test-history-event-#{event.id}-time-tooltip"}
+            part="timeline-time"
+            time={event.inserted_at}
+            timezone={@user_timezone}
+          />
         </div>
 
         <div

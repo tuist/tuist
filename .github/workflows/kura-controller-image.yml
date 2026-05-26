@@ -21,8 +21,25 @@ env:
   IMAGE_NAME: tuist/kura-controller
 
 jobs:
+  format:
+    runs-on: tuist-production-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-controller/go.mod
+          cache-dependency-path: infra/kura-controller/go.sum
+      - name: Check formatting
+        working-directory: infra/kura-controller
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
   test:
-    runs-on: namespace-profile-default
+    runs-on: tuist-production-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -39,6 +56,8 @@ jobs:
   build:
     needs: test
     if: github.event_name != 'pull_request'
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default
     steps:
       - uses: actions/checkout@v4

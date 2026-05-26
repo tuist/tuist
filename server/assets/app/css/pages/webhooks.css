@@ -1,0 +1,201 @@
+#account-webhooks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="endpoints-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+      & > [data-part="title-group"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
+    & > #webhook-endpoints-table {
+      box-sizing: border-box;
+      margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
+      width: calc(100% - 2 * var(--noora-spacing-8));
+    }
+  }
+
+  /* Render the masked signing secret in monospace so the bullet glyphs
+     share a baseline with the `tuist_webhook_` prefix and the trailing
+     tail — Noora's text_cell hardcodes `data-part="cell"` and ignores
+     the passed-through one, so we target the column via :nth-child. */
+  & #webhook-endpoints-table td:nth-child(3) [data-part="label"] {
+    font-family: "Geist Mono", monospace;
+  }
+
+  & #webhook-endpoints-table {
+    & table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    & th:first-child {
+      width: 20%;
+    }
+
+    & th:nth-child(2) {
+      width: 30%;
+    }
+
+    & th:nth-child(3) {
+      width: 28%;
+    }
+
+    & th:nth-child(4) {
+      width: 16%;
+    }
+
+    & th:last-child {
+      width: 6%;
+    }
+
+    & td:last-child > [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+      width: 100%;
+    }
+  }
+
+  & [data-part="event-types-cell"] {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+  }
+
+  @media (max-width: 768px) {
+    & [data-part="webhooks-card"] {
+      & [data-part="section"] {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="label"] {
+          padding-right: 0;
+          width: 100%;
+        }
+
+        & > [data-part="field"] {
+          justify-content: flex-start;
+        }
+      }
+    }
+  }
+}
+
+/* Create endpoint modal — lives on this page. The shell renders either
+   the form or the secret-disclosure step after a successful create. */
+#webhook-endpoint-modal {
+  & > [data-part="positioner"] > [data-part="content"] {
+    width: min(560px, 90vw);
+    max-width: 560px;
+  }
+
+  & [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & [data-part="modal-message"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  & [data-part="read-only-value"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+    min-width: 0;
+
+    & > code {
+      flex-grow: 1;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
+    }
+  }
+}

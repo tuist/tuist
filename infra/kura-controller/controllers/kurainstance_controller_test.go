@@ -38,6 +38,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GlobalPublicHost: "tuist.kura.tuist.dev",
 			StorageClassName: "hcloud-volumes",
 			ExtensionScript:  "return true",
 		},
@@ -45,9 +46,10 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 
 	reconciler := &KuraInstanceReconciler{
-		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
-		Scheme:            scheme,
-		GRPCClusterIssuer: "letsencrypt-prod",
+		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
+		Scheme:             scheme,
+		GRPCClusterIssuer:  "letsencrypt-prod",
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
@@ -79,8 +81,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if _, ok := service.Annotations["load-balancer.hetzner.cloud/certificate-type"]; ok {
 		t.Fatal("expected managed-cert annotations to be dropped now that cert-manager issues the public cert")
 	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; got != "4000" {
-		t.Fatalf("expected health check to target the plain HTTP port, got %q", got)
+	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
+		t.Fatalf("expected health check to use TCP against the passthrough NodePort, got %q", got)
+	}
+	if _, ok := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; ok {
+		t.Fatal("expected health check port annotation to be omitted so Hetzner probes the Service NodePort")
 	}
 
 	publicCert := &unstructured.Unstructured{}
@@ -91,8 +96,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got, _, _ := unstructured.NestedString(publicCert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
 		t.Fatalf("expected public Certificate ClusterIssuer ref, got %q", got)
 	}
-	if got, _, _ := unstructured.NestedStringSlice(publicCert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected public Certificate dnsNames to include the public host, got %v", got)
+	if got, _, _ := unstructured.NestedStringSlice(publicCert.Object, "spec", "dnsNames"); len(got) != 2 || got[0] != "tuist-eu-1.kura.tuist.dev" || got[1] != "tuist.kura.tuist.dev" {
+		t.Fatalf("expected public Certificate dnsNames to include the regional and global public hosts, got %v", got)
 	}
 
 	ingress := &networkingv1.Ingress{}
@@ -139,6 +144,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := env["KURA_HTTPS_PORT"]; got == "" {
 		t.Fatal("expected KURA_HTTPS_PORT to be set when publicHost is set")
+	}
+	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
+		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
 	publicMountFound := false
 	for _, mount := range container.VolumeMounts {
@@ -192,6 +200,15 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if _, ok := sts.Spec.Template.Annotations["kubernetes.io/ingress-bandwidth"]; ok {
 		t.Fatal("expected no default ingress bandwidth annotation")
+	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/scrape"]; got != "true" {
+		t.Fatalf("expected Prometheus scrape annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/port-name"]; got != "http" {
+		t.Fatalf("expected Prometheus port-name annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations["prometheus.io/path"]; got != "/metrics" {
+		t.Fatalf("expected Prometheus path annotation, got %q", got)
 	}
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
@@ -248,6 +265,22 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := policy.Spec.PodSelector.MatchLabels["app.kubernetes.io/instance"]; got != instance.Name {
 		t.Fatalf("expected NetworkPolicy to select this instance's pods, got %q", got)
 	}
+	if len(policy.Spec.Ingress) != 3 {
+		t.Fatalf("expected NetworkPolicy to have 3 ingress rules, got %d", len(policy.Spec.Ingress))
+	}
+	publicPorts := policy.Spec.Ingress[2].Ports
+	if len(policy.Spec.Ingress[2].From) != 0 {
+		t.Fatalf("expected public NetworkPolicy rule to allow all sources, got %v", policy.Spec.Ingress[2].From)
+	}
+	if len(publicPorts) != 2 {
+		t.Fatalf("expected public NetworkPolicy rule to expose HTTPS and gRPC, got %d ports", len(publicPorts))
+	}
+	if got := publicPorts[0].Port.StrVal; got != "https" {
+		t.Fatalf("expected public NetworkPolicy rule to expose https, got %q", got)
+	}
+	if got := publicPorts[1].Port.StrVal; got != "grpc" {
+		t.Fatalf("expected public NetworkPolicy rule to expose grpc, got %q", got)
+	}
 }
 
 func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
@@ -263,13 +296,14 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
 		Spec: kurav1alpha1.KuraInstanceSpec{
-			AccountHandle:    "tuist",
-			TenantID:         "tuist",
-			Region:           "eu",
-			Image:            "ghcr.io/tuist/kura:0.5.2",
-			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
-			StorageClassName: "hcloud-volumes",
+			AccountHandle:        "tuist",
+			TenantID:             "tuist",
+			Region:               "eu",
+			Image:                "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:           "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:       "grpc.tuist-eu-1.kura.tuist.dev",
+			GlobalGRPCPublicHost: "grpc.tuist.kura.tuist.dev",
+			StorageClassName:     "hcloud-volumes",
 		},
 	}
 
@@ -293,6 +327,9 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if grpcService.Annotations["load-balancer.hetzner.cloud/protocol"] != "tcp" {
 		t.Fatalf("expected Hetzner LB tcp passthrough for gRPC, got %q", grpcService.Annotations["load-balancer.hetzner.cloud/protocol"])
 	}
+	if got := grpcService.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
+		t.Fatalf("expected gRPC health check to use TCP against the passthrough NodePort, got %q", got)
+	}
 	if grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"] != "grpc.tuist-eu-1.kura.tuist.dev" {
 		t.Fatalf("expected gRPC external-dns hostname, got %q", grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"])
 	}
@@ -310,6 +347,9 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
 		t.Fatalf("expected ClusterIssuer ref, got %q", got)
+	}
+	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 2 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" || got[1] != "grpc.tuist.kura.tuist.dev" {
+		t.Fatalf("expected gRPC Certificate dnsNames to include the regional and global hosts, got %v", got)
 	}
 
 	sts := &appsv1.StatefulSet{}
@@ -341,6 +381,61 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 	if got := updated.Status.GRPCPublicURL; got != "grpcs://grpc.tuist-eu-1.kura.tuist.dev" {
 		t.Fatalf("expected gRPC public URL in status, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-us-east-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "us-east",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+			ExtraEnv: []corev1.EnvVar{{
+				Name:  otlpTracesEndpointEnvVar,
+				Value: "http://custom-collector.observability.svc.cluster.local:4318/v1/traces",
+			}},
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:             scheme,
+		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+
+	container := sts.Spec.Template.Spec.Containers[0]
+	otlpEnvCount := 0
+	for _, envVar := range container.Env {
+		if envVar.Name != otlpTracesEndpointEnvVar {
+			continue
+		}
+		otlpEnvCount++
+		if envVar.Value != "http://custom-collector.observability.svc.cluster.local:4318/v1/traces" {
+			t.Fatalf("expected explicit OTLP traces endpoint to be preserved, got %q", envVar.Value)
+		}
+	}
+	if otlpEnvCount != 1 {
+		t.Fatalf("expected exactly one %s env var, got %d", otlpTracesEndpointEnvVar, otlpEnvCount)
 	}
 }
 
@@ -396,7 +491,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance)
+	stsTemplate := podTemplate(instance, "")
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}

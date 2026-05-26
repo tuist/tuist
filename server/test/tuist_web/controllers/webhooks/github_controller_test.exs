@@ -3,6 +3,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   use Mimic
 
   alias Tuist.Automations
+  alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -567,7 +568,7 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       conn
       |> put_req_header("x-hub-signature-256", sign(raw_body, secret))
       |> Plug.Conn.assign(:raw_body, raw_body)
-      |> Map.put(:body_params, Jason.decode!(raw_body))
+      |> Map.put(:body_params, JSON.decode!(raw_body))
     end
 
     test "returns the per-installation secret of the row whose webhook_secret HMACs the body",
@@ -721,6 +722,125 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       conn = %{conn | body_params: %{"installation" => %{"id" => "gh-com-12345"}}}
 
       assert GitHubController.resolve_webhook_secret(conn) == "github-com-env-secret"
+    end
+  end
+
+  describe "handle/2 workflow_job" do
+    test "200s immediately and enqueues a DispatchWorker job with the payload + GUID", %{conn: conn} do
+      installation_id = System.unique_integer([:positive])
+      delivery_guid = "deadbeef-0000-1111-2222-333344445555"
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", delivery_guid)
+
+      params = %{
+        "action" => "queued",
+        "installation" => %{"id" => installation_id},
+        "workflow_job" => %{"id" => 76_773_615_870, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+
+      assert_enqueued(
+        worker: DispatchWorker,
+        args: %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        }
+      )
+    end
+
+    test "200s without enqueueing when the payload has no installation.id", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-no-installation")
+
+      params = %{
+        "action" => "queued",
+        "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+      refute_enqueued(worker: DispatchWorker)
+    end
+
+    test "200s without enqueueing for action=in_progress (worker would treat it as ignored)",
+         %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-in-progress")
+
+      params = %{
+        "action" => "in_progress",
+        "installation" => %{"id" => System.unique_integer([:positive])},
+        "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+      refute_enqueued(worker: DispatchWorker)
+    end
+
+    test "200s without enqueueing for unknown actions", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-unknown-action")
+
+      params = %{
+        "action" => "waiting",
+        "installation" => %{"id" => System.unique_integer([:positive])},
+        "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+      refute_enqueued(worker: DispatchWorker)
+    end
+
+    test "enqueues for action=completed", %{conn: conn} do
+      installation_id = System.unique_integer([:positive])
+      delivery_guid = "deadbeef-completed"
+
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", delivery_guid)
+
+      params = %{
+        "action" => "completed",
+        "installation" => %{"id" => installation_id},
+        "workflow_job" => %{"id" => 2, "labels" => ["tuist-macos"]},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+
+      assert_enqueued(
+        worker: DispatchWorker,
+        args: %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        }
+      )
     end
   end
 end

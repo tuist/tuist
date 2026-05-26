@@ -120,6 +120,11 @@ defmodule Tuist do
       Alerts.Workers.AlertWorker,
       Automations,
       Automations.Alerts.Alert,
+      Webhooks,
+      Webhooks.Dispatcher,
+      Webhooks.Signature,
+      Webhooks.WebhookEndpoint,
+      Webhooks.Workers.DeliveryWorker,
       Slack,
       Slack.Client,
       Slack.Installation,
@@ -160,6 +165,23 @@ defmodule Tuist do
       OAuth2.SSRFGuard,
       SCIM,
       SCIM.Filter,
-      SCIM.Resource
+      SCIM.Resource,
+      # Customer-runner pool. The Tuist GitHub App fires
+      # `workflow_job: queued` events into the webhook controller,
+      # which delegates to Tuist.Runners.Dispatch; the
+      # runners-controller (separate Go process) owns Pod + SA
+      # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
+      # rows live in ClickHouse (`runner_jobs`).
+      Runners,
+      Runners.Dispatch,
+      Runners.Workers.DispatchWorker,
+      Runners.Workers.WebhookRedeliveryWorker,
+      Runners.Claims,
+      Runners.Claim,
+      Runners.Jobs,
+      Runners.Job,
+      Runners.PromExPlugin,
+      Runners.Telemetry,
+      Kubernetes.Client
     ]
 end

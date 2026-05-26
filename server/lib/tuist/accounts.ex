@@ -25,6 +25,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.Kura
   alias Tuist.Namespace
   alias Tuist.Repo
 
@@ -1500,7 +1501,7 @@ defmodule Tuist.Accounts do
   ## Examples
 
       iex> reset_user_password(user, %{password: "new long password", password_confirmation: "new long password"})
-      {:ok, %User{}}
+      {:ok, %{user: %User{}, revoked_session_live_socket_ids: []}}
 
       iex> reset_user_password(user, %{password: "valid", password_confirmation: "not the same"})
       {:error, %Ecto.Changeset{}}
@@ -1508,12 +1509,20 @@ defmodule Tuist.Accounts do
   """
   def reset_user_password(user, attrs) do
     Multi.new()
+    |> Multi.all(:session_tokens, UserToken.by_user_and_contexts_query(user, ["session"]))
     |> Multi.update(:user, User.password_changeset(user, attrs))
     |> Multi.delete_all(:tokens, UserToken.by_user_and_contexts_query(user, :all))
     |> Repo.transaction()
     |> case do
-      {:ok, %{user: user}} -> {:ok, user}
-      {:error, :user, changeset, _} -> {:error, changeset}
+      {:ok, %{user: user, session_tokens: session_tokens}} ->
+        {:ok,
+         %{
+           user: user,
+           revoked_session_live_socket_ids: Enum.map(session_tokens, &UserToken.live_socket_id/1)
+         }}
+
+      {:error, :user, changeset, _} ->
+        {:error, changeset}
     end
   end
 
@@ -1857,10 +1866,10 @@ defmodule Tuist.Accounts do
   end
 
   def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
-    account_handle
-    |> get_account_by_handle()
-    |> kura_cache_endpoints()
-    |> Enum.map(& &1.url)
+    case get_account_by_handle(account_handle) do
+      %Account{} = account -> kura_cache_endpoint_urls(account)
+      _ -> []
+    end
   end
 
   def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
@@ -1878,6 +1887,17 @@ defmodule Tuist.Accounts do
 
   defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
   defp kura_cache_endpoints(_), do: []
+
+  defp kura_cache_endpoint_urls(%Account{} = account) do
+    endpoints = kura_cache_endpoints(account)
+    global_candidate_url = Kura.global_cache_endpoint_candidate_url(account)
+
+    case {endpoints, Kura.global_cache_endpoint_url(account)} do
+      {[], _global_url} -> []
+      {_endpoints, global_url} when is_binary(global_url) -> [global_url]
+      {endpoints, _global_url} -> endpoints |> Enum.map(& &1.url) |> Enum.reject(&(&1 == global_candidate_url))
+    end
+  end
 
   @doc """
   Creates a custom cache endpoint for the given account.

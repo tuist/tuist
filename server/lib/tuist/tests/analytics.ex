@@ -403,11 +403,10 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
-  # For day/month buckets, reads `test_case_runs_active_daily_stats` — an
-  # AggregatingMergeTree MV that pre-computes `uniqExactState(test_case_id)`
-  # per (project_id, date, is_ci). Each call merges at most ~28 daily states
-  # (14 days × 2 is_ci) via `uniqExactMerge` instead of scanning
-  # `test_case_runs`.
+  # For day/month buckets, reads `test_case_runs_active_daily_stats` — a daily
+  # presence MV keyed by (project_id, date, is_ci, test_case_id). Each call
+  # groups exact test_case_id rows across the 14-day window instead of scanning
+  # `test_case_runs` or merging large exact aggregate states.
   #
   # For hour buckets (the `last-24-hours` preset), the daily MV is too coarse
   # — every hourly endpoint within the same UTC day would return the same
@@ -433,14 +432,19 @@ defmodule Tuist.Tests.Analytics do
     end_date = DateTime.to_date(endpoint)
     start_date = Date.add(end_date, -(window_days - 1))
 
-    from(s in TestCaseRunActiveDailyStat,
-      where: s.project_id == ^project_id,
-      where: s.date >= ^start_date,
-      where: s.date <= ^end_date,
-      select: fragment("uniqExactMerge(test_case_ids_state)")
-    )
-    |> apply_is_ci_filter(is_ci)
-    |> ClickHouseRepo.one() || 0
+    daily_presence_query =
+      apply_is_ci_filter(
+        from(s in TestCaseRunActiveDailyStat,
+          where: s.project_id == ^project_id,
+          where: s.date >= ^start_date,
+          where: s.date <= ^end_date,
+          group_by: s.test_case_id,
+          select: %{test_case_id: s.test_case_id}
+        ),
+        is_ci
+      )
+
+    ClickHouseRepo.one(from(s in subquery(daily_presence_query), select: count())) || 0
   end
 
   defp date_to_end_of_bucket(%Date{} = date, :day) do
@@ -791,14 +795,18 @@ defmodule Tuist.Tests.Analytics do
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
+    # The `test_case_runs_by_test_run` MV is ordered by
+    # `(test_run_id, ran_at, id)`, giving an O(log N) seek per test_run_id.
+    # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
+    # `count(DISTINCT id)` gets the right count without paying for FINAL.
     test_case_counts =
       ClickHouseRepo.all(
-        from(t in TestCaseRun,
+        from(t in TestCaseRunByTestRun,
           where: t.project_id == ^project_id and t.test_run_id in ^test_run_ids,
           group_by: t.test_run_id,
           select: %{
             test_run_id: t.test_run_id,
-            total_count: count(t.id)
+            total_count: fragment("count(DISTINCT ?)", t.id)
           }
         )
       )

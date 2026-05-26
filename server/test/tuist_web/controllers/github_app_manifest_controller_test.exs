@@ -34,6 +34,19 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
       assert body =~ "document.getElementById('manifest-form').submit()"
     end
 
+    test "renders an organization-owned manifest registration form when the state carries a GitHub owner", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url, "ios")
+
+      conn = get(conn, ~p"/integrations/github/manifest/start", %{"state" => state_token})
+
+      assert conn.status == 200
+      body = response(conn, 200)
+      assert body =~ "#{ghes_url}/organizations/ios/settings/apps/new"
+      refute body =~ "#{ghes_url}/ios/settings/apps/new"
+    end
+
     test "scopes the CSP so the inline submit and cross-origin form action are allowed", %{conn: conn} do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
       ghes_url = "https://github.example.com"
@@ -100,7 +113,28 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
 
       stub(SSRFGuard, :connect_options, fn "github.example.com" -> [hostname: "github.example.com"] end)
 
-      stub(Req, :post, fn _opts -> {:ok, %Req.Response{status: 201, body: app_payload}} end)
+      stub(Req, :post, fn opts ->
+        # GHES rejects POSTs without Content-Length with HTTP 411. Req only
+        # emits the header when an explicit body is passed, so guard the
+        # call shape here.
+        assert Keyword.fetch!(opts, :body) == ""
+
+        # Req refuses `:finch` alongside `:connect_options` because the
+        # named pool's connect options are frozen at boot. The manifest
+        # exchange must carry per-GHES TLS settings via `:connect_options`,
+        # so it has to use Req's default pool.
+        refute Keyword.has_key?(opts, :finch)
+        assert Keyword.fetch!(opts, :connect_options) == [hostname: "github.example.com"]
+
+        assert Keyword.fetch!(opts, :headers) == [
+                 {"Accept", "application/vnd.github+json"},
+                 {"Content-Type", "application/json"},
+                 {"User-Agent", "Tuist"},
+                 {"X-GitHub-Api-Version", "2022-11-28"}
+               ]
+
+        {:ok, %Req.Response{status: 201, body: app_payload}}
+      end)
 
       conn =
         get(conn, ~p"/integrations/github/manifest/callback", %{
@@ -124,6 +158,70 @@ defmodule TuistWeb.GitHubAppManifestControllerTest do
     test "rejects an invalid state token", %{conn: conn} do
       assert_raise BadRequestError, fn ->
         get(conn, ~p"/integrations/github/manifest/callback", %{"code" => "x", "state" => "garbage"})
+      end
+    end
+
+    test "surfaces a private-IP SSRF block as a self-host hint", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.internal.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      stub(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
+
+      assert_raise BadRequestError, ~r/non-public IP address.*self-host Tuist/si, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
+      end
+    end
+
+    test "surfaces a DNS failure with the offending URL", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.does-not-exist.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      stub(SSRFGuard, :pin, fn _url -> {:error, :dns_failure} end)
+
+      assert_raise BadRequestError, ~r/could not resolve #{Regex.escape(ghes_url)}/, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
+      end
+    end
+
+    test "surfaces a transport failure as an unreachable-instance hint", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      stub(SSRFGuard, :pin, fn _url -> {:ok, "https://198.51.100.10/path", "github.example.com"} end)
+      stub(SSRFGuard, :connect_options, fn _ -> [] end)
+      stub(Req, :post, fn _opts -> {:error, %Mint.TransportError{reason: :econnrefused}} end)
+
+      assert_raise BadRequestError, ~r/could not reach #{Regex.escape(ghes_url)}/, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
+      end
+    end
+
+    test "surfaces an HTTP 404 as a likely-expired-code hint", %{conn: conn} do
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      ghes_url = "https://github.example.com"
+      state_token = VCS.generate_github_state_token(account.id, ghes_url)
+
+      stub(SSRFGuard, :pin, fn _url -> {:ok, "https://198.51.100.10/path", "github.example.com"} end)
+      stub(SSRFGuard, :connect_options, fn _ -> [] end)
+      stub(Req, :post, fn _opts -> {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}} end)
+
+      assert_raise BadRequestError, ~r/returned 404.*valid for one hour/s, fn ->
+        get(conn, ~p"/integrations/github/manifest/callback", %{
+          "code" => "tmpcode",
+          "state" => state_token
+        })
       end
     end
 

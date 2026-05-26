@@ -64,6 +64,63 @@ tolerations:
 {{- end }}
 {{- end }}
 
+{{/*
+Mac mini fleet names. "Fleet" stays as the human-facing label
+for "a logical group of identical Mac minis" — CAPI doesn't ship
+a Fleet primitive, but the concept is real, and it ties together
+every resource that needs to share an identity:
+
+  - the MachineDeployment + MachineSet + Machines that own host
+    lifecycle
+  - the ScalewayAppleSiliconMachineTemplate the deployment clones
+    from
+  - the per-fleet SSH-key Secret (`<fleetName>-ssh`)
+  - the Node label `tuist.dev/fleet=<name>` and the Pod
+    nodeSelector that pins workloads to the right fleet
+
+Centralizing the name in this helper keeps macos-fleet.yaml,
+runners-fleet.yaml, and the workload Deployments pinned to the
+same value without copy-paste drift.
+
+Defaults pin the existing xcresult fleet to its release-name-
+derived value so a chart upgrade doesn't rename Mac minis (which
+would otherwise force the operator to re-order hosts under
+Scaleway's 24h-floor). Override `macosFleet.name` only on a
+green-field cluster.
+*/}}
+{{- define "tuist.macosFleetName" -}}
+{{- .Values.macosFleet.name | default (include "tuist.componentName" (dict "root" . "component" "macos-fleet")) -}}
+{{- end -}}
+
+{{- define "tuist.runnersFleetName" -}}
+{{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
+{{- end -}}
+
+{{- define "tuist.buildersFleetName" -}}
+{{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
+{{- end -}}
+
+{{/*
+Linux runner fleet name — the value of the
+`node.cluster.x-k8s.io/pool=` label CAPI's label-sync propagates from
+the runner MachineDeployment to each runner Node. The chart's Linux
+RunnerPool CRs render this as `spec.fleetSelector`; the
+runners-controller's podtemplate uses it as the Pod's nodeSelector
+on the `node.cluster.x-k8s.io/pool=` key.
+
+Cluster team-managed: the matching entry must exist in
+`infra/k8s/clusters/cluster-<env>.yaml` under
+`spec.topology.workers.machineDeployments[]` with
+`metadata.labels.node.cluster.x-k8s.io/pool: <this value>`.
+
+Defaults to `runners-linux` to match the convention in
+`cluster-staging.yaml`. Override via `runnersFleetLinux.name` only
+if the cluster topology uses a different pool name.
+*/}}
+{{- define "tuist.runnersFleetLinuxName" -}}
+{{- .Values.runnersFleetLinux.name | default "runners-linux" -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000

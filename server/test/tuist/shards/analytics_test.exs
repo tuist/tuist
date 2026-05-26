@@ -60,6 +60,46 @@ defmodule Tuist.Shards.AnalyticsTest do
     test "returns empty list for non-existent test_run_id" do
       assert Analytics.shard_metrics(Ecto.UUID.generate()) == []
     end
+
+    test "deduplicates rows with the same shard_index, taking the latest" do
+      # ShardRun is a MergeTree, so a shard can have multiple rows:
+      # the controller inserts one upfront with duration=0 (status=processing),
+      # then the xcresult worker inserts another with the parsed duration.
+      # The dashboard should render one row per shard with the latest data.
+      project = ProjectsFixtures.project_fixture()
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id)
+      test_run_id = Ecto.UUID.generate()
+
+      earlier = ~N[2026-05-15 10:00:00.000000]
+      later = ~N[2026-05-15 10:01:00.000000]
+
+      IngestRepo.insert_all(ShardRun, [
+        %{
+          shard_plan_id: plan.id,
+          project_id: project.id,
+          test_run_id: test_run_id,
+          shard_index: 0,
+          status: "success",
+          duration: 0,
+          ran_at: earlier,
+          inserted_at: earlier
+        },
+        %{
+          shard_plan_id: plan.id,
+          project_id: project.id,
+          test_run_id: test_run_id,
+          shard_index: 0,
+          status: "success",
+          duration: 12_345,
+          ran_at: later,
+          inserted_at: later
+        }
+      ])
+
+      assert [shard] = Analytics.shard_metrics(test_run_id)
+      assert shard.shard_index == 0
+      assert shard.actual_duration_ms == 12_345
+    end
   end
 
   describe "sharded_run_analytics/2" do

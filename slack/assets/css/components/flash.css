@@ -1,0 +1,15 @@
+#flash-group {
+  display: flex;
+  position: fixed;
+  top: var(--noora-spacing-5);
+  right: var(--noora-spacing-5);
+  flex-direction: column;
+  gap: var(--noora-spacing-3);
+  z-index: var(--noora-z-index-4);
+  max-width: min(28rem, calc(100vw - 2rem));
+  cursor: pointer;
+
+  & .noora-alert {
+    box-shadow: var(--noora-border-heavy);
+  }
+}

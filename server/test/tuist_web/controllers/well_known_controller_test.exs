@@ -186,17 +186,31 @@ defmodule TuistWeb.WellKnownControllerTest do
 
   describe "GET /.well-known/oauth-authorization-server" do
     test "returns OAuth authorization server metadata", %{conn: conn} do
-      stub(Environment, :app_url, fn -> "https://test.tuist.dev" end)
-
       conn = get(conn, "/.well-known/oauth-authorization-server")
 
       response = json_response(conn, 200)
 
-      assert response["issuer"] == "https://test.tuist.dev"
-      assert response["authorization_endpoint"] == "https://test.tuist.dev/oauth2/authorize"
-      assert response["token_endpoint"] == "https://test.tuist.dev/oauth2/token"
-      assert response["registration_endpoint"] == "https://test.tuist.dev/oauth2/register"
+      assert response["issuer"] == "http://www.example.com"
+      assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
+      assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
       assert response["scopes_supported"] == ["mcp"]
+    end
+
+    test "uses forwarded request origin for OAuth authorization server metadata", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("x-forwarded-proto", "https")
+        |> put_req_header("x-forwarded-host", "self-hosted.example.com")
+        |> put_req_header("x-forwarded-port", "443")
+        |> get("/.well-known/oauth-authorization-server")
+
+      response = json_response(conn, 200)
+
+      assert response["issuer"] == "https://self-hosted.example.com"
+      assert response["authorization_endpoint"] == "https://self-hosted.example.com/oauth2/authorize"
+      assert response["token_endpoint"] == "https://self-hosted.example.com/oauth2/token"
+      assert response["registration_endpoint"] == "https://self-hosted.example.com/oauth2/register"
     end
   end
 

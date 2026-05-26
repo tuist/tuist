@@ -1,6 +1,8 @@
 defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
@@ -48,8 +50,6 @@ defmodule TuistTestSupport.Fixtures.ProjectsFixtures do
     # Pass `with_default_alert: true` to opt in when you need the realistic
     # shape.
     if !Keyword.get(opts, :with_default_alert, false) do
-      import Ecto.Query
-
       Repo.delete_all(
         from a in Tuist.Automations.Alerts.Alert,
           where: a.project_id == ^project.id

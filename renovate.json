@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which release.yml's release-runner-image flow picks up to rebuild the image, push a new semver tag, resolve the digest, and rewrite the runnersFleet.runnerImage pin in managed-env values files.",
+      "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm). Bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild + push + rewrite the runnersFleetLinux pin.",
+      "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "actions/runner bumps: route through the runner-image release flow.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["actions/runner"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "GitHub Actions runner",
+      "automerge": true
+    },
+    {
+      "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm): route through the linux-runner-image release flow.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "matchPackageNames": ["actions/runner", "kubernetes/kubernetes", "helm/helm"],
+      "commitMessagePrefix": "fix(linux-runner-image):",
+      "automerge": true
+    }
+  ]
+}

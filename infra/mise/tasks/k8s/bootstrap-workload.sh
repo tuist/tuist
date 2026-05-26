@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, app). Idempotent."
+#MISE description="Bootstrap a freshly-provisioned workload cluster end-to-end (CNI, CCM, CSI, platform, monitoring, and app bits when needed). Idempotent."
 #USAGE arg "<cluster_name>" help="Cluster name (e.g. tuist-staging-2, tuist-canary, tuist, tuist-preview)"
 #USAGE arg "<env>" help="Helm values overlay (staging | canary | production | preview)"
 #USAGE arg "[kubeconfig_item]" help="Optional 1Password document title for the workload kubeconfig"
@@ -18,14 +18,17 @@
 #      enables LoadBalancer Services).
 #   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
 #   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
-#   7. Create the `onepassword` namespace + service-account-token
+#   7. Install the platform chart (cert-manager, ESO, external-dns,
+#      metrics-server, and ingress-nginx only for app-serving clusters).
+#   8. Install Cluster API core for the Mac mini fleet substrate.
+#   9. Create the `onepassword` namespace + service-account-token
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.
-#   8. Install the platform chart (cert-manager, ESO, ingress-nginx,
-#      external-dns).
-#   9. Install the monitoring chart (Grafana Cloud agent).
-#  10. Pre-create the app namespace.
-#  11. Install the Cloudflare origin cert TLS Secret.
-#  12. Smoke ingress + upload workload kubeconfig to 1Password.
+#  10. Install the monitoring chart (Grafana Cloud agent).
+#  11. App-serving clusters: pre-create the app namespace.
+#  12. App-serving clusters: install the Cloudflare origin cert TLS Secret.
+#  13. App-serving clusters: smoke ingress. Kura regional clusters
+#      instead verify the shared platform bits, then upload the workload
+#      kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
 # create | apply uses --dry-run + apply.
@@ -48,6 +51,11 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 BOOTSTRAP_DIR="$REPO_ROOT/infra/k8s/mgmt/bootstrap"
 MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
+IS_KURA_REGIONAL_CLUSTER=false
+
+if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
+  IS_KURA_REGIONAL_CLUSTER=true
+fi
 
 case "$ENV" in
   staging|canary|production|preview) ;;
@@ -67,8 +75,23 @@ esac
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 err() { printf '\n\033[1;31mERROR: %s\033[0m\n' "$*" >&2; }
 
+upload_workload_kubeconfig() {
+  local kubeconfig_vault="tuist-k8s-${ENV}"
+
+  if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" >/dev/null 2>&1; then
+    local existing_id
+    echo "Existing 1P item found; replacing the document"
+    existing_id=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$kubeconfig_vault" --format json | jq -r '.id')
+    op item delete "$existing_id" --account tuist.1password.com --vault "$kubeconfig_vault" --archive
+  fi
+
+  op document create "$WL_KUBECONFIG" \
+    --title "$KUBECONFIG_ITEM" \
+    --account tuist.1password.com --vault "$kubeconfig_vault"
+}
+
 # ---------------------------------------------------------------------------
-log "Step 1/12: extract workload kubeconfig + API endpoint from mgmt"
+log "Step 1/13: extract workload kubeconfig + API endpoint from mgmt"
 
 if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" >/dev/null 2>&1; then
   err "Cluster $NAMESPACE/$CLUSTER_NAME not found on mgmt cluster ($MGMT_KUBECONFIG). Apply the Cluster CR first."
@@ -119,7 +142,7 @@ echo "Region:       $REGION"
 echo "Machines:     $EXPECTED_MACHINE_COUNT (${CONTROL_PLANE_REPLICAS} control plane, ${WORKER_REPLICAS} workers)"
 
 # ---------------------------------------------------------------------------
-log "Step 2/12: install Cilium (CNI must be first)"
+log "Step 2/13: install Cilium (CNI must be first)"
 
 # Repo add is idempotent.
 helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
@@ -138,7 +161,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
 # only depend on the agent, not hubble-relay.
 
 # ---------------------------------------------------------------------------
-log "Step 3/12: create workload Hetzner Secrets"
+log "Step 3/13: create workload Hetzner Secrets"
 
 HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
 
@@ -173,7 +196,7 @@ fi
 unset HCLOUD_SECRET_TOKEN
 
 # ---------------------------------------------------------------------------
-log "Step 4/12: install hcloud-cloud-controller-manager"
+log "Step 4/13: install hcloud-cloud-controller-manager"
 
 helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
 helm repo update hcloud >/dev/null
@@ -185,7 +208,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-cont
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 5/12: install hcloud-csi-driver"
+log "Step 5/13: install hcloud-csi-driver"
 
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
   --namespace kube-system \
@@ -193,7 +216,7 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi 
   --wait --timeout 3m
 
 # ---------------------------------------------------------------------------
-log "Step 6/12: wait for CAPI machines and workload nodes to go Ready"
+log "Step 6/13: wait for CAPI machines and workload nodes to go Ready"
 
 echo -n "Waiting for $EXPECTED_MACHINE_COUNT CAPI Machines to exist"
 MACHINE_COUNT=0
@@ -226,46 +249,78 @@ fi
 KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready nodes --all --timeout=5m
 
 # ---------------------------------------------------------------------------
-log "Step 7/12: install platform chart (cert-manager, ESO, ingress-nginx)"
+log "Step 7/13: install shared platform chart"
 
-helm dependency update "$REPO_ROOT/infra/helm/platform" >/dev/null
-
-# Cloudflare API token for cert-manager DNS-01 challenge.
-CF_TOKEN=$(op read --account tuist.1password.com "op://Founders/cloudflare-tuist-dns/credential")
-
-KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform --dry-run=client -o yaml | \
-  KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
-  --from-literal=api-token="$CF_TOKEN" \
-  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-unset CF_TOKEN
-
-# Two-step install: cert-manager's ClusterIssuer CRD is templated as
-# part of the cert-manager subchart, so it's registered alongside
-# our ClusterIssuer template — helm rejects that race with
-# "no matches for kind ClusterIssuer in version cert-manager.io/v1".
-# Step 7a: install everything EXCEPT our ClusterIssuer; cert-manager
-# subchart applies its CRDs.
-# Step 7b: re-apply with the ClusterIssuer enabled (default).
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/helm/platform" \
-  --namespace platform \
-  -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
-  --set "clusterIssuer.enabled=false" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
-  --wait --timeout 5m
-
-KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Established crd/clusterissuers.cert-manager.io --timeout=2m
-
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install platform "$REPO_ROOT/infra/helm/platform" \
-  --namespace platform \
-  -f "$REPO_ROOT/infra/helm/platform/values-hetzner.yaml" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}" \
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress" \
-  --wait --timeout 5m
+# `mise -C "$REPO_ROOT/infra"` so the nested task resolves regardless
+# of where the caller ran bootstrap-workload from; k8s:* tasks live in
+# infra/mise.toml scope, not the repo root.
+mise -C "$REPO_ROOT/infra" run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME"
 
 # ---------------------------------------------------------------------------
-log "Step 8/12: wire ESO -> 1Password for the per-env vault"
+log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
+
+# The Tuist helm chart renders nested CAPI CRs (Cluster +
+# MachineDeployment + Machine + ScalewayAppleSilicon{Cluster,Machine,MachineTemplate})
+# into the workload cluster to manage Mac mini fleets via the
+# `capi-provider-scaleway-applesilicon` infra provider that the
+# chart itself deploys. CAPI core (the controllers behind those
+# CRDs) ships outside the chart and is installed once per
+# workload cluster.
+#
+# We use clusterctl rather than `kubectl apply` of the raw
+# core-components.yaml because the manifest carries shell-style
+# `${VAR:=default}` placeholders that kubectl stores verbatim,
+# leaving the controller binary to bail out on
+# `invalid argument "${CAPI_INSECURE_DIAGNOSTICS:=false}"`.
+#
+# Why this lives in bootstrap, not in CI: CAPI install is a
+# one-time per-cluster concern, not per-deploy. Running
+# `clusterctl init` on every server-deployment was a
+# self-healing belt-and-suspenders that mostly burned ~10-30s
+# of CI time on no-ops — and on a fresh cluster where it
+# actually did work, the work belongs here next to the rest
+# of the cluster's day-zero setup.
+#
+# Cert-manager is a hard dep (CAPI webhooks need
+# cert-issued certs). Platform install in step 7 brought it
+# up, so we're good to install here.
+
+CAPI_CORE_VERSION="v1.10.4"
+CLUSTERCTL_BIN="$RUNNER_TEMP/clusterctl"
+
+if [ -z "${RUNNER_TEMP:-}" ]; then
+  CLUSTERCTL_BIN="${TMPDIR:-/tmp}/clusterctl"
+fi
+
+if [ ! -x "$CLUSTERCTL_BIN" ]; then
+  log "  Downloading clusterctl ${CAPI_CORE_VERSION}"
+  ARCH="$(uname -m)"
+  case "$ARCH" in
+    arm64|aarch64) CLUSTERCTL_ARCH="arm64" ;;
+    x86_64|amd64)  CLUSTERCTL_ARCH="amd64" ;;
+    *) err "Unsupported arch for clusterctl: $ARCH"; exit 1 ;;
+  esac
+  OS_KERNEL="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  curl -fsSL -o "$CLUSTERCTL_BIN" \
+    "https://github.com/kubernetes-sigs/cluster-api/releases/download/${CAPI_CORE_VERSION}/clusterctl-${OS_KERNEL}-${CLUSTERCTL_ARCH}"
+  chmod +x "$CLUSTERCTL_BIN"
+fi
+
+# `clusterctl init` is idempotent on a per-provider basis: it
+# exits non-zero with "already initialized" if the provider is
+# present at the same version. We swallow the exit and verify
+# the deployment is Available afterwards rather than parsing
+# the error text.
+KUBECONFIG="$WL_KUBECONFIG" "$CLUSTERCTL_BIN" init --core "cluster-api:${CAPI_CORE_VERSION}" 2>/dev/null || true
+
+# 10 min budget: cert-manager has to issue the webhook serving
+# cert, the controller image pulls from registry.k8s.io. A cold
+# install easily eats 5+ min.
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n capi-system wait \
+  --for=condition=Available deploy/capi-controller-manager --timeout=10m
+
+# ---------------------------------------------------------------------------
+log "Step 9/13: wire ESO -> 1Password for the per-env vault"
 
 OP_TOKEN=$(op read --account tuist.1password.com "op://Founders/${OP_TOKEN_ID}/credential")
 
@@ -289,20 +344,60 @@ unset OP_TOKEN
 KUBECONFIG="$WL_KUBECONFIG" kubectl wait --for=condition=Ready clustersecretstore/onepassword --timeout=2m
 
 # ---------------------------------------------------------------------------
-log "Step 9/12: install monitoring chart"
+log "Step 10/13: install monitoring chart"
 
 helm dependency update "$REPO_ROOT/infra/helm/k8s-monitoring" >/dev/null
 
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace observability --dry-run=client -o yaml | \
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
+MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml"
+MONITORING_SET_ARGS=()
+if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
+  # Regional Kura clusters share production Grafana labels but must keep
+  # their own cluster identity so Grafana distinguishes us-east/us-west.
+  MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-production.yaml"
+  MONITORING_SET_ARGS+=(--set "k8s-monitoring.cluster.name=${CLUSTER_NAME}")
+fi
+
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/infra/helm/k8s-monitoring" \
   --namespace observability \
-  -f "$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml" \
+  -f "$MONITORING_VALUES_FILE" \
+  "${MONITORING_SET_ARGS[@]}" \
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
 
+if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
+  # ---------------------------------------------------------------------------
+  log "Step 11/11: verify Kura regional platform + upload workload kubeconfig to 1Password"
+
+  KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
+    --for=condition=Ready clusterissuer/letsencrypt-cloudflare --timeout=2m
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform wait \
+    --for=condition=Available deploy -l app.kubernetes.io/name=external-dns --timeout=2m
+
+  upload_workload_kubeconfig
+
+  echo
+
+  cat <<DONE
+
+================================================================
+Bootstrap of $CLUSTER_NAME complete.
+
+  Workload kubeconfig: $WL_KUBECONFIG
+
+Kura regional clusters do not get an app ingress or Cloudflare origin
+certificate. Their per-account LoadBalancer Services carry
+external-dns annotations and publish hosts like
+{account}-{cluster_id}.kura.tuist.dev after the controller deploys.
+================================================================
+DONE
+
+  exit 0
+fi
+
 # ---------------------------------------------------------------------------
-log "Step 10/12: pre-create the app namespace (CI deploys the app itself)"
+log "Step 11/13: pre-create the app namespace (CI deploys the app itself)"
 
 # The bootstrap script intentionally does NOT install the tuist app
 # chart. Real Tuist server deploys go through `server-deployment.yml`
@@ -325,7 +420,7 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace "$APP_NAMESPACE" --dry-run=
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 # ---------------------------------------------------------------------------
-log "Step 11/12: install Cloudflare origin cert as TLS Secret"
+log "Step 12/13: install Cloudflare origin cert as TLS Secret"
 
 # Cloudflare-proxied DNS (the orange cloud) requires the origin to
 # present a Cloudflare Origin Certificate to satisfy "Full (strict)"
@@ -358,7 +453,7 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n "$APP_NAMESPACE" create secret tls tuist-
 rm -f "$CERT_TMP" "$KEY_TMP"
 
 # ---------------------------------------------------------------------------
-log "Step 12/12: smoke ingress + upload workload kubeconfig to 1Password"
+log "Step 13/13: smoke ingress + upload workload kubeconfig to 1Password"
 
 # Wait for HCCM to provision the LB and write the IP back.
 echo -n "Waiting for ingress-nginx LB IP"
@@ -408,24 +503,15 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 
 # Stash the freshly-minted workload kubeconfig in the per-env vault
 # so CI (server-deployment.yml) can read it via the per-env
-# OP_SERVICE_ACCOUNT_TOKEN. Idempotent: if the item exists, replace
-# the file contents; if not, create. Only runs after the smoke above
-# passes, so a stale kubeconfig never overwrites a working one when
-# bootstrap is invoked against a half-built cluster.
+# OP_SERVICE_ACCOUNT_TOKEN. Only runs after the smoke above passes, so
+# a stale kubeconfig never overwrites a working one when bootstrap is
+# invoked against a half-built cluster.
 # By default, app cluster document names follow env, not cluster_name,
 # so the deploy workflow can look up `kubeconfig: tuist-${env}`
 # uniformly across all environments. Regional Kura production clusters
 # pass an explicit title such as `kubeconfig: kura-us-east-1`, matching
 # the product cluster_id consumed by TUIST_KURA_KUBECONFIG_*.
-KUBECONFIG_VAULT="tuist-k8s-${ENV}"
-if op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" >/dev/null 2>&1; then
-  echo "Existing 1P item found; replacing the document"
-  EXISTING_ID=$(op item get "$KUBECONFIG_ITEM" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --format json | jq -r '.id')
-  op item delete "$EXISTING_ID" --account tuist.1password.com --vault "$KUBECONFIG_VAULT" --archive
-fi
-op document create "$WL_KUBECONFIG" \
-  --title "$KUBECONFIG_ITEM" \
-  --account tuist.1password.com --vault "$KUBECONFIG_VAULT"
+upload_workload_kubeconfig
 
 echo
 

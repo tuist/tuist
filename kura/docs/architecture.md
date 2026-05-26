@@ -69,6 +69,20 @@ Kura splits durable state into two planes so that the hot path is simple and the
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
+## Memory Pressure And Shedding
+
+Kura treats memory as an admission-controlled shared resource, not just a set of independent caches:
+
+- **RocksDB** block cache and write buffers are explicitly budgeted from the host memory limit.
+- The in-process **manifest cache** is byte-bounded and trimmed more aggressively as memory pressure rises.
+- The **existence cache** and **segment handle cache** are bounded caches that also shed entries under pressure.
+- Public HTTP artifact reads and REAPI ByteStream reads stay **streaming**, so they do not materialize whole artifacts in memory.
+- REAPI surfaces that must build whole responses in memory (`BatchReadBlobs`, `GetActionResult` inline expansions, action-cache proto loads) use two gates:
+  1. a **per-request materialization budget** that shrinks from normal → constrained → critical memory pressure
+  2. a **shared concurrent materialization pool** across the node, so many concurrent inline reads cannot oversubscribe memory together
+
+When a request would exceed either REAPI gate, Kura returns `RESOURCE_EXHAUSTED` instead of continuing toward an OOM path. Under **critical** pressure it also pauses optional background work, trims opportunistic caches to zero, and clears extension authz/authn caches because they are performance state, not correctness state.
+
 ## Replication Model
 
 Replication is **leaderless and eventually consistent**:
@@ -152,6 +166,8 @@ Each node exposes:
 
 - Prometheus metrics on `/metrics` (replication latency, FD pressure, manifest cache, RocksDB internals, outbox depth, traffic state, rollout-relevant counters).
 - OpenTelemetry traces for replication and request handling.
+- Client geographic attribution sourced from the `X-Forwarded-For` / `X-Real-IP` headers and resolved against the DB-IP Lite City MMDB vendored into the container image at `/opt/geoip/dbip-city-lite.mmdb` (`src/geoip.rs`). Country (ISO 3166-1) lands on both the `kura_http_requests_total` metric (as the `client_country` label) and `http.request` spans (as `geo.country.iso_code`); subdivision (ISO 3166-2) lands on spans only (as `geo.region.iso_code`), deliberately kept off metrics to bound label cardinality. Span and Resource attributes follow the OpenTelemetry `geo.*` semantic conventions. On by default; soft-fails when the database file is absent. A background task refreshes the in-memory copy every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`, `0` disables) with download/decompress sizes capped (128 MiB / 256 MiB) to stay within Kura's resource discipline.
+- Node geographic attribution: each pod resolves its own country and subdivision at startup (`src/node_location.rs`), probing the egress IP only when the operator overrides do not already cover the missing fields. Country falls back to an explicit mapping for the synthetic deployment labels we use today (`eu-central` -> `DE`, `us-east` / `us-west` -> `US`) or to a real country prefix already embedded in the region label (`fr-par` -> `FR`, `nl-ams` -> `NL`). The result stamps `geo.country.iso_code` and `geo.region.iso_code` on the OTel Resource (next to the unchanged `kura.region` cloud deployment region) so every span carries them, and also lands on the low-cardinality `kura_node_geo_info` metric for Grafana maps. Combined with the request-side `geo.country.iso_code` / `geo.region.iso_code`, traces have both endpoints needed to compute geographic distance.
 - Structured logs intended for Loki/Promtail.
 - Optional Sentry forwarding for panics and `tracing::error!` events.
 

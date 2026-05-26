@@ -685,6 +685,21 @@ defmodule TuistWeb.Router do
     post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
+  # Runner Pod dispatch + autoscaler signals endpoints.
+  # Authenticated by the Pod's projected ServiceAccount token
+  # (audience-scoped to `tuist-dispatch`) — the controller
+  # validates it via Kubernetes `TokenReview` against the
+  # workload cluster's apiserver, not via the user-auth flow.
+  # Lives under `/api/internal` to make the boundary explicit:
+  # these endpoints are for our own runner infrastructure, not
+  # for SDK / CLI consumers.
+  scope "/api/internal", TuistWeb do
+    pipe_through [:non_authenticated_api]
+
+    post "/runners/dispatch", RunnersController, :dispatch
+    get "/runners/desired_replicas", RunnersController, :desired_replicas
+  end
+
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through [:browser_app, :fetch_current_user]
 
@@ -941,7 +956,19 @@ defmodule TuistWeb.Router do
       live "/billing", BillingLive
       live "/integrations", IntegrationsLive
       live "/authentication", AuthenticationSettingsLive
+      live "/webhooks", WebhooksLive
       live "/settings", AccountSettingsLive
+    end
+
+    live_session :webhook_detail,
+      layout: {TuistWeb.Layouts, :headerbar},
+      on_mount: [
+        {TuistWeb.Authentication, :ensure_authenticated},
+        {TuistWeb.Locale, :assign_locale},
+        {TuistWeb.LayoutLive, :account}
+      ] do
+      live "/webhooks/:id", WebhookLive
+      live "/webhooks/:id/events/:attempt_id", WebhookEventLive
     end
   end
 

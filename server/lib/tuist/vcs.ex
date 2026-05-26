@@ -31,6 +31,16 @@ defmodule Tuist.VCS do
   @max_flaky_tests_in_comment 5
   @max_failed_tests_in_comment 5
 
+  # Per-webhook lookup cache: every inbound GitHub webhook calls
+  # `list_github_app_installations_for_webhook/2` once before HMAC
+  # verification, so memoising the result keeps that PG read off the
+  # request path under burst load. The TTL is short enough that any
+  # install / uninstall / re-register flow heals within a minute,
+  # and the only field a stale entry could mis-serve (`webhook_secret`)
+  # is rotated through `replace_github_app_installation/2` whose flow
+  # already spans longer than the TTL.
+  @webhook_installations_cache_ttl_ms 60_000
+
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
   Returns nil if the required CI information is missing.
@@ -189,6 +199,39 @@ defmodule Tuist.VCS do
         webhook_secret: Environment.github_app_webhook_secret()
       }
     end
+  end
+
+  @doc """
+  Returns the distinct GitHub Apps Tuist should act as for App-level
+  operations (e.g. webhook delivery log introspection). Each item is
+  `%{credentials, api_url}`.
+
+  Includes the globally-configured github.com App when the env-var
+  credentials are present, plus any per-installation Apps registered
+  via the GHES manifest flow (deduped by `(app_id, client_url)`, so
+  multiple installations on the same GHES App produce one entry).
+  """
+  def list_github_apps do
+    global =
+      case github_app_credentials() do
+        %{} = creds -> [%{credentials: creds, api_url: api_url(:github, nil)}]
+        _ -> []
+      end
+
+    per_installation =
+      GitHubAppInstallation
+      |> where([i], not is_nil(i.app_id) and not is_nil(i.private_key))
+      |> Repo.all()
+      |> Enum.uniq_by(fn i -> {i.app_id, i.client_url} end)
+      |> Enum.map(fn installation ->
+        case github_app_credentials(installation) do
+          %{} = creds -> %{credentials: creds, api_url: installation_api_url(installation)}
+          _ -> nil
+        end
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    global ++ per_installation
   end
 
   def get_repository_content(
@@ -1288,11 +1331,39 @@ defmodule Tuist.VCS do
 
   Both filters are optional. Pass `nil` for either to skip it. With
   both `nil`, returns `[]`.
+
+  The result is cached for #{@webhook_installations_cache_ttl_ms} ms
+  keyed by `(installation_id, app_id)`. Every inbound webhook hits
+  this path before HMAC verification, and the underlying table only
+  changes on App install / update / uninstall (rare relative to
+  webhook traffic), so memoising the lookup removes one Postgres
+  round-trip per webhook on the hot path. The TTL is the sole
+  invalidation mechanism: mutations don't bust the cache because
+  the only field a stale entry could mis-serve (`webhook_secret`)
+  rotates through a flow that takes longer than the TTL anyway.
+
+  ## Opts
+
+  - `:cache` — Cachex instance to use. Defaults to `:tuist`; tests
+    pass a per-case Cachex so state doesn't leak across runs.
   """
-  def list_github_app_installations_for_webhook(installation_id, app_id) do
-    case build_webhook_lookup_query(maybe_to_string(installation_id), maybe_to_string(app_id)) do
-      nil -> []
-      query -> Repo.all(query)
+  def list_github_app_installations_for_webhook(installation_id, app_id, opts \\ []) do
+    installation_id = maybe_to_string(installation_id)
+    app_id = maybe_to_string(app_id)
+
+    if installation_id == nil and app_id == nil do
+      []
+    else
+      KeyValueStore.get_or_update(
+        webhook_installations_cache_key(installation_id, app_id),
+        [cache: Keyword.get(opts, :cache, :tuist), ttl: @webhook_installations_cache_ttl_ms],
+        fn ->
+          case build_webhook_lookup_query(installation_id, app_id) do
+            nil -> []
+            query -> Repo.all(query)
+          end
+        end
+      )
     end
   end
 
@@ -1311,6 +1382,9 @@ defmodule Tuist.VCS do
       where: i.installation_id == ^installation_id or i.app_id == ^app_id
     )
   end
+
+  defp webhook_installations_cache_key(installation_id, app_id),
+    do: [__MODULE__, :webhook_installations, installation_id || "_", app_id || "_"]
 
   @doc """
   Updates a GitHub app installation.
@@ -1412,7 +1486,8 @@ defmodule Tuist.VCS do
   Get GitHub app installation URL with encrypted state parameter for account-specific installation.
 
   Accepts an optional `:client_url` to target a self-hosted GitHub Enterprise Server instance,
-  defaulting to https://github.com.
+  defaulting to https://github.com. Accepts an optional `:github_app_owner`
+  to register the manifest-owned App under a GitHub organization.
 
   For github.com, returns the direct installation URL of the
   globally-configured Tuist App. For a GHES `client_url`, returns an
@@ -1424,7 +1499,8 @@ defmodule Tuist.VCS do
   """
   def get_github_app_installation_url(%Account{id: account_id}, opts \\ []) do
     client_url = normalize_client_url(Keyword.get(opts, :client_url))
-    state_token = generate_github_state_token(account_id, client_url)
+    github_app_owner = normalize_github_app_owner(Keyword.get(opts, :github_app_owner))
+    state_token = generate_github_state_token(account_id, client_url, github_app_owner)
 
     if client_url == default_client_url() do
       app_name = Environment.github_app_name()
@@ -1437,7 +1513,18 @@ defmodule Tuist.VCS do
   defp normalize_client_url(nil), do: default_client_url()
   defp normalize_client_url(""), do: default_client_url()
 
-  defp normalize_client_url(url) when is_binary(url), do: url |> String.trim() |> String.trim_trailing("/")
+  defp normalize_client_url(url) when is_binary(url) do
+    url |> String.trim() |> String.trim_trailing("/")
+  end
+
+  defp normalize_github_app_owner(nil), do: nil
+
+  defp normalize_github_app_owner(owner) when is_binary(owner) do
+    case String.trim(owner) do
+      "" -> nil
+      owner -> owner
+    end
+  end
 
   # GitHub State Token functions
 
@@ -1446,25 +1533,53 @@ defmodule Tuist.VCS do
   client URL. The token round-trips through GitHub's installation flow so we
   know which GitHub instance the resulting installation belongs to.
   """
-  def generate_github_state_token(account_id, client_url \\ default_client_url()) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "github_state", {account_id, normalize_client_url(client_url)})
+  def generate_github_state_token(account_id, client_url \\ default_client_url(), github_app_owner \\ nil) do
+    Phoenix.Token.sign(
+      TuistWeb.Endpoint,
+      "github_state",
+      {
+        account_id,
+        normalize_client_url(client_url),
+        normalize_github_app_owner(github_app_owner)
+      }
+    )
   end
 
   @doc """
-  Verifies the state token. Returns `{:ok, %{account_id: id, client_url: url}}`
-  on success, `{:error, reason}` otherwise. Tokens generated before client_url
-  was introduced are accepted with the default github.com URL.
+  Verifies the state token. Returns
+  `{:ok, %{account_id: id, client_url: url, github_app_owner: owner}}` on
+  success, `{:error, reason}` otherwise. Tokens generated before client_url or
+  github_app_owner were introduced are accepted with the available defaults.
   """
   def verify_github_state_token(token) do
     # 90 days
     token_max_age_seconds = 7_776_000
 
-    case Phoenix.Token.verify(TuistWeb.Endpoint, "github_state", token, max_age: token_max_age_seconds) do
+    case Phoenix.Token.verify(
+           TuistWeb.Endpoint,
+           "github_state",
+           token,
+           max_age: token_max_age_seconds
+         ) do
+      {:ok, {account_id, client_url, github_app_owner}}
+      when is_integer(account_id) and is_binary(client_url) ->
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: normalize_github_app_owner(github_app_owner)
+         }}
+
       {:ok, {account_id, client_url}} when is_integer(account_id) and is_binary(client_url) ->
-        {:ok, %{account_id: account_id, client_url: normalize_client_url(client_url)}}
+        {:ok,
+         %{
+           account_id: account_id,
+           client_url: normalize_client_url(client_url),
+           github_app_owner: nil
+         }}
 
       {:ok, account_id} when is_integer(account_id) ->
-        {:ok, %{account_id: account_id, client_url: default_client_url()}}
+        {:ok, %{account_id: account_id, client_url: default_client_url(), github_app_owner: nil}}
 
       {:ok, _} ->
         {:error, :invalid}
