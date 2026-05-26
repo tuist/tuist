@@ -82,7 +82,7 @@
         flex-direction: row;
         gap: var(--noora-spacing-3);
 
-        & > [data-part="repo-link"] {
+        & > [data-part="repository-link"] {
           text-decoration: none;
           color: inherit;
         }

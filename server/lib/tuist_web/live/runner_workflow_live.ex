@@ -30,16 +30,16 @@ defmodule TuistWeb.RunnerWorkflowLive do
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
-    repo = "#{repo_owner}/#{repo_name}"
+    repository = "#{repo_owner}/#{repo_name}"
     workflow_name = URI.decode(workflow_name_param)
 
     head_title =
-      "#{display_workflow(workflow_name)} · #{repo} · #{dgettext("dashboard_runners", "Workflows")} · #{selected_account.name} · Tuist"
+      "#{display_workflow(workflow_name)} · #{repository} · #{dgettext("dashboard_runners", "Workflows")} · #{selected_account.name} · Tuist"
 
     {:ok,
      socket
      |> assign(:head_title, head_title)
-     |> assign(:repo, repo)
+     |> assign(:repository, repository)
      |> assign(:workflow_name, workflow_name)
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "total_jobs")
@@ -51,7 +51,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def handle_params(
         params,
         uri,
-        %{assigns: %{selected_account: account, repo: repo, workflow_name: workflow_name}} = socket
+        %{assigns: %{selected_account: account, repository: repository, workflow_name: workflow_name}} = socket
       ) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     page = parse_page(params["page"])
@@ -59,7 +59,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
     sort_by = sort_by_param(params["sort_by"])
     sort_order = sort_order_param(params["sort_order"], sort_by)
 
-    scope_opts = [repo: repo, workflow_name: workflow_name]
+    scope_opts = [repository: repository, workflow_name: workflow_name]
 
     socket =
       socket
@@ -243,8 +243,11 @@ defmodule TuistWeb.RunnerWorkflowLive do
   defp decoded_query(%{assigns: %{uri: %URI{query: nil}}}), do: %{}
   defp decoded_query(%{assigns: %{uri: %URI{query: query}}}), do: URI.decode_query(query)
 
-  defp current_path(%{assigns: %{selected_account: account, repo: repo, workflow_name: workflow_name}}, params) do
-    [owner, name] = String.split(repo, "/", parts: 2)
+  defp current_path(
+         %{assigns: %{selected_account: account, repository: repository, workflow_name: workflow_name}},
+         params
+       ) do
+    [owner, name] = String.split(repository, "/", parts: 2)
     workflow = URI.encode(workflow_name, &URI.char_unreserved?/1)
 
     ~p"/#{account.name}/runners/workflows/#{owner}/#{name}/#{workflow}?#{params}"
@@ -360,19 +363,19 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   @doc """
   Resolves the public repository URL for the header badge. GitHub
-  Actions webhooks always deliver `repo` as `<owner>/<name>` so the
-  canonical URL is just `https://github.com/<owner>/<name>`. The
-  helper short-circuits to `#` for malformed values so the badge
-  still renders without a broken outbound link.
+  Actions webhooks always deliver `repository` as `<owner>/<name>`
+  so the canonical URL is just `https://github.com/<owner>/<name>`.
+  The helper short-circuits to `#` for malformed values so the
+  badge still renders without a broken outbound link.
   """
-  def repo_url(repo) when is_binary(repo) do
-    case String.split(repo, "/", parts: 2) do
+  def repository_url(repository) when is_binary(repository) do
+    case String.split(repository, "/", parts: 2) do
       [owner, name] when owner != "" and name != "" -> "https://github.com/#{owner}/#{name}"
       _ -> "#"
     end
   end
 
-  def repo_url(_), do: "#"
+  def repository_url(_), do: "#"
 
   def chart_options(dates) do
     %{

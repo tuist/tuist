@@ -13,7 +13,7 @@ defmodule Tuist.Runners.JobsTest do
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
-      repo: Keyword.get(opts, :repo, "acme/cli"),
+      repository: Keyword.get(opts, :repository, "acme/cli"),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
       run_attempt: Keyword.get(opts, :run_attempt, 1),
       workflow_name: Keyword.get(opts, :workflow_name, ""),
@@ -51,9 +51,9 @@ defmodule Tuist.Runners.JobsTest do
       account_a = account_fixture()
       account_b = account_fixture()
 
-      :ok = enqueue_fixture(account_a, 2001, fleet: "fleet-x", repo: "acme/older")
+      :ok = enqueue_fixture(account_a, 2001, fleet: "fleet-x", repository: "acme/older")
       Process.sleep(20)
-      :ok = enqueue_fixture(account_b, 2002, fleet: "fleet-x", repo: "globex/newer")
+      :ok = enqueue_fixture(account_b, 2002, fleet: "fleet-x", repository: "globex/newer")
 
       assert {:ok, %{workflow_job_id: 2001, account_id: a_id}} =
                Jobs.pick_queued("fleet-x", [])
@@ -65,8 +65,8 @@ defmodule Tuist.Runners.JobsTest do
       a = account_fixture()
       b = account_fixture()
 
-      :ok = enqueue_fixture(a, 3001, fleet: "fleet-cap", repo: "a/at-cap")
-      :ok = enqueue_fixture(b, 3002, fleet: "fleet-cap", repo: "b/free")
+      :ok = enqueue_fixture(a, 3001, fleet: "fleet-cap", repository: "a/at-cap")
+      :ok = enqueue_fixture(b, 3002, fleet: "fleet-cap", repository: "b/free")
 
       assert {:ok, %{workflow_job_id: 3002}} = Jobs.pick_queued("fleet-cap", [a.id])
     end
@@ -138,10 +138,10 @@ defmodule Tuist.Runners.JobsTest do
       account = account_fixture()
       other = account_fixture()
 
-      :ok = enqueue_fixture(account, 8001, repo: "acme/a")
+      :ok = enqueue_fixture(account, 8001, repository: "acme/a")
       Process.sleep(20)
-      :ok = enqueue_fixture(account, 8002, repo: "acme/b")
-      :ok = enqueue_fixture(other, 8003, repo: "globex/c")
+      :ok = enqueue_fixture(account, 8002, repository: "acme/b")
+      :ok = enqueue_fixture(other, 8003, repository: "globex/c")
 
       jobs = Jobs.list_for_account(account.id)
 
@@ -242,21 +242,21 @@ defmodule Tuist.Runners.JobsTest do
   end
 
   describe "list_workflows_for_account/2" do
-    test "aggregates jobs into per-(workflow, repo) rollups" do
+    test "aggregates jobs into per-(workflow, repository) rollups" do
       account = account_fixture()
 
-      :ok = enqueue_fixture(account, 50_001, repo: "acme/server")
-      :ok = enqueue_fixture(account, 50_002, repo: "acme/server")
-      :ok = enqueue_fixture(account, 50_003, repo: "acme/cli")
+      :ok = enqueue_fixture(account, 50_001, repository: "acme/server")
+      :ok = enqueue_fixture(account, 50_002, repository: "acme/server")
+      :ok = enqueue_fixture(account, 50_003, repository: "acme/cli")
 
       [server, cli] =
         account.id
         |> Jobs.list_workflows_for_account()
-        |> Enum.sort_by(& &1.repo)
+        |> Enum.sort_by(& &1.repository)
 
-      assert server.repo == "acme/cli"
+      assert server.repository == "acme/cli"
       assert server.total_jobs == 1
-      assert cli.repo == "acme/server"
+      assert cli.repository == "acme/server"
       assert cli.total_jobs == 2
     end
 
@@ -287,14 +287,14 @@ defmodule Tuist.Runners.JobsTest do
       assert w.avg_duration_ms
     end
 
-    test "filters by repo via :repo opt" do
+    test "filters by repository via :repository opt" do
       account = account_fixture()
-      :ok = enqueue_fixture(account, 53_001, repo: "acme/a")
-      :ok = enqueue_fixture(account, 53_002, repo: "globex/b")
+      :ok = enqueue_fixture(account, 53_001, repository: "acme/a")
+      :ok = enqueue_fixture(account, 53_002, repository: "globex/b")
 
-      [w] = Jobs.list_workflows_for_account(account.id, repo: "acme")
+      [w] = Jobs.list_workflows_for_account(account.id, repository: "acme")
 
-      assert w.repo == "acme/a"
+      assert w.repository == "acme/a"
     end
 
     test "sorts rollups by :sort_by 'avg_duration' descending" do
@@ -304,7 +304,7 @@ defmodule Tuist.Runners.JobsTest do
       # completed job. Descending sort should land B first.
       :ok =
         enqueue_fixture(account, 54_001,
-          repo: "acme/short",
+          repository: "acme/short",
           workflow_name: "Short",
           fleet: "fleet-avg-short"
         )
@@ -317,7 +317,7 @@ defmodule Tuist.Runners.JobsTest do
 
       :ok =
         enqueue_fixture(account, 54_002,
-          repo: "acme/long",
+          repository: "acme/long",
           workflow_name: "Long",
           fleet: "fleet-avg-long"
         )
@@ -456,9 +456,9 @@ defmodule Tuist.Runners.JobsTest do
   describe "get_for_account/2" do
     test "returns the merged row for the given workflow_job" do
       account = account_fixture()
-      :ok = enqueue_fixture(account, 9001, repo: "acme/x")
+      :ok = enqueue_fixture(account, 9001, repository: "acme/x")
 
-      assert {:ok, %{workflow_job_id: 9001, repo: "acme/x"}} =
+      assert {:ok, %{workflow_job_id: 9001, repository: "acme/x"}} =
                Jobs.get_for_account(account.id, 9001)
     end
 

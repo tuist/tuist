@@ -19,7 +19,7 @@ defmodule Tuist.Runners.AnalyticsTest do
         workflow_job_id: workflow_job_id,
         account_id: account.id,
         fleet_name: fleet,
-        repo: Keyword.get(opts, :repo, "acme/cli"),
+        repository: Keyword.get(opts, :repository, "acme/cli"),
         workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
         workflow_name: Keyword.get(opts, :workflow_name, ""),
         run_attempt: 1,
@@ -159,13 +159,13 @@ defmodule Tuist.Runners.AnalyticsTest do
   end
 
   describe "scope filters" do
-    test "jobs_count respects :repo scope" do
+    test "jobs_count respects :repository scope" do
       account = account_fixture()
 
-      completed_job(account, 75_001, "success", repo: "acme/server")
-      completed_job(account, 75_002, "success", repo: "acme/cli")
+      completed_job(account, 75_001, "success", repository: "acme/server")
+      completed_job(account, 75_002, "success", repository: "acme/cli")
 
-      assert %{count: 1} = Analytics.jobs_count(account.id, repo: "acme/server")
+      assert %{count: 1} = Analytics.jobs_count(account.id, repository: "acme/server")
     end
 
     test "jobs_count respects :workflow_name scope" do

@@ -71,7 +71,7 @@ defmodule Tuist.Runners.Billing do
 
     * `:start_datetime` / `:end_datetime` — window. Defaults to
       the last 30 days.
-    * `:repo`, `:workflow_name` — exact-match scope filters.
+    * `:repository`, `:workflow_name` — exact-match scope filters.
     * `:platform` — `"macos"` or `"linux"`, narrows on the
       `fleet_name` prefix.
 
@@ -110,7 +110,7 @@ defmodule Tuist.Runners.Billing do
   `[period_start, period_end]`. Each Pod session contributes only
   the portion of its runtime that lies inside the window.
 
-  Accepts the same scope opts (`:repo`, `:workflow_name`,
+  Accepts the same scope opts (`:repository`, `:workflow_name`,
   `:platform`) as `compute_minutes/2` so a filtered query and a
   filtered invoice line up against the same shape.
   """
@@ -303,7 +303,7 @@ defmodule Tuist.Runners.Billing do
 
   defp scope(query, opts) do
     query
-    |> maybe_eq(:repo, Keyword.get(opts, :repo))
+    |> maybe_eq(:repository, Keyword.get(opts, :repository))
     |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_platform(Keyword.get(opts, :platform))
   end
@@ -312,7 +312,7 @@ defmodule Tuist.Runners.Billing do
   defp maybe_eq(query, _field, ""), do: query
   defp maybe_eq(query, _field, "any"), do: query
 
-  defp maybe_eq(query, :repo, value) when is_binary(value), do: where(query, [s], s.repo == ^value)
+  defp maybe_eq(query, :repository, value) when is_binary(value), do: where(query, [s], s.repository == ^value)
 
   defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [s], s.workflow_name == ^value)
 

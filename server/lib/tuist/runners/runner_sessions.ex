@@ -16,11 +16,7 @@ defmodule Tuist.Runners.RunnerSessions do
       when the controller observes a Pod transition into a terminal
       phase. `ended_at` is K8s's
       `containerStatuses[runner].state.terminated.finishedAt` —
-      i.e. when the container process actually exited, not when
-      GitHub's `workflow_job.completed` webhook arrived. The
-      webhook is delivery-flaky and can land minutes late or never;
-      anchoring the close to a K8s signal removes that as a billing
-      risk.
+      the moment the container process actually exited.
 
   Both paths are fire-and-forget — they don't block the hot dispatch
   path and they swallow Postgres errors with a warning rather than
@@ -75,7 +71,7 @@ defmodule Tuist.Runners.RunnerSessions do
       account_id: account_id,
       fleet_name: fleet_name,
       pod_name: pod_name,
-      repo: Map.get(attrs, :repo, ""),
+      repository: Map.get(attrs, :repository, ""),
       workflow_name: Map.get(attrs, :workflow_name, ""),
       started_at: started_at,
       inserted_at: DateTime.truncate(now, :second),

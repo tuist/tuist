@@ -44,13 +44,13 @@
         <:right_icon :if={@repository == "any"}><.check /></:right_icon>
       </.dropdown_item>
       <.dropdown_item
-        :for={repo <- @repos}
-        value={repo}
-        label={repo}
-        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, repo)}
-        data-selected={@repository == repo}
+        :for={repository <- @repositories}
+        value={repository}
+        label={repository}
+        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, repository)}
+        data-selected={@repository == repository}
       >
-        <:right_icon :if={@repository == repo}><.check /></:right_icon>
+        <:right_icon :if={@repository == repository}><.check /></:right_icon>
       </.dropdown_item>
     </.dropdown>
     <.date_picker
@@ -579,7 +579,10 @@
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
             <.text_cell label={
-              if(job.repo == "", do: dgettext("dashboard_runners", "Unknown"), else: job.repo)
+              if(job.repository == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: job.repository
+              )
             } />
           </:col>
           <:col :let={job} label={dgettext("dashboard_runners", "Status")}>

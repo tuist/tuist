@@ -120,9 +120,10 @@ defmodule TuistWeb.RunnerJobLive do
 
   def platform_badge_color(_), do: "neutral"
 
-  def github_job_url(%{repo: repo, workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(repo) and repo != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
-    "https://github.com/#{repo}/actions/runs/#{run_id}/job/#{job_id}"
+  def github_job_url(%{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
+             job_id > 0 do
+    "https://github.com/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
   end
 
   def github_job_url(_), do: nil

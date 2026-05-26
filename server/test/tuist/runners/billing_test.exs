@@ -182,18 +182,18 @@ defmodule Tuist.Runners.BillingTest do
       assert Enum.sum(result.values) == 15
     end
 
-    test "filters by :repo scope" do
+    test "filters by :repository scope" do
       account = account_fixture()
       now = DateTime.utc_now()
 
       session_fixture(account,
-        repo: "acme/server",
+        repository: "acme/server",
         started_at: DateTime.add(now, -1, :hour),
         ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(10, :minute)
       )
 
       session_fixture(account,
-        repo: "acme/cli",
+        repository: "acme/cli",
         started_at: DateTime.add(now, -1, :hour),
         ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(20, :minute)
       )
@@ -202,7 +202,7 @@ defmodule Tuist.Runners.BillingTest do
         Billing.compute_minutes(account.id,
           start_datetime: DateTime.add(now, -1, :day),
           end_datetime: now,
-          repo: "acme/server"
+          repository: "acme/server"
         )
 
       assert_in_delta scoped.total_ms, 10 * 60 * 1_000, 1_000

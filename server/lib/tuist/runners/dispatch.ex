@@ -79,7 +79,7 @@ defmodule Tuist.Runners.Dispatch do
 
     Logger.info(
       "runners: workflow_job action=#{action} (labels=#{inspect(labels)}); ignored",
-      repo: repo
+      repository: repo
     )
 
     :ignored
@@ -115,7 +115,7 @@ defmodule Tuist.Runners.Dispatch do
          :ok <- Jobs.enqueue(enqueue_attrs(account, fleet_name, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
-        repo: full_name,
+        repository: full_name,
         fleet: fleet_name,
         workflow_job_id: Map.get(job, "id")
       )
@@ -125,7 +125,7 @@ defmodule Tuist.Runners.Dispatch do
       {:error, :no_account} ->
         Logger.info("runners: no account match for webhook owner; ignoring",
           owner: owner,
-          repo: full_name,
+          repository: full_name,
           requested_labels: requested
         )
 
@@ -134,7 +134,7 @@ defmodule Tuist.Runners.Dispatch do
       {:error, :runners_disabled} ->
         Logger.info("runners: account has runners disabled (max_concurrent=0); ignoring",
           owner: owner,
-          repo: full_name
+          repository: full_name
         )
 
         {:ignored, :runners_disabled}
@@ -147,13 +147,13 @@ defmodule Tuist.Runners.Dispatch do
         Logger.info(
           "runners: workflow_job has no matching pool; ignoring (labels=#{inspect(requested)})",
           owner: owner,
-          repo: full_name
+          repository: full_name
         )
 
         {:ignored, :no_matching_pool}
 
       {:error, :no_pools} ->
-        Logger.error("runners: no RunnerPool CRs in cluster; ignoring", repo: full_name)
+        Logger.error("runners: no RunnerPool CRs in cluster; ignoring", repository: full_name)
         {:ignored, :no_pools}
 
       {:error, :ambiguous_pool} ->
@@ -166,7 +166,7 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :ambiguous_pool}
 
       {:error, reason} = err ->
-        Logger.warning("runners: enqueue failed: #{inspect(reason)}", repo: full_name)
+        Logger.warning("runners: enqueue failed: #{inspect(reason)}", repository: full_name)
         err
     end
   end
@@ -214,7 +214,7 @@ defmodule Tuist.Runners.Dispatch do
       workflow_job_id: get_integer(job, "id"),
       account_id: account.id,
       fleet_name: fleet_name,
-      repo: full_name,
+      repository: full_name,
       workflow_run_id: get_integer(job, "run_id"),
       workflow_name: get_string(job, "workflow_name"),
       run_attempt: get_integer(job, "run_attempt", 1),

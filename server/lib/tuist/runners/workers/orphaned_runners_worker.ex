@@ -133,13 +133,13 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   defp recover_one(%{
          workflow_job_id: workflow_job_id,
          account_id: account_id,
-         repo: repo,
+         repository: repository,
          claimed_at: claimed_at,
          pod_name: pod_name
        }) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
          {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id) do
-      case GitHubClient.get_workflow_job(installation, repo, workflow_job_id) do
+      case GitHubClient.get_workflow_job(installation, repository, workflow_job_id) do
         {:ok, %{status: gh_status, conclusion: conclusion}} ->
           handle_gh_status(gh_status, conclusion, workflow_job_id, claimed_at, pod_name, account)
 

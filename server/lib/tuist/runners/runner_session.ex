@@ -18,7 +18,7 @@ defmodule Tuist.Runners.RunnerSession do
     field :fleet_name, :string
     field :pod_name, :string, default: ""
     field :runner_name, :string, default: ""
-    field :repo, :string, default: ""
+    field :repository, :string, default: ""
     field :workflow_name, :string, default: ""
     field :started_at, :utc_datetime_usec
     field :ended_at, :utc_datetime_usec

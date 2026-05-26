@@ -32,7 +32,7 @@ defmodule TuistWeb.RunnersLiveTest do
         workflow_job_id: 70_001,
         account_id: account.id,
         fleet_name: "fleet-x",
-        repo: "tuist/tuist",
+        repository: "tuist/tuist",
         workflow_run_id: 700_010,
         workflow_name: "Server",
         run_attempt: 1,

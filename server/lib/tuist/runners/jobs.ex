@@ -121,7 +121,7 @@ defmodule Tuist.Runners.Jobs do
         workflow_job_id: j.workflow_job_id,
         account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
         fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
         workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
         workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
         run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
@@ -168,7 +168,7 @@ defmodule Tuist.Runners.Jobs do
       account_id: Map.fetch!(candidate, :account_id),
       fleet_name: Map.get(candidate, :fleet_name, ""),
       pod_name: pod_name,
-      repo: Map.get(candidate, :repo, ""),
+      repository: Map.get(candidate, :repository, ""),
       workflow_name: Map.get(candidate, :workflow_name, ""),
       started_at: claimed_at
     })
@@ -328,7 +328,7 @@ defmodule Tuist.Runners.Jobs do
     * `:status` — restrict to one of `"queued" | "claimed" | "running" | "completed"`
     * `:conclusion` — restrict completed jobs to a conclusion
       (e.g. `"success" | "failure" | "cancelled" | "skipped"`)
-    * `:repo` — substring match on `repo`
+    * `:repository` — substring match on `repository`
     * `:workflow_name` — substring match on `workflow_name`
     * `:job_name` — substring match on `job_name`
     * `:head_branch` — substring match on `head_branch`
@@ -434,15 +434,15 @@ defmodule Tuist.Runners.Jobs do
   # GROUP BY workflow_job_id + argMax(field, updated_at) gives us
   # one row per workflow_job carrying its latest state — the same
   # logical view `FROM … FINAL` would have produced, without the
-  # per-read part-merge cost. Stable-across-versions filters (repo,
-  # workflow_name, head_branch, job_name, platform, search-by-
+  # per-read part-merge cost. Stable-across-versions filters
+  # (repository, workflow_name, head_branch, job_name, platform, search-by-
   # job_name) sit inside the inner WHERE so we scan fewer rows;
   # latest-state filters (status, conclusion) belong on the OUTER
   # query so the deduped state is what gets matched.
   defp latest_jobs_subquery(account_id, opts) do
     Job
     |> where([j], j.account_id == ^account_id)
-    |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
+    |> maybe_filter_like(:repository, Keyword.get(opts, :repository))
     |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_filter_like(:job_name, Keyword.get(opts, :job_name))
     |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
@@ -453,7 +453,7 @@ defmodule Tuist.Runners.Jobs do
       workflow_job_id: j.workflow_job_id,
       account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
       run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
@@ -511,9 +511,9 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_filter_like(query, _field, nil), do: query
   defp maybe_filter_like(query, _field, ""), do: query
 
-  defp maybe_filter_like(query, :repo, value) when is_binary(value) do
+  defp maybe_filter_like(query, :repository, value) when is_binary(value) do
     pattern = "%#{value}%"
-    where(query, [j], ilike(j.repo, ^pattern))
+    where(query, [j], ilike(j.repository, ^pattern))
   end
 
   defp maybe_filter_like(query, :workflow_name, value) when is_binary(value) do
@@ -634,11 +634,11 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Aggregates `runner_jobs` into per-workflow rollups for the
   customer-facing Workflows dashboard. One row per `(workflow_name,
-  repo)` pair, ordered by most recently active first.
+  repository)` pair, ordered by most recently active first.
 
   Each row carries:
 
-    * `:workflow_name`, `:repo`
+    * `:workflow_name`, `:repository`
     * `:total_jobs`
     * `:success_count`, `:failure_count`, `:cancelled_count`, `:skipped_count`
     * `:in_progress_count` — claimed + running + queued (anything not
@@ -649,7 +649,7 @@ defmodule Tuist.Runners.Jobs do
 
   Options:
     * `:limit` — page size, default 50
-    * `:repo` — substring match on `repo`
+    * `:repository` — substring match on `repository`
     * `:workflow_name` — substring match on `workflow_name`
     * `:head_branch` — substring match on `head_branch`
   """
@@ -662,10 +662,10 @@ defmodule Tuist.Runners.Jobs do
     sub = latest_jobs_subquery(account_id, opts)
 
     from(j in subquery(sub),
-      group_by: [j.workflow_name, j.repo],
+      group_by: [j.workflow_name, j.repository],
       select: %{
         workflow_name: j.workflow_name,
-        repo: j.repo,
+        repository: j.repository,
         total_jobs: count(j.workflow_job_id),
         success_count: fragment("countIf(? = 'completed' AND ? = 'success')", j.status, j.conclusion),
         failure_count: fragment("countIf(? = 'completed' AND ? = 'failure')", j.status, j.conclusion),
@@ -771,11 +771,11 @@ defmodule Tuist.Runners.Jobs do
   end
 
   defp workflows_order_by(query, _workflow_default, "desc") do
-    order_by(query, [j], desc: j.workflow_name, desc: j.repo)
+    order_by(query, [j], desc: j.workflow_name, desc: j.repository)
   end
 
   defp workflows_order_by(query, _workflow_default, _asc) do
-    order_by(query, [j], asc: j.workflow_name, asc: j.repo)
+    order_by(query, [j], asc: j.workflow_name, asc: j.repository)
   end
 
   @doc """
@@ -783,37 +783,37 @@ defmodule Tuist.Runners.Jobs do
   one row per `workflow_run_id`. Each row collapses the workflow_run's
   jobs into a single rollup: max(completed_at)-min(started_at) for
   duration, argMax over the latest job for human-readable fields
-  (workflow_name, repo, head_branch, head_sha), and the worst
+  (workflow_name, repository, head_branch, head_sha), and the worst
   conclusion across all the completed jobs as the run's conclusion.
 
   Options:
     * `:limit` — page size, default 5
-    * `:repo` — exact match on `repo`
+    * `:repository` — exact match on `repository`
     * `:workflow_name` — exact match on `workflow_name`
   """
   def list_recent_workflow_runs_for_account(account_id, opts \\ []) when is_integer(account_id) do
     limit = Keyword.get(opts, :limit, 5)
-    repo = Keyword.get(opts, :repo)
+    repository = Keyword.get(opts, :repository)
     workflow_name = Keyword.get(opts, :workflow_name)
 
     # Two-stage aggregation: inner dedupes to one row per
     # workflow_job (GROUP BY workflow_job_id + argMax), then the
     # outer groups those by workflow_run_id for the run-level
-    # rollup. Uses exact `==` matching on repo/workflow_name —
+    # rollup. Uses exact `==` matching on repository/workflow_name —
     # distinct from the substring-search variant in
     # `latest_jobs_subquery` (ILIKE) — so we keep the inner
     # specialised rather than routing through that helper.
     inner =
       Job
       |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
-      |> maybe_eq_workflow(repo, workflow_name)
+      |> maybe_eq_workflow(repository, workflow_name)
       |> maybe_filter_platform(Keyword.get(opts, :platform))
       |> group_by([j], j.workflow_job_id)
       |> select([j], %{
         workflow_job_id: j.workflow_job_id,
         workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
         workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
         head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
         head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
         status: fragment("argMax(?, ?)", j.status, j.updated_at),
@@ -830,7 +830,7 @@ defmodule Tuist.Runners.Jobs do
         select: %{
           workflow_run_id: j.workflow_run_id,
           workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-          repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
           head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
           head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
           duration_ms:
@@ -858,16 +858,17 @@ defmodule Tuist.Runners.Jobs do
 
   defp maybe_eq_workflow(query, nil, nil), do: query
 
-  defp maybe_eq_workflow(query, repo, nil) when is_binary(repo) and repo != "", do: where(query, [j], j.repo == ^repo)
+  defp maybe_eq_workflow(query, repository, nil) when is_binary(repository) and repository != "",
+    do: where(query, [j], j.repository == ^repository)
 
   defp maybe_eq_workflow(query, nil, workflow_name) when is_binary(workflow_name) and workflow_name != "",
     do: where(query, [j], j.workflow_name == ^workflow_name)
 
-  defp maybe_eq_workflow(query, repo, workflow_name)
-       when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "",
-       do: where(query, [j], j.repo == ^repo and j.workflow_name == ^workflow_name)
+  defp maybe_eq_workflow(query, repository, workflow_name)
+       when is_binary(repository) and is_binary(workflow_name) and repository != "" and workflow_name != "",
+       do: where(query, [j], j.repository == ^repository and j.workflow_name == ^workflow_name)
 
-  defp maybe_eq_workflow(query, _repo, _workflow_name), do: query
+  defp maybe_eq_workflow(query, _repository, _workflow_name), do: query
 
   @doc """
   Lists the distinct repositories the account has dispatched jobs to
@@ -876,23 +877,23 @@ defmodule Tuist.Runners.Jobs do
   values is friendlier than a free-text filter, and the 30-day
   window keeps the list short on accounts with long-tail repos.
   """
-  def distinct_repos_for_account(account_id) when is_integer(account_id) do
+  def distinct_repositories_for_account(account_id) when is_integer(account_id) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     Job
     |> from(hints: ["FINAL"])
     |> where(
       [j],
-      j.account_id == ^account_id and j.repo != "" and j.enqueued_at >= ^thirty_days_ago
+      j.account_id == ^account_id and j.repository != "" and j.enqueued_at >= ^thirty_days_ago
     )
     |> distinct(true)
-    |> order_by([j], asc: j.repo)
-    |> select([j], j.repo)
+    |> order_by([j], asc: j.repository)
+    |> select([j], j.repository)
     |> ClickHouseRepo.all()
   end
 
   @doc """
-  Counts the distinct `(workflow_name, repo)` pairs that match the
+  Counts the distinct `(workflow_name, repository)` pairs that match the
   same filters used by `list_workflows_for_account/2`. Wraps the
   filtered group-by in a subquery so the outer `count()` returns one
   row per workflow pair without re-aggregating.
@@ -903,13 +904,13 @@ defmodule Tuist.Runners.Jobs do
     # GROUP BY + argMax dedup pass over `runner_jobs`, avoiding the
     # per-read merge cost of `FROM runner_jobs FINAL` while still
     # collapsing state-transition rows down to one row per
-    # workflow_job before the (workflow_name, repo) GROUP BY.
+    # workflow_job before the (workflow_name, repository) GROUP BY.
     sub = latest_jobs_subquery(account_id, opts)
 
     inner =
       from(j in subquery(sub),
-        group_by: [j.workflow_name, j.repo],
-        select: %{workflow_name: j.workflow_name, repo: j.repo}
+        group_by: [j.workflow_name, j.repository],
+        select: %{workflow_name: j.workflow_name, repository: j.repository}
       )
 
     from(s in subquery(inner), select: count())
@@ -949,7 +950,7 @@ defmodule Tuist.Runners.Jobs do
   release + re-queue.
 
   Returns a list of maps carrying everything the worker needs
-  (`repo` for the GH API call, `claimed_at` for the PG release
+  (`repository` for the GH API call, `claimed_at` for the PG release
   handle), so the worker doesn't need a second round trip.
   """
   def list_orphaned_running(%DateTime{} = threshold) do
@@ -959,7 +960,7 @@ defmodule Tuist.Runners.Jobs do
     |> select([j], %{
       workflow_job_id: j.workflow_job_id,
       account_id: j.account_id,
-      repo: j.repo,
+      repository: j.repository,
       claimed_at: j.claimed_at,
       started_at: j.started_at,
       pod_name: j.pod_name

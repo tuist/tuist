@@ -43,7 +43,7 @@ defmodule TuistWeb.RunnerJobsLive do
        "#{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
      )
      |> assign(:available_filters, available_filters())
-     |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))
+     |> assign(:repositories, Jobs.distinct_repositories_for_account(selected_account.id))
      |> assign(:analytics_selected_widget, "jobs")
      |> assign(:jobs_breakdown_type, "total")
      |> assign(:queue_time_percentile, "avg")
@@ -148,7 +148,7 @@ defmodule TuistWeb.RunnerJobsLive do
        ) do
     scope_opts =
       []
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
@@ -179,7 +179,7 @@ defmodule TuistWeb.RunnerJobsLive do
        ) do
     scope_opts =
       []
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
@@ -198,7 +198,7 @@ defmodule TuistWeb.RunnerJobsLive do
 
     scope_opts =
       []
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
@@ -239,10 +239,10 @@ defmodule TuistWeb.RunnerJobsLive do
     %{total: total, successful: successful, failed: failed}
   end
 
-  defp maybe_repo(opts, "any"), do: opts
-  defp maybe_repo(opts, nil), do: opts
-  defp maybe_repo(opts, ""), do: opts
-  defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
+  defp maybe_repository(opts, "any"), do: opts
+  defp maybe_repository(opts, nil), do: opts
+  defp maybe_repository(opts, ""), do: opts
+  defp maybe_repository(opts, repository) when is_binary(repository), do: Keyword.put(opts, :repository, repository)
 
   defp maybe_platform(opts, "any"), do: opts
   defp maybe_platform(opts, nil), do: opts
@@ -397,7 +397,7 @@ defmodule TuistWeb.RunnerJobsLive do
        ) do
     base_opts =
       []
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
       |> maybe_put_search(search)
       |> Keyword.put(:sort_by, sort_by)

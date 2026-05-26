@@ -786,7 +786,7 @@ defmodule Tuist.Runners.Analytics do
             duration_ms: fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.completed_at, j.started_at),
             job_name: j.job_name,
             workflow_name: j.workflow_name,
-            repo: j.repo,
+            repository: j.repository,
             head_branch: j.head_branch,
             conclusion: j.conclusion,
             fleet_name: j.fleet_name
@@ -817,7 +817,7 @@ defmodule Tuist.Runners.Analytics do
             duration_ms: fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.claimed_at, j.enqueued_at),
             job_name: j.job_name,
             workflow_name: j.workflow_name,
-            repo: j.repo,
+            repository: j.repository,
             head_branch: j.head_branch,
             conclusion: j.conclusion,
             fleet_name: j.fleet_name
@@ -903,7 +903,7 @@ defmodule Tuist.Runners.Analytics do
 
   # Each dot carries enough context to identify the workflow_job
   # without leaving the chart — which workflow_run it belongs to,
-  # which job, on which repo and branch, what status it ended in,
+  # which job, on which repository and branch, what status it ended in,
   # which platform executed it. Same per-row data the Recent jobs
   # table already exposes; the tooltip is the chart-equivalent of
   # that row.
@@ -911,7 +911,7 @@ defmodule Tuist.Runners.Analytics do
     [
       %{label: dgettext("dashboard_runners", "Workflow"), value: display(row.workflow_name)},
       %{label: dgettext("dashboard_runners", "Job"), value: display(row.job_name)},
-      %{label: dgettext("dashboard_runners", "Repository"), value: display(row.repo)},
+      %{label: dgettext("dashboard_runners", "Repository"), value: display(row.repository)},
       %{label: dgettext("dashboard_runners", "Branch"), value: display(row.head_branch)},
       %{label: dgettext("dashboard_runners", "Status"), value: status_label(row.conclusion)},
       %{label: dgettext("dashboard_runners", "Platform"), value: platform_from_fleet(row.fleet_name)},
@@ -935,7 +935,7 @@ defmodule Tuist.Runners.Analytics do
   # the account, with each field collapsed to its latest version
   # (argMax over `updated_at`). The inner WHERE prunes by partition
   # via `enqueued_at` — partition-aligned on `toYYYYMM(enqueued_at)`
-  # — and applies the workflow scope (repo / workflow_name /
+  # — and applies the workflow scope (repository / workflow_name /
   # platform) so we never carry rows we'll later drop. Use this for
   # every metric keyed off enqueued / completed time.
   defp latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts) do
@@ -958,7 +958,7 @@ defmodule Tuist.Runners.Analytics do
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
       job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at)
     })
   end
@@ -992,7 +992,7 @@ defmodule Tuist.Runners.Analytics do
       fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
       workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
       job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-      repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
       head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at)
     })
   end
@@ -1089,16 +1089,16 @@ defmodule Tuist.Runners.Analytics do
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)
 
   # Narrows a `runner_jobs` query to a specific workflow when the
-  # caller provides `:repo` and/or `:workflow_name` opts, so a
+  # caller provides `:repository` and/or `:workflow_name` opts, so a
   # scoped caller can reuse the same per-account queries restricted
-  # to one (repo, workflow_name) pair. The same opts also carry an
+  # to one (repository, workflow_name) pair. The same opts also carry an
   # optional `:platform` ("macos" or "linux") which narrows on the
   # `fleet_name` prefix — no new column needed since every fleet
   # is already named after its OS (macos-xcode-26.4, linux-amd64,
   # etc.).
   defp scope_workflow(query, opts) do
     query
-    |> maybe_eq(:repo, Keyword.get(opts, :repo))
+    |> maybe_eq(:repository, Keyword.get(opts, :repository))
     |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
     |> maybe_platform(Keyword.get(opts, :platform))
   end
@@ -1117,7 +1117,7 @@ defmodule Tuist.Runners.Analytics do
   defp maybe_eq(query, _field, nil), do: query
   defp maybe_eq(query, _field, ""), do: query
 
-  defp maybe_eq(query, :repo, value) when is_binary(value), do: where(query, [j], j.repo == ^value)
+  defp maybe_eq(query, :repository, value) when is_binary(value), do: where(query, [j], j.repository == ^value)
 
   defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [j], j.workflow_name == ^value)
 end

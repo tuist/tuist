@@ -33,7 +33,7 @@ defmodule TuistWeb.RunnersLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:repos, Jobs.distinct_repos_for_account(selected_account.id))}
+     |> assign(:repositories, Jobs.distinct_repositories_for_account(selected_account.id))}
   end
 
   @impl true
@@ -49,7 +49,7 @@ defmodule TuistWeb.RunnersLive do
 
     opts =
       [start_datetime: start_datetime, end_datetime: end_datetime]
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
 
     {:noreply,
@@ -78,10 +78,10 @@ defmodule TuistWeb.RunnersLive do
      )}
   end
 
-  defp maybe_repo(opts, "any"), do: opts
-  defp maybe_repo(opts, nil), do: opts
-  defp maybe_repo(opts, ""), do: opts
-  defp maybe_repo(opts, repo) when is_binary(repo), do: Keyword.put(opts, :repo, repo)
+  defp maybe_repository(opts, "any"), do: opts
+  defp maybe_repository(opts, nil), do: opts
+  defp maybe_repository(opts, ""), do: opts
+  defp maybe_repository(opts, repository) when is_binary(repository), do: Keyword.put(opts, :repository, repository)
 
   defp maybe_platform(opts, "any"), do: opts
   defp maybe_platform(opts, nil), do: opts
@@ -141,7 +141,7 @@ defmodule TuistWeb.RunnersLive do
     # table below shows only the freshest `@table_limit` rows.
     opts =
       [status: "completed", limit: @chart_limit]
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
 
     recent_jobs_chart = Jobs.list_for_account(account_id, opts)
@@ -157,7 +157,7 @@ defmodule TuistWeb.RunnersLive do
   defp assign_recent_workflow_runs(socket, account_id, repository, platform) do
     opts =
       [limit: @chart_limit]
-      |> maybe_repo(repository)
+      |> maybe_repository(repository)
       |> maybe_platform(platform)
 
     recent_workflow_runs_chart = Jobs.list_recent_workflow_runs_for_account(account_id, opts)
@@ -205,9 +205,9 @@ defmodule TuistWeb.RunnersLive do
   defp workflow_run_chart_color("cancelled"), do: "var:noora-chart-warning"
   defp workflow_run_chart_color(_), do: "var:noora-chart-secondary"
 
-  defp workflow_run_detail_url(account_name, %{repo: repo, workflow_name: workflow_name})
-       when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "" do
-    case String.split(repo, "/", parts: 2) do
+  defp workflow_run_detail_url(account_name, %{repository: repository, workflow_name: workflow_name})
+       when is_binary(repository) and is_binary(workflow_name) and repository != "" and workflow_name != "" do
+    case String.split(repository, "/", parts: 2) do
       [owner, name] when owner != "" and name != "" ->
         "/#{account_name}/runners/workflows/#{URI.encode(owner, &URI.char_unreserved?/1)}/#{URI.encode(name, &URI.char_unreserved?/1)}/#{URI.encode(workflow_name, &URI.char_unreserved?/1)}"
 
@@ -274,7 +274,7 @@ defmodule TuistWeb.RunnersLive do
   end
 
   def repository_label("any"), do: dgettext("dashboard_runners", "Any")
-  def repository_label(repo) when is_binary(repo), do: repo
+  def repository_label(repository) when is_binary(repository), do: repository
 
   @doc """
   Same pattern as `repository_patch/2`: toggle the URL's `platform`
@@ -309,9 +309,9 @@ defmodule TuistWeb.RunnersLive do
   def conclusion_status_badge("failure"), do: "error"
   def conclusion_status_badge(_), do: "warning"
 
-  def workflow_run_path(account_name, %{repo: repo, workflow_name: workflow_name})
-      when is_binary(repo) and is_binary(workflow_name) and repo != "" and workflow_name != "" do
-    case String.split(repo, "/", parts: 2) do
+  def workflow_run_path(account_name, %{repository: repository, workflow_name: workflow_name})
+      when is_binary(repository) and is_binary(workflow_name) and repository != "" and workflow_name != "" do
+    case String.split(repository, "/", parts: 2) do
       [owner, name] when owner != "" and name != "" ->
         "/#{account_name}/runners/workflows/#{URI.encode(owner, &URI.char_unreserved?/1)}/#{URI.encode(name, &URI.char_unreserved?/1)}/#{URI.encode(workflow_name, &URI.char_unreserved?/1)}"
 
