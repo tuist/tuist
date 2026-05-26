@@ -118,13 +118,15 @@ public struct GenerateService {
             }
         }
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
-
         let resolvedCacheProfile = try config.resolveCacheProfile(
             ignoreBinaryCache: ignoreBinaryCache,
             includedTargets: includedTargets,
             cacheProfile: cacheProfile
         )
+
+        let cacheStorage = LazyCacheStorage {
+            try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let generator = generatorFactory.generation(
             config: config,

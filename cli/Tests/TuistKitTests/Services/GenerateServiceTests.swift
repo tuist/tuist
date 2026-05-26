@@ -292,6 +292,39 @@ struct GenerateServiceTests {
             .called(1)
     }
 
+    @Test func defers_cache_storage_initialization_until_generation_needs_it() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .called(0)
+    }
+
     @Test func passes_config_default_custom_when_no_flag_and_no_focus() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")

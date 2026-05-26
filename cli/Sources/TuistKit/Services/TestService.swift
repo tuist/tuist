@@ -327,7 +327,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return
         }
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = LazyCacheStorage {
+            try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let destination = try await destination(
             arguments: passthroughXcodeBuildArguments,
@@ -666,7 +668,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsArchivePath: shardArchivePath
         )
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = LazyCacheStorage {
+            try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
@@ -789,7 +793,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = LazyCacheStorage {
+            try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
