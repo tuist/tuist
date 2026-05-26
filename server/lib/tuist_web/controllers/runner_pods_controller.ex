@@ -12,6 +12,7 @@ defmodule TuistWeb.RunnerPodsController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.RunnerSessions
 
@@ -38,7 +39,8 @@ defmodule TuistWeb.RunnerPodsController do
   """
   def stopped(conn, params) do
     with {:ok, token} <- bearer_token(conn),
-         {:ok, _} <- K8sClient.create_controller_token_review(token),
+         {:ok, principal} <- K8sClient.create_controller_token_review(token),
+         :ok <- ensure_controller_principal(principal),
          {:ok, pod_name} <- parse_pod_name(params),
          {:ok, ended_at} <- parse_timestamp(params, "ended_at"),
          {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at) do
@@ -54,6 +56,19 @@ defmodule TuistWeb.RunnerPodsController do
       {:error, :not_service_account} ->
         Logger.warning("runners: tokenreview principal is not an SA on pods/stopped")
         conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+
+      {:error, {:wrong_principal, %{namespace: ns, name: name}}} ->
+        # Any in-cluster workload with a default-audience SA token
+        # would pass `create_controller_token_review/1`, so without
+        # this gate any pod in the cluster could close another
+        # customer's billing session early by guessing its pod_name.
+        # Lock down to the runners-controller SA specifically.
+        Logger.warning("runners: unauthorized principal on pods/stopped",
+          principal_namespace: ns,
+          principal_name: name
+        )
+
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized principal"})
 
       {:error, :not_in_cluster} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
@@ -73,6 +88,15 @@ defmodule TuistWeb.RunnerPodsController do
       {:error, reason} ->
         Logger.error("runners: pods/stopped failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "pods/stopped failed"})
+    end
+  end
+
+  defp ensure_controller_principal(%{namespace: ns, name: name} = principal) do
+    if ns == Environment.runners_controller_namespace() and
+         name == Environment.runners_controller_sa_name() do
+      :ok
+    else
+      {:error, {:wrong_principal, principal}}
     end
   end
 

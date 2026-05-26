@@ -27,7 +27,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
   defp ok_tokenreview_stub do
     stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
-      {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
+      {:ok, %{namespace: "tuist", name: "tuist-runners-controller"}}
     end)
   end
 
@@ -124,6 +124,25 @@ defmodule TuistWeb.RunnerPodsControllerTest do
         })
 
       assert json_response(conn, 401)["error"] =~ "invalid"
+    end
+
+    test "returns 401 when the principal isn't the runners-controller SA", %{conn: conn} do
+      # Any in-cluster workload could present a valid SA token, but
+      # only the runners-controller is allowed to close billing
+      # sessions. Tokens from any other SA must be rejected.
+      stub(K8sClient, :create_controller_token_review, fn _ ->
+        {:ok, %{namespace: "other-ns", name: "other-sa"}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer foreign-token")
+        |> post("/api/internal/runners/pods/stopped", %{
+          "pod_name" => "pod-x",
+          "ended_at" => DateTime.to_iso8601(DateTime.utc_now())
+        })
+
+      assert json_response(conn, 401)["error"] =~ "unauthorized"
     end
 
     test "returns 503 when kubernetes is unavailable", %{conn: conn} do

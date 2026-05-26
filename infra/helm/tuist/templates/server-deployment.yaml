@@ -127,6 +127,14 @@ spec:
             # chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            # Identity gate for `POST /api/internal/runners/pods/stopped`:
+            # only the rendered runners-controller SA can close billing
+            # sessions. Mirrors the deployment-time identity defined in
+            # `runners-controller-deployment.yaml`.
+            - name: TUIST_RUNNERS_CONTROLLER_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
