@@ -63,6 +63,17 @@ jobs:
       # picks it up and `packer init` / Packer's tart-cli plugin
       # fail loudly if it's missing.
 
+      # `oras` isn't part of the host bootstrap (yet) — install on
+      # demand via brew. Cheap when cached, fast first-time install
+      # since oras is a single static Go binary.
+      - name: Ensure oras is installed
+        run: |
+          set -euo pipefail
+          if ! command -v oras >/dev/null 2>&1; then
+            brew install oras
+          fi
+          oras version
+
       # Pull the .xip from our in-house mirror instead of Apple
       # directly. The mirror is populated by the operator running
       # `mise run xcode-mirror:upload <version>` on their Mac
