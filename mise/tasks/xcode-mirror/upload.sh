@@ -90,13 +90,25 @@ fi
 
 echo "Pushing $(basename "$XIP") → ghcr.io/tuist/xcode-xips:${VERSION}..."
 # `--artifact-type` advertises the media type for the manifest so
-# the worker (and future tooling) can verify the tag points at a
-# real .xip. The blob's own media type is `application/x-pkcs7-mime`,
-# which Apple's signed .xips actually are.
-oras push \
-  --artifact-type "application/vnd.tuist.xcode-xip" \
-  "ghcr.io/tuist/xcode-xips:${VERSION}" \
-  "$XIP:application/x-pkcs7-mime"
+# the build workflow (and future tooling) can verify the tag
+# points at a real .xip. The blob's own media type is
+# `application/x-pkcs7-mime`, which Apple's signed .xips actually
+# are.
+#
+# Cd into the cache dir + push by basename instead of absolute
+# path — `oras push` rejects absolute paths by default
+# ("absolute file path detected"). The annotation puts the
+# original filename back in the manifest so consumers see the
+# real name when they pull.
+xip_filename="$(basename "$XIP")"
+(
+  cd "$(dirname "$XIP")"
+  oras push \
+    --artifact-type "application/vnd.tuist.xcode-xip" \
+    --annotation "org.opencontainers.image.title=${xip_filename}" \
+    "ghcr.io/tuist/xcode-xips:${VERSION}" \
+    "${xip_filename}:application/x-pkcs7-mime"
+)
 
 echo
 echo "Published ghcr.io/tuist/xcode-xips:${VERSION}"
