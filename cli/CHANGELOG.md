@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
 * preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
 * stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
 * respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
