@@ -1666,6 +1666,58 @@ end
         }
 
         #[tokio::test]
+        async fn allows_account_writes_when_introspection_returns_write_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &["acme"], &[], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.method = "POST".into();
+            context.operation = "artifact.write".into();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn denies_project_writes_when_introspection_only_returns_read_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.method = "POST".into();
+            context.operation = "artifact.write".into();
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 403);
+            assert!(deny.message.contains("project 'acme/ios'"));
+        }
+
+        #[tokio::test]
         async fn authorizes_from_local_jwt_cache_grants_without_introspection() {
             let engine = engine_pointing_at("http://127.0.0.1:1", false).await;
             let token = guardian_jwt(json!({
@@ -1834,6 +1886,25 @@ end
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 401);
+        }
+
+        #[tokio::test]
+        async fn denies_when_introspection_backend_is_unavailable() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context
+                .headers
+                .insert("authorization".into(), "Bearer bad-token".into());
+            context.namespace_id = Some("ios".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 503);
         }
 
         #[tokio::test]
