@@ -207,7 +207,7 @@ defmodule TuistWeb.RunnerJobsLive do
       fn ->
         {:ok,
          %{
-           jobs_breakdown: Analytics.jobs_breakdown(account.id, scope_opts),
+           jobs_breakdown: jobs_breakdown(account.id, scope_opts),
            cumulative_minutes: Billing.compute_minutes(account.id, scope_opts),
            queue_time: Analytics.queue_time(account.id, scope_opts),
            jobs_duration: Analytics.jobs_duration(account.id, scope_opts),
@@ -215,6 +215,24 @@ defmodule TuistWeb.RunnerJobsLive do
          }}
       end
     )
+  end
+
+  # Three independent ClickHouse round trips — total / successful /
+  # failed counts each carry their own daily series and trend. Fan out
+  # over Task.async so the widget loads in the time of the slowest
+  # query rather than the sum of all three.
+  defp jobs_breakdown(account_id, scope_opts) do
+    [total, successful, failed] =
+      Task.await_many(
+        [
+          Task.async(fn -> Analytics.jobs_count(account_id, scope_opts) end),
+          Task.async(fn -> Analytics.successful_jobs_count(account_id, scope_opts) end),
+          Task.async(fn -> Analytics.failed_jobs_count(account_id, scope_opts) end)
+        ],
+        30_000
+      )
+
+    %{total: total, successful: successful, failed: failed}
   end
 
   defp maybe_repo(opts, "any"), do: opts
@@ -656,9 +674,9 @@ defmodule TuistWeb.RunnerJobsLive do
   """
   def jobs_breakdown_chart_series(stats) do
     [
-      breakdown_series(stats, "Total", "secondary", :total_values),
-      breakdown_series(stats, dgettext("dashboard_runners", "Passed"), "tertiary", :successful_values),
-      breakdown_series(stats, dgettext("dashboard_runners", "Failed"), "destructive", :failed_values)
+      breakdown_series(stats.total, "Total", "secondary"),
+      breakdown_series(stats.successful, dgettext("dashboard_runners", "Passed"), "tertiary"),
+      breakdown_series(stats.failed, dgettext("dashboard_runners", "Failed"), "destructive")
     ]
   end
 
@@ -672,13 +690,13 @@ defmodule TuistWeb.RunnerJobsLive do
   def jobs_breakdown_title("failed"), do: dgettext("dashboard_runners", "Failed job runs")
   def jobs_breakdown_title(_total), do: dgettext("dashboard_runners", "All job runs")
 
-  def jobs_breakdown_value(stats, "passed"), do: Map.get(stats, :successful, 0)
-  def jobs_breakdown_value(stats, "failed"), do: Map.get(stats, :failed, 0)
-  def jobs_breakdown_value(stats, _total), do: Map.get(stats, :total, 0)
+  def jobs_breakdown_value(stats, "passed"), do: stats.successful.count
+  def jobs_breakdown_value(stats, "failed"), do: stats.failed.count
+  def jobs_breakdown_value(stats, _total), do: stats.total.count
 
-  def jobs_breakdown_trend(stats, "passed"), do: Map.get(stats, :trend_successful, 0.0)
-  def jobs_breakdown_trend(stats, "failed"), do: Map.get(stats, :trend_failed, 0.0)
-  def jobs_breakdown_trend(stats, _total), do: Map.get(stats, :trend_total, 0.0)
+  def jobs_breakdown_trend(stats, "passed"), do: stats.successful.trend
+  def jobs_breakdown_trend(stats, "failed"), do: stats.failed.trend
+  def jobs_breakdown_trend(stats, _total), do: stats.total.trend
 
   # `:inverse` for Failed so the trend badge reads "good" when the
   # count drops and "bad" when it climbs; `:regular` for Passed so
@@ -694,12 +712,12 @@ defmodule TuistWeb.RunnerJobsLive do
   def jobs_breakdown_legend_color("failed"), do: "destructive"
   def jobs_breakdown_legend_color(_total), do: "secondary"
 
-  defp breakdown_series(stats, name, color_key, values_key) do
+  defp breakdown_series(%{dates: dates, values: values}, name, color_key) do
     %{
       color: "var:noora-chart-#{color_key}",
       data:
-        stats.dates
-        |> Enum.zip(Map.get(stats, values_key, []))
+        dates
+        |> Enum.zip(values)
         |> Enum.map(&Tuple.to_list/1),
       name: name,
       type: "line",

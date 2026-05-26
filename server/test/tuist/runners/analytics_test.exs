@@ -76,6 +76,23 @@ defmodule Tuist.Runners.AnalyticsTest do
     end
   end
 
+  describe "successful_jobs_count/2" do
+    test "only counts workflow_jobs whose latest state is completed/success" do
+      account = account_fixture()
+
+      completed_job(account, 72_101, "success")
+      completed_job(account, 72_102, "success")
+      completed_job(account, 72_103, "failure")
+      completed_job(account, 72_104, "cancelled")
+      completed_job(account, 72_105, "skipped")
+
+      # Mirror of the failed_jobs_count assertion: dedup picks the
+      # latest conclusion per workflow_job, so only the two with
+      # conclusion=success are counted.
+      assert %{count: 2} = Analytics.successful_jobs_count(account.id)
+    end
+  end
+
   describe "jobs_duration/2" do
     test "averages over deduplicated jobs (no double-counting per lifecycle row)" do
       account = account_fixture()
