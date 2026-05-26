@@ -1303,7 +1303,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await fileSystem.copy(
                 try await fileSystem.resolveSymbolicLink(resultBundlePath),
                 to: runResultBundlePath.parentDirectory.appending(
-                    components: "\(Constants.resultBundleName).xcresult"
+                    components: Constants.resultBundleName
                 )
             )
         }

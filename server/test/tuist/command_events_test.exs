@@ -203,7 +203,7 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "get_result_bundle_url/1" do
-    test "returns the result bundle URL" do
+    test "returns the result bundle URL with an AppleArchive download filename" do
       # Given
       project = Repo.preload(ProjectsFixtures.project_fixture(), :account)
 
@@ -212,7 +212,13 @@ defmodule Tuist.CommandEventsTest do
       object_key =
         "#{project.account.name}/#{project.name}/runs/#{command_event.id}/result_bundle.zip"
 
-      stub(Storage, :generate_download_url, fn ^object_key, _actor -> "https://tuist.io" end)
+      stub(Storage, :generate_download_url, fn ^object_key, _actor, opts ->
+        query_params = Keyword.get(opts, :query_params, [])
+
+        assert {"response-content-disposition", "attachment; filename=\"result_bundle.aar\""} in query_params
+
+        "https://tuist.io"
+      end)
 
       # When
       got = CommandEvents.generate_result_bundle_url(command_event)

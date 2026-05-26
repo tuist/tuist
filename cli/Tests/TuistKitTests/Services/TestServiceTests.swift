@@ -3013,7 +3013,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let existsResultBundlePathInCacheDirectory = try await fileSystem.exists(
             try cacheDirectoriesProvider
                 .cacheDirectory(for: .runs)
-                .appending(components: "run-id", "\(Constants.resultBundleName).xcresult"),
+                .appending(components: "run-id", Constants.resultBundleName),
             isDirectory: true
         )
         XCTAssertTrue(existsResultBundlePathInCacheDirectory)
@@ -5416,7 +5416,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn([])
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist", project: .testGeneratedProject()))
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
 
         let passedResultBundlePath = path.appending(component: "MyApp.xcresult")
 
