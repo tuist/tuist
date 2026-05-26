@@ -200,18 +200,6 @@ struct TuistGeneratedProjectManifestMapperTests {
         #expect(got.storages == [.remote])
     }
 
-    @Test func from_mapsRemoteCacheBackend_default() throws {
-        let manifest = ProjectDescription.Config.CacheOptions.options()
-        let got = try TuistConfig.CacheOptions.from(manifest: manifest)
-        #expect(got.remoteCacheBackend == .regional)
-    }
-
-    @Test func from_mapsRemoteCacheBackend_legacy() throws {
-        let manifest = ProjectDescription.Config.CacheOptions.options(remoteCacheBackend: .legacy)
-        let got = try TuistConfig.CacheOptions.from(manifest: manifest)
-        #expect(got.remoteCacheBackend == .legacy)
-    }
-
     @Test func from_throws_whenCustomProfileNameIsReserved() throws {
         for reservedName in BaseCacheProfile.allCases.map(\.rawValue) {
             #expect(throws: CacheOptionsManifestMapperError.reservedProfileName(profile: reservedName)) {

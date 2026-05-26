@@ -140,11 +140,8 @@ struct CleanService {
             let config = try await configLoader.loadConfig(path: resolvedPath)
             guard let fullHandle = config.fullHandle else { return }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            let usesLegacyRemoteCacheBackend =
-                Environment.current.isLegacyModuleCacheEnabled ||
-                config.project.generatedProject?.cacheOptions.remoteCacheBackend == .legacy
 
-            if usesLegacyRemoteCacheBackend {
+            if Environment.current.isLegacyModuleCacheEnabled {
                 try await cleanCacheService.cleanCache(
                     serverURL: serverURL,
                     fullHandle: fullHandle

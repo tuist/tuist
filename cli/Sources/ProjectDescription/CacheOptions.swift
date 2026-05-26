@@ -1,12 +1,4 @@
 extension Tuist {
-    /// Represents the backend used for the remote module cache.
-    public enum RemoteCacheBackend: Codable, Equatable, Sendable {
-        /// Store and fetch module cache artifacts through regional cache endpoints.
-        case regional
-        /// Store and fetch module cache artifacts through the legacy Tuist server endpoints.
-        case legacy
-    }
-
     /// Represents a cache storage backend.
     public enum CacheStorageOption: Codable, Equatable, Sendable {
         /// Store and fetch cached binaries on the local machine.
@@ -21,20 +13,16 @@ extension Tuist {
         public var profiles: CacheProfiles
         /// The storage backends to use for caching. Defaults to `[.local, .remote]`.
         public var storages: [CacheStorageOption]
-        /// The backend to use for remote module cache operations. Defaults to `.regional`.
-        public var remoteCacheBackend: RemoteCacheBackend
 
         public static func options(
             keepSourceTargets: Bool = false,
             profiles: CacheProfiles = [:],
-            storages: [CacheStorageOption] = [.local, .remote],
-            remoteCacheBackend: RemoteCacheBackend = .regional
+            storages: [CacheStorageOption] = [.local, .remote]
         ) -> Self {
             self.init(
                 keepSourceTargets: keepSourceTargets,
                 profiles: profiles,
-                storages: storages,
-                remoteCacheBackend: remoteCacheBackend
+                storages: storages
             )
         }
     }

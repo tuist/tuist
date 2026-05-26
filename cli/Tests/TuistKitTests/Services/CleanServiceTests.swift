@@ -347,66 +347,6 @@ final class CleanServiceTests: TuistUnitTestCase {
         }
     }
 
-    func test_run_with_remote_legacy_from_config() async throws {
-        try await withMockedEnvironment {
-            try await withMockedDependencies {
-                // Given
-                let url = URL(string: "https://cloud.com")!
-                let customConfigLoader = MockConfigLoading()
-
-                given(customConfigLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(
-                        Tuist.test(
-                            project: .generated(.test(cacheOptions: .test(remoteCacheBackend: .legacy))),
-                            fullHandle: "tuist/tuist",
-                            url: url
-                        )
-                    )
-
-                given(serverEnvironmentService)
-                    .url(configServerURL: .any)
-                    .willReturn(url)
-
-                given(cleanCacheService)
-                    .cleanCache(
-                        serverURL: .value(url),
-                        fullHandle: .value("tuist/tuist")
-                    )
-                    .willReturn(())
-
-                given(cacheDirectoriesProvider)
-                    .cacheDirectory(for: .any)
-                    .willReturn(try temporaryPath())
-
-                let projectPath = try temporaryPath()
-                given(rootDirectoryLocator)
-                    .locate(from: .any)
-                    .willReturn(projectPath)
-                given(manifestFilesLocator)
-                    .locatePackageManifest(at: .any)
-                    .willReturn(nil)
-                let subject = makeSubject(configLoader: customConfigLoader)
-
-                // When
-                try await subject.run(
-                    categories: TuistCleanCategory.allCases,
-                    remote: true,
-                    path: nil
-                )
-
-                // Then
-                verify(cleanCacheService)
-                    .cleanCache(serverURL: .any, fullHandle: .any)
-                    .called(1)
-                verify(getCacheEndpointsService)
-                    .getCacheEndpoints(serverURL: .any, accountHandle: .any)
-                    .called(0)
-                XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
-            }
-        }
-    }
-
     func test_run_with_remote() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {

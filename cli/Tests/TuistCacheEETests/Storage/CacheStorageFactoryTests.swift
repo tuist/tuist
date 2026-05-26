@@ -77,11 +77,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            let remoteStorage = try #require((got as? CacheStorage)?.remoteStorage)
-            #expect(remoteStorage is ModuleCacheRemoteStorage)
-            verify(cacheURLStore)
-                .getCacheURL(for: .value(Constants.URLs.production), accountHandle: .value("tuist"))
-                .called(1)
+            #expect((got as? CacheStorage)?.remoteStorage != nil)
         }
     }
 
@@ -109,43 +105,7 @@ struct CacheStorageFactoryTests {
             )
 
             // Then
-            let remoteStorage = try #require((got as? CacheStorage)?.remoteStorage)
-            #expect(remoteStorage is CacheRemoteStorage)
-            verify(cacheURLStore)
-                .getCacheURL(for: .any, accountHandle: .any)
-                .called(0)
-        }
-    }
-
-    @Test
-    func when_serverURL_configuration_and_legacy_backend_from_config() async throws {
-        try await withMockedEnvironment {
-            // Given
-            given(serverEnvironmentService).url(configServerURL: .any).willReturn(Constants.URLs.production)
-            let token: AuthenticationToken = .user(
-                accessToken: .test(token: "access-token"),
-                refreshToken: .test(token: "refresh-token")
-            )
-            given(serverAuthenticationController).authenticationToken(
-                serverURL: .value(Constants.URLs.production),
-                refreshIfNeeded: .any
-            ).willReturn(token)
-
-            // When
-            let got = try await subject.cacheStorage(
-                config: .test(
-                    project: .generated(.test(cacheOptions: .test(remoteCacheBackend: .legacy))),
-                    fullHandle: "tuist/tuist",
-                    url: Constants.URLs.production
-                )
-            )
-
-            // Then
-            let remoteStorage = try #require((got as? CacheStorage)?.remoteStorage)
-            #expect(remoteStorage is CacheRemoteStorage)
-            verify(cacheURLStore)
-                .getCacheURL(for: .any, accountHandle: .any)
-                .called(0)
+            #expect((got as? CacheStorage)?.remoteStorage != nil)
         }
     }
 

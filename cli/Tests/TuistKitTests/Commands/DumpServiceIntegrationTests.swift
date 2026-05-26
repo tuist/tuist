@@ -220,12 +220,7 @@ final class DumpServiceTests: TuistTestCase {
 
                         }
                       }
-                    ],
-                    "remoteCacheBackend": {
-                      "regional": {
-
-                      }
-                    }
+                    ]
                   },
                   "compatibleXcodeVersions": {
                     "all": {

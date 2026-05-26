@@ -87,46 +87,32 @@ public enum CacheStorageOption: Codable, Equatable, Sendable, Hashable {
     case remote
 }
 
-/// Represents the backend used for the remote module cache.
-public enum RemoteCacheBackend: Codable, Equatable, Sendable, Hashable {
-    /// Store and fetch module cache artifacts through regional cache endpoints.
-    case regional
-    /// Store and fetch module cache artifacts through the legacy Tuist server endpoints.
-    case legacy
-}
-
 public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
     public var keepSourceTargets: Bool
     public var profiles: CacheProfiles
     /// The storage backends to use for caching.
     public var storages: [CacheStorageOption]
-    /// The backend to use for remote module cache operations.
-    public var remoteCacheBackend: RemoteCacheBackend
 
     public init(
         keepSourceTargets: Bool,
         profiles: CacheProfiles,
-        storages: [CacheStorageOption] = [.local, .remote],
-        remoteCacheBackend: RemoteCacheBackend = .regional
+        storages: [CacheStorageOption] = [.local, .remote]
     ) {
         self.keepSourceTargets = keepSourceTargets
         self.profiles = profiles
         self.storages = storages
-        self.remoteCacheBackend = remoteCacheBackend
     }
 
     #if DEBUG
         public static func test(
             keepSourceTargets: Bool = false,
             profiles: CacheProfiles = .init([:], default: .onlyExternal),
-            storages: [CacheStorageOption] = [.local, .remote],
-            remoteCacheBackend: RemoteCacheBackend = .regional
+            storages: [CacheStorageOption] = [.local, .remote]
         ) -> Self {
             .init(
                 keepSourceTargets: keepSourceTargets,
                 profiles: profiles,
-                storages: storages,
-                remoteCacheBackend: remoteCacheBackend
+                storages: storages
             )
         }
     #endif
