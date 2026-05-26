@@ -65,7 +65,11 @@ EOF
   # fast — better than burning a 2 GB upload before the registry
   # returns "permission_denied: token does not match expected
   # scopes" on the manifest PUT.
-  if ! gh auth status 2>&1 | grep -qE "(^|[, ])write:packages([, ]|$)"; then
+  #
+  # `gh auth status` quotes each scope (`'write:packages'`),
+  # which a bare substring match handles without us having to
+  # care about gh's quoting changes between releases.
+  if ! gh auth status 2>&1 | grep -q "write:packages"; then
     cat >&2 <<'EOF'
 Error: your gh token doesn't include the write:packages scope.
 
