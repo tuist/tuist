@@ -647,21 +647,37 @@ defmodule Tuist.Runners.Analytics do
     )
   end
 
+  # Rolls up to one row per workflow_run, but only when every one of
+  # its jobs is in `completed`. Filtering jobs by `status='completed'`
+  # row-by-row would let a run with one finished + one still-queued
+  # job slip through as a (truncated) duration sample — we'd
+  # underreport the workflow's true wall-clock. The HAVING gate keeps
+  # the run out of the rollup until all of its jobs have landed.
+  #
+  # Skipped/cancelled jobs leave `started_at` / `completed_at` at the
+  # epoch sentinel (`toDateTime64(0, 6)`), so we use `minIf` / `maxIf`
+  # with a `> 0` guard so those don't drag min back to 1970 or pin
+  # max at 0.
   defp workflow_runs_subquery(account_id, start_dt, end_dt, opts, :hour) do
     latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     from(j in subquery(latest),
-      where:
-        j.status == "completed" and j.workflow_run_id > 0 and
-          fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-          fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+      where: j.workflow_run_id > 0,
       group_by: j.workflow_run_id,
+      having: fragment("countIf(? != 'completed')", j.status) == 0,
       select: %{
-        completion_date: fragment("toStartOfHour(max(?))", j.completed_at),
+        completion_date:
+          fragment(
+            "toStartOfHour(maxIf(?, toUnixTimestamp64Milli(?) > 0))",
+            j.completed_at,
+            j.completed_at
+          ),
         run_ms:
           fragment(
-            "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+            "toUnixTimestamp64Milli(maxIf(?, toUnixTimestamp64Milli(?) > 0)) - toUnixTimestamp64Milli(minIf(?, toUnixTimestamp64Milli(?) > 0))",
             j.completed_at,
+            j.completed_at,
+            j.started_at,
             j.started_at
           )
       }
@@ -672,17 +688,22 @@ defmodule Tuist.Runners.Analytics do
     latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     from(j in subquery(latest),
-      where:
-        j.status == "completed" and j.workflow_run_id > 0 and
-          fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-          fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+      where: j.workflow_run_id > 0,
       group_by: j.workflow_run_id,
+      having: fragment("countIf(? != 'completed')", j.status) == 0,
       select: %{
-        completion_date: fragment("toDate(max(?))", j.completed_at),
+        completion_date:
+          fragment(
+            "toDate(maxIf(?, toUnixTimestamp64Milli(?) > 0))",
+            j.completed_at,
+            j.completed_at
+          ),
         run_ms:
           fragment(
-            "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+            "toUnixTimestamp64Milli(maxIf(?, toUnixTimestamp64Milli(?) > 0)) - toUnixTimestamp64Milli(minIf(?, toUnixTimestamp64Milli(?) > 0))",
             j.completed_at,
+            j.completed_at,
+            j.started_at,
             j.started_at
           )
       }

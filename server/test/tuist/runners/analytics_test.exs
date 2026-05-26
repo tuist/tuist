@@ -144,6 +144,52 @@ defmodule Tuist.Runners.AnalyticsTest do
     end
   end
 
+  describe "workflows_duration/2" do
+    test "excludes workflow_runs that still have non-completed jobs" do
+      account = account_fixture()
+      run_id = 9_500
+
+      # Two jobs share a workflow_run. The first completes quickly;
+      # the second stays queued. The run isn't done — its duration
+      # shouldn't enter the rollup until every job has landed.
+      # Without the all-completed HAVING gate, the rollup would
+      # compute (first_completed - first_started) and report that
+      # as the run's wall-clock, underreporting reality.
+      completed_job(account, 78_001, "success", workflow_run_id: run_id, run_ms: 20)
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 78_002,
+          account_id: account.id,
+          fleet_name: "fleet-incomplete",
+          repository: "acme/cli",
+          workflow_run_id: run_id,
+          workflow_name: "",
+          run_attempt: 1,
+          job_name: "still-queued",
+          head_branch: "main",
+          head_sha: "abc"
+        })
+
+      result = Analytics.workflows_duration(account.id)
+
+      assert result.avg == 0
+      assert result.p50 == 0
+    end
+
+    test "includes a workflow_run once every job is completed" do
+      account = account_fixture()
+      run_id = 9_600
+
+      completed_job(account, 78_101, "success", workflow_run_id: run_id, run_ms: 20)
+      completed_job(account, 78_102, "success", workflow_run_id: run_id, run_ms: 20)
+
+      result = Analytics.workflows_duration(account.id)
+
+      assert result.avg > 0
+    end
+  end
+
   describe "workflow_runs_count/2" do
     test "counts distinct workflow_run_ids" do
       account = account_fixture()
