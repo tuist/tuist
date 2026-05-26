@@ -368,6 +368,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             combinedPath = scratch.appending(
                 components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
                 Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                project.name.sanitizedModuleName,
                 "\(targetID.targetName)-deps.modulemap"
             )
         } else {

@@ -533,25 +533,26 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
 
         // Then — `$(PROJECT_DIR)` for project A resolves to `<scratch>/tuist-derived/Projects/A/`
-        // at build time, so `$(PROJECT_DIR)/../../ModuleMaps/A-deps.modulemap` resolves to
-        // `<scratch>/tuist-derived/ModuleMaps/A-deps.modulemap` without traversing
-        // `<scratch>/checkouts/`.
+        // at build time, so `$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap` resolves to
+        // `<scratch>/tuist-derived/ModuleMaps/A/A-deps.modulemap` without traversing
+        // `<scratch>/checkouts/`. The project-name namespace keeps same-named targets in
+        // different SwiftPM packages from clobbering each other's combined module maps.
         let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
-        let combinedModuleMapPath = derivedRoot.appending(components: "ModuleMaps", "A-deps.modulemap")
+        let combinedModuleMapPath = derivedRoot.appending(components: "ModuleMaps", "A", "A-deps.modulemap")
 
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_SWIFT_FLAGS"],
             .array([
                 "Other",
                 "-Xcc",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap",
             ])
         )
         XCTAssertBetterEqual(
@@ -580,5 +581,147 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         } else {
             XCTFail("Expected file side effect for combined module map")
         }
+    }
+
+    func test_external_spm_projects_with_same_target_name_use_distinct_combined_module_maps() throws {
+        let workspace = Workspace.test()
+        let scratch = try temporaryPath().appending(component: ".build")
+        let derivedRoot = scratch.appending(component: "tuist-derived")
+
+        let packageAPath = scratch.appending(components: "checkouts", "PackageA")
+        let packageAXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "PackageA", "PackageA.xcodeproj")
+        let depAPath = scratch.appending(components: "checkouts", "DepA")
+        let depAXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "DepA", "DepA.xcodeproj")
+        let depAModuleMapPath = derivedRoot.appending(components: "ModuleMaps", "DepA", "DepA.modulemap")
+        let depAHeaderSearchPath = derivedRoot.appending(components: "ModuleMaps", "DepA")
+
+        let packageBPath = scratch.appending(components: "checkouts", "PackageB")
+        let packageBXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "PackageB", "PackageB.xcodeproj")
+        let depBPath = scratch.appending(components: "checkouts", "DepB")
+        let depBXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "DepB", "DepB.xcodeproj")
+        let depBModuleMapPath = derivedRoot.appending(components: "ModuleMaps", "DepB", "DepB.modulemap")
+        let depBHeaderSearchPath = derivedRoot.appending(components: "ModuleMaps", "DepB")
+
+        let coreA = Target.test(
+            name: "Core",
+            settings: .test(base: [
+                "OTHER_SWIFT_FLAGS": "Other",
+                "OTHER_CFLAGS": ["Other"],
+            ]),
+            dependencies: [
+                .project(target: "DepA", path: depAPath),
+            ]
+        )
+        let packageA = Project.test(
+            path: packageAPath,
+            xcodeProjPath: packageAXcodeProj,
+            name: "PackageA",
+            targets: [coreA],
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: scratch
+        )
+        let depA = Project.test(
+            path: depAPath,
+            xcodeProjPath: depAXcodeProj,
+            name: "DepA",
+            targets: [
+                Target.test(
+                    name: "DepA",
+                    settings: .test(base: [
+                        "MODULEMAP_FILE": .string(depAModuleMapPath.pathString),
+                        "HEADER_SEARCH_PATHS": .array([depAHeaderSearchPath.pathString]),
+                    ])
+                ),
+            ],
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: scratch
+        )
+
+        let coreB = Target.test(
+            name: "Core",
+            settings: .test(base: [
+                "OTHER_SWIFT_FLAGS": "Other",
+                "OTHER_CFLAGS": ["Other"],
+            ]),
+            dependencies: [
+                .project(target: "DepB", path: depBPath),
+            ]
+        )
+        let packageB = Project.test(
+            path: packageBPath,
+            xcodeProjPath: packageBXcodeProj,
+            name: "PackageB",
+            targets: [coreB],
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: scratch
+        )
+        let depB = Project.test(
+            path: depBPath,
+            xcodeProjPath: depBXcodeProj,
+            name: "DepB",
+            targets: [
+                Target.test(
+                    name: "DepB",
+                    settings: .test(base: [
+                        "MODULEMAP_FILE": .string(depBModuleMapPath.pathString),
+                        "HEADER_SEARCH_PATHS": .array([depBHeaderSearchPath.pathString]),
+                    ])
+                ),
+            ],
+            type: .external(hash: nil),
+            swiftPackageManagerScratchDirectory: scratch
+        )
+
+        let (gotGraph, gotSideEffects, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    packageAPath: packageA,
+                    depAPath: depA,
+                    packageBPath: packageB,
+                    depBPath: depB,
+                ],
+                dependencies: [
+                    .target(name: coreA.name, path: packageAPath): [
+                        .target(name: "DepA", path: depAPath),
+                    ],
+                    .target(name: coreB.name, path: packageBPath): [
+                        .target(name: "DepB", path: depBPath),
+                    ],
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        let gotCoreA = try XCTUnwrap(gotGraph.projects[packageAPath]?.targets["Core"])
+        XCTAssertBetterEqual(
+            gotCoreA.settings?.base["OTHER_CFLAGS"],
+            .array([
+                "Other",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/PackageA/Core-deps.modulemap",
+            ])
+        )
+
+        let gotCoreB = try XCTUnwrap(gotGraph.projects[packageBPath]?.targets["Core"])
+        XCTAssertBetterEqual(
+            gotCoreB.settings?.base["OTHER_CFLAGS"],
+            .array([
+                "Other",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/PackageB/Core-deps.modulemap",
+            ])
+        )
+
+        let sideEffectPaths = gotSideEffects.compactMap { sideEffect -> AbsolutePath? in
+            if case let .file(descriptor) = sideEffect { return descriptor.path }
+            return nil
+        }
+
+        XCTAssertEqual(
+            Set(sideEffectPaths),
+            [
+                derivedRoot.appending(components: "ModuleMaps", "PackageA", "Core-deps.modulemap"),
+                derivedRoot.appending(components: "ModuleMaps", "PackageB", "Core-deps.modulemap"),
+            ]
+        )
     }
 }
