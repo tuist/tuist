@@ -1544,7 +1544,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), "Bearer user-token".into());
-            context.namespace_id = Some("~account".into());
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
@@ -1574,7 +1573,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
-            context.namespace_id = Some("~account".into());
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
@@ -1621,7 +1619,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
-            context.namespace_id = Some("~account".into());
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
@@ -1748,7 +1745,7 @@ end
         }
 
         #[tokio::test]
-        async fn denies_when_namespace_is_missing() {
+        async fn authorizes_account_scoped_access_when_namespace_is_missing() {
             let base = spawn_cache_access_mock(|_| {
                 (
                     StatusCode::OK,
@@ -1763,9 +1760,8 @@ end
                 .headers
                 .insert("authorization".into(), "Bearer t".into());
 
-            let deny = expect_deny(engine.evaluate_access(&context).await);
-            assert_eq!(deny.status, 403);
-            assert!(deny.message.contains("Missing namespace_id/project_handle"));
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
         }
 
         #[tokio::test]
@@ -1817,7 +1813,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), "Bearer t".into());
-            context.namespace_id = Some("~account".into());
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
@@ -1835,7 +1830,6 @@ end
             context
                 .headers
                 .insert("authorization".into(), "Bearer t".into());
-            context.namespace_id = Some("~account".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 403);

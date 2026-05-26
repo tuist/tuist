@@ -137,20 +137,46 @@ fn internal_routes() -> Router<SharedState> {
 
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
+const TENANT_SCOPE_NAMESPACE_ID: &str = "";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum NamespaceScope {
+    Account,
+    Project,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct NamespaceQuery {
     tenant_id: String,
     namespace_id: String,
+    scope: NamespaceScope,
 }
 
 impl NamespaceQuery {
     fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+        let namespace_id = param_value(params, "namespace_id")
+            .cloned()
+            .unwrap_or_else(|| TENANT_SCOPE_NAMESPACE_ID.to_owned());
         Ok(Self {
             tenant_id: required_param(params, "tenant_id")?,
-            namespace_id: required_param(params, "namespace_id")?,
+            scope: if namespace_id.is_empty() {
+                NamespaceScope::Account
+            } else {
+                NamespaceScope::Project
+            },
+            namespace_id,
         })
+    }
+
+    fn legacy_analytics_context(&self) -> Option<LegacyAnalyticsContext<'_>> {
+        match self.scope {
+            NamespaceScope::Account => None,
+            NamespaceScope::Project => Some(LegacyAnalyticsContext {
+                tenant_id: &self.tenant_id,
+                namespace_id: &self.namespace_id,
+            }),
+        }
     }
 }
 
@@ -301,7 +327,7 @@ impl ReplicateArtifactQuery {
                 })
                 .transpose()?
                 .unwrap_or(false),
-            namespace_id: required_param(params, "namespace_id")?,
+            namespace_id: required_raw_param(params, "namespace_id")?,
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
@@ -317,14 +343,24 @@ fn alias_keys(key: &str) -> &'static [&'static str] {
     }
 }
 
-fn param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
+fn raw_param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
     params
         .get(key)
         .or_else(|| alias_keys(key).iter().find_map(|alias| params.get(*alias)))
 }
 
+fn param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
+    raw_param_value(params, key).filter(|value| !value.is_empty())
+}
+
 fn required_param(params: &HashMap<String, String>, key: &str) -> Result<String, String> {
     param_value(params, key)
+        .cloned()
+        .ok_or_else(|| format!("Missing {key}"))
+}
+
+fn required_raw_param(params: &HashMap<String, String>, key: &str) -> Result<String, String> {
+    raw_param_value(params, key)
         .cloned()
         .ok_or_else(|| format!("Missing {key}"))
 }
@@ -725,7 +761,11 @@ async fn http_extension_metadata(
                 .map(|upload| upload.tenant_id.clone())
                 .or(tenant_id);
             if let Some(upload) = multipart_upload.as_ref() {
-                namespace_id = Some(upload.namespace_id.clone());
+                namespace_id = if upload.namespace_id.is_empty() {
+                    None
+                } else {
+                    Some(upload.namespace_id.clone())
+                };
             }
             let artifact_key = multipart_upload
                 .as_ref()
@@ -1130,10 +1170,7 @@ async fn get_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = Some(LegacyAnalyticsContext {
-        tenant_id: &namespace.tenant_id,
-        namespace_id: &namespace.namespace_id,
-    });
+    let analytics = namespace.legacy_analytics_context();
 
     get_artifact(
         state,
@@ -1157,10 +1194,7 @@ async fn put_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = Some(LegacyAnalyticsContext {
-        tenant_id: &namespace.tenant_id,
-        namespace_id: &namespace.namespace_id,
-    });
+    let analytics = namespace.legacy_analytics_context();
 
     put_blob_artifact(
         state,
@@ -1189,10 +1223,7 @@ async fn get_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = Some(LegacyAnalyticsContext {
-        tenant_id: &namespace.tenant_id,
-        namespace_id: &namespace.namespace_id,
-    });
+    let analytics = namespace.legacy_analytics_context();
 
     get_artifact(
         state,
@@ -1216,10 +1247,7 @@ async fn put_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = Some(LegacyAnalyticsContext {
-        tenant_id: &namespace.tenant_id,
-        namespace_id: &namespace.namespace_id,
-    });
+    let analytics = namespace.legacy_analytics_context();
 
     put_blob_artifact(
         state,
@@ -1676,7 +1704,7 @@ async fn internal_delete_namespace(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace_id = match required_param(&params, "namespace_id") {
+    let namespace_id = match required_raw_param(&params, "namespace_id") {
         Ok(namespace_id) => namespace_id,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -2375,25 +2403,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn xcode_routes_require_namespace_when_using_tenant_query_params() {
+    async fn tenant_only_xcode_routes_work_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
 
-        let response = app
+        let put_response = app
+            .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/api/cache/cas/artifact-1?tenant_id=acme")
+                    .method("POST")
+                    .uri("/api/cache/cas/account-artifact?account_handle=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?account_handle=acme")
                     .body(Body::empty())
                     .expect("failed to build get request"),
             )
             .await
             .expect("get request failed");
 
-        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            response_text(response).await,
-            r#"{"message":"Missing namespace_id"}"#
-        );
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
     }
 
     #[tokio::test]
@@ -2485,6 +2524,55 @@ mod tests {
                     }]
                 })
         }));
+    }
+
+    #[tokio::test]
+    async fn tenant_only_xcode_routes_skip_legacy_analytics_events() {
+        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        let context = test_context(|config| {
+            config.analytics = Some(AnalyticsConfig {
+                server_url: base_url,
+                signing_key: "secret-key".into(),
+                batch_size: 1,
+                batch_timeout_ms: 5_000,
+                queue_capacity: 8,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 5_000,
+            });
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
+
+        sleep(Duration::from_millis(200)).await;
+        assert!(captured.lock().expect("captured requests lock").is_empty());
     }
 
     #[tokio::test]
@@ -2636,6 +2724,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
+        let context = test_context(|_| {}).await;
+        let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
+        let extension_context = extension_context_from_http(
+            &context.state,
+            HttpExtensionRequest {
+                route: "/api/cache/cas/{id}",
+                method: "GET",
+                path: "/api/cache/cas/account-artifact",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: None,
+                status_code: None,
+            },
+        )
+        .await;
+
+        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(extension_context.namespace_id, None);
+    }
+
+    #[tokio::test]
     async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
@@ -2717,6 +2827,49 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn clean_namespace_removes_existing_tenant_scoped_artifacts() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "",
+                &blob_key("account-artifact"),
+                "application/octet-stream",
+                b"account-binary",
+            )
+            .await
+            .expect("failed to seed store");
+
+        let app = router(context.state.clone());
+
+        let delete = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/cache/clean?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build delete request"),
+            )
+            .await
+            .expect("delete request failed");
+        assert_eq!(delete.status(), StatusCode::NO_CONTENT);
+
+        let get = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
                     .body(Body::empty())
                     .expect("failed to build get request"),
             )

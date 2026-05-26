@@ -69,7 +69,7 @@ Kura splits durable state into two planes so that the hot path is simple and the
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
-Every public HTTP cache write and read is scoped to a `(tenant_id, namespace_id)` pair before it reaches storage. Integrations that want account-scoped traffic should choose a concrete reserved namespace and send it explicitly, so Kura stays generic while policy hooks can still interpret special namespaces however they need.
+Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
 
 ## Memory Pressure And Shedding
 

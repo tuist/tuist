@@ -18,17 +18,15 @@
 --
 --   2. authorize — the principal carries first-class account-scoped
 --      and project-scoped cache access. We resolve the request target
---      from `ctx.tenant_id` / `ctx.namespace_id`. Tuist reserves one
---      explicit namespace (`~account`) for account-scoped binaries;
---      every other namespace remains project-scoped. We also require
---      the requested tenant to match `ctx.server_tenant_id` so one
---      account's Kura mesh cannot serve another account's namespace.
+--      from `ctx.tenant_id` / `ctx.namespace_id`. Requests that omit
+--      `namespace_id` are authorized as account-scoped; requests that
+--      provide one remain project-scoped. We also require the requested
+--      tenant to match `ctx.server_tenant_id` so one account's Kura
+--      mesh cannot serve another account's namespace.
 --
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL  → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*        → Guardian verifier for Tuist JWTs
-
-local ACCOUNT_SCOPE_NAMESPACE = "~account"
 
 local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
@@ -151,14 +149,10 @@ local function request_target(ctx)
   end
 
   if namespace == nil then
-    return nil, { status = 403, message = "Missing namespace_id/project_handle on request" }
-  end
-
-  if namespace == ACCOUNT_SCOPE_NAMESPACE then
     return {
       scope = "account",
       account = tenant,
-      namespace = namespace,
+      namespace = nil,
       identifier = tenant,
     }, nil
   end
