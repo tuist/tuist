@@ -56,7 +56,7 @@ defmodule Tuist.Runners.RunnerSessions do
         Logger.warning("runners: failed to open billing session",
           workflow_job_id: workflow_job_id,
           account_id: account_id,
-          errors: inspect(changeset.errors)
+          changeset_errors: inspect(changeset.errors)
         )
 
         {:error, changeset}
@@ -98,9 +98,8 @@ defmodule Tuist.Runners.RunnerSessions do
 
           {:error, changeset} ->
             Logger.warning("runners: failed to close billing session",
-              session_id: session.id,
               workflow_job_id: workflow_job_id,
-              errors: inspect(changeset.errors)
+              changeset_errors: inspect(changeset.errors)
             )
 
             {:error, changeset}
