@@ -5,6 +5,7 @@ defmodule Tuist.Runners.JobsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
@@ -93,9 +94,7 @@ defmodule Tuist.Runners.JobsTest do
       assert :ok = Jobs.record_claimed(candidate, "pod-bs", claimed_at)
 
       [session] =
-        Tuist.Repo.all(
-          from(s in Tuist.Runners.RunnerSession, where: s.workflow_job_id == 5002)
-        )
+        Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002))
 
       assert session.account_id == account.id
       assert session.pod_name == "pod-bs"
@@ -251,7 +250,8 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 50_003, repo: "acme/cli")
 
       [server, cli] =
-        Jobs.list_workflows_for_account(account.id)
+        account.id
+        |> Jobs.list_workflows_for_account()
         |> Enum.sort_by(& &1.repo)
 
       assert server.repo == "acme/cli"
@@ -284,7 +284,7 @@ defmodule Tuist.Runners.JobsTest do
       assert w.total_jobs == 1
       assert w.success_count == 1
       # avg_duration may be very small in tests; just assert it's set
-      assert w.avg_duration_ms != nil
+      assert w.avg_duration_ms
     end
 
     test "filters by repo via :repo opt" do
@@ -536,12 +536,10 @@ defmodule Tuist.Runners.JobsTest do
       assert {:ok, _} = Jobs.complete(7200, "success")
 
       [session] =
-        Tuist.Repo.all(
-          from(s in Tuist.Runners.RunnerSession, where: s.workflow_job_id == 7200)
-        )
+        Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
 
-      assert session.ended_at != nil
-      assert DateTime.compare(session.ended_at, session.started_at) == :gt
+      assert session.ended_at
+      assert DateTime.after?(session.ended_at, session.started_at)
     end
   end
 

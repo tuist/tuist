@@ -236,7 +236,7 @@ defmodule TuistWeb.RunnerJobsLiveTest do
     # sorting asc by job name.
     [alpha_idx, charlie_idx] =
       Enum.map(["Alpha", "Charlie"], fn name ->
-        :binary.match(html, name) |> elem(0)
+        html |> :binary.match(name) |> elem(0)
       end)
 
     assert alpha_idx < charlie_idx

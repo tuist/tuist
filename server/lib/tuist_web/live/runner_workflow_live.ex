@@ -48,7 +48,11 @@ defmodule TuistWeb.RunnerWorkflowLive do
   end
 
   @impl true
-  def handle_params(params, uri, %{assigns: %{selected_account: account, repo: repo, workflow_name: workflow_name}} = socket) do
+  def handle_params(
+        params,
+        uri,
+        %{assigns: %{selected_account: account, repo: repo, workflow_name: workflow_name}} = socket
+      ) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
     page = parse_page(params["page"])
     search = params["search"] || ""

@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Errors.NotFoundError
 
   @impl true
   def mount(
@@ -16,7 +17,7 @@ defmodule TuistWeb.RunnerJobLive do
       ) do
     if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
-      raise TuistWeb.Errors.NotFoundError,
+      raise NotFoundError,
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
@@ -33,7 +34,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:job, job)}
 
       {:error, :not_found} ->
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
     end
   end
@@ -44,13 +45,12 @@ defmodule TuistWeb.RunnerJobLive do
         id
 
       _ ->
-        raise TuistWeb.Errors.NotFoundError,
+        raise NotFoundError,
               dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
     end
   end
 
-  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "",
-    do: "#{workflow} · #{job}"
+  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "", do: "#{workflow} · #{job}"
 
   defp job_title(%{job_name: job}) when job != "", do: job
   defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
@@ -84,8 +84,7 @@ defmodule TuistWeb.RunnerJobLive do
   def status_badge_props(%{status: "completed", conclusion: "skipped"}),
     do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
 
-  def status_badge_props(%{status: "queued"}),
-    do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
+  def status_badge_props(%{status: "queued"}), do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
 
   def status_badge_props(%{status: "claimed"}),
     do: %{label: dgettext("dashboard_runners", "Claimed"), color: "information"}

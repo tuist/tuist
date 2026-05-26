@@ -390,14 +390,12 @@
           }
         >
           <:col :let={run} label={dgettext("dashboard_runners", "Workflow")}>
-            <.text_cell
-              label={
-                if(run.workflow_name == "",
-                  do: dgettext("dashboard_runners", "Unknown"),
-                  else: run.workflow_name
-                )
-              }
-            />
+            <.text_cell label={
+              if(run.workflow_name == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: run.workflow_name
+              )
+            } />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Repository")}>
             <.text_cell label={if(run.repo == "", do: "–", else: run.repo)} />
@@ -569,7 +567,9 @@
           <:col :let={job} label={dgettext("dashboard_runners", "Duration")}>
             <.text_cell
               icon="history"
-              label={TuistWeb.RunnersLive.fmt_duration_ms(TuistWeb.RunnersLive.job_duration_ms(job))}
+              label={
+                TuistWeb.RunnersLive.fmt_duration_ms(TuistWeb.RunnersLive.job_duration_ms(job))
+              }
             />
           </:col>
         </.table>

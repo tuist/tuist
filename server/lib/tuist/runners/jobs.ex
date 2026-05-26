@@ -369,17 +369,13 @@ defmodule Tuist.Runners.Jobs do
   defp default_jobs_sort_order("workflow"), do: "asc"
   defp default_jobs_sort_order(_), do: "desc"
 
-  defp jobs_order_by(query, "job", "asc"),
-    do: order_by(query, [j], asc: j.job_name, desc: j.workflow_job_id)
+  defp jobs_order_by(query, "job", "asc"), do: order_by(query, [j], asc: j.job_name, desc: j.workflow_job_id)
 
-  defp jobs_order_by(query, "job", _desc),
-    do: order_by(query, [j], desc: j.job_name, desc: j.workflow_job_id)
+  defp jobs_order_by(query, "job", _desc), do: order_by(query, [j], desc: j.job_name, desc: j.workflow_job_id)
 
-  defp jobs_order_by(query, "workflow", "asc"),
-    do: order_by(query, [j], asc: j.workflow_name, desc: j.workflow_job_id)
+  defp jobs_order_by(query, "workflow", "asc"), do: order_by(query, [j], asc: j.workflow_name, desc: j.workflow_job_id)
 
-  defp jobs_order_by(query, "workflow", _desc),
-    do: order_by(query, [j], desc: j.workflow_name, desc: j.workflow_job_id)
+  defp jobs_order_by(query, "workflow", _desc), do: order_by(query, [j], desc: j.workflow_name, desc: j.workflow_job_id)
 
   # `duration` orders by elapsed runtime (completed_at - started_at)
   # in milliseconds. Rows without both timestamps (still queued /
@@ -833,42 +829,44 @@ defmodule Tuist.Runners.Jobs do
         updated_at: max(j.updated_at)
       })
 
-    from(j in subquery(inner),
-      group_by: j.workflow_run_id,
-      having: fragment("countIf(? != 'completed')", j.status) == 0,
-      select: %{
-        workflow_run_id: j.workflow_run_id,
-        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-        repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
-        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
-        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-        # Skipped / cancelled jobs leave `started_at` as the epoch
-        # sentinel — including those in `min(started_at)` would yield a
-        # 50-year run duration. Filter them out both ways so the
-        # rollup represents real elapsed runtime.
-        duration_ms:
-          fragment(
-            "maxIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0) - minIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0)",
-            j.completed_at,
-            j.completed_at,
-            j.started_at,
-            j.started_at
-          ),
-        # Worst conclusion wins: any failure marks the run failed; any
-        # cancelled marks the run cancelled; otherwise success/skipped.
-        conclusion:
-          fragment(
-            "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
-            j.conclusion,
-            j.conclusion,
-            j.conclusion
-          ),
-        updated_at: max(j.updated_at)
-      },
-      order_by: [desc: max(j.updated_at)],
-      limit: ^limit
+    ClickHouseRepo.all(
+      from(j in subquery(inner),
+        group_by: j.workflow_run_id,
+        having: fragment("countIf(? != 'completed')", j.status) == 0,
+        select: %{
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+          repo: fragment("argMax(?, ?)", j.repo, j.updated_at),
+          head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+          head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+          duration_ms:
+            fragment(
+              "maxIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0) - minIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0)",
+              j.completed_at,
+              j.completed_at,
+              j.started_at,
+              j.started_at
+            ),
+          conclusion:
+            fragment(
+              "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
+              j.conclusion,
+              j.conclusion,
+              j.conclusion
+            ),
+          updated_at: max(j.updated_at)
+        },
+        order_by: [desc: max(j.updated_at)],
+        limit: ^limit
+      )
     )
-    |> ClickHouseRepo.all()
+
+    # Skipped / cancelled jobs leave `started_at` as the epoch
+    # sentinel — including those in `min(started_at)` would yield a
+    # 50-year run duration. Filter them out both ways so the
+    # rollup represents real elapsed runtime.
+    # Worst conclusion wins: any failure marks the run failed; any
+    # cancelled marks the run cancelled; otherwise success/skipped.
   end
 
   defp maybe_eq_workflow(query, nil, nil), do: query

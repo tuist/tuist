@@ -15,12 +15,12 @@ defmodule Tuist.Runners.RunnerSessions do
   the warning log line; the operator should be alerted on
   sustained noise.
   """
-  require Logger
+  import Ecto.Query
 
   alias Tuist.Repo
   alias Tuist.Runners.RunnerSession
 
-  import Ecto.Query
+  require Logger
 
   @doc """
   Open a billing session at claim-win. The `started_at` lands at
@@ -29,13 +29,15 @@ defmodule Tuist.Runners.RunnerSessions do
   signal we have until the controller starts reporting Pod
   timestamps directly.
   """
-  def open(%{
+  def open(
+        %{
           workflow_job_id: workflow_job_id,
           account_id: account_id,
           fleet_name: fleet_name,
           pod_name: pod_name,
           started_at: started_at
-        } = attrs) do
+        } = attrs
+      ) do
     now = DateTime.utc_now()
 
     attrs = %{
@@ -90,7 +92,7 @@ defmodule Tuist.Runners.RunnerSessions do
       %RunnerSession{} = session ->
         session
         |> Ecto.Changeset.cast(
-          %{ended_at: ended_at, updated_at: DateTime.utc_now() |> DateTime.truncate(:second)},
+          %{ended_at: ended_at, updated_at: DateTime.truncate(DateTime.utc_now(), :second)},
           [:ended_at, :updated_at]
         )
         |> Repo.update()

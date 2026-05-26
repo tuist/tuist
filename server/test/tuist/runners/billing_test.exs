@@ -16,8 +16,8 @@ defmodule Tuist.Runners.BillingTest do
       runner_name: "",
       started_at: nil,
       ended_at: nil,
-      inserted_at: DateTime.utc_now() |> DateTime.truncate(:second),
-      updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
 
     Repo.insert!(struct(RunnerSession, Map.merge(defaults, Map.new(attrs))))
@@ -141,7 +141,7 @@ defmodule Tuist.Runners.BillingTest do
 
       session_fixture(account,
         started_at: DateTime.add(now, -2, :hour),
-        ended_at: DateTime.add(now, -2, :hour) |> DateTime.add(15, :minute)
+        ended_at: now |> DateTime.add(-2, :hour) |> DateTime.add(15, :minute)
       )
 
       result =
@@ -167,13 +167,13 @@ defmodule Tuist.Runners.BillingTest do
       session_fixture(account,
         repo: "acme/server",
         started_at: DateTime.add(now, -1, :hour),
-        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(10, :minute)
+        ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(10, :minute)
       )
 
       session_fixture(account,
         repo: "acme/cli",
         started_at: DateTime.add(now, -1, :hour),
-        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(20, :minute)
+        ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(20, :minute)
       )
 
       scoped =
@@ -193,13 +193,13 @@ defmodule Tuist.Runners.BillingTest do
       session_fixture(account,
         fleet_name: "macos-large",
         started_at: DateTime.add(now, -1, :hour),
-        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(5, :minute)
+        ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(5, :minute)
       )
 
       session_fixture(account,
         fleet_name: "linux-amd64",
         started_at: DateTime.add(now, -1, :hour),
-        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(7, :minute)
+        ended_at: now |> DateTime.add(-1, :hour) |> DateTime.add(7, :minute)
       )
 
       mac =

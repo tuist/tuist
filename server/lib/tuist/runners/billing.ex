@@ -244,11 +244,9 @@ defmodule Tuist.Runners.Billing do
   defp maybe_eq(query, _field, ""), do: query
   defp maybe_eq(query, _field, "any"), do: query
 
-  defp maybe_eq(query, :repo, value) when is_binary(value),
-    do: where(query, [s], s.repo == ^value)
+  defp maybe_eq(query, :repo, value) when is_binary(value), do: where(query, [s], s.repo == ^value)
 
-  defp maybe_eq(query, :workflow_name, value) when is_binary(value),
-    do: where(query, [s], s.workflow_name == ^value)
+  defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [s], s.workflow_name == ^value)
 
   defp maybe_platform(query, nil), do: query
   defp maybe_platform(query, ""), do: query

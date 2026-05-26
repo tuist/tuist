@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -97,13 +98,13 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "dead"
       })
 
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+    assert_raise NotFoundError, fn ->
       live(conn, ~p"/#{account.name}/runners/jobs/31201")
     end
   end
 
   test "raises 404 for a non-integer workflow_job_id", %{conn: conn, account: account} do
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+    assert_raise NotFoundError, fn ->
       live(conn, ~p"/#{account.name}/runners/jobs/notanumber")
     end
   end

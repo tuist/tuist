@@ -3467,7 +3467,7 @@ completed_jobs
       set: [
         started_at: claimed_at,
         ended_at: completed_at,
-        updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
       ]
     )
 

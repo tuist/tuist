@@ -57,7 +57,12 @@
         <div data-part="metadata-row">
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
-            <.badge label={status_props.label} color={status_props.color} style="fill" size="large" />
+            <.badge
+              label={status_props.label}
+              color={status_props.color}
+              style="fill"
+              size="large"
+            />
           </div>
           <div data-part="metadata">
             <div data-part="title">{dgettext("dashboard_runners", "CI duration")}</div>
