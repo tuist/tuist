@@ -129,9 +129,21 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		initContainers = []corev1.Container{{
 			Name:  "dind",
 			Image: dindImage,
-			// --group pins the docker.sock GID so the runner user
-			// (member of `docker` group, GID 123) can reach it.
-			Args: []string{"dockerd", "--host=unix:///var/run/docker.sock", "--group=123"},
+			// kata's microVM kernel default nofile rlimit
+			// (1024) is too low for dockerd + buildkit; an
+			// npm install snapshot prep over node_modules
+			// trips "too many open files" before the build
+			// reaches the first compile step. Cloud-VM nodes
+			// inherit a high nofile from kubelet/containerd;
+			// kata's microVM doesn't, so we set it explicitly.
+			// --group pins the docker.sock GID so the runner
+			// user (member of `docker` group, GID 123) can
+			// reach it.
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"ulimit -n 1048576 && " +
+					"exec dockerd --host=unix:///var/run/docker.sock --group=123",
+			},
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: ptr(true),
 			},
