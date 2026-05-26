@@ -277,6 +277,15 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+# Temporary staging-only override of the runners-controller image
+# pin in values-managed-common.yaml ("0.3.0"). Tracks the SHA-tagged
+# build from runners-controller-image.yml for the in-flight branch.
+# Reverts when the next release flow bumps the common pin past this
+# branch's changes.
+runnersController:
+  image:
+    tag: "sha-d15d2debacd7"
+
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
 # Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,

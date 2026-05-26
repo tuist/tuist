@@ -296,10 +296,12 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # TODO: migrate to tuist-production-linux once the runner image ships a
-    # docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    # VALIDATION-ONLY: pinned to tuist-staging-linux to prove the
+    # virtio-fs --xattr annotation makes default docker-container
+    # buildx work unmodified. Reverts to namespace-profile-default-
+    # with-volume before merge.
+    runs-on: tuist-staging-linux
+    timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
