@@ -57,11 +57,13 @@ extension TuistConfig.CacheOptions {
         }
 
         let storages = manifest.storages.map { TuistConfig.CacheStorageOption.from(manifest: $0) }
+        let remoteCacheBackend = TuistConfig.RemoteCacheBackend.from(manifest: manifest.remoteCacheBackend)
 
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
             profiles: profiles,
-            storages: storages
+            storages: storages,
+            remoteCacheBackend: remoteCacheBackend
         )
     }
 }
@@ -121,6 +123,17 @@ extension TuistConfig.CacheStorageOption {
         switch manifest {
         case .local: return .local
         case .remote: return .remote
+        }
+    }
+}
+
+extension TuistConfig.RemoteCacheBackend {
+    static func from(
+        manifest: ProjectDescription.Tuist.RemoteCacheBackend
+    ) -> Self {
+        switch manifest {
+        case .regional: return .regional
+        case .legacy: return .legacy
         }
     }
 }
