@@ -129,20 +129,28 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		initContainers = []corev1.Container{{
 			Name:  "dind",
 			Image: dindImage,
-			// kata's microVM kernel default nofile rlimit
-			// (1024) is too low for dockerd + buildkit; an
-			// npm install snapshot prep over node_modules
-			// trips "too many open files" before the build
-			// reaches the first compile step. Cloud-VM nodes
-			// inherit a high nofile from kubelet/containerd;
-			// kata's microVM doesn't, so we set it explicitly.
+			// kata's microVM kernel defaults nofile=1024 for
+			// every process inside, dockerd included. The
+			// shell `ulimit -n` lifts it for dockerd itself;
+			// `--default-ulimit nofile=` lifts it for every
+			// container dockerd spawns, which is what catches
+			// the `docker-container` buildx driver — buildkit
+			// runs as its own container, not as a child of
+			// dockerd's process, so it inherits ulimits from
+			// the container runtime config rather than the
+			// shell. Both are needed: without the first
+			// dockerd's own file descriptor allocations cap
+			// out; without the second buildkit trips "too
+			// many open files" copying a non-trivial
+			// node_modules tree.
 			// --group pins the docker.sock GID so the runner
 			// user (member of `docker` group, GID 123) can
 			// reach it.
 			Command: []string{"sh", "-c"},
 			Args: []string{
 				"ulimit -n 1048576 && " +
-					"exec dockerd --host=unix:///var/run/docker.sock --group=123",
+					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
+					"--default-ulimit nofile=1048576:1048576",
 			},
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: ptr(true),
