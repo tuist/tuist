@@ -434,7 +434,7 @@ extension SettingsDictionary {
             .removeOtherSwiftFlagsDuplicates()
     }
 
-    fileprivate func removeOtherLdFlagsDuplicates() -> SettingsDictionary {
+    private func removeOtherLdFlagsDuplicates() -> SettingsDictionary {
         var settings = self
         let keys = settings.keys.filter { $0 == "OTHER_LDFLAGS" || $0.hasPrefix("OTHER_LDFLAGS[") }
         for key in keys {
