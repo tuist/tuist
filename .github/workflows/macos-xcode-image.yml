@@ -219,11 +219,26 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # The image is ~140 GB (Xcode + simulator runtimes + brew
+        # dev tools + base OS), and `tart push` over the Mac mini's
+        # uplink occasionally times out mid-upload. tart's internal
+        # retry doesn't always recover, so wrap an outer 3× retry —
+        # blob uploads are content-addressed, so a re-push only
+        # re-uploads the layers that didn't make it on the previous
+        # attempt.
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
-          tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
-          echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG}"
+          for attempt in 1 2 3; do
+            if tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()
