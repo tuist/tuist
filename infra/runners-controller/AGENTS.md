@@ -220,41 +220,34 @@ kubelet supervises dockerd — if it crashes, k8s restarts it.
 
 Shape:
 
-- `dind-sock` emptyDir mounted at `/var/run` in both containers
-  exposes `/var/run/docker.sock`.
-- `work` emptyDir mounted at `/home/runner/actions-runner/_work`
-  in both containers so `docker run -v $PWD:/x` paths resolve
-  the same on either side.
-- `dind-storage` emptyDir with `medium: Memory` (tmpfs) at
-  `/var/lib/docker` on the sidecar only. Disk-backed emptyDir
-  forces dockerd onto the `vfs` storage driver because kata
-  serves it through virtio-fs and overlay2 can't carry its
-  `trusted.overlay.*` xattrs there; tmpfs inside the microVM is
-  the only filesystem that supports overlay2 + the full xattr
-  set buildx needs at checksum time.
-- The sidecar wraps `dockerd` in `sh -c "mount -o remount,
-  nr_inodes=0 /var/lib/docker && exec dockerd ..."`. Without the
-  remount the medium=Memory emptyDir inherits the kernel default
-  of one inode per 16 KiB, which exhausts at a few million files
-  — npm `node_modules` trees hit the limit before they hit the
-  byte cap.
+- `dind-sock` emptyDir at `/var/run` (both containers) exposes
+  `/var/run/docker.sock`.
+- `work` emptyDir at `/home/runner/actions-runner/_work` (both
+  containers) so `docker run -v $PWD:/x` paths resolve the same
+  on either side.
+- `dind-storage` emptyDir at `/var/lib/docker` (sidecar only).
+  Plain node-disk emptyDir — overlay2 works on it because of the
+  Pod annotation below.
 - `DOCKER_HOST=unix:///var/run/docker.sock` injected into the
   runner so the docker CLI hits the sidecar.
 - `--group=123` passed to dockerd so the socket GID matches the
-  `docker` group inside the runner image (pinned at Dockerfile
-  build time).
+  `docker` group baked into the runner image at build time.
 
-Pod memory has to cover both the runner's process working set
-**and** the tmpfs at `/var/lib/docker` (which the kernel caps at
-50 % of VM memory). For the Tuist server build, 48 GiB pod gives
-~24 GiB tmpfs ceiling plus ~6 GiB compile headroom; smaller
-images may need less.
+Pod annotation `io.katacontainers.config.hypervisor.virtio_fs_extra_args
+= "--xattr"` on every Linux Pod. kata's default virtiofsd ships
+with xattr passthrough OFF for throughput; without it overlay2
+can't read `trusted.overlay.*` xattrs on virtio-fs paths and
+dockerd falls back to vfs. With it, overlay2 works normally —
+and that's the **portability hinge**: any docker-using workflow
+that works on a cloud-VM GitHub-hosted or Namespace runner works
+here unmodified, because dockerd's storage substrate is
+xattr-correct in the same way. No `driver: docker` workaround,
+no tmpfs size budgeting, no per-pool sizing tricks.
 
-Buildx must use `driver: docker` (dockerd's built-in BuildKit).
-The `docker-container` driver spins up its own buildkit container
-whose `/var/lib/buildkit` lives on overlay2-over-tmpfs (nested
-overlay), which trips "operation not supported" at COPY hashing
-time.
+(kata's containerd handler whitelists `io.katacontainers.*` for
+pod_annotations propagation, and `virtio_fs_extra_args` is in
+kata's default `enable_annotations` whitelist — so the change is
+Pod-level, no node-level kata config edit required.)
 
 The sidecar image is pinned via the chart's
 `runnersController.dindImage` value and threaded into the

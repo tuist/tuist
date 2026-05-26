@@ -315,20 +315,19 @@ runnersFleetLinux:
         - self-hosted
         - Linux
         - X64
-      # Required: the controller stamps `privileged: true` on every
-      # Linux runner container so workflows can use dockerd; the
-      # kata-qemu microVM is the safety boundary.
+      # Required on Linux pools: the controller attaches a
+      # privileged docker:dind sidecar to every runner Pod and the
+      # kata-qemu microVM is what bounds that privileged surface.
       runtimeClass: kata-qemu
       pod:
-        # 48 GB pod budget. The dind sidecar's
-        # `medium: Memory` emptyDir for /var/lib/docker is capped
-        # by the kernel at 50 % of VM memory (`sizeLimit` only
-        # drives kubelet eviction). At 48 GB the tmpfs gets ~24 GB
-        # ceiling, which fits a full server build's image layers
-        # plus the npm/aube/swift snapshot trees with room for
-        # ~6 GB of mix compile working set alongside.
-        cpuMilli: 2000
-        memoryMB: 49152
+        # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
+        # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
+        # other system DaemonSets on the host. Production AX162-R
+        # quadruples this density (64 slots — 256 GB / 4 GB cap, with
+        # CPU undersubscribed at 96 threads / 64 vCPU = 1.5× headroom
+        # for noisy-neighbor protection).
+        cpuMilli: 1000
+        memoryMB: 4096
       # Queue-depth driven autoscaling. Pod-level only — the operator
       # manages bare-metal Host count manually via the cluster topology
       # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
@@ -340,9 +339,6 @@ runnersFleetLinux:
       # another `tuist-bm-*` host.
       autoscaling:
         enabled: true
-        # 48 GB pods fit one per AX42-U after system reserves.
-        # minWarmPoolFloor/maxReplicas track that — capacity grows
-        # by ordering another bare-metal host.
-        minWarmPoolFloor: 1
-        maxReplicas: 1
+        minWarmPoolFloor: 2
+        maxReplicas: 14
         scaleDownCooldownSeconds: 300

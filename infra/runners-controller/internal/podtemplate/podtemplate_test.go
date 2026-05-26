@@ -172,8 +172,8 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 			t.Errorf("sidecar missing volumeMount %+v; got %+v", vm, dind.VolumeMounts)
 		}
 	}
-	// /var/lib/docker only on the sidecar — keeps BuildKit's
-	// checksum-time xattr ops off virtio-fs/rootfs.
+	// /var/lib/docker only on the sidecar (the runner has no
+	// business writing to dockerd's image store).
 	dindStorage := corev1.VolumeMount{Name: "dind-storage", MountPath: "/var/lib/docker"}
 	if !hasVolumeMount(dind.VolumeMounts, dindStorage) {
 		t.Errorf("sidecar missing %+v; got %+v", dindStorage, dind.VolumeMounts)
@@ -185,6 +185,44 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 		if !hasVolume(pod.Spec.Volumes, v) {
 			t.Errorf("pod missing volume %q; got %+v", v, pod.Spec.Volumes)
 		}
+	}
+
+	// dind-storage must be a plain node-disk emptyDir — overlay2's
+	// xattr requirement is satisfied by the kata virtiofsd --xattr
+	// annotation (asserted below), not by switching the medium to
+	// tmpfs. Tmpfs medium would silently eat pod memory.
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == "dind-storage" {
+			if v.EmptyDir == nil {
+				t.Fatalf("dind-storage volume = %+v, want EmptyDir source", v.VolumeSource)
+			}
+			if v.EmptyDir.Medium != "" {
+				t.Errorf("dind-storage EmptyDir.Medium = %q, want \"\" (node disk)", v.EmptyDir.Medium)
+			}
+		}
+	}
+}
+
+func TestBuild_LinuxPodCarriesKataXattrAnnotation(t *testing.T) {
+	// kata's virtiofsd defaults xattr passthrough OFF; without the
+	// annotation, overlay2 inside the microVM falls back to vfs and
+	// any docker-using workflow that works on cloud-VM GitHub
+	// runners breaks here. The annotation flips passthrough on
+	// per-Pod (kata's enable_annotations whitelist permits it).
+	pod := build(basePool("linux"))
+	got, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]
+	if !ok {
+		t.Fatalf("Linux pod missing virtio_fs_extra_args annotation; got %+v", pod.Annotations)
+	}
+	if got != "--xattr" {
+		t.Errorf("virtio_fs_extra_args = %q, want \"--xattr\"", got)
+	}
+}
+
+func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
+	pod := build(basePool(""))
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]; ok {
+		t.Errorf("macOS pod should not carry kata virtiofsd annotations; got %+v", pod.Annotations)
 	}
 }
 

@@ -113,16 +113,13 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			// /var/lib/docker on tmpfs (in-VM RAM). Node-disk
-			// emptyDir trades RAM for size but kata serves it via
-			// virtio-fs, which forces dockerd onto the vfs storage
-			// driver — and vfs still lacks the xattr surface buildx
-			// needs at checksum time. tmpfs is the only filesystem
-			// inside the microVM that supports overlay2 + the full
-			// xattr set. Pod memory has to be sized to fit both
-			// the build's process working set AND the tmpfs (which
-			// the kernel caps at 50 % of VM memory).
-			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{Medium: corev1.StorageMediumMemory}}},
+			// /var/lib/docker on node-disk emptyDir. The Pod's
+			// `virtio_fs_extra_args=--xattr` annotation (below)
+			// turns on xattr passthrough in virtiofsd, which lets
+			// overlay2 work normally on virtio-fs-served paths.
+			// No tmpfs sizing games, no xattr workarounds — same
+			// shape any cloud-VM k8s node would have.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
 			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
@@ -132,19 +129,9 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		initContainers = []corev1.Container{{
 			Name:  "dind",
 			Image: dindImage,
-			// kubelet creates the medium=Memory emptyDir as a
-			// tmpfs with the kernel default of ~1 inode per 16 KiB,
-			// which exhausts at a few million files — npm
-			// node_modules trees hit it before they hit the byte
-			// cap. Remount with nr_inodes=0 (unlimited) before
-			// dockerd touches /var/lib/docker. --group pins the
-			// docker.sock GID so the runner user (member of
-			// `docker` group, GID 123) can reach it.
-			Command: []string{"sh", "-c"},
-			Args: []string{
-				"mount -o remount,nr_inodes=0 /var/lib/docker && " +
-					"exec dockerd --host=unix:///var/run/docker.sock --group=123",
-			},
+			// --group pins the docker.sock GID so the runner user
+			// (member of `docker` group, GID 123) can reach it.
+			Args: []string{"dockerd", "--host=unix:///var/run/docker.sock", "--group=123"},
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: ptr(true),
 			},
@@ -162,10 +149,22 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		}}
 	}
 
+	// kata-qemu virtiofsd ships with xattr passthrough OFF for
+	// throughput; without it overlay2 inside the microVM can't
+	// read trusted.overlay.* xattrs on virtio-fs-served paths and
+	// dockerd falls back to vfs. The annotation flips passthrough
+	// on per-Pod (kata's default enable_annotations whitelist
+	// already permits virtio_fs_extra_args).
+	annotations := map[string]string{}
+	if linuxPod {
+		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = "--xattr"
+	}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: pool.Namespace,
+			Name:        podName,
+			Namespace:   pool.Namespace,
+			Annotations: annotations,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":      "tuist-runner",
 				"app.kubernetes.io/component": "runner",
@@ -210,14 +209,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 							corev1.ResourceCPU:    *cpu,
 							corev1.ResourceMemory: *mem,
 						},
-						// kata sizes the microVM from the sum of
-						// container memory LIMITS; falls back to
-						// `default_memory` (2 GiB) when no limit is
-						// set. Without an explicit limit, dockerd in
-						// the dind sidecar OOMs the moment a workflow
-						// pulls a large image into the tmpfs
-						// /var/lib/docker. Setting limit == request
-						// keeps scheduling predictable.
+						// kata sizes the microVM from container limits
+						// (default 2 GiB without). Setting limit ==
+						// request gives the VM the budget the chart
+						// asks for.
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    *cpu,
 							corev1.ResourceMemory: *mem,
