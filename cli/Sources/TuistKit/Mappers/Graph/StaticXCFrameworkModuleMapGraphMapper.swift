@@ -35,12 +35,13 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         graph: Graph,
         environment: MapperEnvironment
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
-        let derivedDirectory = try await derivedDirectory(for: graph)
+        let graphWithDirectStaticXCFrameworkLinkerSettings = try await mapDynamicTargetsLinkedToStaticXCFrameworks(graph: graph)
+        let derivedDirectory = try await derivedDirectory(for: graphWithDirectStaticXCFrameworkLinkerSettings)
         var sideEffects: [SideEffectDescriptor] = []
-        let graphTraverser = GraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graphWithDirectStaticXCFrameworkLinkerSettings)
 
         let graph = try await mapGraph(
-            graph: graph
+            graph: graphWithDirectStaticXCFrameworkLinkerSettings
         ) { graphTarget in
             let target = graphTarget.target
             let project = graphTarget.project
@@ -161,6 +162,53 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
         )
     }
 
+    private func mapDynamicTargetsLinkedToStaticXCFrameworks(graph: Graph) async throws -> Graph {
+        var graph = graph
+
+        for (projectPath, project) in graph.projects {
+            var project = project
+
+            for (targetName, target) in project.targets {
+                guard target.product.isDynamic else { continue }
+
+                let directStaticXCFrameworks = graph.dependencies[.target(name: targetName, path: projectPath), default: []]
+                    .compactMap { dependency -> GraphDependency.XCFramework? in
+                        guard case let .xcframework(xcframework) = dependency,
+                              xcframework.linking == .static
+                        else {
+                            return nil
+                        }
+                        return xcframework
+                    }
+
+                guard !directStaticXCFrameworks.isEmpty else { continue }
+
+                let targetSettings = target.settings ?? Settings(
+                    base: [:],
+                    configurations: [:],
+                    defaultSettings: project.settings.defaultSettings
+                )
+                let linkerSettings = try await linkerSettings(
+                    for: directStaticXCFrameworks,
+                    target: target
+                )
+                guard !linkerSettings.isEmpty else { continue }
+
+                var updatedTarget = target
+                updatedTarget.settings = targetSettings.with(
+                    base: targetSettings.base
+                        .combine(with: linkerSettings)
+                        .removeDuplicates()
+                )
+                project.targets[targetName] = updatedTarget
+            }
+
+            graph.projects[projectPath] = project
+        }
+
+        return graph
+    }
+
     private func derivedDirectory(for graph: Graph) async throws -> AbsolutePath {
         if let packageManifest = try await manifestFilesLocator.locatePackageManifest(at: graph.path) {
             let config = try await configLoader.loadConfig(path: graph.path)
@@ -239,6 +287,74 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             }
     }
 
+    private func linkerSettings(
+        for xcframeworks: [GraphDependency.XCFramework],
+        target: Target
+    ) async throws -> SettingsDictionary {
+        var settings = SettingsDictionary()
+
+        for xcframework in xcframeworks.sorted() {
+            for library in xcframework.infoPlist.libraries {
+                let platform = library.platform.graphPlatform
+                guard target.supportedPlatforms.contains(platform) else { continue }
+                let moduleMapLinkerFlags = try await moduleMapLinkerFlags(
+                    for: library,
+                    in: xcframework
+                )
+
+                let key = "OTHER_LDFLAGS[\(library.sdkCondition)]"
+                let existingFlags: [String]
+                switch settings[key] {
+                case let .array(value):
+                    existingFlags = value
+                case let .string(value):
+                    existingFlags = [value]
+                case .none:
+                    existingFlags = ["$(inherited)"]
+                }
+                let newFlags = existingFlags
+                    + [forceLoadFlag(for: library)]
+                    + moduleMapLinkerFlags
+                settings[key] = .array(newFlags)
+            }
+        }
+
+        return settings
+    }
+
+    private func moduleMapLinkerFlags(
+        for library: XCFrameworkInfoPlist.Library,
+        in xcframework: GraphDependency.XCFramework
+    ) async throws -> [String] {
+        var flags: [String] = []
+        let sliceDirectory = xcframework.path.appending(component: library.identifier)
+        let moduleMaps = xcframework.moduleMaps
+            .filter { $0.isDescendantOfOrEqual(to: sliceDirectory) }
+        let moduleMapsToParse = moduleMaps.isEmpty ? xcframework.moduleMaps : moduleMaps
+
+        for moduleMap in moduleMapsToParse.sorted() {
+            let contents = try await fileSystem.readTextFile(at: moduleMap)
+            for line in contents.split(whereSeparator: \.isNewline) {
+                let line = String(line)
+                    .components(separatedBy: "//")
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+                if let framework = line.moduleMapLinkedFramework {
+                    flags.append(contentsOf: ["-framework", framework])
+                } else if let library = line.moduleMapLinkedLibrary {
+                    flags.append("-l\(library)")
+                }
+            }
+        }
+
+        return flags
+    }
+
+    private func forceLoadFlag(for library: XCFrameworkInfoPlist.Library) -> String {
+        "-Wl,-force_load,$(TARGET_BUILD_DIR)/\(library.forceLoadPath)"
+    }
+
     private func mapGraph(
         graph: Graph,
         targetSettings: (GraphTarget) async throws -> SettingsDictionary
@@ -314,7 +430,46 @@ extension SettingsDictionary {
             .removeDuplicates(forConditionedKey: "FRAMEWORK_SEARCH_PATHS")
             .removeDuplicates(forConditionedKey: "HEADER_SEARCH_PATHS")
             .removeDuplicates(forConditionedKey: "OTHER_C_FLAGS")
+            .removeOtherLdFlagsDuplicates()
             .removeOtherSwiftFlagsDuplicates()
+    }
+
+    fileprivate func removeOtherLdFlagsDuplicates() -> SettingsDictionary {
+        var settings = self
+        let keys = settings.keys.filter { $0 == "OTHER_LDFLAGS" || $0.hasPrefix("OTHER_LDFLAGS[") }
+        for key in keys {
+            guard let value = settings[key] else { continue }
+            switch value {
+            case let .string(value):
+                settings[key] = .string(value)
+            case let .array(value):
+                var seen = Set<String>()
+                let value = value.enumerated().filter {
+                    if $0.element.isLdFlagWithArgument {
+                        if value.endIndex > $0.offset + 1 {
+                            return !seen.contains($0.element + value[$0.offset + 1])
+                        } else {
+                            return true
+                        }
+                    } else {
+                        if $0.offset == 0 {
+                            return seen.insert($0.element).inserted
+                        } else {
+                            let previousElement = value[$0.offset - 1]
+                            if previousElement.isLdFlagWithArgument {
+                                return seen.insert(previousElement + $0.element).inserted
+                            } else {
+                                return seen.insert($0.element).inserted
+                            }
+                        }
+                    }
+                }
+                settings[key] = .array(
+                    value.map(\.element)
+                )
+            }
+        }
+        return settings
     }
 
     func removeOtherSwiftFlagsDuplicates() -> SettingsDictionary {
@@ -429,6 +584,31 @@ extension GraphDependency.XCFramework {
 }
 
 extension String {
+    fileprivate var moduleMapLinkedFramework: String? {
+        guard hasPrefix("link framework ") else { return nil }
+        return quotedModuleMapValue
+    }
+
+    fileprivate var moduleMapLinkedLibrary: String? {
+        guard hasPrefix("link "), !hasPrefix("link framework ") else { return nil }
+        return quotedModuleMapValue
+    }
+
+    private var quotedModuleMapValue: String? {
+        guard let firstQuote = firstIndex(of: "\""),
+              let lastQuote = lastIndex(of: "\""),
+              firstQuote < lastQuote
+        else {
+            return nil
+        }
+
+        return String(self[index(after: firstQuote) ..< lastQuote])
+    }
+
+    fileprivate var isLdFlagWithArgument: Bool {
+        self == "-framework" || self == "-weak_framework"
+    }
+
     fileprivate var isFlagWithArgument: Bool {
         starts(with: "-X") ||
             self == "-I" ||
@@ -461,5 +641,14 @@ extension String {
         let resolvedComponents = absolutePath.relative(to: destinationPath).components
 
         return prefix + (pathComponents[...srcRootIndex] + resolvedComponents).joined(separator: "/") + suffix
+    }
+}
+
+extension XCFrameworkInfoPlist.Library {
+    fileprivate var forceLoadPath: String {
+        if path.extension == "framework" {
+            return "\(path.pathString)/\(binaryName)"
+        }
+        return path.pathString
     }
 }
