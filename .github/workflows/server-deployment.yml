@@ -58,28 +58,6 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
-      patch_runners_only:
-        description: >-
-          Skip the full chart deploy and only patch the runners-controller
-          image + Linux RunnerPool spec via kubectl. Escape hatch when the
-          chart release is stuck.
-        required: false
-        type: boolean
-        default: false
-      patch_controller_image:
-        description: Controller image tag to apply in patch-only mode (e.g. sha-...)
-        required: false
-      patch_runner_image:
-        description: Runner image tag to apply in patch-only mode (e.g. sha-...)
-        required: false
-      patch_pod_memory_mb:
-        description: Per-pod memory budget in MiB (patch-only mode)
-        required: false
-        default: "32768"
-      patch_pod_cpu_milli:
-        description: Per-pod CPU budget in milli-cores (patch-only mode)
-        required: false
-        default: "2000"
   workflow_call:
     inputs:
       environment:
@@ -129,7 +107,7 @@ env:
 jobs:
   build:
     name: Build + push
-    if: ${{ !inputs.patch_runners_only && inputs.image_tag == '' }}
+    if: inputs.image_tag == ''
     # TODO: migrate to tuist-production-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
@@ -193,7 +171,7 @@ jobs:
     name: Observability chart (${{ inputs.environment }})
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
-    if: ${{ !inputs.patch_runners_only && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -259,7 +237,7 @@ jobs:
     # workloads it gates must never interleave with a stale rollout.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
-    if: ${{ !inputs.patch_runners_only && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -336,7 +314,7 @@ jobs:
     # rollout.
     name: Platform chart (${{ inputs.environment }})
     needs: build
-    if: ${{ !inputs.patch_runners_only && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -397,7 +375,7 @@ jobs:
     # `platform-install` reconciles cert-manager / ingress-nginx /
     # external-dns / ESO / metrics-server so app-impacting platform settings
     # land before the app chart upgrade.
-    if: ${{ !inputs.patch_runners_only && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success' }}
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -708,105 +686,3 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
-
-  patch-runners-only:
-    # Escape hatch: patch the runners-controller image + Linux
-    # RunnerPool spec via kubectl, bypassing the chart deploy
-    # entirely. Used when the helm release is stuck for unrelated
-    # reasons (e.g. macOS-fleet outage leaving rollback targets
-    # unrecoverable) and we need to validate runner-pod plumbing.
-    name: Patch runners (kubectl, no helm)
-    if: ${{ inputs.patch_runners_only }}
-    # Use Namespace so the patch doesn't need our self-hosted
-    # Linux fleet to be healthy — the whole point of this escape
-    # hatch is to unstick the fleet itself.
-    runs-on: namespace-profile-default
-    environment:
-      name: server-k8s-${{ inputs.environment }}
-    timeout-minutes: 15
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      NAMESPACE_SERVER: tuist-${{ inputs.environment }}
-      NAMESPACE_RUNNERS: tuist-runners
-      CONTROLLER_DEPLOY: tuist-tuist-runners-controller
-      RUNNER_POOL: tuist-tuist-runner-pool-linux-ubuntu-22-04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "kubectl@1.31.3"
-          cache: "false"
-      - run: mise use --global kubectl@1.31.3
-      - uses: 1password/install-cli-action@v2
-      - name: Load kubeconfig from 1Password
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
-            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: Verify reachability
-        run: kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Patch controller image
-        run: |
-          set -euo pipefail
-          kubectl -n "$NAMESPACE_SERVER" set image \
-            deployment/"$CONTROLLER_DEPLOY" \
-            manager=ghcr.io/tuist/tuist-runners-controller:${{ inputs.patch_controller_image }}
-          kubectl -n "$NAMESPACE_SERVER" rollout status \
-            deployment/"$CONTROLLER_DEPLOY" --timeout=5m
-      - name: Patch RunnerPool spec
-        run: |
-          set -euo pipefail
-          kubectl -n "$NAMESPACE_RUNNERS" patch runnerpool "$RUNNER_POOL" \
-            --type=merge \
-            -p "$(cat <<JSON
-          {
-            "spec": {
-              "image": "ghcr.io/tuist/tuist-linux-runner:${{ inputs.patch_runner_image }}",
-              "podCPUMilli": ${{ inputs.patch_pod_cpu_milli }},
-              "podMemoryMB": ${{ inputs.patch_pod_memory_mb }}
-            }
-          }
-          JSON
-          )"
-      - name: Reap all pool pods so the new template takes effect
-        # Force-roll the entire warm pool — pods mid-job kept the
-        # old template and would otherwise pick up new dispatches
-        # before the controller's natural turnover got to them.
-        # Safe in a patch context (no in-flight customer jobs we
-        # care about); the controller recreates the pool from spec.
-        run: |
-          set -euo pipefail
-          kubectl -n "$NAMESPACE_RUNNERS" delete pods \
-            -l tuist.dev/runner-pool="$RUNNER_POOL" \
-            --grace-period=10 --ignore-not-found
-      - name: Wait for the warm pool to refill
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 60); do
-            ready=$(kubectl -n "$NAMESPACE_RUNNERS" get pods \
-              -l tuist.dev/runner-pool="$RUNNER_POOL" \
-              --field-selector=status.phase=Running \
-              -o jsonpath='{.items[*].metadata.name}' | wc -w)
-            echo "ready: $ready"
-            [ "$ready" -ge 1 ] && break
-            sleep 10
-          done
-          # Dump the pool's pods so a scheduling failure is visible
-          # in the log rather than swallowed by the inspect step's
-          # array-out-of-bounds.
-          kubectl -n "$NAMESPACE_RUNNERS" get pods \
-            -l tuist.dev/runner-pool="$RUNNER_POOL" -o wide
-      - name: Inspect one new pod
-        run: |
-          set -euo pipefail
-          POD=$(kubectl -n "$NAMESPACE_RUNNERS" get pods \
-            -l tuist.dev/runner-pool="$RUNNER_POOL" \
-            --field-selector=status.phase=Running \
-            -o jsonpath='{.items[0].metadata.name}')
-          echo "::group::pod $POD"
-          kubectl -n "$NAMESPACE_RUNNERS" describe pod "$POD" \
-            | grep -E 'image:|Limits:|Requests:|memory:|cpu:|Privileged|Init Containers:|Containers:' | head -40
-          echo "::endgroup::"
