@@ -12,6 +12,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :oauth_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
 
       manifest =
         KubernetesController.manifest(
@@ -44,6 +45,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
+
+      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
+               "00000000-0000-0000-0000-000000000001"
+
       # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
       # them into the pod. They must NEVER appear in the spec, since
@@ -54,6 +59,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
+      stub(Tuist.Environment, :oauth_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
 
       manifest =
         KubernetesController.manifest(
@@ -75,6 +81,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "http://host.docker.internal:8080"
+
+      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
+               "00000000-0000-0000-0000-000000000001"
+
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
   end

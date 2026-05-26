@@ -11,6 +11,7 @@ defmodule TuistWeb.WellKnownController do
   @mcp_path "/mcp"
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
+  @oauth_introspect_path "/oauth2/introspect"
   @oauth_registration_path "/oauth2/register"
 
   def api_catalog(conn, _params) do
@@ -99,11 +100,18 @@ defmodule TuistWeb.WellKnownController do
       issuer: issuer,
       authorization_endpoint: "#{issuer}#{@oauth_authorize_path}",
       token_endpoint: "#{issuer}#{@oauth_token_path}",
+      introspection_endpoint: "#{issuer}#{@oauth_introspect_path}",
       registration_endpoint: "#{issuer}#{@oauth_registration_path}",
       grant_types_supported: ["authorization_code", "refresh_token"],
       response_types_supported: ["code"],
       code_challenge_methods_supported: ["S256"],
       scopes_supported: ["mcp"],
+      introspection_endpoint_auth_methods_supported: [
+        "client_secret_basic",
+        "client_secret_post",
+        "client_secret_jwt",
+        "private_key_jwt"
+      ],
       token_endpoint_auth_methods_supported: [
         "none",
         "client_secret_basic",

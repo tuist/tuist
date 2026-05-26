@@ -713,6 +713,7 @@ defmodule TuistWeb.Router do
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through :non_authenticated_api
 
+    post "/introspect", IntrospectController, :introspect
     post "/token", TokenController, :token
     post "/register", RegistrationController, :register
   end

@@ -77,8 +77,7 @@ defmodule TuistWeb.API.CacheController do
 
   operation(:access,
     summary: "Get first-class cache access scopes.",
-    description:
-      "Returns the authenticated subject's account-scoped and project-scoped cache access handles.",
+    description: "Returns the authenticated subject's account-scoped and project-scoped cache access handles.",
     operation_id: "getCacheAccess",
     responses: %{
       ok:

@@ -236,6 +236,10 @@ defmodule Tuist.AuthenticationTest do
       assert "#{user.account.name}/#{project1.name}" in claims["projects"]
       assert "#{user.account.name}/#{project2.name}" in claims["projects"]
       assert claims["accounts"] == [user.account.name]
+      assert claims["cache_grants"]["account"]["read"] == [user.account.name]
+      assert claims["cache_grants"]["account"]["write"] == [user.account.name]
+      assert "#{user.account.name}/#{project1.name}" in claims["cache_grants"]["project"]["read"]
+      assert "#{user.account.name}/#{project2.name}" in claims["cache_grants"]["project"]["write"]
     end
 
     test "adds empty projects claim and keeps personal account access when user has no projects" do
@@ -254,6 +258,9 @@ defmodule Tuist.AuthenticationTest do
       # Then
       assert claims["projects"] == []
       assert claims["accounts"] == [user.account.name]
+      assert claims["cache_grants"]["account"]["read"] == [user.account.name]
+      assert claims["cache_grants"]["project"]["read"] == []
+      assert claims["cache_grants"]["project"]["write"] == []
     end
 
     test "includes projects from organization memberships" do
@@ -276,6 +283,11 @@ defmodule Tuist.AuthenticationTest do
       # Then
       assert "#{organization.account.name}/#{project.name}" in claims["projects"]
       assert Enum.sort(claims["accounts"]) == Enum.sort([user.account.name, organization.account.name])
+
+      assert Enum.sort(claims["cache_grants"]["account"]["read"]) ==
+               Enum.sort([user.account.name, organization.account.name])
+
+      assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
     end
 
     test "does not grant account-scoped access to project-scoped subjects" do
@@ -294,6 +306,9 @@ defmodule Tuist.AuthenticationTest do
       # Then
       assert claims["accounts"] == []
       assert claims["projects"] == ["#{project.account.name}/#{project.name}"]
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["project"]["read"] == ["#{project.account.name}/#{project.name}"]
+      assert claims["cache_grants"]["project"]["write"] == ["#{project.account.name}/#{project.name}"]
     end
 
     test "preserves existing claims while adding projects" do
@@ -315,6 +330,7 @@ defmodule Tuist.AuthenticationTest do
       assert claims["custom_claim"] == "custom_value"
       assert is_list(claims["projects"])
       assert is_list(claims["accounts"])
+      assert is_map(claims["cache_grants"])
     end
   end
 end

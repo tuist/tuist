@@ -81,7 +81,7 @@ For CI environments that don't support OIDC, or when you need fine-grained contr
 
 ```bash
 tuist account tokens create account-handle \
-  --scopes project:cache:read project:cache:write \
+  --scopes account:cache:write project:cache:read project:cache:write \
   --name ci-cache-token \
   --expires 1y
 ```
@@ -102,6 +102,8 @@ The command accepts the following options:
 
 | Scope | Description |
 | --- | --- |
+| `account:cache:read` | Download account-scoped cached binaries |
+| `account:cache:write` | Upload account-scoped cached binaries |
 | `account:members:read` | Read account members |
 | `account:members:write` | Manage account members |
 | `account:registry:read` | Read from the Swift package registry |
