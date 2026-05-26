@@ -84,6 +84,43 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")
     }
 
+    func test_hash_filtersNonPortablePathSettings() async throws {
+        // Given — TUIST_SPM_DERIVED_DIR holds an absolute scratch path that varies by machine.
+        // Hashing it would invalidate the cache across runners; the flag values that reference
+        // it via `$(TUIST_SPM_DERIVED_DIR)` are still hashed verbatim and remain portable.
+        let baseline = Settings(
+            base: ["SWIFT_VERSION": SettingValue.string("5")],
+            configurations: [:],
+            defaultSettings: .none
+        )
+        let withMachineALocalPath = Settings(
+            base: [
+                "SWIFT_VERSION": SettingValue.string("5"),
+                "TUIST_SPM_DERIVED_DIR": SettingValue.string("/Users/alice/repo/Tuist/.build/tuist-derived"),
+            ],
+            configurations: [:],
+            defaultSettings: .none
+        )
+        let withRunnerLocalPath = Settings(
+            base: [
+                "SWIFT_VERSION": SettingValue.string("5"),
+                "TUIST_SPM_DERIVED_DIR": SettingValue
+                    .string("/Users/runner/work/qonto-ios/qonto-ios/TuistApp/Tuist/.build/tuist-derived"),
+            ],
+            configurations: [:],
+            defaultSettings: .none
+        )
+
+        // When
+        let baselineHash = try await subject.hash(settings: baseline)
+        let machineAHash = try await subject.hash(settings: withMachineALocalPath)
+        let runnerHash = try await subject.hash(settings: withRunnerLocalPath)
+
+        // Then — three machines, three workspace roots, same hash.
+        XCTAssertEqual(baselineHash, machineAHash)
+        XCTAssertEqual(machineAHash, runnerHash)
+    }
+
     func test_hash_filtersWarningFlags() async throws {
         // Given
         let settings = Settings(

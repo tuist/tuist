@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -13,6 +14,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
+    /// Project-scope user-defined setting that resolves to the absolute path of the SwiftPM `tuist-derived/` directory.
+    /// Used to anchor `-fmodule-map-file=` and header-search-path flags so they do not need `..` segments that
+    /// can resolve through `.build/checkouts` symlinks (e.g. Namespace's `nscloud-cache-action`). See
+    /// `SettingsContentHasher` for the matching hash-time filter that keeps the absolute value out of cache keys.
+    static let depsDerivedDirSetting = "TUIST_SPM_DERIVED_DIR"
 
     private struct TargetID: Hashable {
         let projectPath: AbsolutePath
@@ -47,6 +53,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
+            let depsDerivedRoot = Self.depsDerivedRoot(for: project)
             project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
                 var target = target
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
@@ -62,8 +69,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 mappedSettingsDictionary = applyModuleMapFlags(
                     to: mappedSettingsDictionary,
                     targetID: targetID,
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
+                    targetToDependenciesMetadata: targetToDependenciesMetadata,
+                    depsDerivedRoot: depsDerivedRoot
                 )
+
+                if let depsDerivedRoot {
+                    mappedSettingsDictionary[Self.depsDerivedDirSetting] = .string(depsDerivedRoot.pathString)
+                }
 
                 let targetSettings = target.settings ?? Settings(
                     base: [:],
@@ -77,6 +89,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                             to: configuration?.settings ?? [:],
                             targetID: targetID,
                             targetToDependenciesMetadata: targetToDependenciesMetadata,
+                            depsDerivedRoot: depsDerivedRoot,
                             onlyExistingKeys: true
                         )
                         return (
@@ -102,6 +115,32 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         })
         return (graph, [], environment)
     } // swiftlint:enable function_body_length
+
+    /// Absolute path to the SwiftPM `tuist-derived/` directory for an external SPM-generated project, or `nil` for
+    /// local projects. Used to anchor module-map and header search paths on `$(TUIST_SPM_DERIVED_DIR)` rather than on
+    /// `$(SRCROOT)` with `..` segments that would traverse the SwiftPM `checkouts/` directory — a directory that some
+    /// CI caches (notably Namespace's `nscloud-cache-action`) replace with a symlink, which Xcode 26.5+ resolves
+    /// before opening the modulemap and therefore can no longer find it.
+    private static func depsDerivedRoot(for project: Project) -> AbsolutePath? {
+        guard case .external = project.type,
+              let scratch = project.swiftPackageManagerScratchDirectory
+        else { return nil }
+        return scratch.appending(component: Constants.DerivedDirectory.dependenciesDerivedDirectory)
+    }
+
+    /// Returns the flag value to emit for `path`. If `path` lives under `depsDerivedRoot` the result is anchored on
+    /// `$(TUIST_SPM_DERIVED_DIR)` (no `..` segments, symlink-safe); otherwise it falls back to the historical
+    /// `$(SRCROOT)/<relative>` form so behaviour outside `tuist-derived/` is unchanged.
+    private static func referenceString(
+        for path: AbsolutePath,
+        relativeTo projectPath: AbsolutePath,
+        depsDerivedRoot: AbsolutePath?
+    ) -> String {
+        if let depsDerivedRoot, path.pathString.hasPrefix(depsDerivedRoot.pathString + "/") {
+            return "$(\(depsDerivedDirSetting))/\(path.relative(to: depsDerivedRoot).pathString)"
+        }
+        return "$(SRCROOT)/\(path.relative(to: projectPath).pathString)"
+    }
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
         -> ([AbsolutePath: Project], [String: Target])
@@ -204,6 +243,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         to settings: SettingsDictionary,
         targetID: TargetID,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        depsDerivedRoot: AbsolutePath?,
         onlyExistingKeys: Bool = false
     ) -> SettingsDictionary {
         var settings = settings
@@ -212,7 +252,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
            let updated = Self.updatedOtherSwiftFlags(
                targetID: targetID,
                oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
-               targetToDependenciesMetadata: targetToDependenciesMetadata
+               targetToDependenciesMetadata: targetToDependenciesMetadata,
+               depsDerivedRoot: depsDerivedRoot
            )
         {
             settings[Self.otherSwiftFlagsSetting] = updated
@@ -222,7 +263,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
            let updated = Self.updatedOtherCFlags(
                targetID: targetID,
                oldOtherCFlags: settings[Self.otherCFlagsSetting],
-               targetToDependenciesMetadata: targetToDependenciesMetadata
+               targetToDependenciesMetadata: targetToDependenciesMetadata,
+               depsDerivedRoot: depsDerivedRoot
            )
         {
             settings[Self.otherCFlagsSetting] = updated
@@ -232,7 +274,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
            let updated = Self.updatedHeaderSearchPaths(
                targetID: targetID,
                oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-               targetToDependenciesMetadata: targetToDependenciesMetadata
+               targetToDependenciesMetadata: targetToDependenciesMetadata,
+               depsDerivedRoot: depsDerivedRoot
            )
         {
             settings[Self.headerSearchPaths] = updated
@@ -244,7 +287,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func updatedHeaderSearchPaths(
         targetID: TargetID,
         oldHeaderSearchPaths: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        depsDerivedRoot: AbsolutePath?
     ) -> SettingsDictionary.Value? {
         let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
         guard !dependenciesHeaderSearchPaths.isEmpty
@@ -259,12 +303,17 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         for headerSearchPath in dependenciesHeaderSearchPaths.sorted() {
-            mappedHeaderSearchPaths.append(
-                (
-                    try? AbsolutePath(validating: headerSearchPath)
-                        .relative(to: targetID.projectPath).pathString
-                ).map { "$(SRCROOT)/\($0)" } ?? headerSearchPath
-            )
+            if let absolute = try? AbsolutePath(validating: headerSearchPath) {
+                mappedHeaderSearchPaths.append(
+                    referenceString(
+                        for: absolute,
+                        relativeTo: targetID.projectPath,
+                        depsDerivedRoot: depsDerivedRoot
+                    )
+                )
+            } else {
+                mappedHeaderSearchPaths.append(headerSearchPath)
+            }
         }
 
         return .array(mappedHeaderSearchPaths)
@@ -273,7 +322,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func updatedOtherSwiftFlags(
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        depsDerivedRoot: AbsolutePath?
     ) -> SettingsDictionary.Value? {
         guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
               !dependenciesModuleMaps.isEmpty
@@ -288,9 +338,14 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         for moduleMap in dependenciesModuleMaps.sorted() {
+            let reference = referenceString(
+                for: moduleMap,
+                relativeTo: targetID.projectPath,
+                depsDerivedRoot: depsDerivedRoot
+            )
             mappedOtherSwiftFlags.append(contentsOf: [
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))",
+                "-fmodule-map-file=\(reference)",
             ])
         }
 
@@ -300,7 +355,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     private static func updatedOtherCFlags(
         targetID: TargetID,
         oldOtherCFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        depsDerivedRoot: AbsolutePath?
     ) -> SettingsDictionary.Value? {
         guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
               !dependenciesModuleMaps.isEmpty
@@ -315,7 +371,12 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         for moduleMap in dependenciesModuleMaps.sorted() {
-            mappedOtherCFlags.append("-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))")
+            let reference = referenceString(
+                for: moduleMap,
+                relativeTo: targetID.projectPath,
+                depsDerivedRoot: depsDerivedRoot
+            )
+            mappedOtherCFlags.append("-fmodule-map-file=\(reference)")
         }
 
         return .array(mappedOtherCFlags)
