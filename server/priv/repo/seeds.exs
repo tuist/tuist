@@ -3402,7 +3402,32 @@ additional_workflow_seeds =
     }
   end)
 
-completed_jobs = completed_jobs ++ additional_workflow_seeds
+# Dense activity inside the last 24 hours so the "Last 24 hours"
+# preset has something compelling to show — the curated head only
+# covers the last ~3h and `additional_workflow_seeds` deliberately
+# fans out across the 30-day window. Spaced ~30 minutes apart so the
+# hourly buckets on the 24h chart fill in.
+recent_24h_seeds =
+  ~w(Server CLI Cache Server CLI Release Server CLI Cache Server
+     CLI Release Server CLI Cache Server CLI Release Server CLI
+     Cache Server CLI Release Server CLI)
+  |> Enum.with_index()
+  |> Enum.map(fn {workflow_name, idx} ->
+    %{
+      conclusion: Enum.at(~w(success success success failure success cancelled success), rem(idx, 7)),
+      workflow: workflow_name,
+      job_name: Enum.at(~w(build test deploy lint docs), rem(idx, 5)),
+      run_attempt: 1,
+      # 15 → 1410 minutes ago (just inside 24h), 26 jobs, spaced
+      # ~55 min apart so every hourly bucket has at least one
+      # completion.
+      minutes_ago: 15 + idx * 55,
+      duration_s: 40 + rem(idx * 37, 320),
+      repo_idx: rem(idx, length(runner_jobs_repos))
+    }
+  end)
+
+completed_jobs = completed_jobs ++ recent_24h_seeds ++ additional_workflow_seeds
 
 completed_jobs
 |> Enum.with_index()
