@@ -18,6 +18,8 @@ defmodule Tuist.IngestRepo.Migrations.DropLowCardinalityFromWorkflowName do
   end
 
   def down do
-    execute("ALTER TABLE runner_jobs MODIFY COLUMN workflow_name LowCardinality(String) DEFAULT ''")
+    execute(
+      "ALTER TABLE runner_jobs MODIFY COLUMN workflow_name LowCardinality(String) DEFAULT ''"
+    )
   end
 end
