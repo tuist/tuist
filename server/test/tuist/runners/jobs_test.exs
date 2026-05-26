@@ -526,7 +526,7 @@ defmodule Tuist.Runners.JobsTest do
       assert {:error, :not_found} = Jobs.complete(9_999_999, "success")
     end
 
-    test "closes the billing session for the workflow_job" do
+    test "does NOT close the billing session — that's the runners-controller's job" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 7200, fleet: "fleet-bs-close")
       {:ok, candidate} = Jobs.pick_queued("fleet-bs-close", [])
@@ -538,8 +538,13 @@ defmodule Tuist.Runners.JobsTest do
       [session] =
         Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
 
-      assert session.ended_at
-      assert DateTime.after?(session.ended_at, session.started_at)
+      # The `workflow_job.completed` webhook is delivery-flaky;
+      # closing here would let a delayed delivery extend billing
+      # past the customer's actual Pod runtime. The controller's
+      # `POST /api/internal/runners/pods/stopped` is the
+      # authoritative close signal — webhook arrival leaves the
+      # session open.
+      assert is_nil(session.ended_at)
     end
   end
 

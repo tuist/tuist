@@ -698,6 +698,7 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    post "/runners/pods/stopped", RunnerPodsController, :stopped
   end
 
   scope "/oauth2", TuistWeb.Oauth do

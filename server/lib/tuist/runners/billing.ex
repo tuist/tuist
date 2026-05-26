@@ -49,6 +49,18 @@ defmodule Tuist.Runners.Billing do
 
   @default_window_days 30
 
+  # Safety clamp for sessions whose `stopped` event was never
+  # delivered (controller crash + Pod garbage-collected from K8s
+  # before recovery). Without this, an indefinitely-open session
+  # bills against `LEAST(now(), period_end)` for as long as it
+  # stays open, which is exactly the over-bill the
+  # controller-reported-close architecture exists to prevent. 6
+  # hours matches the default `workflow_job` hard timeout on
+  # GitHub-hosted runners, so the clamp never trims a legitimate
+  # session — it only bounds the worst case after the
+  # authoritative signal got lost.
+  @max_session_lifetime_seconds 6 * 60 * 60
+
   @doc """
   Customer-facing "Compute Minutes" widget shape. Drives the
   Jobs-page widget that used to read from
@@ -122,13 +134,19 @@ defmodule Tuist.Runners.Billing do
             COALESCE(SUM(GREATEST(
               0,
               (EXTRACT(EPOCH FROM (
-                LEAST(COALESCE(?, ?), ?) - GREATEST(?, ?)
+                LEAST(
+                  COALESCE(?, ?),
+                  ?,
+                  ? + make_interval(secs => ?)
+                ) - GREATEST(?, ?)
               )) * 1000)::bigint
             )), 0)::bigint
             """,
             s.ended_at,
             ^now,
             ^period_end,
+            s.started_at,
+            ^@max_session_lifetime_seconds,
             s.started_at,
             ^period_start
           )
@@ -175,7 +193,18 @@ defmodule Tuist.Runners.Billing do
       |> scope(opts)
       |> select([s], %{
         started_at: s.started_at,
-        effective_end: fragment("COALESCE(?, ?)", s.ended_at, ^now)
+        # Clamp the upper bound at `started_at + max_lifetime` so a
+        # session whose `stopped` event was never delivered can't
+        # bill past the safety cap. Mirrors the same clamp in
+        # `compute_milliseconds/4`.
+        effective_end:
+          fragment(
+            "LEAST(COALESCE(?, ?), ? + make_interval(secs => ?))",
+            s.ended_at,
+            ^now,
+            s.started_at,
+            ^@max_session_lifetime_seconds
+          )
       })
 
     buckets = buckets_query(overlapping, period_start, period_end, bucket)

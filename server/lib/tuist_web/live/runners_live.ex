@@ -469,7 +469,6 @@ defmodule TuistWeb.RunnersLive do
     }
   end
 
-
   @doc """
   Builds the four-percentile time-series array (avg + p50/p90/p99)
   for a duration chart, in the order the Tests page renders them.

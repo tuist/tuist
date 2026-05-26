@@ -111,6 +111,28 @@ defmodule Tuist.Runners.BillingTest do
       assert Billing.compute_milliseconds(mine.id, period_start, period_end) == 5 * 60 * 1_000
     end
 
+    test "caps an open session at the max-lifetime safety clamp (6 hours)" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      # Session opened 12 hours ago, never closed (lost `stopped`
+      # event). Without the clamp this would bill 12 hours; with
+      # the clamp it bills at most 6 hours.
+      session_fixture(account,
+        started_at: DateTime.add(now, -12, :hour),
+        ended_at: nil
+      )
+
+      period_start = DateTime.add(now, -1, :day)
+      period_end = DateTime.add(now, 1, :day)
+
+      ms = Billing.compute_milliseconds(account.id, period_start, period_end)
+      six_hours_ms = 6 * 60 * 60 * 1_000
+
+      assert ms <= six_hours_ms
+      assert ms >= six_hours_ms - 5_000
+    end
+
     test "retries bill for every Pod the customer actually held" do
       account = account_fixture()
       period_start = ~U[2026-05-01 00:00:00.000000Z]
