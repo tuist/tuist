@@ -87,6 +87,15 @@ permissions:
   contents: read
   packages: write
 
+# Serialize the full cluster-touching portion of a single-environment
+# deployment per target environment. Keeping the lock at the workflow
+# level lets the chart-reconcile jobs fan out within one run while
+# preventing a newer run from interleaving platform/observability/app
+# changes into the same cluster midway through an older rollout.
+concurrency:
+  group: server-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
@@ -149,10 +158,9 @@ jobs:
     # server starts pushing spans to it. Idempotent: on every run it's a
     # no-op if Chart.lock + values haven't changed.
     #
-    # Shares the `server-deploy-<env>` concurrency lane with the deploy
-    # job on purpose: the server's OTLP endpoint and the chart that
-    # provides the receiver change in lockstep, so a newer chart install
-    # must never interleave with an older server rollout.
+    # Workflow-level concurrency already serializes full per-env
+    # rollouts, so this job can run in parallel with the other
+    # predeploy chart reconciliations inside one run.
     name: Observability chart (${{ inputs.environment }})
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
@@ -160,9 +168,6 @@ jobs:
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -217,18 +222,15 @@ jobs:
     # usable downstream without a hard dependency on Tailscale; the
     # main server deploy continues either way.
     #
-    # Shares the `server-deploy-<env>` concurrency lane with the deploy
-    # job, same reasoning as observability-install: the chart and the
-    # workloads it gates must never interleave with a stale rollout.
+    # Workflow-level concurrency already serializes full per-env
+    # rollouts, so this job can run in parallel with the other
+    # predeploy chart reconciliations inside one run.
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -294,18 +296,15 @@ jobs:
     # clusters pick up chart edits without a manual re-bootstrap. Idempotent:
     # steady-state finishes in under a minute when nothing has drifted.
     #
-    # Shares the `server-deploy-<env>` concurrency lane with the deploy job
-    # so a newer platform install never interleaves with an older server
-    # rollout.
+    # Workflow-level concurrency already serializes full per-env
+    # rollouts, so this job can run in parallel with the other
+    # predeploy chart reconciliations inside one run.
     name: Platform chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
     timeout-minutes: 20
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -365,11 +364,6 @@ jobs:
     environment:
       name: server-k8s-${{ inputs.environment }}
       url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
-    # Serialize deploys targeting the same environment so two concurrent
-    # runs don't race on the Helm release.
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}
-      cancel-in-progress: false
     # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
     # leaves a healthy buffer around that stack and keeps a
     # SIGTERM-stuck helm from holding the slot indefinitely.
