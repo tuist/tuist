@@ -292,15 +292,6 @@ defmodule Tuist.Runners.Jobs do
 
         insert_row!(row)
 
-        # Billing session close is NOT done here. The
-        # `workflow_job.completed` webhook is delivery-flaky (GH
-        # retries can land minutes late, or never), and closing on
-        # webhook arrival would let a delayed delivery extend the
-        # billed window past the customer's actual Pod runtime.
-        # The runners-controller posts `/api/internal/runners/pods/stopped`
-        # off K8s's terminal-phase transition — that's the
-        # authoritative signal for "Pod stopped running."
-
         :telemetry.execute(
           Telemetry.event_name_job_completed(),
           %{
