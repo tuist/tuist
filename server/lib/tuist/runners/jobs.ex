@@ -854,13 +854,6 @@ defmodule Tuist.Runners.Jobs do
         limit: ^limit
       )
     )
-
-    # Skipped / cancelled jobs leave `started_at` as the epoch
-    # sentinel — including those in `min(started_at)` would yield a
-    # 50-year run duration. Filter them out both ways so the
-    # rollup represents real elapsed runtime.
-    # Worst conclusion wins: any failure marks the run failed; any
-    # cancelled marks the run cancelled; otherwise success/skipped.
   end
 
   defp maybe_eq_workflow(query, nil, nil), do: query
@@ -905,16 +898,19 @@ defmodule Tuist.Runners.Jobs do
   row per workflow pair without re-aggregating.
   """
   def count_workflows_for_account(account_id, opts \\ []) when is_integer(account_id) and is_list(opts) do
+    # Route through `latest_jobs_subquery` so this count matches
+    # `list_workflows_for_account/2` exactly — both share the same
+    # GROUP BY + argMax dedup pass over `runner_jobs`, avoiding the
+    # per-read merge cost of `FROM runner_jobs FINAL` while still
+    # collapsing state-transition rows down to one row per
+    # workflow_job before the (workflow_name, repo) GROUP BY.
+    sub = latest_jobs_subquery(account_id, opts)
+
     inner =
-      Job
-      |> from(hints: ["FINAL"])
-      |> where([j], j.account_id == ^account_id)
-      |> maybe_filter_like(:repo, Keyword.get(opts, :repo))
-      |> maybe_filter_like(:workflow_name, Keyword.get(opts, :workflow_name))
-      |> maybe_filter_like(:head_branch, Keyword.get(opts, :head_branch))
-      |> maybe_filter_platform(Keyword.get(opts, :platform))
-      |> group_by([j], [j.workflow_name, j.repo])
-      |> select([j], %{workflow_name: j.workflow_name, repo: j.repo})
+      from(j in subquery(sub),
+        group_by: [j.workflow_name, j.repo],
+        select: %{workflow_name: j.workflow_name, repo: j.repo}
+      )
 
     from(s in subquery(inner), select: count())
     |> ClickHouseRepo.one()
