@@ -8,16 +8,6 @@ defmodule TuistWeb.RunnerPodsController do
   ServiceAccount token as a `Bearer` token. The server validates
   it via the Kubernetes TokenReview API — same pattern as the
   `desired_replicas` endpoint.
-
-  ## Why not GitHub webhooks
-
-  The previous design closed billing sessions from the
-  `workflow_job.completed` webhook. That's a delivery-flaky signal
-  (GH retries can land minutes late, or never), and a delayed
-  webhook would let billing extend past the customer's actual Pod
-  runtime. The runners-controller observes K8s terminal-phase
-  transitions directly — `containerStatuses[runner].state.terminated.finishedAt`
-  is the exact moment the container process exited.
   """
 
   use TuistWeb, :controller

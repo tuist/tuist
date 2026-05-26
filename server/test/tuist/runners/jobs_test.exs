@@ -538,12 +538,9 @@ defmodule Tuist.Runners.JobsTest do
       [session] =
         Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
 
-      # The `workflow_job.completed` webhook is delivery-flaky;
-      # closing here would let a delayed delivery extend billing
-      # past the customer's actual Pod runtime. The controller's
-      # `POST /api/internal/runners/pods/stopped` is the
-      # authoritative close signal — webhook arrival leaves the
-      # session open.
+      # Webhook completion doesn't close the session — the
+      # controller's `POST /api/internal/runners/pods/stopped` is
+      # the authoritative close signal.
       assert is_nil(session.ended_at)
     end
   end
