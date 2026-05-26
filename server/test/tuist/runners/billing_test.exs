@@ -134,6 +134,93 @@ defmodule Tuist.Runners.BillingTest do
     end
   end
 
+  describe "compute_minutes/2" do
+    test "returns the widget shape with total_ms, trend, dates, values" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        started_at: DateTime.add(now, -2, :hour),
+        ended_at: DateTime.add(now, -2, :hour) |> DateTime.add(15, :minute)
+      )
+
+      result =
+        Billing.compute_minutes(account.id,
+          start_datetime: DateTime.add(now, -1, :day),
+          end_datetime: now
+        )
+
+      assert is_integer(result.total_ms)
+      assert_in_delta result.total_ms, 15 * 60 * 1_000, 1_000
+      assert is_float(result.trend)
+      assert is_list(result.dates)
+      assert is_list(result.values)
+      assert length(result.dates) == length(result.values)
+      # 15 minutes lands as 15 on whichever day held the session.
+      assert Enum.sum(result.values) == 15
+    end
+
+    test "filters by :repo scope" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        repo: "acme/server",
+        started_at: DateTime.add(now, -1, :hour),
+        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(10, :minute)
+      )
+
+      session_fixture(account,
+        repo: "acme/cli",
+        started_at: DateTime.add(now, -1, :hour),
+        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(20, :minute)
+      )
+
+      scoped =
+        Billing.compute_minutes(account.id,
+          start_datetime: DateTime.add(now, -1, :day),
+          end_datetime: now,
+          repo: "acme/server"
+        )
+
+      assert_in_delta scoped.total_ms, 10 * 60 * 1_000, 1_000
+    end
+
+    test "filters by :platform via fleet_name prefix" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      session_fixture(account,
+        fleet_name: "macos-large",
+        started_at: DateTime.add(now, -1, :hour),
+        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(5, :minute)
+      )
+
+      session_fixture(account,
+        fleet_name: "linux-amd64",
+        started_at: DateTime.add(now, -1, :hour),
+        ended_at: DateTime.add(now, -1, :hour) |> DateTime.add(7, :minute)
+      )
+
+      mac =
+        Billing.compute_minutes(account.id,
+          start_datetime: DateTime.add(now, -1, :day),
+          end_datetime: now,
+          platform: "macos"
+        )
+
+      linux =
+        Billing.compute_minutes(account.id,
+          start_datetime: DateTime.add(now, -1, :day),
+          end_datetime: now,
+          platform: "linux"
+        )
+
+      assert_in_delta mac.total_ms, 5 * 60 * 1_000, 1_000
+      assert_in_delta linux.total_ms, 7 * 60 * 1_000, 1_000
+    end
+  end
+
   describe "compute_milliseconds_per_day/3" do
     test "buckets a single session into its UTC day" do
       account = account_fixture()

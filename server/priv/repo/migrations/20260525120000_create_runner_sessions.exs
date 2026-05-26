@@ -57,6 +57,12 @@ defmodule Tuist.Repo.Migrations.CreateRunnerSessions do
       add :fleet_name, :string, null: false
       add :pod_name, :string, null: false, default: ""
       add :runner_name, :string, null: false, default: ""
+      # Denormalised from the corresponding workflow_job so the
+      # Jobs page's repo / workflow_name page-level filters can
+      # narrow the Compute Minutes widget without joining
+      # against ClickHouse.
+      add :repo, :string, null: false, default: ""
+      add :workflow_name, :string, null: false, default: ""
 
       # The window we'll bill the customer for. `started_at` is
       # set on session creation (claim-win) and never changes.

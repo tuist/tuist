@@ -30,12 +30,12 @@ defmodule Tuist.Runners.RunnerSessions do
   timestamps directly.
   """
   def open(%{
-        workflow_job_id: workflow_job_id,
-        account_id: account_id,
-        fleet_name: fleet_name,
-        pod_name: pod_name,
-        started_at: started_at
-      }) do
+          workflow_job_id: workflow_job_id,
+          account_id: account_id,
+          fleet_name: fleet_name,
+          pod_name: pod_name,
+          started_at: started_at
+        } = attrs) do
     now = DateTime.utc_now()
 
     attrs = %{
@@ -43,6 +43,8 @@ defmodule Tuist.Runners.RunnerSessions do
       account_id: account_id,
       fleet_name: fleet_name,
       pod_name: pod_name,
+      repo: Map.get(attrs, :repo, ""),
+      workflow_name: Map.get(attrs, :workflow_name, ""),
       started_at: started_at,
       inserted_at: DateTime.truncate(now, :second),
       updated_at: DateTime.truncate(now, :second)

@@ -16,6 +16,7 @@ defmodule TuistWeb.RunnerJobsLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Billing
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -207,7 +208,7 @@ defmodule TuistWeb.RunnerJobsLive do
         {:ok,
          %{
            jobs_breakdown: Analytics.jobs_breakdown(account.id, scope_opts),
-           cumulative_minutes: Analytics.cumulative_minutes(account.id, scope_opts),
+           cumulative_minutes: Billing.compute_minutes(account.id, scope_opts),
            queue_time: Analytics.queue_time(account.id, scope_opts),
            jobs_duration: Analytics.jobs_duration(account.id, scope_opts),
            live_status_counts: Jobs.status_counts(account.id)

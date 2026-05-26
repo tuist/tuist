@@ -46,18 +46,73 @@ defmodule Tuist.Runners.Billing do
   alias Tuist.Repo
   alias Tuist.Runners.RunnerSession
 
+  @default_window_days 30
+
+  @doc """
+  Customer-facing "Compute Minutes" widget shape. Drives the
+  Jobs-page widget that used to read from
+  `Tuist.Runners.Analytics.cumulative_minutes/2`. Returns the
+  same map shape (so the LiveView swap is a one-line change),
+  but the underlying source is `runner_sessions` rather than
+  `runner_jobs` — i.e. the same number that invoicing will
+  charge against.
+
+  Options:
+
+    * `:start_datetime` / `:end_datetime` — window. Defaults to
+      the last 30 days.
+    * `:repo`, `:workflow_name` — exact-match scope (Jobs page
+      filters).
+    * `:platform` — `"macos"` or `"linux"`, narrows on the
+      `fleet_name` prefix the same way the rest of the runners
+      pages do.
+
+  Returns `%{total_ms, trend, dates, values}` where `values` are
+  whole minutes per UTC day (truncated for display; precision is
+  preserved in `total_ms`).
+  """
+  def compute_minutes(account_id, opts \\ []) when is_integer(account_id) do
+    {start_dt, end_dt} = window(opts)
+    {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+
+    total_ms = compute_milliseconds(account_id, start_dt, end_dt, opts)
+    previous_total_ms = compute_milliseconds(account_id, prev_start_dt, prev_end_dt, opts)
+
+    per_day = compute_milliseconds_per_day(account_id, start_dt, end_dt, opts)
+
+    filled =
+      start_dt
+      |> daily_range(end_dt)
+      |> Enum.map(fn date ->
+        ms = Map.get(per_day, date, 0)
+        %{date: date, value: ms |> div(60_000) |> trunc()}
+      end)
+
+    %{
+      total_ms: total_ms,
+      trend: trend(previous_total_ms, total_ms),
+      dates: Enum.map(filled, & &1.date),
+      values: Enum.map(filled, & &1.value)
+    }
+  end
+
   @doc """
   Total billable milliseconds for `account_id` over
   `[period_start, period_end]`. Each Pod session contributes only
   the portion of its runtime that lies inside the window.
+
+  Accepts the same scope opts (`:repo`, `:workflow_name`,
+  `:platform`) as `compute_minutes/2` so a filtered widget and a
+  filtered invoice line up against the same query shape.
   """
-  def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end)
+  def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
     now = DateTime.utc_now()
 
     sessions =
       account_id
       |> sessions_overlapping(period_start, period_end)
+      |> scope(opts)
       |> Repo.all()
 
     Enum.reduce(sessions, 0, fn session, acc ->
@@ -74,13 +129,14 @@ defmodule Tuist.Runners.Billing do
   caller can format the values however they want (minutes,
   hours, dollars) at render time.
   """
-  def compute_milliseconds_per_day(account_id, %DateTime{} = period_start, %DateTime{} = period_end)
+  def compute_milliseconds_per_day(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
     now = DateTime.utc_now()
 
     sessions =
       account_id
       |> sessions_overlapping(period_start, period_end)
+      |> scope(opts)
       |> Repo.all()
 
     Enum.reduce(sessions, %{}, fn session, acc ->
@@ -150,4 +206,60 @@ defmodule Tuist.Runners.Billing do
     {:ok, dt} = DateTime.new(date, ~T[23:59:59.999999], "Etc/UTC")
     dt
   end
+
+  defp scope(query, opts) do
+    query
+    |> maybe_eq(:repo, Keyword.get(opts, :repo))
+    |> maybe_eq(:workflow_name, Keyword.get(opts, :workflow_name))
+    |> maybe_platform(Keyword.get(opts, :platform))
+  end
+
+  defp maybe_eq(query, _field, nil), do: query
+  defp maybe_eq(query, _field, ""), do: query
+  defp maybe_eq(query, _field, "any"), do: query
+
+  defp maybe_eq(query, :repo, value) when is_binary(value),
+    do: where(query, [s], s.repo == ^value)
+
+  defp maybe_eq(query, :workflow_name, value) when is_binary(value),
+    do: where(query, [s], s.workflow_name == ^value)
+
+  defp maybe_platform(query, nil), do: query
+  defp maybe_platform(query, ""), do: query
+  defp maybe_platform(query, "any"), do: query
+
+  defp maybe_platform(query, platform) when platform in ["macos", "linux"] do
+    prefix = platform <> "-"
+    where(query, [s], fragment("starts_with(?, ?)", s.fleet_name, ^prefix))
+  end
+
+  defp maybe_platform(query, _), do: query
+
+  defp window(opts) do
+    end_dt = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    start_dt =
+      Keyword.get(opts, :start_datetime, DateTime.add(end_dt, -@default_window_days, :day))
+
+    {start_dt, end_dt}
+  end
+
+  defp previous_window(start_dt, end_dt) do
+    delta_seconds = DateTime.diff(end_dt, start_dt, :second)
+    {DateTime.add(start_dt, -delta_seconds, :second), start_dt}
+  end
+
+  defp daily_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    Date.range(DateTime.to_date(start_dt), DateTime.to_date(end_dt))
+  end
+
+  defp trend(previous, current) when is_number(previous) and is_number(current) do
+    cond do
+      previous == 0 -> 0.0
+      current == 0 -> 0.0
+      true -> Float.round(current / previous * 100, 1) - 100.0
+    end
+  end
+
+  defp trend(_, _), do: 0.0
 end

@@ -168,6 +168,8 @@ defmodule Tuist.Runners.Jobs do
       account_id: Map.fetch!(candidate, :account_id),
       fleet_name: Map.get(candidate, :fleet_name, ""),
       pod_name: pod_name,
+      repo: Map.get(candidate, :repo, ""),
+      workflow_name: Map.get(candidate, :workflow_name, ""),
       started_at: claimed_at
     })
 
