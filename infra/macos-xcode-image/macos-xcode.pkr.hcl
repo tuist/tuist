@@ -245,7 +245,12 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "/bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq xcodes xcrun xcresulttool swiftlint swiftformat xcbeautify fastlane pod carthage mint idevice_id ideviceinstaller ios-deploy; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool missing from PATH\" >&2; exit 1; }; done'",
+      "/bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq xcodes xcrun swiftlint swiftformat xcbeautify fastlane pod carthage mint idevice_id ideviceinstaller ios-deploy; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool missing from PATH\" >&2; exit 1; }; done'",
+      # xcresulttool lives inside the Xcode bundle and isn't on
+      # $PATH directly — it's reached via `xcrun xcresulttool`.
+      # The `command -v` loop above checks `xcrun`'s presence;
+      # the line below proves `xcrun` can actually resolve
+      # xcresulttool against the active developer dir.
       "/bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
     ]
   }
