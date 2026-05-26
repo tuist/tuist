@@ -169,10 +169,10 @@ impl NamespaceQuery {
         })
     }
 
-    fn legacy_analytics_context(&self) -> Option<LegacyAnalyticsContext<'_>> {
+    fn project_analytics_context(&self) -> Option<ProjectAnalyticsContext<'_>> {
         match self.scope {
             NamespaceScope::Account => None,
-            NamespaceScope::Project => Some(LegacyAnalyticsContext {
+            NamespaceScope::Project => Some(ProjectAnalyticsContext {
                 tenant_id: &self.tenant_id,
                 namespace_id: &self.namespace_id,
             }),
@@ -273,7 +273,7 @@ struct PageQuery {
 }
 
 #[derive(Clone, Copy)]
-struct LegacyAnalyticsContext<'a> {
+struct ProjectAnalyticsContext<'a> {
     tenant_id: &'a str,
     namespace_id: &'a str,
 }
@@ -286,7 +286,7 @@ struct BlobPutSpec<'a> {
     max_bytes: u64,
     success_status: StatusCode,
     existing_status: StatusCode,
-    analytics: Option<LegacyAnalyticsContext<'a>>,
+    analytics: Option<ProjectAnalyticsContext<'a>>,
 }
 
 impl PageQuery {
@@ -1170,7 +1170,7 @@ async fn get_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = namespace.legacy_analytics_context();
+    let analytics = namespace.project_analytics_context();
 
     get_artifact(
         state,
@@ -1194,7 +1194,7 @@ async fn put_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = namespace.legacy_analytics_context();
+    let analytics = namespace.project_analytics_context();
 
     put_blob_artifact(
         state,
@@ -1223,7 +1223,7 @@ async fn get_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = namespace.legacy_analytics_context();
+    let analytics = namespace.project_analytics_context();
 
     get_artifact(
         state,
@@ -1247,7 +1247,7 @@ async fn put_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let analytics = namespace.legacy_analytics_context();
+    let analytics = namespace.project_analytics_context();
 
     put_blob_artifact(
         state,
@@ -1745,7 +1745,7 @@ async fn get_artifact(
     namespace_id: &str,
     key: &str,
     analytics_key: Option<&str>,
-    analytics: Option<LegacyAnalyticsContext<'_>>,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
 ) -> Response {
     match state
         .store
@@ -1758,7 +1758,7 @@ async fn get_artifact(
                 state
                     .metrics
                     .record_artifact_read(producer, "ok", manifest.size);
-                record_legacy_cache_event(
+                record_project_scoped_cache_event(
                     &state,
                     producer,
                     "download",
@@ -1850,7 +1850,7 @@ async fn put_blob_artifact(
             state
                 .metrics
                 .record_artifact_write(producer, "ok", manifest.size);
-            record_legacy_cache_event(
+            record_project_scoped_cache_event(
                 &state,
                 producer,
                 "upload",
@@ -1870,11 +1870,11 @@ async fn put_blob_artifact(
     }
 }
 
-fn record_legacy_cache_event(
+fn record_project_scoped_cache_event(
     state: &SharedState,
     producer: ArtifactProducer,
     action: &str,
-    analytics: Option<LegacyAnalyticsContext<'_>>,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
     key: &str,
     size: u64,
 ) {
@@ -2371,7 +2371,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn legacy_account_and_project_handles_work_through_router() {
+    async fn account_and_project_handle_aliases_work_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
 
@@ -2436,7 +2436,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn xcode_routes_emit_legacy_analytics_events() {
+    async fn xcode_routes_emit_project_scoped_analytics_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let context = test_context(|config| {
@@ -2527,7 +2527,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tenant_only_xcode_routes_skip_legacy_analytics_events() {
+    async fn tenant_only_xcode_routes_skip_project_scoped_analytics_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let context = test_context(|config| {
@@ -2702,7 +2702,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_uses_legacy_handle_aliases() {
+    async fn extension_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
         let extension_context = extension_context_from_http(
