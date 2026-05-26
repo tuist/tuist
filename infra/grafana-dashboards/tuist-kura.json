@@ -2134,7 +2134,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "label_replace(sum by (client_country) ((increase(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", client_country!=\"unknown\"}[$__range])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), \"lookup\", \"$1\", \"client_country\", \"(.*)\")",
+            "expr": "label_replace(sum by (client_country) ((increase(kura_http_requests_by_country_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", client_country!=\"unknown\"}[$__range])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), \"lookup\", \"$1\", \"client_country\", \"(.*)\")",
             "format": "table",
             "instant": true,
             "range": false,

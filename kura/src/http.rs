@@ -355,6 +355,7 @@ async fn track_http_metrics(
     let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = request_route(&req);
+    let record_country_metric = should_record_country_metric(&route);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -399,9 +400,9 @@ async fn track_http_metrics(
 
     state.metrics.record_http(
         route,
-        method,
         response.status(),
         client_country,
+        record_country_metric,
         start.elapsed(),
     );
 
@@ -579,6 +580,10 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 
 fn should_skip_extension_route(route: &str) -> bool {
     is_probe_route(route) || route.starts_with("/_internal/")
+}
+
+fn should_record_country_metric(route: &str) -> bool {
+    !should_skip_extension_route(route) && route != UNMATCHED_ROUTE
 }
 
 fn is_probe_route(route: &str) -> bool {
@@ -2044,6 +2049,7 @@ mod tests {
         let metrics = context.state.metrics.render();
         assert!(metrics.contains("route=\"/_unmatched\""));
         assert!(!metrics.contains("route=\"/.docker/.env\""));
+        assert!(!metrics.contains("kura_http_requests_by_country_total"));
     }
 
     #[tokio::test]

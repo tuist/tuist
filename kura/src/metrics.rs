@@ -30,6 +30,7 @@ pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
+    http_requests_by_country: Family<HttpCountryLabels, Counter>,
     http_request_duration: Family<HttpRouteLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
@@ -129,6 +130,7 @@ impl Metrics {
         let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
+        let http_requests_by_country = Family::<HttpCountryLabels, Counter>::default();
         let http_request_duration =
             Family::<HttpRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
@@ -244,6 +246,11 @@ impl Metrics {
             "kura_http_requests_total",
             "HTTP requests by route and status code",
             http_requests.clone(),
+        );
+        registry.register(
+            "kura_http_requests_by_country_total",
+            "HTTP requests by client country",
+            http_requests_by_country.clone(),
         );
         registry.register(
             "kura_http_request_duration_seconds",
@@ -652,6 +659,7 @@ impl Metrics {
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
+            http_requests_by_country,
             http_request_duration,
             http_exceptions,
             artifact_reads,
@@ -758,19 +766,24 @@ impl Metrics {
     pub fn record_http(
         &self,
         route: String,
-        method: String,
         status: StatusCode,
         client_country: Option<String>,
+        record_country: bool,
         duration: Duration,
     ) {
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
-                method,
                 status: status.as_u16(),
-                client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
             })
             .inc();
+        if record_country {
+            self.http_requests_by_country
+                .get_or_create(&HttpCountryLabels {
+                    client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
+                })
+                .inc();
+        }
         self.http_request_duration
             .get_or_create(&HttpRouteLabels {
                 route: route.clone(),
@@ -1275,8 +1288,11 @@ impl Metrics {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpRequestLabels {
     route: String,
-    method: String,
     status: u16,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct HttpCountryLabels {
     client_country: String,
 }
 
@@ -1467,16 +1483,16 @@ mod tests {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http(
             "/up".into(),
-            "GET".into(),
             StatusCode::OK,
             Some("US".into()),
+            false,
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/api/cache/keyvalue".into(),
-            "PUT".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
             None,
+            true,
             Duration::from_millis(20),
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
@@ -1537,6 +1553,7 @@ mod tests {
         let rendered = metrics.render();
 
         assert!(rendered.contains("kura_http_requests_total"));
+        assert!(rendered.contains("kura_http_requests_by_country_total"));
         assert!(rendered.contains("kura_http_exceptions_total"));
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));

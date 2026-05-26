@@ -291,12 +291,12 @@ Kura also exports:
 
 The Kura container image vendors a [DB-IP IP-to-City Lite](https://db-ip.com/db/download/ip-to-city-lite) MMDB at `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution is on by default. Location is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) at two granularities:
 
-- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
+- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_requests_by_country_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
 - subdivision (ISO 3166-2, e.g. `US-CA`): the `geo.region.iso_code` OTel span attribute on `http.request` spans
 
-Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names).
+Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names), but it lives on a dedicated country counter so route-level request metrics do not multiply by geography.
 
-Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × method × status would inflate the active series on the busiest counter. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on metrics because it is bounded (~250 codes).
+Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × status would inflate the active series on the busiest counter. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on metrics because it is bounded (~250 codes), but on a dedicated aggregate counter instead of the route-level request metric.
 
 Lookups that miss (no header, private IP, or DB missing) fall back to `client_country="unknown"` and an unset `geo.region.iso_code`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without geographic attribution.
 
