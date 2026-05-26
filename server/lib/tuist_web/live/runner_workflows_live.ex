@@ -336,7 +336,8 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   plain numeric y-axis, no legend.
   """
   def chart_options(dates, bucket \\ :day) do
-    formatter = if bucket == :hour, do: "fn:toLocaleTime", else: "fn:toLocaleDate"
+    formatter = if bucket == :hour, do: "fn:toLocaleDateHour", else: "fn:toLocaleDate"
+    tooltip = if bucket == :hour, do: %{dateFormat: "hour"}, else: %{}
 
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
@@ -356,7 +357,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         axisLabel: %{color: "var:noora-surface-label-secondary"}
       },
       legend: %{show: false},
-      tooltip: %{}
+      tooltip: tooltip
     }
   end
 

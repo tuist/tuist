@@ -469,7 +469,7 @@ defmodule TuistWeb.RunnersLive do
     }
   end
 
-  defp duration_axis_formatter(:hour), do: "fn:toLocaleTime"
+  defp duration_axis_formatter(:hour), do: "fn:toLocaleDateHour"
   defp duration_axis_formatter(_), do: "fn:toLocaleDate"
 
   @doc """

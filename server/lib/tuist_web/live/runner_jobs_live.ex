@@ -771,7 +771,7 @@ defmodule TuistWeb.RunnerJobsLive do
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
         axisLabel: %{color: "var:noora-surface-label-secondary"}
       },
-      tooltip: %{}
+      tooltip: tooltip_options(bucket)
     }
   end
 
@@ -794,14 +794,23 @@ defmodule TuistWeb.RunnerJobsLive do
         axisLabel: %{color: "var:noora-surface-label-secondary"}
       },
       legend: %{show: false},
-      tooltip: %{}
+      tooltip: tooltip_options(bucket)
     }
   end
 
-  # Hourly buckets are DateTimes — format the axis label as a clock
-  # time. Day buckets stay as locale-formatted short dates.
-  defp axis_formatter(:hour), do: "fn:toLocaleTime"
+  # Hourly buckets render the leftmost / rightmost label as
+  # "May 26, 14:00" so a 24-hour chart still reads as a calendar
+  # window, not just a clock. Day buckets stay as locale-formatted
+  # short dates.
+  defp axis_formatter(:hour), do: "fn:toLocaleDateHour"
   defp axis_formatter(_), do: "fn:toLocaleDate"
+
+  # Tooltip title is rendered by the Noora chart from the data
+  # point's x value. `dateFormat: "hour"` flips the format to
+  # "May 26, 14:00" for hourly mode so the tooltip granularity
+  # matches the bucket the query produced.
+  defp tooltip_options(:hour), do: %{dateFormat: "hour"}
+  defp tooltip_options(_), do: %{}
 
   @doc """
   Returns the query string for a given page number, preserving the
@@ -836,7 +845,7 @@ defmodule TuistWeb.RunnerJobsLive do
         axisLabel: %{color: "var:noora-surface-label-secondary"}
       },
       legend: %{show: false},
-      tooltip: %{}
+      tooltip: tooltip_options(bucket)
     }
   end
 end
