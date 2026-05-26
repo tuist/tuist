@@ -22,6 +22,7 @@ alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
+alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
 alias Tuist.Shards.ShardPlanTestSuite
@@ -3452,6 +3453,23 @@ completed_jobs
 
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{rem(idx, 4)}")
   {:ok, _} = Jobs.complete(workflow_job_id, job.conclusion)
+
+  # `Jobs.complete/2` stamped the billing session's `ended_at`
+  # with `DateTime.utc_now()` and `record_claimed/3` set
+  # `started_at` to the simulated claim. Retroactively rewrite
+  # both so the seeded session window matches the simulated
+  # `claimed_at`/`completed_at` — otherwise the Compute Minutes
+  # widget would render ~zero seconds for every seeded job
+  # regardless of `duration_s`.
+  {1, _} =
+    Repo.update_all(
+      from(s in RunnerSession, where: s.workflow_job_id == ^workflow_job_id),
+      set: [
+        started_at: claimed_at,
+        ended_at: completed_at,
+        updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      ]
+    )
 
   # `completed_at` is set by `complete/2` to `DateTime.utc_now()`, but for seed
   # realism we re-INSERT a final row with the desired completion time so the
