@@ -106,11 +106,6 @@ defmodule Tuist.Runners.Billing do
   Accepts the same scope opts (`:repo`, `:workflow_name`,
   `:platform`) as `compute_minutes/2` so a filtered widget and a
   filtered invoice line up against the same query shape.
-
-  Aggregation runs entirely at the SQL level — a single SUM over
-  the GREATEST/LEAST interval-intersection, so a busy account
-  with thousands of sessions per month doesn't ship them all to
-  the BEAM.
   """
   def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
