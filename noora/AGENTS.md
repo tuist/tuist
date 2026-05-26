@@ -10,7 +10,7 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 - `js/` - JavaScript hooks and behaviors
 - `css/` - Component stylesheets
 - `priv/static/` - Built assets (noora.js, noora.css)
-- `storybook/` - Phoenix Storybook app for component previews, deployed to Render at storybook.noora.tuist.dev
+- `storybook/` - Phoenix Storybook app for component previews, deployed to the production cluster at storybook.noora.tuist.dev via `infra/helm/noora-storybook` and `.github/workflows/noora-storybook-deployment.yml`
 
 ## Development Commands
 

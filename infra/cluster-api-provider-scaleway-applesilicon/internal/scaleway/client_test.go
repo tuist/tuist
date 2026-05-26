@@ -61,7 +61,7 @@ func TestScalewayServerToServer_FallsBackToVncURLWhenSudoPasswordEmpty(t *testin
 	// Adopted servers come back from list/GET with an empty
 	// SudoPassword; the controller needs a real password to stage
 	// kcpassword. The vnc_url embeds the same OS-default credentials
-	// and is the only surface that survives past CreateServer.
+	// and is the surface AdoptFromPool reads them from.
 	in := &applesilicon.Server{
 		ID:           "server-id",
 		Status:       applesilicon.ServerStatusReady,
@@ -76,18 +76,17 @@ func TestScalewayServerToServer_FallsBackToVncURLWhenSudoPasswordEmpty(t *testin
 }
 
 func TestScalewayServerToServer_PrefersAPISudoPasswordWhenSet(t *testing.T) {
-	// CreateServer responses populate SudoPassword directly. The vnc
-	// fallback must not override that — if the API gave us a value,
-	// it's the authoritative one.
+	// If Scaleway surfaces a non-empty SudoPassword on the response,
+	// it's authoritative and the vnc fallback must not override it.
 	in := &applesilicon.Server{
 		ID:           "server-id",
 		Status:       applesilicon.ServerStatusReady,
-		SudoPassword: "fromCreate",
+		SudoPassword: "fromAPI",
 		SSHUsername:  "m1",
 		VncURL:       "vnc://m1:fromVNC@host:59010",
 	}
 	out := scalewayServerToServer(in)
-	if out.SudoPassword != "fromCreate" {
+	if out.SudoPassword != "fromAPI" {
 		t.Fatalf("expected primary SudoPassword to win, got %q", out.SudoPassword)
 	}
 }
@@ -108,7 +107,7 @@ func TestScalewayServerToServer_LeavesPasswordEmptyWhenBothSourcesEmpty(t *testi
 
 // --- two-phase adoption tests ---------------------------------------------
 //
-// The two-phase claim in AdoptByPrefix is what keeps two concurrent
+// The two-phase claim in AdoptFromPool is what keeps two concurrent
 // reconciles from both walking away with the same ServerID. Test it
 // against a fake Scaleway API that models the rename-store semantics
 // the production code relies on. The fake is intentionally minimal:
@@ -119,7 +118,7 @@ func TestScalewayServerToServer_LeavesPasswordEmptyWhenBothSourcesEmpty(t *testi
 // fakeAppleSiliconAPI is a small in-memory simulator. Servers are
 // pointers — UpdateServer mutates them in place so subsequent GETs
 // reflect the rename, matching Scaleway's own read-after-write
-// semantics. Only the methods AdoptByPrefix touches are implemented;
+// semantics. Only the methods AdoptFromPool touches are implemented;
 // the rest return a sentinel error so test failures are obvious if
 // a test triggers an unexpected call path.
 type fakeAppleSiliconAPI struct {
@@ -142,10 +141,20 @@ type fakeAppleSiliconAPI struct {
 	updateCalls  int
 	getErrors    map[int]error
 	getCalls     int
+
+	// reinstallErrors maps `<call-index> -> error` for ReinstallServer;
+	// an absent / nil entry returns success and appends to
+	// reinstalledIDs. ReleaseToPool tests use this to force the
+	// crash-recovery shape where a previous reinstall is still in
+	// flight (TransientStateError) and confirm the second attempt
+	// degrades gracefully.
+	reinstallErrors map[int]error
+	reinstallCalls  int
+	reinstalledIDs  []string
 }
 
 func (f *fakeAppleSiliconAPI) ListServers(req *applesilicon.ListServersRequest, _ ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
-	// Return everything in one page. AdoptByPrefix paginates by
+	// Return everything in one page. AdoptFromPool paginates by
 	// `len(resp.Servers) < pageSize` to stop, so a single full slice
 	// causes the loop to exit after one pass.
 	return &applesilicon.ListServersResponse{
@@ -186,23 +195,22 @@ func (f *fakeAppleSiliconAPI) UpdateServer(req *applesilicon.UpdateServerRequest
 	return nil, errors.New("not found")
 }
 
-func (f *fakeAppleSiliconAPI) CreateServer(*applesilicon.CreateServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
-	return nil, errors.New("CreateServer not implemented in fake")
+func (f *fakeAppleSiliconAPI) ReinstallServer(req *applesilicon.ReinstallServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.reinstallCalls++
+	if err, ok := f.reinstallErrors[f.reinstallCalls]; ok {
+		return nil, err
+	}
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			s.Status = applesilicon.ServerStatusReinstalling
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
 }
 
-func (f *fakeAppleSiliconAPI) DeleteServer(*applesilicon.DeleteServerRequest, ...scw.RequestOption) error {
-	return errors.New("DeleteServer not implemented in fake")
-}
-
-func (f *fakeAppleSiliconAPI) WaitForServer(*applesilicon.WaitForServerRequest, ...scw.RequestOption) (*applesilicon.Server, error) {
-	return nil, errors.New("WaitForServer not implemented in fake")
-}
-
-func (f *fakeAppleSiliconAPI) ListOS(*applesilicon.ListOSRequest, ...scw.RequestOption) (*applesilicon.ListOSResponse, error) {
-	return nil, errors.New("ListOS not implemented in fake")
-}
-
-// readyServer builds a server in the state AdoptByPrefix is willing
+// readyServer builds a server in the state AdoptFromPool is willing
 // to consider — Delivered + Ready, plus the type/os filters the
 // callers pass.
 func readyServer(id, name string) *applesilicon.Server {
@@ -220,7 +228,7 @@ func newTestClient(api *fakeAppleSiliconAPI) *Client {
 	return &Client{API: api}
 }
 
-func TestAdoptByPrefix_HappyPath(t *testing.T) {
+func TestAdoptFromPool_HappyPath(t *testing.T) {
 	api := &fakeAppleSiliconAPI{
 		servers: []*applesilicon.Server{
 			readyServer("srv-1", "tuist-pool-001"),
@@ -228,10 +236,10 @@ func TestAdoptByPrefix_HappyPath(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
-		t.Fatalf("AdoptByPrefix returned error: %v", err)
+		t.Fatalf("AdoptFromPool returned error: %v", err)
 	}
 	if srv == nil || srv.ID != "srv-1" {
 		t.Fatalf("expected srv-1 returned, got %+v", srv)
@@ -245,7 +253,7 @@ func TestAdoptByPrefix_HappyPath(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_IdempotentRediscovery(t *testing.T) {
+func TestAdoptFromPool_IdempotentRediscovery(t *testing.T) {
 	// Server already carries the final claimName from a prior
 	// reconcile whose status patch was lost. Adoption must return it
 	// immediately without going through the two-phase dance again
@@ -258,7 +266,7 @@ func TestAdoptByPrefix_IdempotentRediscovery(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-abc", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("expected idempotent rediscovery, got error: %v", err)
@@ -271,10 +279,10 @@ func TestAdoptByPrefix_IdempotentRediscovery(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_RaceLost_SkipsCandidate(t *testing.T) {
+func TestAdoptFromPool_RaceLost_SkipsCandidate(t *testing.T) {
 	// Two pool hosts. A concurrent reconcile overwrites our phase-1
 	// pending marker on srv-1 between our UpdateServer and our GET.
-	// AdoptByPrefix should detect the race (verify.Name != ours) and
+	// AdoptFromPool should detect the race (verify.Name != ours) and
 	// move on to srv-2, where there's no contention.
 	api := &fakeAppleSiliconAPI{
 		servers: []*applesilicon.Server{
@@ -295,10 +303,10 @@ func TestAdoptByPrefix_RaceLost_SkipsCandidate(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-mine", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
-		t.Fatalf("AdoptByPrefix returned error: %v", err)
+		t.Fatalf("AdoptFromPool returned error: %v", err)
 	}
 	if srv.ID != "srv-2" {
 		t.Fatalf("expected adoption to skip srv-1 and pick srv-2, got %q", srv.ID)
@@ -313,7 +321,7 @@ func TestAdoptByPrefix_RaceLost_SkipsCandidate(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_OrphanReAdopted(t *testing.T) {
+func TestAdoptFromPool_OrphanReAdopted(t *testing.T) {
 	// A previous reconcile crashed between phase 1 and phase 2 —
 	// srv-1 sits outside any pool prefix, named only by a stale
 	// claim-pending marker. The next reconcile must treat that marker
@@ -325,7 +333,7 @@ func TestAdoptByPrefix_OrphanReAdopted(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-recovered", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("orphan re-adoption returned error: %v", err)
@@ -338,7 +346,7 @@ func TestAdoptByPrefix_OrphanReAdopted(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_NoEligibleHosts(t *testing.T) {
+func TestAdoptFromPool_NoEligibleHosts(t *testing.T) {
 	cases := []struct {
 		name string
 		srv  *applesilicon.Server
@@ -388,7 +396,7 @@ func TestAdoptByPrefix_NoEligibleHosts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{tc.srv}}
 			c := newTestClient(api)
-			_, err := c.AdoptByPrefix(context.Background(),
+			_, err := c.AdoptFromPool(context.Background(),
 				"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 			if !errors.Is(err, ErrNoAvailableHost) {
 				t.Fatalf("expected ErrNoAvailableHost, got %v", err)
@@ -400,7 +408,7 @@ func TestAdoptByPrefix_NoEligibleHosts(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_Phase2FailureSurfacesError(t *testing.T) {
+func TestAdoptFromPool_Phase2FailureSurfacesError(t *testing.T) {
 	// Phase 1 succeeds (the candidate is renamed to our pending
 	// marker), then phase 2 fails. The function must propagate the
 	// error so the caller requeues; the server is left in the
@@ -418,7 +426,7 @@ func TestAdoptByPrefix_Phase2FailureSurfacesError(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	_, err := c.AdoptByPrefix(context.Background(),
+	_, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected phase-2 error to be surfaced, got nil")
@@ -435,10 +443,10 @@ func TestAdoptByPrefix_Phase2FailureSurfacesError(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_RequiresPoolPrefix(t *testing.T) {
+func TestAdoptFromPool_RequiresPoolPrefix(t *testing.T) {
 	api := &fakeAppleSiliconAPI{}
 	c := newTestClient(api)
-	_, err := c.AdoptByPrefix(context.Background(),
+	_, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "")
 	if err == nil {
 		t.Fatalf("expected error when poolPrefix is empty")
@@ -448,7 +456,7 @@ func TestAdoptByPrefix_RequiresPoolPrefix(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_Phase1Update404SkipsCandidate(t *testing.T) {
+func TestAdoptFromPool_Phase1Update404SkipsCandidate(t *testing.T) {
 	// A 404 on phase 1 UpdateServer means the candidate was deleted
 	// out from under us between list and UpdateServer (concurrent
 	// operator action). The function should treat that as a per-
@@ -468,7 +476,7 @@ func TestAdoptByPrefix_Phase1Update404SkipsCandidate(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("phase 1 404 should be race-lost, not error; got %v", err)
@@ -478,7 +486,7 @@ func TestAdoptByPrefix_Phase1Update404SkipsCandidate(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_Phase1UpdateNon404SurfacesError(t *testing.T) {
+func TestAdoptFromPool_Phase1UpdateNon404SurfacesError(t *testing.T) {
 	// Any non-NotFound Scaleway error (403 auth, 5xx outage,
 	// validation error) is operational and must propagate as a real
 	// failure. The pre-fix behavior swallowed every UpdateServer
@@ -495,7 +503,7 @@ func TestAdoptByPrefix_Phase1UpdateNon404SurfacesError(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	_, err := c.AdoptByPrefix(context.Background(),
+	_, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected non-404 phase 1 error to be surfaced")
@@ -508,7 +516,7 @@ func TestAdoptByPrefix_Phase1UpdateNon404SurfacesError(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_Phase1Verify404SkipsCandidate(t *testing.T) {
+func TestAdoptFromPool_Phase1Verify404SkipsCandidate(t *testing.T) {
 	// 404 on the verify GET (server deleted between phase 1 and
 	// verify) is recoverable per-candidate, same handling as a phase
 	// 1 update 404.
@@ -523,7 +531,7 @@ func TestAdoptByPrefix_Phase1Verify404SkipsCandidate(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	srv, err := c.AdoptByPrefix(context.Background(),
+	srv, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err != nil {
 		t.Fatalf("verify 404 should be race-lost, not error; got %v", err)
@@ -533,7 +541,7 @@ func TestAdoptByPrefix_Phase1Verify404SkipsCandidate(t *testing.T) {
 	}
 }
 
-func TestAdoptByPrefix_Phase1VerifyNon404SurfacesError(t *testing.T) {
+func TestAdoptFromPool_Phase1VerifyNon404SurfacesError(t *testing.T) {
 	api := &fakeAppleSiliconAPI{
 		servers: []*applesilicon.Server{
 			readyServer("srv-1", "tuist-pool-001"),
@@ -544,7 +552,7 @@ func TestAdoptByPrefix_Phase1VerifyNon404SurfacesError(t *testing.T) {
 	}
 	c := newTestClient(api)
 
-	_, err := c.AdoptByPrefix(context.Background(),
+	_, err := c.AdoptFromPool(context.Background(),
 		"tuist-tuist-runners-fleet-x", "fr-par-1", "M2-L", "macos-tahoe-26.0", "tuist-pool-")
 	if err == nil {
 		t.Fatalf("expected non-404 verify error to be surfaced")
@@ -554,5 +562,127 @@ func TestAdoptByPrefix_Phase1VerifyNon404SurfacesError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "phase 1 verify") {
 		t.Fatalf("expected error to identify phase 1 verify, got %v", err)
+	}
+}
+
+// --- ReleaseToPool ---------------------------------------------------------
+//
+// ReleaseToPool is the cluster-driven exit for a Mac mini: rename
+// back into the pool namespace and trigger an OS reinstall, leaving
+// physical destruction as an out-of-band operator action. These
+// tests pin the rename target shape, the reinstall side-effect, the
+// crash-recovery shape (TransientStateError from a second reinstall
+// while the first is still in flight), and the 404-as-success paths
+// that let an operator-deleted host clean up its Machine cleanly.
+
+func TestReleaseToPool_HappyPathRenamesAndReinstalls(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{
+			readyServer("srv-1", "tuist-tuist-macos-fleet-0"),
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: %v", err)
+	}
+	if got := api.servers[0].Name; !strings.HasPrefix(got, "tuist-pool-") {
+		t.Fatalf("server should be renamed back into the pool namespace, got %q", got)
+	}
+	if got := api.reinstalledIDs; len(got) != 1 || got[0] != "srv-1" {
+		t.Fatalf("expected ReinstallServer call for srv-1, got %v", got)
+	}
+}
+
+func TestReleaseToPool_RejectsEmptyPoolPrefix(t *testing.T) {
+	// An empty poolPrefix would rename the server to a bare UUID
+	// outside the pool namespace, where AdoptFromPool would never
+	// find it again — effectively orphaning the host. Refuse loudly
+	// so callers fix their call site.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-macos-fleet-0")},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", ""); err == nil {
+		t.Fatal("expected ReleaseToPool to refuse empty poolPrefix")
+	}
+	if api.updateCalls != 0 || api.reinstallCalls != 0 {
+		t.Fatalf("no Scaleway calls should fire when validation rejects the input; updates=%d reinstalls=%d",
+			api.updateCalls, api.reinstallCalls)
+	}
+}
+
+func TestReleaseToPool_SwallowsTransientStateOnReinstall(t *testing.T) {
+	// Crash-recovery: a prior reconcile already triggered a reinstall;
+	// the controller restarted, sees ServerID still set, and retries.
+	// Rename succeeds (different UUID — pool happy with either name),
+	// reinstall fails with TransientStateError because the server is
+	// still `reinstalling`. Treat as success so the Machine finalizes
+	// and the host eventually becomes ready under its pool name.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-1", "tuist-tuist-macos-fleet-0")},
+		reinstallErrors: map[int]error{
+			1: &scw.TransientStateError{Resource: "server", ResourceID: "srv-1", CurrentState: "reinstalling"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-1", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil on TransientStateError, got %v", err)
+	}
+}
+
+func TestReleaseToPool_TreatsRename404AsAlreadyGone(t *testing.T) {
+	// Operator force-deleted the host out-of-band between reconciles.
+	// The rename comes back 404; nothing left to release, so return
+	// success and let the controller finalize the Machine cleanly.
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-2", "tuist-tuist-macos-fleet-1")},
+		updateErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-2"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-2", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil when rename sees 404, got %v", err)
+	}
+	if api.reinstallCalls != 0 {
+		t.Fatalf("rename 404 means host is gone; reinstall must be skipped, got %d calls", api.reinstallCalls)
+	}
+}
+
+func TestReleaseToPool_TreatsReinstall404AsAlreadyGone(t *testing.T) {
+	// Race: rename lands, then operator deletes the host before
+	// reinstall fires. Reinstall 404 is also "already gone".
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-3", "tuist-tuist-macos-fleet-2")},
+		reinstallErrors: map[int]error{
+			1: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-3"},
+		},
+	}
+	c := newTestClient(api)
+
+	if err := c.ReleaseToPool(context.Background(), "srv-3", "fr-par-1", "tuist-pool-"); err != nil {
+		t.Fatalf("ReleaseToPool: expected nil when reinstall sees 404, got %v", err)
+	}
+}
+
+func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
+	api := &fakeAppleSiliconAPI{
+		servers: []*applesilicon.Server{readyServer("srv-4", "tuist-tuist-macos-fleet-3")},
+		reinstallErrors: map[int]error{
+			1: errors.New("scaleway: 502 bad gateway"),
+		},
+	}
+	c := newTestClient(api)
+
+	err := c.ReleaseToPool(context.Background(), "srv-4", "fr-par-1", "tuist-pool-")
+	if err == nil {
+		t.Fatal("expected non-recoverable reinstall error to surface")
+	}
+	if !strings.Contains(err.Error(), "reinstall server") {
+		t.Fatalf("expected error to identify reinstall step, got %v", err)
 	}
 }

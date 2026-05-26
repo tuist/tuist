@@ -1,0 +1,7 @@
+kuraController:
+  image:
+    tag: validation
+
+kuraRuntime:
+  image:
+    tag: validation

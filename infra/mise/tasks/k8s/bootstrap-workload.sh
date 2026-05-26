@@ -19,7 +19,7 @@
 #   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
 #   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
 #   7. Install the platform chart (cert-manager, ESO, external-dns,
-#      and ingress-nginx only for app-serving clusters).
+#      metrics-server, and ingress-nginx only for app-serving clusters).
 #   8. Install Cluster API core for the Mac mini fleet substrate.
 #   9. Create the `onepassword` namespace + service-account-token
 #      Secret + ClusterSecretStore so ESO can pull from 1Password.

@@ -72,3 +72,12 @@ func TestCloudflareClientResolvesZoneMetadataFromZoneName(t *testing.T) {
 		t.Fatalf("expected resolved account ID, got %q", client.accountID)
 	}
 }
+
+func TestJoinStatusMessage(t *testing.T) {
+	got := joinStatusMessage("3/3 replicas ready", "global endpoint reconciliation degraded: quota exceeded")
+
+	want := "3/3 replicas ready; global endpoint reconciliation degraded: quota exceeded"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}

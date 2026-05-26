@@ -19,6 +19,7 @@ TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
 TUIST_DIR=$MISE_PROJECT_ROOT
 APPLE_ID=$(op read "op://tuist/App Specific Password/username")
+APPLE_PASSWORD=$(op read "op://tuist/App Specific Password/password")
 TEAM_ID='U6LC622NKF'
 ASC_PROVIDER=PedroPieraBuendia211042238 # Obtained with xcrun altool -list-providers
 CERTIFICATE_NAME="Developer ID Application: Tuist GmbH (U6LC622NKF)"
@@ -108,7 +109,7 @@ echo "$(format_section "Bundling")"
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
         --team-id "$TEAM_ID" \
-        --password "$(op read "op://tuist/App Specific Password/password")" \
+        --password "$APPLE_PASSWORD" \
         --output-format json)
     echo "$RAW_JSON"
     SUBMISSION_ID=$(echo "$RAW_JSON" | jq -r '.id')
@@ -118,7 +119,7 @@ echo "$(format_section "Bundling")"
         STATUS=$(xcrun notarytool info "$SUBMISSION_ID" \
             --apple-id "$APPLE_ID" \
             --team-id "$TEAM_ID" \
-            --password "$(op read "op://tuist/App Specific Password/password")" \
+            --password "$APPLE_PASSWORD" \
             --output-format json | jq -r '.status')
 
         case $STATUS in
@@ -135,7 +136,7 @@ echo "$(format_section "Bundling")"
                 xcrun notarytool log "$SUBMISSION_ID" \
                     --apple-id "$APPLE_ID" \
                     --team-id "$TEAM_ID" \
-                    --password "$(op read "op://tuist/App Specific Password/password")"
+                    --password "$APPLE_PASSWORD"
                 exit 1
                 ;;
             *)
