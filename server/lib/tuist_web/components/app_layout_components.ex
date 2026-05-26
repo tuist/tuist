@@ -383,6 +383,12 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, "/ops/accounts")}
       />
       <.sidebar_item
+        label={dgettext("dashboard", "Database")}
+        icon="database"
+        navigate={~p"/ops/db"}
+        selected={String.starts_with?(@current_path, "/ops/db")}
+      />
+      <.sidebar_item
         label={dgettext("dashboard", "LiveDashboard")}
         icon="dashboard"
         navigate={~p"/ops/dashboard"}

@@ -99,15 +99,19 @@ spec:
               value: processor
             - name: TUIST_PROCESS_BUILD_QUEUE_CONCURRENCY
               value: {{ .Values.processor.queueConcurrency | quote }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
             # Required because DATABASE_URL below points at Supavisor on 6543.
+            # CNPG-mode dials the cluster's `-rw` Service directly (session
+            # mode), so this flag stays off.
             - name: TUIST_DATABASE_POOLED
               value: "1"
+            {{- end }}
             # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
             # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
             # UPDATE/DELETE on oban_jobs + read-only on accounts/projects.
-            # See infra/supabase/tuist-processor-role.sql.
+            # See infra/cnpg/tuist-processor-grants.sql.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

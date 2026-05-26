@@ -88,11 +88,31 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+# CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
+# replica), 100Gi storage. WAL archive + daily base backups land in the
+# `tuist-stag-pg-backups` Tigris bucket; barman writes a directory
+# per cluster name under `destinationPath`.
+postgresql:
+  cnpg:
+    instances: 2
+    storage:
+      size: "100Gi"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        cpu: "1000m"
+        memory: "4Gi"
+    backup:
+      destinationPath: s3://tuist-stag-pg-backups/
+
 processor:
-  # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`. After cutover, the
+  # processor-external-secrets template ignores `database.host` and
+  # composes against the in-cluster `<cluster>-rw` Service instead.
   database:
     host: db.inzgspjesrhqhleomvkb.supabase.co
   # Single replica on staging — 2-replica redundancy isn't needed for a

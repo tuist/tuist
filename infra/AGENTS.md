@@ -43,6 +43,9 @@ Go controller for `KuraInstance` CRs (`kura.tuist.dev/v1alpha1`). It reconciles 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
+### `cnpg/` — CloudNativePG bootstrap SQL + Supabase→CNPG migration runbook
+SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). Also holds the end-to-end migration runbook for moving each managed env's Postgres from Supabase to the in-cluster CNPG cluster via logical replication. The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart under `postgresql.mode: cnpg`; this directory holds only the operator-run SQL + procedural docs that can't fit in the chart.
+
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 

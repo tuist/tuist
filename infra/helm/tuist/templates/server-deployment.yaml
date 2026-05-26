@@ -78,11 +78,28 @@ spec:
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            # CNPG creates a `<cluster>-app` Secret carrying the owner
+            # role's URI. Override DATABASE_URL from the priv/secrets
+            # bundle so it points at the in-cluster cluster. The
+            # service hostname (`<cluster>-rw`) only ever resolves to the
+            # current primary; CNPG fails the Service over during a
+            # promotion.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE

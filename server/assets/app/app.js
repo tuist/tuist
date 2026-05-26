@@ -37,6 +37,7 @@ import StopRowNavigate from "./js/StopRowNavigate.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import OpsDatabaseSqlEditor from "./js/OpsDatabaseSqlEditor.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -58,6 +59,7 @@ Hooks.StopRowNavigate = StopRowNavigate;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 Hooks.TextAttachmentContent = TextAttachmentContent;
+Hooks.OpsDatabaseSqlEditor = OpsDatabaseSqlEditor;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;

@@ -353,13 +353,17 @@ jobs:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
     needs: [build, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
+    # `platform-install` brings up CRDs (cert-manager, ESO,
+    # cloudnative-pg) the Tuist chart consumes; if it fails the chart
+    # deploy would silently no-op on those resources, so block.
     # `observability-install` always runs, so it must be a plain success.
     # `tailscale-operator-install` runs the install for managed envs and
     # short-circuits when a forked workflow has no env values file; either
     # way it must complete cleanly before the chart deploy.
     # `platform-install` reconciles cert-manager / ingress-nginx /
-    # external-dns / ESO / metrics-server so app-impacting platform settings
-    # land before the app chart upgrade.
+    # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
+    # platform settings (including CNPG CRDs the Tuist chart consumes for
+    # the in-cluster Postgres rollout) land before the app chart upgrade.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-production-linux
     environment:
