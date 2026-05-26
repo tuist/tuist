@@ -48,7 +48,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
-            let depsDerivedRoot = Self.depsDerivedRoot(for: project)
+            let derivedDirectory = dependenciesDerivedDirectory(for: project)
             project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
                 var target = target
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
@@ -65,7 +65,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     to: mappedSettingsDictionary,
                     targetID: targetID,
                     targetToDependenciesMetadata: targetToDependenciesMetadata,
-                    depsDerivedRoot: depsDerivedRoot,
+                    dependenciesDerivedDirectory: derivedDirectory,
                     xcodeProjParent: project.xcodeProjPath.parentDirectory
                 )
 
@@ -81,7 +81,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                             to: configuration?.settings ?? [:],
                             targetID: targetID,
                             targetToDependenciesMetadata: targetToDependenciesMetadata,
-                            depsDerivedRoot: depsDerivedRoot,
+                            dependenciesDerivedDirectory: derivedDirectory,
                             xcodeProjParent: project.xcodeProjPath.parentDirectory,
                             onlyExistingKeys: true
                         )
@@ -109,34 +109,27 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         return (graph, [], environment)
     } // swiftlint:enable function_body_length
 
-    /// Absolute path to the SwiftPM `tuist-derived/` directory for an external SPM-generated project, or `nil` for
-    /// local projects. Used as a gating condition: when a referenced modulemap or header path falls under this root
-    /// we anchor the emitted flag on `$(PROJECT_DIR)` instead of `$(SRCROOT)`. For external SPM projects, Tuist's
-    /// `ExternalDependencyPathWorkspaceMapper` places the generated `.xcodeproj` under `tuist-derived/Projects/<Pkg>/`
-    /// and overrides `SRCROOT` to point back into the SwiftPM `checkouts/` directory. CI caches such as Namespace's
-    /// `nscloud-cache-action` replace `checkouts/` with a symlink to a separate volume; Xcode 26.5+'s explicit-modules
-    /// dep scanner resolves that symlink before traversing `..`, which would land flag values like
-    /// `$(SRCROOT)/../../tuist-derived/...` on the cache volume where `tuist-derived/` doesn't exist. `$(PROJECT_DIR)`
-    /// stays inside `tuist-derived/` (it is not overridden by Tuist), so the traversal never touches the symlink.
-    private static func depsDerivedRoot(for project: Project) -> AbsolutePath? {
+    /// The `tuist-derived/` directory for an external SPM-generated project, or `nil` for local projects.
+    /// Used as a gating condition for `referenceString` to decide whether a referenced path is one Tuist owns
+    /// and should anchor on `$(PROJECT_DIR)` instead of `$(SRCROOT)`.
+    private func dependenciesDerivedDirectory(for project: Project) -> AbsolutePath? {
         guard case .external = project.type,
               let scratch = project.swiftPackageManagerScratchDirectory
         else { return nil }
         return scratch.appending(component: Constants.DerivedDirectory.dependenciesDerivedDirectory)
     }
 
-    /// Returns the flag value to emit for `path`. For paths inside an external SPM project's `tuist-derived/`
-    /// we anchor on `$(PROJECT_DIR)` (xcodeproj parent, always inside `tuist-derived/`) so the substituted absolute
-    /// path never traverses the SwiftPM `checkouts/` symlink. Everything else keeps the historical `$(SRCROOT)/<rel>`
-    /// form — those paths either stay inside `$(SRCROOT)` or traverse laterally inside the symlinked subtree, both of
-    /// which resolve correctly even under Xcode 26.5's symlink-canonicalising dep scanner.
+    /// Returns the flag value to emit for `path`. Paths under `dependenciesDerivedDirectory` anchor on
+    /// `$(PROJECT_DIR)` so the substituted absolute path stays inside `tuist-derived/` and never traverses the
+    /// SwiftPM `checkouts/` symlink (see the file-level header for the underlying Xcode 26.5 dep-scanner
+    /// behaviour this avoids). All other paths keep the historical `$(SRCROOT)/<rel>` form.
     private static func referenceString(
         for path: AbsolutePath,
         relativeTo projectPath: AbsolutePath,
-        depsDerivedRoot: AbsolutePath?,
+        dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath
     ) -> String {
-        if let depsDerivedRoot, path.pathString.hasPrefix(depsDerivedRoot.pathString + "/") {
+        if let dependenciesDerivedDirectory, path.pathString.hasPrefix(dependenciesDerivedDirectory.pathString + "/") {
             return "$(PROJECT_DIR)/\(path.relative(to: xcodeProjParent).pathString)"
         }
         return "$(SRCROOT)/\(path.relative(to: projectPath).pathString)"
@@ -243,7 +236,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         to settings: SettingsDictionary,
         targetID: TargetID,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
-        depsDerivedRoot: AbsolutePath?,
+        dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath,
         onlyExistingKeys: Bool = false
     ) -> SettingsDictionary {
@@ -254,7 +247,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                targetID: targetID,
                oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
                targetToDependenciesMetadata: targetToDependenciesMetadata,
-               depsDerivedRoot: depsDerivedRoot,
+               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                xcodeProjParent: xcodeProjParent
            )
         {
@@ -266,7 +259,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                targetID: targetID,
                oldOtherCFlags: settings[Self.otherCFlagsSetting],
                targetToDependenciesMetadata: targetToDependenciesMetadata,
-               depsDerivedRoot: depsDerivedRoot,
+               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                xcodeProjParent: xcodeProjParent
            )
         {
@@ -278,7 +271,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                targetID: targetID,
                oldHeaderSearchPaths: settings[Self.headerSearchPaths],
                targetToDependenciesMetadata: targetToDependenciesMetadata,
-               depsDerivedRoot: depsDerivedRoot,
+               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                xcodeProjParent: xcodeProjParent
            )
         {
@@ -292,7 +285,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         targetID: TargetID,
         oldHeaderSearchPaths: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
-        depsDerivedRoot: AbsolutePath?,
+        dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath
     ) -> SettingsDictionary.Value? {
         let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
@@ -313,7 +306,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                     referenceString(
                         for: absolute,
                         relativeTo: targetID.projectPath,
-                        depsDerivedRoot: depsDerivedRoot,
+                        dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                         xcodeProjParent: xcodeProjParent
                     )
                 )
@@ -329,7 +322,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
-        depsDerivedRoot: AbsolutePath?,
+        dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath
     ) -> SettingsDictionary.Value? {
         guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
@@ -348,7 +341,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             let reference = referenceString(
                 for: moduleMap,
                 relativeTo: targetID.projectPath,
-                depsDerivedRoot: depsDerivedRoot,
+                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                 xcodeProjParent: xcodeProjParent
             )
             mappedOtherSwiftFlags.append(contentsOf: [
@@ -364,7 +357,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         targetID: TargetID,
         oldOtherCFlags: SettingsDictionary.Value?,
         targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
-        depsDerivedRoot: AbsolutePath?,
+        dependenciesDerivedDirectory: AbsolutePath?,
         xcodeProjParent: AbsolutePath
     ) -> SettingsDictionary.Value? {
         guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
@@ -383,7 +376,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             let reference = referenceString(
                 for: moduleMap,
                 relativeTo: targetID.projectPath,
-                depsDerivedRoot: depsDerivedRoot,
+                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
                 xcodeProjParent: xcodeProjParent
             )
             mappedOtherCFlags.append("-fmodule-map-file=\(reference)")
