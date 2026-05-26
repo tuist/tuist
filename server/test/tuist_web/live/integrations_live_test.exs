@@ -120,7 +120,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -142,7 +142,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://tuist.dev/integrations/github/manifest/start?state=test"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -167,7 +167,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       end
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -190,7 +190,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://tuist.dev/integrations/github/manifest/start?state=test"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
