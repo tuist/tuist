@@ -219,18 +219,18 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # The image is ~140 GB (Xcode + simulator runtimes + brew
-        # dev tools + base OS), and `tart push` over the Mac mini's
-        # uplink occasionally times out mid-upload. tart's internal
-        # retry doesn't always recover, so wrap an outer 3× retry —
-        # blob uploads are content-addressed, so a re-push only
-        # re-uploads the layers that didn't make it on the previous
-        # attempt.
+        # The image is ~140 GB. tart's default is monolithic blob
+        # uploads (one PUT per layer), so any HTTP timeout fails the
+        # entire multi-GB layer. GHCR supports chunked uploads with
+        # chunks < 4 MB; passing --chunk-size 3 switches to chunked
+        # mode so a stalled request only loses 3 MB, not GBs. Outer
+        # 3× retry stays as belt-and-braces — blob uploads are
+        # content-addressed, so re-pushes only re-upload missing layers.
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
           for attempt in 1 2 3; do
-            if tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
+            if tart push --chunk-size 3 macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
               echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
               exit 0
             fi
