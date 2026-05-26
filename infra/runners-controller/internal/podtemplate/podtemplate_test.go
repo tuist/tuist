@@ -214,8 +214,10 @@ func TestBuild_LinuxPodCarriesKataXattrAnnotation(t *testing.T) {
 	if !ok {
 		t.Fatalf("Linux pod missing virtio_fs_extra_args annotation; got %+v", pod.Annotations)
 	}
-	if got != "--xattr" {
-		t.Errorf("virtio_fs_extra_args = %q, want \"--xattr\"", got)
+	// kata's shim json-unmarshals this into []string; raw "--xattr"
+	// trips json.Unmarshal and the pod sandbox never starts.
+	if got != `["--xattr"]` {
+		t.Errorf("virtio_fs_extra_args = %q, want %q (JSON-encoded array)", got, `["--xattr"]`)
 	}
 }
 

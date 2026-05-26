@@ -155,9 +155,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// dockerd falls back to vfs. The annotation flips passthrough
 	// on per-Pod (kata's default enable_annotations whitelist
 	// already permits virtio_fs_extra_args).
+	//
+	// The annotation value is JSON-encoded — kata's shim
+	// unmarshals it into []string before splicing onto the
+	// virtiofsd command line. Raw "--xattr" trips json.Unmarshal
+	// with "invalid character '-' in numeric literal" and the
+	// pod sandbox never starts.
 	annotations := map[string]string{}
 	if linuxPod {
-		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = "--xattr"
+		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = `["--xattr"]`
 	}
 
 	return &corev1.Pod{
