@@ -5,7 +5,6 @@ import XCTest
 
 @testable import TuistTesting
 
-// swiftlint:disable:next type_body_length
 final class ModuleMapMapperTests: TuistUnitTestCase {
     var subject: ModuleMapMapper!
 
@@ -408,16 +407,24 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotSideEffects, [])
     }
 
-    func test_external_spm_project_anchors_tuist_derived_paths_on_user_defined_setting() throws {
-        // Given — mirrors how SwiftPM checkouts are laid out: `<scratch>/checkouts/{A,B}` with shared
-        // module maps written under `<scratch>/tuist-derived/ModuleMaps/`. The historical emission
-        // `$(SRCROOT)/../../tuist-derived/...` traverses `<scratch>/checkouts/` via `..`, which fails
-        // on Xcode 26.5+ when that directory is replaced by a symlink (e.g. by Namespace's
-        // `nscloud-cache-action`). The fix anchors these paths on `$(TUIST_SPM_DERIVED_DIR)` instead.
+    func test_external_spm_project_anchors_tuist_derived_paths_on_project_dir() throws {
+        // Given — mirrors how Tuist lays out external SwiftPM projects after
+        // `ExternalDependencyPathWorkspaceMapper` runs: the SwiftPM checkout sits at
+        // `<scratch>/checkouts/<Pkg>/` (and is what `$(SRCROOT)` resolves to at build time, due to
+        // an override applied by that mapper), while the generated `.xcodeproj` lives under
+        // `<scratch>/tuist-derived/Projects/<Pkg>/` (and is what `$(PROJECT_DIR)` resolves to).
+        // Shared module maps and header search paths live under `<scratch>/tuist-derived/ModuleMaps/`.
+        //
+        // The historical emission `$(SRCROOT)/../../tuist-derived/...` traverses `<scratch>/checkouts/`
+        // via `..`, which fails on Xcode 26.5+ when that directory is replaced by a symlink (e.g.
+        // Namespace's `nscloud-cache-action`). Anchoring on `$(PROJECT_DIR)` keeps the traversal
+        // entirely inside `tuist-derived/`, never touching the symlinked subtree.
         let workspace = Workspace.test()
         let scratch = try temporaryPath().appending(component: ".build")
         let projectAPath = scratch.appending(components: "checkouts", "A")
         let projectBPath = scratch.appending(components: "checkouts", "B")
+        let projectAXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "A", "A.xcodeproj")
+        let projectBXcodeProj = scratch.appending(components: "tuist-derived", "Projects", "B", "B.xcodeproj")
         let derivedRoot = scratch.appending(component: "tuist-derived")
         let moduleMapPath = derivedRoot.appending(components: "ModuleMaps", "B", "B.modulemap")
         let headerSearchPath = derivedRoot.appending(components: "ModuleMaps", "B")
@@ -434,6 +441,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
         let projectA = Project.test(
             path: projectAPath,
+            xcodeProjPath: projectAXcodeProj,
             name: "A",
             targets: [targetA],
             type: .external(hash: nil),
@@ -449,6 +457,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         )
         let projectB = Project.test(
             path: projectBPath,
+            xcodeProjPath: projectBXcodeProj,
             name: "B",
             targets: [targetB],
             type: .external(hash: nil),
@@ -472,7 +481,9 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             environment: MapperEnvironment()
         )
 
-        // Then
+        // Then — `$(PROJECT_DIR)` for project A resolves to `<scratch>/tuist-derived/Projects/A/`
+        // at build time, so `$(PROJECT_DIR)/../../ModuleMaps/B/B.modulemap` resolves to
+        // `<scratch>/tuist-derived/ModuleMaps/B/B.modulemap` without traversing `<scratch>/checkouts/`.
         let gotTargetA = try XCTUnwrap(gotGraph.projects[projectAPath]?.targets["A"])
 
         XCTAssertBetterEqual(
@@ -480,33 +491,25 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             .array([
                 "Other",
                 "-Xcc",
-                "-fmodule-map-file=$(TUIST_SPM_DERIVED_DIR)/ModuleMaps/B/B.modulemap",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/B/B.modulemap",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(TUIST_SPM_DERIVED_DIR)/ModuleMaps/B/B.modulemap",
+                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/B/B.modulemap",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["HEADER_SEARCH_PATHS"],
             .array([
                 "$(inherited)",
-                "$(TUIST_SPM_DERIVED_DIR)/ModuleMaps/B",
+                "$(PROJECT_DIR)/../../ModuleMaps/B",
             ])
         )
 
-        // The user-defined setting is defined on the consumer so Xcode can substitute it before
-        // invoking clang. The absolute value is kept out of the hash by SettingsContentHasher.
-        XCTAssertBetterEqual(
-            gotTargetA.settings?.base["TUIST_SPM_DERIVED_DIR"],
-            .string(derivedRoot.pathString)
-        )
-
-        // Sibling SwiftPM checkouts and non-derived paths still use the historical $(SRCROOT) form,
-        // since they don't traverse out of `checkouts/` and therefore don't trip the symlink trap.
+        // No `..` segments through `.build/checkouts/` in any flag — that's the whole point.
         let allFlags = gotTargetA.settings?.base.values.compactMap { value -> String? in
             if case let .array(items) = value { return items.joined(separator: " ") }
             return nil

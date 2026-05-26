@@ -44,17 +44,8 @@ public struct SettingsContentHasher: SettingsContentHashing {
         return try contentHasher.hash(configurationHashes)
     }
 
-    /// User-defined build settings whose values must not feed into the content hash because they hold absolute
-    /// workspace-local paths that vary by machine, runner work-dir or `$HOME`. The settings themselves are anchors
-    /// for `$(...)` substitution in other flag values, which DO feed into the hash — so the hash stays portable
-    /// while the substituted compiler flag stays absolute and symlink-safe.
-    private static let nonPortablePathSettings: Set<String> = [
-        "TUIST_SPM_DERIVED_DIR",
-    ]
-
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
         let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
-            if Self.nonPortablePathSettings.contains(key) { return nil }
             let filteredValue = filterWarningFlags(from: value)
             return filteredValue.map { (key, $0) }
         }
