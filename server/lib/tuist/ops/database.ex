@@ -173,18 +173,7 @@ defmodule Tuist.Ops.Database do
       case Repo.query(sql, bindings) do
         {:ok, %{columns: cols, rows: rows, num_rows: n}} ->
           columns = cols || []
-
-          mapped =
-            rows
-            |> Enum.with_index()
-            |> Enum.map(fn {row, idx} ->
-              row
-              |> Enum.zip(columns)
-              |> Map.new(fn {v, c} -> {c, v} end)
-              |> Map.put(:id, idx)
-            end)
-
-          %{columns: columns, rows: mapped, num_rows: n}
+          %{columns: columns, rows: rows_with_ids(rows, columns), num_rows: n}
 
         {:error, %Postgrex.Error{} = err} ->
           Repo.rollback(Exception.message(err))
@@ -192,6 +181,20 @@ defmodule Tuist.Ops.Database do
         {:error, reason} ->
           Repo.rollback(inspect(reason))
       end
+    end)
+  end
+
+  # Postgrex hands rows back as bare lists; Noora's <.table> needs each
+  # row to be a map keyed by an `:id`. Wrap once here so both the table
+  # preview and the SQL editor share the shape without per-call code.
+  defp rows_with_ids(rows, columns) do
+    rows
+    |> Enum.with_index()
+    |> Enum.map(fn {row, idx} ->
+      row
+      |> Enum.zip(columns)
+      |> Map.new(fn {v, c} -> {c, v} end)
+      |> Map.put(:id, idx)
     end)
   end
 
@@ -489,23 +492,7 @@ defmodule Tuist.Ops.Database do
             if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
 
           columns = cols || []
-
-          # Noora's <.table> indexes rows by `:id` so it can diff them
-          # across renders. Postgrex gives us bare lists; wrap each one
-          # in a map with a row-position id plus column-keyed cells so
-          # the same component the rest of /ops uses can render the
-          # result without per-call special-casing.
-          mapped =
-            kept
-            |> Enum.with_index()
-            |> Enum.map(fn {row, idx} ->
-              row
-              |> Enum.zip(columns)
-              |> Map.new(fn {v, c} -> {c, v} end)
-              |> Map.put(:id, idx)
-            end)
-
-          %{columns: columns, rows: mapped, num_rows: n, truncated?: truncated?}
+          %{columns: columns, rows: rows_with_ids(kept, columns), num_rows: n, truncated?: truncated?}
 
         {:error, %Postgrex.Error{} = err} ->
           Repo.rollback(Exception.message(err))
@@ -545,13 +532,11 @@ defmodule Tuist.Ops.Database do
     separator = "| " <> Enum.map_join(cols, " | ", fn _ -> "---" end) <> " |"
 
     body =
-      rows
-      |> Enum.map(fn row ->
+      Enum.map_join(rows, "\n", fn row ->
         "| " <>
           Enum.map_join(cols, " | ", fn c -> escape_markdown_cell(Map.get(row, c)) end) <>
           " |"
       end)
-      |> Enum.join("\n")
 
     Enum.join([header, separator, body], "\n")
   end
@@ -560,9 +545,9 @@ defmodule Tuist.Ops.Database do
   def to_json(%{columns: cols, rows: rows}) do
     rows
     |> Enum.map(fn row ->
-      cols |> Map.new(fn c -> {c, json_safe(Map.get(row, c))} end)
+      Map.new(cols, fn c -> {c, json_safe(Map.get(row, c))} end)
     end)
-    |> Jason.encode!(pretty: true)
+    |> JSON.encode!()
   end
 
   @doc "Render the result rows as RFC 4180 CSV with a header row."
@@ -570,11 +555,9 @@ defmodule Tuist.Ops.Database do
     header = Enum.map_join(cols, ",", &csv_escape/1)
 
     body =
-      rows
-      |> Enum.map(fn row ->
+      Enum.map_join(rows, "\n", fn row ->
         Enum.map_join(cols, ",", fn c -> row |> Map.get(c) |> csv_value() |> csv_escape() end)
       end)
-      |> Enum.join("\n")
 
     Enum.join([header, body], "\n")
   end

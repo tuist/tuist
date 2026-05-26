@@ -97,7 +97,7 @@ defmodule Tuist.Ops.DatabaseTest do
 
     test "to_json/1 returns an array of column-keyed objects", %{result: result} do
       json = Database.to_json(result)
-      decoded = Jason.decode!(json)
+      decoded = JSON.decode!(json)
       assert [%{"n" => 1, "label" => "one"}, %{"n" => 2, "label" => nil}] = decoded
     end
 
