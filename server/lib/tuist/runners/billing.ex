@@ -104,20 +104,43 @@ defmodule Tuist.Runners.Billing do
   Accepts the same scope opts (`:repo`, `:workflow_name`,
   `:platform`) as `compute_minutes/2` so a filtered widget and a
   filtered invoice line up against the same query shape.
+
+  Aggregation runs entirely at the SQL level — a single SUM over
+  the GREATEST/LEAST interval-intersection, so a busy account
+  with thousands of sessions per month doesn't ship them all to
+  the BEAM.
   """
   def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do
     now = DateTime.utc_now()
 
-    sessions =
+    query =
       account_id
       |> sessions_overlapping(period_start, period_end)
       |> scope(opts)
-      |> Repo.all()
+      |> select([s], %{
+        total_ms:
+          fragment(
+            """
+            COALESCE(SUM(GREATEST(
+              0,
+              (EXTRACT(EPOCH FROM (
+                LEAST(COALESCE(?, ?), ?) - GREATEST(?, ?)
+              )) * 1000)::bigint
+            )), 0)::bigint
+            """,
+            s.ended_at,
+            ^now,
+            ^period_end,
+            s.started_at,
+            ^period_start
+          )
+      })
 
-    Enum.reduce(sessions, 0, fn session, acc ->
-      acc + session_intersection_ms(session, period_start, period_end, now)
-    end)
+    case Repo.one(query) do
+      %{total_ms: ms} when is_integer(ms) -> ms
+      _ -> 0
+    end
   end
 
   @doc """
@@ -133,31 +156,69 @@ defmodule Tuist.Runners.Billing do
       when is_integer(account_id) do
     now = DateTime.utc_now()
 
-    sessions =
+    # SQL pipeline:
+    #   1. `overlapping` — sessions for this account whose window
+    #      touches [period_start, period_end] (CTE).
+    #   2. `buckets` — explode each session into one row per UTC
+    #      day it overlaps using `generate_series` over the
+    #      session's clamped interval.
+    #   3. Outer SELECT — per-day SUM of the intersection between
+    #      (session, day, billing-period). All math in Postgres,
+    #      so a busy month doesn't materialise thousands of rows
+    #      into the BEAM.
+    overlapping =
       account_id
       |> sessions_overlapping(period_start, period_end)
       |> scope(opts)
-      |> Repo.all()
+      |> select([s], %{
+        started_at: s.started_at,
+        effective_end: fragment("COALESCE(?, ?)", s.ended_at, ^now)
+      })
 
-    Enum.reduce(sessions, %{}, fn session, acc ->
-      effective_end = session.ended_at || min_dt(now, period_end)
-      effective_start = session.started_at
+    buckets =
+      from(o in subquery(overlapping),
+        inner_lateral_join:
+          bucket in fragment(
+            """
+            (SELECT generate_series(
+              GREATEST(?, ?::timestamptz)::date,
+              LEAST(?, ?::timestamptz)::date,
+              '1 day'::interval
+            )::date AS day)
+            """,
+            o.started_at,
+            ^period_start,
+            o.effective_end,
+            ^period_end
+          ),
+        on: true,
+        select: %{
+          day: bucket.day,
+          intersection_ms:
+            fragment(
+              """
+              GREATEST(0, (EXTRACT(EPOCH FROM (
+                LEAST(?, (?::date + INTERVAL '1 day')::timestamptz, ?) -
+                GREATEST(?, ?::timestamptz, ?)
+              )) * 1000)::bigint)
+              """,
+              o.effective_end,
+              bucket.day,
+              ^period_end,
+              o.started_at,
+              bucket.day,
+              ^period_start
+            )
+        }
+      )
 
-      effective_start
-      |> day_buckets(effective_end)
-      |> Enum.reduce(acc, fn day, inner_acc ->
-        day_start = day_to_dt(day, :start)
-        day_end = day_to_dt(day, :end)
-
-        bucket_ms =
-          interval_intersection_ms(
-            max_dt(effective_start, max_dt(day_start, period_start)),
-            min_dt(effective_end, min_dt(day_end, period_end))
-          )
-
-        Map.update(inner_acc, day, bucket_ms, &(&1 + bucket_ms))
-      end)
-    end)
+    from(b in subquery(buckets),
+      group_by: b.day,
+      order_by: b.day,
+      select: {b.day, fragment("SUM(?)::bigint", b.intersection_ms)}
+    )
+    |> Repo.all()
+    |> Map.new()
   end
 
   defp sessions_overlapping(account_id, period_start, period_end) do
@@ -170,41 +231,6 @@ defmodule Tuist.Runners.Billing do
       where: s.started_at <= ^period_end,
       where: is_nil(s.ended_at) or s.ended_at >= ^period_start
     )
-  end
-
-  defp session_intersection_ms(session, period_start, period_end, now) do
-    effective_end = session.ended_at || min_dt(now, period_end)
-    interval_intersection_ms(max_dt(session.started_at, period_start), min_dt(effective_end, period_end))
-  end
-
-  defp interval_intersection_ms(%DateTime{} = lo, %DateTime{} = hi) do
-    case DateTime.diff(hi, lo, :millisecond) do
-      ms when ms > 0 -> ms
-      _ -> 0
-    end
-  end
-
-  defp max_dt(%DateTime{} = a, %DateTime{} = b),
-    do: if(DateTime.compare(a, b) == :gt, do: a, else: b)
-
-  defp min_dt(%DateTime{} = a, %DateTime{} = b),
-    do: if(DateTime.compare(a, b) == :lt, do: a, else: b)
-
-  defp day_buckets(%DateTime{} = start_dt, %DateTime{} = end_dt) do
-    start_date = DateTime.to_date(start_dt)
-    end_date = DateTime.to_date(end_dt)
-
-    Date.range(start_date, end_date)
-  end
-
-  defp day_to_dt(%Date{} = date, :start) do
-    {:ok, dt} = DateTime.new(date, ~T[00:00:00], "Etc/UTC")
-    dt
-  end
-
-  defp day_to_dt(%Date{} = date, :end) do
-    {:ok, dt} = DateTime.new(date, ~T[23:59:59.999999], "Etc/UTC")
-    dt
   end
 
   defp scope(query, opts) do
