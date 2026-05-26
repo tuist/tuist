@@ -107,6 +107,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         |> Query.drop("analytics-start-date")
         |> Query.drop("analytics-end-date")
       end
+      |> URI.decode_query()
 
     {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{query}")}
   end
