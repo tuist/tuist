@@ -21,7 +21,8 @@
     align-self: stretch;
     max-height: 100vh;
     overflow-y: auto;
-    border-right: 1px solid var(--noora-surface-border-primary);
+    border-right: 1px solid
+      light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
   }
 }
 
