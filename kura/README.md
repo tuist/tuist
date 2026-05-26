@@ -499,6 +499,13 @@ The script may define these hooks:
 - `authorize(ctx, principal)`
 - `response_headers(ctx, principal)`
 
+The runtime exports these host helpers to the script:
+
+- `kura.sign_hmac_base64(id, payload)`
+- `kura.jwt_verify(id, token)`
+- `kura.http_json(id, request)`
+- `kura.env(key)`
+
 For tenant-aware deployments, `ctx` carries the request target
 (`tenant_id`, `namespace_id`) and the node's configured tenant as
 `server_tenant_id` (derived from `KURA_TENANT_ID`). Namespace-scoped
