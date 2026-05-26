@@ -752,6 +752,70 @@ defmodule Tuist.TestsTest do
       assert test_cases == []
       assert meta.total_count == 0
     end
+
+    test "lists test case runs scoped to a project across multiple test runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testAlpha", status: "success", duration: 100},
+                %{name: "testBeta", status: "failure", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      {:ok, _second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testGamma", status: "success", duration: 50}
+              ]
+            }
+          ]
+        )
+
+      # Different project — must not show up.
+      {:ok, _other_project_test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "ModuleC",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "testDelta", status: "success", duration: 25}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {runs, meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:ran_at],
+          order_directions: [:desc]
+        })
+
+      # Then
+      assert meta.total_count == 3
+      names = runs |> Enum.map(& &1.name) |> Enum.sort()
+      assert names == ["testAlpha", "testBeta", "testGamma"]
+    end
   end
 
   describe "get_test_run_failures_count/1" do
