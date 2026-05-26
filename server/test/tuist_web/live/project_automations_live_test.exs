@@ -110,6 +110,77 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
              ] = automation.trigger_actions
     end
 
+    test "supports adding a create_github_issue action with title, body, and labels", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "GH issue on flake"})
+
+      render_hook(lv, "add_create_automation_form_trigger_action", %{
+        "data" => "create_github_issue"
+      })
+
+      render_hook(lv, "update_create_automation_form_trigger_action_title_template", %{
+        "value" => "Flaky: {{test_case.name}}",
+        "index" => "1"
+      })
+
+      render_hook(lv, "update_create_automation_form_trigger_action_body_template", %{
+        "value" => "Module: {{test_case.module_name}}",
+        "index" => "1"
+      })
+
+      render_hook(lv, "update_create_automation_form_trigger_action_labels", %{
+        "value" => "flaky, regression",
+        "index" => "1"
+      })
+
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+
+      assert [
+               %{"type" => "add_label", "label" => "flaky"},
+               %{
+                 "type" => "create_github_issue",
+                 "title_template" => "Flaky: {{test_case.name}}",
+                 "body_template" => "Module: {{test_case.module_name}}",
+                 "labels" => ["flaky", "regression"]
+               }
+             ] = automation.trigger_actions
+    end
+
+    test "create_github_issue dropdown option disappears once added", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+
+      html_before = render(lv)
+      assert html_before =~ "Create GitHub issue"
+
+      render_hook(lv, "add_create_automation_form_trigger_action", %{
+        "data" => "create_github_issue"
+      })
+
+      html_after = render(lv)
+      # The dropdown_item is gated on `has_action_type?`, so the option should
+      # no longer appear in the "Add action" dropdown after one was added.
+      # The label still appears inside the rendered action row itself.
+      assert html_after
+             |> String.split("create-automation-trigger-action-add-dropdown")
+             |> Enum.at(1)
+             |> Kernel.||("")
+             |> String.contains?("Create GitHub issue") == false
+    end
+
     test "deleting all trigger actions does not save (validation rejects empty list)", %{
       conn: conn,
       organization: organization,

@@ -5,8 +5,10 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.IssueLink
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.VCSFixtures
 
   describe "list_alerts/1" do
     test "returns automations for the given project ordered by insertion time" do
@@ -261,6 +263,29 @@ defmodule Tuist.AutomationsTest do
       assert Automations.list_active_alert_events(alert.id) == []
     end
 
+    test "depth guard prevents test_case dispatcher from looping into the issue_link dispatcher" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      _test_alert = test_updated_alert(project)
+      _issue_alert = github_issue_alert(project)
+      issue_link = %{project_id: project.id}
+
+      counter = :counters.new(1, [])
+
+      stub(ActionExecutor, :execute_actions, fn _actions, _alert, _entity ->
+        :counters.add(counter, 1, 1)
+        # Cross-dispatcher recursion: a test_updated action that closes a
+        # GH issue would re-enter via the issue_link dispatcher. Without a
+        # shared counter this would loop forever.
+        Automations.dispatch_issue_link_event(:closed, issue_link, test_case)
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_test_case_event(:marked_flaky, test_case)
+
+      assert :counters.get(counter, 1) == 10
+    end
+
     test "depth guard caps recursion when an action re-fires the same event" do
       project = ProjectsFixtures.project_fixture()
       test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
@@ -282,6 +307,199 @@ defmodule Tuist.AutomationsTest do
       # The dispatcher allows depths 0..9 to run, so we expect exactly 10
       # executor invocations before the guard trips on the 11th level.
       assert :counters.get(counter, 1) == 10
+    end
+  end
+
+  describe "issue links" do
+    defp issue_link_attrs(project, alert, overrides \\ %{}) do
+      Map.merge(
+        %{
+          project_id: project.id,
+          alert_id: alert.id,
+          test_case_id: Ecto.UUID.generate(),
+          github_repository_full_handle: "tuist/tuist",
+          github_issue_number: 42,
+          opened_at: DateTime.truncate(DateTime.utc_now(), :second)
+        },
+        overrides
+      )
+    end
+
+    test "create_issue_link inserts a row" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+
+      assert {:ok, %IssueLink{} = link} =
+               Automations.create_issue_link(issue_link_attrs(project, alert))
+
+      assert link.state == "open"
+      assert link.github_issue_number == 42
+    end
+
+    test "create_issue_link rejects a second open link for the same (alert, test_case)" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      assert {:ok, _} =
+               Automations.create_issue_link(issue_link_attrs(project, alert, %{test_case_id: test_case_id}))
+
+      assert {:error, _changeset} =
+               Automations.create_issue_link(
+                 issue_link_attrs(project, alert, %{
+                   test_case_id: test_case_id,
+                   github_issue_number: 43
+                 })
+               )
+    end
+
+    test "get_open_issue_link returns the matching open row, nil otherwise" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      assert Automations.get_open_issue_link(alert.id, test_case_id) == nil
+
+      {:ok, link} =
+        Automations.create_issue_link(issue_link_attrs(project, alert, %{test_case_id: test_case_id}))
+
+      assert %IssueLink{id: id} = Automations.get_open_issue_link(alert.id, test_case_id)
+      assert id == link.id
+    end
+
+    test "resolve_issue_link flips state and stamps resolved_at" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, link} = Automations.create_issue_link(issue_link_attrs(project, alert))
+
+      assert {:ok, resolved} = Automations.resolve_issue_link(link)
+      assert resolved.state == "resolved"
+      assert %DateTime{} = resolved.resolved_at
+    end
+
+    test "get_open_issue_link returns nil after the link is resolved" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, link} =
+        Automations.create_issue_link(issue_link_attrs(project, alert, %{test_case_id: test_case_id}))
+
+      {:ok, _resolved} = Automations.resolve_issue_link(link)
+
+      assert Automations.get_open_issue_link(alert.id, test_case_id) == nil
+    end
+
+    test "get_issue_link_by_github_coordinates looks up by (installation, repo, issue)" do
+      user = TuistTestSupport.Fixtures.AccountsFixtures.user_fixture()
+
+      installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: user.account.id,
+          installation_id: "12345"
+        )
+
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+
+      {:ok, link} =
+        Automations.create_issue_link(
+          issue_link_attrs(project, alert, %{
+            github_app_installation_id: installation.id,
+            github_repository_full_handle: "tuist/tuist",
+            github_issue_number: 99
+          })
+        )
+
+      assert {:ok, found} =
+               Automations.get_issue_link_by_github_coordinates(
+                 installation.id,
+                 "tuist/tuist",
+                 99
+               )
+
+      assert found.id == link.id
+
+      assert {:error, :not_found} =
+               Automations.get_issue_link_by_github_coordinates(
+                 installation.id,
+                 "tuist/tuist",
+                 999
+               )
+    end
+  end
+
+  describe "dispatch_issue_link_event/3" do
+    defp github_issue_alert(project, opts \\ []) do
+      AutomationsFixtures.automation_alert_fixture(
+        Keyword.merge(
+          [
+            project: project,
+            monitor_type: "github_issue",
+            trigger_config: %{"events" => ["closed"]},
+            trigger_actions: [%{"type" => "remove_label", "label" => "flaky"}]
+          ],
+          opts
+        )
+      )
+    end
+
+    test "runs trigger actions for an alert subscribed to closed" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      alert = github_issue_alert(project)
+      issue_link = %{project_id: project.id}
+
+      expected_entity = %{type: :test_case, id: test_case.id}
+
+      expect(ActionExecutor, :execute_actions, fn actions, ^alert, ^expected_entity ->
+        assert actions == alert.trigger_actions
+        :ok
+      end)
+
+      assert :ok = Automations.dispatch_issue_link_event(:closed, issue_link, test_case)
+
+      events = Automations.list_active_alert_events(alert.id)
+      assert Enum.any?(events, &(&1.test_case_id == test_case.id))
+    end
+
+    test "skips disabled alerts" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      github_issue_alert(project, enabled: false)
+      issue_link = %{project_id: project.id}
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_issue_link_event(:closed, issue_link, test_case)
+    end
+
+    test "skips alerts from other projects" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+      github_issue_alert(other_project)
+      issue_link = %{project_id: project.id}
+
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_issue_link_event(:closed, issue_link, test_case)
+    end
+
+    test "skips alerts whose monitor_type isn't github_issue" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = %{id: Ecto.UUID.generate(), project_id: project.id}
+
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flaky_run_count",
+        trigger_config: %{"threshold" => 3, "window_type" => "last_days", "window" => "30d"}
+      )
+
+      issue_link = %{project_id: project.id}
+      reject(&ActionExecutor.execute_actions/3)
+
+      assert :ok = Automations.dispatch_issue_link_event(:closed, issue_link, test_case)
     end
   end
 end

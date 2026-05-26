@@ -104,6 +104,17 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "message" => @default_recovery_slack_message
     }
 
+  @default_create_github_issue_title "Flaky test: {{test_case.name}}"
+  @default_create_github_issue_body "Test `{{test_case.name}}` in module `{{test_case.module_name}}` has been detected as flaky by automation `{{automation.name}}`.\n\n[View test case]({{test_case.url}})"
+
+  defp default_create_github_issue_action,
+    do: %{
+      "type" => "create_github_issue",
+      "title_template" => @default_create_github_issue_title,
+      "body_template" => @default_create_github_issue_body,
+      "labels" => ["flaky"]
+    }
+
   defp automation_to_form(automation) do
     %{
       name: automation.name,
@@ -308,6 +319,48 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
   end
 
+  def handle_event(
+        "update_create_automation_form_trigger_action_title_template",
+        %{"value" => value, "index" => index},
+        socket
+      ) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "title_template", value)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event(
+        "update_create_automation_form_trigger_action_body_template",
+        %{"value" => value, "index" => index},
+        socket
+      ) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "body_template", value)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("update_create_automation_form_trigger_action_labels", %{"value" => value, "index" => index}, socket) do
+    index = String.to_integer(index)
+    labels = parse_label_csv(value)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "labels", labels)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
   def handle_event("toggle_create_automation_form_recovery", _params, socket) do
     {:noreply,
      assign(socket, create_automation_form_recovery_enabled: not socket.assigns.create_automation_form_recovery_enabled)}
@@ -442,6 +495,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   defp new_action("change_state", :trigger), do: default_change_state_action("muted")
   defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
   defp new_action("send_slack", context), do: default_send_slack_action(context)
+  defp new_action("create_github_issue", _context), do: default_create_github_issue_action()
   defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
   defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
   defp new_action(_, :recovery), do: default_change_state_action("enabled")
@@ -453,6 +507,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
       action -> List.replace_at(actions, index, fun.(action))
     end
   end
+
+  # Comma-separated labels. Whitespace trimmed, empties dropped. Mirrors how
+  # the GitHub UI accepts labels on issues — users type `flaky, regression`
+  # and we store `["flaky", "regression"]`.
+  defp parse_label_csv(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_label_csv(_), do: []
+
+  # Reverse of `parse_label_csv/1` for round-tripping into the text input.
+  def format_label_csv(labels) when is_list(labels), do: Enum.join(labels, ", ")
+  def format_label_csv(_), do: ""
 
   defp build_automation_attrs(project_id, assigns) do
     metric = assigns.create_automation_form_metric

@@ -2,8 +2,12 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Automations
+  alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AutomationsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.VCSFixtures
   alias TuistWeb.Webhooks.GitHubController
 
@@ -430,6 +434,117 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         GitHubController.handle(conn, %{
           "action" => "completed",
           "check_run" => %{"id" => 42, "name" => "tuist/bundle-size"}
+        })
+
+      assert result.status == 200
+    end
+  end
+
+  describe "handle/2 issues events" do
+    defp seed_issue_link(repo, issue_number) do
+      user = AccountsFixtures.user_fixture()
+
+      installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: user.account.id,
+          installation_id: "inst-42"
+        )
+
+      project = ProjectsFixtures.project_fixture(account: user.account)
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, link} =
+        Automations.create_issue_link(%{
+          project_id: project.id,
+          alert_id: alert.id,
+          test_case_id: test_case_id,
+          github_app_installation_id: installation.id,
+          github_repository_full_handle: repo,
+          github_issue_number: issue_number,
+          opened_at: DateTime.truncate(DateTime.utc_now(), :second)
+        })
+
+      %{installation: installation, project: project, alert: alert, link: link, test_case_id: test_case_id}
+    end
+
+    test "resolves the IssueLink and dispatches the closed event", %{conn: conn} do
+      %{installation: installation, link: link, test_case_id: test_case_id} =
+        seed_issue_link("tuist/tuist", 99)
+
+      conn = put_req_header(conn, "x-github-event", "issues")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn "inst-42" ->
+        {:ok, installation}
+      end)
+
+      expect(Tests, :get_test_case_by_id, fn ^test_case_id ->
+        {:ok, %{id: test_case_id, project_id: link.project_id}}
+      end)
+
+      expect(Automations, :dispatch_issue_link_event, fn :closed, resolved_link, test_case ->
+        assert resolved_link.id == link.id
+        assert resolved_link.state == "resolved"
+        assert test_case.id == test_case_id
+        :ok
+      end)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "closed",
+          "issue" => %{"number" => 99, "node_id" => "I_x"},
+          "repository" => %{"full_name" => "tuist/tuist"},
+          "installation" => %{"id" => "inst-42"}
+        })
+
+      assert result.status == 200
+
+      reloaded = Tuist.Repo.get!(Tuist.Automations.IssueLink, link.id)
+      assert reloaded.state == "resolved"
+      assert %DateTime{} = reloaded.resolved_at
+    end
+
+    test "no-ops when no matching IssueLink exists", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: user.account.id,
+          installation_id: "inst-43"
+        )
+
+      conn = put_req_header(conn, "x-github-event", "issues")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn "inst-43" ->
+        {:ok, installation}
+      end)
+
+      reject(&Automations.dispatch_issue_link_event/3)
+      reject(&Tests.get_test_case_by_id/1)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "closed",
+          "issue" => %{"number" => 1, "node_id" => "I_y"},
+          "repository" => %{"full_name" => "tuist/tuist"},
+          "installation" => %{"id" => "inst-43"}
+        })
+
+      assert result.status == 200
+    end
+
+    test "ignores non-closed issue actions", %{conn: conn} do
+      conn = put_req_header(conn, "x-github-event", "issues")
+
+      reject(&Automations.dispatch_issue_link_event/3)
+      reject(&Automations.get_issue_link_by_github_coordinates/3)
+
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "opened",
+          "issue" => %{"number" => 1},
+          "repository" => %{"full_name" => "tuist/tuist"},
+          "installation" => %{"id" => "inst-44"}
         })
 
       assert result.status == 200

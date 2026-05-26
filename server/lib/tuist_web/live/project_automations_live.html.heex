@@ -371,6 +371,17 @@
                       label={dgettext("dashboard_projects", "Send Slack notification")}
                       on_click="add_create_automation_form_trigger_action"
                     />
+                    <.dropdown_item
+                      :if={
+                        not has_action_type?(
+                          @create_automation_form_trigger_actions,
+                          "create_github_issue"
+                        )
+                      }
+                      value="create_github_issue"
+                      label={dgettext("dashboard_projects", "Create GitHub issue")}
+                      on_click="add_create_automation_form_trigger_action"
+                    />
                   </.dropdown>
                 </div>
                 <div data-part="form-section-body">
@@ -507,8 +518,92 @@
                         <span data-part="action-label">
                           {dgettext("dashboard_projects", "Unmark test as flaky")}
                         </span>
+                      <% "create_github_issue" -> %>
+                        <div data-part="github-issue-action">
+                          <div data-part="github-issue-action-header">
+                            <span data-part="action-label">
+                              {dgettext("dashboard_projects", "Create GitHub issue")}
+                            </span>
+                            <.button
+                              icon_only
+                              size="medium"
+                              variant="secondary"
+                              phx-click="delete_create_automation_form_trigger_action"
+                              phx-value-index={index}
+                            >
+                              <.icon name="trash_x" />
+                            </.button>
+                          </div>
+                          <div data-part="github-issue-action-body">
+                            <div data-part="form-row">
+                              <label data-part="label">
+                                {dgettext("dashboard_projects", "Title template")}
+                              </label>
+                              <.text_input
+                                id={"create-automation-trigger-action-title-#{index}"}
+                                name="title_template"
+                                value={action["title_template"] || ""}
+                                placeholder={
+                                  dgettext("dashboard_projects", "Enter issue title template...")
+                                }
+                                phx-keyup="update_create_automation_form_trigger_action_title_template"
+                                phx-value-index={index}
+                                phx-debounce="300"
+                              />
+                            </div>
+                            <div data-part="form-row">
+                              <label data-part="label">
+                                {dgettext("dashboard_projects", "Body template")}
+                              </label>
+                              <.text_area
+                                id={"create-automation-trigger-action-body-#{index}"}
+                                name="body_template"
+                                value={action["body_template"] || ""}
+                                rows={6}
+                                max_length={4000}
+                                show_character_count={false}
+                                placeholder={
+                                  dgettext("dashboard_projects", "Enter issue body template...")
+                                }
+                                phx-keyup="update_create_automation_form_trigger_action_body_template"
+                                phx-value-index={index}
+                                phx-debounce="300"
+                              />
+                              <div data-part="variables-hint">
+                                <span data-part="label">
+                                  {dgettext("dashboard_projects", "Available variables:")}
+                                </span>
+                                <code>{"{{test_case.name}}"}</code>
+                                <code>{"{{test_case.module_name}}"}</code>
+                                <code>{"{{test_case.suite_name}}"}</code>
+                                <code>{"{{test_case.url}}"}</code>
+                                <code>{"{{automation.name}}"}</code>
+                              </div>
+                            </div>
+                            <div data-part="form-row">
+                              <label data-part="label">
+                                {dgettext("dashboard_projects", "Labels")}
+                              </label>
+                              <.text_input
+                                id={"create-automation-trigger-action-labels-#{index}"}
+                                name="labels"
+                                value={format_label_csv(action["labels"])}
+                                placeholder={dgettext("dashboard_projects", "flaky, regression")}
+                                phx-keyup="update_create_automation_form_trigger_action_labels"
+                                phx-value-index={index}
+                                phx-debounce="300"
+                              />
+                              <span data-part="sublabel">
+                                {dgettext(
+                                  "dashboard_projects",
+                                  "Comma-separated. Labels are applied when the issue is opened."
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                     <% end %>
-                    <%= if action["type"] != "send_slack" do %>
+                    <%= if action["type"] not in ["send_slack", "create_github_issue"] do %>
                       <.button
                         icon_only
                         variant="secondary"

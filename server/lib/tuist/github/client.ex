@@ -276,6 +276,35 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Creates an issue on the given repository. Accepts `:title` (required),
+  `:body` (optional), and `:labels` (optional list of strings).
+
+  Returns `{:ok, %{"number" => n, "node_id" => id, "html_url" => url, ...}}`
+  on success.
+  """
+  def create_issue(%{repository_full_handle: repository_full_handle, installation: installation, title: title} = params) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/issues"
+
+    json =
+      %{title: title}
+      |> maybe_put(:body, Map.get(params, :body))
+      |> maybe_put(:labels, Map.get(params, :labels))
+
+    github_request(&Req.post/1,
+      url: url,
+      installation: installation,
+      api_url: api_url,
+      json: json
+    )
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, []), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
