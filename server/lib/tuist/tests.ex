@@ -785,9 +785,15 @@ defmodule Tuist.Tests do
   end
 
   # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
-  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
+  # SQL body, so 5_000 IDs is ~190 KB, well below ClickHouse's default
   # `max_query_size` of 256 KB even with surrounding query text. Larger batches
   # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
+  #
+  # This lookup intentionally uses a raw multipart query instead of the Ecto
+  # `Repo.all` path. The ClickHouse client backing Ecto sends bound params as
+  # HTTP URL params, which turns a large `id IN ^ids` list into a request-line
+  # blow-up and can trigger 431 "Request Header Fields Too Large" on self-hosted
+  # stacks even though the SQL itself is within ClickHouse limits.
   @existing_test_cases_batch_size 5_000
 
   defp get_existing_test_cases(_project_id, []), do: %{}
@@ -801,26 +807,77 @@ defmodule Tuist.Tests do
     |> Enum.chunk_every(@existing_test_cases_batch_size)
     |> Enum.reduce(%{}, fn ids_chunk, acc ->
       project_id
-      |> existing_test_cases_chunk_query(ids_chunk)
-      |> ClickHouseRepo.all()
+      |> fetch_existing_test_cases_chunk(ids_chunk)
       |> Enum.reduce(acc, &merge_latest_test_case/2)
     end)
   end
 
-  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
-    from(test_case in TestCase,
-      where: test_case.project_id == ^project_id,
-      where: test_case.id in ^ids_chunk,
-      select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        state: test_case.state,
-        last_ran_at_ci: test_case.last_ran_at_ci,
-        last_ran_at_local: test_case.last_ran_at_local,
-        inserted_at: test_case.inserted_at
-      }
-    )
+  defp fetch_existing_test_cases_chunk(project_id, ids_chunk) do
+    %{rows: rows} =
+      ClickHouseRepo.query!(
+        """
+        SELECT
+          id,
+          recent_durations,
+          is_flaky,
+          state,
+          last_ran_at_ci,
+          last_ran_at_local,
+          inserted_at
+        FROM test_cases
+        WHERE project_id = {project_id:Int64}
+          AND id IN (#{inline_uuid_list(ids_chunk)})
+        """,
+        %{project_id: project_id},
+        multipart: true
+      )
+
+    Enum.map(rows, &decode_existing_test_case_row/1)
+  end
+
+  defp inline_uuid_list(ids_chunk) do
+    Enum.map_join(ids_chunk, ",", fn id ->
+      "'#{Ecto.UUID.cast!(id)}'::UUID"
+    end)
+  end
+
+  defp decode_existing_test_case_row([
+         id,
+         recent_durations,
+         is_flaky,
+         state,
+         last_ran_at_ci,
+         last_ran_at_local,
+         inserted_at
+       ]) do
+    %{
+      id: decode_clickhouse_uuid(id),
+      recent_durations: recent_durations || [],
+      is_flaky: decode_clickhouse_boolean(is_flaky),
+      state: state,
+      last_ran_at_ci: decode_clickhouse_datetime(last_ran_at_ci),
+      last_ran_at_local: decode_clickhouse_datetime(last_ran_at_local),
+      inserted_at: decode_clickhouse_datetime(inserted_at)
+    }
+  end
+
+  defp decode_clickhouse_uuid(uuid) when is_binary(uuid) and byte_size(uuid) == 16, do: Ecto.UUID.load!(uuid)
+  defp decode_clickhouse_uuid(uuid), do: uuid
+
+  defp decode_clickhouse_boolean(value) when value in [true, false], do: value
+  defp decode_clickhouse_boolean(1), do: true
+  defp decode_clickhouse_boolean(0), do: false
+  defp decode_clickhouse_boolean(value), do: value
+
+  defp decode_clickhouse_datetime(nil), do: nil
+  defp decode_clickhouse_datetime(%NaiveDateTime{} = value), do: value
+  defp decode_clickhouse_datetime(%DateTime{} = value), do: DateTime.to_naive(value)
+
+  defp decode_clickhouse_datetime(value) when is_binary(value) do
+    case NaiveDateTime.from_iso8601(value) do
+      {:ok, datetime} -> datetime
+      {:error, _} -> value
+    end
   end
 
   defp merge_latest_test_case(row, acc) do
