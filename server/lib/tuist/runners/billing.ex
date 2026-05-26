@@ -44,6 +44,7 @@ defmodule Tuist.Runners.Billing do
   import Ecto.Query
 
   alias Tuist.Repo
+  alias Tuist.Runners.Analytics
   alias Tuist.Runners.RunnerSession
 
   @default_window_days 30
@@ -74,17 +75,18 @@ defmodule Tuist.Runners.Billing do
   def compute_minutes(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     total_ms = compute_milliseconds(account_id, start_dt, end_dt, opts)
     previous_total_ms = compute_milliseconds(account_id, prev_start_dt, prev_end_dt, opts)
 
-    per_day = compute_milliseconds_per_day(account_id, start_dt, end_dt, opts)
+    per_bucket = compute_milliseconds_per_bucket(account_id, start_dt, end_dt, bucket, opts)
 
     filled =
       start_dt
-      |> daily_range(end_dt)
+      |> bucket_range(end_dt, bucket)
       |> Enum.map(fn date ->
-        ms = Map.get(per_day, date, 0)
+        ms = Map.get(per_bucket, date, 0)
         %{date: date, value: ms |> div(60_000) |> trunc()}
       end)
 
@@ -144,27 +146,33 @@ defmodule Tuist.Runners.Billing do
   end
 
   @doc """
-  Returns a date-keyed map `%{Date.t() => integer_ms}` of
-  billable milliseconds per UTC day within the window. Sessions
-  spanning midnight contribute to each day they overlap.
+  Returns a bucket-keyed map of billable milliseconds within the
+  window. Sessions crossing a bucket boundary contribute to each
+  bucket they overlap. `bucket` is `:hour` (`%{DateTime.t() =>
+  integer_ms}`) or `:day` (`%{Date.t() => integer_ms}`).
 
-  Used to drive a daily-series chart on the billing page. The
-  caller can format the values however they want (minutes,
-  hours, dollars) at render time.
+  Used to drive the per-bucket series chart on the billing/jobs
+  pages. The caller can format the values however they want
+  (minutes, hours, dollars) at render time.
   """
-  def compute_milliseconds_per_day(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
-      when is_integer(account_id) do
+  def compute_milliseconds_per_bucket(
+        account_id,
+        %DateTime{} = period_start,
+        %DateTime{} = period_end,
+        bucket,
+        opts \\ []
+      )
+      when is_integer(account_id) and bucket in [:hour, :day] do
     now = DateTime.utc_now()
 
     # SQL pipeline:
     #   1. `overlapping` — sessions for this account whose window
     #      touches [period_start, period_end] (CTE).
-    #   2. `buckets` — explode each session into one row per UTC
-    #      day it overlaps using `generate_series` over the
-    #      session's clamped interval.
-    #   3. Outer SELECT — per-day SUM of the intersection between
-    #      (session, day, billing-period). All math in Postgres,
-    #      so a busy month doesn't materialise thousands of rows
+    #   2. `buckets` — explode each session into one row per bucket
+    #      (UTC day, or hour) it overlaps using `generate_series`.
+    #   3. Outer SELECT — per-bucket SUM of the intersection between
+    #      (session, bucket, billing-period). All math in Postgres,
+    #      so a busy window doesn't materialise thousands of rows
     #      into the BEAM.
     overlapping =
       account_id
@@ -175,42 +183,7 @@ defmodule Tuist.Runners.Billing do
         effective_end: fragment("COALESCE(?, ?)", s.ended_at, ^now)
       })
 
-    buckets =
-      from(o in subquery(overlapping),
-        inner_lateral_join:
-          bucket in fragment(
-            """
-            (SELECT generate_series(
-              GREATEST(?, ?::timestamptz)::date,
-              LEAST(?, ?::timestamptz)::date,
-              '1 day'::interval
-            )::date AS day)
-            """,
-            o.started_at,
-            ^period_start,
-            o.effective_end,
-            ^period_end
-          ),
-        on: true,
-        select: %{
-          day: bucket.day,
-          intersection_ms:
-            fragment(
-              """
-              GREATEST(0, (EXTRACT(EPOCH FROM (
-                LEAST(?, (?::date + INTERVAL '1 day')::timestamptz, ?) -
-                GREATEST(?, ?::timestamptz, ?)
-              )) * 1000)::bigint)
-              """,
-              o.effective_end,
-              bucket.day,
-              ^period_end,
-              o.started_at,
-              bucket.day,
-              ^period_start
-            )
-        }
-      )
+    buckets = buckets_query(overlapping, period_start, period_end, bucket)
 
     from(b in subquery(buckets),
       group_by: b.day,
@@ -219,6 +192,82 @@ defmodule Tuist.Runners.Billing do
     )
     |> Repo.all()
     |> Map.new()
+  end
+
+  defp buckets_query(overlapping, period_start, period_end, :day) do
+    from(o in subquery(overlapping),
+      inner_lateral_join:
+        bucket in fragment(
+          """
+          (SELECT generate_series(
+            GREATEST(?, ?::timestamptz)::date,
+            LEAST(?, ?::timestamptz)::date,
+            '1 day'::interval
+          )::date AS day)
+          """,
+          o.started_at,
+          ^period_start,
+          o.effective_end,
+          ^period_end
+        ),
+      on: true,
+      select: %{
+        day: bucket.day,
+        intersection_ms:
+          fragment(
+            """
+            GREATEST(0, (EXTRACT(EPOCH FROM (
+              LEAST(?, (?::date + INTERVAL '1 day')::timestamptz, ?) -
+              GREATEST(?, ?::timestamptz, ?)
+            )) * 1000)::bigint)
+            """,
+            o.effective_end,
+            bucket.day,
+            ^period_end,
+            o.started_at,
+            bucket.day,
+            ^period_start
+          )
+      }
+    )
+  end
+
+  defp buckets_query(overlapping, period_start, period_end, :hour) do
+    from(o in subquery(overlapping),
+      inner_lateral_join:
+        bucket in fragment(
+          """
+          (SELECT generate_series(
+            date_trunc('hour', GREATEST(?, ?::timestamptz)),
+            date_trunc('hour', LEAST(?, ?::timestamptz)),
+            '1 hour'::interval
+          ) AS day)
+          """,
+          o.started_at,
+          ^period_start,
+          o.effective_end,
+          ^period_end
+        ),
+      on: true,
+      select: %{
+        day: bucket.day,
+        intersection_ms:
+          fragment(
+            """
+            GREATEST(0, (EXTRACT(EPOCH FROM (
+              LEAST(?, ? + INTERVAL '1 hour', ?) -
+              GREATEST(?, ?, ?)
+            )) * 1000)::bigint)
+            """,
+            o.effective_end,
+            bucket.day,
+            ^period_end,
+            o.started_at,
+            bucket.day,
+            ^period_start
+          )
+      }
+    )
   end
 
   defp sessions_overlapping(account_id, period_start, period_end) do
@@ -273,8 +322,27 @@ defmodule Tuist.Runners.Billing do
     {DateTime.add(start_dt, -delta_seconds, :second), start_dt}
   end
 
-  defp daily_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+  defp bucket_range(%DateTime{} = start_dt, %DateTime{} = end_dt, :day) do
     Date.range(DateTime.to_date(start_dt), DateTime.to_date(end_dt))
+  end
+
+  defp bucket_range(%DateTime{} = start_dt, %DateTime{} = end_dt, :hour) do
+    # Microsecond precision matches Postgres `date_trunc('hour', …)`
+    # output (`{0, 6}`) so the DateTime keys are structurally equal
+    # when used as map lookups against `compute_milliseconds_per_bucket`.
+    floor_start = %{start_dt | minute: 0, second: 0, microsecond: {0, 6}}
+    floor_end = %{end_dt | minute: 0, second: 0, microsecond: {0, 6}}
+
+    floor_start
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, floor_end) != :gt))
+  end
+
+  defp bucket_opt(opts, start_dt, end_dt) do
+    case Keyword.get(opts, :bucket) do
+      bucket when bucket in [:hour, :day] -> bucket
+      _ -> Analytics.bucket_for_window(start_dt, end_dt)
+    end
   end
 
   defp trend(previous, current) when is_number(previous) and is_number(current) do

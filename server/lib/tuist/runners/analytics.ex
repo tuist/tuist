@@ -40,6 +40,24 @@ defmodule Tuist.Runners.Analytics do
 
   @default_window_days 30
 
+  # Window length threshold (in hours) below which we switch from
+  # day-resolution buckets (`toDate`) to hour-resolution buckets
+  # (`toStartOfHour`). 36 covers the "Last 24 hours" preset with some
+  # headroom for custom windows that span a day-and-a-half.
+  @hourly_bucket_max_hours 36
+
+  @doc """
+  Suggests the right bucket granularity for a `[start_dt, end_dt]`
+  window — `:hour` for short windows (≤ 36h) where day-grained
+  buckets would collapse the chart to one or two points, `:day`
+  otherwise. The LiveView passes this back into every analytics +
+  billing call via the `:bucket` opt so the widget's value, trend,
+  and per-bucket series all line up against the same grid.
+  """
+  def bucket_for_window(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    if DateTime.diff(end_dt, start_dt, :hour) <= @hourly_bucket_max_hours, do: :hour, else: :day
+  end
+
   @doc """
   Total job count over the window plus a daily series and the
   trend (% change) versus the equivalent prior window.
@@ -49,12 +67,13 @@ defmodule Tuist.Runners.Analytics do
   def jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     count = jobs_count_in_range(account_id, start_dt, end_dt, opts)
     previous_count = jobs_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
 
-    rows = jobs_count_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+    rows = jobs_count_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_dates(rows, start_dt, end_dt, bucket, &Map.get(&1, :value, 0))
 
     %{
       count: count,
@@ -75,7 +94,22 @@ defmodule Tuist.Runners.Analytics do
     count
   end
 
-  defp jobs_count_per_day(account_id, start_dt, end_dt, opts) do
+  defp jobs_count_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        group_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        order_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.enqueued_at),
+          value: count(j.workflow_job_id)
+        }
+      )
+    )
+  end
+
+  defp jobs_count_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -96,11 +130,12 @@ defmodule Tuist.Runners.Analytics do
   def failed_jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     count = failed_count_in_range(account_id, start_dt, end_dt, opts)
     previous_count = failed_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = failed_jobs_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+    rows = failed_jobs_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_dates(rows, start_dt, end_dt, bucket, &Map.get(&1, :value, 0))
 
     %{
       count: count,
@@ -124,7 +159,23 @@ defmodule Tuist.Runners.Analytics do
     count
   end
 
-  defp failed_jobs_per_day(account_id, start_dt, end_dt, opts) do
+  defp failed_jobs_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        where: j.status == "completed" and j.conclusion == "failure",
+        group_by: fragment("toStartOfHour(?)", j.completed_at),
+        order_by: fragment("toStartOfHour(?)", j.completed_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.completed_at),
+          value: count(j.workflow_job_id)
+        }
+      )
+    )
+  end
+
+  defp failed_jobs_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -145,11 +196,12 @@ defmodule Tuist.Runners.Analytics do
   def jobs_duration(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     current = jobs_duration_aggregates(account_id, start_dt, end_dt, opts)
     previous = jobs_duration_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = duration_buckets_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_duration_dates(rows, start_dt, end_dt)
+    rows = duration_buckets_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_duration_dates(rows, start_dt, end_dt, bucket)
 
     %{
       avg: trunc_or_zero(current.avg),
@@ -219,11 +271,12 @@ defmodule Tuist.Runners.Analytics do
   def successful_jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     count = successful_count_in_range(account_id, start_dt, end_dt, opts)
     previous_count = successful_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = successful_jobs_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+    rows = successful_jobs_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_dates(rows, start_dt, end_dt, bucket, &Map.get(&1, :value, 0))
 
     %{
       count: count,
@@ -247,7 +300,23 @@ defmodule Tuist.Runners.Analytics do
     count
   end
 
-  defp successful_jobs_per_day(account_id, start_dt, end_dt, opts) do
+  defp successful_jobs_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        where: j.status == "completed" and j.conclusion == "success",
+        group_by: fragment("toStartOfHour(?)", j.completed_at),
+        order_by: fragment("toStartOfHour(?)", j.completed_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.completed_at),
+          value: count(j.workflow_job_id)
+        }
+      )
+    )
+  end
+
+  defp successful_jobs_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -271,11 +340,12 @@ defmodule Tuist.Runners.Analytics do
   def queue_time(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     current = queue_time_aggregates(account_id, start_dt, end_dt, opts)
     previous = queue_time_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = queue_time_buckets_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_duration_dates(rows, start_dt, end_dt)
+    rows = queue_time_buckets_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_duration_dates(rows, start_dt, end_dt, bucket)
 
     %{
       avg: trunc_or_zero(current.avg),
@@ -332,7 +402,28 @@ defmodule Tuist.Runners.Analytics do
     aggregates
   end
 
-  defp queue_time_buckets_per_day(account_id, start_dt, end_dt, opts) do
+  defp queue_time_buckets_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_claimed_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        group_by: fragment("toStartOfHour(?)", j.claimed_at),
+        order_by: fragment("toStartOfHour(?)", j.claimed_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.claimed_at),
+          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+          p50:
+            fragment("quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+          p90:
+            fragment("quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at),
+          p99:
+            fragment("quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.claimed_at, j.enqueued_at)
+        }
+      )
+    )
+  end
+
+  defp queue_time_buckets_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_claimed_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -363,12 +454,13 @@ defmodule Tuist.Runners.Analytics do
   def workflow_runs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     count = workflow_runs_count_in_range(account_id, start_dt, end_dt, opts)
     previous_count = workflow_runs_count_in_range(account_id, prev_start_dt, prev_end_dt, opts)
 
-    rows = workflow_runs_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+    rows = workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_dates(rows, start_dt, end_dt, bucket, &Map.get(&1, :value, 0))
 
     %{
       count: count,
@@ -392,7 +484,23 @@ defmodule Tuist.Runners.Analytics do
     count || 0
   end
 
-  defp workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
+  defp workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        where: j.workflow_run_id > 0,
+        group_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        order_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.enqueued_at),
+          value: fragment("uniqExact(?)", j.workflow_run_id)
+        }
+      )
+    )
+  end
+
+  defp workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -414,11 +522,12 @@ defmodule Tuist.Runners.Analytics do
   def failed_workflow_runs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     count = failed_workflow_runs_in_range(account_id, start_dt, end_dt, opts)
     previous_count = failed_workflow_runs_in_range(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = failed_workflow_runs_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_dates(rows, start_dt, end_dt, &Map.get(&1, :value, 0))
+    rows = failed_workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_dates(rows, start_dt, end_dt, bucket, &Map.get(&1, :value, 0))
 
     %{
       count: count,
@@ -442,7 +551,23 @@ defmodule Tuist.Runners.Analytics do
     count || 0
   end
 
-  defp failed_workflow_runs_per_day(account_id, start_dt, end_dt, opts) do
+  defp failed_workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        where: j.workflow_run_id > 0 and j.status == "completed" and j.conclusion == "failure",
+        group_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        order_by: fragment("toStartOfHour(?)", j.enqueued_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.enqueued_at),
+          value: fragment("uniqExact(?)", j.workflow_run_id)
+        }
+      )
+    )
+  end
+
+  defp failed_workflow_runs_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -464,11 +589,12 @@ defmodule Tuist.Runners.Analytics do
   def workflows_duration(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
     {prev_start_dt, prev_end_dt} = previous_window(start_dt, end_dt)
+    bucket = bucket_opt(opts, start_dt, end_dt)
 
     current = workflows_duration_aggregates(account_id, start_dt, end_dt, opts)
     previous = workflows_duration_aggregates(account_id, prev_start_dt, prev_end_dt, opts)
-    rows = workflows_duration_per_day(account_id, start_dt, end_dt, opts)
-    filled = fill_duration_dates(rows, start_dt, end_dt)
+    rows = workflows_duration_per_bucket(account_id, start_dt, end_dt, opts, bucket)
+    filled = fill_duration_dates(rows, start_dt, end_dt, bucket)
 
     %{
       avg: trunc_or_zero(current.avg),
@@ -488,7 +614,10 @@ defmodule Tuist.Runners.Analytics do
   end
 
   defp workflows_duration_aggregates(account_id, start_dt, end_dt, opts) do
-    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts)
+    # Aggregates over the entire window — bucket choice only matters
+    # for the per-bucket series, not for these scalars. Force `:day`
+    # so the subquery shape is stable across callers.
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts, :day)
 
     [aggregates | _] =
       from(r in subquery(runs_subquery),
@@ -505,8 +634,8 @@ defmodule Tuist.Runners.Analytics do
     aggregates
   end
 
-  defp workflows_duration_per_day(account_id, start_dt, end_dt, opts) do
-    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts)
+  defp workflows_duration_per_bucket(account_id, start_dt, end_dt, opts, bucket) do
+    runs_subquery = workflow_runs_subquery(account_id, start_dt, end_dt, opts, bucket)
 
     ClickHouseRepo.all(
       from(r in subquery(runs_subquery),
@@ -523,7 +652,28 @@ defmodule Tuist.Runners.Analytics do
     )
   end
 
-  defp workflow_runs_subquery(account_id, start_dt, end_dt, opts) do
+  defp workflow_runs_subquery(account_id, start_dt, end_dt, opts, :hour) do
+    latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    from(j in subquery(latest),
+      where:
+        j.status == "completed" and j.workflow_run_id > 0 and
+          fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+          fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+      group_by: j.workflow_run_id,
+      select: %{
+        completion_date: fragment("toStartOfHour(max(?))", j.completed_at),
+        run_ms:
+          fragment(
+            "toUnixTimestamp64Milli(max(?)) - toUnixTimestamp64Milli(min(?))",
+            j.completed_at,
+            j.started_at
+          )
+      }
+    )
+  end
+
+  defp workflow_runs_subquery(account_id, start_dt, end_dt, opts, bucket) when bucket in [:day, nil] do
     latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     from(j in subquery(latest),
@@ -556,7 +706,35 @@ defmodule Tuist.Runners.Analytics do
 
   defp trend(_, _), do: 0.0
 
-  defp duration_buckets_per_day(account_id, start_dt, end_dt, opts) do
+  defp duration_buckets_per_bucket(account_id, start_dt, end_dt, opts, :hour) do
+    sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
+
+    ClickHouseRepo.all(
+      from(j in subquery(sub),
+        where:
+          j.status == "completed" and fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
+            fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+        group_by: fragment("toStartOfHour(?)", j.completed_at),
+        order_by: fragment("toStartOfHour(?)", j.completed_at),
+        select: %{
+          date: fragment("toStartOfHour(?)", j.completed_at),
+          avg: fragment("avg(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.completed_at, j.started_at),
+          p50:
+            fragment("quantile(0.5)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.completed_at, j.started_at),
+          p90:
+            fragment("quantile(0.9)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))", j.completed_at, j.started_at),
+          p99:
+            fragment(
+              "quantile(0.99)(toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?))",
+              j.completed_at,
+              j.started_at
+            )
+        }
+      )
+    )
+  end
+
+  defp duration_buckets_per_bucket(account_id, start_dt, end_dt, opts, :day) do
     sub = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
     ClickHouseRepo.all(
@@ -843,21 +1021,24 @@ defmodule Tuist.Runners.Analytics do
   defp default_empty([], default), do: [default]
   defp default_empty(rows, _default), do: rows
 
-  # Fills the date range with zero-valued rows where the ClickHouse
-  # grouped query didn't produce a bucket. Without this the line
-  # chart skips over empty days and renders as a single connected
-  # blip, which looks broken on small datasets.
-  defp fill_dates(rows, start_dt, end_dt, value_fn) do
+  # Fills the bucket range with zero-valued rows where the ClickHouse
+  # grouped query didn't produce one. Without this the line chart
+  # skips over empty buckets and renders as a single connected blip,
+  # which looks broken on small datasets. `bucket` is `:hour` or
+  # `:day` — the keys we compare against come from `toStartOfHour`
+  # (DateTime, hour-floor) or `toDate` (Date) respectively, so the
+  # filling range produces the matching type.
+  defp fill_dates(rows, start_dt, end_dt, bucket, value_fn) do
     by_date = Map.new(rows, &{&1.date, value_fn.(&1)})
 
     start_dt
-    |> daily_range(end_dt)
+    |> bucket_range(end_dt, bucket)
     |> Enum.map(fn date ->
       %{date: date, value: Map.get(by_date, date, 0)}
     end)
   end
 
-  defp fill_duration_dates(rows, start_dt, end_dt) do
+  defp fill_duration_dates(rows, start_dt, end_dt, bucket) do
     by_date =
       Map.new(rows, fn row ->
         {row.date,
@@ -872,15 +1053,41 @@ defmodule Tuist.Runners.Analytics do
     empty = %{avg: 0, p50: 0, p90: 0, p99: 0}
 
     start_dt
-    |> daily_range(end_dt)
+    |> bucket_range(end_dt, bucket)
     |> Enum.map(fn date ->
       values = Map.get(by_date, date, empty)
       Map.put(values, :date, date)
     end)
   end
 
-  defp daily_range(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+  # Day mode produces a `Date.range`, mirroring `toDate(?)`. Hour
+  # mode produces a list of hour-floor DateTimes, mirroring
+  # `toStartOfHour(?)` — the inclusive bound covers the bucket the
+  # window ends in.
+  defp bucket_range(%DateTime{} = start_dt, %DateTime{} = end_dt, :day) do
     Date.range(DateTime.to_date(start_dt), DateTime.to_date(end_dt))
+  end
+
+  defp bucket_range(%DateTime{} = start_dt, %DateTime{} = end_dt, :hour) do
+    floor_start = floor_to_hour(start_dt)
+    floor_end = floor_to_hour(end_dt)
+
+    floor_start
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, floor_end) != :gt))
+  end
+
+  defp floor_to_hour(%DateTime{} = dt) do
+    %{dt | minute: 0, second: 0, microsecond: {0, 0}}
+  end
+
+  # Caller can pin a bucket explicitly via `:bucket`; otherwise we
+  # auto-pick based on the window length.
+  defp bucket_opt(opts, start_dt, end_dt) do
+    case Keyword.get(opts, :bucket) do
+      bucket when bucket in [:hour, :day] -> bucket
+      _ -> bucket_for_window(start_dt, end_dt)
+    end
   end
 
   defp trunc_or_zero(nil), do: 0

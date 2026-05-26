@@ -214,7 +214,10 @@
             id="workflows-runs-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnerWorkflowsLive.chart_options(@workflow_runs_count.result.dates)
+              TuistWeb.RunnerWorkflowsLive.chart_options(
+                @workflow_runs_count.result.dates,
+                @analytics_bucket
+              )
             }
             series={[
               %{
@@ -238,7 +241,10 @@
             id="workflows-failed-runs-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnerWorkflowsLive.chart_options(@failed_workflow_runs_count.result.dates)
+              TuistWeb.RunnerWorkflowsLive.chart_options(
+                @failed_workflow_runs_count.result.dates,
+                @analytics_bucket
+              )
             }
             series={[
               %{
@@ -264,7 +270,8 @@
             extra_options={
               TuistWeb.RunnersLive.duration_chart_options(
                 @workflows_duration.result.dates,
-                "last-30-days"
+                @analytics_preset,
+                @analytics_bucket
               )
             }
             series={TuistWeb.RunnersLive.duration_chart_series(@workflows_duration.result)}

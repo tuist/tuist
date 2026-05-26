@@ -95,7 +95,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: account, uri: uri}} = socket
       ) do
-    query =
+    if_result =
       if preset == "custom" do
         uri.query
         |> Query.put("analytics-date-range", "custom")
@@ -107,7 +107,8 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         |> Query.drop("analytics-start-date")
         |> Query.drop("analytics-end-date")
       end
-      |> URI.decode_query()
+
+    query = URI.decode_query(if_result)
 
     {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/workflows?#{query}")}
   end
@@ -130,15 +131,19 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   # `assign_async` so the chart area can flip to the skeleton while
   # the new query is in flight.
   defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
+    bucket = Analytics.bucket_for_window(start_dt, end_dt)
+
     scope_opts =
       repository
       |> scope_opts()
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:bucket, bucket)
 
-    assign_async(
-      socket,
+    socket
+    |> assign(:analytics_bucket, bucket)
+    |> assign_async(
       [:workflow_runs_count, :failed_workflow_runs_count, :workflows_duration],
       fn ->
         {:ok,
@@ -330,7 +335,9 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   by `RunnerWorkflowLive.chart_options/1` — date-formatted x-axis,
   plain numeric y-axis, no legend.
   """
-  def chart_options(dates) do
+  def chart_options(dates, bucket \\ :day) do
+    formatter = if bucket == :hour, do: "fn:toLocaleTime", else: "fn:toLocaleDate"
+
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
       xAxis: %{
@@ -338,7 +345,7 @@ defmodule TuistWeb.RunnerWorkflowsLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
+          formatter: formatter,
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }

@@ -423,7 +423,7 @@ defmodule TuistWeb.RunnersLive do
   way as the Tests page: legend at the bottom, ms-formatted y-axis,
   ms-formatted tooltip values.
   """
-  def duration_chart_options(dates, analytics_preset) do
+  def duration_chart_options(dates, analytics_preset, bucket \\ :day) do
     %{
       legend: %{
         left: "left",
@@ -447,7 +447,7 @@ defmodule TuistWeb.RunnersLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
+          formatter: duration_axis_formatter(bucket),
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }
@@ -461,13 +461,16 @@ defmodule TuistWeb.RunnersLive do
         }
       },
       tooltip:
-        if analytics_preset == "last-24-hours" do
+        if analytics_preset == "last-24-hours" or bucket == :hour do
           %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
         else
           %{valueFormat: "fn:formatMilliseconds"}
         end
     }
   end
+
+  defp duration_axis_formatter(:hour), do: "fn:toLocaleTime"
+  defp duration_axis_formatter(_), do: "fn:toLocaleDate"
 
   @doc """
   Builds the four-percentile time-series array (avg + p50/p90/p99)

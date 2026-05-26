@@ -318,7 +318,10 @@
             id="jobs-breakdown-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnerJobsLive.breakdown_chart_options(@jobs_breakdown.result.total.dates)
+              TuistWeb.RunnerJobsLive.breakdown_chart_options(
+                @jobs_breakdown.result.total.dates,
+                @analytics_bucket
+              )
             }
             series={TuistWeb.RunnerJobsLive.jobs_breakdown_chart_series(@jobs_breakdown.result)}
             y_axis_min={0}
@@ -330,7 +333,10 @@
             id="jobs-cumulative-minutes-chart"
             type="line"
             extra_options={
-              TuistWeb.RunnerJobsLive.minutes_chart_options(@cumulative_minutes.result.dates)
+              TuistWeb.RunnerJobsLive.minutes_chart_options(
+                @cumulative_minutes.result.dates,
+                @analytics_bucket
+              )
             }
             series={[
               %{
@@ -369,7 +375,8 @@
             extra_options={
               TuistWeb.RunnersLive.duration_chart_options(
                 @queue_time.result.dates,
-                "last-30-days"
+                @analytics_preset,
+                @analytics_bucket
               )
             }
             series={TuistWeb.RunnersLive.duration_chart_series(@queue_time.result)}
@@ -412,7 +419,8 @@
             extra_options={
               TuistWeb.RunnersLive.duration_chart_options(
                 @jobs_duration.result.dates,
-                "last-30-days"
+                @analytics_preset,
+                @analytics_bucket
               )
             }
             series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}

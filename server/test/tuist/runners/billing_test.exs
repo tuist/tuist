@@ -221,7 +221,7 @@ defmodule Tuist.Runners.BillingTest do
     end
   end
 
-  describe "compute_milliseconds_per_day/3" do
+  describe "compute_milliseconds_per_bucket/5" do
     test "buckets a single session into its UTC day" do
       account = account_fixture()
       period_start = ~U[2026-05-01 00:00:00.000000Z]
@@ -232,7 +232,7 @@ defmodule Tuist.Runners.BillingTest do
         ended_at: ~U[2026-05-10 12:05:00.000000Z]
       )
 
-      result = Billing.compute_milliseconds_per_day(account.id, period_start, period_end)
+      result = Billing.compute_milliseconds_per_bucket(account.id, period_start, period_end, :day)
 
       assert Map.get(result, ~D[2026-05-10]) == 5 * 60 * 1_000
     end
@@ -249,10 +249,27 @@ defmodule Tuist.Runners.BillingTest do
         ended_at: ~U[2026-05-11 00:10:00.000000Z]
       )
 
-      result = Billing.compute_milliseconds_per_day(account.id, period_start, period_end)
+      result = Billing.compute_milliseconds_per_bucket(account.id, period_start, period_end, :day)
 
       assert_in_delta Map.get(result, ~D[2026-05-10]), 10 * 60 * 1_000, 1_000
       assert_in_delta Map.get(result, ~D[2026-05-11]), 10 * 60 * 1_000, 1_000
+    end
+
+    test "hour bucket splits a session crossing the hour boundary" do
+      account = account_fixture()
+      period_start = ~U[2026-05-10 00:00:00.000000Z]
+      period_end = ~U[2026-05-11 00:00:00.000000Z]
+
+      # 12:50 → 13:10 = 20 minutes total. 10 min in 12:00, 10 in 13:00.
+      session_fixture(account,
+        started_at: ~U[2026-05-10 12:50:00.000000Z],
+        ended_at: ~U[2026-05-10 13:10:00.000000Z]
+      )
+
+      result = Billing.compute_milliseconds_per_bucket(account.id, period_start, period_end, :hour)
+
+      assert_in_delta Map.get(result, ~U[2026-05-10 12:00:00.000000Z]), 10 * 60 * 1_000, 1_000
+      assert_in_delta Map.get(result, ~U[2026-05-10 13:00:00.000000Z]), 10 * 60 * 1_000, 1_000
     end
   end
 end

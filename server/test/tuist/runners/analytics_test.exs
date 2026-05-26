@@ -76,6 +76,39 @@ defmodule Tuist.Runners.AnalyticsTest do
     end
   end
 
+  describe "bucket_for_window/2" do
+    test "picks :hour for windows ≤ 36 hours" do
+      now = DateTime.utc_now()
+      start_dt = DateTime.add(now, -24, :hour)
+
+      assert Analytics.bucket_for_window(start_dt, now) == :hour
+    end
+
+    test "picks :day for windows wider than 36 hours" do
+      now = DateTime.utc_now()
+      start_dt = DateTime.add(now, -7, :day)
+
+      assert Analytics.bucket_for_window(start_dt, now) == :day
+    end
+  end
+
+  describe "hourly bucketing" do
+    test "jobs_count returns DateTime-keyed dates and hour-resolution buckets" do
+      account = account_fixture()
+      completed_job(account, 79_001, "success")
+
+      now = DateTime.utc_now()
+      result = Analytics.jobs_count(account.id, start_datetime: DateTime.add(now, -2, :hour), end_datetime: now)
+
+      assert result.count == 1
+      # Hourly mode → dates carry DateTime values (3 hour buckets:
+      # floor(now-2h), floor(now-1h), floor(now)). The completion
+      # lands in one of them; the others are zero-filled.
+      assert Enum.all?(result.dates, &match?(%DateTime{}, &1))
+      assert Enum.sum(result.values) == 1
+    end
+  end
+
   describe "successful_jobs_count/2" do
     test "only counts workflow_jobs whose latest state is completed/success" do
       account = account_fixture()

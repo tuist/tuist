@@ -194,15 +194,19 @@ defmodule TuistWeb.RunnerJobsLive do
   end
 
   defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
+    bucket = Analytics.bucket_for_window(start_dt, end_dt)
+
     scope_opts =
       []
       |> maybe_repo(repository)
       |> maybe_platform(platform)
       |> Keyword.put(:start_datetime, start_dt)
       |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:bucket, bucket)
 
-    assign_async(
-      socket,
+    socket
+    |> assign(:analytics_bucket, bucket)
+    |> assign_async(
       [:jobs_breakdown, :cumulative_minutes, :queue_time, :jobs_duration, :live_status_counts],
       fn ->
         {:ok,
@@ -337,7 +341,7 @@ defmodule TuistWeb.RunnerJobsLive do
         %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
         %{assigns: %{selected_account: account, uri: uri}} = socket
       ) do
-    query =
+    if_result =
       if preset == "custom" do
         uri.query
         |> Query.put("analytics-date-range", "custom")
@@ -349,7 +353,8 @@ defmodule TuistWeb.RunnerJobsLive do
         |> Query.drop("analytics-start-date")
         |> Query.drop("analytics-end-date")
       end
-      |> URI.decode_query()
+
+    query = URI.decode_query(if_result)
 
     {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
   end
@@ -732,7 +737,7 @@ defmodule TuistWeb.RunnerJobsLive do
   Adds a legend below the plot mirroring the duration chart on the
   runners overview so all multi-series charts read the same way.
   """
-  def breakdown_chart_options(dates) do
+  def breakdown_chart_options(dates, bucket \\ :day) do
     %{
       legend: %{
         left: "left",
@@ -756,7 +761,7 @@ defmodule TuistWeb.RunnerJobsLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
+          formatter: axis_formatter(bucket),
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }
@@ -770,7 +775,7 @@ defmodule TuistWeb.RunnerJobsLive do
     }
   end
 
-  def count_chart_options(dates) do
+  def count_chart_options(dates, bucket \\ :day) do
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
       xAxis: %{
@@ -778,7 +783,7 @@ defmodule TuistWeb.RunnerJobsLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
+          formatter: axis_formatter(bucket),
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }
@@ -792,6 +797,11 @@ defmodule TuistWeb.RunnerJobsLive do
       tooltip: %{}
     }
   end
+
+  # Hourly buckets are DateTimes — format the axis label as a clock
+  # time. Day buckets stay as locale-formatted short dates.
+  defp axis_formatter(:hour), do: "fn:toLocaleTime"
+  defp axis_formatter(_), do: "fn:toLocaleDate"
 
   @doc """
   Returns the query string for a given page number, preserving the
@@ -807,7 +817,7 @@ defmodule TuistWeb.RunnerJobsLive do
     "?" <> query
   end
 
-  def minutes_chart_options(dates) do
+  def minutes_chart_options(dates, bucket \\ :day) do
     %{
       grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
       xAxis: %{
@@ -815,7 +825,7 @@ defmodule TuistWeb.RunnerJobsLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:toLocaleDate",
+          formatter: axis_formatter(bucket),
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }
