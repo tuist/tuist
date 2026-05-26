@@ -62,26 +62,21 @@ defmodule Tuist.Runners.Billing do
   @max_session_lifetime_seconds 6 * 60 * 60
 
   @doc """
-  Customer-facing "Compute Minutes" widget shape. Drives the
-  Jobs-page widget that used to read from
-  `Tuist.Runners.Analytics.cumulative_minutes/2`. Returns the
-  same map shape (so the LiveView swap is a one-line change),
-  but the underlying source is `runner_sessions` rather than
-  `runner_jobs` — i.e. the same number that invoicing will
-  charge against.
+  Total billable minutes for `account_id` over the window, plus a
+  per-bucket series + trend versus the previous equivalent window.
+  The underlying source is `runner_sessions` — the same number that
+  invoicing will charge against.
 
   Options:
 
     * `:start_datetime` / `:end_datetime` — window. Defaults to
       the last 30 days.
-    * `:repo`, `:workflow_name` — exact-match scope (Jobs page
-      filters).
+    * `:repo`, `:workflow_name` — exact-match scope filters.
     * `:platform` — `"macos"` or `"linux"`, narrows on the
-      `fleet_name` prefix the same way the rest of the runners
-      pages do.
+      `fleet_name` prefix.
 
   Returns `%{total_ms, trend, dates, values}` where `values` are
-  whole minutes per UTC day (truncated for display; precision is
+  whole minutes per bucket (truncated for display; precision is
   preserved in `total_ms`).
   """
   def compute_minutes(account_id, opts \\ []) when is_integer(account_id) do
@@ -116,8 +111,8 @@ defmodule Tuist.Runners.Billing do
   the portion of its runtime that lies inside the window.
 
   Accepts the same scope opts (`:repo`, `:workflow_name`,
-  `:platform`) as `compute_minutes/2` so a filtered widget and a
-  filtered invoice line up against the same query shape.
+  `:platform`) as `compute_minutes/2` so a filtered query and a
+  filtered invoice line up against the same shape.
   """
   def compute_milliseconds(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
       when is_integer(account_id) do

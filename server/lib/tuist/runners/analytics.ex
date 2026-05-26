@@ -4,16 +4,12 @@ defmodule Tuist.Runners.Analytics do
 
   Two kinds of aggregation:
 
-    * **Job-level** — one data point per `workflow_job_id`. Drives the
-      "Total jobs", "Avg. job duration", and "Cumulative compute
-      minutes" widgets.
+    * **Job-level** — one data point per `workflow_job_id`.
     * **Workflow-level** — collapses jobs in the same workflow_run
       into one duration data point (`max(completed_at) - min(started_at)`).
-      Drives the "Avg. workflow duration" widget.
 
   Each function returns a map with the value + a per-bucket time
-  series (`%{dates: […], values: […]}`) so the LiveView can drop it
-  straight into a chart.
+  series (`%{dates: […], values: […]}`) ready for chart consumption.
 
   ## Why we don't use `FINAL`
 
@@ -50,9 +46,9 @@ defmodule Tuist.Runners.Analytics do
   Suggests the right bucket granularity for a `[start_dt, end_dt]`
   window — `:hour` for short windows (≤ 36h) where day-grained
   buckets would collapse the chart to one or two points, `:day`
-  otherwise. The LiveView passes this back into every analytics +
-  billing call via the `:bucket` opt so the widget's value, trend,
-  and per-bucket series all line up against the same grid.
+  otherwise. Callers pass this back into every analytics + billing
+  call via the `:bucket` opt so the value, trend, and per-bucket
+  series all line up against the same grid.
   """
   def bucket_for_window(%DateTime{} = start_dt, %DateTime{} = end_dt) do
     if DateTime.diff(end_dt, start_dt, :hour) <= @hourly_bucket_max_hours, do: :hour, else: :day
@@ -264,9 +260,9 @@ defmodule Tuist.Runners.Analytics do
 
   @doc """
   Total count of successful jobs over the window + daily series +
-  trend. Mirror of `failed_jobs_count/2` for the "passed" line on the
-  Jobs breakdown widget; runs as its own round trip so the caller can
-  fire the three counts (total / successful / failed) concurrently.
+  trend. Mirror of `failed_jobs_count/2` for the success branch;
+  runs as its own round trip so the caller can fire the three
+  counts (total / successful / failed) concurrently.
   """
   def successful_jobs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -516,8 +512,7 @@ defmodule Tuist.Runners.Analytics do
   @doc """
   Count of workflow_runs whose roll-up landed on failure — at least
   one job in the run completed with `conclusion='failure'`. Daily
-  series + trend match the shape of `workflow_runs_count/2` so both
-  widgets can switch the same chart pattern.
+  series + trend match the shape of `workflow_runs_count/2`.
   """
   def failed_workflow_runs_count(account_id, opts \\ []) when is_integer(account_id) do
     {start_dt, end_dt} = window(opts)
@@ -1094,13 +1089,13 @@ defmodule Tuist.Runners.Analytics do
   defp trunc_or_zero(value) when is_number(value), do: trunc(value)
 
   # Narrows a `runner_jobs` query to a specific workflow when the
-  # caller provides `:repo` and/or `:workflow_name` opts. Used by the
-  # workflow detail page to reuse the same widget queries that power
-  # the Jobs page, only scoped to one (repo, workflow_name) pair.
-  # The same opts also carry an optional `:platform` ("macos" or
-  # "linux") which narrows on the `fleet_name` prefix — no new
-  # column needed since every fleet is already named after its OS
-  # (macos-xcode-26.4, linux-amd64, etc.).
+  # caller provides `:repo` and/or `:workflow_name` opts, so a
+  # scoped caller can reuse the same per-account queries restricted
+  # to one (repo, workflow_name) pair. The same opts also carry an
+  # optional `:platform` ("macos" or "linux") which narrows on the
+  # `fleet_name` prefix — no new column needed since every fleet
+  # is already named after its OS (macos-xcode-26.4, linux-amd64,
+  # etc.).
   defp scope_workflow(query, opts) do
     query
     |> maybe_eq(:repo, Keyword.get(opts, :repo))

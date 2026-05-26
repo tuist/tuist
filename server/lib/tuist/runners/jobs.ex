@@ -701,8 +701,9 @@ defmodule Tuist.Runners.Jobs do
 
   # Numerical sorts default to descending (largest first feels right
   # for counts/rates); the alphabetical workflow sort defaults to
-  # ascending. The LiveView's `column_sort_patch` mirrors the same
-  # defaults when a viewer first clicks a column header.
+  # ascending. Callers presenting a column-header click UI should
+  # mirror the same defaults so a first click matches what an
+  # unscoped query returns.
   defp default_sort_order("workflow"), do: "asc"
   defp default_sort_order(_), do: "desc"
 
@@ -807,10 +808,10 @@ defmodule Tuist.Runners.Jobs do
     # Two-stage aggregation: inner dedupes to one row per
     # workflow_job (GROUP BY workflow_job_id + argMax), then the
     # outer groups those by workflow_run_id for the run-level
-    # rollup. Uses exact `==` matching on repo/workflow_name (unlike
-    # the Jobs page's substring search), so we keep the inner
-    # specialised rather than routing through `latest_jobs_subquery`
-    # which uses ILIKE.
+    # rollup. Uses exact `==` matching on repo/workflow_name —
+    # distinct from the substring-search variant in
+    # `latest_jobs_subquery` (ILIKE) — so we keep the inner
+    # specialised rather than routing through that helper.
     inner =
       Job
       |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
@@ -1028,8 +1029,8 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Pub/Sub topic for an account's runner-job lifecycle events.
   Subscribers receive `{:runner_jobs_status_changed, %{status: ...}}`
-  whenever any job in the account transitions, so LiveViews showing
-  Running / Queued counts can refresh.
+  whenever any job in the account transitions — used by callers
+  that need to refresh Running / Queued aggregates in real time.
   """
   def topic(account_id) when is_integer(account_id), do: "runner_jobs:#{account_id}"
 

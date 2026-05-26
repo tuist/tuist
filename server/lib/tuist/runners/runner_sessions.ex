@@ -99,8 +99,7 @@ defmodule Tuist.Runners.RunnerSessions do
 
   @doc """
   Close the most recent open session for `pod_name` with the K8s-
-  reported container termination time. Called from
-  `TuistWeb.RunnerPodsController.stopped/2` when the
+  reported container termination time. Invoked when the
   runners-controller observes a Pod transition to a terminal
   phase.
 
