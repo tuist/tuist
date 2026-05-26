@@ -38,15 +38,12 @@ defmodule Tuist.Kura do
     "image_tag" => :image_tag
   }
   @create_server_atom_keys Map.values(@create_server_keys)
-  @account_scope_namespace "~account"
   @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
-
-  def account_scope_namespace, do: @account_scope_namespace
 
   ## Versions
 

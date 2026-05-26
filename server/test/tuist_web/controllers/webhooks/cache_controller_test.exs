@@ -6,7 +6,6 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
 
   alias Tuist.Cache.CASEvent
   alias Tuist.ClickHouseRepo
-  alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -185,34 +184,6 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
         |> post(~p"/webhooks/cache", body)
 
       assert json_response(conn, 400) == %{"error" => "Missing x-cache-endpoint header"}
-
-      events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
-      assert events == []
-    end
-
-    test "ignores account-scoped events", %{conn: conn, project: project} do
-      events_params = %{
-        "events" => [
-          %{
-            "account_handle" => project.account.name,
-            "project_handle" => Kura.account_scope_namespace(),
-            "action" => "upload",
-            "size" => 1024,
-            "cas_id" => "account-artifact"
-          }
-        ]
-      }
-
-      {body, signature} = sign_request(events_params)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-cache-signature", signature)
-        |> put_req_header("x-cache-endpoint", "test-cache-node.tuist.dev")
-        |> post(~p"/webhooks/cache", body)
-
-      assert json_response(conn, 202) == %{}
 
       events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
       assert events == []

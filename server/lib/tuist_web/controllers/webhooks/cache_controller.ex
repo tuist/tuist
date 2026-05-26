@@ -2,7 +2,6 @@ defmodule TuistWeb.Webhooks.CacheController do
   use TuistWeb, :controller
 
   alias Tuist.Cache
-  alias Tuist.Kura
   alias Tuist.Projects
   alias TuistWeb.Plugs.RequireCacheEndpointPlug
 
@@ -15,7 +14,6 @@ defmodule TuistWeb.Webhooks.CacheController do
       conn
     else
       cache_endpoint = conn.assigns.cache_endpoint
-      events = Enum.reject(events, &account_scoped_event?/1)
 
       full_handles =
         events
@@ -72,10 +70,4 @@ defmodule TuistWeb.Webhooks.CacheController do
     |> json(%{error: "Invalid payload"})
     |> halt()
   end
-
-  defp account_scoped_event?(%{"project_handle" => project_handle}) do
-    project_handle == Kura.account_scope_namespace()
-  end
-
-  defp account_scoped_event?(_), do: false
 end
