@@ -57,6 +57,26 @@ EOF
     echo "Signing in to gh (needed for ghcr.io push)..."
     gh auth login
   fi
+
+  # GHCR distinguishes login (any token does) from push (needs
+  # write:packages on the org). `gh auth login` defaults to repo +
+  # workflow scopes, so a fresh operator session almost never has
+  # write:packages. Probe `gh auth status` for it now and fail
+  # fast — better than burning a 2 GB upload before the registry
+  # returns "permission_denied: token does not match expected
+  # scopes" on the manifest PUT.
+  if ! gh auth status 2>&1 | grep -qE "(^|[, ])write:packages([, ]|$)"; then
+    cat >&2 <<'EOF'
+Error: your gh token doesn't include the write:packages scope.
+
+Refresh it (this won't force a full re-login):
+  gh auth refresh -s write:packages,read:packages
+
+Then re-run this task.
+EOF
+    exit 1
+  fi
+
   gh_user=$(gh api user --jq .login 2>/dev/null || echo "tuist-bot")
   echo "Logging oras into ghcr.io as $gh_user..."
   gh auth token | oras login ghcr.io --username "$gh_user" --password-stdin >/dev/null
