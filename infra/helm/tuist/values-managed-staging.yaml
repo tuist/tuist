@@ -284,7 +284,7 @@ kataContainers:
 # branch's changes.
 runnersController:
   image:
-    tag: "sha-d15d2debacd7"
+    tag: "sha-ab22d6665fcf"
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
