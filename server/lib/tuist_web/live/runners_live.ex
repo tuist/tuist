@@ -447,7 +447,7 @@ defmodule TuistWeb.RunnersLive do
         type: "category",
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: duration_axis_formatter(bucket),
+          formatter: "fn:toLocaleDate",
           customValues: [List.first(dates), List.last(dates)],
           padding: [10, 0, 0, 0]
         }
@@ -469,8 +469,6 @@ defmodule TuistWeb.RunnersLive do
     }
   end
 
-  defp duration_axis_formatter(:hour), do: "fn:toLocaleDateHour"
-  defp duration_axis_formatter(_), do: "fn:toLocaleDate"
 
   @doc """
   Builds the four-percentile time-series array (avg + p50/p90/p99)

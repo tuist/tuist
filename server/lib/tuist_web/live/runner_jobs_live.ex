@@ -798,11 +798,10 @@ defmodule TuistWeb.RunnerJobsLive do
     }
   end
 
-  # Hourly buckets render the leftmost / rightmost label as
-  # "May 26, 14:00" so a 24-hour chart still reads as a calendar
-  # window, not just a clock. Day buckets stay as locale-formatted
-  # short dates.
-  defp axis_formatter(:hour), do: "fn:toLocaleDateHour"
+  # X-axis only ever surfaces the leftmost / rightmost label, so a
+  # short date ("May 26") is enough — the hour-level detail lives in
+  # the tooltip. Keeping a single formatter avoids the date+hour
+  # combo overflowing the available label space on narrow viewports.
   defp axis_formatter(_), do: "fn:toLocaleDate"
 
   # Tooltip title is rendered by the Noora chart from the data
