@@ -522,7 +522,10 @@
           row_key={fn job -> "runners-overview-job-#{job.workflow_job_id}" end}
           row_navigate={
             fn job ->
-              url(~p"/#{@selected_account.name}/runners/jobs/#{job.workflow_job_id}")
+              case TuistWeb.RunnerJobLive.path(@selected_account.name, job) do
+                nil -> nil
+                path -> unverified_url(@socket, path)
+              end
             end
           }
         >

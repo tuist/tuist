@@ -802,6 +802,7 @@ defmodule Tuist.Runners.Analytics do
           limit: ^@scatter_data_limit,
           select: %{
             id: j.workflow_job_id,
+            workflow_run_id: j.workflow_run_id,
             x_at: j.completed_at,
             duration_ms: fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.completed_at, j.started_at),
             job_name: j.job_name,
@@ -833,6 +834,7 @@ defmodule Tuist.Runners.Analytics do
           limit: ^@scatter_data_limit,
           select: %{
             id: j.workflow_job_id,
+            workflow_run_id: j.workflow_run_id,
             x_at: j.claimed_at,
             duration_ms: fragment("toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)", j.claimed_at, j.enqueued_at),
             job_name: j.job_name,
@@ -866,6 +868,7 @@ defmodule Tuist.Runners.Analytics do
         %{
           value: [ts, seconds],
           id: row.id,
+          workflow_run_id: row.workflow_run_id,
           group_key: group_key(row, group_by),
           tooltipExtra: tooltip_extra(row)
         }

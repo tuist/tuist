@@ -42,13 +42,14 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "abcdef1234567890"
       })
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs/31001")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310010/jobs/31001")
 
-    assert html =~ "Server › Docker build"
+    assert html =~ "Server · Docker build"
     assert html =~ "tuist/tuist"
-    assert html =~ "macos-xcode-26.4"
+    assert html =~ "macOS"
     assert html =~ "Queued"
-    assert html =~ "abcdef123456"
+    # short_sha takes the first 7 chars
+    assert html =~ "abcdef1"
   end
 
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do
@@ -71,11 +72,12 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_101, "tuist-runner-x")
     {:ok, _completed} = Jobs.complete(31_101, "success")
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/jobs/31101")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311010/jobs/31101")
 
-    assert html =~ "CLI › Unit Tests"
-    assert html =~ "tuist-runner-x"
-    assert html =~ "Success"
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "Linux"
+    # status_badge_props maps conclusion=success → "Passed"
+    assert html =~ "Passed"
   end
 
   test "raises 404 when the workflow_job_id belongs to another account", %{
@@ -99,13 +101,38 @@ defmodule TuistWeb.RunnerJobLiveTest do
       })
 
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{account.name}/runners/jobs/31201")
+      live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/31201")
+    end
+  end
+
+  test "raises 404 when the workflow_run_id in the URL doesn't match the job's run", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_301,
+        account_id: account.id,
+        fleet_name: "fleet-y",
+        repository: "tuist/tuist",
+        workflow_run_id: 313_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef"
+      })
+
+    assert_raise NotFoundError, fn ->
+      # Job exists under run 313010, URL claims 999999 — 404 the
+      # same way GitHub would.
+      live(conn, ~p"/#{account.name}/runners/runs/999999/jobs/31301")
     end
   end
 
   test "raises 404 for a non-integer workflow_job_id", %{conn: conn, account: account} do
     assert_raise NotFoundError, fn ->
-      live(conn, ~p"/#{account.name}/runners/jobs/notanumber")
+      live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/notanumber")
     end
   end
 end

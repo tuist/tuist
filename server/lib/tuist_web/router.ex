@@ -957,7 +957,7 @@ defmodule TuistWeb.Router do
       live "/runners/workflows", RunnerWorkflowsLive
       live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
       live "/runners/jobs", RunnerJobsLive
-      live "/runners/jobs/:workflow_job_id", RunnerJobLive
+      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive

@@ -231,7 +231,7 @@ defmodule TuistWeb.RunnersLive do
         value: seconds,
         itemStyle: %{color: chart_color_for(job)},
         date: job.updated_at,
-        url: "/#{account_name}/runners/jobs/#{job.workflow_job_id}"
+        url: TuistWeb.RunnerJobLive.path(account_name, job)
       }
     end)
   end

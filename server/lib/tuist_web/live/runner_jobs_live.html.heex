@@ -388,7 +388,14 @@
             chart={@queue_time_scatter}
             period={@analytics_period}
             value_format="fn:formatSeconds"
-            url_fn={fn point -> ~p"/#{@selected_account.name}/runners/jobs/#{point.id}" end}
+            url_fn={
+              fn point ->
+                TuistWeb.RunnerJobLive.path(@selected_account.name, %{
+                  workflow_run_id: point.workflow_run_id,
+                  workflow_job_id: point.id
+                })
+              end
+            }
             truncation_title={
               dgettext(
                 "dashboard_runners",
@@ -432,7 +439,14 @@
             chart={@job_duration_scatter}
             period={@analytics_period}
             value_format="fn:formatSeconds"
-            url_fn={fn point -> ~p"/#{@selected_account.name}/runners/jobs/#{point.id}" end}
+            url_fn={
+              fn point ->
+                TuistWeb.RunnerJobLive.path(@selected_account.name, %{
+                  workflow_run_id: point.workflow_run_id,
+                  workflow_job_id: point.id
+                })
+              end
+            }
             truncation_title={
               dgettext(
                 "dashboard_runners",
@@ -552,7 +566,10 @@
           row_key={fn job -> "runner-jobs-row-#{job.workflow_job_id}" end}
           row_navigate={
             fn job ->
-              url(~p"/#{@selected_account.name}/runners/jobs/#{job.workflow_job_id}")
+              case TuistWeb.RunnerJobLive.path(@selected_account.name, job) do
+                nil -> nil
+                path -> unverified_url(@socket, path)
+              end
             end
           }
         >

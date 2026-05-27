@@ -11,7 +11,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   @impl true
   def mount(
-        %{"workflow_job_id" => workflow_job_id_param},
+        %{"workflow_run_id" => workflow_run_id_param, "workflow_job_id" => workflow_job_id_param},
         _session,
         %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
       ) do
@@ -21,10 +21,15 @@ defmodule TuistWeb.RunnerJobLive do
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
-    workflow_job_id = parse_workflow_job_id(workflow_job_id_param)
+    workflow_run_id = parse_id(workflow_run_id_param)
+    workflow_job_id = parse_id(workflow_job_id_param)
 
     case Jobs.get_for_account(selected_account.id, workflow_job_id) do
-      {:ok, job} ->
+      # Mirrors GitHub's 404 on `/actions/runs/<run>/job/<job>` when
+      # `<job>` belongs to a different `<run>` — without this gate,
+      # a tampered run-id in the URL would still load the right job
+      # and just render a misleading breadcrumb.
+      {:ok, %{workflow_run_id: ^workflow_run_id} = job} ->
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
@@ -33,13 +38,13 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:head_title, head_title)
          |> assign(:job, job)}
 
-      {:error, :not_found} ->
+      _ ->
         raise NotFoundError,
               dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
     end
   end
 
-  defp parse_workflow_job_id(value) when is_binary(value) do
+  defp parse_id(value) when is_binary(value) do
     case Integer.parse(value) do
       {id, ""} ->
         id
@@ -127,6 +132,20 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def github_job_url(_), do: nil
+
+  @doc """
+  Builds the deep link to a single workflow_job. Mirrors GitHub's
+  `/<owner>/<repo>/actions/runs/<run_id>/job/<job_id>` shape so the
+  two URLs nest the same way. Returns `nil` for rows whose
+  `workflow_run_id` is missing or zero — callers can use that to
+  skip the link entirely instead of routing to a broken URL.
+  """
+  def path(account_name, %{workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}/jobs/#{job_id}"
+  end
+
+  def path(_, _), do: nil
 
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
