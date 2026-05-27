@@ -8,9 +8,11 @@ defmodule Tuist.SCIM do
   the `account:scim:write` scope) which the IdP uses to authenticate against
   the SCIM endpoints under `/scim/v2/`.
 
-  Users are deduplicated by email. Provisioning creates new users by email, or
-  updates the organization role for users who are already members of the calling
-  organization. Existing users from other organizations are not claimed.
+  Users are deduplicated by email. Provisioning creates new users by email,
+  updates the organization role for users who are already members of the
+  calling organization, and attaches existing Tuist users to the organization
+  when SCIM POSTs an email that already exists globally. Attached users
+  receive an email notification so they can audit/leave if unexpected.
 
   Groups are synthetic: each organization exposes exactly two groups, "Admins"
   and "Users", which mirror the existing role hierarchy. Group membership ops
@@ -30,6 +32,7 @@ defmodule Tuist.SCIM do
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM.Filter
+  alias Tuist.SCIM.Workers.AttachmentNotifierWorker
 
   require Logger
 
@@ -212,54 +215,94 @@ defmodule Tuist.SCIM do
   @doc """
   Provisions a user from a SCIM `POST /Users` request.
 
-  If a user with this email already exists in the organization, their role is
-  updated. If the email belongs to a user outside the organization, the request
-  is rejected instead of claiming the account.
+  Behavior:
+    * Email matches a member of the calling org → idempotent, role updated if needed.
+    * Email matches a global Tuist user not yet in the org → user is attached and notified.
+    * Email is unknown → a new Tuist user is created and attached.
+
+  Attaching pre-existing users keeps SCIM POST idempotent and unblocks IdP-driven
+  rollouts where members predate SSO. The notification email gives attached users
+  visibility to leave if the membership is unexpected.
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
     role = attrs |> Map.get(:role, :user) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
-    fn ->
-      user =
-        case provisionable_user(organization, email) do
-          {:ok, %User{} = user} -> user
-          {:error, reason} -> Repo.rollback(reason)
-        end
-
-      if active do
-        :ok = Accounts.add_user_to_organization(user, organization, role: role)
-
-        case update_user_role_if_needed(user, organization, role) do
-          {:ok, _} -> user
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      else
-        :ok = remove_user_role_from_organization(user, organization)
-        %{user | active: false}
-      end
-    end
-    |> Repo.transaction()
-    |> case do
+    case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
       {:ok, user} -> {:ok, Repo.preload(user, :account)}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp provisionable_user(%Organization{} = organization, email) do
+  defp apply_provision(organization, email, role, active) do
+    {user, provenance} =
+      case provisionable_user(email) do
+        {:ok, %User{} = u, p} -> {u, p}
+        {:error, reason} -> Repo.rollback(reason)
+      end
+
+    cond do
+      active ->
+        attach_active_user(user, organization, role, provenance)
+
+      provenance == :existing and not Accounts.belongs_to_organization?(user, organization) ->
+        # Refuse to "create" a SCIM resource we wouldn't be able to represent
+        # afterwards: the controller would answer 201 + Location, but a
+        # follow-up GET /Users/:id would 404 because we never created any
+        # membership. PATCH is the right verb for deactivating someone who
+        # is already a member; POST + active=false on a non-member is a bug.
+        Repo.rollback(:email_taken)
+
+      true ->
+        :ok = remove_user_role_from_organization(user, organization)
+        %{user | active: false}
+    end
+  end
+
+  defp attach_active_user(user, organization, role, provenance) do
+    # Serialize concurrent SCIM POSTs for the same (user, org). Without
+    # this, two simultaneous Okta requests can both pass the membership
+    # check below and both call add_user_to_organization/3, producing
+    # duplicate (role, users_roles) grants — which then make every
+    # subsequent Repo.one lookup in get_user_role_in_organization/2 raise
+    # Ecto.MultipleResultsError. The lock is released at transaction end.
+    lock_membership(user.id, organization.id)
+
+    if provenance == :existing and not Accounts.belongs_to_organization?(user, organization) do
+      enqueue_attachment_notification(user, organization)
+    end
+
+    :ok = Accounts.add_user_to_organization(user, organization, role: role)
+
+    case update_user_role_if_needed(user, organization, role) do
+      {:ok, _} -> user
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp lock_membership(user_id, organization_id) do
+    Repo.query!("SELECT pg_advisory_xact_lock($1::integer, $2::integer)", [user_id, organization_id])
+  end
+
+  defp enqueue_attachment_notification(%User{id: user_id}, %Organization{id: organization_id}) do
+    %{user_id: user_id, organization_id: organization_id}
+    |> AttachmentNotifierWorker.new()
+    |> Oban.insert!()
+  end
+
+  defp provisionable_user(email) do
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
-        if Accounts.belongs_to_organization?(user, organization) do
-          {:ok, user}
-        else
-          {:error, :email_taken}
-        end
+        {:ok, user, :existing}
 
       {:error, :not_found} ->
         case Accounts.create_user(email, confirmed_at: default_confirmed_at()) do
-          {:ok, user} -> {:ok, user}
-          {:error, changeset} -> if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+          {:ok, user} ->
+            {:ok, user, :created}
+
+          {:error, changeset} ->
+            if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
         end
     end
   end
