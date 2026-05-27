@@ -53,13 +53,13 @@ defmodule Tuist.Repo.Migrations.BackfillDefaultRunnerProfile do
       end)
 
     if rows != [] do
-      # excellent_migrations:safety-assured-for-next-line operation_insert_all
+      # excellent_migrations:safety-assured-for-next-line operation_insert
       Repo.insert_all("runner_profiles", rows, on_conflict: :nothing)
     end
   end
 
   def down do
-    # excellent_migrations:safety-assured-for-next-line operation_delete_all
+    # excellent_migrations:safety-assured-for-next-line operation_delete
     Repo.delete_all(from(p in "runner_profiles", where: p.name == ^@default_name))
   end
 end

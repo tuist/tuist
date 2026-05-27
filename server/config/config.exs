@@ -163,7 +163,8 @@ config :logger, :console,
     :stage,
     :client_url,
     :status,
-    :body
+    :body,
+    :dispatch_label
   ]
 
 config :mime, :types, %{
