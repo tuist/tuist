@@ -184,12 +184,13 @@ defmodule Tuist.Accounts.UserNotifier do
   @doc """
   Notify an existing Tuist user that they were attached to an organization by
   that organization's SCIM provisioning (e.g. Okta). The user did not initiate
-  this — the message exists so they can audit the new membership and leave if
-  it was unexpected.
+  this — the message exists so they can audit the new membership. Removal is
+  only possible by an organization admin (in Tuist) or by the identity
+  provider de-provisioning the user, so the copy directs the recipient to
+  their IdP/IT admin rather than promising a Tuist self-service flow.
   """
   def deliver_scim_organization_attachment(%User{email: user_email}, %{account: %{name: organization_name}}) do
     organization_url = Environment.app_url(path: "/#{organization_name}")
-    account_url = Environment.app_url(path: "/")
 
     deliver(
       user_email,
@@ -210,7 +211,7 @@ defmodule Tuist.Accounts.UserNotifier do
                 <a href="#{organization_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name)}</a>
               </p>
               <p>
-                #{dgettext("dashboard_account", "If this is unexpected, you can leave the organization from your account settings: %{account_url}", account_url: account_url)}
+                #{dgettext("dashboard_account", "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}.", organization_name: organization_name)}
               </p>
             </div>
         """,
