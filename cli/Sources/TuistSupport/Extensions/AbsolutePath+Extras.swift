@@ -130,6 +130,20 @@ extension AbsolutePath {
         return try! AbsolutePath(validating: components[0 ..< index].joined(separator: "/")) // swiftlint:disable:this force_try
     }
 
+    /// Returns the concrete directory root when the glob suffix recursively matches everything below it.
+    ///
+    /// Examples:
+    /// - `/path/**` -> `/path`
+    /// - `/path/**/*` -> `/path`
+    ///
+    /// Patterns that still constrain filenames return `nil`, e.g. `/path/**/*.swift`.
+    public var recursiveGlobRoot: AbsolutePath? {
+        let globComponents = components.drop(while: { !$0.isGlobComponent })
+        guard globComponents.first == "**" else { return nil }
+        guard globComponents.dropFirst().allSatisfy({ $0 == "*" || $0 == "**" }) else { return nil }
+        return upToLastNonGlob
+    }
+
     #if os(macOS)
         /// Returns the hash of the file the path points to.
         public func sha256() -> Data? {
