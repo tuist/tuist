@@ -550,6 +550,34 @@ defmodule Tuist.TestsTest do
       assert hd(tests).id == failure_test.id
     end
 
+    test "filters by git branch not containing a substring" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/GH-READONLY-QUEUE/main"
+        )
+
+      {:ok, non_queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/main"
+        )
+
+      {tests, _meta} =
+        Tests.list_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == non_queue_test.id
+      refute Enum.any?(tests, &(&1.id == queue_test.id))
+    end
+
     test "returns empty list when no tests exist for project" do
       # Given
       project = ProjectsFixtures.project_fixture()

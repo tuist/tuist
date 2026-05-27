@@ -41,6 +41,11 @@ defmodule TuistWeb.API.TestsController do
         type: :string,
         description: "Filter by git branch."
       ],
+      git_branch_not_contains: [
+        in: :query,
+        type: :string,
+        description: "Exclude test runs whose git branch contains this substring."
+      ],
       status: [
         in: :query,
         type: %Schema{
@@ -121,28 +126,12 @@ defmodule TuistWeb.API.TestsController do
         %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    filters = [%{field: :project_id, op: :==, value: selected_project.id}]
-
     filters =
-      if Map.get(params, :git_branch) do
-        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :status) do
-        filters ++ [%{field: :status, op: :==, value: params.status}]
-      else
-        filters
-      end
-
-    filters =
-      if Map.get(params, :scheme) do
-        filters ++ [%{field: :scheme, op: :==, value: params.scheme}]
-      else
-        filters
-      end
+      [%{field: :project_id, op: :==, value: selected_project.id}]
+      |> maybe_add_filter(:git_branch, :==, Map.get(params, :git_branch))
+      |> maybe_add_filter(:git_branch, :not_ilike, Map.get(params, :git_branch_not_contains))
+      |> maybe_add_filter(:status, :==, Map.get(params, :status))
+      |> maybe_add_filter(:scheme, :==, Map.get(params, :scheme))
 
     attrs = %{
       filters: filters,
@@ -186,6 +175,10 @@ defmodule TuistWeb.API.TestsController do
       }
     })
   end
+
+  defp maybe_add_filter(filters, _field, _op, nil), do: filters
+  defp maybe_add_filter(filters, _field, _op, ""), do: filters
+  defp maybe_add_filter(filters, field, op, value), do: filters ++ [%{field: field, op: op, value: value}]
 
   operation(:create,
     summary: "Create a new test run.",

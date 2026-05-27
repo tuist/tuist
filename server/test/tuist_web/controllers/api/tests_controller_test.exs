@@ -127,6 +127,35 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert json_response(conn, :ok)
     end
 
+    test "filters test runs by git_branch_not_contains", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests?git_branch_not_contains=gh-readonly-queue"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
     test "filters test runs by status", %{conn: conn, user: user, project: project} do
       # Given
       stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
