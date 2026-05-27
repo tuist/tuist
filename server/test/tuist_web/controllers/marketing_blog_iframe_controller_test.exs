@@ -29,5 +29,26 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeControllerTest do
       assert response(conn, 200) =~ "viz-container"
       assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
     end
+
+    test "returns 404 when the requested visualization does not exist", %{conn: conn} do
+      # When
+      conn = get(conn, "/blog/2025/11/17/smart-before-fast/iframe.html?id=does_not_exist")
+
+      # Then
+      assert response(conn, 404) == ""
+      assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+    end
+
+    test "returns 404 for malformed visualization ids", %{conn: conn} do
+      # When
+      conn =
+        get(conn, "/blog/2025/11/17/smart-before-fast/iframe.html", %{
+          "id" => "5712' ORDER BY 1#"
+        })
+
+      # Then
+      assert response(conn, 404) == ""
+      assert get_resp_header(conn, "content-type") == ["text/html; charset=utf-8"]
+    end
   end
 end

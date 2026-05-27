@@ -127,5 +127,12 @@ defmodule Tuist.Shards.BinPackerTest do
       units = [{"A", 100}, {"B", 80}, {"C", 60}, {"D", 40}, {"E", 20}]
       assert BinPacker.determine_shard_count(units, max: 3) == 3
     end
+
+    test "treats nil min/max as defaults so callers can pass through unset options" do
+      units = for i <- 1..144, do: {"module_#{i}", 1000}
+
+      assert BinPacker.determine_shard_count(units, min: nil, max: 2, total: nil, max_duration: nil) == 2
+      assert BinPacker.determine_shard_count(units, min: nil, max: nil, total: nil, max_duration: nil) == 10
+    end
   end
 end
