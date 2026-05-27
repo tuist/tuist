@@ -1190,7 +1190,7 @@ defmodule Tuist.TestsTest do
         assert Keyword.get(opts, :multipart) == true
         {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
 
-        assert sql =~ "FROM test_cases"
+        assert sql =~ ~s[FROM "test_cases"]
         assert sql =~ ~s["project_id"]
         assert sql =~ ~s["id"]
         assert project.id in params
