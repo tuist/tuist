@@ -296,53 +296,19 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # VALIDATION-ONLY: pinned to tuist-staging-linux to prove the
-    # virtio-fs --xattr annotation makes default docker-container
-    # buildx work unmodified. Reverts to namespace-profile-default-
-    # with-volume before merge.
-    runs-on: tuist-staging-linux
+    # `tuist-staging-linux-large` is the larger per-tenant slot
+    # variant (4 vCPU / 32 GiB) provisioned in the Linux runner
+    # fleet — the standard `tuist-staging-linux` 1 vCPU / 4 GiB
+    # slot is too small for the full server image build (swift
+    # toolchain + Erlang/Elixir + node tree). Same dind sidecar
+    # shape, same kata microVM, just a bigger budget.
+    runs-on: tuist-staging-linux-large
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      # DIAGNOSTIC: temporary probe — dump rlimits from runner /
-      # dockerd / a docker-spawned child container / a real buildx
-      # docker-container buildkit container, to find why buildkit
-      # hits EMFILE despite dockerd having --default-ulimit nofile=
-      # 1048576:1048576 in the dind sidecar. Revert once analyzed.
-      - name: TEMP probe rlimits
-        run: |
-          set -uo pipefail
-          echo "=== dind sidecar entrypoint log (tee'd to shared work volume) ==="
-          cat /home/runner/actions-runner/_work/_dind.log || echo "(no _dind.log yet)"
-          echo
-          echo "=== runner /proc/1/limits ==="
-          cat /proc/1/limits | grep -iE "open files|processes"
-          echo
-          echo "=== kata kernel sysctls ==="
-          echo "fs.nr_open=$(cat /proc/sys/fs/nr_open)"
-          echo "fs.file-max=$(cat /proc/sys/fs/file-max)"
-          echo
-          echo "=== dockerd Storage Driver + Backing FS ==="
-          docker info 2>&1 | grep -iE "storage driver|backing|kernel|operating|server version" | head -20 || true
-          echo
-          echo "=== child container, NO explicit --ulimit (inherits dockerd --default-ulimit) ==="
-          docker run --rm alpine:3 sh -c 'grep -iE "open files|processes" /proc/1/limits; echo "container fs.nr_open=$(cat /proc/sys/fs/nr_open)"'
-          echo
-          echo "=== child container, EXPLICIT --ulimit nofile=1048576 ==="
-          docker run --rm --ulimit nofile=1048576:1048576 alpine:3 sh -c 'grep -iE "open files" /proc/1/limits'
-          echo
-          echo "=== bootstrap a docker-container buildx builder and dump its HostConfig.Ulimits + /proc/1/limits ==="
-          docker buildx create --name probe-bx --driver docker-container --bootstrap 2>&1 | tail -5
-          echo "--- HostConfig.Ulimits ---"
-          docker inspect buildx_buildkit_probe-bx0 --format '{{json .HostConfig.Ulimits}}'
-          echo "--- buildkit container /proc/1/limits ---"
-          docker exec buildx_buildkit_probe-bx0 cat /proc/1/limits | grep -iE "open files"
-          echo "--- buildkit container fs.nr_open ---"
-          docker exec buildx_buildkit_probe-bx0 cat /proc/sys/fs/nr_open
-          docker buildx rm probe-bx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Docker build
@@ -359,19 +325,6 @@ jobs:
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
-      # TEMP: dump the dind sidecar log AFTER the build to see
-      # disk pressure + dockerd output during the build itself.
-      # Runs on failure too via if: always(). If the runner died
-      # entirely (pod terminated mid-build), this step is also
-      # lost — that's itself a signal it's a pod-level kill.
-      - name: TEMP dind log (post-build)
-        if: always()
-        run: |
-          echo "=== _dind.log (tail 500 lines) ==="
-          tail -n 500 /home/runner/actions-runner/_work/_dind.log || echo "(no log)"
-          echo
-          echo "=== disk usage on the work volume ==="
-          df -h /home/runner/actions-runner/_work || true
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"

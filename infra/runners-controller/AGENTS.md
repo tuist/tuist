@@ -260,8 +260,8 @@ sane rlimit.
 Kata's two recommended workarounds are tmpfs `medium: Memory`
 (eats pod RAM proportional to the image cache, and inode-
 capped) or a loop-mounted disk image. We pick the loop-mount:
-the sidecar entrypoint `truncate`s a sparse 30 GiB file on the
-virtio-fs-backed `dind-storage` volume, `mkfs.ext4`s it,
+the sidecar entrypoint `truncate`s a sparse 100 GiB file on
+the virtio-fs-backed `dind-storage` volume, `mkfs.ext4`s it,
 mounts it `-o loop` onto `/var/lib/docker`. Dockerd then sees
 a real kernel-native ext4 filesystem inside the kata VM, with
 full `trusted.*` xattr support — overlay2 initializes
@@ -279,3 +279,49 @@ the ~8 s of pre-dockerd setup time.
 The sidecar image is pinned via the chart's
 `runnersController.dindImage` value and threaded into the
 controller as `--dind-image`. Renovate keeps the pin bumped.
+
+## Pool variants (convention-based dispatch)
+
+The chart can stamp multiple pools onto the same Linux fleet,
+each with its own per-tenant slot size and `dispatchLabel`.
+Workflows opt in to a variant via `runs-on:` matching the
+label — same idea as Namespace's
+`namespace-profile-default-with-volume` / `-large`. Today on
+staging:
+
+| Pool name             | runs-on label                  | Slot           | Notes                              |
+|-----------------------|--------------------------------|----------------|------------------------------------|
+| `ubuntu-22-04`        | `tuist-staging-linux`          | 1 vCPU / 4 GiB  | Standard tenant slot               |
+| `ubuntu-22-04-large`  | `tuist-staging-linux-large`    | 4 vCPU / 32 GiB | Heavy docker builds (server image) |
+
+Kata sizes the microVM from the sum of container memory
+limits, so the runner container's `pod.memoryMB` IS the VM
+memory budget the dind sidecar + dockerd + buildkit share
+(the dind sidecar has no explicit limit). For workloads that
+pull a multi-stage image with swift / Erlang / Elixir / node,
+4 GiB OOMs the VM mid-build; the `-large` slot is the
+escape valve.
+
+Add a new variant by appending another entry to
+`runnersFleetLinux.pools` with its own `dispatchLabel`,
+`pod.cpuMilli`, `pod.memoryMB`, and `autoscaling` block.
+Density and chart bookkeeping:
+
+- Each `pod.memoryMB` slot must fit on the AX42-U host
+  alongside whatever else the fleet is running. The AX42-U
+  ceiling is ~64 GiB; reduce other pools' `maxReplicas`
+  accordingly when adding a large slot.
+- Each pool gets its own `RunnerPool` CR (the chart's
+  `runnerpool.yaml` template iterates `pools[]`); the
+  controller's two reconcilers fan out per pool.
+
+Follow-ups worth doing before this surface settles:
+
+- Production `-large` variant in `values-managed-production.yaml`
+  once AX162-R hosts land (256 GiB → much wider pool variety
+  possible without per-pool density tradeoffs).
+- Bake `e2fsprogs` into a custom `tuist-dind` image so the
+  `apk add` on every Pod startup goes away.
+- Promote the convention to documentation users can read: a
+  table of per-environment dispatch labels + slot sizes,
+  mirroring Namespace's profile catalogue page.

@@ -147,22 +147,20 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			//      node_modules trees)
 			//   2. install e2fsprogs (Alpine docker:*-dind
 			//      ships without mkfs.ext4)
-			//   3. create a sparse 100 GiB disk.img on the
-			//      virtio-fs-backed dind-storage volume; only
-			//      consumes node-disk bytes as written (so this
-			//      is a ceiling not an allocation — large enough
-			//      to fit the full server-build working set:
-			//      base image, mix deps, npm tree, swift
-			//      toolchain, buildkit caches; 30 GiB was tight
-			//      and ENOSPC'd silently mid-build, killing the
-			//      runner-agent connection)
-			//   4. mkfs.ext4 the sparse file
-			//   5. loop-mount it onto /var/lib/docker — dockerd
-			//      now sees real ext4 with trusted.* xattrs
-			//      and overlay2 initializes normally (no vfs
-			//      fallback, no buildkit runc-native, no
-			//      EMFILE during snapshot copy)
-			//   6. exec dockerd with --default-ulimit nofile=
+			//   3. truncate a sparse 100 GiB disk.img on the
+			//      virtio-fs-backed dind-storage volume —
+			//      sparse, only consumes node-disk bytes as
+			//      written, so this is a ceiling, not an
+			//      allocation. Large enough to fit the full
+			//      server-build working set (base image, mix
+			//      deps, npm tree, swift toolchain, buildkit
+			//      caches) with room to spare.
+			//   4. mkfs.ext4 + loop-mount it onto /var/lib/
+			//      docker — dockerd now sees real ext4 with
+			//      trusted.* xattrs and overlay2 initializes
+			//      normally (no vfs fallback, no buildkit
+			//      runc-native).
+			//   5. exec dockerd with --default-ulimit nofile=
 			//      so containers it spawns (incl. buildx's
 			//      docker-container buildkit container)
 			//      inherit the high cap.
@@ -171,35 +169,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// reach it.
 			Command: []string{"sh", "-c"},
 			Args: []string{
-				// Tee setup + dockerd output to a log file on
-				// the shared work volume so CI probes (which
-				// run in the runner container, same volume)
-				// can cat it. TEMP — drop once the dind shape
-				// is stable.
-				"LOG=/home/runner/actions-runner/_work/_dind.log; " +
-					"mkdir -p /home/runner/actions-runner/_work; " +
-					"exec >>\"$LOG\" 2>&1; " +
-					"set -ex; " +
-					"date -u; " +
-					"ulimit -n 1048576; " +
-					"apk add --no-cache e2fsprogs; " +
-					"mkdir -p /mnt/dind-disk; " +
-					"truncate -s 100G /mnt/dind-disk/disk.img; " +
-					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img; " +
-					"mkdir -p /var/lib/docker; " +
-					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker; " +
-					"echo '--- mount table after loop mount ---'; " +
-					"mount | grep -E 'docker|loop' || true; " +
-					"echo '--- findmnt /var/lib/docker ---'; " +
-					"findmnt /var/lib/docker || true; " +
-					"echo '--- ls /var/lib/docker ---'; " +
-					"ls -la /var/lib/docker; " +
-					"echo '--- starting dockerd ---'; " +
-					// TEMP: tail df every 30s into the same log so
-					// we see disk-pressure markers across the whole
-					// build window. Drop with the rest of the diag
-					// once the shape is stable.
-					"( while sleep 30; do echo '--- df ' $(date -u) ' ---'; df -h /var/lib/docker; done ) & " +
+				"set -e && " +
+					"ulimit -n 1048576 && " +
+					"apk add --no-cache e2fsprogs >/dev/null && " +
+					"mkdir -p /mnt/dind-disk && " +
+					"truncate -s 100G /mnt/dind-disk/disk.img && " +
+					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
+					"mkdir -p /var/lib/docker && " +
+					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
 					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 					"--default-ulimit nofile=1048576:1048576",
 			},
@@ -210,8 +187,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			StartupProbe: &corev1.Probe{
 				ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
 				PeriodSeconds: 2,
-				// Was 30. apk add + truncate-30G + mkfs.ext4
-				// + loop mount add ~8 s of pre-dockerd setup;
+				// Was 30. apk add + truncate + mkfs.ext4 +
+				// loop mount add ~8 s of pre-dockerd setup;
 				// bump the probe ceiling so a slow apt mirror
 				// doesn't trip the restart.
 				FailureThreshold: 60,

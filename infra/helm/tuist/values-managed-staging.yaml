@@ -349,5 +349,33 @@ runnersFleetLinux:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        maxReplicas: 14
+        # Was 14 (full AX42-U at 16-slot density). Drop to 8 so the
+        # `-large` pool below fits alongside without overcommitting
+        # the 64 GiB host: 8 * 4 GiB + 1 * 32 GiB = 64 GiB ceiling.
+        maxReplicas: 8
+        scaleDownCooldownSeconds: 300
+    # Large-slot variant for workloads that don't fit the standard
+    # per-tenant slot (e.g. docker build of a full server image:
+    # swift toolchain + Erlang/Elixir + node tree). Convention-based
+    # dispatch — workflows opt in via `runs-on:
+    # tuist-staging-linux-large`. Mirrors the Namespace
+    # `namespace-profile-default-with-volume` / `-large` pattern.
+    # Same dind sidecar shape, same `kata-qemu` runtimeClass, just
+    # a larger per-slot CPU / memory budget.
+    - name: ubuntu-22-04-large
+      runnerImage: "ghcr.io/tuist/tuist-linux-runner:sha-009aa3f528ee"
+      dispatchLabel: "tuist-staging-linux-large"
+      runnerLabels:
+        - self-hosted
+        - Linux
+        - X64
+      runtimeClass: kata-qemu
+      pod:
+        cpuMilli: 4000
+        memoryMB: 32768
+      autoscaling:
+        enabled: true
+        # Single warm slot; bump if heavy-build queue depth grows.
+        minWarmPoolFloor: 1
+        maxReplicas: 1
         scaleDownCooldownSeconds: 300
