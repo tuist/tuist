@@ -302,7 +302,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
 
   def format_duration_ms(_), do: "–"
 
-  def from_now_or_dash(%DateTime{year: 1970}), do: "–"
   def from_now_or_dash(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def from_now_or_dash(_), do: "–"
 

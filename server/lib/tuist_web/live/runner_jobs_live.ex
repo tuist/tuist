@@ -542,8 +542,8 @@ defmodule TuistWeb.RunnerJobsLive do
 
   def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do
-      is_nil(started) or epoch?(started) -> 0
-      is_nil(completed) or epoch?(completed) -> 0
+      is_nil(started) -> 0
+      is_nil(completed) -> 0
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
@@ -551,26 +551,17 @@ defmodule TuistWeb.RunnerJobsLive do
   def duration_ms(_), do: 0
 
   defp ms_since(nil), do: 0
-
-  defp ms_since(%DateTime{} = ts) do
-    if epoch?(ts), do: 0, else: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
-  end
-
-  defp epoch?(%DateTime{year: 1970, month: 1, day: 1}), do: true
-  defp epoch?(_), do: false
+  defp ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
 
   def format_duration(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
   def format_duration(_), do: "–"
 
   @doc """
-  Relative-time formatter for `enqueued_at` (and any other DateTime
-  column) — collapses the epoch sentinel that the schema uses for
-  not-yet-set timestamps to a dash so the column stays clean.
+  Relative-time formatter for any DateTime column on a job row.
+  NULL lifecycle timestamps (still-pending transitions) render as
+  a dash so the column stays clean.
   """
-  def format_relative_time(%DateTime{} = ts) do
-    if epoch?(ts), do: "–", else: DateFormatter.from_now(ts)
-  end
-
+  def format_relative_time(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def format_relative_time(_), do: "–"
 
   def short_sha(""), do: "–"

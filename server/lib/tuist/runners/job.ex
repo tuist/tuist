@@ -29,9 +29,9 @@ defmodule Tuist.Runners.Job do
     field :conclusion, Ch, type: "LowCardinality(String)", default: ""
 
     field :enqueued_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :claimed_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :started_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :completed_at, Ch, type: "DateTime64(6, 'UTC')"
+    field :claimed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+    field :started_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+    field :completed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
 
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""

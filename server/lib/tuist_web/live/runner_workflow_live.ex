@@ -328,10 +328,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def format_duration_ms(_), do: "–"
 
-  def format_relative_time(%DateTime{} = ts) do
-    if epoch?(ts), do: "–", else: DateFormatter.from_now(ts)
-  end
-
+  def format_relative_time(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def format_relative_time(_), do: "–"
 
   def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: ms_since(enqueued)
@@ -340,8 +337,8 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do
-      is_nil(started) or epoch?(started) -> 0
-      is_nil(completed) or epoch?(completed) -> 0
+      is_nil(started) -> 0
+      is_nil(completed) -> 0
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
@@ -349,13 +346,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def duration_ms(_), do: 0
 
   defp ms_since(nil), do: 0
-
-  defp ms_since(%DateTime{} = ts) do
-    if epoch?(ts), do: 0, else: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
-  end
-
-  defp epoch?(%DateTime{year: 1970, month: 1, day: 1}), do: true
-  defp epoch?(_), do: false
+  defp ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
 
   def short_sha(""), do: "–"
   def short_sha(nil), do: "–"

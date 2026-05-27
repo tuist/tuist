@@ -61,12 +61,6 @@ defmodule Tuist.Runners.Jobs do
 
   require Logger
 
-  # Pre-1970 sentinel used for "not yet set" timestamp slots. Any
-  # timestamp at or below this epoch is treated as missing when
-  # computing telemetry durations so a delivery-race `completed`
-  # (no `started_at`) doesn't emit a multi-decade run_time spike.
-  @epoch ~U[1970-01-01 00:00:00.000000Z]
-
   @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
   workflow_job. Called from the `workflow_job.queued` webhook.
@@ -78,9 +72,6 @@ defmodule Tuist.Runners.Jobs do
       attrs
       |> Map.put(:status, "queued")
       |> Map.put_new(:enqueued_at, now)
-      |> Map.put_new(:claimed_at, epoch())
-      |> Map.put_new(:started_at, epoch())
-      |> Map.put_new(:completed_at, epoch())
       |> Map.put(:updated_at, now)
 
     insert_row!(row)
@@ -244,7 +235,7 @@ defmodule Tuist.Runners.Jobs do
           |> job_to_row()
           |> Map.merge(%{
             status: "queued",
-            claimed_at: epoch(),
+            claimed_at: nil,
             pod_name: "",
             updated_at: now
           })
@@ -378,7 +369,7 @@ defmodule Tuist.Runners.Jobs do
     order_by(query, [j],
       asc:
         fragment(
-          "if(? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0, toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          "if(? = 'completed' AND isNotNull(?) AND isNotNull(?), toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
           j.status,
           j.started_at,
           j.completed_at,
@@ -393,7 +384,7 @@ defmodule Tuist.Runners.Jobs do
     order_by(query, [j],
       desc:
         fragment(
-          "if(? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0, toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
+          "if(? = 'completed' AND isNotNull(?) AND isNotNull(?), toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?), 0)",
           j.status,
           j.started_at,
           j.completed_at,
@@ -588,8 +579,8 @@ defmodule Tuist.Runners.Jobs do
 
   Note on RMT semantics: rows for completed jobs carry
   `completed_at` set to the completion timestamp; rows still in
-  flight carry `completed_at = epoch`, so the interval check
-  matches on `completed_at > bucket OR completed_at = epoch`. The
+  flight carry `completed_at IS NULL`, so the interval check
+  matches on `completed_at > bucket OR completed_at IS NULL`. The
   2-hour scan window bounds the work — jobs that completed more
   than two hours ago can't overlap any bucket inside the last
   60 minutes, so excluding them is a free perf win.
@@ -602,10 +593,7 @@ defmodule Tuist.Runners.Jobs do
         b.bucket AS bucket,
         countIf(
           j.claimed_at <= b.bucket
-          AND (
-            j.completed_at > b.bucket
-            OR j.completed_at = toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
-          )
+          AND (j.completed_at > b.bucket OR j.completed_at IS NULL)
         ) AS concurrent_count
       FROM (
         SELECT toStartOfMinute(now() - toIntervalMinute(number)) AS bucket
@@ -618,7 +606,7 @@ defmodule Tuist.Runners.Jobs do
         FROM runner_jobs
         WHERE fleet_name = {fleet:String}
           AND claimed_at >= now() - toIntervalHour(2)
-          AND claimed_at != toDateTime64('1970-01-01 00:00:00.000', 6, 'UTC')
+          AND claimed_at IS NOT NULL
         GROUP BY workflow_job_id
       ) AS j
       GROUP BY b.bucket
@@ -643,8 +631,8 @@ defmodule Tuist.Runners.Jobs do
     * `:success_count`, `:failure_count`, `:cancelled_count`, `:skipped_count`
     * `:in_progress_count` — claimed + running + queued (anything not
       completed)
-    * `:avg_duration_ms` — average completed job duration (epoch
-      sentinel `started_at`/`completed_at` excluded)
+    * `:avg_duration_ms` — average completed job duration (NULL
+      `started_at`/`completed_at` excluded)
     * `:last_run_at` — max `enqueued_at`
 
   Options:
@@ -674,7 +662,7 @@ defmodule Tuist.Runners.Jobs do
         in_progress_count: fragment("countIf(? != 'completed')", j.status),
         avg_duration_ms:
           fragment(
-            "avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0)",
+            "avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?))",
             j.completed_at,
             j.started_at,
             j.status,
@@ -744,7 +732,7 @@ defmodule Tuist.Runners.Jobs do
     order_by(query, [j],
       asc:
         fragment(
-          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0), 0)",
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?)), 0)",
           j.completed_at,
           j.started_at,
           j.status,
@@ -759,7 +747,7 @@ defmodule Tuist.Runners.Jobs do
     order_by(query, [j],
       desc:
         fragment(
-          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND toUnixTimestamp64Milli(?) > 0 AND toUnixTimestamp64Milli(?) > 0), 0)",
+          "coalesce(avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?)), 0)",
           j.completed_at,
           j.started_at,
           j.status,
@@ -835,7 +823,7 @@ defmodule Tuist.Runners.Jobs do
           head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
           duration_ms:
             fragment(
-              "maxIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0) - minIf(toUnixTimestamp64Milli(?), toUnixTimestamp64Milli(?) > 0)",
+              "maxIf(toUnixTimestamp64Milli(?), isNotNull(?)) - minIf(toUnixTimestamp64Milli(?), isNotNull(?))",
               j.completed_at,
               j.completed_at,
               j.started_at,
@@ -992,15 +980,11 @@ defmodule Tuist.Runners.Jobs do
     |> Map.delete(:__meta__)
   end
 
-  defp epoch, do: @epoch
-
-  # Returns `nil` when either bound is missing/epoch so the
-  # histogram bucketer drops the sample instead of recording a
-  # garbage duration.
+  # Returns `nil` when either bound is missing or the interval is
+  # negative so the histogram bucketer drops the sample instead of
+  # recording a garbage duration.
   defp duration_ms(%DateTime{} = from, %DateTime{} = to) do
-    if DateTime.after?(from, @epoch) and DateTime.after?(to, from) do
-      DateTime.diff(to, from, :millisecond)
-    end
+    if DateTime.after?(to, from), do: DateTime.diff(to, from, :millisecond)
   end
 
   defp duration_ms(_, _), do: nil

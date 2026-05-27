@@ -223,8 +223,8 @@ defmodule Tuist.Runners.Analytics do
       from(j in subquery(sub),
         where:
           j.status == "completed" and
-            fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-            fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+            fragment("isNotNull(?)", j.started_at) and
+            fragment("isNotNull(?)", j.completed_at),
         select: %{
           avg:
             fragment(
@@ -330,7 +330,7 @@ defmodule Tuist.Runners.Analytics do
   plus a daily series for each percentile. "Queue time" is the wall-
   clock gap between `enqueued_at` and `claimed_at` — how long a
   workflow_job waited before any runner picked it up. Jobs still in
-  the queue (`claimed_at` at epoch) are excluded; they don't have a
+  the queue (`claimed_at IS NULL`) are excluded; they don't have a
   closed interval to measure yet.
   """
   def queue_time(account_id, opts \\ []) when is_integer(account_id) do
@@ -654,10 +654,9 @@ defmodule Tuist.Runners.Analytics do
   # underreport the workflow's true wall-clock. The HAVING gate keeps
   # the run out of the rollup until all of its jobs have landed.
   #
-  # Skipped/cancelled jobs leave `started_at` / `completed_at` at the
-  # epoch sentinel (`toDateTime64(0, 6)`), so we use `minIf` / `maxIf`
-  # with a `> 0` guard so those don't drag min back to 1970 or pin
-  # max at 0.
+  # Skipped/cancelled jobs leave `started_at` / `completed_at` NULL
+  # (they never ran), so we use `minIf` / `maxIf` with an
+  # `isNotNull` guard so those don't drag the aggregate to NULL.
   defp workflow_runs_subquery(account_id, start_dt, end_dt, opts, :hour) do
     latest = latest_jobs_enqueued_between(account_id, start_dt, end_dt, opts)
 
@@ -668,13 +667,13 @@ defmodule Tuist.Runners.Analytics do
       select: %{
         completion_date:
           fragment(
-            "toStartOfHour(maxIf(?, toUnixTimestamp64Milli(?) > 0))",
+            "toStartOfHour(maxIf(?, isNotNull(?)))",
             j.completed_at,
             j.completed_at
           ),
         run_ms:
           fragment(
-            "toUnixTimestamp64Milli(maxIf(?, toUnixTimestamp64Milli(?) > 0)) - toUnixTimestamp64Milli(minIf(?, toUnixTimestamp64Milli(?) > 0))",
+            "toUnixTimestamp64Milli(maxIf(?, isNotNull(?))) - toUnixTimestamp64Milli(minIf(?, isNotNull(?)))",
             j.completed_at,
             j.completed_at,
             j.started_at,
@@ -694,13 +693,13 @@ defmodule Tuist.Runners.Analytics do
       select: %{
         completion_date:
           fragment(
-            "toDate(maxIf(?, toUnixTimestamp64Milli(?) > 0))",
+            "toDate(maxIf(?, isNotNull(?)))",
             j.completed_at,
             j.completed_at
           ),
         run_ms:
           fragment(
-            "toUnixTimestamp64Milli(maxIf(?, toUnixTimestamp64Milli(?) > 0)) - toUnixTimestamp64Milli(minIf(?, toUnixTimestamp64Milli(?) > 0))",
+            "toUnixTimestamp64Milli(maxIf(?, isNotNull(?))) - toUnixTimestamp64Milli(minIf(?, isNotNull(?)))",
             j.completed_at,
             j.completed_at,
             j.started_at,
@@ -728,8 +727,8 @@ defmodule Tuist.Runners.Analytics do
     ClickHouseRepo.all(
       from(j in subquery(sub),
         where:
-          j.status == "completed" and fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-            fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+          j.status == "completed" and fragment("isNotNull(?)", j.started_at) and
+            fragment("isNotNull(?)", j.completed_at),
         group_by: fragment("toStartOfHour(?)", j.completed_at),
         order_by: fragment("toStartOfHour(?)", j.completed_at),
         select: %{
@@ -756,8 +755,8 @@ defmodule Tuist.Runners.Analytics do
     ClickHouseRepo.all(
       from(j in subquery(sub),
         where:
-          j.status == "completed" and fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-            fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+          j.status == "completed" and fragment("isNotNull(?)", j.started_at) and
+            fragment("isNotNull(?)", j.completed_at),
         group_by: fragment("toDate(?)", j.completed_at),
         order_by: fragment("toDate(?)", j.completed_at),
         select: %{
@@ -797,8 +796,8 @@ defmodule Tuist.Runners.Analytics do
       ClickHouseRepo.all(
         from(j in subquery(sub),
           where:
-            j.status == "completed" and fragment("toUnixTimestamp64Milli(?) > 0", j.started_at) and
-              fragment("toUnixTimestamp64Milli(?) > 0", j.completed_at),
+            j.status == "completed" and fragment("isNotNull(?)", j.started_at) and
+              fragment("isNotNull(?)", j.completed_at),
           order_by: [desc: j.completed_at],
           limit: ^@scatter_data_limit,
           select: %{
@@ -987,7 +986,7 @@ defmodule Tuist.Runners.Analytics do
   # Variant for queue-time metrics, where the natural window is the
   # claim time rather than the enqueue time. Filters per-row by
   # `claimed_at` in [start, end] so we exclude the still-queued
-  # versions (claimed_at = epoch) and any post-window rows. After
+  # versions (claimed_at IS NULL) and any post-window rows. After
   # the GROUP BY the latest claimed_at is consistent across the
   # surviving rows (claimed_at is set once on transition and then
   # preserved by `job_to_row`).
@@ -996,8 +995,8 @@ defmodule Tuist.Runners.Analytics do
     |> where(
       [j],
       j.account_id == ^account_id and j.claimed_at >= ^start_dt and j.claimed_at <= ^end_dt and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.enqueued_at) and
-        fragment("toUnixTimestamp64Milli(?) > 0", j.claimed_at)
+        fragment("isNotNull(?)", j.enqueued_at) and
+        fragment("isNotNull(?)", j.claimed_at)
     )
     |> scope_workflow(opts)
     |> group_by([j], j.workflow_job_id)

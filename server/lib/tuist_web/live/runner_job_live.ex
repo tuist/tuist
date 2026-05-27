@@ -130,43 +130,30 @@ defmodule TuistWeb.RunnerJobLive do
 
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
-      epoch?(enqueued) -> 0
-      epoch?(claimed) -> ms_since(enqueued)
+      is_nil(enqueued) -> 0
+      is_nil(claimed) -> ms_since(enqueued)
       true -> DateTime.diff(claimed, enqueued, :millisecond)
     end
   end
 
   def run_duration_ms(%{started_at: started, completed_at: completed}) do
     cond do
-      epoch?(started) -> 0
-      epoch?(completed) -> ms_since(started)
+      is_nil(started) -> 0
+      is_nil(completed) -> ms_since(started)
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
 
   defp ms_since(nil), do: 0
-
-  defp ms_since(%DateTime{} = ts) do
-    if epoch?(ts), do: 0, else: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
-  end
-
-  defp epoch?(%DateTime{year: 1970, month: 1, day: 1}), do: true
-  defp epoch?(nil), do: true
-  defp epoch?(_), do: false
+  defp ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
 
   def format_duration(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
   def format_duration(_), do: "–"
 
-  def format_timestamp(%DateTime{} = ts) do
-    if epoch?(ts), do: "–", else: DateFormatter.from_now(ts)
-  end
-
+  def format_timestamp(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def format_timestamp(_), do: "–"
 
-  def format_absolute(%DateTime{} = ts) do
-    if epoch?(ts), do: "–", else: Calendar.strftime(ts, "%Y-%m-%d %H:%M:%S UTC")
-  end
-
+  def format_absolute(%DateTime{} = ts), do: Calendar.strftime(ts, "%Y-%m-%d %H:%M:%S UTC")
   def format_absolute(_), do: "–"
 
   def display(""), do: "–"

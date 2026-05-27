@@ -238,22 +238,19 @@ defmodule TuistWeb.RunnersLive do
 
   defp duration_seconds(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do
-      is_nil(started) or epoch?(started) -> 0
-      is_nil(completed) or epoch?(completed) -> 0
+      is_nil(started) -> 0
+      is_nil(completed) -> 0
       true -> div(DateTime.diff(completed, started, :millisecond), 1000)
     end
   end
 
   defp duration_seconds(%{status: "running", started_at: started}) do
-    if is_nil(started) or epoch?(started),
+    if is_nil(started),
       do: 0,
       else: div(DateTime.diff(DateTime.utc_now(), started, :millisecond), 1000)
   end
 
   defp duration_seconds(_), do: 0
-
-  defp epoch?(%DateTime{year: 1970, month: 1, day: 1}), do: true
-  defp epoch?(_), do: false
 
   defp chart_color_for(%{status: "completed", conclusion: "success"}), do: "var:noora-chart-primary"
   defp chart_color_for(%{status: "completed", conclusion: "failure"}), do: "var:noora-chart-destructive"
@@ -348,14 +345,14 @@ defmodule TuistWeb.RunnersLive do
   """
   def job_duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do
-      is_nil(started) or epoch?(started) -> 0
-      is_nil(completed) or epoch?(completed) -> 0
+      is_nil(started) -> 0
+      is_nil(completed) -> 0
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
 
   def job_duration_ms(%{status: "running", started_at: started}) do
-    if is_nil(started) or epoch?(started),
+    if is_nil(started),
       do: 0,
       else: DateTime.diff(DateTime.utc_now(), started, :millisecond)
   end
@@ -522,7 +519,6 @@ defmodule TuistWeb.RunnersLive do
   def from_now(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def from_now(_), do: "–"
 
-  def from_now_or_dash(%DateTime{year: 1970}), do: "–"
   def from_now_or_dash(%DateTime{} = ts), do: DateFormatter.from_now(ts)
   def from_now_or_dash(_), do: "–"
 
