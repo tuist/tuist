@@ -189,7 +189,7 @@ defmodule Tuist.Accounts.UserNotifier do
   provider de-provisioning the user, so the copy directs the recipient to
   their IdP/IT admin rather than promising a Tuist self-service flow.
   """
-  def deliver_scim_organization_attachment(%User{email: user_email}, %{account: %{name: organization_name}}) do
+  def deliver_scim_organization_attachment!(%User{email: user_email}, %{account: %{name: organization_name}}) do
     organization_url = Environment.app_url(path: "/#{organization_name}")
 
     deliver(

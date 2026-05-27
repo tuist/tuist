@@ -12,7 +12,7 @@ defmodule Tuist.SCIM.Workers.AttachmentNotifierWorkerTest do
       organization = organization_fixture(preload: [:account])
       user = user_fixture(email: "attached@example.com")
 
-      expect(UserNotifier, :deliver_scim_organization_attachment, fn delivered_user, delivered_org ->
+      expect(UserNotifier, :deliver_scim_organization_attachment!, fn delivered_user, delivered_org ->
         assert delivered_user.id == user.id
         assert delivered_org.id == organization.id
         assert delivered_org.account.name == organization.account.name
