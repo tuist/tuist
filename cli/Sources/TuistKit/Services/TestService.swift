@@ -391,8 +391,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
-        // `.build` skips the test-summary upload path, so route the xcresult
-        // through the TrackableCommand analytics upload instead.
         if action == .build, let resultBundlePath {
             await RunMetadataStorage.current.update(resultBundlePath: resultBundlePath)
         }
