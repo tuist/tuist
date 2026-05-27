@@ -1,5 +1,7 @@
 defmodule Tuist.Utilities.DateFormatter do
   @moduledoc false
+  def from_now(nil), do: "None"
+
   def from_now(date) do
     case date |> Timex.from_now() |> String.split(" ") do
       [number, "month", relative] -> number <> "mo " <> relative
@@ -9,12 +11,21 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
-  def format_duration_from_seconds(duration_ms, opts \\ []) do
-    format_duration_from_milliseconds(duration_ms * 1000, opts)
-  end
+  def format_duration_from_seconds(duration_seconds, opts \\ [])
+  def format_duration_from_seconds(nil, _opts), do: "None"
+
+  def format_duration_from_seconds(duration_seconds, opts) when is_number(duration_seconds),
+    do: format_duration_from_milliseconds(duration_seconds * 1000, opts)
+
+  def format_duration_from_seconds(_, _), do: "None"
+
+  def format_duration_from_milliseconds(duration_ms, opts \\ [])
+  def format_duration_from_milliseconds(nil, _opts), do: "None"
+
+  def format_duration_from_milliseconds(duration_ms, _opts) when is_number(duration_ms) and duration_ms < 0, do: "None"
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def format_duration_from_milliseconds(duration_ms, opts \\ []) do
+  def format_duration_from_milliseconds(duration_ms, opts) when is_number(duration_ms) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
     duration_ms = trunc(duration_ms)
 
@@ -51,6 +62,17 @@ defmodule Tuist.Utilities.DateFormatter do
       Enum.join(parts, " ")
     end
   end
+
+  def format_duration_from_milliseconds(_, _), do: "None"
+
+  @doc """
+  Milliseconds elapsed between `ts` and `DateTime.utc_now/0`. Pairs
+  with `format_duration_from_milliseconds/2` for "time since this
+  lifecycle event" callers. `nil` → 0 so consumers computing
+  cumulative durations don't need to guard separately.
+  """
+  def ms_since(nil), do: 0
+  def ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
 
   def format_duration_based_on_max(duration_ms, max_duration_ms) do
     cond do

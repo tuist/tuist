@@ -13,7 +13,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
-  alias TuistWeb.Utilities.Formatter
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -324,9 +324,9 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def conclusion_badge_props(_), do: nil
 
-  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: Formatter.ms_since(enqueued)
-  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: Formatter.ms_since(claimed)
-  def duration_ms(%{status: "running", started_at: started}), do: Formatter.ms_since(started)
+  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
+  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)
+  def duration_ms(%{status: "running", started_at: started}), do: DateFormatter.ms_since(started)
 
   def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do

@@ -172,7 +172,7 @@
         }
         value={
           if @workflows_duration.ok? do
-            TuistWeb.Utilities.Formatter.format_duration_ms(
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @workflows_duration.result,
                 @workflow_duration_percentile
@@ -398,13 +398,13 @@
           >
             <.text_cell
               icon="history"
-              label={TuistWeb.Utilities.Formatter.format_duration_ms(w.avg_duration_ms)}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(w.avg_duration_ms)
+              }
             />
           </:col>
           <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
-            <.text_cell sublabel={
-              TuistWeb.Utilities.Formatter.format_relative_time(w.last_run_at)
-            } />
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(w.last_run_at)} />
           </:col>
         </.table>
         <div :if={@total_pages > 1} data-part="pagination">

@@ -90,7 +90,7 @@
         }
         value={
           if @queue_time.ok? do
-            TuistWeb.Utilities.Formatter.format_duration_ms(
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(@queue_time.result, @queue_time_percentile)
             )
           end
@@ -129,7 +129,7 @@
         }
         value={
           if @jobs_duration.ok? do
-            TuistWeb.Utilities.Formatter.format_duration_ms(
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @jobs_duration.result,
                 @job_duration_percentile
@@ -359,7 +359,7 @@
             <.text_cell
               icon="history"
               label={
-                TuistWeb.Utilities.Formatter.format_duration_ms(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   TuistWeb.RunnerWorkflowLive.duration_ms(job)
                 )
               }
@@ -371,7 +371,7 @@
             patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "enqueued")}
             icon={@sort_by == "enqueued" && TuistWeb.RunnerWorkflowLive.sort_icon(@sort_order)}
           >
-            <.text_cell label={TuistWeb.Utilities.Formatter.format_relative_time(job.enqueued_at)} />
+            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(job.enqueued_at)} />
           </:col>
         </.table>
         <div :if={@total_pages > 1} data-part="pagination">

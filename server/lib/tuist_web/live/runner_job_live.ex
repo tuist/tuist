@@ -6,8 +6,8 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Jobs
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
-  alias TuistWeb.Utilities.Formatter
 
   @impl true
   def mount(
@@ -150,7 +150,7 @@ defmodule TuistWeb.RunnerJobLive do
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
       is_nil(enqueued) -> 0
-      is_nil(claimed) -> Formatter.ms_since(enqueued)
+      is_nil(claimed) -> DateFormatter.ms_since(enqueued)
       true -> DateTime.diff(claimed, enqueued, :millisecond)
     end
   end
@@ -158,7 +158,7 @@ defmodule TuistWeb.RunnerJobLive do
   def run_duration_ms(%{started_at: started, completed_at: completed}) do
     cond do
       is_nil(started) -> 0
-      is_nil(completed) -> Formatter.ms_since(started)
+      is_nil(completed) -> DateFormatter.ms_since(started)
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end

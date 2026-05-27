@@ -12,8 +12,8 @@ defmodule TuistWeb.RunnersLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
-  alias TuistWeb.Utilities.Formatter
   alias TuistWeb.Utilities.Query
 
   @table_limit 5
@@ -507,10 +507,10 @@ defmodule TuistWeb.RunnersLive do
 
   def percentile_metrics_for(stats) when is_map(stats) do
     %{
-      avg: Formatter.format_duration_ms(Map.get(stats, :avg)),
-      p50: Formatter.format_duration_ms(Map.get(stats, :p50)),
-      p90: Formatter.format_duration_ms(Map.get(stats, :p90)),
-      p99: Formatter.format_duration_ms(Map.get(stats, :p99))
+      avg: DateFormatter.format_duration_from_milliseconds(Map.get(stats, :avg)),
+      p50: DateFormatter.format_duration_from_milliseconds(Map.get(stats, :p50)),
+      p90: DateFormatter.format_duration_from_milliseconds(Map.get(stats, :p90)),
+      p99: DateFormatter.format_duration_from_milliseconds(Map.get(stats, :p99))
     }
   end
 

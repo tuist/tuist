@@ -147,7 +147,7 @@
         }
         value={
           if @jobs_duration.ok? do
-            TuistWeb.Utilities.Formatter.format_duration_ms(
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @jobs_duration.result,
                 @job_duration_percentile
@@ -199,7 +199,7 @@
         }
         value={
           if @workflows_duration.ok? do
-            TuistWeb.Utilities.Formatter.format_duration_ms(
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
               TuistWeb.RunnersLive.percentile_value(
                 @workflows_duration.result,
                 @workflow_duration_percentile
@@ -420,7 +420,9 @@
           <:col :let={run} label={dgettext("dashboard_runners", "Duration")}>
             <.text_cell
               icon="history"
-              label={TuistWeb.Utilities.Formatter.format_duration_ms(run.duration_ms)}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(run.duration_ms)
+              }
             />
           </:col>
         </.table>
@@ -574,7 +576,7 @@
             <.text_cell
               icon="history"
               label={
-                TuistWeb.Utilities.Formatter.format_duration_ms(
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
                   TuistWeb.RunnersLive.job_duration_ms(job)
                 )
               }
