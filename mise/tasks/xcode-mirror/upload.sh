@@ -34,11 +34,14 @@ fi
 # === Auto-login to GHCR via gh ============================================
 
 # oras has no `whoami` so the cheapest reliable auth check is a
-# 404-expected manifest fetch. A 404 means we authenticated and
-# the probe tag just doesn't exist (good); anything else means
-# we have to log in.
+# manifest fetch. Either outcome — success (image exists) or a
+# "not found" / 404 response — proves we authenticated; only an
+# auth error (401/403) means we need to log in. Capture-then-check
+# instead of piping so `set -o pipefail` doesn't shadow oras's exit.
 needs_login=true
-if oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ 2>&1 | grep -qiE "not found|404"; then
+if probe_output=$(oras manifest fetch ghcr.io/tuist/xcode-xips:__probe__ 2>&1); then
+  needs_login=false
+elif printf '%s' "$probe_output" | grep -qiE "not found|404"; then
   needs_login=false
 fi
 

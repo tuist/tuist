@@ -299,15 +299,16 @@ build {
   # a formula would silently make tools unreachable from step
   # shells; resolve each tool against the same login-shell
   # environment so image-build CI fails loudly instead of customer
-  # workflows. xcrun + xcresulttool double as the proof that Layer
-  # 1's Xcode install + `xcode-select -s` propagated.
+  # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
+  # explicit `xcrun xcresulttool version` below doubles as proof
+  # that Layer 1's Xcode install + `xcode-select -s` propagated.
   #
   # Tuist itself isn't in the list — customer workflows install it
   # via mise / brew so they own the version pin.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun xcresulttool; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
       "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
     ]
   }
