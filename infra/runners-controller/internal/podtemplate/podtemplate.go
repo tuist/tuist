@@ -165,14 +165,30 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			// reach it.
 			Command: []string{"sh", "-c"},
 			Args: []string{
-				"set -e && " +
-					"ulimit -n 1048576 && " +
-					"apk add --no-cache e2fsprogs >/dev/null && " +
-					"mkdir -p /mnt/dind-disk && " +
-					"truncate -s 30G /mnt/dind-disk/disk.img && " +
-					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
-					"mkdir -p /var/lib/docker && " +
-					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+				// Tee setup + dockerd output to a log file on
+				// the shared work volume so CI probes (which
+				// run in the runner container, same volume)
+				// can cat it. TEMP — drop once the dind shape
+				// is stable.
+				"LOG=/home/runner/actions-runner/_work/_dind.log; " +
+					"mkdir -p /home/runner/actions-runner/_work; " +
+					"exec >>\"$LOG\" 2>&1; " +
+					"set -ex; " +
+					"date -u; " +
+					"ulimit -n 1048576; " +
+					"apk add --no-cache e2fsprogs; " +
+					"mkdir -p /mnt/dind-disk; " +
+					"truncate -s 30G /mnt/dind-disk/disk.img; " +
+					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img; " +
+					"mkdir -p /var/lib/docker; " +
+					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker; " +
+					"echo '--- mount table after loop mount ---'; " +
+					"mount | grep -E 'docker|loop' || true; " +
+					"echo '--- findmnt /var/lib/docker ---'; " +
+					"findmnt /var/lib/docker || true; " +
+					"echo '--- ls /var/lib/docker ---'; " +
+					"ls -la /var/lib/docker; " +
+					"echo '--- starting dockerd ---'; " +
 					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 					"--default-ulimit nofile=1048576:1048576",
 			},

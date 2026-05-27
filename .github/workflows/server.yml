@@ -315,6 +315,9 @@ jobs:
       - name: TEMP probe rlimits
         run: |
           set -uo pipefail
+          echo "=== dind sidecar entrypoint log (tee'd to shared work volume) ==="
+          cat /home/runner/actions-runner/_work/_dind.log || echo "(no _dind.log yet)"
+          echo
           echo "=== runner /proc/1/limits ==="
           cat /proc/1/limits | grep -iE "open files|processes"
           echo
@@ -322,8 +325,8 @@ jobs:
           echo "fs.nr_open=$(cat /proc/sys/fs/nr_open)"
           echo "fs.file-max=$(cat /proc/sys/fs/file-max)"
           echo
-          echo "=== dockerd /proc/1/cmdline (via docker info / proxy) ==="
-          docker info 2>&1 | grep -iE "default|ulimit|kernel|operating" | head -20 || true
+          echo "=== dockerd Storage Driver + Backing FS ==="
+          docker info 2>&1 | grep -iE "storage driver|backing|kernel|operating|server version" | head -20 || true
           echo
           echo "=== child container, NO explicit --ulimit (inherits dockerd --default-ulimit) ==="
           docker run --rm alpine:3 sh -c 'grep -iE "open files|processes" /proc/1/limits; echo "container fs.nr_open=$(cat /proc/sys/fs/nr_open)"'
