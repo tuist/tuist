@@ -284,7 +284,16 @@ kataContainers:
 # branch's changes.
 runnersController:
   image:
-    tag: "sha-9ea01e53d469"
+    tag: "sha-43e5f025f808"
+  # Opt staging in to the controller's `--dind-image` flag. Safe here
+  # because the SHA-pinned binary above is built from this branch and
+  # registers the flag; gated everywhere else (default false in
+  # values.yaml) so a chart upgrade in canary / production — still on
+  # the 0.3.0 controller binary — stays a no-op for the flag instead
+  # of crashing the controller's `flag.Parse`. Flip in each env once
+  # its controller image catches up.
+  features:
+    dindImage: true
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #

@@ -174,8 +174,12 @@ spec:
             # Autoscaler reconciler runs in the cluster; always use
             # the in-cluster Service URL for the same reason.
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- if .Values.runnersController.features.dindImage }}
             # dockerd sidecar image stamped on every Linux runner Pod.
+            # Gated on the controller binary recognising the flag —
+            # see `runnersController.features.dindImage` in values.yaml.
             - --dind-image={{ .Values.runnersController.dindImage }}
+            {{- end }}
             # Pod-lifecycle reconciler reports terminal-phase
             # transitions to the server's RunnerSessions store so
             # billing closes off K8s-authoritative timestamps

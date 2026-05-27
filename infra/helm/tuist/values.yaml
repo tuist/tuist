@@ -976,6 +976,17 @@ runnersController:
   # come up with no `DOCKER_HOST`. Renovate keeps this pinned.
   # renovate: datasource=docker depName=docker versioning=docker
   dindImage: "docker:28-dind"
+  # Feature gates the controller manager binary's `--dind-image`
+  # flag. The flag was added by the docker-in-runner change; older
+  # controller binaries (<= the release before that change) don't
+  # register the flag and `flag.Parse` exits with code 2 if it's
+  # passed. Each env overlay flips this to `true` only once its
+  # `runnersController.image.tag` points at a binary that recognises
+  # the flag, so a chart upgrade in an env still on the old binary
+  # stays a no-op for runner pools instead of crashing the
+  # controller.
+  features:
+    dindImage: false
   resources:
     requests:
       cpu: 50m
