@@ -172,9 +172,23 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// kata-qemu virtiofsd ships with xattr passthrough OFF for
 	// throughput; without it overlay2 inside the microVM can't
 	// read trusted.overlay.* xattrs on virtio-fs-served paths and
-	// dockerd falls back to vfs. The annotation flips passthrough
-	// on per-Pod (kata's default enable_annotations whitelist
-	// already permits virtio_fs_extra_args).
+	// dockerd falls back to vfs (which fd-bombs buildkit's
+	// runc-native snapshotter on heavy node_modules trees). The
+	// annotation flips passthrough on per-Pod (kata's default
+	// enable_annotations whitelist already permits
+	// virtio_fs_extra_args).
+	//
+	// --xattr alone is not enough: it enables virtiofsd to
+	// service xattr ops at all, but the host kernel still gates
+	// trusted.* writes on CAP_SYS_ADMIN of virtiofsd's effective
+	// uid — and `setxattr(trusted.overlay.opaque)` from the
+	// privileged dind guest returns EPERM. --xattrmap remaps
+	// every guest xattr to user.virtiofs.* on the underlying
+	// host file (user.* needs no CAPs), so the host never sees a
+	// privileged xattr write; the guest reads/writes via the
+	// same remap and sees the original names back. This is the
+	// standard pattern for overlay-on-virtiofs (kata, kubevirt,
+	// cloud-hypervisor all document the same shape).
 	//
 	// The annotation value is JSON-encoded — kata's shim
 	// unmarshals it into []string before splicing onto the
@@ -183,7 +197,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// pod sandbox never starts.
 	annotations := map[string]string{}
 	if linuxPod {
-		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = `["--xattr"]`
+		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = `["--xattr","--xattrmap=:map::user.virtiofs.::"]`
 	}
 
 	return &corev1.Pod{

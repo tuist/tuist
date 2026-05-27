@@ -209,6 +209,13 @@ func TestBuild_LinuxPodCarriesKataXattrAnnotation(t *testing.T) {
 	// any docker-using workflow that works on cloud-VM GitHub
 	// runners breaks here. The annotation flips passthrough on
 	// per-Pod (kata's enable_annotations whitelist permits it).
+	//
+	// --xattr enables xattr methods at all; --xattrmap remaps
+	// every guest xattr to user.virtiofs.* on the host so
+	// trusted.overlay.* writes from privileged dind don't trip
+	// the host kernel's CAP_SYS_ADMIN gate on trusted.*. Without
+	// the remap, dockerd silently rejects overlay2 (the probe
+	// setxattr returns EPERM) and falls back to vfs.
 	pod := build(basePool("linux"))
 	got, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]
 	if !ok {
@@ -216,8 +223,9 @@ func TestBuild_LinuxPodCarriesKataXattrAnnotation(t *testing.T) {
 	}
 	// kata's shim json-unmarshals this into []string; raw "--xattr"
 	// trips json.Unmarshal and the pod sandbox never starts.
-	if got != `["--xattr"]` {
-		t.Errorf("virtio_fs_extra_args = %q, want %q (JSON-encoded array)", got, `["--xattr"]`)
+	want := `["--xattr","--xattrmap=:map::user.virtiofs.::"]`
+	if got != want {
+		t.Errorf("virtio_fs_extra_args = %q, want %q (JSON-encoded array)", got, want)
 	}
 }
 
