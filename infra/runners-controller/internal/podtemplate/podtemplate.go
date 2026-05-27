@@ -181,8 +181,8 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			},
 			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
 			StartupProbe: &corev1.Probe{
-				ProbeHandler:     corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
-				PeriodSeconds:    2,
+				ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
+				PeriodSeconds: 2,
 				// Was 30. apk add + truncate-30G + mkfs.ext4
 				// + loop mount add ~8 s of pre-dockerd setup;
 				// bump the probe ceiling so a slow apt mirror
