@@ -4102,6 +4102,7 @@ defmodule Tuist.AccountsTest do
     test "returns Kura endpoints when account has them configured" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4125,11 +4126,48 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
+    test "returns environment Kura endpoints over account-specific endpoints" do
+      # Given
+      environment_endpoints = [
+        "https://kura-cluster-1.example.com",
+        "https://kura-cluster-2.example.com"
+      ]
+
+      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == environment_endpoints
+    end
+
+    test "returns environment Kura endpoints when the account handle is missing" do
+      # Given
+      environment_endpoints = ["https://kura-cluster.example.com"]
+      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil, :kura)
+
+      # Then
+      assert endpoints == environment_endpoints
+    end
+
     test "returns regional Kura endpoints until the global endpoint has been reconciled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4158,6 +4196,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4182,6 +4221,7 @@ defmodule Tuist.AccountsTest do
 
     test "returns no Kura endpoints when account has none configured" do
       # Given
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4197,6 +4237,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
