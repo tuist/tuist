@@ -77,6 +77,15 @@ kuraController:
     # still be created so envFrom doesn't 404, and stringData will be
     # absent, which Kubernetes accepts.
     data: {}
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      fields:
+        introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
     # Example shape — never commit real values here:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
@@ -145,6 +154,13 @@ server:
     license:
       item: ""
       field: password
+    # Dedicated OAuth client used by Kura to call /oauth2/introspect.
+    # Leave item empty to skip syncing it into the server environment.
+    kuraIntrospection:
+      item: ""
+      fields:
+        clientId: TUIST_KURA_INTROSPECTION_CLIENT_ID
+        clientSecret: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
