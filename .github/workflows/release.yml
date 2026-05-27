@@ -1525,15 +1525,20 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 30
+    # Each runner-image profile is ~18 min Packer + ~10 min tart push,
+    # and the release builds every profile in XCODE_VERSIONS
+    # sequentially against the shared local builder. 90 min comfortably
+    # covers up to 3 profiles; if XCODE_VERSIONS grows past that, bump
+    # this proportionally.
+    timeout-minutes: 90
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      profile: ${{ steps.build.outputs.profile }}
-      digest: ${{ steps.push.outputs.digest }}
+      profile: ${{ steps.publish.outputs.default_profile }}
+      digest: ${{ steps.publish.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1618,36 +1623,9 @@ jobs:
           tart prune --entries caches --older-than 0
           df -h /
 
-      - name: Build image + resolve base tag
-        id: build
+      - name: Build + push every profile in XCODE_VERSIONS
+        id: publish
         working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          # Base macos-tahoe-xcode tag derived from the image's pinned
-          # XCODE_VERSION file. Lives under this dir so check-releases
-          # (which filters commits by `infra/runner-image/**` paths)
-          # catches Xcode bumps as a release trigger — without the
-          # file in the include-path, a commit that only rolls the
-          # Xcode pin would leave this job skipped. Assumes the
-          # matching macos-tahoe-xcode tag has already been published
-          # by macos-xcode-image.yml.
-          XCODE_VERSION=$(cat XCODE_VERSION | tr -d '[:space:]')
-          # Tag is the full version with dots → dashes (e.g.
-          # 26.4.1 → 26-4-1, 26.5 → 26-5). Matches the tag the
-          # macos-xcode-image workflow publishes. The runner-image
-          # push profile mirrors the same form, so
-          # `tuist-runner:macos-26-4-1` is one-to-one with
-          # `macos-tahoe-xcode:26-4-1`.
-          BASE_TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${BASE_IMAGE}" \
-            -var "output_image=tuist-runner" \
-            runner.pkr.hcl
-          echo "profile=macos-${BASE_TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Push image to GHCR + resolve digest
-        id: push
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
@@ -1655,23 +1633,55 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          PROFILE="${{ steps.build.outputs.profile }}"
-          # Per-Xcode-profile tagging. PROFILE (`macos-26-4`) is the
-          # rolling "latest in that profile" tag — the chart pin
-          # references this profile via the digest. PROFILE-VERSION
-          # (`macos-26-4-1.0.5`) is the immutable point-in-time tag,
-          # useful for rollbacks and traceability. No `:latest` —
-          # under the multi-profile model the concept of a single
-          # latest doesn't map.
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
-          # The chart pins runners by digest, not tag (server-deployment.yaml
-          # `required` rejects non-digest values), so resolve the
-          # profile tag to its immutable @sha256:… form right after
-          # push.
-          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${PROFILE}")
-          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION} + :${PROFILE} (digest: ${DIGEST})"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          # XCODE_VERSIONS is the source of truth for which profiles
+          # exist. First non-comment line is the default profile —
+          # the chart's runnerImage digest pin tracks it. Each line
+          # produces both an immutable tag (`:macos-<dashes>-<semver>`,
+          # for rollback) and a rolling profile tag (`:macos-<dashes>`,
+          # what the chart resolves through its digest pin).
+          DEFAULT_PROFILE=""
+          DEFAULT_DIGEST=""
+          while IFS= read -r xcode || [ -n "$xcode" ]; do
+            # Strip comments / blank lines.
+            xcode="${xcode%%#*}"
+            xcode="$(echo "$xcode" | tr -d '[:space:]')"
+            [ -z "$xcode" ] && continue
+
+            BASE_TAG="${xcode//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            PROFILE="macos-${BASE_TAG}"
+
+            echo "::group::Build + push profile ${PROFILE} (base ${BASE_IMAGE})"
+            env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+              -var "base_image=${BASE_IMAGE}" \
+              -var "output_image=tuist-runner" \
+              runner.pkr.hcl
+
+            tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
+            tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
+
+            if [ -z "$DEFAULT_PROFILE" ]; then
+              # First non-comment line wins — chart pin tracks this
+              # profile's digest.
+              DEFAULT_PROFILE="$PROFILE"
+              DEFAULT_DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${PROFILE}")
+              echo "Default profile: ${PROFILE} (digest: ${DEFAULT_DIGEST})"
+            fi
+
+            # Free the local VM name so the next iteration's Packer
+            # build can reuse it (Tart refuses to clone over an
+            # existing VM).
+            tart delete tuist-runner
+            echo "::endgroup::"
+          done < XCODE_VERSIONS
+
+          if [ -z "$DEFAULT_PROFILE" ]; then
+            echo "Error: XCODE_VERSIONS contained no non-comment lines" >&2
+            exit 1
+          fi
+
+          echo "default_profile=${DEFAULT_PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "digest=${DEFAULT_DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Bump runner image digest pin in chart values
         run: |
@@ -1679,7 +1689,7 @@ jobs:
           # values file under runnersFleet.runnerImage. Anchor the
           # substitution to the runnerImage line so we only touch
           # that one (the values files carry several image refs).
-          DIGEST="${{ steps.push.outputs.digest }}"
+          DIGEST="${{ steps.publish.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \

@@ -24,9 +24,9 @@ on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Base macos-tahoe-xcode Tart image. Bump the tag to test against a different Xcode profile."
+        description: "Override the base Tart image (leave empty to build against the first profile in infra/runner-image/XCODE_VERSIONS)."
         required: false
-        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
+        default: ""
       runner_version:
         description: "GitHub Actions runner version"
         required: false
@@ -43,9 +43,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 30
-    env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -96,14 +94,31 @@ jobs:
           df -h /
 
       - name: Build image
+        id: build
         working-directory: infra/runner-image
+        env:
+          BASE_IMAGE_OVERRIDE: ${{ inputs.base_image }}
         run: |
           set -euo pipefail
+          # Single-profile dispatch: either the operator-provided
+          # override, or the first non-comment line of XCODE_VERSIONS.
+          # The official multi-profile rebuild lives in release.yml.
+          if [ -n "$BASE_IMAGE_OVERRIDE" ]; then
+            BASE_IMAGE="$BASE_IMAGE_OVERRIDE"
+          else
+            XCODE=$(grep -vE '^[[:space:]]*(#|$)' XCODE_VERSIONS | head -n1 | tr -d '[:space:]')
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE//./-}"
+          fi
+          BASE_TAG="${BASE_IMAGE##*:}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Base image: ${BASE_IMAGE}"
+          echo "Profile:    ${PROFILE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4-1' }}" \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-runner" \
             -var "runner_version=${{ inputs.runner_version || '2.334.0' }}" \
             runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
       - name: Push image to GHCR
         id: push
@@ -114,9 +129,13 @@ jobs:
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-runner:${GIT_SHA}"
-          echo "tag=${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          PROFILE="${{ steps.build.outputs.profile }}"
+          # Per-profile sha tag so a dispatch build is clearly
+          # distinguishable from the official `:macos-<dashes>` rolling
+          # tag that release.yml owns.
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
+          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
+          echo "tag=${PROFILE}-${GIT_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Cleanup
         if: always()

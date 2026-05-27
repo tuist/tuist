@@ -61,14 +61,14 @@ packer build runner.pkr.hcl
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger `release.yml`'s
-  `release-runner-image` job: builds against the Layer 1 base
-  resolved from `infra/runner-image/XCODE_VERSION`, pushes
+  `release-runner-image` job: iterates `infra/runner-image/XCODE_VERSIONS`,
+  builds + pushes one profile per line as both
   `ghcr.io/tuist/tuist-runner:macos-<xcode-version-dashes>-<semver>`
-  + `:macos-<xcode-version-dashes>` (the rolling profile tag,
-  e.g. `:macos-26-4-1`), resolves the digest with `crane digest`,
-  rewrites `runnersFleet.runnerImage` across managed-env values
-  files that already have a digest pin, tags `runner-image@x.y.z`,
-  opens a GitHub Release, commits.
+  (immutable) and `:macos-<xcode-version-dashes>` (rolling, e.g.
+  `:macos-26-4-1`). Resolves the **first profile's** digest with
+  `crane digest`, rewrites `runnersFleet.runnerImage` across
+  managed-env values files that already have a digest pin, tags
+  `runner-image@x.y.z`, opens a GitHub Release, commits.
 - **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
   (push-to-main on `infra/runner-image/**` changes, plus a
   manual `workflow_dispatch` trigger) builds + pushes a
@@ -94,19 +94,44 @@ agent + dispatch loop + runner user / launchd wiring on top. A
 Layer 2 rebuild on every runner-image commit costs ~2 min instead
 of the ~30 min an all-in-one rebuild used to cost.
 
-Bumping the Xcode customers see on their runners is a two-step:
+## Profiles file: `infra/runner-image/XCODE_VERSIONS`
+
+`XCODE_VERSIONS` is a plain-text list, one Xcode version per line
+(`#`-prefixed lines are comments). Every line produces a published
+profile:
+
+```
+# default profile (chart pin tracks this one)
+26.4.1
+26.5
+```
+
+The **first non-comment line** is the default — the chart's
+`runnersFleet.runnerImage` digest pin tracks that profile. Other
+profiles still get built and pushed, but the operator chooses one
+default for the fleet; customers can pin their workflows to any
+profile by tag in their job definition.
+
+Each release run iterates the list sequentially against the shared
+`vm-image-builder` host: build → push `:macos-<dashes>-<semver>`
+(immutable) + `:macos-<dashes>` (rolling) → resolve digest for the
+default → carry on to the next line. Adding or removing a line is a
+commit; check-releases picks it up under
+`infra/runner-image/**/*` and runs the release.
+
+Bumping the Xcode customers see on their runners:
 
 1. Publish a Layer 1 image with the new Xcode — first run
    `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Bump the version pin in `infra/runner-image/XCODE_VERSION` and
-   commit with a `feat(runner-image): bump to Xcode X.Y.Z`
-   message. The file lives under this image's release-include-path
-   so check-releases triggers a rebuild against
-   `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` and
-   rewrites the chart's `runnersFleet.runnerImage` digest pin.
+2. Edit `infra/runner-image/XCODE_VERSIONS`: either add the new
+   Xcode as an additional profile (most common), or replace the
+   first line if you want it to become the new default. Commit with
+   a `feat(runner-image): ...` message — check-releases triggers the
+   rebuild, the chart's `runnersFleet.runnerImage` pin moves to the
+   first-line profile's digest.
 
 ## Profile tagging
 

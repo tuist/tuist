@@ -1,0 +1,10 @@
+# Runner-image profiles. One Xcode version per line; `#`-prefixed
+# lines are comments. The first non-comment line is the **default
+# profile** — the chart's `runnersFleet.runnerImage` digest pin
+# tracks it. The rest are additional profiles customers can pin to
+# from their workflows.
+#
+# Each release rebuilds every profile against the matching
+# `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` base, so the matching
+# tag must already be published by `macos-xcode-image.yml`.
+26.4.1

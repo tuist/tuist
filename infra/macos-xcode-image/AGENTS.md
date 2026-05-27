@@ -122,14 +122,18 @@ auto-download entirely:
    `ghcr.io/tuist/xcode-xips:<version>`. ~10 min wall-clock for
    the download; ~2 min for the push.
 
-3. **Promote**. For runner-image: bump
-   `infra/runner-image/XCODE_VERSION` and merge — the release flow
-   rebuilds the runner image against the new base and updates the
-   chart digest pin. The xcresult-processor doesn't have a pin file;
-   it always resolves the newest `ghcr.io/tuist/macos-tahoe-xcode`
-   tag at build time, so it picks up the new Xcode on its next
-   rebuild (any commit under `infra/xcresult-processor-image/**` or
-   a manual `workflow_dispatch`).
+3. **Promote**. For runner-image: edit
+   `infra/runner-image/XCODE_VERSIONS` — add the new Xcode as a
+   line (additional profile) or replace the first line (which makes
+   it the chart's default profile) — then merge. The release flow
+   rebuilds every profile in the file against its matching base and
+   moves the chart's `runnersFleet.runnerImage` digest pin to the
+   first-line profile. The xcresult-processor doesn't have a pin
+   file; it always resolves the newest
+   `ghcr.io/tuist/macos-tahoe-xcode` tag at build time, so it picks
+   up the new Xcode on its next rebuild (any commit under
+   `infra/xcresult-processor-image/**` or a manual
+   `workflow_dispatch`).
 
 The Apple ID used for the local mint is the one stored in 1Password
 under `Tuist Apple ID` (Employee vault). `mise.toml` pins the
@@ -160,7 +164,7 @@ To bring up the full set on a fresh GHCR, dispatch this workflow
 six times — once per Xcode version we want available as a
 profile. Subsequent patch bumps from Apple (e.g. 26.4.1 → 26.4.2)
 republish under a *new* tag (`:26-4-2`); the operator promotes by
-bumping the relevant Layer 2 `XCODE_VERSION` pin file.
+editing `infra/runner-image/XCODE_VERSIONS`.
 
 ## Promoting a new Xcode to customer runners
 
@@ -169,11 +173,12 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
-2. Bump `infra/runner-image/XCODE_VERSION` to the new value and
-   commit with a `feat(runner-image): bump to Xcode X.Y.Z` message
-   so check-releases picks it up — the pin file lives under the
-   image's release-include-path, so a touch is what triggers the
-   runner-image rebuild.
+2. Edit `infra/runner-image/XCODE_VERSIONS`: append the new Xcode
+   as an additional profile (most common — gives customers both
+   the old and new on offer), or replace the first line if you
+   want the new Xcode to become the chart's default profile.
+   Commit with a `feat(runner-image): ...` message so
+   check-releases picks it up.
 3. (Optional) Force a parallel xcresult-processor rebuild against
    the freshly-published base. The processor resolves the newest
    Xcode tag at build time and doesn't have a pin file, so it'll
