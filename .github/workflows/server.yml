@@ -359,6 +359,19 @@ jobs:
             TUIST_VERSION=1.24.11.11
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
+      # TEMP: dump the dind sidecar log AFTER the build to see
+      # disk pressure + dockerd output during the build itself.
+      # Runs on failure too via if: always(). If the runner died
+      # entirely (pod terminated mid-build), this step is also
+      # lost — that's itself a signal it's a pod-level kill.
+      - name: TEMP dind log (post-build)
+        if: always()
+        run: |
+          echo "=== _dind.log (tail 500 lines) ==="
+          tail -n 500 /home/runner/actions-runner/_work/_dind.log || echo "(no log)"
+          echo
+          echo "=== disk usage on the work volume ==="
+          df -h /home/runner/actions-runner/_work || true
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
