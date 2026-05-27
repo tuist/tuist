@@ -5,13 +5,17 @@
 -- so it already inherits SELECT on every present and future table. This
 -- file ensures the role can `CONNECT` to the database (needed when the
 -- bootstrap order means CNPG creates the role before the database has
--- been opened to non-superuser connections) and revokes anything the
--- pg_read_all_data predefined role would let it touch beyond reads.
+-- been opened to non-superuser connections) and explicitly revokes
+-- write privileges so a future grant-by-default change in Postgres
+-- can't widen the role.
 --
--- The `/ops/db` LiveView in the Tuist server connects as this role so
--- every query the UI runs is authenticated by the cluster as a
--- read-only principal — even when an operator pastes a hand-written
--- SQL statement.
+-- Used by operators who open an ad-hoc psql session against the cluster
+-- (typically `kubectl cnpg psql ... -U tuist_ops_ro`) for break-glass
+-- inspection that doesn't fit the `/ops/db` LiveView. The LiveView
+-- itself connects through Tuist.Repo (the application's owner role)
+-- and enforces read-only behavior at the app layer: SELECT/WITH/EXPLAIN/
+-- SHOW grammar gate plus `SET TRANSACTION READ ONLY` plus a 5s
+-- `statement_timeout`. See `Tuist.Ops.Database.execute/2`.
 
 BEGIN;
 
@@ -20,9 +24,6 @@ GRANT USAGE ON SCHEMA public TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA pg_catalog TO tuist_ops_ro;
 GRANT USAGE ON SCHEMA information_schema TO tuist_ops_ro;
 
--- Belt-and-braces: even though `pg_read_all_data` membership grants
--- SELECT on every table, explicitly REVOKE the write privileges so a
--- future grant-by-default change in Postgres can't widen the role.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
   ON ALL TABLES IN SCHEMA public FROM tuist_ops_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public

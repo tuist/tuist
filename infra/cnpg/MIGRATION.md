@@ -28,9 +28,12 @@ Per [the RFC](https://community.tuist.dev/t/moving-postgres-in-cluster/986), thr
 
 ### 1. Provision the CNPG cluster ahead of cutover
 
-Land a PR that flips `postgresql.mode` to `cnpg` *in addition to* keeping the Supabase URL alive in `priv/secrets/<env>.yml.enc`. The server still reads its DATABASE_URL from the encrypted bundle (Supabase) at this stage — the new `postgresql.mode: cnpg` value only renders the CNPG `Cluster` + ScheduledBackup + ESO Secrets, it does not yet override DATABASE_URL on the server pods because the server-deployment template only injects the CNPG-derived env when the cluster is the source of truth.
+The provisioning and cutover phases are split across two chart toggles so the soak window can run with the CNPG cluster live alongside Supabase without touching the live DATABASE_URL:
 
-Actually, since the chart wires DATABASE_URL from the CNPG Secret as soon as mode is `cnpg`, do the provisioning under a **temporary branch** of the chart (or apply the CNPG CR out-of-band): apply just the `Cluster` CR + ScheduledBackup + ESO Secrets manually:
+- `postgresql.cnpg.enabled: true` (already set in `values-managed-common.yaml`) renders the `Cluster` + `ScheduledBackup` + ESO Secrets.
+- `postgresql.mode: cnpg` flips `DATABASE_URL` on the server / processor / migration-job pods to the CNPG `<cluster>-app` Secret. Stays at `external` until cutover (step 6).
+
+Provisioning step: the next platform/server deploy with `cnpg.enabled: true` brings up the cluster automatically. To bring it up ahead of the next deploy, apply just the CNPG manifests:
 
 ```bash
 ENV=staging
@@ -133,13 +136,13 @@ pg_dump --data-only --table=oban_jobs --table=oban_peers \
 kubectl cnpg psql -n tuist-$ENV tuist-tuist-pg -- -d tuist \
   -c "ALTER SUBSCRIPTION tuist_migration DISABLE;"
 
-# 6e. Land the cutover PR that flips DATABASE_URL inside
-# priv/secrets/<env>.yml.enc to use the CNPG cluster instead of the
-# Supabase URL. Or, simpler: the chart already takes precedence —
-# nothing to change in the secret bundle since the chart's
-# DATABASE_URL env var overrides the encrypted-secrets value when
-# `postgresql.mode = cnpg`. So at this point a `helm upgrade` is
-# sufficient.
+# 6e. Land the cutover PR that flips `postgresql.mode` to `cnpg` in
+# the env overlay (`values-managed-$ENV.yaml`). The chart's
+# server-deployment / processor-external-secrets / server-migration-job
+# templates then inject DATABASE_URL from the CNPG `<cluster>-app`
+# Secret and from the `tuist_processor` ESO secret. No change to
+# priv/secrets/<env>.yml.enc is needed — the chart env var takes
+# precedence over the encrypted-bundle DATABASE_URL.
 gh workflow run server-deployment.yml -f environment=$ENV
 
 # 6f. Resume Oban queues.

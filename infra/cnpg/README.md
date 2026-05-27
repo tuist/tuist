@@ -7,7 +7,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 ## Files
 
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
-- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — extra grants on top of `pg_read_all_data` for the `tuist_ops_ro` role (used by `/ops/db` in the server). Tightens read access by revoking the `pg_signal_backend` membership the predefined role inherits.
+- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
 
 ## When to run
 

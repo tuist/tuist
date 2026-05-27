@@ -6,6 +6,12 @@
 -- needs on top of an empty role. Re-runnable: the GRANT statements are
 -- idempotent on a fixed table set.
 --
+-- The grant set tracks the PG surface in
+-- `server/lib/tuist/builds/workers/process_build_worker.ex` (see the
+-- "Postgres surface" section of its @moduledoc). Adding a new PG read
+-- or write in that worker means adding the corresponding GRANT here
+-- in the same change.
+--
 -- See infra/cnpg/README.md for how to run this file against a fresh
 -- cluster (or after a backup restore).
 

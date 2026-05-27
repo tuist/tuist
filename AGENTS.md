@@ -23,7 +23,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
-- `infra/cnpg/` - CloudNativePG bootstrap SQL + Supabase→CNPG migration runbook for managed in-cluster Postgres - see `infra/cnpg/README.md`
+- `infra/cnpg/` - CloudNativePG bootstrap SQL + Supabase→CNPG migration runbook for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true (provisioning + soak) or `postgresql.mode == "cnpg"` (cutover). See `infra/cnpg/README.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
