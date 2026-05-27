@@ -24,6 +24,11 @@ defmodule Tuist.Docs.RedirectsTest do
                {:ok, "/en/docs/guides/integrations/authentication/sso"}
     end
 
+    test "redirects the old self-host installation route to control plane" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/install") ==
+               {:ok, "/en/docs/guides/server/self-host/control-plane"}
+    end
+
     test "redirects the old translation guide slug to languages" do
       assert Redirects.resolve("/en/docs/contributors/translate") ==
                {:ok, "/en/docs/contributors/languages"}
