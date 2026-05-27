@@ -413,7 +413,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
         <.sidebar_item
           label={dgettext("dashboard", "Profiles")}
-          icon="filters"
+          icon="category"
           navigate={runner_profiles_path}
           selected={String.starts_with?(@current_path, runner_profiles_path)}
         />

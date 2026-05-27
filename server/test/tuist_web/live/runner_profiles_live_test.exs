@@ -47,7 +47,7 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ "No profiles yet"
     end
 
-    test "lists existing profiles with their runs-on snippet", %{conn: conn, account: account} do
+    test "lists profiles with the tuist-<name> dispatch label", %{conn: conn, account: account} do
       {:ok, _} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       {:ok, _} = Profiles.create(account, %{"name" => "large", "vcpus" => 8, "memory_gb" => 32})
 
@@ -59,59 +59,52 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ "tuist-large"
     end
 
-    test "delete-profile removes the row", %{conn: conn, account: account} do
+    test "delete_profile removes the row", %{conn: conn, account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       {:ok, _} = Profiles.create(account, %{"name" => "large", "vcpus" => 8, "memory_gb" => 32})
 
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      assert lv
-             |> element("button[phx-value-id='#{profile.id}']")
-             |> render_click() =~ "large"
+      render_hook(lv, "delete_profile", %{"id" => to_string(profile.id)})
 
       refute Profiles.get_by_name(account, "default")
+      assert Profiles.get_by_name(account, "large")
     end
   end
 
-  describe "form page" do
-    test "creating a valid profile redirects to the list", %{conn: conn, account: account} do
-      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles/new")
+  describe "create modal" do
+    test "save_profile creates a new profile and resets the form", %{conn: conn, account: account} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      assert {:error, {:live_redirect, %{to: path}}} =
-               lv
-               |> form("#runner-profile-form",
-                 profile: %{"name" => "default", "shape" => "4vcpu-16gb"}
-               )
-               |> render_submit()
+      # User picks the large shape (default is preselected at 4/16, swap to 8/32)
+      render_hook(lv, "select_shape", %{"data" => "8vcpu-32gb"})
+      render_hook(lv, "update_form_name", %{"value" => "default"})
+      render_hook(lv, "save_profile", %{})
 
-      assert path == "/#{account.name}/runners/profiles"
-      assert %{name: "default", vcpus: 4, memory_gb: 16} = Profiles.get_by_name(account, "default")
+      assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end
 
-    test "rejects an empty name on submit", %{conn: conn, account: account} do
-      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles/new")
+    test "surfaces validation errors inline without redirecting", %{conn: conn, account: account} do
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      html =
-        lv
-        |> form("#runner-profile-form",
-          profile: %{"name" => "", "shape" => "4vcpu-16gb"}
-        )
-        |> render_submit()
+      render_hook(lv, "update_form_name", %{"value" => "tuist"})
+      html = render_hook(lv, "save_profile", %{})
 
-      assert html =~ "can&#39;t be blank" or html =~ "must start with a letter"
+      # `tuist` is in the reserved-name list (see Profile.@reserved_names)
+      assert html =~ "name:" or html =~ "reserved"
+      refute Profiles.get_by_name(account, "tuist")
     end
+  end
 
-    test "editing an existing profile updates resources, name is immutable", %{conn: conn, account: account} do
-      {:ok, _} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+  describe "edit modal" do
+    test "open_edit_modal followed by save_profile updates resources, name stays", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
 
-      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles/default")
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      assert {:error, {:live_redirect, _}} =
-               lv
-               |> form("#runner-profile-form",
-                 profile: %{"shape" => "8vcpu-32gb"}
-               )
-               |> render_submit()
+      render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)})
+      render_hook(lv, "select_shape", %{"data" => "8vcpu-32gb"})
+      render_hook(lv, "save_profile", %{})
 
       assert %{name: "default", vcpus: 8, memory_gb: 32} = Profiles.get_by_name(account, "default")
     end

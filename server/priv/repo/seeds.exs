@@ -3299,9 +3299,7 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # `runner_max_concurrent` gates dispatch, not the UI — the UI uses
 # `FeatureFlags.runners_enabled?` which is always true outside prod.
 # But setting a cap here keeps the seed data internally consistent.
-runner_profile_accounts =
-  [user.account, organization.account]
-  |> Enum.uniq_by(& &1.id)
+runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
 
 Enum.each(runner_profile_accounts, fn account ->
   account
