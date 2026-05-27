@@ -65,8 +65,15 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         try await fileSystem.writeText(
             """
             framework module GoogleMobileAds {
+              // link framework "UIKit"
               link "z"
+              /*
+               link framework "CoreGraphics"
+               */
               link framework "JavaScriptCore"
+              module Nested {
+                link framework "AppKit"
+              }
             }
             """,
             at: moduleMapPath
@@ -121,6 +128,120 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                     "$(inherited)",
                                     "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
                                     "-lz",
+                                    "-framework",
+                                    "JavaScriptCore",
+                                ],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_map_when_dynamic_target_directly_links_conditional_static_xcframework_only_uses_matching_slices() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+
+        let googleMobileAdsPath = projectPath.parentDirectory
+            .appending(component: "GoogleMobileAds.xcframework")
+        let iosModuleMapPath = googleMobileAdsPath.appending(
+            components: "ios-arm64", "GoogleMobileAds.framework", "Modules", "module.modulemap"
+        )
+        let macosModuleMapPath = googleMobileAdsPath.appending(
+            components: "macos-arm64_x86_64", "GoogleMobileAds.framework", "Modules", "module.modulemap"
+        )
+        try await fileSystem.makeDirectory(at: iosModuleMapPath.parentDirectory)
+        try await fileSystem.makeDirectory(at: macosModuleMapPath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            framework module GoogleMobileAds {
+              link framework "JavaScriptCore"
+            }
+            """,
+            at: iosModuleMapPath
+        )
+        try await fileSystem.writeText(
+            """
+            framework module GoogleMobileAds {
+              link framework "AppKit"
+            }
+            """,
+            at: macosModuleMapPath
+        )
+
+        let wrapperDependency = GraphDependency.target(name: "Wrapper", path: projectPath)
+        let googleMobileAdsDependency = GraphDependency.testXCFramework(
+            path: googleMobileAdsPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        identifier: "ios-arm64",
+                        path: try RelativePath(validating: "GoogleMobileAds.framework"),
+                        platform: .iOS,
+                        architectures: [.arm64]
+                    ),
+                    .test(
+                        identifier: "macos-arm64_x86_64",
+                        path: try RelativePath(validating: "GoogleMobileAds.framework"),
+                        platform: .macOS,
+                        architectures: [.arm64, .x8664]
+                    ),
+                ]
+            ),
+            linking: .static,
+            moduleMaps: [iosModuleMapPath, macosModuleMapPath]
+        )
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "Wrapper",
+                            destinations: [.iPhone, .mac],
+                            product: .framework
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                wrapperDependency: [
+                    googleMobileAdsDependency,
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: wrapperDependency, to: googleMobileAdsDependency): try XCTUnwrap(PlatformCondition.when([.ios])),
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "Wrapper",
+                        destinations: [.iPhone, .mac],
+                        product: .framework,
+                        settings: .test(
+                            base: [
+                                "OTHER_LDFLAGS[sdk=iphoneos*]": [
+                                    "$(inherited)",
+                                    "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
                                     "-framework",
                                     "JavaScriptCore",
                                 ],
@@ -2130,6 +2251,40 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "-Xcc", "value-one",
                         "-enable-upcoming-feature", "DeprecateApplicationMain",
                         "value-two",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherLdFlagsDuplicates_preserves_distinct_argument_pairs() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_LDFLAGS": .array(
+                [
+                    "$(inherited)",
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", "@executable_path/Frameworks",
+                    "-Xlinker", "-rpath",
+                    "-framework", "JavaScriptCore",
+                    "-framework", "JavaScriptCore",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherLdFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_LDFLAGS": .array(
+                    [
+                        "$(inherited)",
+                        "-Xlinker", "-rpath",
+                        "-Xlinker", "@executable_path/Frameworks",
+                        "-framework", "JavaScriptCore",
                     ]
                 ),
             ]
