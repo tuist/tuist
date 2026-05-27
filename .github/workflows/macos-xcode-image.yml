@@ -15,13 +15,11 @@ name: macOS + Xcode Image
 # (`runs-on: tuist-macos-xcode-26-5`, etc.) once that wiring lands.
 # For now, the chart pins one image at a time as the default.
 #
-# Auth model: the bare-metal `vm-image-builder` Mac mini has a
-# logged-in xcodes session in its login keychain. A maintainer
-# runs `xcodes signin <apple-id>` over SSH once per quarter (or
-# whenever the session expires) and approves 2FA from a trusted
-# device. After that, `xcodes download` on the builder
-# authenticates silently against developer.apple.com — no Apple
-# ID secrets in GitHub, no manual upload per Xcode release. See
+# .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
+# our in-house mirror populated by `mise run xcode-mirror:upload`
+# on a maintainer's Mac (Apple's SRP-only signin + `xcodes`'s
+# per-process cookie storage rule out an in-cluster auto-mirror).
+# This workflow never talks to developer.apple.com. See
 # `infra/macos-xcode-image/AGENTS.md` for the runbook.
 
 on:

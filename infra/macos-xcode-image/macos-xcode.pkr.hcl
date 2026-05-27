@@ -48,11 +48,11 @@ packer {
 # this image and lays the runner agent on top in ~2 min.
 #
 # Inputs come from the image-build workflow on the bare-metal Mac
-# mini, which has a logged-in xcodes session in its login keychain
-# (`xcodes signin <apple-id>` run by a maintainer once per quarter
-# — see infra/macos-xcode-image/AGENTS.md). The workflow runs
-# `xcodes download <version>` against developer.apple.com using
-# that session and passes the resulting .xip path here.
+# mini. The workflow pulls Xcode_<version>.xip from our in-house
+# mirror at `ghcr.io/tuist/xcode-xips:<version>`, populated by
+# `mise run xcode-mirror:upload <version>` on a maintainer's Mac
+# (`infra/macos-xcode-image/AGENTS.md` for the runbook). Nothing
+# in this template talks to developer.apple.com.
 
 variable "base_image" {
   type        = string

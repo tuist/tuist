@@ -96,10 +96,11 @@ of the ~30 min an all-in-one rebuild used to cost.
 
 Bumping the Xcode customers see on their runners is a two-step:
 
-1. Publish a Layer 1 image with the new Xcode — `gh workflow run
-   macos-xcode-image.yml -f xcode_version=26.X.Y`. See
-   `infra/macos-xcode-image/AGENTS.md` for the runbook (including
-   the quarterly `xcodes signin` re-mint).
+1. Publish a Layer 1 image with the new Xcode — first run
+   `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
+   the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
+   `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
+   See `infra/macos-xcode-image/AGENTS.md` for the runbook.
 2. Bump the version pin in `infra/runner-image/XCODE_VERSION` and
    commit with a `feat(runner-image): bump to Xcode X.Y.Z`
    message. The file lives under this image's release-include-path
