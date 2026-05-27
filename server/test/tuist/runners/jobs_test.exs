@@ -6,6 +6,7 @@ defmodule Tuist.Runners.JobsTest do
 
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
@@ -527,10 +528,24 @@ defmodule Tuist.Runners.JobsTest do
 
     test "does NOT close the billing session — that's the runners-controller's job" do
       account = account_fixture()
+      claimed_at = DateTime.utc_now()
       :ok = enqueue_fixture(account, 7200, fleet: "fleet-bs-close")
       {:ok, candidate} = Jobs.pick_queued("fleet-bs-close", [])
-      :ok = Jobs.record_claimed(candidate, "pod-bs-close", DateTime.utc_now())
+      :ok = Jobs.record_claimed(candidate, "pod-bs-close", claimed_at)
       :ok = Jobs.record_running(7200, "runner-bs")
+
+      # Production opens the session in `Tuist.Runners.serve_claim/5`
+      # after `record_running_safe` succeeds. This test bypasses
+      # `serve_claim/5`, so simulate the open the same way.
+      {:ok, _} =
+        RunnerSessions.open(%{
+          workflow_job_id: 7200,
+          account_id: account.id,
+          fleet_name: "fleet-bs-close",
+          pod_name: "pod-bs-close",
+          runner_name: "runner-bs",
+          started_at: claimed_at
+        })
 
       assert {:ok, _} = Jobs.complete(7200, "success")
 

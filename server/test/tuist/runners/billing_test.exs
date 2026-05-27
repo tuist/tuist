@@ -178,8 +178,13 @@ defmodule Tuist.Runners.BillingTest do
       assert is_list(result.dates)
       assert is_list(result.values)
       assert length(result.dates) == length(result.values)
-      # 15 minutes lands as 15 on whichever day held the session.
-      assert Enum.sum(result.values) == 15
+      # 15 minutes lands on the bucket(s) holding the session.
+      # `values` is integer minutes per bucket — when the session
+      # spans an hour boundary, each bucket's milliseconds are
+      # truncated independently via `div(60_000)`, so the sum can
+      # lose up to 1 minute to per-bucket rounding. `total_ms`
+      # (asserted above) is the source of truth.
+      assert Enum.sum(result.values) in 14..15
     end
 
     test "filters by :repository scope" do
