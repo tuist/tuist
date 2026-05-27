@@ -1236,6 +1236,56 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
+    test "uses multipart ClickHouse lookups for large test case batches" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..5_001 do
+          %{
+            name: "test_#{index}",
+            status: "success",
+            duration: 10,
+            test_suite_name: "Suite"
+          }
+        end
+
+      expect(ClickHouseRepo, :all, 2, fn query, opts ->
+        assert Keyword.get(opts, :multipart) == true
+        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+
+        assert sql =~ ~s[FROM "test_cases"]
+        assert sql =~ ~s["project_id"]
+        assert sql =~ ~s["id"]
+        assert project.id in params
+        assert length(params) > 1
+
+        []
+      end)
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: project.account_id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "Module",
+            status: "success",
+            duration: 1500,
+            test_suites: [%{name: "Suite", status: "success", duration: 1500}],
+            test_cases: test_cases
+          }
+        ]
+      }
+
+      # When/Then
+      assert {:ok, _test} = Tests.create_test(test_attrs)
+    end
+
     test "persists run_destinations as separate rows linked to the test run" do
       # Given
       project = ProjectsFixtures.project_fixture()

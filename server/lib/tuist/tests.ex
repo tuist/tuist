@@ -785,10 +785,9 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
-  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
-  # `max_query_size` of 256 KB even with surrounding query text. Larger batches
-  # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
+  # Batch size for multipart `id IN ^ids` lookups. The generated SQL still
+  # contains one placeholder per test case ID, so we keep the batches small
+  # enough to stay below ClickHouse query/form limits on large reports.
   @existing_test_cases_batch_size 5_000
 
   defp get_existing_test_cases(_project_id, []), do: %{}
@@ -802,24 +801,28 @@ defmodule Tuist.Tests do
     |> Enum.chunk_every(@existing_test_cases_batch_size)
     |> Enum.reduce(%{}, fn ids_chunk, acc ->
       project_id
-      |> existing_test_cases_chunk_query(ids_chunk)
-      |> ClickHouseRepo.all()
+      |> fetch_existing_test_cases_chunk(ids_chunk)
       |> Enum.reduce(acc, &merge_latest_test_case/2)
     end)
   end
 
+  defp fetch_existing_test_cases_chunk(project_id, ids_chunk) do
+    project_id
+    |> existing_test_cases_chunk_query(ids_chunk)
+    |> ClickHouseRepo.all(multipart: true)
+  end
+
   defp existing_test_cases_chunk_query(project_id, ids_chunk) do
-    from(test_case in TestCase,
-      where: test_case.project_id == ^project_id,
-      where: test_case.id in ^ids_chunk,
+    from(tc in TestCase,
+      where: tc.project_id == ^project_id and tc.id in ^ids_chunk,
       select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        state: test_case.state,
-        last_ran_at_ci: test_case.last_ran_at_ci,
-        last_ran_at_local: test_case.last_ran_at_local,
-        inserted_at: test_case.inserted_at
+        id: tc.id,
+        recent_durations: tc.recent_durations,
+        is_flaky: tc.is_flaky,
+        state: tc.state,
+        last_ran_at_ci: tc.last_ran_at_ci,
+        last_ran_at_local: tc.last_ran_at_local,
+        inserted_at: tc.inserted_at
       }
     )
   end
