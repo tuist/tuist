@@ -6,6 +6,7 @@ defmodule Tuist.SCIMTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
   alias Tuist.SCIM
+  alias Tuist.SCIM.Workers.AttachmentNotifierWorker
 
   describe "tokens" do
     test "create_token/2 issues a usable bearer and persists only its hash" do
@@ -118,6 +119,26 @@ defmodule Tuist.SCIMTest do
       assert user.id == existing.id
       assert Accounts.belongs_to_organization?(user, org)
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+
+      assert_enqueued(
+        worker: AttachmentNotifierWorker,
+        args: %{"user_id" => existing.id, "organization_id" => org.id}
+      )
+    end
+
+    test "provision_user/2 does not enqueue a notification when a brand-new user is created", %{organization: org} do
+      assert {:ok, _user} = SCIM.provision_user(org, %{user_name: "fresh@example.com"})
+
+      refute_enqueued(worker: AttachmentNotifierWorker)
+    end
+
+    test "provision_user/2 does not re-notify an existing org member on idempotent calls", %{organization: org} do
+      existing = user_fixture(email: "member@example.com")
+      :ok = Accounts.add_user_to_organization(existing, org, role: :user)
+
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "member@example.com", role: :admin})
+
+      refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
     test "provision_user/2 with active: false does not add the user to the organization", %{organization: org} do

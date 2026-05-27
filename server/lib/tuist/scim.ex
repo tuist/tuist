@@ -27,12 +27,12 @@ defmodule Tuist.SCIM do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
-  alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Base64
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.SCIM.Filter
+  alias Tuist.SCIM.Workers.AttachmentNotifierWorker
 
   require Logger
 
@@ -230,13 +230,8 @@ defmodule Tuist.SCIM do
     active = Map.get(attrs, :active, true)
 
     case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
-      {:ok, {user, newly_attached?}} ->
-        user = Repo.preload(user, :account)
-        if newly_attached?, do: notify_attached_user(user, organization)
-        {:ok, user}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, user} -> {:ok, Repo.preload(user, :account)}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -251,20 +246,27 @@ defmodule Tuist.SCIM do
       attach_active_user(user, organization, role, provenance)
     else
       :ok = remove_user_role_from_organization(user, organization)
-      {%{user | active: false}, false}
+      %{user | active: false}
     end
   end
 
   defp attach_active_user(user, organization, role, provenance) do
-    newly_attached? =
-      provenance == :existing and not Accounts.belongs_to_organization?(user, organization)
+    if provenance == :existing and not Accounts.belongs_to_organization?(user, organization) do
+      enqueue_attachment_notification(user, organization)
+    end
 
     :ok = Accounts.add_user_to_organization(user, organization, role: role)
 
     case update_user_role_if_needed(user, organization, role) do
-      {:ok, _} -> {user, newly_attached?}
+      {:ok, _} -> user
       {:error, reason} -> Repo.rollback(reason)
     end
+  end
+
+  defp enqueue_attachment_notification(%User{id: user_id}, %Organization{id: organization_id}) do
+    %{user_id: user_id, organization_id: organization_id}
+    |> AttachmentNotifierWorker.new()
+    |> Oban.insert!()
   end
 
   defp provisionable_user(email) do
@@ -281,11 +283,6 @@ defmodule Tuist.SCIM do
             if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
         end
     end
-  end
-
-  defp notify_attached_user(%User{} = user, %Organization{} = organization) do
-    organization = Repo.preload(organization, :account)
-    UserNotifier.deliver_scim_organization_attachment(user, organization)
   end
 
   defp email_taken?(%Ecto.Changeset{errors: errors}) do
