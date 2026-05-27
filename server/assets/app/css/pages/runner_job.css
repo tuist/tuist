@@ -134,19 +134,19 @@
             flex-direction: row;
             align-items: center;
             gap: var(--noora-spacing-2);
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-            min-width: 0;
-            overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            max-width: 100%;
 
             & > svg {
+              flex-shrink: 0;
               width: var(--noora-icon-size-medium);
               height: var(--noora-icon-size-medium);
               color: var(--noora-surface-label-secondary);
-              flex-shrink: 0;
             }
           }
 

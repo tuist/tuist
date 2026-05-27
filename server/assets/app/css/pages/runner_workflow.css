@@ -83,8 +83,8 @@
         gap: var(--noora-spacing-3);
 
         & > [data-part="repository-link"] {
-          text-decoration: none;
           color: inherit;
+          text-decoration: none;
         }
       }
     }
