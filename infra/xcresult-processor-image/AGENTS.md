@@ -58,26 +58,28 @@ Unlike `infra/runner-image` (where customers pin a specific runner
 profile to a specific Xcode), the xcresult-processor is a
 **singleton backend service** that has to parse .xcresult bundles
 produced by every customer runner profile. xcresulttool's JSON
-schema changes across Xcode majors, so a pinned-to-older processor
-would silently fail on bundles produced by any newer Xcode. To avoid
-that, the build resolves the **newest published `ghcr.io/tuist/macos-tahoe-xcode`
-tag at build time** via `crane ls | sort | tail -n1` — no
-`XCODE_VERSION` file to keep in sync.
+schema changes across Xcode majors, so the processor should run on
+at least as new an Xcode as any active runner-image profile.
 
-Bumping the Xcode the processor runs against is therefore a
-one-step:
+The Xcode version is declared inline in `.github/workflows/release.yml`'s
+`release-xcresult-processor-image.Build image` step (current value is
+the `XCODE_VERSION` env var on that step). Bump it alongside the
+runner-image matrix when promoting a new Xcode to the fleet:
 
 1. Publish a Layer 1 image with the new Xcode — first run
    `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
+2. Update the runner-image active matrix and this image's
+   `XCODE_VERSION` env var in `release.yml` in the same commit so
+   the processor never lags an active runner profile. Merge with
+   a `feat(xcresult-processor-image): bump to Xcode 26.X.Y` message;
+   check-releases picks it up from `infra/xcresult-processor-image/**`.
 
-The next commit touching anything under
-`infra/xcresult-processor-image/**` triggers `check-releases`, which
-rebuilds the processor against whatever tag is newest at that point.
-To force a rebuild against a freshly-published Xcode without an
-unrelated commit, dispatch `xcresult-processor-image.yml` manually.
+To rebuild against a different Xcode without bumping the inline
+version (e.g. testing a 26.X.Y release candidate), dispatch
+`xcresult-processor-image.yml` with `-f xcode_version=26.X.Y`.
 
 ## Env injection at runtime
 

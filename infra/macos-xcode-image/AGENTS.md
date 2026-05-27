@@ -128,12 +128,12 @@ auto-download entirely:
    or put it first (makes it the chart's default profile) — then
    merge. The release flow rebuilds every matrix entry against its
    matching base and moves the chart's `runnersFleet.runnerImage`
-   digest pin to the first-entry profile. The xcresult-processor doesn't have a pin
-   file; it always resolves the newest
-   `ghcr.io/tuist/macos-tahoe-xcode` tag at build time, so it picks
-   up the new Xcode on its next rebuild (any commit under
-   `infra/xcresult-processor-image/**` or a manual
-   `workflow_dispatch`).
+   digest pin to the first-entry profile. For the xcresult-processor,
+   bump the inline `XCODE_VERSION` env var on `release.yml`'s
+   `release-xcresult-processor-image.Build image` step in the same
+   commit — it should track at least as new an Xcode as the newest
+   active runner-image profile (xcresulttool's JSON schema changes
+   across Xcode majors).
 
 The Apple ID used for the local mint is the one stored in 1Password
 under `Tuist Apple ID` (Employee vault). `mise.toml` pins the
@@ -183,12 +183,10 @@ automatically roll customer runners to Xcode 26.5. To promote:
    its matrix entry — the `:macos-<dashes>` tag stays in GHCR for
    lingering pins; use `runner-image.yml` dispatch for one-off
    refreshes.
-3. (Optional) Force a parallel xcresult-processor rebuild against
-   the freshly-published base. The processor resolves the newest
-   Xcode tag at build time and doesn't have a pin file, so it'll
-   pick the new Xcode up on its next natural rebuild — but if you
-   want it now, dispatch `xcresult-processor-image.yml`.
-3. After merge, `release-runner-image` rebuilds
+3. Bump the inline `XCODE_VERSION` on `release.yml`'s
+   `release-xcresult-processor-image.Build image` step in the same
+   commit so the processor doesn't lag a newly-active runner profile.
+4. After merge, `release-runner-image` rebuilds
    `tuist-runner:macos-<xcode-version-dashes>` against the new
    base and rewrites the chart's `runnersFleet.runnerImage`
    digest pin; `release-xcresult-processor-image` does the same

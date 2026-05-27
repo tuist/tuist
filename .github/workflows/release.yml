@@ -1466,24 +1466,18 @@ jobs:
 
       - name: Build image
         working-directory: infra/xcresult-processor-image
+        # The processor parses .xcresult bundles from *all* customer
+        # runner profiles, so the Xcode here should be at least as new
+        # as the newest active runner-image profile (xcresulttool's
+        # JSON schema changes across Xcode majors). Promotion rule:
+        # when you bump the first matrix entry in runner-image-build
+        # above, bump this too.
+        env:
+          XCODE_VERSION: "26.5"
         run: |
           set -euo pipefail
-          # Resolve the newest published macos-tahoe-xcode tag at
-          # build time instead of pinning. The xcresult-processor is
-          # a singleton backend that has to parse .xcresult bundles
-          # from *all* customer runner profiles — pinning to a
-          # specific Xcode would silently break parsing of bundles
-          # produced by any newer Xcode (xcresulttool's JSON schema
-          # changes across Xcode majors). Filter for version-shaped
-          # tags (`<major>` / `<major>-<minor>` / `<major>-<minor>-<patch>`),
-          # numeric-sort by `-`-delimited fields, pick the highest.
-          BASE_TAG=$(crane ls ghcr.io/tuist/macos-tahoe-xcode | grep -E '^[0-9]+(-[0-9]+){0,2}$' | sort -t- -k1,1n -k2,2n -k3,3n | tail -n1)
-          if [ -z "$BASE_TAG" ]; then
-            echo "Error: No version-shaped tags found at ghcr.io/tuist/macos-tahoe-xcode. Trigger macos-xcode-image.yml first." >&2
-            exit 1
-          fi
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-          echo "Resolved base image: ${BASE_IMAGE}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \

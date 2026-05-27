@@ -1,41 +1,25 @@
 #!/usr/bin/env bash
 #MISE description "Build the Tuist xcresult-processor Tart image locally"
 #MISE raw=true
-#USAGE arg "[base_image]" help="Override the base Tart image (default: newest published ghcr.io/tuist/macos-tahoe-xcode tag, resolved via `crane ls`). Must already be present in GHCR or your local Tart store."
+#USAGE arg "<xcode_version>" help="Xcode version of the base macos-tahoe-xcode image (e.g. 26.5, 26.4.1). The tag must already be published — `gh workflow run macos-xcode-image.yml -f xcode_version=...` if not."
 
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SERVER_DIR="${REPO_ROOT}/server"
 PACKER_DIR="${REPO_ROOT}/infra/xcresult-processor-image"
+BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${usage_xcode_version//./-}"
 
-for cmd in tart packer mix swift crane; do
+for cmd in tart packer mix swift; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "Error: ${cmd} is not installed."
     case "$cmd" in
       tart) echo "Install: brew install cirruslabs/cli/tart" ;;
       packer) echo "Install: brew install hashicorp/tap/packer" ;;
-      crane) echo "Install: brew install crane" ;;
     esac
     exit 1
   fi
 done
-
-# Pick the newest published macos-tahoe-xcode tag at build time. The
-# processor parses .xcresult bundles from every customer runner
-# profile, so pinning to a specific Xcode would silently break
-# parsing of bundles produced by any newer Xcode.
-if [ -n "${usage_base_image:-}" ]; then
-  BASE_IMAGE="$usage_base_image"
-else
-  BASE_TAG=$(crane ls ghcr.io/tuist/macos-tahoe-xcode | grep -E '^[0-9]+(-[0-9]+){0,2}$' | sort -t- -k1,1n -k2,2n -k3,3n | tail -n1)
-  if [ -z "$BASE_TAG" ]; then
-    echo "Error: No version-shaped tags found at ghcr.io/tuist/macos-tahoe-xcode." >&2
-    echo "       Trigger macos-xcode-image.yml first, or 'crane auth login ghcr.io' if listing fails." >&2
-    exit 1
-  fi
-  BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-fi
 
 echo "==> Building xcresult NIF..."
 "${SERVER_DIR}/native/xcresult_nif/build.sh"
