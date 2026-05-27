@@ -145,7 +145,7 @@ The following tools are available through the Tuist MCP server:
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. | `account_handle`, `project_handle` |
+| `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |
