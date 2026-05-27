@@ -43,5 +43,13 @@ defmodule Tuist.Repo.Migrations.CreateRunnerSessions do
     # unique — retries produce duplicate workflow_job_ids.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_sessions, [:workflow_job_id])
+
+    # Close-by-pod_name lookup from `RunnerSessions.close_by_pod_name/2`,
+    # called on every Pod terminal-phase transition by the
+    # runners-controller. Partial-on-open keeps the index small
+    # — closed sessions are 99% of the table over time and we
+    # never look them up by pod_name.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(:runner_sessions, [:pod_name], where: "ended_at IS NULL")
   end
 end
