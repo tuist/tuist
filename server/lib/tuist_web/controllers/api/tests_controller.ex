@@ -41,10 +41,11 @@ defmodule TuistWeb.API.TestsController do
         type: :string,
         description: "Filter by git branch."
       ],
-      git_branch_not_contains: [
+      query: [
         in: :query,
         type: :string,
-        description: "Exclude test runs whose git branch contains this substring."
+        description:
+          ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`.)
       ],
       status: [
         in: :query,
@@ -118,67 +119,119 @@ defmodule TuistWeb.API.TestsController do
            },
            required: [:test_runs, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
+
+  @query_filter_regex ~r/(^|\s+)(-?)([a-z_]+)(:|~)"((?:\\"|[^"])*)"/
+  @query_filter_fields %{
+    "git_branch" => :git_branch,
+    "scheme" => :scheme,
+    "status" => :status
+  }
 
   def index(
         %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    filters =
-      [%{field: :project_id, op: :==, value: selected_project.id}]
-      |> maybe_add_filter(:git_branch, :==, Map.get(params, :git_branch))
-      |> maybe_add_filter(:git_branch, :not_ilike, Map.get(params, :git_branch_not_contains))
-      |> maybe_add_filter(:status, :==, Map.get(params, :status))
-      |> maybe_add_filter(:scheme, :==, Map.get(params, :scheme))
+    case query_filters(Map.get(params, :query)) do
+      {:ok, query_filters} ->
+        filters =
+          [%{field: :project_id, op: :==, value: selected_project.id}]
+          |> maybe_add_filter(:git_branch, :==, Map.get(params, :git_branch))
+          |> maybe_add_filter(:status, :==, Map.get(params, :status))
+          |> maybe_add_filter(:scheme, :==, Map.get(params, :scheme))
+          |> Kernel.++(query_filters)
 
-    attrs = %{
-      filters: filters,
-      order_by: [:ran_at],
-      order_directions: [:desc],
-      page: page,
-      page_size: page_size
-    }
+        attrs = %{
+          filters: filters,
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        }
 
-    {test_runs, meta} = Tests.list_test_runs(attrs)
-    metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
-    metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
+        {test_runs, meta} = Tests.list_test_runs(attrs)
+        metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
+        metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
 
-    json(conn, %{
-      test_runs:
-        Enum.map(test_runs, fn run ->
-          run_metrics = Map.get(metrics_map, run.id, %{})
+        json(conn, %{
+          test_runs:
+            Enum.map(test_runs, fn run ->
+              run_metrics = Map.get(metrics_map, run.id, %{})
 
-          %{
-            id: run.id,
-            duration: run.duration,
-            status: to_string(run.status),
-            is_ci: run.is_ci,
-            is_flaky: run.is_flaky,
-            scheme: run.scheme,
-            git_branch: run.git_branch,
-            git_commit_sha: run.git_commit_sha,
-            ran_at: format_ran_at(run.ran_at),
-            total_test_count: Map.get(run_metrics, :total_tests, 0),
-            ran_tests: Map.get(run_metrics, :ran_tests, 0),
-            skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+              %{
+                id: run.id,
+                duration: run.duration,
+                status: to_string(run.status),
+                is_ci: run.is_ci,
+                is_flaky: run.is_flaky,
+                scheme: run.scheme,
+                git_branch: run.git_branch,
+                git_commit_sha: run.git_commit_sha,
+                ran_at: format_ran_at(run.ran_at),
+                total_test_count: Map.get(run_metrics, :total_tests, 0),
+                ran_tests: Map.get(run_metrics, :ran_tests, 0),
+                skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
           }
-        end),
-      pagination_metadata: %{
-        has_next_page: meta.has_next_page?,
-        has_previous_page: meta.has_previous_page?,
-        current_page: meta.current_page,
-        page_size: meta.page_size,
-        total_count: meta.total_count,
-        total_pages: meta.total_pages
-      }
-    })
+        })
+
+      {:error, :invalid_query} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Invalid query parameter"})
+    end
   end
 
   defp maybe_add_filter(filters, _field, _op, nil), do: filters
   defp maybe_add_filter(filters, _field, _op, ""), do: filters
   defp maybe_add_filter(filters, field, op, value), do: filters ++ [%{field: field, op: op, value: value}]
+
+  defp query_filters(nil), do: {:ok, []}
+  defp query_filters(""), do: {:ok, []}
+
+  defp query_filters(query) do
+    captures = Regex.scan(@query_filter_regex, query)
+
+    consumed_query =
+      captures
+      |> Enum.map_join(&Enum.at(&1, 0))
+      |> String.trim()
+
+    if consumed_query == String.trim(query) do
+      filters =
+        Enum.map(captures, fn [_match, _separator, negation, field, operator, value] ->
+          %{
+            field: Map.fetch!(@query_filter_fields, field),
+            op: query_operator(operator, negation),
+            value: unescape_query_value(value)
+          }
+        end)
+
+      {:ok, filters}
+    else
+      {:error, :invalid_query}
+    end
+  rescue
+    KeyError -> {:error, :invalid_query}
+  end
+
+  defp query_operator(":", ""), do: :==
+  defp query_operator(":", "-"), do: :!=
+  defp query_operator("~", ""), do: :ilike
+  defp query_operator("~", "-"), do: :not_ilike
+
+  defp unescape_query_value(value), do: String.replace(value, ~S(\"), ~S("))
 
   operation(:create,
     summary: "Create a new test run.",

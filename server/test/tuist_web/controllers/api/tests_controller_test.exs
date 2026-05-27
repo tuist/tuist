@@ -127,7 +127,7 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert json_response(conn, :ok)
     end
 
-    test "filters test runs by git_branch_not_contains", %{conn: conn, user: user, project: project} do
+    test "filters test runs with a query expression", %{conn: conn, user: user, project: project} do
       # Given
       stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
 
@@ -146,14 +146,25 @@ defmodule TuistWeb.API.TestsControllerTest do
       end)
 
       # When
+      query = URI.encode_query(%{query: ~s(-git_branch~"gh-readonly-queue")})
+
       conn =
         get(
           conn,
-          "/api/projects/#{user.account.name}/#{project.name}/tests?git_branch_not_contains=gh-readonly-queue"
+          "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}"
         )
 
       # Then
       assert json_response(conn, :ok)
+    end
+
+    test "returns bad request for invalid query expressions", %{conn: conn, user: user, project: project} do
+      # When
+      query = URI.encode_query(%{query: ~s(unknown~"value")})
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}")
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] == "Invalid query parameter"
     end
 
     test "filters test runs by status", %{conn: conn, user: user, project: project} do
