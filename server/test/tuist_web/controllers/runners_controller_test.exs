@@ -20,7 +20,7 @@ defmodule TuistWeb.RunnersControllerTest do
           workflow_job_id: 7_100_001,
           account_id: account.id,
           fleet_name: "fleet-scale",
-          repo: "acme/cli",
+          repository: "acme/cli",
           workflow_run_id: 10_001,
           run_attempt: 1,
           job_name: "build",
