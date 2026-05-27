@@ -141,11 +141,32 @@ defmodule Tuist.SCIMTest do
       refute_enqueued(worker: AttachmentNotifierWorker)
     end
 
-    test "provision_user/2 with active: false does not add the user to the organization", %{organization: org} do
+    test "provision_user/2 with active: false does not add a brand-new user to the organization", %{organization: org} do
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: "carol@example.com", active: false})
       assert user.active == false
       assert Accounts.get_user_by_id(user.id).active == true
       refute Accounts.belongs_to_organization?(user, org)
+    end
+
+    test "provision_user/2 with active: false rejects an existing user who isn't a member of the org", %{
+      organization: org
+    } do
+      _existing = user_fixture(email: "stranger@example.com")
+
+      # 201 + Location for a user we never attach would point at a SCIM
+      # resource that immediately 404s on GET. Reject with 409 so the IdP
+      # uses PATCH (the verb actually meant for deactivation) instead.
+      assert {:error, :email_taken} =
+               SCIM.provision_user(org, %{user_name: "stranger@example.com", active: false})
+    end
+
+    test "provision_user/2 with active: false deactivates an existing member", %{organization: org} do
+      existing = user_fixture(email: "leaving@example.com")
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "leaving@example.com", active: false})
+      assert user.active == false
+      refute Accounts.belongs_to_organization?(existing, org)
     end
 
     test "list_users/2 paginates with a userName filter", %{organization: org} do

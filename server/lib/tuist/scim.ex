@@ -242,15 +242,33 @@ defmodule Tuist.SCIM do
         {:error, reason} -> Repo.rollback(reason)
       end
 
-    if active do
-      attach_active_user(user, organization, role, provenance)
-    else
-      :ok = remove_user_role_from_organization(user, organization)
-      %{user | active: false}
+    cond do
+      active ->
+        attach_active_user(user, organization, role, provenance)
+
+      provenance == :existing and not Accounts.belongs_to_organization?(user, organization) ->
+        # Refuse to "create" a SCIM resource we wouldn't be able to represent
+        # afterwards: the controller would answer 201 + Location, but a
+        # follow-up GET /Users/:id would 404 because we never created any
+        # membership. PATCH is the right verb for deactivating someone who
+        # is already a member; POST + active=false on a non-member is a bug.
+        Repo.rollback(:email_taken)
+
+      true ->
+        :ok = remove_user_role_from_organization(user, organization)
+        %{user | active: false}
     end
   end
 
   defp attach_active_user(user, organization, role, provenance) do
+    # Serialize concurrent SCIM POSTs for the same (user, org). Without
+    # this, two simultaneous Okta requests can both pass the membership
+    # check below and both call add_user_to_organization/3, producing
+    # duplicate (role, users_roles) grants — which then make every
+    # subsequent Repo.one lookup in get_user_role_in_organization/2 raise
+    # Ecto.MultipleResultsError. The lock is released at transaction end.
+    lock_membership(user.id, organization.id)
+
     if provenance == :existing and not Accounts.belongs_to_organization?(user, organization) do
       enqueue_attachment_notification(user, organization)
     end
@@ -261,6 +279,10 @@ defmodule Tuist.SCIM do
       {:ok, _} -> user
       {:error, reason} -> Repo.rollback(reason)
     end
+  end
+
+  defp lock_membership(user_id, organization_id) do
+    Repo.query!("SELECT pg_advisory_xact_lock($1::integer, $2::integer)", [user_id, organization_id])
   end
 
   defp enqueue_attachment_notification(%User{id: user_id}, %Organization{id: organization_id}) do

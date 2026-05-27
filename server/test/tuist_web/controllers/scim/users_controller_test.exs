@@ -61,6 +61,16 @@ defmodule TuistWeb.SCIM.UsersControllerTest do
       assert body["userName"] == "taken@example.com"
       assert Accounts.belongs_to_organization?(existing, org)
     end
+
+    test "returns conflict when active=false targets an existing non-member", %{conn: conn, organization: org} do
+      existing = user_fixture(email: "inactive@example.com")
+      refute Accounts.belongs_to_organization?(existing, org)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "inactive@example.com", active: false}))
+
+      assert json_response(conn, 409)["scimType"] == "uniqueness"
+      refute Accounts.belongs_to_organization?(existing, org)
+    end
   end
 
   describe "GET /Users" do
