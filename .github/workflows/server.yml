@@ -326,38 +326,19 @@ jobs:
           curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
-      - name: Pre-warm Trivy DB
-        # Separate step so DB-pull time is visible in the timeline
-        # and doesn't masquerade as scan-time. Trivy's default
-        # `--db-repository` points at `mirror.gcr.io/aquasec/trivy-db`
-        # (Google's pull-through mirror of Aqua's DB) — egress from
-        # the bare-metal Linux runner fleet to that mirror is
-        # rate-limited / routing-poor and the DB pull hangs past
-        # the job timeout. Pull from ghcr.io directly instead; we
-        # already pull our own images from there so connectivity is
-        # known-good.
-        run: |
-          trivy --debug image \
-            --download-db-only \
-            --db-repository ghcr.io/aquasecurity/trivy-db:2
-          trivy --debug image \
-            --download-java-db-only \
-            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1
       - name: Scan image for vulnerabilities
-        # Use the absolute workspace path because `trivy image` in 0.69.3
-        # resolves --ignorefile against an undocumented base, not cwd.
-        # --skip-db-update + --skip-java-db-update because the
-        # previous step already pre-warmed both caches; this scan
-        # step is now pure analysis time, no network.
+        # `trivy image` in 0.69.3 resolves --ignorefile against an
+        # undocumented base, not cwd, so pass an absolute path.
+        # ghcr.io trivy-db avoids the mirror.gcr.io DB pull hang.
         run: |
           trivy image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
             --no-progress \
-            --skip-db-update \
-            --skip-java-db-update \
             --ignorefile "$GITHUB_WORKSPACE/.trivyignore" \
+            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 \
             tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
