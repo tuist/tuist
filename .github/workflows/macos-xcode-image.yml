@@ -248,10 +248,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
-          # --insecure for HTTP loopback; chunk-size still helps even
-          # locally because tart's monolithic-upload code path is the
-          # same one that fails against ghcr.io.
-          tart push --insecure --chunk-size 3 \
+          # --insecure for HTTP loopback. No --chunk-size: crane's
+          # registry returns `MissingLocationHeader` for tart's
+          # chunked-upload flow. Monolithic uploads work fine over
+          # loopback (no network reliability concern locally).
+          tart push --insecure \
             macos-tahoe-xcode "127.0.0.1:5000/tuist/macos-tahoe-xcode:${TAG}"
 
       - name: Copy image to GHCR (skopeo)
