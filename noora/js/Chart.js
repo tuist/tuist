@@ -75,6 +75,15 @@ const formatters = {
       hour12: false,
     });
   },
+  toLocaleDateHour: (el) => (value, _) => {
+    const date = new Date(value);
+    const dateStr = date.toLocaleDateString(navigator.language, {
+      day: "numeric",
+      month: "short",
+    });
+    const hour = String(date.getHours()).padStart(2, "0");
+    return `${dateStr}, ${hour}:00`;
+  },
   formatBytes: (el) => (value, _) => {
     return formatBytes(value);
   },

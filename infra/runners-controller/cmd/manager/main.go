@@ -25,6 +25,7 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/controllers"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
 )
 
 var (
@@ -44,6 +45,7 @@ func main() {
 		dispatchURL         string
 		dispatchInternalURL string
 		scalingSignalsURL   string
+		sessionsURL         string
 		watchedNS           string
 		dindImage           string
 	)
@@ -55,6 +57,8 @@ func main() {
 		"In-cluster (Service-based) dispatch URL injected into Linux pool Pods. Linux Pods can't reach the public ingress IP from inside the cluster (Hetzner Cloud LB has no hairpin). Optional; falls back to --dispatch-url when empty.")
 	flag.StringVar(&scalingSignalsURL, "scaling-signals-url", envOr("TUIST_SCALING_SIGNALS_URL", ""),
 		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
+	flag.StringVar(&sessionsURL, "sessions-url", envOr("TUIST_RUNNER_SESSIONS_URL", ""),
+		"URL prefix the pod-lifecycle reconciler POSTs Pod terminal-phase events to (`/pods/stopped` is appended). Required for billing; until configured, the server falls back to its safety clamp.")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
 	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
@@ -112,6 +116,24 @@ func main() {
 			SignalsClient: scaling.NewClient(scalingSignalsURL),
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
+			os.Exit(1)
+		}
+	}
+
+	// Pod-lifecycle reconciler watches runner Pods for terminal-
+	// phase transitions and reports them to the Tuist server so
+	// billing sessions close off K8s-authoritative timestamps
+	// rather than the flaky `workflow_job.completed` webhook. When
+	// the URL isn't configured we skip wiring it up — the server
+	// keeps its max-lifetime safety clamp, which bounds the
+	// over-bill while we get the controller plumbed in.
+	if sessionsURL != "" {
+		if err := (&controllers.PodLifecycleReconciler{
+			Client:         mgr.GetClient(),
+			Scheme:         mgr.GetScheme(),
+			SessionsClient: sessions.NewClient(sessionsURL),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup PodLifecycle reconciler")
 			os.Exit(1)
 		}
 	}

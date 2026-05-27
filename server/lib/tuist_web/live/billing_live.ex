@@ -65,7 +65,6 @@ defmodule TuistWeb.BillingLive do
 
     socket =
       socket
-      |> assign(selected_tab: "billing")
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)

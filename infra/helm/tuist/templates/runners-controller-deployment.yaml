@@ -176,6 +176,13 @@ spec:
             - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
             # dockerd sidecar image stamped on every Linux runner Pod.
             - --dind-image={{ .Values.runnersController.dindImage }}
+            # Pod-lifecycle reconciler reports terminal-phase
+            # transitions to the server's RunnerSessions store so
+            # billing closes off K8s-authoritative timestamps
+            # instead of the flaky `workflow_job.completed`
+            # webhook. In-cluster Service URL — same path used by
+            # the autoscaler.
+            - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
           ports:
             - name: metrics
               containerPort: 8080
