@@ -3447,7 +3447,7 @@ completed_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
-      repo: repo,
+      repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
       run_attempt: job.run_attempt,
@@ -3463,7 +3463,7 @@ completed_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
-        repo: repo,
+        repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
         run_attempt: job.run_attempt,
@@ -3486,15 +3486,14 @@ completed_jobs
   # `claimed_at`/`completed_at` — otherwise the Compute Minutes
   # widget would render ~zero seconds for every seeded job
   # regardless of `duration_s`.
-  {1, _} =
-    Repo.update_all(
-      from(s in RunnerSession, where: s.workflow_job_id == ^workflow_job_id),
-      set: [
-        started_at: claimed_at,
-        ended_at: completed_at,
-        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-      ]
-    )
+  Repo.update_all(
+    from(s in RunnerSession, where: s.workflow_job_id == ^workflow_job_id),
+    set: [
+      started_at: claimed_at,
+      ended_at: completed_at,
+      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+    ]
+  )
 
   # `completed_at` is set by `complete/2` to `DateTime.utc_now()`, but for seed
   # realism we re-INSERT a final row with the desired completion time so the
@@ -3547,7 +3546,7 @@ running_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
-      repo: repo,
+      repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
       run_attempt: job.run_attempt,
@@ -3563,7 +3562,7 @@ running_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
-        repo: repo,
+        repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
         run_attempt: job.run_attempt,
@@ -3621,7 +3620,7 @@ claimed_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
-      repo: repo,
+      repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
       run_attempt: job.run_attempt,
@@ -3637,7 +3636,7 @@ claimed_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
-        repo: repo,
+        repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
         run_attempt: job.run_attempt,
@@ -3672,7 +3671,7 @@ queued_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
-      repo: repo,
+      repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
       run_attempt: job.run_attempt,
