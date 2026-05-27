@@ -80,32 +80,27 @@ jobs:
           XCODE_VERSION: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
-          XCODE_CACHE="${RUNNER_TEMP:-/tmp}/xcode-xip"
-          mkdir -p "$XCODE_CACHE"
-          if ! ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip >/dev/null 2>&1; then
-            # The credential-helper protocol picks up the GHCR creds
-            # the next step's `crane auth login` writes — same path
-            # the runner-image / xcresult-processor workflows use.
-            # We do an explicit login here (not at workflow top)
-            # because oras' login persists to ~/.docker/config.json
-            # which Packer's anonymous-pull dance later toggles
-            # back to anonymous for the public Cirrus base.
-            echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
-            if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_CACHE"; then
-              {
-                echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
-                echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
-                echo ""
-                echo "Populate the mirror from a maintainer Mac:"
-                echo ""
-                echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
-                echo ""
-                echo "Then re-trigger this workflow."
-              } >&2
-              exit 1
-            fi
+          XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
+          mkdir -p "$XCODE_XIP_DIR"
+          # Explicit oras login here (not at workflow top) because
+          # oras' login persists to ~/.docker/config.json, which
+          # Packer's anonymous-pull dance later toggles back to
+          # anonymous for the public Cirrus base.
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
+          if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
+            {
+              echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
+              echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
+              echo ""
+              echo "Populate the mirror from a maintainer Mac:"
+              echo ""
+              echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
+              echo ""
+              echo "Then re-trigger this workflow."
+            } >&2
+            exit 1
           fi
-          XCODE_XIP=$(ls "$XCODE_CACHE"/Xcode-${XCODE_VERSION}*.xip | head -n1)
+          XCODE_XIP=$(ls "$XCODE_XIP_DIR"/Xcode-${XCODE_VERSION}*.xip | head -n1)
           test -f "$XCODE_XIP"
           echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
           echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
