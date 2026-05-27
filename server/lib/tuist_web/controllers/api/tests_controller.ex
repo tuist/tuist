@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias Tuist.Tests.TestRunQuery
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -45,7 +46,7 @@ defmodule TuistWeb.API.TestsController do
         in: :query,
         type: :string,
         description:
-          ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`.)
+          ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.)
       ],
       status: [
         in: :query,
@@ -124,18 +125,11 @@ defmodule TuistWeb.API.TestsController do
     }
   )
 
-  @query_filter_regex ~r/(^|\s+)(-?)([a-z_]+)(:|~)"((?:\\"|[^"])*)"/
-  @query_filter_fields %{
-    "git_branch" => :git_branch,
-    "scheme" => :scheme,
-    "status" => :status
-  }
-
   def index(
         %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    case query_filters(Map.get(params, :query)) do
+    case TestRunQuery.filters(Map.get(params, :query)) do
       {:ok, query_filters} ->
         filters =
           [%{field: :project_id, op: :==, value: selected_project.id}]
@@ -196,42 +190,6 @@ defmodule TuistWeb.API.TestsController do
   defp maybe_add_filter(filters, _field, _op, nil), do: filters
   defp maybe_add_filter(filters, _field, _op, ""), do: filters
   defp maybe_add_filter(filters, field, op, value), do: filters ++ [%{field: field, op: op, value: value}]
-
-  defp query_filters(nil), do: {:ok, []}
-  defp query_filters(""), do: {:ok, []}
-
-  defp query_filters(query) do
-    captures = Regex.scan(@query_filter_regex, query)
-
-    consumed_query =
-      captures
-      |> Enum.map_join(&Enum.at(&1, 0))
-      |> String.trim()
-
-    if consumed_query == String.trim(query) do
-      filters =
-        Enum.map(captures, fn [_match, _separator, negation, field, operator, value] ->
-          %{
-            field: Map.fetch!(@query_filter_fields, field),
-            op: query_operator(operator, negation),
-            value: unescape_query_value(value)
-          }
-        end)
-
-      {:ok, filters}
-    else
-      {:error, :invalid_query}
-    end
-  rescue
-    KeyError -> {:error, :invalid_query}
-  end
-
-  defp query_operator(":", ""), do: :==
-  defp query_operator(":", "-"), do: :!=
-  defp query_operator("~", ""), do: :ilike
-  defp query_operator("~", "-"), do: :not_ilike
-
-  defp unescape_query_value(value), do: String.replace(value, ~S(\"), ~S("))
 
   operation(:create,
     summary: "Create a new test run.",
