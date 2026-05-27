@@ -180,6 +180,21 @@ defmodule TuistWeb.AgentAuthControllerTest do
       assert conn |> post("/agent/auth", body) |> json_response(200)
       assert %{"error" => "replay_detected"} = build_conn() |> post("/agent/auth", body) |> json_response(409)
     end
+
+    test "returns 403 sso_required for an SSO-enforced email", %{conn: conn} do
+      email = AccountsFixtures.unique_user_email()
+      stub(Accounts, :sso_enforced_for_email?, fn ^email -> true end)
+
+      conn =
+        post(conn, "/agent/auth", %{
+          "type" => "identity_assertion",
+          "assertion_type" => "verified_email",
+          "assertion" => email,
+          "requested_credential_type" => "access_token"
+        })
+
+      assert %{"error" => "sso_required"} = json_response(conn, 403)
+    end
   end
 
   describe "POST /agent/auth/claim" do

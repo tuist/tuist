@@ -1204,6 +1204,54 @@ defmodule Tuist.Accounts do
     Repo.exists?(oauth2_identity_query)
   end
 
+  @doc """
+  Returns true when SSO is enforced for the given email — either because an
+  existing user belongs to at least one organization with `sso_enforced: true`,
+  or because no user exists yet but the email's domain maps to an SSO-enforced
+  organization (Okta or generic OAuth2 / OIDC, the providers whose org id is
+  derived from the email domain).
+
+  Used by the auth.md agent-registration flow to refuse minting MCP credentials
+  for SSO-managed users via mailbox proof or trusted agent-provider assertions:
+  those paths bypass the configured IdP and would otherwise be a back door
+  around the organization's SSO policy.
+  """
+  def sso_enforced_for_email?(email) when is_binary(email) do
+    case get_user_by_email(email) do
+      {:ok, user} -> user_has_sso_enforced_organization?(user)
+      {:error, :not_found} -> email_domain_has_sso_enforced_organization?(email)
+    end
+  end
+
+  def sso_enforced_for_email?(_email), do: false
+
+  defp user_has_sso_enforced_organization?(user) do
+    user
+    |> get_user_organization_accounts()
+    |> Enum.any?(fn %{organization: organization} -> organization.sso_enforced end)
+  end
+
+  defp email_domain_has_sso_enforced_organization?(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        okta_domain = String.replace(domain, ".com", ".okta.com")
+        url_domain = "https://#{domain}"
+
+        Repo.exists?(
+          from(o in Organization,
+            where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
+            where:
+              o.sso_organization_id == ^domain or
+                o.sso_organization_id == ^okta_domain or
+                o.sso_organization_id == ^url_domain
+          )
+        )
+
+      _ ->
+        false
+    end
+  end
+
   def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
       from(u in UserRole,

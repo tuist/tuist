@@ -45,6 +45,9 @@ defmodule TuistWeb.AgentAuthController do
       {:deny, _limit} ->
         render_error(conn, :too_many_requests, "rate_limited", "Too many agent registration attempts.")
 
+      {:error, :sso_required} ->
+        render_sso_required_error(conn)
+
       {:error, reason}
       when reason in [
              :invalid_issuer,
@@ -86,6 +89,9 @@ defmodule TuistWeb.AgentAuthController do
     else
       {:deny, _limit} ->
         render_error(conn, :too_many_requests, "rate_limited", "Too many agent registration attempts.")
+
+      {:error, :sso_required} ->
+        render_sso_required_error(conn)
 
       {:error, :invalid_email} ->
         render_error(conn, :bad_request, "invalid_email", "The verified email assertion must be a valid email address.")
@@ -178,6 +184,9 @@ defmodule TuistWeb.AgentAuthController do
       {:deny, _limit} ->
         render_error(conn, :too_many_requests, "rate_limited", "Too many claim attempts.")
 
+      {:error, :sso_required} ->
+        render_sso_required_error(conn)
+
       {:error, :invalid_email} ->
         render_error(conn, :bad_request, "invalid_email", "The claim email must be a valid email address.")
 
@@ -222,23 +231,8 @@ defmodule TuistWeb.AgentAuthController do
 
         json(conn, response)
 
-      {:error, :invalid_claim_token} ->
-        render_error(conn, :not_found, "invalid_claim_token", "The claim token is invalid.")
-
-      {:error, :otp_invalid} ->
-        render_error(conn, :unauthorized, "otp_invalid", "The one-time code is invalid.")
-
-      {:error, :otp_expired} ->
-        render_error(conn, :gone, "otp_expired", "The one-time code has expired.")
-
-      {:error, :claim_expired} ->
-        render_error(conn, :gone, "claim_expired", "This registration has expired.")
-
-      {:error, :previously_claimed} ->
-        render_error(conn, :conflict, "previously_claimed", "This registration has already been claimed.")
-
-      {:error, :rate_limited} ->
-        render_error(conn, :too_many_requests, "rate_limited", "Too many invalid one-time code attempts.")
+      {:error, reason} ->
+        render_complete_claim_error(conn, reason)
     end
   end
 
@@ -336,6 +330,35 @@ defmodule TuistWeb.AgentAuthController do
       end
 
     render_error(conn, status, Atom.to_string(reason), "The agent identity assertion is invalid.")
+  end
+
+  defp render_complete_claim_error(conn, :sso_required), do: render_sso_required_error(conn)
+
+  defp render_complete_claim_error(conn, :invalid_claim_token),
+    do: render_error(conn, :not_found, "invalid_claim_token", "The claim token is invalid.")
+
+  defp render_complete_claim_error(conn, :otp_invalid),
+    do: render_error(conn, :unauthorized, "otp_invalid", "The one-time code is invalid.")
+
+  defp render_complete_claim_error(conn, :otp_expired),
+    do: render_error(conn, :gone, "otp_expired", "The one-time code has expired.")
+
+  defp render_complete_claim_error(conn, :claim_expired),
+    do: render_error(conn, :gone, "claim_expired", "This registration has expired.")
+
+  defp render_complete_claim_error(conn, :previously_claimed),
+    do: render_error(conn, :conflict, "previously_claimed", "This registration has already been claimed.")
+
+  defp render_complete_claim_error(conn, :rate_limited),
+    do: render_error(conn, :too_many_requests, "rate_limited", "Too many invalid one-time code attempts.")
+
+  defp render_sso_required_error(conn) do
+    render_error(
+      conn,
+      :forbidden,
+      "sso_required",
+      "This account is governed by an SSO-enforced organization. Sign in through your identity provider and connect the MCP server from your authenticated Tuist session."
+    )
   end
 
   defp claim_view_html(otp, otp_expires_at) do
@@ -684,6 +707,11 @@ defmodule TuistWeb.AgentAuthController do
     | `otp_expired` | `POST /agent/auth/claim/complete` | The OTP expired. | Re-send the claim email or restart registration. |
     | `claim_expired` | `POST /agent/auth/claim`, `POST /agent/auth/claim/complete` | The pending registration expired. | Restart registration. |
     | `previously_claimed` | `POST /agent/auth/claim`, `POST /agent/auth/claim/complete` | The registration was already completed. | Stop using the claim token and reuse the issued credential if available. |
+    | `sso_required` | `POST /agent/auth`, `POST /agent/auth/claim`, `POST /agent/auth/claim/complete` | The target account is governed by an SSO-enforced organization. | Ask the user to sign in via their identity provider and connect the MCP server from their authenticated Tuist session. |
+
+    ## SSO-enforced accounts
+
+    Tuist refuses to mint MCP credentials through auth.md when the target email belongs to an organization that enforces SSO. Mailbox proof and trusted agent-provider assertions both bypass the organization's identity provider, so the user must instead sign in via the configured IdP and connect the MCP server from their authenticated Tuist session. The auth.md flow returns `sso_required` (HTTP 403) at every step that would otherwise bind a credential to such an account.
 
     ## Revocation
 

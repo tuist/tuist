@@ -4712,6 +4712,132 @@ defmodule Tuist.AccountsTest do
                  audience: "https://tuist.dev"
                })
     end
+
+    test "refuses email-verification registration for SSO-enforced existing users" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses email-verification registration when the email domain maps to an SSO-enforced org" do
+      org = sso_enforced_organization_fixture(sso_organization_id: "acme.com")
+      assert org.sso_organization_id == "acme.com"
+      email = "new-user-#{TuistTestSupport.Utilities.unique_integer(6)}@acme.com"
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "refuses agent-provider registration when the asserted email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "sso-enforced-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses anonymous claim when the supplied email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {:ok, anonymous} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :sso_required} =
+               Accounts.resend_agent_registration_claim(%{
+                 claim_token: anonymous.claim_token,
+                 email: email,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 claim_requested_ip: "192.0.2.30"
+               })
+    end
+  end
+
+  defp sso_enforced_organization_fixture(opts \\ []) do
+    sso_organization_id =
+      Keyword.get(opts, :sso_organization_id, "sso-org-#{TuistTestSupport.Utilities.unique_integer(6)}.com")
+
+    org =
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: sso_organization_id,
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+    {:ok, org} =
+      org
+      |> Ecto.Changeset.change(sso_enforced: true)
+      |> Repo.update()
+
+    org
+  end
+
+  describe "sso_enforced_for_email?/1" do
+    test "returns true when the existing user belongs to an SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false when the existing user has no SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      _user = AccountsFixtures.user_fixture(email: email)
+
+      refute Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns true for an unknown email whose domain maps to an SSO-enforced org" do
+      _org = sso_enforced_organization_fixture(sso_organization_id: "example-sso.com")
+      email = "unknown-#{TuistTestSupport.Utilities.unique_integer(6)}@example-sso.com"
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false for malformed input" do
+      refute Accounts.sso_enforced_for_email?(nil)
+      refute Accounts.sso_enforced_for_email?("not-an-email")
+    end
   end
 
   defp extract_claim_view_token(html_body) do

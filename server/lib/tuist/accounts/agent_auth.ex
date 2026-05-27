@@ -42,7 +42,8 @@ defmodule Tuist.Accounts.AgentAuth do
       when requested_credential_type in [:access_token, :api_key] and is_function(claim_view_url, 1) do
     email = normalize_email(email)
 
-    with :ok <- validate_email(email) do
+    with :ok <- validate_email(email),
+         :ok <- ensure_sso_policy_satisfied(email) do
       now = Time.utc_now()
       claim = build_claim_bundle()
 
@@ -163,7 +164,8 @@ defmodule Tuist.Accounts.AgentAuth do
     # rollback of the credential/registration writes below — a transient
     # failure here must not allow the same assertion to be reused.
     with {:ok, claims} <- verify_jwt(assertion, audience, :id_jag),
-         {:ok, email} <- verified_email_claim(claims) do
+         {:ok, email} <- verified_email_claim(claims),
+         :ok <- ensure_sso_policy_satisfied(email) do
       fn ->
         with {:ok, user} <- get_or_provision_user_from_assertion(claims, email, audience),
              {:ok, credential} <- issue_credential(user, requested_credential_type),
@@ -268,7 +270,8 @@ defmodule Tuist.Accounts.AgentAuth do
            :ok <- validate_optional_email(email),
            :ok <- ensure_email_matches(registration, email),
            :ok <- ensure_not_claimed(registration),
-           :ok <- ensure_claim_token_valid(registration) do
+           :ok <- ensure_claim_token_valid(registration),
+           :ok <- ensure_sso_policy_satisfied(email) do
         claim = build_claim_bundle()
         now = Time.utc_now()
         otp_expires_at = DateTime.add(now, @otp_ttl_seconds, :second)
@@ -315,6 +318,7 @@ defmodule Tuist.Accounts.AgentAuth do
            :ok <- ensure_not_claimed(registration),
            :ok <- ensure_claim_token_valid(registration),
            :ok <- ensure_otp_valid(registration),
+           :ok <- ensure_sso_policy_satisfied(registration.email),
            true <- secure_compare_hash(hash_secret(otp), registration.otp_hash) do
         user = get_or_provision_user!(registration.email)
         now = Time.utc_now()
@@ -410,6 +414,22 @@ defmodule Tuist.Accounts.AgentAuth do
 
   defp validate_optional_email(nil), do: :ok
   defp validate_optional_email(email), do: validate_email(email)
+
+  # Mailbox proof (email OTP) and trusted agent-provider assertions both bypass
+  # Tuist's configured IdP. If the target email is governed by an SSO-enforced
+  # organization, refuse to mint credentials here — the user must sign in
+  # through the IdP instead. Defense in depth: this gate runs at every entry
+  # point that can introduce a new bound email (create_registration for
+  # email-verification and agent-provider, resend_claim, and complete_claim).
+  defp ensure_sso_policy_satisfied(nil), do: :ok
+
+  defp ensure_sso_policy_satisfied(email) when is_binary(email) do
+    if Accounts.sso_enforced_for_email?(email) do
+      {:error, :sso_required}
+    else
+      :ok
+    end
+  end
 
   defp normalize_email(email) when is_binary(email) do
     email
