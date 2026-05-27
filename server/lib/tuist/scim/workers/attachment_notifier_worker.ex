@@ -18,7 +18,10 @@ defmodule Tuist.SCIM.Workers.AttachmentNotifierWorker do
   def perform(%Oban.Job{args: %{"user_id" => user_id, "organization_id" => organization_id}}) do
     user = Repo.get!(User, user_id)
     organization = Organization |> Repo.get!(organization_id) |> Repo.preload(:account)
-    UserNotifier.deliver_scim_organization_attachment!(user, organization)
-    :ok
+
+    case UserNotifier.deliver_scim_organization_attachment(user, organization) do
+      {:ok, _email} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 end

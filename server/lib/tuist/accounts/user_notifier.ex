@@ -12,16 +12,21 @@ defmodule Tuist.Accounts.UserNotifier do
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
+    recipient |> build_email(subject, body) |> Mailer.deliver_now!()
+  end
+
+  # Builds the email envelope without delivering it. Lets callers that need a
+  # non-raising delivery (e.g. Oban workers binding the result to `perform/1`)
+  # send via `Mailer.deliver_now/1` while sharing the envelope conventions
+  # used by every other notifier function in this module.
+  defp build_email(recipient, subject, body) do
     email =
       new_email(to: recipient, from: {"Tuist", Environment.mailing_from_address()}, subject: subject, html_body: body)
 
-    email =
-      case Environment.mailing_reply_to_address() do
-        nil -> email
-        reply_to -> put_header(email, "Reply-To", reply_to)
-      end
-
-    Mailer.deliver_now!(email)
+    case Environment.mailing_reply_to_address() do
+      nil -> email
+      reply_to -> put_header(email, "Reply-To", reply_to)
+    end
   end
 
   defp html_email(body, icon_url) do
@@ -188,15 +193,21 @@ defmodule Tuist.Accounts.UserNotifier do
   only possible by an organization admin (in Tuist) or by the identity
   provider de-provisioning the user, so the copy directs the recipient to
   their IdP/IT admin rather than promising a Tuist self-service flow.
+
+  Returns `{:ok, email}` on successful delivery and `{:error, reason}` on
+  delivery failure (e.g. SMTP timeout) so the caller — typically an Oban
+  worker — can let Oban's retry pipeline pick it up via the standard
+  `{:error, _}` return.
   """
-  def deliver_scim_organization_attachment!(%User{email: user_email}, %{account: %{name: organization_name}}) do
+  def deliver_scim_organization_attachment(%User{email: user_email}, %{account: %{name: organization_name}}) do
     organization_url = Environment.app_url(path: "/#{organization_name}")
 
-    deliver(
-      user_email,
+    subject =
       dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization",
         organization_name: organization_name
-      ),
+      )
+
+    body =
       html_email(
         """
             <div class="container">
@@ -217,7 +228,8 @@ defmodule Tuist.Accounts.UserNotifier do
         """,
         Environment.email_icon_url()
       )
-    )
+
+    user_email |> build_email(subject, body) |> Mailer.deliver_now()
   end
 
   @doc """
