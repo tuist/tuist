@@ -335,7 +335,23 @@ jobs:
       - name: Scan image for vulnerabilities
         # Use the absolute workspace path because `trivy image` in 0.69.3
         # resolves --ignorefile against an undocumented base, not cwd.
-        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile "$GITHUB_WORKSPACE/.trivyignore" tuist/tuist
+        #
+        # --db-repository: default is mirror.gcr.io/aquasec/trivy-db
+        # (Google's pull-through mirror of Aqua's DB). Egress from the
+        # bare-metal Linux runner fleet to that mirror is rate-limited
+        # / routing-poor — the DB pull hangs past the job timeout. Hit
+        # ghcr.io directly instead; we already pull our own images from
+        # there so connectivity is known-good.
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --no-progress \
+            --ignorefile "$GITHUB_WORKSPACE/.trivyignore" \
+            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 \
+            tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
