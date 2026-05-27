@@ -147,9 +147,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			//      node_modules trees)
 			//   2. install e2fsprogs (Alpine docker:*-dind
 			//      ships without mkfs.ext4)
-			//   3. create a sparse 30 GiB disk.img on the
+			//   3. create a sparse 100 GiB disk.img on the
 			//      virtio-fs-backed dind-storage volume; only
-			//      consumes node-disk bytes as written
+			//      consumes node-disk bytes as written (so this
+			//      is a ceiling not an allocation — large enough
+			//      to fit the full server-build working set:
+			//      base image, mix deps, npm tree, swift
+			//      toolchain, buildkit caches; 30 GiB was tight
+			//      and ENOSPC'd silently mid-build, killing the
+			//      runner-agent connection)
 			//   4. mkfs.ext4 the sparse file
 			//   5. loop-mount it onto /var/lib/docker — dockerd
 			//      now sees real ext4 with trusted.* xattrs
@@ -178,7 +184,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 					"ulimit -n 1048576; " +
 					"apk add --no-cache e2fsprogs; " +
 					"mkdir -p /mnt/dind-disk; " +
-					"truncate -s 30G /mnt/dind-disk/disk.img; " +
+					"truncate -s 100G /mnt/dind-disk/disk.img; " +
 					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img; " +
 					"mkdir -p /var/lib/docker; " +
 					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker; " +
@@ -189,6 +195,11 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 					"echo '--- ls /var/lib/docker ---'; " +
 					"ls -la /var/lib/docker; " +
 					"echo '--- starting dockerd ---'; " +
+					// TEMP: tail df every 30s into the same log so
+					// we see disk-pressure markers across the whole
+					// build window. Drop with the rest of the diag
+					// once the shape is stable.
+					"( while sleep 30; do echo '--- df ' $(date -u) ' ---'; df -h /var/lib/docker; done ) & " +
 					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 					"--default-ulimit nofile=1048576:1048576",
 			},
