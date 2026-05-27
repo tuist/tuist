@@ -228,7 +228,17 @@ defmodule Tuist.Environment do
   def cache_endpoints(secrets \\ secrets()) do
     case get([:cache, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
-        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+        split_endpoints(endpoints)
+
+      _ ->
+        nil
+    end
+  end
+
+  def kura_endpoints(secrets \\ secrets()) do
+    case get([:kura, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        split_endpoints(endpoints)
 
       _ ->
         nil
@@ -1095,6 +1105,13 @@ defmodule Tuist.Environment do
 
   defp falsey?(value) when is_binary(value) do
     String.downcase(value) in ["0", "false", "no", "off"]
+  end
+
+  defp split_endpoints(endpoints) do
+    endpoints
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   def secrets do

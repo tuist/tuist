@@ -1,6 +1,6 @@
 name: Helm
 
-# Validate Helm charts under `infra/helm/` at the PR stage so chart bugs
+# Validate Helm charts at the PR stage so chart bugs
 # are caught before a deploy workflow tries to apply them to a real
 # cluster. Three layers of checks, each progressively stricter:
 #
@@ -27,11 +27,13 @@ on:
       - main
     paths:
       - infra/helm/**
+      - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   merge_group: {}
 
@@ -69,6 +71,7 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
+            "kura/ops/helm/kura|"
             "infra/helm/slack|values-ci.yaml"
             "infra/helm/noora-storybook|values-ci.yaml"
             "infra/helm/tuist|values-ci.yaml"
@@ -133,6 +136,7 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
+            "kura|kura/ops/helm/kura|kura|"
             "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
             "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
             "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"

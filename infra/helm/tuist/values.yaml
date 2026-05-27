@@ -192,6 +192,10 @@ server:
     bucketAsHost: false
     bucketName: tuist
   cacheEndpointUrl: ""
+  # Kura endpoint URLs advertised by this server when clients request the
+  # Kura cache technology. Self-hosted installs can point this at Kura
+  # instances running in the same cluster or network.
+  kuraEndpointUrls: []
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:

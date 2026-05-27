@@ -39,10 +39,10 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/tutorials/tuist/install", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/tuist/create-project", "/tutorials/xcode/create-a-generated-project"},
     {:exact, "/tutorials/tuist/external-dependencies", "/tutorials/xcode/create-a-generated-project"},
-    {:exact, "/tutorials/tuist-cloud-tutorials", "/guides/server/self-host/install"},
-    {:exact, "/tutorials/tuist/enterprise-infrastructure-requirements", "/guides/server/self-host/install"},
-    {:exact, "/tutorials/tuist/enterprise-environment", "/guides/server/self-host/install"},
-    {:exact, "/tutorials/tuist/enterprise-deployment", "/guides/server/self-host/install"},
+    {:exact, "/tutorials/tuist-cloud-tutorials", "/guides/server/self-host/control-plane"},
+    {:exact, "/tutorials/tuist/enterprise-infrastructure-requirements", "/guides/server/self-host/control-plane"},
+    {:exact, "/tutorials/tuist/enterprise-environment", "/guides/server/self-host/control-plane"},
+    {:exact, "/tutorials/tuist/enterprise-deployment", "/guides/server/self-host/control-plane"},
 
     # Legacy guide structure
     {:exact, "/contributors/get-started", "/contributors/code"},
@@ -84,7 +84,7 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/cloud/binary-caching", "/guides/features/cache"},
     {:exact, "/cloud/selective-testing", "/guides/features/selective-testing"},
     {:exact, "/cloud/hashing", "/guides/features/projects/hashing"},
-    {:exact, "/cloud/on-premise", "/guides/server/self-host/install"},
+    {:exact, "/cloud/on-premise", "/guides/server/self-host/control-plane"},
     {:exact, "/cloud/on-premise/metrics", "/guides/server/self-host/telemetry"},
 
     # Examples and project description references
@@ -103,7 +103,7 @@ defmodule Tuist.Docs.Redirects do
 
     # VitePress docs reorganizations
     {:exact, "/guides/develop/workflows", "/guides/integrations/continuous-integration"},
-    {:exact, "/guides/dashboard/on-premise/install", "/guides/server/self-host/install"},
+    {:exact, "/guides/dashboard/on-premise/install", "/guides/server/self-host/control-plane"},
     {:exact, "/guides/dashboard/on-premise/metrics", "/guides/server/self-host/telemetry"},
     {:exact, "/guides/start/new-project", "/guides/features/projects/adoption/new-project"},
     {:exact, "/guides/start/swift-package", "/guides/features/projects/adoption/swift-package"},
@@ -123,6 +123,7 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/develop/selective-testing/xcodebuild", "/guides/features/selective-testing"},
     {:exact, "/guides/features/mcp", "/guides/features/agentic-coding/mcp"},
     {:exact, "/guides/features/agentic-building/mcp", "/guides/features/agentic-coding/mcp"},
+    {:exact, "/guides/server/self-host/install", "/guides/server/self-host/control-plane"},
     {:exact, "/guides/environments/continuous-integration", "/guides/integrations/continuous-integration"},
     {:exact, "/guides/environments/automate/continuous-integration", "/guides/integrations/continuous-integration"},
     {:prefix, "/guides/automate/", "/guides/environments/"},
@@ -130,9 +131,9 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/server/introduction/accounts-and-projects", "/guides/server/accounts-and-projects"},
     {:exact, "/server/introduction/authentication", "/guides/server/authentication"},
     {:exact, "/server/introduction/integrations", "/guides/integrations/gitforge/github"},
-    {:exact, "/server/on-premise/install", "/guides/server/self-host/install"},
+    {:exact, "/server/on-premise/install", "/guides/server/self-host/control-plane"},
     {:exact, "/server/on-premise/metrics", "/guides/server/self-host/telemetry"},
-    {:exact, "/guides/server/install", "/guides/server/self-host/install"},
+    {:exact, "/guides/server/install", "/guides/server/self-host/control-plane"},
     {:exact, "/guides/server/metrics", "/guides/server/self-host/telemetry"},
     {:exact, "/server", "/guides/server/accounts-and-projects"},
     {:exact, "/guides/quick-start/install-tuist", "/guides/install-tuist"},
