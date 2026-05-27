@@ -10,7 +10,7 @@
 --      New tokens carry `cache_grants`, so Kura can authorize the hot
 --      path without a server roundtrip when the JWT already proves the
 --      requested cache action. Legacy scope-less JWTs can still prove
---      project-scoped access from `claims.projects` / `claims.accounts`.
+--      project-scoped access from `claims.projects`.
 --      If that misses, fall back to Tuist's OAuth introspection
 --      endpoint. During rollout, project-scoped requests can still use
 --      the legacy `/api/cache/access` endpoint if the introspection
@@ -337,7 +337,7 @@ local function authenticate_via_cache_access_endpoint(authorization)
       principal = principal_from_legacy_handles(
         "tuist",
         "subject",
-        account_handles(response.body),
+        {},
         project_handles(response.body)
       ),
       ttl_seconds = 60,
@@ -391,23 +391,13 @@ function authenticate(ctx)
     end
 
     if claims.scopes == nil then
-      local accounts = normalized_handles(claims.accounts)
       local projects = normalized_handles(claims.projects)
 
-      if target.scope == "account" then
-        for _, candidate in ipairs(accounts) do
-          if candidate == target.identifier then
-            return {
-              principal = principal_from_legacy_handles(claims.sub, claims.type, accounts, projects),
-              ttl_seconds = 60,
-            }
-          end
-        end
-      else
+      if target.scope == "project" then
         for _, candidate in ipairs(projects) do
           if candidate == target.identifier then
             return {
-              principal = principal_from_legacy_handles(claims.sub, claims.type, accounts, projects),
+              principal = principal_from_legacy_handles(claims.sub, claims.type, {}, projects),
               ttl_seconds = 60,
             }
           end
@@ -454,14 +444,7 @@ function authorize(ctx, principal)
   end
 
   if grants == nil then
-    if target.scope == "account" then
-      local accounts = principal.attributes and principal.attributes.accounts or {}
-      for _, candidate in ipairs(accounts) do
-        if candidate == target.identifier then
-          return { allow = true, ttl_seconds = 60 }
-        end
-      end
-    else
+    if target.scope == "project" then
       local projects = principal.attributes and principal.attributes.projects or {}
       for _, candidate in ipairs(projects) do
         if candidate == target.identifier then

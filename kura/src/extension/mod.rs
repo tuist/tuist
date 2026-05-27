@@ -1879,6 +1879,49 @@ end
         }
 
         #[tokio::test]
+        async fn does_not_reuse_legacy_project_fallback_for_account_requests() {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+                    )
+                },
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (
+                        StatusCode::OK,
+                        cache_access_payload(&["acme"], &["acme/ios"]),
+                    )
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, false).await;
+
+            let mut project_context = ctx();
+            project_context.tenant_id = Some("acme".into());
+            project_context.namespace_id = Some("ios".into());
+            project_context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let project_decision = engine.evaluate_access(&project_context).await;
+            assert!(matches!(project_decision, AccessDecision::Allow(Some(_))));
+
+            let mut account_context = ctx();
+            account_context.tenant_id = Some("acme".into());
+            account_context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&account_context).await);
+            assert_eq!(deny.status, 403);
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
         async fn denies_account_scoped_requests_when_introspection_client_is_missing() {
             let base = spawn_tuist_auth_mock(
                 |_headers, _payload| {

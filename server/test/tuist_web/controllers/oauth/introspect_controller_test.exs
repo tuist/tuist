@@ -4,6 +4,7 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
 
   alias Boruta.Oauth.Client
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -18,6 +19,9 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
       supported_grant_types: ["introspect"],
       token_endpoint_auth_methods: ["client_secret_post"]
     }
+
+    stub(Environment, :kura_introspection_configured?, fn -> true end)
+    stub(Environment, :kura_introspection_client_id, fn -> introspection_client.id end)
 
     stub(Clients, :get_client, fn
       "00000000-0000-0000-0000-000000000001" -> introspection_client
@@ -147,6 +151,33 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
         post(conn, "/oauth2/introspect", %{
           client_id: "00000000-0000-0000-0000-000000000001",
           client_secret: "wrong-secret",
+          token: "unknown-token"
+        })
+
+      assert json_response(conn, 401) == %{
+               "error" => "invalid_client",
+               "error_description" => "Invalid client_id or client_secret."
+             }
+    end
+
+    test "rejects non-Kura clients even when they support introspection", %{conn: conn} do
+      dynamic_client = %Client{
+        id: "00000000-0000-0000-0000-000000000002",
+        secret: "dynamic-secret",
+        confidential: true,
+        supported_grant_types: ["introspect"],
+        token_endpoint_auth_methods: ["client_secret_post"]
+      }
+
+      stub(Clients, :get_client, fn
+        "00000000-0000-0000-0000-000000000002" -> dynamic_client
+        _ -> nil
+      end)
+
+      conn =
+        post(conn, "/oauth2/introspect", %{
+          client_id: dynamic_client.id,
+          client_secret: dynamic_client.secret,
           token: "unknown-token"
         })
 
