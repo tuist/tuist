@@ -92,6 +92,14 @@ objectStorage:
 # replica), 100Gi storage. WAL archive + daily base backups land in the
 # `tuist-stag-pg-backups` Tigris bucket; barman writes a directory
 # per cluster name under `destinationPath`.
+#
+# Memory request kept low (1Gi vs the 2Gi default in values.yaml) because
+# the cpx22 staging workers only have ~2.5Gi allocatable each after
+# system DaemonSets. With hard pod anti-affinity (one CNPG instance per
+# node) plus the server / processor pods plus the migration-job hook
+# during deploys, a 2Gi request commits more than each node has free and
+# the migration-job ends up Pending. The 4Gi limit stays so runtime
+# memory isn't constrained.
 postgresql:
   cnpg:
     instances: 2
@@ -100,7 +108,7 @@ postgresql:
     resources:
       requests:
         cpu: "500m"
-        memory: "2Gi"
+        memory: "1Gi"
       limits:
         cpu: "1000m"
         memory: "4Gi"
