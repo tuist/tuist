@@ -1,10 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.8<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* avoid expanding recursive exclusion globs by [@pepicrft](https://github.com/pepicrft) in [#10957](https://github.com/tuist/tuist/pull/10957)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.7...4.195.8
+
+## What's Changed in 4.195.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek) in [#10228](https://github.com/tuist/tuist/pull/10228)
 * anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
 * preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
 * stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
@@ -26,7 +37,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.7
 
 ## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 
