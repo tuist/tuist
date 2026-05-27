@@ -35,9 +35,11 @@ on:
 
 concurrency:
   # Different Xcode versions can build in parallel (different push
-  # tags, no shared state). Same Xcode dispatched twice serialises.
+  # tags, no shared state). Same Xcode re-dispatched cancels the
+  # in-flight build — it would publish to the same tag and the
+  # second dispatch always represents the more recent intent.
   group: macos-xcode-image-${{ inputs.xcode_version }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
