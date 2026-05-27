@@ -1,5 +1,5 @@
 defmodule TuistWeb.Oauth.IntrospectControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   alias Boruta.Oauth.Client
