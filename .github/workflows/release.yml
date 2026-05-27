@@ -1520,74 +1520,35 @@ jobs:
           rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
-  runner-image-resolve:
-    # Parses XCODE_VERSIONS into the JSON matrix the build job
-    # consumes. Runs on ubuntu (cheap) so we don't burn a builder slot
-    # just to read a file. Also exposes the default profile name so
-    # the post-job can re-resolve its digest after the matrix completes.
-    name: Resolve runner-image active profiles
-    needs: check-releases
-    if: needs.check-releases.outputs.runner-image-should-release == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      profiles_json: ${{ steps.parse.outputs.profiles_json }}
-      default_profile: ${{ steps.parse.outputs.default_profile }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Parse XCODE_VERSIONS
-        id: parse
-        run: |
-          set -euo pipefail
-          # Each line is `<xcode> [active|inactive]` (default active);
-          # `#` comments skipped. Collect active versions in order.
-          active=()
-          while IFS= read -r line || [ -n "$line" ]; do
-            line="${line%%#*}"
-            set -- $line
-            xcode="${1:-}"
-            annotation="${2:-active}"
-            [ -z "$xcode" ] && continue
-            [ "$annotation" != "active" ] && continue
-            active+=("$xcode")
-          done < infra/runner-image/XCODE_VERSIONS
-
-          if [ ${#active[@]} -eq 0 ]; then
-            echo "Error: XCODE_VERSIONS contains no active profiles" >&2
-            exit 1
-          fi
-
-          # JSON array for the matrix. Quoting is fine because Xcode
-          # versions are constrained to digits + dots.
-          json="["
-          for ((i=0; i<${#active[@]}; i++)); do
-            [ $i -gt 0 ] && json+=","
-            json+="\"${active[$i]}\""
-          done
-          json+="]"
-
-          DEFAULT="macos-${active[0]//./-}"
-          echo "profiles_json=$json" >> "$GITHUB_OUTPUT"
-          echo "default_profile=$DEFAULT" >> "$GITHUB_OUTPUT"
-          echo "Active profiles: $json"
-          echo "Default profile: $DEFAULT"
-
   runner-image-build:
     # One job per active profile, fanned out across whatever
     # vm-image-builder hosts are available. GitHub schedules them
     # respecting the label set — with 2 builders, 2 profiles build
     # in parallel; adding more hosts scales linearly without any
     # workflow change.
+    #
+    # The active-profile list is declared inline below. Adding a
+    # profile = adding a matrix entry; if you move the first entry,
+    # update the adjacent `Resolve default profile + digest` step in
+    # release-runner-image to match (it produces the chart pin).
+    #
+    # To refresh an out-of-rotation profile (one not in the matrix),
+    # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
+    # that path keeps publishing tags but doesn't move the chart pin.
     name: Build runner image (Xcode ${{ matrix.xcode }})
-    needs: [check-releases, runner-image-resolve]
+    needs: check-releases
+    if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 60
     strategy:
       # If any profile build fails, abort sibling builds so the chart
-      # pin doesn't move to a partially-published set. Aligns with
-      # how the previous serial-loop bailed on first failure.
+      # pin doesn't move to a partially-published set.
       fail-fast: true
       matrix:
-        xcode: ${{ fromJson(needs.runner-image-resolve.outputs.profiles_json) }}
+        # First entry is the default profile (its digest goes into
+        # the chart pin). Keep release-runner-image.outputs.profile
+        # in sync.
+        xcode: ["26.5", "26.4.1"]
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1656,7 +1617,7 @@ jobs:
     # + CHANGELOG, upload artifacts. Lightweight, runs on ubuntu.
     # Downstream `release-*` jobs key off this job's outputs + result.
     name: Release runner image
-    needs: [check-releases, runner-image-resolve, runner-image-build]
+    needs: [check-releases, runner-image-build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -1664,7 +1625,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      profile: ${{ needs.runner-image-resolve.outputs.default_profile }}
+      profile: ${{ steps.digest.outputs.profile }}
       digest: ${{ steps.digest.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
@@ -1682,13 +1643,17 @@ jobs:
       - uses: imjasonh/setup-crane@v0.4
       - name: Log in to GHCR (crane)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-      - name: Resolve default profile digest
+      - name: Resolve default profile + digest
+        # Single declaration of which profile is the default — the
+        # chart pin tracks its digest. Keep in sync with the first
+        # matrix entry in runner-image-build above (dots → dashes).
         id: digest
         run: |
           set -euo pipefail
-          DEFAULT="${{ needs.runner-image-resolve.outputs.default_profile }}"
+          DEFAULT="macos-26-5"
           DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${DEFAULT}")
           echo "Default profile: ${DEFAULT} digest: ${DIGEST}"
+          echo "profile=${DEFAULT}" >> "$GITHUB_OUTPUT"
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Get release notes

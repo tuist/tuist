@@ -122,13 +122,13 @@ auto-download entirely:
    `ghcr.io/tuist/xcode-xips:<version>`. ~10 min wall-clock for
    the download; ~2 min for the push.
 
-3. **Promote**. For runner-image: edit
-   `infra/runner-image/XCODE_VERSIONS` — add the new Xcode as a
-   line (additional profile) or replace the first line (which makes
-   it the chart's default profile) — then merge. The release flow
-   rebuilds every profile in the file against its matching base and
-   moves the chart's `runnersFleet.runnerImage` digest pin to the
-   first-line profile. The xcresult-processor doesn't have a pin
+3. **Promote**. For runner-image: edit the active-profile matrix in
+   `.github/workflows/release.yml` (`runner-image-build.strategy.matrix.xcode`)
+   — add the new Xcode as an additional entry (additional profile)
+   or put it first (makes it the chart's default profile) — then
+   merge. The release flow rebuilds every matrix entry against its
+   matching base and moves the chart's `runnersFleet.runnerImage`
+   digest pin to the first-entry profile. The xcresult-processor doesn't have a pin
    file; it always resolves the newest
    `ghcr.io/tuist/macos-tahoe-xcode` tag at build time, so it picks
    up the new Xcode on its next rebuild (any commit under
@@ -164,7 +164,7 @@ To bring up the full set on a fresh GHCR, dispatch this workflow
 six times — once per Xcode version we want available as a
 profile. Subsequent patch bumps from Apple (e.g. 26.4.1 → 26.4.2)
 republish under a *new* tag (`:26-4-2`); the operator promotes by
-editing `infra/runner-image/XCODE_VERSIONS`.
+editing the active-profile matrix in `.github/workflows/release.yml`.
 
 ## Promoting a new Xcode to customer runners
 
@@ -173,14 +173,16 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
-2. Edit `infra/runner-image/XCODE_VERSIONS`: append the new Xcode
-   as an additional active line (most common — gives customers both
-   the old and new on offer), or put it at the top of the active
-   list to make it the chart's default profile. Commit with a
-   `feat(runner-image): ...` message so check-releases picks it up.
-   Demote retired Xcodes to `inactive` to skip the per-release
-   rebuild cost — see `infra/runner-image/AGENTS.md` for the
-   active/inactive distinction.
+2. Edit `.github/workflows/release.yml`'s
+   `runner-image-build.strategy.matrix.xcode` list: append the new
+   Xcode (most common — gives customers it alongside the existing
+   default), or put it first to make it the chart's default profile.
+   When moving the first entry, update the adjacent "Resolve default
+   profile + digest" step to match. Commit with a `feat(runner-image): ...`
+   message so check-releases picks it up. To retire an Xcode, drop
+   its matrix entry — the `:macos-<dashes>` tag stays in GHCR for
+   lingering pins; use `runner-image.yml` dispatch for one-off
+   refreshes.
 3. (Optional) Force a parallel xcresult-processor rebuild against
    the freshly-published base. The processor resolves the newest
    Xcode tag at build time and doesn't have a pin file, so it'll

@@ -24,9 +24,8 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Defaults to the first active line in infra/runner-image/XCODE_VERSIONS. Also the right path for refreshing an `inactive` profile."
-        required: false
-        default: ""
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Use this to refresh a profile that's out of the release.yml matrix without bumping the chart pin."
+        required: true
       runner_version:
         description: "GitHub Actions runner version"
         required: false
@@ -97,21 +96,11 @@ jobs:
         id: build
         working-directory: infra/runner-image
         env:
-          XCODE_VERSION_OVERRIDE: ${{ inputs.xcode_version }}
+          XCODE: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
-          # Single-profile dispatch. Resolves the Xcode version from:
-          #   1. operator-provided `xcode_version` input (handy for
-          #      refreshing an inactive profile), or
-          #   2. the first non-comment line of XCODE_VERSIONS (the
-          #      default active profile).
-          # The multi-profile rebuild loop lives in release.yml.
-          if [ -n "$XCODE_VERSION_OVERRIDE" ]; then
-            XCODE="$XCODE_VERSION_OVERRIDE"
-          else
-            # First column of the first non-comment line.
-            XCODE=$(awk '!/^[[:space:]]*(#|$)/ { print $1; exit }' XCODE_VERSIONS)
-          fi
+          # Single-profile dispatch. The multi-profile rebuild loop
+          # is in release.yml's runner-image-build matrix.
           BASE_TAG="${XCODE//./-}"
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"

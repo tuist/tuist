@@ -60,19 +60,18 @@ packer build runner.pkr.hcl
 
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
-  conventional commits on `main` trigger a three-job chain in
+  conventional commits on `main` trigger a two-job chain in
   `release.yml`:
-  1. `runner-image-resolve` (ubuntu) parses `XCODE_VERSIONS` into a
-     JSON list of active profiles and identifies the default.
-  2. `runner-image-build` is a matrix job — one entry per active
-     profile, fanned out across every available
-     `vm-image-builder`-labelled host. Each entry builds the runner
-     image against `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` and
+  1. `runner-image-build` is a matrix job; its `matrix.xcode` is a
+     literal list (currently `["26.5", "26.4.1"]`) declared in the
+     workflow itself. One entry runs per profile, fanned out across
+     every available `vm-image-builder`-labelled host. Each entry
+     builds against `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` and
      pushes both immutable (`:macos-<dashes>-<semver>`) and rolling
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
      fails, sibling builds abort so the chart pin doesn't move to a
      partially-published set.
-  3. `release-runner-image` (ubuntu) resolves the default profile's
+  2. `release-runner-image` (ubuntu) resolves the default profile's
      digest with `crane digest`, rewrites `runnersFleet.runnerImage`
      across managed-env values files that already have a digest pin,
      generates release notes / `CHANGELOG.md`, uploads artifacts.
@@ -107,39 +106,40 @@ agent + dispatch loop + runner user / launchd wiring on top. A
 Layer 2 rebuild on every runner-image commit costs ~2 min instead
 of the ~30 min an all-in-one rebuild used to cost.
 
-## Profiles file: `infra/runner-image/XCODE_VERSIONS`
+## Active profiles + the default
 
-Each non-comment line is `<xcode-version> [active|inactive]` (the
-annotation defaults to `active`). Comments start with `#`.
+Active profiles are declared in `release.yml`:
 
+```yaml
+# .github/workflows/release.yml
+runner-image-build:
+  strategy:
+    matrix:
+      xcode: ["26.5", "26.4.1"]   # first entry = default profile
 ```
-# default profile (chart pin tracks this one)
-26.5
-26.4.1
-26.0.1   inactive
-```
 
-Three concepts to keep straight:
-
-- **Default profile.** The first **active** line. The chart's
-  `runnersFleet.runnerImage` digest pin tracks this profile, so a
-  new fleet rollout = make the desired profile the first active line.
-- **Active profiles.** Rebuilt on every `release-runner-image` run
-  (i.e. every `feat(runner-image)` / `fix(runner-image)` commit
-  landing on `main`). Each adds ~30 min to the release on the
-  singleton `vm-image-builder` host, so keep this set small — the
-  Xcodes the fleet is currently rolling onto, typically 1-3.
-- **Inactive profiles.** Stay published in GHCR — customers can keep
-  pinning their workflows to them — but don't refresh on every
-  release. Use this for older Xcodes that customers haven't migrated
-  off yet. To roll a new runner-agent / dispatch-loop / launchd
-  change into an inactive profile:
+- **Active.** Rebuilt on every `release-runner-image` run (every
+  `feat(runner-image)` / `fix(runner-image)` commit landing on
+  `main`). Each adds ~30 min on a single builder; matrix-fanned across
+  the fleet so adding a third builder lets you carry a third profile
+  at the same wall-clock cost.
+- **Default profile.** The first matrix entry. The chart's
+  `runnersFleet.runnerImage` digest pin tracks its
+  `:macos-<dashes>` rolling tag, so a new fleet rollout = put the
+  desired profile first.
+- **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
+  that's been published in the past and still exists in GHCR. They
+  don't refresh on `release.yml` runs — customers can keep pinning
+  to them, but new runner-agent / dispatch-loop / launchd changes
+  only land in them when the operator explicitly refreshes via
 
       gh workflow run runner-image.yml -f xcode_version=26.X.Y
 
-Each line — when active and rebuilt — produces both an immutable
-tag (`:macos-<dashes>-<semver>`) and a rolling tag (`:macos-<dashes>`,
-which is what the chart resolves through its digest pin).
+  That dispatch path doesn't move the chart pin.
+
+Active rebuilds always produce both an immutable tag
+(`:macos-<dashes>-<semver>`) and the rolling tag (`:macos-<dashes>`,
+the one the chart's digest pin resolves through).
 
 Bumping the Xcode customers see on their runners:
 
@@ -148,16 +148,19 @@ Bumping the Xcode customers see on their runners:
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Edit `infra/runner-image/XCODE_VERSIONS`: add a new active line
-   for the Xcode (most common — gives customers it as an option
-   alongside the existing default), or put it at the top of the
-   active list to make it the new chart default. Commit with a
-   `feat(runner-image): ...` message — check-releases triggers the
-   rebuild against every active profile, and the chart pin moves to
-   the first active profile's digest.
-3. Once customers have migrated off an older Xcode, demote its line
-   to `inactive` so it stops paying the release-time cost. The tag
-   stays in GHCR for any lingering pin.
+2. Edit `release.yml`'s `runner-image-build.strategy.matrix.xcode`:
+   add the new Xcode as an additional entry (most common — gives
+   customers it alongside the existing default), or put it first to
+   make it the chart's default profile. **If you move the first
+   entry, also update `release-runner-image`'s "Resolve default
+   profile + digest" step to match — the two are kept adjacent in
+   the workflow for exactly this reason.** Commit with a
+   `feat(runner-image): ...` message so check-releases triggers the
+   rebuild.
+3. Once customers have migrated off an older Xcode, drop its entry
+   from the matrix. The `:macos-<dashes>` tag stays in GHCR for any
+   lingering pin; the dispatch path above stays available for a
+   one-off refresh if security work needs to land there.
 
 ## Profile tagging
 
