@@ -12,7 +12,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   describe "manifest/6" do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-      stub(Tuist.Environment, :oauth_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+
+      stub(Tuist.Environment, :kura_introspection_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
 
       manifest =
         KubernetesController.manifest(
@@ -59,7 +62,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
-      stub(Tuist.Environment, :oauth_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
+
+      stub(Tuist.Environment, :kura_introspection_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
 
       manifest =
         KubernetesController.manifest(

@@ -215,7 +215,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ] ++
-      maybe_env_var("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID", Tuist.Environment.oauth_client_id()) ++
+      maybe_env_var(
+        "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
+        Tuist.Environment.kura_introspection_client_id()
+      ) ++
       telemetry_env(region)
   end
 
