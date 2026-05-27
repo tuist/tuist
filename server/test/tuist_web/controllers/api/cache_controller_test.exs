@@ -253,6 +253,16 @@ defmodule TuistWeb.API.CacheControllerTest do
   end
 
   describe "GET /api/cache/access" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
     test "returns account-scoped and project-scoped cache access for a user", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
