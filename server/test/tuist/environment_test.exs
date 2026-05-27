@@ -219,4 +219,70 @@ defmodule Tuist.EnvironmentTest do
       end
     end
   end
+
+  describe "agent_auth_trusted_providers/1" do
+    test "returns the default trusted providers when no override is configured" do
+      assert Environment.agent_auth_trusted_providers(%{}) == [
+               %{
+                 "issuer" => "https://auth0.openai.com/",
+                 "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+               }
+             ]
+    end
+
+    test "allows secrets to override the default trusted providers with a list" do
+      providers = [
+        %{
+          "issuer" => "https://agent-provider.example.com",
+          "jwks_uri" => "https://agent-provider.example.com/.well-known/jwks.json",
+          "client_ids" => ["test-agent-client"]
+        }
+      ]
+
+      secrets = %{
+        "agent_auth" => %{
+          "trusted_providers" => providers
+        }
+      }
+
+      assert Environment.agent_auth_trusted_providers(secrets) == providers
+    end
+
+    test "allows secrets to override the default trusted providers with JSON" do
+      providers = [
+        %{
+          "issuer" => "https://agent-provider.example.com",
+          "jwks_uri" => "https://agent-provider.example.com/.well-known/jwks.json"
+        }
+      ]
+
+      secrets = %{
+        "agent_auth" => %{
+          "trusted_providers" => JSON.encode!(providers)
+        }
+      }
+
+      assert Environment.agent_auth_trusted_providers(secrets) == providers
+    end
+
+    test "allows an empty list override to disable default trusted providers" do
+      secrets = %{
+        "agent_auth" => %{
+          "trusted_providers" => []
+        }
+      }
+
+      assert Environment.agent_auth_trusted_providers(secrets) == []
+    end
+
+    test "fails closed when the trusted providers JSON override is invalid" do
+      secrets = %{
+        "agent_auth" => %{
+          "trusted_providers" => "not-json"
+        }
+      }
+
+      assert Environment.agent_auth_trusted_providers(secrets) == []
+    end
+  end
 end

@@ -10,6 +10,12 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @agent_auth_default_trusted_providers [
+    %{
+      "issuer" => "https://auth0.openai.com/",
+      "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+    }
+  ]
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -225,6 +231,8 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
+
   def agent_auth_trusted_providers(secrets \\ secrets()) do
     case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
       providers when is_list(providers) ->
@@ -237,7 +245,7 @@ defmodule Tuist.Environment do
         end
 
       _ ->
-        []
+        agent_auth_default_trusted_providers()
     end
   end
 
