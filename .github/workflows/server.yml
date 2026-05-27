@@ -322,15 +322,8 @@ jobs:
           echo "fs.nr_open=$(cat /proc/sys/fs/nr_open)"
           echo "fs.file-max=$(cat /proc/sys/fs/file-max)"
           echo
-          echo "=== dockerd Storage Driver + Backing FS ==="
-          docker info 2>&1 | grep -iE "storage driver|backing|kernel|operating|cgroup version" | head -20 || true
-          echo
-          echo "=== /var/lib/docker mount info (from runner side — best-effort) ==="
-          docker run --rm --privileged --pid=host alpine:3 sh -c '
-            grep " /var/lib/docker " /proc/mounts || echo "(no /var/lib/docker in /proc/mounts via --pid=host)"
-            echo "--- mount table ---"
-            mount | grep -iE "docker|overlay|tmpfs|virtio" | head -20
-          ' || true
+          echo "=== dockerd /proc/1/cmdline (via docker info / proxy) ==="
+          docker info 2>&1 | grep -iE "default|ulimit|kernel|operating" | head -20 || true
           echo
           echo "=== child container, NO explicit --ulimit (inherits dockerd --default-ulimit) ==="
           docker run --rm alpine:3 sh -c 'grep -iE "open files|processes" /proc/1/limits; echo "container fs.nr_open=$(cat /proc/sys/fs/nr_open)"'
