@@ -1033,6 +1033,28 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
+  @doc """
+  Namespace where the runners-controller's ServiceAccount lives —
+  used to gate `POST /api/internal/runners/pods/stopped` so only
+  the controller can close billing sessions. Defaults to `tuist`
+  (the typical chart release namespace); helm sets it explicitly
+  to `.Release.Namespace`.
+  """
+  def runners_controller_namespace do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_NAMESPACE", "tuist")
+  end
+
+  @doc """
+  Name of the runners-controller's ServiceAccount. Pairs with
+  `runners_controller_namespace/0` to identify the only principal
+  authorised to call the pod-lifecycle endpoints. Defaults to
+  `tuist-runners-controller` (chart-rendered name); helm overrides
+  via env when the release name differs.
+  """
+  def runners_controller_sa_name do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
