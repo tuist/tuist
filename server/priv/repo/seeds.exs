@@ -266,6 +266,15 @@ _account =
 
 {:ok, user} = Accounts.get_user_by_email(email)
 
+# Re-stamp the seeded password on every run. Bcrypt hashing depends on
+# `Tuist.Environment.secret_key_password()`; if that secret has rotated
+# since the user was first created, the original hash no longer matches
+# the documented credentials and the "Log in as test user" button fails.
+# Always overwriting on seed makes the dev flow self-healing.
+user
+|> Tuist.Accounts.User.password_changeset(%{password: password, password_confirmation: password})
+|> Repo.update!()
+
 organization =
   if Accounts.get_organization_by_handle("tuist") do
     Accounts.get_organization_by_handle("tuist")
