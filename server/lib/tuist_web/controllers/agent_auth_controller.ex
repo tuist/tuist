@@ -255,10 +255,14 @@ defmodule TuistWeb.AgentAuthController do
   def revoke(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
 
-    with {:ok, body, _conn} <- Plug.Conn.read_body(conn),
+    with {:allow, _count} <- AgentAuth.hit(conn),
+         {:ok, body, _conn} <- Plug.Conn.read_body(conn),
          {:ok, result} <- Accounts.revoke_agent_registrations(body, origin) do
       json(conn, %{revoked_count: result.revoked_count})
     else
+      {:deny, _limit} ->
+        render_error(conn, :too_many_requests, "rate_limited", "Too many revocation attempts.")
+
       {:error, reason}
       when reason in [
              :invalid_issuer,

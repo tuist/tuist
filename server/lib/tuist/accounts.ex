@@ -1821,53 +1821,63 @@ defmodule Tuist.Accounts do
       )
       when requested_credential_type in [:access_token, :api_key] do
     now = Time.utc_now()
+    registration_ip = Map.get(attrs, :registration_ip)
 
+    # JTI replay-protection is recorded inside verify_agent_auth_jwt and must
+    # outlive any rollback of the credential/registration writes below — a
+    # transient failure here must not allow the same assertion to be reused.
     with {:ok, claims} <- verify_agent_auth_jwt(assertion, audience, :id_jag),
-         {:ok, email} <- verified_agent_auth_email(claims),
-         {:ok, user} <- get_or_provision_agent_registration_user_from_assertion(claims, email, audience),
-         {:ok, credential} <- issue_agent_registration_credential(user, requested_credential_type),
-         {:ok, registration} <-
-           %{
-             registration_type: :agent_provider,
-             status: :claimed,
-             requested_credential_type: requested_credential_type,
-             email: email,
-             claim_token_hash: hash_agent_registration_secret(prefixed_agent_registration_token("clm")),
-             claim_token_expires_at: DateTime.add(now, @agent_registration_claim_token_ttl_seconds, :second),
-             claimed_at: now,
-             claimed_by_user_id: user.id,
-             account_token_id: credential[:account_token_id],
-             issuer: claims["iss"],
-             subject: claims["sub"],
-             audience: audience,
-             client_id: claims["client_id"],
-             assertion_jti: claims["jti"],
-             credential_jti: credential[:credential_jti]
-           }
-           |> AgentRegistration.create_agent_provider_changeset()
-           |> Repo.insert() do
-      insert_agent_registration_event!(registration, :created, %{
-        actor_ip: Map.get(attrs, :registration_ip),
-        claimed_by_user_id: user.id,
-        metadata: agent_provider_event_metadata(claims, requested_credential_type),
-        occurred_at: now
-      })
+         {:ok, email} <- verified_agent_auth_email(claims) do
+      fn ->
+        with {:ok, user} <- get_or_provision_agent_registration_user_from_assertion(claims, email, audience),
+             {:ok, credential} <- issue_agent_registration_credential(user, requested_credential_type),
+             {:ok, registration} <-
+               %{
+                 registration_type: :agent_provider,
+                 status: :claimed,
+                 requested_credential_type: requested_credential_type,
+                 email: email,
+                 claim_token_hash: hash_agent_registration_secret(prefixed_agent_registration_token("clm")),
+                 claim_token_expires_at: DateTime.add(now, @agent_registration_claim_token_ttl_seconds, :second),
+                 claimed_at: now,
+                 claimed_by_user_id: user.id,
+                 account_token_id: credential[:account_token_id],
+                 issuer: claims["iss"],
+                 subject: claims["sub"],
+                 audience: audience,
+                 client_id: claims["client_id"],
+                 assertion_jti: claims["jti"],
+                 credential_jti: credential[:credential_jti]
+               }
+               |> AgentRegistration.create_agent_provider_changeset()
+               |> Repo.insert() do
+          insert_agent_registration_event!(registration, :created, %{
+            actor_ip: registration_ip,
+            claimed_by_user_id: user.id,
+            metadata: agent_provider_event_metadata(claims, requested_credential_type),
+            occurred_at: now
+          })
 
-      insert_agent_registration_event!(registration, :claimed, %{
-        actor_ip: Map.get(attrs, :registration_ip),
-        claimed_by_user_id: user.id,
-        metadata: agent_provider_event_metadata(claims, requested_credential_type),
-        occurred_at: now
-      })
+          insert_agent_registration_event!(registration, :claimed, %{
+            actor_ip: registration_ip,
+            claimed_by_user_id: user.id,
+            metadata: agent_provider_event_metadata(claims, requested_credential_type),
+            occurred_at: now
+          })
 
-      {:ok,
-       %{
-         registration: registration,
-         credential_type: requested_credential_type,
-         credential: credential.credential,
-         credential_expires_at: credential.expires_at,
-         scopes: @agent_registration_scopes
-       }}
+          %{
+            registration: registration,
+            credential_type: requested_credential_type,
+            credential: credential.credential,
+            credential_expires_at: credential.expires_at,
+            scopes: @agent_registration_scopes
+          }
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+      |> Repo.transaction()
+      |> unwrap_repo_transaction()
     end
   end
 
@@ -2418,8 +2428,12 @@ defmodule Tuist.Accounts do
 
         KeyValueStore.get_or_update(["agent_auth", "jwks", jwks_uri], [ttl: to_timeout(minute: 15)], fn ->
           case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
-            {:ok, %{status: 200, body: body}} -> {:ok, body}
-            _ -> {:error, :invalid_signature}
+            {:ok, %{status: 200, body: body}} ->
+              {:ok, body}
+
+            other ->
+              Logger.warning("agent_auth JWKS fetch failed for #{jwks_uri}: #{inspect(other)}")
+              {:error, :invalid_signature}
           end
         end)
 
@@ -2479,10 +2493,12 @@ defmodule Tuist.Accounts do
   defp validate_agent_auth_expiration(_claims), do: {:error, :expired}
 
   defp validate_agent_auth_issued_at(%{"iat" => iat}) when is_integer(iat) do
-    if iat <= DateTime.to_unix(Time.utc_now()) + 120 do
-      :ok
-    else
-      {:error, :insufficient_user_authentication}
+    now = DateTime.to_unix(Time.utc_now())
+
+    cond do
+      iat > now + 120 -> {:error, :insufficient_user_authentication}
+      iat < now - 600 -> {:error, :insufficient_user_authentication}
+      true -> :ok
     end
   end
 
@@ -2597,10 +2613,17 @@ defmodule Tuist.Accounts do
     }
   end
 
-  defp provider_value(provider, key) when is_map(provider) do
-    Map.get(provider, key) || Map.get(provider, String.to_existing_atom(key))
+  defp provider_value(provider, key) when is_map(provider) and is_binary(key) do
+    case Map.fetch(provider, key) do
+      {:ok, value} -> value
+      :error -> Map.get(provider, safe_existing_atom(key))
+    end
+  end
+
+  defp safe_existing_atom(key) do
+    String.to_existing_atom(key)
   rescue
-    ArgumentError -> Map.get(provider, key)
+    ArgumentError -> nil
   end
 
   defp get_agent_registration_by_claim_token(claim_token, opts) do
