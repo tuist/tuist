@@ -214,34 +214,74 @@ jobs:
           set -euo pipefail
           echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
-      - name: Push image to GHCR
+      # The push to GHCR goes via a disk-backed local OCI registry on
+      # the builder. tart's own push uses Swift URLSession, which is
+      # documented-unreliable for multi-GB blob uploads (see
+      # cirruslabs/tart#963 — skopeo pulls the same image ~40x faster
+      # and reliably where tart fails). So we split:
+      #   1. tart push to localhost over loopback (~5 min, no network)
+      #   2. skopeo copy to GHCR (resumable, retries on transient
+      #      errors, real progress output)
+      # `crane registry serve --disk` is already on the builder via
+      # the bootstrap and gives us a single-binary OCI v2 registry.
+      - name: Start local OCI registry
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/local-registry
+          # Serve in background; the `Cleanup` step kills it.
+          nohup crane registry serve --address 127.0.0.1:5000 --disk /tmp/local-registry \
+            > /tmp/local-registry.log 2>&1 &
+          echo $! > /tmp/local-registry.pid
+          # Wait for the listener to come up (max 10s).
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
+              echo "local registry up (pid $(cat /tmp/local-registry.pid))"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "local registry did not come up in 10s; log:" >&2
+          cat /tmp/local-registry.log >&2 || true
+          exit 1
+
+      - name: Push image to local registry
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.build.outputs.tag }}"
+          # --insecure for HTTP loopback; chunk-size still helps even
+          # locally because tart's monolithic-upload code path is the
+          # same one that fails against ghcr.io.
+          tart push --insecure --chunk-size 3 \
+            macos-tahoe-xcode "127.0.0.1:5000/tuist/macos-tahoe-xcode:${TAG}"
+
+      - name: Copy image to GHCR (skopeo)
         env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # The image is ~140 GB. --chunk-size 3 switches to GHCR's
-        # chunked-upload path (chunks must be <4 MB), so a stalled
-        # request only loses 3 MB instead of an entire multi-GB layer.
-        # Default --concurrency 4 is fine on an uncongested uplink —
-        # Cirrus pushes the upstream macos-tahoe-xcode image at that
-        # setting. Outer 3× retry stays as belt-and-braces; blob
-        # uploads are content-addressed, so re-pushes only re-upload
-        # layers that didn't make it.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
           for attempt in 1 2 3; do
-            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push --chunk-size 3 macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
+            echo "skopeo copy attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if skopeo copy \
+                --src-tls-verify=false \
+                --dest-creds "tuist-bot:${GITHUB_TOKEN}" \
+                "docker://127.0.0.1:5000/tuist/macos-tahoe-xcode:${TAG}" \
+                "docker://ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
               echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
               exit 0
             fi
-            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            echo "skopeo copy attempt ${attempt} failed; sleeping 60s before retry" >&2
             sleep 60
           done
-          echo "tart push failed three times in a row" >&2
+          echo "skopeo copy failed three times in a row" >&2
           exit 1
 
       - name: Cleanup
         if: always()
-        run: tart delete macos-tahoe-xcode 2>/dev/null || true
+        run: |
+          tart delete macos-tahoe-xcode 2>/dev/null || true
+          if [ -f /tmp/local-registry.pid ]; then
+            kill "$(cat /tmp/local-registry.pid)" 2>/dev/null || true
+            rm -f /tmp/local-registry.pid
+          fi
+          rm -rf /tmp/local-registry /tmp/local-registry.log
