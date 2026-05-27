@@ -22,6 +22,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
 
       assert %{
                active: true,
+               iss: issuer,
                principal_kind: "user",
                sub: user_id,
                username: user_email,
@@ -32,6 +33,7 @@ defmodule Tuist.OAuth.IntrospectionTest do
              } = response
 
       refute Map.has_key?(response, :scope)
+      assert issuer == configured_issuer()
       assert user_id == to_string(user.id)
       assert user_email == user.email
       assert Enum.sort(account_reads) == Enum.sort([user.account.name, organization.account.name])
@@ -121,5 +123,11 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_reads == [project_handle]
       assert project_writes == [project_handle]
     end
+  end
+
+  defp configured_issuer do
+    :tuist
+    |> Application.fetch_env!(Tuist.Guardian)
+    |> Keyword.fetch!(:issuer)
   end
 end
