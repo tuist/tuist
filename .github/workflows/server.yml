@@ -307,6 +307,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: false
+      # DIAGNOSTIC: temporary probe — dump rlimits from runner /
+      # dockerd / a docker-spawned child container / a real buildx
+      # docker-container buildkit container, to find why buildkit
+      # hits EMFILE despite dockerd having --default-ulimit nofile=
+      # 1048576:1048576 in the dind sidecar. Revert once analyzed.
+      - name: TEMP probe rlimits
+        run: |
+          set -uo pipefail
+          echo "=== runner /proc/1/limits ==="
+          cat /proc/1/limits | grep -iE "open files|processes"
+          echo
+          echo "=== kata kernel sysctls ==="
+          echo "fs.nr_open=$(cat /proc/sys/fs/nr_open)"
+          echo "fs.file-max=$(cat /proc/sys/fs/file-max)"
+          echo
+          echo "=== dockerd /proc/1/cmdline (via docker info / proxy) ==="
+          docker info 2>&1 | grep -iE "default|ulimit|kernel|operating" | head -20 || true
+          echo
+          echo "=== child container, NO explicit --ulimit (inherits dockerd --default-ulimit) ==="
+          docker run --rm alpine:3 sh -c 'grep -iE "open files|processes" /proc/1/limits; echo "container fs.nr_open=$(cat /proc/sys/fs/nr_open)"'
+          echo
+          echo "=== child container, EXPLICIT --ulimit nofile=1048576 ==="
+          docker run --rm --ulimit nofile=1048576:1048576 alpine:3 sh -c 'grep -iE "open files" /proc/1/limits'
+          echo
+          echo "=== bootstrap a docker-container buildx builder and dump its HostConfig.Ulimits + /proc/1/limits ==="
+          docker buildx create --name probe-bx --driver docker-container --bootstrap 2>&1 | tail -5
+          echo "--- HostConfig.Ulimits ---"
+          docker inspect buildx_buildkit_probe-bx0 --format '{{json .HostConfig.Ulimits}}'
+          echo "--- buildkit container /proc/1/limits ---"
+          docker exec buildx_buildkit_probe-bx0 cat /proc/1/limits | grep -iE "open files"
+          echo "--- buildkit container fs.nr_open ---"
+          docker exec buildx_buildkit_probe-bx0 cat /proc/sys/fs/nr_open
+          docker buildx rm probe-bx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Docker build
