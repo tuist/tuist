@@ -1,0 +1,75 @@
+<div id="runner-profiles">
+  <.card
+    title={dgettext("dashboard_runners", "Profiles")}
+    icon="filters"
+    data-part="runner-profiles-card"
+  >
+    <:actions>
+      <.button
+        variant="primary"
+        navigate={profile_form_path(@selected_account.name, "new")}
+        disabled={@max_profiles_reached?}
+        label={dgettext("dashboard_runners", "New profile")}
+      />
+    </:actions>
+    <.card_section data-part="runner-profiles-card-section">
+      <div :if={Enum.empty?(@profiles)} data-part="empty-runner-profiles">
+        <.empty_card_section
+          title={dgettext("dashboard_runners", "No profiles yet")}
+          get_started_href={
+            TuistWeb.Marketing.Localization.localized_href(
+              "https://tuist.dev/en/docs/server/runners/profiles"
+            )
+          }
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+
+      <.table :if={not Enum.empty?(@profiles)} id="runner-profiles-table" rows={@profiles}>
+        <:col :let={profile} label={dgettext("dashboard_runners", "Name")}>
+          <.link navigate={profile_form_path(@selected_account.name, profile.name)}>
+            {profile.name}
+          </.link>
+        </:col>
+        <:col :let={profile} label={dgettext("dashboard_runners", "Label")}>
+          <code>{dispatch_snippet(profile)}</code>
+        </:col>
+        <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
+          {profile.vcpus}
+        </:col>
+        <:col :let={profile} label={dgettext("dashboard_runners", "RAM")}>
+          {profile.memory_gb} GB
+        </:col>
+        <:col :let={profile} label="">
+          <div data-part="row-actions">
+            <.button
+              variant="secondary"
+              size="small"
+              navigate={profile_form_path(@selected_account.name, profile.name)}
+              label={dgettext("dashboard_runners", "Edit")}
+            />
+            <.button
+              variant="destructive"
+              size="small"
+              phx-click="delete-profile"
+              phx-value-id={profile.id}
+              data-confirm={
+                dgettext(
+                  "dashboard_runners",
+                  "Delete profile %{name}? Workflows referencing it will fail to dispatch until they are updated.",
+                  name: profile.name
+                )
+              }
+              disabled={length(@profiles) == 1}
+              label={dgettext("dashboard_runners", "Delete")}
+            />
+          </div>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

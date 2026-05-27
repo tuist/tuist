@@ -118,7 +118,8 @@ defmodule Tuist.Runners.Jobs do
         job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
         head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
         head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at)
       }
     )
     |> exclude_accounts(ineligible_account_ids)

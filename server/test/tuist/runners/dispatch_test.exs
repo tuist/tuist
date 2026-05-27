@@ -5,6 +5,7 @@ defmodule Tuist.Runners.DispatchTest do
 
   alias Tuist.Accounts
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Dispatch
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -112,6 +113,71 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
       assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
+    end
+  end
+
+  describe "resolve_dispatch_target/2 — profile path" do
+    setup do
+      catalog_account =
+        AccountsFixtures.organization_fixture(preload: [:account]).account
+        |> Ecto.Changeset.change(runner_max_concurrent: 5)
+        |> Tuist.Repo.update!()
+
+      catalog = [
+        %{vcpus: 4, memory_gb: 16, key: "4vcpu-16gb", default?: true, pool_dispatch_label: ""},
+        %{vcpus: 8, memory_gb: 32, key: "8vcpu-32gb", default?: false, pool_dispatch_label: ""}
+      ]
+
+      stub(Catalog, :list, fn -> catalog end)
+      stub(Catalog, :default, fn -> Enum.find(catalog, & &1.default?) end)
+
+      {:ok, profile} =
+        Tuist.Runners.Profiles.create(catalog_account, %{
+          "name" => "default",
+          "vcpus" => 4,
+          "memory_gb" => 16
+        })
+
+      %{account: catalog_account, profile: profile}
+    end
+
+    test "resolves through the profile to the shape pool name", %{account: account} do
+      assert {:ok,
+              %{
+                pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
+                requested_dispatch_label: "tuist-default"
+              }} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
+    end
+
+    test "falls back to legacy pool match when no profile matches", %{account: account} do
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok,
+         [
+           %{
+             "metadata" => %{"name" => "macos-pool"},
+             "spec" => %{
+               "dispatchLabel" => "tuist-macos",
+               "runnerLabels" => ["self-hosted", "macOS", "ARM64"]
+             }
+           }
+         ]}
+      end)
+
+      assert {:ok,
+              %{
+                pool_name: "macos-pool",
+                requested_dispatch_label: "tuist-macos"
+              }} = Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-macos"])
+    end
+
+    test "returns :no_matching_profile when neither path matches", %{account: account} do
+      stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
+
+      # Legacy path returns :no_pools when there are no pools at all,
+      # which trumps the profile-side miss.
+      assert {:error, :no_pools} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-unknown"])
     end
   end
 

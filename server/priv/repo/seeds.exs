@@ -22,6 +22,7 @@ alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
+alias Tuist.Runners.Profile
 alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
@@ -3276,6 +3277,41 @@ SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRep
 
 IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
+
+# =============================================================================
+# Runner Profiles (customer-facing vCPU/RAM bundles)
+# =============================================================================
+
+# Two profiles per seeded org so the Profiles UI is non-empty in dev.
+# The shape entries must exist in the local Helm-rendered shape pools;
+# absent K8s, the catalog discovery returns [] and the UI dropdown is
+# blank, but the rows still render for visual review.
+runner_profile_account_id = organization.account.id
+
+now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+Enum.each(
+  [
+    %{name: "default", vcpus: 4, memory_gb: 16},
+    %{name: "large", vcpus: 8, memory_gb: 32}
+  ],
+  fn shape ->
+    case Repo.get_by(Profile, account_id: runner_profile_account_id, name: shape.name) do
+      nil ->
+        Repo.insert!(%Profile{
+          account_id: runner_profile_account_id,
+          name: shape.name,
+          vcpus: shape.vcpus,
+          memory_gb: shape.memory_gb,
+          inserted_at: now_seconds,
+          updated_at: now_seconds
+        })
+
+      _existing ->
+        :ok
+    end
+  end
+)
 
 # =============================================================================
 # Runner Jobs (GitHub Actions on Tuist-hosted runners)

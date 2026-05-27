@@ -1,0 +1,30 @@
+#runner-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-16);
+
+  [data-part="runner-profiles-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-12);
+  }
+
+  [data-part="row-actions"] {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-8);
+  }
+
+  [data-part="empty-runner-profiles"] {
+    padding: var(--noora-spacing-24) 0;
+  }
+
+  code {
+    border-radius: var(--noora-border-radius-s);
+    background: var(--noora-surface-background-subtle);
+    padding: var(--noora-spacing-2) var(--noora-spacing-6);
+    color: var(--noora-text-tertiary);
+    font-size: var(--noora-font-size-body-s);
+    font-family: var(--noora-font-family-mono);
+  }
+}

@@ -1,0 +1,59 @@
+#runner-profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-16);
+
+  [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    [data-part="back"] {
+      color: var(--noora-text-tertiary);
+      font-size: var(--noora-font-size-body-s);
+    }
+  }
+
+  [data-part="runner-profile-form-section"] form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-16);
+    max-width: 480px;
+
+    [data-part="field"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      label {
+        color: var(--noora-text-secondary);
+        font-size: var(--noora-font-size-body-s);
+      }
+
+      code {
+        display: inline-block;
+        border-radius: var(--noora-border-radius-s);
+        background: var(--noora-surface-background-subtle);
+        padding: var(--noora-spacing-6) var(--noora-spacing-8);
+        color: var(--noora-text-primary);
+        font-size: var(--noora-font-size-body-s);
+        font-family: var(--noora-font-family-mono);
+      }
+
+      [data-part="field-error"] {
+        color: var(--noora-text-destructive);
+        font-size: var(--noora-font-size-body-s);
+      }
+
+      [data-part="field-help"] {
+        color: var(--noora-text-tertiary);
+        font-size: var(--noora-font-size-body-s);
+      }
+    }
+
+    [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-8);
+    }
+  }
+}

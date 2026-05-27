@@ -821,7 +821,10 @@ runnersFleetLinux:
   namespace: ""
   # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
   # One entry per image variant. Required when
-  # `runnersFleetLinux.enabled` is true.
+  # `runnersFleetLinux.enabled` is true and `shapes` is empty.
+  # Operator-defined pools sit alongside shape-keyed pools (below)
+  # for image variants that don't fit the shape catalog (e.g.,
+  # bespoke ops or builder workloads).
   pools: []
     # Example entry:
     # - name: ubuntu-22-04
@@ -840,6 +843,37 @@ runnersFleetLinux:
     #     minWarmPoolFloor: 3
     #     maxReplicas: 30
     #     scaleDownCooldownSeconds: 300
+
+  # Shape-keyed pools backing the Runner Profiles feature. Each entry
+  # renders one RunnerPool CR with a deterministic name and an
+  # internal dispatch label (`shape-linux-<vcpus>vcpu-<gb>gb`).
+  # Customers never reference these labels directly; they create
+  # account-scoped Profiles in the Tuist UI, and the server resolves
+  # `(account, requested-label)` through the profile to a shape pool.
+  #
+  # All shapes share `shapeRunnerImage` + `shapeRuntimeClass`. Each
+  # shape can override autoscaling via its own `autoscaling:` block;
+  # otherwise `shapeAutoscaling` defaults apply.
+  shapeRunnerImage: ""
+  shapeRuntimeClass: "kata-qemu"
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 1
+    maxReplicas: 0
+    scaleDownCooldownSeconds: 300
+  shapes: []
+    # Example catalog:
+    # - { vcpus: 1, memoryGb: 2 }
+    # - { vcpus: 2, memoryGb: 4 }
+    # - { vcpus: 2, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 16, default: true }
+    # - { vcpus: 8, memoryGb: 16 }
+    # - { vcpus: 8, memoryGb: 32 }
+    # - { vcpus: 16, memoryGb: 32 }
+    # Exactly one entry should carry `default: true`. The server's
+    # profile backfill seeds new accounts with a `default` profile
+    # whose vcpus/memoryGb match the entry tagged default.
 
 # Bare-metal vm-image-builder fleet — sibling of macosFleet and
 # runnersFleet, provisioned by the same CAPI operator from the same

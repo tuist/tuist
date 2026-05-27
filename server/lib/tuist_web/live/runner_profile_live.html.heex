@@ -1,0 +1,92 @@
+<div id="runner-profile">
+  <div data-part="header">
+    <.link navigate={~p"/#{@selected_account.name}/runners/profiles"} data-part="back">
+      &larr; {dgettext("dashboard_runners", "Profiles")}
+    </.link>
+    <h1>
+      {if @mode == :new,
+        do: dgettext("dashboard_runners", "New profile"),
+        else: @profile.name}
+    </h1>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_runners", "Configuration")}
+    icon="filters"
+    data-part="runner-profile-card"
+  >
+    <.card_section data-part="runner-profile-form-section">
+      <.form
+        for={@changeset}
+        as={:profile}
+        phx-change="validate"
+        phx-submit="save"
+        id="runner-profile-form"
+      >
+        <div data-part="field">
+          <.text_input
+            type="basic"
+            id="profile-name"
+            name="profile[name]"
+            label={dgettext("dashboard_runners", "Name")}
+            value={Ecto.Changeset.get_field(@changeset, :name) || ""}
+            disabled={@mode == :edit}
+            placeholder="default"
+          />
+          <p :for={msg <- field_errors(@changeset, :name)} data-part="field-error">{msg}</p>
+        </div>
+
+        <div data-part="field">
+          <label>{dgettext("dashboard_runners", "runs-on label")}</label>
+          <code>
+            runs-on: {dispatch_label_preview(Ecto.Changeset.get_field(@changeset, :name))}
+          </code>
+        </div>
+
+        <div data-part="field">
+          <label for="profile-shape">{dgettext("dashboard_runners", "Resources")}</label>
+          <select
+            id="profile-shape"
+            name="profile[shape]"
+            disabled={Enum.empty?(@catalog_options)}
+          >
+            <option
+              :for={opt <- @catalog_options}
+              value={opt.value}
+              selected={selected_shape?(@changeset, opt)}
+            >
+              {opt.label}{if opt.default?, do: " · " <> dgettext("dashboard_runners", "Default")}
+            </option>
+          </select>
+          <p :if={Enum.empty?(@catalog_options)} data-part="field-help">
+            {dgettext(
+              "dashboard_runners",
+              "No shape catalog is currently available. Contact support."
+            )}
+          </p>
+          <p :for={msg <- field_errors(@changeset, :vcpus)} data-part="field-error">{msg}</p>
+          <p :for={msg <- field_errors(@changeset, :memory_gb)} data-part="field-error">{msg}</p>
+        </div>
+
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            disabled={Enum.empty?(@catalog_options)}
+            label={
+              if @mode == :new,
+                do: dgettext("dashboard_runners", "Create profile"),
+                else: dgettext("dashboard_runners", "Save changes")
+            }
+          />
+          <.button
+            type="button"
+            variant="secondary"
+            navigate={~p"/#{@selected_account.name}/runners/profiles"}
+            label={dgettext("dashboard_runners", "Cancel")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+</div>
