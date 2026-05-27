@@ -17,13 +17,12 @@ defmodule Noora.Filter do
   - `:type` - Filter type (`:text`, `:number`, or `:option`)
   - `:options` - List of available options (for `:option` type only)
   - `:options_display_names` - Map of option values to display names
-  - `:operators` - Optional operator override list for this filter
   - `:operator` - Comparison operator (e.g., `:==`, `:=~`, `:<`)
   - `:value` - Current filter value
 
   ### Filter Types and Operators
 
-  - **Text filters** (`:text`) - Default operators: `:==` (is), `:=~` (contains). Individual filters can override this list.
+  - **Text filters** (`:text`) - Support operators: `:==` (is), `:=~` (contains), `:"!=~"` (does not contain)
   - **Number filters** (`:number`) - Support operators: `:==`, `:<`, `:>`, `:<=`, `:>=`
   - **Option filters** (`:option`) - Support operators: `:==` (is), `:!=` (is not)
   - **List filters** (`:list`) - Support operators: `:=~` (contains), `:"!=~"` (does not contain) — for array/list fields
@@ -150,7 +149,6 @@ defmodule Noora.Filter do
     - `:type` - Filter type (`:text`, `:number`, or `:option`)
     - `:options` - List of available options (for `:option` type only)
     - `:options_display_names` - Map of option values to display names
-    - `:operators` - Optional operator override list for this filter
     - `:operator` - Comparison operator (e.g., `:==`, `:=~`, `:<`)
     - `:value` - Current filter value
     """
@@ -161,7 +159,6 @@ defmodule Noora.Filter do
       :type,
       :options,
       :options_display_names,
-      :operators,
       :operator,
       :value,
       searchable: false
@@ -406,7 +403,7 @@ defmodule Noora.Filter do
     <div id={@filter.id} class="noora-filter">
       <span data-part="label">{@filter.display_name}</span>
       <div
-        :if={length(operators(@filter)) > 1}
+        :if={length(operators(@filter.type)) > 1}
         id={"filter-#{@filter.id}-operator-dropdown"}
         phx-hook="NooraDropdown"
         data-part="dropdown"
@@ -430,14 +427,14 @@ defmodule Noora.Filter do
         <div data-part="positioner">
           <div class="noora-dropdown-content" data-part="content">
             <.dropdown_item
-              :for={operator <- operators(@filter)}
+              :for={operator <- operators(@filter.type)}
               value={operator}
               label={operator_text(operator)}
             />
           </div>
         </div>
       </div>
-      <span :if={length(operators(@filter)) == 1} data-part="label">
+      <span :if={length(operators(@filter.type)) == 1} data-part="label">
         {operator_text(@filter.operator)}
       </span>
       <div
@@ -569,11 +566,8 @@ defmodule Noora.Filter do
     """
   end
 
-  defp operators(%Filter{operators: operators}) when is_list(operators) and operators != [], do: operators
-  defp operators(%Filter{type: type}), do: operators(type)
-
   defp operators(:option), do: [:==, :!=]
-  defp operators(:text), do: [:==, :=~]
+  defp operators(:text), do: [:==, :=~, :"!=~"]
   defp operators(:number), do: [:==, :<, :>, :<=, :>=]
   defp operators(:percentage), do: [:==, :<, :>, :<=, :>=]
   defp operators(:list), do: [:=~, :"!=~"]

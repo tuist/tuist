@@ -51,7 +51,6 @@ defmodule TuistWeb.TestRunsLive do
         field: :git_branch,
         display_name: dgettext("dashboard_tests", "Branch"),
         type: :text,
-        operators: [:==, :=~, :"!=~"],
         operator: :=~,
         value: ""
       }
