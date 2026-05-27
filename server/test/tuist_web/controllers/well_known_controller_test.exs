@@ -195,6 +195,22 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
       assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
       assert response["scopes_supported"] == ["mcp"]
+
+      assert response["agent_auth"] == %{
+               "skill" => "https://workos.com/auth.md",
+               "register_uri" => "http://www.example.com/agent/auth",
+               "claim_uri" => "http://www.example.com/agent/auth/claim",
+               "revocation_uri" => "http://www.example.com/agent/auth/revoke",
+               "identity_types_supported" => ["anonymous", "identity_assertion"],
+               "anonymous" => %{
+                 "credential_types_supported" => ["api_key"]
+               },
+               "identity_assertion" => %{
+                 "assertion_types_supported" => ["verified_email", "urn:ietf:params:oauth:token-type:id-jag"],
+                 "credential_types_supported" => ["access_token", "api_key"]
+               },
+               "events_supported" => ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"]
+             }
     end
 
     test "uses forwarded request origin for OAuth authorization server metadata", %{conn: conn} do
@@ -211,6 +227,9 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["authorization_endpoint"] == "https://self-hosted.example.com/oauth2/authorize"
       assert response["token_endpoint"] == "https://self-hosted.example.com/oauth2/token"
       assert response["registration_endpoint"] == "https://self-hosted.example.com/oauth2/register"
+      assert response["agent_auth"]["register_uri"] == "https://self-hosted.example.com/agent/auth"
+      assert response["agent_auth"]["claim_uri"] == "https://self-hosted.example.com/agent/auth/claim"
+      assert response["agent_auth"]["revocation_uri"] == "https://self-hosted.example.com/agent/auth/revoke"
     end
   end
 
@@ -221,9 +240,17 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
 
       assert response["resource"] == "http://www.example.com"
+      assert response["resource_name"] == "Tuist"
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
+      assert response["agent_auth"]["register_uri"] == "http://www.example.com/agent/auth"
+
+      assert response["agent_auth"]["identity_assertion"]["assertion_types_supported"] == [
+               "verified_email",
+               "urn:ietf:params:oauth:token-type:id-jag"
+             ]
+
       refute Map.has_key?(response, "resource_documentation")
     end
   end
@@ -235,9 +262,11 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
 
       assert response["resource"] == "http://www.example.com/mcp"
+      assert response["resource_name"] == "Tuist MCP"
       assert response["authorization_servers"] == ["http://www.example.com"]
       assert response["bearer_methods_supported"] == ["header"]
       assert response["scopes_supported"] == ["mcp"]
+      assert response["agent_auth"]["claim_uri"] == "http://www.example.com/agent/auth/claim"
       refute Map.has_key?(response, "resource_documentation")
     end
 
@@ -251,6 +280,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       response = json_response(conn, 200)
 
       assert response["resource"] == "http://custom.tuist.dev:8443/mcp"
+      assert response["resource_name"] == "Tuist MCP"
       assert response["authorization_servers"] == ["http://custom.tuist.dev:8443"]
     end
 

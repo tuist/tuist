@@ -399,6 +399,22 @@ defmodule TuistWeb.Router do
 
     get "/ready", PageController, :ready
     get "/api/docs", APIController, :docs
+    get "/agent/auth/claim/view", AgentAuthController, :claim_view
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/auth.md", AgentAuthController, :auth_md
+    post "/agent/auth/revoke", AgentAuthController, :revoke
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    post "/agent/auth", AgentAuthController, :register
+    post "/agent/auth/claim", AgentAuthController, :claim
+    post "/agent/auth/claim/complete", AgentAuthController, :complete_claim
   end
 
   scope "/integrations", TuistWeb do
