@@ -12,11 +12,10 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
-# `infra/macos-xcode-image`). Xcode lives in Layer 1 — the NIF
-# shells out to `/usr/bin/xcrun xcresulttool`, which only ships in
-# full Xcode (not the Command Line Tools). This Layer 2 build just
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode lives in the base —
+# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+# ships in full Xcode (not the Command Line Tools). This build just
 # adds the Erlang release and launchd unit on top.
 #
 # Two stages on the same self-hosted bare-metal Mac mini (the same
@@ -30,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Layer 1 base Tart image. Bump the tag to test against a different Xcode profile."
+        description: "Base macos-tahoe-xcode Tart image. Bump the tag to test against a different Xcode profile."
         required: false
         default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 
@@ -102,14 +101,14 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      # Log in BEFORE Packer build so Tart's clone of the Layer 1
-      # base (a private ghcr.io/tuist/* image) authenticates.
-      # crane writes creds to ~/.docker/config.json, which Tart
-      # reads via the Docker credential-helper protocol for both
-      # the pull (this build's clone of the Layer 1 base) and the
-      # push at the end of the job. See runner-image.yml's
-      # matching step for the long explanation of why we use
-      # crane instead of `tart login`.
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates. crane writes creds to ~/.docker/config.json,
+      # which Tart reads via the Docker credential-helper protocol
+      # for both the pull (this build's clone of the base) and the
+      # push at the end of the job. See runner-image.yml's matching
+      # step for the long explanation of why we use crane instead
+      # of `tart login`.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail

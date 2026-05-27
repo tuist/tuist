@@ -10,11 +10,10 @@ name: Runner Image
 # the runnersFleet.runnerImage value in the chart. This workflow's
 # `:<git-sha>` tag is dispatch-only and not consumed by the chart.
 #
-# Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
-# `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs live
-# in Layer 1; this build just adds the GitHub Actions runner agent
-# and dispatch loop on top, so a Layer 2 build is ~2 min instead of
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
+# live in the base; this build just adds the GitHub Actions runner
+# agent and dispatch loop on top, so a rebuild is ~2 min instead of
 # the ~30 min an all-in-one rebuild used to cost.
 #
 # Runs on the same self-hosted bare-metal Mac mini as the other
@@ -25,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Layer 1 base Tart image. Bump the tag to test against a different Xcode profile."
+        description: "Base macos-tahoe-xcode Tart image. Bump the tag to test against a different Xcode profile."
         required: false
         default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
       runner_version:
@@ -50,13 +49,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Log in BEFORE Packer build so Tart's clone of the Layer 1
-      # base (a private ghcr.io/tuist/* image) authenticates. crane
-      # writes creds to ~/.docker/config.json, which Tart reads via
-      # the Docker credential-helper protocol for both pull (this
-      # build's clone of the Layer 1 base) and the push at the
-      # end of the job. Bypasses both the macOS keychain (which
-      # `tart login` would use, and which gates on a Tahoe-
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates. crane writes creds to ~/.docker/config.json,
+      # which Tart reads via the Docker credential-helper protocol
+      # for both pull (this build's clone of the base) and the push
+      # at the end of the job. Bypasses both the macOS keychain
+      # (which `tart login` would use, and which gates on a Tahoe-
       # LaunchAgent-incompatible "User interaction" prompt) and
       # Tart 2.32.1's env-var-only push path (which hangs with
       # "Error: The request timed out").

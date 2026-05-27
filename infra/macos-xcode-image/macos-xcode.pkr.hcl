@@ -90,8 +90,9 @@ variable "memory_gb" {
 # the brew dev-tool layer adds another ~5 GB, and `xcodebuild
 # -downloadAllPlatforms` pulls ~15 GB of simulator runtimes.
 # 140 GB matches what Cirrus provisions for their equivalent image
-# and leaves headroom for the downstream Layer 2 builds + customer
-# DerivedData when the image is in service.
+# and leaves headroom for the downstream runner-image /
+# xcresult-processor builds + customer DerivedData when the image
+# is in service.
 variable "disk_size_gb" {
   type    = number
   default = 140
@@ -237,11 +238,12 @@ build {
     ]
   }
 
-  # Sanity check: every tool a downstream Layer 2 image (or a
-  # customer workflow) expects has to be reachable from admin's
-  # login shell. /Users/runner is a symlink to /Users/admin in
-  # macos-tahoe-base, so the runner user the runner-image layer
-  # creates will see the same .zprofile and resolve the same tools.
+  # Sanity check: every tool a downstream image (runner-image,
+  # xcresult-processor) or customer workflow expects has to be
+  # reachable from admin's login shell. /Users/runner is a symlink
+  # to /Users/admin in macos-tahoe-base, so the runner user the
+  # runner-image build creates will see the same .zprofile and
+  # resolve the same tools.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",

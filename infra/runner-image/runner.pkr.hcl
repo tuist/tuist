@@ -28,13 +28,12 @@ packer {
 #  6. tart-kubelet observes the VM stop, transitions the Pod to
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
-# Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
-# `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs all
-# live in the Layer 1 base; this layer just adds the GitHub Actions
-# runner agent, the dispatch loop, and the runner user / launchd
-# wiring. Splitting the slow Xcode install out means a Layer 2
-# rebuild on every runner-image commit costs ~2 min instead of
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
+# certs all live in the macos-tahoe-xcode base; this build just adds
+# the GitHub Actions runner agent, the dispatch loop, and the runner
+# user / launchd wiring. Splitting the slow Xcode install out means
+# a rebuild on every runner-image commit costs ~2 min instead of
 # ~30 min.
 #
 # Image layout (mirrors GitHub-hosted macOS paths so on-disk
@@ -48,16 +47,16 @@ packer {
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
-#   /Applications/Xcode_<version>.app           <- inherited from Layer 1
+#   /Applications/Xcode_<version>.app           <- inherited from the base
 #
-# The Layer 1 base inherits macos-tahoe-base's `admin` user with a
-# `/Users/runner` symlink to `/Users/admin` plus a configured
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
+# with a `/Users/runner` symlink to `/Users/admin` plus a configured
 # `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
 # a real `runner` user that *also* points at `/Users/runner` —
 # sysadminctl can't overwrite the existing path, so it assigns a
 # fresh UID against the symlinked home. Both users end up sharing
 # `.zprofile`, which is how the runner's login shell sees the
-# brew-installed tools from Layer 1.
+# brew-installed tools from the base.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
@@ -69,7 +68,7 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
+  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
   default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
@@ -146,7 +145,8 @@ build {
   sources = ["source.tart-cli.runner"]
 
   # Create the `runner` user. macos-tahoe-base (inherited via
-  # Layer 1) ships with `admin` as its working user but pre-stages
+  # the macos-tahoe-xcode base) ships with `admin` as its working
+  # user but pre-stages
   # `/Users/runner` as a placeholder carrying ACLs / flags that
   # survive `chown -R`. If we leave it in place, `sysadminctl
   # -addUser runner` logs `Directory at path:/Users/runner already
@@ -294,14 +294,14 @@ build {
   # runner have to be reachable from the agent's runtime
   # environment. The agent wraps its entrypoint in `zsh -lc`, so
   # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
-  # PATH additions for the Layer 1 base's pre-installed tools).
-  # A future base-image bump that moves Homebrew's prefix or drops
-  # a formula would silently make tools unreachable from step
-  # shells; resolve each tool against the same login-shell
+  # PATH additions for the macos-tahoe-xcode base's pre-installed
+  # tools). A future base-image bump that moves Homebrew's prefix
+  # or drops a formula would silently make tools unreachable from
+  # step shells; resolve each tool against the same login-shell
   # environment so image-build CI fails loudly instead of customer
   # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
   # explicit `xcrun xcresulttool version` below doubles as proof
-  # that Layer 1's Xcode install + `xcode-select -s` propagated.
+  # that the base's Xcode install + `xcode-select -s` propagated.
   #
   # Tuist itself isn't in the list — customer workflows install it
   # via mise / brew so they own the version pin.

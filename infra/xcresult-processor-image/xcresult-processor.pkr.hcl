@@ -15,19 +15,18 @@ packer {
 # (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
 # draining the `:process_xcresult` Oban queue.
 #
-# Layer split: this is Layer 2 on top of
-# `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
-# `infra/macos-xcode-image`). Xcode lives in Layer 1 — the NIF
-# shells out to `/usr/bin/xcrun xcresulttool`, which only ships in
-# full Xcode (not the Command Line Tools), so the base must carry
-# the bundle. This layer just lays the Erlang release and the
-# launchd unit on top.
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode lives in the base —
+# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+# ships in full Xcode (not the Command Line Tools), so the base
+# must carry the bundle. This build just lays the Erlang release
+# and the launchd unit on top.
 #
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
 #   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
-#   /Applications/Xcode_<version>.app <- inherited from Layer 1
+#   /Applications/Xcode_<version>.app <- inherited from the base
 #
 # Env injection: tart-kubelet stages the Pod's env vars under
 # `--dir env:<host-path>:ro`, which the guest sees at
@@ -36,7 +35,7 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (Layer 1: ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump to roll onto a new Xcode."
+  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump to roll onto a new Xcode."
   default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
@@ -91,13 +90,14 @@ build {
   }
 
   # Sanity check: xcresulttool has to be reachable before the
-  # processor ever calls it. Layer 1 installs Xcode + xcode-select's
-  # it; a regression there would silently break ingestion at
-  # runtime. Fail loudly here so the image build catches it.
+  # processor ever calls it. The macos-tahoe-xcode base installs
+  # Xcode + xcode-select's it; a regression there would silently
+  # break ingestion at runtime. Fail loudly here so the image
+  # build catches it.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — Layer 1 (macos-tahoe-xcode) base image regression' >&2 && exit 1)"
+      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — macos-tahoe-xcode base image regression' >&2 && exit 1)"
     ]
   }
 

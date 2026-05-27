@@ -173,9 +173,9 @@ jobs:
           # Tag is the full version with dots → dashes:
           #   26.4.1 → 26-4-1
           #   26.5   → 26-5
-          # Downstream Layer 2 images and the chart's
-          # `runnersFleet.runnerImage` digest pin reference this
-          # tag, so a 26.4.0 → 26.4.1 Apple bump is a *new* tag
+          # Downstream images (runner-image, xcresult-processor) and
+          # the chart's `runnersFleet.runnerImage` digest pin reference
+          # this tag, so a 26.4.0 → 26.4.1 Apple bump is a *new* tag
           # (`:26-4-1`), not a same-tag replacement.
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
