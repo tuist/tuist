@@ -321,58 +321,40 @@ authors.
 
 ### Flag (Severity: medium)
 
-- A PR that adds or materially changes a user-facing server/dashboard
-  feature without also adding or updating a
-  `server/priv/marketing/changelog/*.md` entry.
-- A PR that adds or updates a `server/priv/marketing/changelog/*.md`
-  entry for a feature that is ops-only, admin-only, feature-flagged only
-  for internal rollout, infrastructure-only, or otherwise not meant to
-  be announced to customers yet.
+- A PR that **adds a new customer-facing feature or capability** visible
+to users without also adding a `server/priv/marketing/changelog/*.md` entry.
 
-User-facing signals include changed dashboard routes, LiveViews,
-controllers, templates, page CSS, settings pages, integration flows,
-alerts, reports, previews, build/test/cache/bundle analytics, or public
-API behavior that customers can observe.
+User-facing signals that warrant a changelog:
+- New dashboard pages or major UI flows
+- New API endpoints or public SDK capabilities
+- New integrations or third-party connections
+- New analytics, reports, or data exports
+- New project/automation features in the dashboard
 
-Do not treat a dashboard/UI change as announceable only because it lives
-in user-facing code. If the diff gates the behavior behind an
-account/org feature flag, ops/admin-only access, or an explicit internal
-rollout path, it is not ready for the product changelog unless the PR
-also makes that behavior broadly available to customers.
+### Do not flag
 
-Do not request a product changelog for fix PRs. This includes fixes that
-add or adjust dashboard fields, copy, validation, or settings controls
-when those UI changes are part of making an already-announced or already
-shipped flow work correctly. Only ask for a changelog when the PR's
-primary purpose is to launch a new customer-facing capability, not when
-the PR is repairing or completing a broken flow.
+- **UI refinements, layout adjustments, or visual polish** on existing
+  features (e.g., moving an element, changing colors, spacing adjustments).
+- **Internal API changes** that don't affect customer workflows (e.g.,
+  removing unused response headers, internal endpoint cleanup).
+- **Bug fixes** of any kind, even if they touch user-facing code.
+- **Refactors, performance work, infrastructure, ops/admin-only paths,
+  internal jobs, telemetry-only changes, tests, fixtures, or schema-only
+  plumbing** whose effect is not directly visible to customers.
+- **Features gated behind account/org feature flags** that are being used
+  for internal rollout or controlled access, unless the PR also makes
+  the feature generally available to customers.
+- **Documentation-only or marketing-only PRs**.
+- **CLI/app/cache/kura/noora-only changes**. This rule is for
+  user-facing server/dashboard features.
+- **PRs that already add or update a matching
+  `server/priv/marketing/changelog/*.md` entry.**
 
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
 `server/priv/static/marketing/images/changelog/` only when the feature
 has a visual dashboard/UI state worth showing.
-
-When flagging an inappropriate changelog entry, suggest removing the
-entry and, if the work still needs coordination, tracking it in the PR
-description or internal release notes instead.
-
-### Do not flag
-
-- Bug fixes with no new or materially changed user-facing behavior.
-- Fix PRs, even when the fix includes small user-facing UI changes needed
-  to make an already-shipped flow work correctly.
-- Refactors, performance work, infrastructure, ops/admin-only paths,
-  internal jobs, telemetry-only changes, tests, fixtures, or schema-only
-  plumbing whose effect is not directly visible to customers.
-- Features gated behind account/org feature flags that are being used
-  for internal rollout or controlled access, unless the PR also makes
-  the feature generally available to customers.
-- Documentation-only or marketing-only PRs.
-- CLI/app/cache/kura/noora-only changes. This rule is for
-  user-facing server/dashboard features.
-- PRs that already add or update a matching
-  `server/priv/marketing/changelog/*.md` entry.
 
 ---
 

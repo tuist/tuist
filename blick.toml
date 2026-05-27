@@ -14,6 +14,10 @@ source = "./.blick/skills/tuist-elixir-review"
 name = "tuist-swift-review"
 source = "./.blick/skills/tuist-swift-review"
 
+[[skills]]
+name = "tuist-config-consistency-review"
+source = "./.blick/skills/tuist-config-consistency-review"
+
 [learn]
 lookback_days = 7
 min_signal = 3
