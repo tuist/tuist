@@ -349,10 +349,10 @@ runnersFleetLinux:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        # Was 14 (full AX42-U at 16-slot density). Drop to 8 so the
+        # Was 14 (full AX42-U at 16-slot density). Drop to 4 so the
         # `-large` pool below fits alongside without overcommitting
-        # the 64 GiB host: 8 * 4 GiB + 1 * 32 GiB = 64 GiB ceiling.
-        maxReplicas: 8
+        # the 64 GiB host: 4 * 4 GiB + 1 * 48 GiB = 64 GiB ceiling.
+        maxReplicas: 4
         scaleDownCooldownSeconds: 300
     # Large-slot variant for workloads that don't fit the standard
     # per-tenant slot (e.g. docker build of a full server image:
@@ -371,8 +371,16 @@ runnersFleetLinux:
         - X64
       runtimeClass: kata-qemu
       pod:
+        # 48 GiB matches the size the earlier iteration of this PR
+        # validated end-to-end (build + Trivy scan). 32 GiB ran the
+        # build but Trivy on top of buildkit's residual memory
+        # OOM'd the kata VM. Adjust upward if production hits the
+        # same ceiling on a larger image; the AX42-U ceiling is
+        # 64 GiB so this leaves room for only the standard pool's
+        # minWarmPoolFloor (2 slots = 8 GiB) and ~8 GiB host
+        # headroom for kubelet / kata shim / system DaemonSets.
         cpuMilli: 4000
-        memoryMB: 32768
+        memoryMB: 49152
       autoscaling:
         enabled: true
         # Single warm slot; bump if heavy-build queue depth grows.
