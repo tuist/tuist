@@ -16,5 +16,14 @@ defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
 
       assert html =~ "Hyperconnect optimized its multi-service pipeline with Tuist"
     end
+
+    test "links external case studies to their source article", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/customers")
+
+      assert html =~ "Scaling iOS application development with Tuist"
+
+      assert html =~
+               ~s(href="https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/")
+    end
   end
 end

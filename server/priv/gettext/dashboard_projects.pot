@@ -160,7 +160,7 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:351
+#: lib/tuist_web/live/projects_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -283,14 +283,9 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:516
 #: lib/tuist_web/live/project_notifications_live.html.heex:583
 #: lib/tuist_web/live/project_notifications_live.html.heex:755
-#: lib/tuist_web/live/projects_live.ex:360
+#: lib/tuist_web/live/projects_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Name"
-msgstr ""
-
-#: lib/tuist_web/live/projects_live.ex:344
-#, elixir-autogen, elixir-format
-msgid "New project"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1032
@@ -350,7 +345,7 @@ msgstr ""
 msgid "Project name"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:34
+#: lib/tuist_web/live/projects_live.ex:33
 #: lib/tuist_web/live/projects_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Projects"
@@ -759,7 +754,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:850
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:499
-#: lib/tuist_web/live/projects_live.ex:391
+#: lib/tuist_web/live/projects_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -816,13 +811,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:98
-#: lib/tuist_web/live/projects_live.ex:370
+#: lib/tuist_web/live/projects_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:92
-#: lib/tuist_web/live/projects_live.ex:364
+#: lib/tuist_web/live/projects_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
@@ -1431,4 +1426,9 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "When a test is updated: %{events}"
+msgstr ""
+
+#: lib/tuist_web/live/projects_live.ex:344
+#, elixir-autogen, elixir-format
+msgid "New Project"
 msgstr ""

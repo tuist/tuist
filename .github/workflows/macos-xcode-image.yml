@@ -1,0 +1,45 @@
+name: macOS + Xcode Image
+
+# Registration stub. The real implementation of this workflow
+# lives on the development branch shipping the macos-xcode-image
+# work (PR #10834) and a few iterations beyond. GitHub Actions
+# requires a workflow to exist on the default branch before
+# `workflow_dispatch --ref <branch>` can target it; the actual
+# execution body comes from whichever ref is dispatched, so this
+# file's job content is only what runs when someone dispatches
+# the stub against `main` directly.
+#
+# Once #10834 merges, the no-op `stub` job below is overwritten
+# by the real Packer build that lays Xcode onto
+# `macos-tahoe-base`. Until then, dispatching against `main`
+# fails fast with a pointer to the implementing branch — better
+# than silently succeeding with nothing done.
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Inputs match the real workflow's schema so dispatches
+      # against the development branch can pass them through
+      # `gh workflow run --ref <branch>` without surprises.
+      xcode_version:
+        description: "Xcode version to install (e.g. 26.4.1, 26.5)."
+        required: true
+      base_image:
+        description: "Base Tart image to layer Xcode onto"
+        required: false
+        default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+
+jobs:
+  stub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: This is the registration stub, not the real workflow
+        run: |
+          {
+            echo "::error::macos-xcode-image's stub on main was dispatched directly."
+            echo "::error::The real implementation lives on the development branch."
+            echo "::error::Dispatch with --ref <branch>:"
+            echo "::error::  gh workflow run macos-xcode-image.yml --ref <branch> -f xcode_version=${{ inputs.xcode_version }}"
+            echo "::error::See https://github.com/tuist/tuist/pull/10834 for context."
+          } >&2
+          exit 1

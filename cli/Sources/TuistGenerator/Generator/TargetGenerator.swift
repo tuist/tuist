@@ -17,7 +17,7 @@ protocol TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXTarget
+    ) async throws -> (PBXTarget, [SideEffectDescriptor])
 
     func generateTargetDependencies(
         path: AbsolutePath,
@@ -64,7 +64,7 @@ struct TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXTarget {
+    ) async throws -> (PBXTarget, [SideEffectDescriptor]) {
         Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
         let pbxTarget: PBXTarget
@@ -135,7 +135,7 @@ struct TargetGenerator: TargetGenerating {
 
         // Links
         Logger.current.debug("TargetGenerator: Generating links for \(target.name)")
-        try linkGenerator.generateLinks(
+        let linkSideEffects = try linkGenerator.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -162,7 +162,7 @@ struct TargetGenerator: TargetGenerating {
         )
 
         Logger.current.debug("TargetGenerator: Finished generation for target \(target.name)")
-        return pbxTarget
+        return (pbxTarget, linkSideEffects)
     }
 
     private func generateSynchronizedGroups(

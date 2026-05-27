@@ -714,6 +714,7 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    post "/runners/pods/stopped", RunnerPodsController, :stopped
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -968,23 +969,19 @@ defmodule TuistWeb.Router do
       ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
+      live "/runners", RunnersLive
+      live "/runners/workflows", RunnerWorkflowsLive
+      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
+      live "/runners/jobs", RunnerJobsLive
+      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
       live "/members", MembersLive
-      live "/billing", BillingLive
-      live "/integrations", IntegrationsLive
-      live "/authentication", AuthenticationSettingsLive
       live "/webhooks", WebhooksLive
-      live "/settings", AccountSettingsLive
-    end
-
-    live_session :webhook_detail,
-      layout: {TuistWeb.Layouts, :headerbar},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :account}
-      ] do
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/billing", BillingLive
+      live "/settings", AccountSettingsLive
+      live "/settings/integrations", IntegrationsLive
+      live "/settings/authentication", AuthenticationSettingsLive
     end
   end
 

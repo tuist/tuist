@@ -55,8 +55,8 @@ defmodule Tuist.Shards.BinPacker do
   """
   def determine_shard_count(units, opts \\ []) when is_list(units) do
     total = Keyword.get(opts, :total)
-    min_shards = Keyword.get(opts, :min, @default_min_shards)
-    max_shards = Keyword.get(opts, :max, @default_max_shards)
+    min_shards = Keyword.get(opts, :min) || @default_min_shards
+    max_shards = Keyword.get(opts, :max) || @default_max_shards
     max_duration = Keyword.get(opts, :max_duration)
 
     unit_count = length(units)
