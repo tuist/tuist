@@ -1,6 +1,8 @@
 defmodule Tuist.Utilities.DateFormatter do
   @moduledoc false
-  def from_now(nil), do: "None"
+  use Gettext, backend: TuistWeb.Gettext
+
+  def from_now(nil), do: dgettext("dashboard", "None")
 
   def from_now(date) do
     case date |> Timex.from_now() |> String.split(" ") do
@@ -63,7 +65,7 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
-  def format_duration_from_milliseconds(_, _), do: "None"
+  def format_duration_from_milliseconds(_, _), do: dgettext("dashboard", "None")
 
   @doc """
   Milliseconds elapsed between `ts` and `DateTime.utc_now/0`. Pairs
@@ -115,7 +117,7 @@ defmodule Tuist.Utilities.DateFormatter do
     Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
   end
 
-  def format_full(_), do: "Unknown"
+  def format_full(_), do: dgettext("dashboard", "Unknown")
 
   @doc "Format datetime in ISO-like format (2024-01-15 14:30:25 UTC)"
   def format_iso(%DateTime{} = datetime) do
@@ -124,7 +126,7 @@ defmodule Tuist.Utilities.DateFormatter do
     "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}-#{String.pad_leading(to_string(datetime.day), 2, "0")} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:#{String.pad_leading(to_string(datetime.minute), 2, "0")}:#{String.pad_leading(to_string(datetime.second), 2, "0")} UTC"
   end
 
-  def format_iso(_), do: "Unknown"
+  def format_iso(_), do: dgettext("dashboard", "Unknown")
 
   @doc """
   Format datetime with timezone conversion.
@@ -172,7 +174,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
   def format_with_timezone(_datetime, _timezone) do
     # Fallback for other types
-    "Unknown"
+    dgettext("dashboard", "Unknown")
   end
 
   @doc """
@@ -206,6 +208,6 @@ defmodule Tuist.Utilities.DateFormatter do
   end
 
   def format_with_timezone_short(_datetime, _timezone) do
-    "Unknown"
+    dgettext("dashboard", "Unknown")
   end
 end
