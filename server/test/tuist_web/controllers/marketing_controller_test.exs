@@ -94,6 +94,13 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "Hyperconnect가 Tuist로 멀티 서비스 파이프라인을 최적화한 방법"
       assert html =~ "복수의 서비스 타깃을 동시에 운영"
     end
+
+    test "redirects external case studies to their source article", %{conn: conn} do
+      conn = get(conn, ~p"/customers/delivery-hero")
+
+      assert redirected_to(conn) ==
+               "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+    end
   end
 
   describe "GET /newsletter/verify" do

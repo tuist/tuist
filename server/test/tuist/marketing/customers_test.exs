@@ -18,5 +18,16 @@ defmodule Tuist.Marketing.CustomersTest do
       assert case_study.title == "Trendyol reduced build times by 65%"
       assert case_study.excerpt =~ "Trendyol reduced build times by 65%"
     end
+
+    test "returns external case studies with their source article URL" do
+      case_study = Customers.get_case_study("/customers/delivery-hero")
+
+      assert case_study.title == "Scaling iOS application development with Tuist"
+
+      assert Customers.case_study_href(case_study) ==
+               "https://deliveryhero.jobs/blog/scaling-ios-application-development-with-tuist/"
+
+      assert Customers.external_case_study?(case_study)
+    end
   end
 end

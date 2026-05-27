@@ -32,4 +32,8 @@ defmodule Tuist.Marketing.Customers do
       case_study -> CaseStudy.localize(case_study, locale)
     end
   end
+
+  def case_study_href(%CaseStudy{} = case_study), do: CaseStudy.href(case_study)
+  def external_case_study?(%CaseStudy{} = case_study), do: CaseStudy.external?(case_study)
+  def local_case_study?(%CaseStudy{} = case_study), do: CaseStudy.local_page?(case_study)
 end
