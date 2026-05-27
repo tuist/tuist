@@ -113,12 +113,24 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		extraVolumes = append(extraVolumes,
 			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-			// /var/lib/docker on node-disk emptyDir. The Pod's
-			// `virtio_fs_extra_args=--xattr` annotation (below)
-			// turns on xattr passthrough in virtiofsd, which lets
-			// overlay2 work normally on virtio-fs-served paths.
-			// No tmpfs sizing games, no xattr workarounds — same
-			// shape any cloud-VM k8s node would have.
+			// Node-disk emptyDir holding a sparse disk.img file.
+			// The dind sidecar loop-mounts that file as an ext4
+			// filesystem onto /var/lib/docker so dockerd's
+			// overlay2 driver sees a kernel-native fs (real
+			// trusted.* xattr support) rather than virtio-fs.
+			// Per upstream kata docs (how-to-run-docker-with-
+			// kata.md), virtio-fs can't be an overlayfs upper
+			// layer — overlay's trusted.overlay.* xattrs trip
+			// the host kernel's CAP_SYS_ADMIN gate that
+			// virtiofsd can't bypass. tmpfs medium:Memory or a
+			// loop-mounted disk image are the only two
+			// recommended workarounds; we pick loop-mounted
+			// because the disk.img is sparse on virtio-fs and
+			// only consumes node-disk bytes as written (no pod-
+			// memory tax of tmpfs medium:Memory). Volume name
+			// kept as `dind-storage` for consistency with the
+			// earlier shape; mount path moved off /var/lib/docker
+			// so the dind entrypoint can loop-mount over it.
 			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 		)
 		extraVolumeMounts = append(extraVolumeMounts,
@@ -129,26 +141,38 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		initContainers = []corev1.Container{{
 			Name:  "dind",
 			Image: dindImage,
-			// kata's microVM kernel defaults nofile=1024 for
-			// every process inside, dockerd included. The
-			// shell `ulimit -n` lifts it for dockerd itself;
-			// `--default-ulimit nofile=` lifts it for every
-			// container dockerd spawns, which is what catches
-			// the `docker-container` buildx driver — buildkit
-			// runs as its own container, not as a child of
-			// dockerd's process, so it inherits ulimits from
-			// the container runtime config rather than the
-			// shell. Both are needed: without the first
-			// dockerd's own file descriptor allocations cap
-			// out; without the second buildkit trips "too
-			// many open files" copying a non-trivial
-			// node_modules tree.
+			// Entrypoint stages, in order:
+			//   1. lift nofile rlimit (kata kernel default
+			//      1024 starves dockerd + buildkit on heavy
+			//      node_modules trees)
+			//   2. install e2fsprogs (Alpine docker:*-dind
+			//      ships without mkfs.ext4)
+			//   3. create a sparse 30 GiB disk.img on the
+			//      virtio-fs-backed dind-storage volume; only
+			//      consumes node-disk bytes as written
+			//   4. mkfs.ext4 the sparse file
+			//   5. loop-mount it onto /var/lib/docker — dockerd
+			//      now sees real ext4 with trusted.* xattrs
+			//      and overlay2 initializes normally (no vfs
+			//      fallback, no buildkit runc-native, no
+			//      EMFILE during snapshot copy)
+			//   6. exec dockerd with --default-ulimit nofile=
+			//      so containers it spawns (incl. buildx's
+			//      docker-container buildkit container)
+			//      inherit the high cap.
 			// --group pins the docker.sock GID so the runner
 			// user (member of `docker` group, GID 123) can
 			// reach it.
 			Command: []string{"sh", "-c"},
 			Args: []string{
-				"ulimit -n 1048576 && " +
+				"set -e && " +
+					"ulimit -n 1048576 && " +
+					"apk add --no-cache e2fsprogs >/dev/null && " +
+					"mkdir -p /mnt/dind-disk && " +
+					"truncate -s 30G /mnt/dind-disk/disk.img && " +
+					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
+					"mkdir -p /var/lib/docker && " +
+					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
 					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
 					"--default-ulimit nofile=1048576:1048576",
 			},
@@ -159,46 +183,29 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			StartupProbe: &corev1.Probe{
 				ProbeHandler:     corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
 				PeriodSeconds:    2,
-				FailureThreshold: 30,
+				// Was 30. apk add + truncate-30G + mkfs.ext4
+				// + loop mount add ~8 s of pre-dockerd setup;
+				// bump the probe ceiling so a slow apt mirror
+				// doesn't trip the restart.
+				FailureThreshold: 60,
 			},
 			VolumeMounts: []corev1.VolumeMount{
 				{Name: "dind-sock", MountPath: "/var/run"},
 				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
-				{Name: "dind-storage", MountPath: "/var/lib/docker"},
+				{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
 			},
 		}}
 	}
 
-	// kata-qemu virtiofsd ships with xattr passthrough OFF for
-	// throughput; without it overlay2 inside the microVM can't
-	// read trusted.overlay.* xattrs on virtio-fs-served paths and
-	// dockerd falls back to vfs (which fd-bombs buildkit's
-	// runc-native snapshotter on heavy node_modules trees). The
-	// annotation flips passthrough on per-Pod (kata's default
-	// enable_annotations whitelist already permits
-	// virtio_fs_extra_args).
-	//
-	// --xattr alone is not enough: it enables virtiofsd to
-	// service xattr ops at all, but the host kernel still gates
-	// trusted.* writes on CAP_SYS_ADMIN of virtiofsd's effective
-	// uid — and `setxattr(trusted.overlay.opaque)` from the
-	// privileged dind guest returns EPERM. --xattrmap remaps
-	// every guest xattr to user.virtiofs.* on the underlying
-	// host file (user.* needs no CAPs), so the host never sees a
-	// privileged xattr write; the guest reads/writes via the
-	// same remap and sees the original names back. This is the
-	// standard pattern for overlay-on-virtiofs (kata, kubevirt,
-	// cloud-hypervisor all document the same shape).
-	//
-	// The annotation value is JSON-encoded — kata's shim
-	// unmarshals it into []string before splicing onto the
-	// virtiofsd command line. Raw "--xattr" trips json.Unmarshal
-	// with "invalid character '-' in numeric literal" and the
-	// pod sandbox never starts.
+	// No kata virtiofsd annotation — earlier attempts (`--xattr`
+	// alone, then `--xattrmap=:map::user.virtiofs.::`) didn't fix
+	// the EMFILE class because virtio-fs can't be an overlayfs
+	// upper layer regardless of virtiofsd config (host kernel
+	// gates trusted.* writes on CAP_SYS_ADMIN of virtiofsd's
+	// effective uid). The loop-mounted ext4 above sidesteps the
+	// problem entirely by giving dockerd a real kernel-native
+	// filesystem.
 	annotations := map[string]string{}
-	if linuxPod {
-		annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"] = `["--xattr","--xattrmap=:map::user.virtiofs.::"]`
-	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

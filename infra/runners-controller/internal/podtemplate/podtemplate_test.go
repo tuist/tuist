@@ -172,9 +172,12 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 			t.Errorf("sidecar missing volumeMount %+v; got %+v", vm, dind.VolumeMounts)
 		}
 	}
-	// /var/lib/docker only on the sidecar (the runner has no
-	// business writing to dockerd's image store).
-	dindStorage := corev1.VolumeMount{Name: "dind-storage", MountPath: "/var/lib/docker"}
+	// dind-storage holds the sparse disk.img the dind entrypoint
+	// loop-mounts as ext4 onto /var/lib/docker. Mounted at
+	// /mnt/dind-disk on the sidecar only; the runner has no
+	// business reaching either dockerd's image store or the raw
+	// disk image.
+	dindStorage := corev1.VolumeMount{Name: "dind-storage", MountPath: "/mnt/dind-disk"}
 	if !hasVolumeMount(dind.VolumeMounts, dindStorage) {
 		t.Errorf("sidecar missing %+v; got %+v", dindStorage, dind.VolumeMounts)
 	}
@@ -187,10 +190,10 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 		}
 	}
 
-	// dind-storage must be a plain node-disk emptyDir — overlay2's
-	// xattr requirement is satisfied by the kata virtiofsd --xattr
-	// annotation (asserted below), not by switching the medium to
-	// tmpfs. Tmpfs medium would silently eat pod memory.
+	// dind-storage must be a plain node-disk emptyDir. The
+	// loop-mounted ext4 inside the kata VM is what gives dockerd
+	// real trusted.* xattr support; medium:Memory would put the
+	// disk.img on tmpfs and eat pod memory pointlessly.
 	for _, v := range pod.Spec.Volumes {
 		if v.Name == "dind-storage" {
 			if v.EmptyDir == nil {
@@ -203,29 +206,17 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	}
 }
 
-func TestBuild_LinuxPodCarriesKataXattrAnnotation(t *testing.T) {
-	// kata's virtiofsd defaults xattr passthrough OFF; without the
-	// annotation, overlay2 inside the microVM falls back to vfs and
-	// any docker-using workflow that works on cloud-VM GitHub
-	// runners breaks here. The annotation flips passthrough on
-	// per-Pod (kata's enable_annotations whitelist permits it).
-	//
-	// --xattr enables xattr methods at all; --xattrmap remaps
-	// every guest xattr to user.virtiofs.* on the host so
-	// trusted.overlay.* writes from privileged dind don't trip
-	// the host kernel's CAP_SYS_ADMIN gate on trusted.*. Without
-	// the remap, dockerd silently rejects overlay2 (the probe
-	// setxattr returns EPERM) and falls back to vfs.
+func TestBuild_LinuxPodHasNoKataVirtioFsAnnotation(t *testing.T) {
+	// The dind sidecar's entrypoint loop-mounts an ext4 file
+	// onto /var/lib/docker, so dockerd never touches virtio-fs
+	// for overlay2 — no virtiofsd flag is needed. Earlier
+	// attempts to fix overlay-on-virtiofs via --xattr alone, or
+	// via --xattrmap, were either silent no-ops (--xattr) or
+	// broke kata sandbox creation (--xattrmap, which Rust
+	// virtiofsd-rs doesn't accept).
 	pod := build(basePool("linux"))
-	got, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]
-	if !ok {
-		t.Fatalf("Linux pod missing virtio_fs_extra_args annotation; got %+v", pod.Annotations)
-	}
-	// kata's shim json-unmarshals this into []string; raw "--xattr"
-	// trips json.Unmarshal and the pod sandbox never starts.
-	want := `["--xattr","--xattrmap=:map::user.virtiofs.::"]`
-	if got != want {
-		t.Errorf("virtio_fs_extra_args = %q, want %q (JSON-encoded array)", got, want)
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]; ok {
+		t.Errorf("Linux pod should not carry virtio_fs_extra_args annotation anymore; got %+v", pod.Annotations)
 	}
 }
 

@@ -225,29 +225,56 @@ Shape:
 - `work` emptyDir at `/home/runner/actions-runner/_work` (both
   containers) so `docker run -v $PWD:/x` paths resolve the same
   on either side.
-- `dind-storage` emptyDir at `/var/lib/docker` (sidecar only).
-  Plain node-disk emptyDir — overlay2 works on it because of the
-  Pod annotation below.
+- `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
+  Plain node-disk emptyDir — holds a sparse `disk.img` the
+  sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
+  before exec'ing dockerd. See "Why loop-mount" below.
 - `DOCKER_HOST=unix:///var/run/docker.sock` injected into the
   runner so the docker CLI hits the sidecar.
 - `--group=123` passed to dockerd so the socket GID matches the
   `docker` group baked into the runner image at build time.
+- `--default-ulimit nofile=1048576:1048576` passed to dockerd
+  so containers it spawns (incl. the buildkit container the
+  `docker-container` buildx driver creates) inherit the high
+  rlimit. Pair it with `ulimit -n 1048576` in the shell that
+  starts dockerd to cover dockerd's own fd budget. Kata's
+  microVM kernel defaults nofile=1024; without both, a docker
+  build that walks a non-trivial `node_modules` tree EMFILEs.
 
-Pod annotation `io.katacontainers.config.hypervisor.virtio_fs_extra_args
-= "--xattr"` on every Linux Pod. kata's default virtiofsd ships
-with xattr passthrough OFF for throughput; without it overlay2
-can't read `trusted.overlay.*` xattrs on virtio-fs paths and
-dockerd falls back to vfs. With it, overlay2 works normally —
-and that's the **portability hinge**: any docker-using workflow
-that works on a cloud-VM GitHub-hosted or Namespace runner works
-here unmodified, because dockerd's storage substrate is
-xattr-correct in the same way. No `driver: docker` workaround,
-no tmpfs size budgeting, no per-pool sizing tricks.
+### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 
-(kata's containerd handler whitelists `io.katacontainers.*` for
-pod_annotations propagation, and `virtio_fs_extra_args` is in
-kata's default `enable_annotations` whitelist — so the change is
-Pod-level, no node-level kata config edit required.)
+Per upstream kata docs (`docs/how-to/how-to-run-docker-with-
+kata.md`), **virtio-fs cannot serve as an overlayfs upper
+layer**. overlayfs requires `trusted.overlay.*` xattrs on the
+upper, and the host kernel CAP-gates `trusted.*` writes on
+virtiofsd's effective uid no matter how virtiofsd is
+configured (`--xattr` alone enables the xattr methods but
+still hits EPERM on the trusted.* probe; `--xattrmap` is a C-
+virtiofsd flag that Rust virtiofsd-rs doesn't accept and
+breaks kata sandbox creation if passed). Dockerd silently
+detects the failure and falls back to vfs; on vfs, BuildKit's
+docker-container driver refuses overlayfs snapshotter and
+uses runc-native, which fd-bombs heavy npm trees past any
+sane rlimit.
+
+Kata's two recommended workarounds are tmpfs `medium: Memory`
+(eats pod RAM proportional to the image cache, and inode-
+capped) or a loop-mounted disk image. We pick the loop-mount:
+the sidecar entrypoint `truncate`s a sparse 30 GiB file on the
+virtio-fs-backed `dind-storage` volume, `mkfs.ext4`s it,
+mounts it `-o loop` onto `/var/lib/docker`. Dockerd then sees
+a real kernel-native ext4 filesystem inside the kata VM, with
+full `trusted.*` xattr support — overlay2 initializes
+normally and BuildKit picks the overlayfs snapshotter. The
+sparse file only consumes node-disk bytes as written (no pod-
+memory tax), and the loop mount is bounded by the
+`truncate -s` cap.
+
+The entrypoint installs `e2fsprogs` via apk on each boot
+because `docker:*-dind` doesn't ship `mkfs.ext4` by default;
+worth baking into a custom dind image once the shape settles.
+StartupProbe failureThreshold bumped from 30 → 60 to absorb
+the ~8 s of pre-dockerd setup time.
 
 The sidecar image is pinned via the chart's
 `runnersController.dindImage` value and threaded into the
