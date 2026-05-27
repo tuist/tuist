@@ -1520,25 +1520,152 @@ jobs:
           rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
-  release-runner-image:
-    name: Release runner image
+  runner-image-resolve:
+    # Parses XCODE_VERSIONS into the JSON matrix the build job
+    # consumes. Runs on ubuntu (cheap) so we don't burn a builder slot
+    # just to read a file. Also exposes the default profile name so
+    # the post-job can re-resolve its digest after the matrix completes.
+    name: Resolve runner-image active profiles
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      profiles_json: ${{ steps.parse.outputs.profiles_json }}
+      default_profile: ${{ steps.parse.outputs.default_profile }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse XCODE_VERSIONS
+        id: parse
+        run: |
+          set -euo pipefail
+          # Each line is `<xcode> [active|inactive]` (default active);
+          # `#` comments skipped. Collect active versions in order.
+          active=()
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line%%#*}"
+            set -- $line
+            xcode="${1:-}"
+            annotation="${2:-active}"
+            [ -z "$xcode" ] && continue
+            [ "$annotation" != "active" ] && continue
+            active+=("$xcode")
+          done < infra/runner-image/XCODE_VERSIONS
+
+          if [ ${#active[@]} -eq 0 ]; then
+            echo "Error: XCODE_VERSIONS contains no active profiles" >&2
+            exit 1
+          fi
+
+          # JSON array for the matrix. Quoting is fine because Xcode
+          # versions are constrained to digits + dots.
+          json="["
+          for ((i=0; i<${#active[@]}; i++)); do
+            [ $i -gt 0 ] && json+=","
+            json+="\"${active[$i]}\""
+          done
+          json+="]"
+
+          DEFAULT="macos-${active[0]//./-}"
+          echo "profiles_json=$json" >> "$GITHUB_OUTPUT"
+          echo "default_profile=$DEFAULT" >> "$GITHUB_OUTPUT"
+          echo "Active profiles: $json"
+          echo "Default profile: $DEFAULT"
+
+  runner-image-build:
+    # One job per active profile, fanned out across whatever
+    # vm-image-builder hosts are available. GitHub schedules them
+    # respecting the label set — with 2 builders, 2 profiles build
+    # in parallel; adding more hosts scales linearly without any
+    # workflow change.
+    name: Build runner image (Xcode ${{ matrix.xcode }})
+    needs: [check-releases, runner-image-resolve]
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    # Each runner-image profile is ~18 min Packer + ~10 min tart push,
-    # and the release builds every profile in XCODE_VERSIONS
-    # sequentially against the shared local builder. 90 min comfortably
-    # covers up to 3 profiles; if XCODE_VERSIONS grows past that, bump
-    # this proportionally.
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      # If any profile build fails, abort sibling builds so the chart
+      # pin doesn't move to a partially-published set. Aligns with
+      # how the previous serial-loop bailed on first failure.
+      fail-fast: true
+      matrix:
+        xcode: ${{ fromJson(needs.runner-image-resolve.outputs.profiles_json) }}
     env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. `crane auth login`
+      # writes creds to ~/.docker/config.json, which Tart reads via
+      # the Docker credential-helper protocol for both pull (Packer's
+      # clone of the base) and push at the end. See runner-image.yml
+      # for the long explanation of why crane and not `tart login`.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - name: Reclaim Tart disk
+        # Delete every locally-cloned VM on this host; see
+        # runner-image.yml's same step for the rationale.
+        run: |
+          set -uo pipefail
+          tart list || true
+          df -h /
+          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+            tart stop "$vm" 2>/dev/null || true
+            tart delete "$vm" 2>/dev/null || true
+          done
+          tart prune --entries caches --older-than 0
+          df -h /
+
+      - name: Build + push profile
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          XCODE="${{ matrix.xcode }}"
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            runner.pkr.hcl
+          # Immutable + rolling tags.
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
+          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
+          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION} + :${PROFILE}"
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
+
+  release-runner-image:
+    # Post-job: every profile is now in GHCR. Resolve the default
+    # profile's digest, update the chart pin, generate release notes
+    # + CHANGELOG, upload artifacts. Lightweight, runs on ubuntu.
+    # Downstream `release-*` jobs key off this job's outputs + result.
+    name: Release runner image
+    needs: [check-releases, runner-image-resolve, runner-image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      profile: ${{ steps.publish.outputs.default_profile }}
-      digest: ${{ steps.publish.outputs.digest }}
+      profile: ${{ needs.runner-image-resolve.outputs.default_profile }}
+      digest: ${{ steps.digest.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1549,10 +1676,20 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      # `crane` is installed by the builder bootstrap; the
-      # release-runner-image leg uses `crane digest` further down
-      # to resolve a pushed tag to its immutable @sha256:… form
-      # for the chart pin, plus `crane auth login` for GHCR auth.
+      # Resolve the default profile's digest from GHCR. The matrix
+      # job published it; we look it up here because matrix outputs
+      # don't aggregate cleanly into a sibling job's `needs.*.outputs`.
+      - uses: imjasonh/setup-crane@v0.4
+      - name: Log in to GHCR (crane)
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+      - name: Resolve default profile digest
+        id: digest
+        run: |
+          set -euo pipefail
+          DEFAULT="${{ needs.runner-image-resolve.outputs.default_profile }}"
+          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${DEFAULT}")
+          echo "Default profile: ${DEFAULT} digest: ${DIGEST}"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Get release notes
         id: release-notes
@@ -1580,143 +1717,31 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      # Tart isn't installed by this workflow. The builder host's
-      # bootstrap path (infra/macos-host-bootstrap.installTart, run
-      # by the Scaleway CAPI provider on every Mac mini Node)
-      # extracts the operator-image-baked tart.app tarball to
-      # /usr/local/bin/tart. Same install path the in-cluster
-      # macosFleet / runnersFleet hosts use; the workflow's PATH
-      # picks it up and `packer init` / Packer's tart-cli plugin
-      # fail loudly if it's missing.
-
-      # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
-      # authenticates with the tuist-bot token. `crane auth login`
-      # writes creds to ~/.docker/config.json, which Tart reads via
-      # the Docker credential-helper protocol for both the pull
-      # (Packer's clone of the base) AND the push at the end of
-      # the job — one login covers everything. `tart login` would
-      # write to the macOS keychain, which on Tahoe-host
-      # LaunchAgents fails with "User interaction is not allowed";
-      # crane sidesteps the keychain entirely. The `crane digest`
-      # step that reads the manifest back also uses these creds.
-      - name: Log in to GHCR (crane)
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-
-      - name: Initialize Packer
-        working-directory: infra/runner-image
-        run: packer init -upgrade runner.pkr.hcl
-
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM; see runner-image.yml's
-        # same step for the rationale.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
-
-      - name: Build + push every active profile in XCODE_VERSIONS
-        id: publish
-        working-directory: infra/runner-image
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          # XCODE_VERSIONS is the source of truth for which profiles
-          # exist. Each line is `<xcode> [active|inactive]` (default
-          # active). The release rebuilds only active lines on every
-          # commit; inactive ones stay published from prior active
-          # periods and only refresh on `runner-image.yml` dispatch.
-          # The first ACTIVE line is the default profile — the chart's
-          # runnerImage digest pin tracks it. Each rebuild produces an
-          # immutable tag (`:macos-<dashes>-<semver>`) and a rolling
-          # one (`:macos-<dashes>`).
-          DEFAULT_PROFILE=""
-          DEFAULT_DIGEST=""
-          while IFS= read -r line || [ -n "$line" ]; do
-            line="${line%%#*}"
-            # Squeeze internal whitespace + trim ends. Cheaper than
-            # invoking xargs.
-            set -- $line
-            xcode="${1:-}"
-            annotation="${2:-active}"
-            [ -z "$xcode" ] && continue
-
-            if [ "$annotation" != "active" ]; then
-              echo "Skipping ${xcode} (annotation: ${annotation})"
-              continue
-            fi
-
-            BASE_TAG="${xcode//./-}"
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
-            PROFILE="macos-${BASE_TAG}"
-
-            echo "::group::Build + push profile ${PROFILE} (base ${BASE_IMAGE})"
-            env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-              -var "base_image=${BASE_IMAGE}" \
-              -var "output_image=tuist-runner" \
-              runner.pkr.hcl
-
-            tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
-            tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
-
-            if [ -z "$DEFAULT_PROFILE" ]; then
-              # First active line wins — chart pin tracks this
-              # profile's digest.
-              DEFAULT_PROFILE="$PROFILE"
-              DEFAULT_DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${PROFILE}")
-              echo "Default profile: ${PROFILE} (digest: ${DEFAULT_DIGEST})"
-            fi
-
-            # Free the local VM name so the next iteration's Packer
-            # build can reuse it (Tart refuses to clone over an
-            # existing VM).
-            tart delete tuist-runner
-            echo "::endgroup::"
-          done < XCODE_VERSIONS
-
-          if [ -z "$DEFAULT_PROFILE" ]; then
-            echo "Error: XCODE_VERSIONS contains no active profiles" >&2
-            exit 1
-          fi
-
-          echo "default_profile=${DEFAULT_PROFILE}" >> "$GITHUB_OUTPUT"
-          echo "digest=${DEFAULT_DIGEST}" >> "$GITHUB_OUTPUT"
-
       - name: Bump runner image digest pin in chart values
         run: |
           # The runner image digest pin lives in each managed env's
           # values file under runnersFleet.runnerImage. Anchor the
           # substitution to the runnerImage line so we only touch
           # that one (the values files carry several image refs).
-          DIGEST="${{ steps.publish.outputs.digest }}"
+          # GNU sed (-i without an argument) — this job runs on
+          # ubuntu, unlike the previous BSD-sed-style `sed -i ''`.
+          DIGEST="${{ steps.digest.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
-            # Only rewrite if the file already has a non-empty pin to the
-            # runner image — values-managed-{canary,production}.yaml ship
-            # with `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release flow.
-            # The match accepts both pin styles the chart has used: a
-            # digest (`@sha256:...`) and a tag (`:<short-sha>` or
-            # `:<semver>`). Staging is on `:08e66c9b` during bring-up;
+            # Only rewrite if the file already has a non-empty pin to
+            # the runner image — values-managed-{canary,production}.yaml
+            # ship with `runnerImage: ""` until those envs are flipped
+            # on, and we don't want to populate them silently from the
+            # release flow. The match accepts both pin styles the chart
+            # has used: a digest (`@sha256:...`) and a tag (`:<short-sha>`
+            # or `:<semver>`). Staging is on `:08e66c9b` during bring-up;
             # narrowing the guard to `@sha256:` would skip it on every
             # release and leave the only enabled env on the previous
             # image.
             if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
-              sed -i '' -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
+              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
             fi
           done
 
@@ -1730,10 +1755,6 @@ jobs:
             infra/helm/tuist/values-managed-canary.yaml
             infra/helm/tuist/values-managed-production.yaml
           retention-days: 1
-
-      - name: Cleanup
-        if: always()
-        run: tart delete tuist-runner 2>/dev/null || true
 
   release-linux-runner-image:
     name: Release Linux runner image

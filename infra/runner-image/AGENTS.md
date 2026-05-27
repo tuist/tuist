@@ -60,15 +60,28 @@ packer build runner.pkr.hcl
 
 CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
-  conventional commits on `main` trigger `release.yml`'s
-  `release-runner-image` job: iterates `infra/runner-image/XCODE_VERSIONS`,
-  rebuilds every **active** line (skips `inactive` ones), pushing
-  each as `ghcr.io/tuist/tuist-runner:macos-<xcode-version-dashes>-<semver>`
-  (immutable) and `:macos-<xcode-version-dashes>` (rolling, e.g.
-  `:macos-26-4-1`). Resolves the **first active profile's** digest
-  with `crane digest`, rewrites `runnersFleet.runnerImage` across
-  managed-env values files that already have a digest pin, tags
-  `runner-image@x.y.z`, opens a GitHub Release, commits.
+  conventional commits on `main` trigger a three-job chain in
+  `release.yml`:
+  1. `runner-image-resolve` (ubuntu) parses `XCODE_VERSIONS` into a
+     JSON list of active profiles and identifies the default.
+  2. `runner-image-build` is a matrix job — one entry per active
+     profile, fanned out across every available
+     `vm-image-builder`-labelled host. Each entry builds the runner
+     image against `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` and
+     pushes both immutable (`:macos-<dashes>-<semver>`) and rolling
+     (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
+     fails, sibling builds abort so the chart pin doesn't move to a
+     partially-published set.
+  3. `release-runner-image` (ubuntu) resolves the default profile's
+     digest with `crane digest`, rewrites `runnersFleet.runnerImage`
+     across managed-env values files that already have a digest pin,
+     generates release notes / `CHANGELOG.md`, uploads artifacts.
+     Downstream tag + GitHub-Release jobs key off this job's
+     `result == 'success'`.
+
+  Concurrency scales with builder count: 2 hosts publish 2 profiles
+  in parallel, more hosts cut the wall-clock proportionally. No
+  workflow change needed when the fleet grows.
 - **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
   (push-to-main on `infra/runner-image/**` changes, plus a
   manual `workflow_dispatch` trigger) builds + pushes a
