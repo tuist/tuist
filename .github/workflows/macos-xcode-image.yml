@@ -219,23 +219,20 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # The image is ~140 GB. Two settings matter for reliable
-        # pushes from this builder:
-        #   --chunk-size 3   GHCR caps chunks at <4 MB; tart's default
-        #                    is monolithic uploads, where any HTTP
-        #                    timeout discards an entire multi-GB layer.
-        #   --concurrency 1  Default 4 triggers simultaneous timeouts
-        #                    (likely GHCR per-IP throttle past ~28 GB).
-        #                    Serial uploads at ~316 Mbps still finish
-        #                    140 GB in ~60 min.
-        # Outer 3× retry stays as belt-and-braces — blob uploads are
-        # content-addressed, so re-pushes only re-upload missing layers.
+        # The image is ~140 GB. --chunk-size 3 switches to GHCR's
+        # chunked-upload path (chunks must be <4 MB), so a stalled
+        # request only loses 3 MB instead of an entire multi-GB layer.
+        # Default --concurrency 4 is fine on an uncongested uplink —
+        # Cirrus pushes the upstream macos-tahoe-xcode image at that
+        # setting. Outer 3× retry stays as belt-and-braces; blob
+        # uploads are content-addressed, so re-pushes only re-upload
+        # layers that didn't make it.
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
           for attempt in 1 2 3; do
             echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push --chunk-size 3 --concurrency 1 macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
+            if tart push --chunk-size 3 macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
               echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
               exit 0
             fi
