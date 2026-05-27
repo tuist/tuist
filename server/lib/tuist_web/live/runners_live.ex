@@ -12,8 +12,8 @@ defmodule TuistWeb.RunnersLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
-  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Utilities.Formatter
   alias TuistWeb.Utilities.Query
 
   @table_limit 5
@@ -319,24 +319,11 @@ defmodule TuistWeb.RunnersLive do
 
   def workflow_run_path(_account_name, _row), do: nil
 
-  def short_sha(""), do: "–"
-  def short_sha(nil), do: "–"
-  def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
-
   defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
   defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
   defp trend_label("last-12-months"), do: dgettext("dashboard_runners", "since last year")
   defp trend_label("custom"), do: dgettext("dashboard_runners", "since last period")
   defp trend_label(_), do: dgettext("dashboard_runners", "since last month")
-
-  # Render helpers ------------------------------------------------------------
-
-  def fmt_duration_ms(nil), do: "–"
-  def fmt_duration_ms(0), do: "0s"
-
-  def fmt_duration_ms(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
-
-  def fmt_duration_ms(_), do: "–"
 
   @doc """
   Runtime in milliseconds for a recent job row. Mirrors the bar
@@ -516,20 +503,14 @@ defmodule TuistWeb.RunnersLive do
 
   def success_rate(_), do: "–"
 
-  def from_now(%DateTime{} = ts), do: DateFormatter.from_now(ts)
-  def from_now(_), do: "–"
-
-  def from_now_or_dash(%DateTime{} = ts), do: DateFormatter.from_now(ts)
-  def from_now_or_dash(_), do: "–"
-
   def widget_empty_label, do: dgettext("dashboard_runners", "No jobs yet")
 
   def percentile_metrics_for(stats) when is_map(stats) do
     %{
-      avg: fmt_duration_ms(Map.get(stats, :avg)),
-      p50: fmt_duration_ms(Map.get(stats, :p50)),
-      p90: fmt_duration_ms(Map.get(stats, :p90)),
-      p99: fmt_duration_ms(Map.get(stats, :p99))
+      avg: Formatter.format_duration_ms(Map.get(stats, :avg)),
+      p50: Formatter.format_duration_ms(Map.get(stats, :p50)),
+      p90: Formatter.format_duration_ms(Map.get(stats, :p90)),
+      p99: Formatter.format_duration_ms(Map.get(stats, :p99))
     }
   end
 

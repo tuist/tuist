@@ -13,7 +13,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
-  alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Utilities.Formatter
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -324,16 +324,9 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def conclusion_badge_props(_), do: nil
 
-  def format_duration_ms(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
-
-  def format_duration_ms(_), do: "–"
-
-  def format_relative_time(%DateTime{} = ts), do: DateFormatter.from_now(ts)
-  def format_relative_time(_), do: "–"
-
-  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: ms_since(enqueued)
-  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: ms_since(claimed)
-  def duration_ms(%{status: "running", started_at: started}), do: ms_since(started)
+  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: Formatter.ms_since(enqueued)
+  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: Formatter.ms_since(claimed)
+  def duration_ms(%{status: "running", started_at: started}), do: Formatter.ms_since(started)
 
   def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
     cond do
@@ -344,13 +337,6 @@ defmodule TuistWeb.RunnerWorkflowLive do
   end
 
   def duration_ms(_), do: 0
-
-  defp ms_since(nil), do: 0
-  defp ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
-
-  def short_sha(""), do: "–"
-  def short_sha(nil), do: "–"
-  def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
 
   @doc """
   Resolves the public repository URL for the header badge. GitHub

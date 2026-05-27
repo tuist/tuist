@@ -6,8 +6,8 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Jobs
-  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Formatter
 
   @impl true
   def mount(
@@ -150,7 +150,7 @@ defmodule TuistWeb.RunnerJobLive do
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
       is_nil(enqueued) -> 0
-      is_nil(claimed) -> ms_since(enqueued)
+      is_nil(claimed) -> Formatter.ms_since(enqueued)
       true -> DateTime.diff(claimed, enqueued, :millisecond)
     end
   end
@@ -158,29 +158,8 @@ defmodule TuistWeb.RunnerJobLive do
   def run_duration_ms(%{started_at: started, completed_at: completed}) do
     cond do
       is_nil(started) -> 0
-      is_nil(completed) -> ms_since(started)
+      is_nil(completed) -> Formatter.ms_since(started)
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
-
-  defp ms_since(nil), do: 0
-  defp ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
-
-  def format_duration(ms) when is_integer(ms) and ms > 0, do: DateFormatter.format_duration_from_milliseconds(ms)
-  def format_duration(_), do: "–"
-
-  def format_timestamp(%DateTime{} = ts), do: DateFormatter.from_now(ts)
-  def format_timestamp(_), do: "–"
-
-  def format_absolute(%DateTime{} = ts), do: Calendar.strftime(ts, "%Y-%m-%d %H:%M:%S UTC")
-  def format_absolute(_), do: "–"
-
-  def display(""), do: "–"
-  def display(nil), do: "–"
-  def display(value) when is_binary(value), do: value
-  def display(value), do: to_string(value)
-
-  def short_sha(""), do: "–"
-  def short_sha(nil), do: "–"
-  def short_sha(sha) when is_binary(sha), do: String.slice(sha, 0, 7)
 end

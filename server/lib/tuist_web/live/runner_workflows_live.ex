@@ -12,7 +12,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
-  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -296,14 +295,6 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   end
 
   def success_rate(_), do: "–"
-
-  def format_duration_ms(value) when is_number(value) and value > 0,
-    do: DateFormatter.format_duration_from_milliseconds(round(value))
-
-  def format_duration_ms(_), do: "–"
-
-  def from_now_or_dash(%DateTime{} = ts), do: DateFormatter.from_now(ts)
-  def from_now_or_dash(_), do: "–"
 
   @doc """
   Resolves the per-row link target for the workflows table. Returns
