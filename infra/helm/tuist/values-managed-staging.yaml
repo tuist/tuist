@@ -358,19 +358,13 @@ runnersFleetLinux:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 2
-        # Was 14 (full AX42-U at 16-slot density). Drop to 4 so the
-        # `-large` pool below fits alongside without overcommitting
-        # the 64 GiB host: 4 * 4 GiB + 1 * 48 GiB = 64 GiB ceiling.
-        maxReplicas: 4
+        # Leaves room on the 64 GiB AX42-U for one `-large` slot
+        # (16 GiB) + ~8 GiB host headroom: 10*4 + 16 = 56.
+        maxReplicas: 10
         scaleDownCooldownSeconds: 300
     # Large-slot variant for workloads that don't fit the standard
-    # per-tenant slot (e.g. docker build of a full server image:
-    # swift toolchain + Erlang/Elixir + node tree). Convention-based
-    # dispatch — workflows opt in via `runs-on:
-    # tuist-staging-linux-large`. Mirrors the Namespace
-    # `namespace-profile-default-with-volume` / `-large` pattern.
-    # Same dind sidecar shape, same `kata-qemu` runtimeClass, just
-    # a larger per-slot CPU / memory budget.
+    # per-tenant slot — opt in via `runs-on: tuist-staging-linux-large`.
+    # Sized to match GitHub-hosted `ubuntu-latest` (4 vCPU / 16 GiB).
     - name: ubuntu-22-04-large
       runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
       dispatchLabel: "tuist-staging-linux-large"
@@ -380,19 +374,10 @@ runnersFleetLinux:
         - X64
       runtimeClass: kata-qemu
       pod:
-        # 48 GiB matches the size the earlier iteration of this PR
-        # validated end-to-end (build + Trivy scan). 32 GiB ran the
-        # build but Trivy on top of buildkit's residual memory
-        # OOM'd the kata VM. Adjust upward if production hits the
-        # same ceiling on a larger image; the AX42-U ceiling is
-        # 64 GiB so this leaves room for only the standard pool's
-        # minWarmPoolFloor (2 slots = 8 GiB) and ~8 GiB host
-        # headroom for kubelet / kata shim / system DaemonSets.
         cpuMilli: 4000
-        memoryMB: 49152
+        memoryMB: 16384
       autoscaling:
         enabled: true
-        # Single warm slot; bump if heavy-build queue depth grows.
         minWarmPoolFloor: 1
         maxReplicas: 1
         scaleDownCooldownSeconds: 300
