@@ -182,6 +182,44 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
+  Notify an existing Tuist user that they were attached to an organization by
+  that organization's SCIM provisioning (e.g. Okta). The user did not initiate
+  this — the message exists so they can audit the new membership and leave if
+  it was unexpected.
+  """
+  def deliver_scim_organization_attachment(%User{email: user_email}, %{account: %{name: organization_name}}) do
+    organization_url = Environment.app_url(path: "/#{organization_name}")
+    account_url = Environment.app_url(path: "/")
+
+    deliver(
+      user_email,
+      dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization",
+        organization_name: organization_name
+      ),
+      html_email(
+        """
+            <div class="container">
+              <h1>#{dgettext("dashboard_account", "You were added to the %{organization_name} Tuist organization", organization_name: organization_name)}</h1>
+              <p>
+                #{dgettext("dashboard_account", "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM).", user_email: user_email, organization_name: organization_name)}
+              </p>
+              <p>
+                #{dgettext("dashboard_account", "If you expected this, no action is needed. You can open the organization here:")}
+              </p>
+              <p style="padding-top: 16px; padding-bottom: 16px;">
+                <a href="#{organization_url}" style="color: #ffffff;" class="button">#{dgettext("dashboard_account", "Open %{organization_name}", organization_name: organization_name)}</a>
+              </p>
+              <p>
+                #{dgettext("dashboard_account", "If this is unexpected, you can leave the organization from your account settings: %{account_url}", account_url: account_url)}
+              </p>
+            </div>
+        """,
+        Environment.email_icon_url()
+      )
+    )
+  end
+
+  @doc """
   Deliver instructions to update a user email.
   """
   def deliver_update_email_instructions(user, url) do

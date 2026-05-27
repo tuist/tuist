@@ -8,9 +8,11 @@ defmodule Tuist.SCIM do
   the `account:scim:write` scope) which the IdP uses to authenticate against
   the SCIM endpoints under `/scim/v2/`.
 
-  Users are deduplicated by email. Provisioning creates new users by email, or
-  updates the organization role for users who are already members of the calling
-  organization. Existing users from other organizations are not claimed.
+  Users are deduplicated by email. Provisioning creates new users by email,
+  updates the organization role for users who are already members of the
+  calling organization, and attaches existing Tuist users to the organization
+  when SCIM POSTs an email that already exists globally. Attached users
+  receive an email notification so they can audit/leave if unexpected.
 
   Groups are synthetic: each organization exposes exactly two groups, "Admins"
   and "Users", which mirror the existing role hierarchy. Group membership ops
@@ -25,6 +27,7 @@ defmodule Tuist.SCIM do
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserNotifier
   alias Tuist.Accounts.UserRole
   alias Tuist.Base64
   alias Tuist.Environment
@@ -212,56 +215,77 @@ defmodule Tuist.SCIM do
   @doc """
   Provisions a user from a SCIM `POST /Users` request.
 
-  If a user with this email already exists in the organization, their role is
-  updated. If the email belongs to a user outside the organization, the request
-  is rejected instead of claiming the account.
+  Behavior:
+    * Email matches a member of the calling org → idempotent, role updated if needed.
+    * Email matches a global Tuist user not yet in the org → user is attached and notified.
+    * Email is unknown → a new Tuist user is created and attached.
+
+  Attaching pre-existing users keeps SCIM POST idempotent and unblocks IdP-driven
+  rollouts where members predate SSO. The notification email gives attached users
+  visibility to leave if the membership is unexpected.
   """
   def provision_user(%Organization{} = organization, attrs) do
     email = attrs |> Map.fetch!(:user_name) |> String.downcase()
     role = attrs |> Map.get(:role, :user) |> normalize_role()
     active = Map.get(attrs, :active, true)
 
-    fn ->
-      user =
-        case provisionable_user(organization, email) do
-          {:ok, %User{} = user} -> user
-          {:error, reason} -> Repo.rollback(reason)
-        end
+    case Repo.transaction(fn -> apply_provision(organization, email, role, active) end) do
+      {:ok, {user, newly_attached?}} ->
+        user = Repo.preload(user, :account)
+        if newly_attached?, do: notify_attached_user(user, organization)
+        {:ok, user}
 
-      if active do
-        :ok = Accounts.add_user_to_organization(user, organization, role: role)
-
-        case update_user_role_if_needed(user, organization, role) do
-          {:ok, _} -> user
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      else
-        :ok = remove_user_role_from_organization(user, organization)
-        %{user | active: false}
-      end
-    end
-    |> Repo.transaction()
-    |> case do
-      {:ok, user} -> {:ok, Repo.preload(user, :account)}
-      {:error, reason} -> {:error, reason}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp provisionable_user(%Organization{} = organization, email) do
+  defp apply_provision(organization, email, role, active) do
+    {user, provenance} =
+      case provisionable_user(email) do
+        {:ok, %User{} = u, p} -> {u, p}
+        {:error, reason} -> Repo.rollback(reason)
+      end
+
+    if active do
+      attach_active_user(user, organization, role, provenance)
+    else
+      :ok = remove_user_role_from_organization(user, organization)
+      {%{user | active: false}, false}
+    end
+  end
+
+  defp attach_active_user(user, organization, role, provenance) do
+    newly_attached? =
+      provenance == :existing and not Accounts.belongs_to_organization?(user, organization)
+
+    :ok = Accounts.add_user_to_organization(user, organization, role: role)
+
+    case update_user_role_if_needed(user, organization, role) do
+      {:ok, _} -> {user, newly_attached?}
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp provisionable_user(email) do
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
-        if Accounts.belongs_to_organization?(user, organization) do
-          {:ok, user}
-        else
-          {:error, :email_taken}
-        end
+        {:ok, user, :existing}
 
       {:error, :not_found} ->
         case Accounts.create_user(email, confirmed_at: default_confirmed_at()) do
-          {:ok, user} -> {:ok, user}
-          {:error, changeset} -> if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+          {:ok, user} ->
+            {:ok, user, :created}
+
+          {:error, changeset} ->
+            if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
         end
     end
+  end
+
+  defp notify_attached_user(%User{} = user, %Organization{} = organization) do
+    organization = Repo.preload(organization, :account)
+    UserNotifier.deliver_scim_organization_attachment(user, organization)
   end
 
   defp email_taken?(%Ecto.Changeset{errors: errors}) do

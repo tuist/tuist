@@ -110,10 +110,14 @@ defmodule Tuist.SCIMTest do
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
     end
 
-    test "provision_user/2 rejects existing users outside the organization", %{organization: org} do
-      _existing = user_fixture(email: "outsider@example.com")
+    test "provision_user/2 attaches an existing Tuist user to the organization", %{organization: org} do
+      existing = user_fixture(email: "outsider@example.com")
+      refute Accounts.belongs_to_organization?(existing, org)
 
-      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: "outsider@example.com"})
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "outsider@example.com", role: :admin})
+      assert user.id == existing.id
+      assert Accounts.belongs_to_organization?(user, org)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
     end
 
     test "provision_user/2 with active: false does not add the user to the organization", %{organization: org} do
