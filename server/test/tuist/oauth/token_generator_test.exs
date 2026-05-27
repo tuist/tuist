@@ -38,6 +38,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
       assert claims["type"] == "account"
       assert claims["all_projects"] == true
+      assert is_map(claims["cache_grants"])
     end
 
     test "includes user_id claim", %{user: user} do
@@ -145,6 +146,8 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
 
       assert claims["scopes"] == [
+               "account:cache:read",
+               "account:cache:write",
                "project:admin:read",
                "project:cache:read",
                "project:cache:write",
@@ -173,6 +176,8 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
 
       assert claims["scopes"] == [
+               "account:cache:read",
+               "account:cache:write",
                "project:admin:read",
                "project:cache:read",
                "project:cache:write",

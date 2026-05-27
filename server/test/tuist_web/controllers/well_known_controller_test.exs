@@ -193,6 +193,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["issuer"] == "http://www.example.com"
       assert response["authorization_endpoint"] == "http://www.example.com/oauth2/authorize"
       assert response["token_endpoint"] == "http://www.example.com/oauth2/token"
+      assert response["introspection_endpoint"] == "http://www.example.com/oauth2/introspect"
       assert response["registration_endpoint"] == "http://www.example.com/oauth2/register"
       assert response["scopes_supported"] == ["mcp"]
 
@@ -226,6 +227,7 @@ defmodule TuistWeb.WellKnownControllerTest do
       assert response["issuer"] == "https://self-hosted.example.com"
       assert response["authorization_endpoint"] == "https://self-hosted.example.com/oauth2/authorize"
       assert response["token_endpoint"] == "https://self-hosted.example.com/oauth2/token"
+      assert response["introspection_endpoint"] == "https://self-hosted.example.com/oauth2/introspect"
       assert response["registration_endpoint"] == "https://self-hosted.example.com/oauth2/register"
       assert response["agent_auth"]["register_uri"] == "https://self-hosted.example.com/agent/auth"
       assert response["agent_auth"]["claim_uri"] == "https://self-hosted.example.com/agent/auth/claim"

@@ -18,6 +18,10 @@ server:
 
   appUrl: https://tuist.dev
 
+  externalSecrets:
+    kuraIntrospection:
+      item: kura-introspection-oauth-client
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires
@@ -112,6 +116,10 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
+  sharedSecrets:
+    externalSecret:
+      enabled: true
+      item: kura-introspection-oauth-client
 postgresql:
   external:
     host: db.tuist.dev  # Supabase pooler endpoint for production.

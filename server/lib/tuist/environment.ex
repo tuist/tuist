@@ -1014,6 +1014,19 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  def kura_introspection_client_id(secrets \\ secrets()) do
+    get([:kura, :introspection_client_id], secrets)
+  end
+
+  def kura_introspection_client_secret(secrets \\ secrets()) do
+    get([:kura, :introspection_client_secret], secrets)
+  end
+
+  def kura_introspection_configured?(secrets \\ secrets()) do
+    kura_introspection_client_id(secrets) != nil and
+      kura_introspection_client_secret(secrets) != nil
+  end
+
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
   """

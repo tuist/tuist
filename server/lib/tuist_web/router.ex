@@ -653,6 +653,7 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
@@ -729,6 +730,7 @@ defmodule TuistWeb.Router do
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through :non_authenticated_api
 
+    post "/introspect", IntrospectController, :introspect
     post "/token", TokenController, :token
     post "/register", RegistrationController, :register
   end
