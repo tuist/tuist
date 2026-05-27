@@ -1623,7 +1623,7 @@ jobs:
           tart prune --entries caches --older-than 0
           df -h /
 
-      - name: Build + push every profile in XCODE_VERSIONS
+      - name: Build + push every active profile in XCODE_VERSIONS
         id: publish
         working-directory: infra/runner-image
         env:
@@ -1634,18 +1634,29 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           # XCODE_VERSIONS is the source of truth for which profiles
-          # exist. First non-comment line is the default profile —
-          # the chart's runnerImage digest pin tracks it. Each line
-          # produces both an immutable tag (`:macos-<dashes>-<semver>`,
-          # for rollback) and a rolling profile tag (`:macos-<dashes>`,
-          # what the chart resolves through its digest pin).
+          # exist. Each line is `<xcode> [active|inactive]` (default
+          # active). The release rebuilds only active lines on every
+          # commit; inactive ones stay published from prior active
+          # periods and only refresh on `runner-image.yml` dispatch.
+          # The first ACTIVE line is the default profile — the chart's
+          # runnerImage digest pin tracks it. Each rebuild produces an
+          # immutable tag (`:macos-<dashes>-<semver>`) and a rolling
+          # one (`:macos-<dashes>`).
           DEFAULT_PROFILE=""
           DEFAULT_DIGEST=""
-          while IFS= read -r xcode || [ -n "$xcode" ]; do
-            # Strip comments / blank lines.
-            xcode="${xcode%%#*}"
-            xcode="$(echo "$xcode" | tr -d '[:space:]')"
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line%%#*}"
+            # Squeeze internal whitespace + trim ends. Cheaper than
+            # invoking xargs.
+            set -- $line
+            xcode="${1:-}"
+            annotation="${2:-active}"
             [ -z "$xcode" ] && continue
+
+            if [ "$annotation" != "active" ]; then
+              echo "Skipping ${xcode} (annotation: ${annotation})"
+              continue
+            fi
 
             BASE_TAG="${xcode//./-}"
             BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
@@ -1661,7 +1672,7 @@ jobs:
             tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}"
 
             if [ -z "$DEFAULT_PROFILE" ]; then
-              # First non-comment line wins — chart pin tracks this
+              # First active line wins — chart pin tracks this
               # profile's digest.
               DEFAULT_PROFILE="$PROFILE"
               DEFAULT_DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${PROFILE}")
@@ -1676,7 +1687,7 @@ jobs:
           done < XCODE_VERSIONS
 
           if [ -z "$DEFAULT_PROFILE" ]; then
-            echo "Error: XCODE_VERSIONS contained no non-comment lines" >&2
+            echo "Error: XCODE_VERSIONS contains no active profiles" >&2
             exit 1
           fi
 

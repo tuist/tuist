@@ -23,8 +23,8 @@ name: Runner Image
 on:
   workflow_dispatch:
     inputs:
-      base_image:
-        description: "Override the base Tart image (leave empty to build against the first profile in infra/runner-image/XCODE_VERSIONS)."
+      xcode_version:
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1). Defaults to the first active line in infra/runner-image/XCODE_VERSIONS. Also the right path for refreshing an `inactive` profile."
         required: false
         default: ""
       runner_version:
@@ -97,20 +97,25 @@ jobs:
         id: build
         working-directory: infra/runner-image
         env:
-          BASE_IMAGE_OVERRIDE: ${{ inputs.base_image }}
+          XCODE_VERSION_OVERRIDE: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
-          # Single-profile dispatch: either the operator-provided
-          # override, or the first non-comment line of XCODE_VERSIONS.
-          # The official multi-profile rebuild lives in release.yml.
-          if [ -n "$BASE_IMAGE_OVERRIDE" ]; then
-            BASE_IMAGE="$BASE_IMAGE_OVERRIDE"
+          # Single-profile dispatch. Resolves the Xcode version from:
+          #   1. operator-provided `xcode_version` input (handy for
+          #      refreshing an inactive profile), or
+          #   2. the first non-comment line of XCODE_VERSIONS (the
+          #      default active profile).
+          # The multi-profile rebuild loop lives in release.yml.
+          if [ -n "$XCODE_VERSION_OVERRIDE" ]; then
+            XCODE="$XCODE_VERSION_OVERRIDE"
           else
-            XCODE=$(grep -vE '^[[:space:]]*(#|$)' XCODE_VERSIONS | head -n1 | tr -d '[:space:]')
-            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE//./-}"
+            # First column of the first non-comment line.
+            XCODE=$(awk '!/^[[:space:]]*(#|$)/ { print $1; exit }' XCODE_VERSIONS)
           fi
-          BASE_TAG="${BASE_IMAGE##*:}"
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
           PROFILE="macos-${BASE_TAG}"
+          echo "Xcode:      ${XCODE}"
           echo "Base image: ${BASE_IMAGE}"
           echo "Profile:    ${PROFILE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \

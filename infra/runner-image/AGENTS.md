@@ -62,11 +62,11 @@ CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger `release.yml`'s
   `release-runner-image` job: iterates `infra/runner-image/XCODE_VERSIONS`,
-  builds + pushes one profile per line as both
-  `ghcr.io/tuist/tuist-runner:macos-<xcode-version-dashes>-<semver>`
+  rebuilds every **active** line (skips `inactive` ones), pushing
+  each as `ghcr.io/tuist/tuist-runner:macos-<xcode-version-dashes>-<semver>`
   (immutable) and `:macos-<xcode-version-dashes>` (rolling, e.g.
-  `:macos-26-4-1`). Resolves the **first profile's** digest with
-  `crane digest`, rewrites `runnersFleet.runnerImage` across
+  `:macos-26-4-1`). Resolves the **first active profile's** digest
+  with `crane digest`, rewrites `runnersFleet.runnerImage` across
   managed-env values files that already have a digest pin, tags
   `runner-image@x.y.z`, opens a GitHub Release, commits.
 - **Ad-hoc rebuilds.** `.github/workflows/runner-image.yml`
@@ -96,28 +96,37 @@ of the ~30 min an all-in-one rebuild used to cost.
 
 ## Profiles file: `infra/runner-image/XCODE_VERSIONS`
 
-`XCODE_VERSIONS` is a plain-text list, one Xcode version per line
-(`#`-prefixed lines are comments). Every line produces a published
-profile:
+Each non-comment line is `<xcode-version> [active|inactive]` (the
+annotation defaults to `active`). Comments start with `#`.
 
 ```
 # default profile (chart pin tracks this one)
-26.4.1
 26.5
+26.4.1
+26.0.1   inactive
 ```
 
-The **first non-comment line** is the default — the chart's
-`runnersFleet.runnerImage` digest pin tracks that profile. Other
-profiles still get built and pushed, but the operator chooses one
-default for the fleet; customers can pin their workflows to any
-profile by tag in their job definition.
+Three concepts to keep straight:
 
-Each release run iterates the list sequentially against the shared
-`vm-image-builder` host: build → push `:macos-<dashes>-<semver>`
-(immutable) + `:macos-<dashes>` (rolling) → resolve digest for the
-default → carry on to the next line. Adding or removing a line is a
-commit; check-releases picks it up under
-`infra/runner-image/**/*` and runs the release.
+- **Default profile.** The first **active** line. The chart's
+  `runnersFleet.runnerImage` digest pin tracks this profile, so a
+  new fleet rollout = make the desired profile the first active line.
+- **Active profiles.** Rebuilt on every `release-runner-image` run
+  (i.e. every `feat(runner-image)` / `fix(runner-image)` commit
+  landing on `main`). Each adds ~30 min to the release on the
+  singleton `vm-image-builder` host, so keep this set small — the
+  Xcodes the fleet is currently rolling onto, typically 1-3.
+- **Inactive profiles.** Stay published in GHCR — customers can keep
+  pinning their workflows to them — but don't refresh on every
+  release. Use this for older Xcodes that customers haven't migrated
+  off yet. To roll a new runner-agent / dispatch-loop / launchd
+  change into an inactive profile:
+
+      gh workflow run runner-image.yml -f xcode_version=26.X.Y
+
+Each line — when active and rebuilt — produces both an immutable
+tag (`:macos-<dashes>-<semver>`) and a rolling tag (`:macos-<dashes>`,
+which is what the chart resolves through its digest pin).
 
 Bumping the Xcode customers see on their runners:
 
@@ -126,12 +135,16 @@ Bumping the Xcode customers see on their runners:
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Edit `infra/runner-image/XCODE_VERSIONS`: either add the new
-   Xcode as an additional profile (most common), or replace the
-   first line if you want it to become the new default. Commit with
-   a `feat(runner-image): ...` message — check-releases triggers the
-   rebuild, the chart's `runnersFleet.runnerImage` pin moves to the
-   first-line profile's digest.
+2. Edit `infra/runner-image/XCODE_VERSIONS`: add a new active line
+   for the Xcode (most common — gives customers it as an option
+   alongside the existing default), or put it at the top of the
+   active list to make it the new chart default. Commit with a
+   `feat(runner-image): ...` message — check-releases triggers the
+   rebuild against every active profile, and the chart pin moves to
+   the first active profile's digest.
+3. Once customers have migrated off an older Xcode, demote its line
+   to `inactive` so it stops paying the release-time cost. The tag
+   stays in GHCR for any lingering pin.
 
 ## Profile tagging
 

@@ -174,11 +174,13 @@ automatically roll customer runners to Xcode 26.5. To promote:
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
 2. Edit `infra/runner-image/XCODE_VERSIONS`: append the new Xcode
-   as an additional profile (most common — gives customers both
-   the old and new on offer), or replace the first line if you
-   want the new Xcode to become the chart's default profile.
-   Commit with a `feat(runner-image): ...` message so
-   check-releases picks it up.
+   as an additional active line (most common — gives customers both
+   the old and new on offer), or put it at the top of the active
+   list to make it the chart's default profile. Commit with a
+   `feat(runner-image): ...` message so check-releases picks it up.
+   Demote retired Xcodes to `inactive` to skip the per-release
+   rebuild cost — see `infra/runner-image/AGENTS.md` for the
+   active/inactive distinction.
 3. (Optional) Force a parallel xcresult-processor rebuild against
    the freshly-published base. The processor resolves the newest
    Xcode tag at build time and doesn't have a pin file, so it'll
