@@ -4278,6 +4278,7 @@ defmodule Tuist.AccountsTest do
     setup do
       stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       stub(Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [] end)
       :ok
     end
 
@@ -4461,6 +4462,215 @@ defmodule Tuist.AccountsTest do
                "otp_attempt_count" => 1
              }
     end
+
+    test "creates an anonymous API key and later claims it for a real user" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+      assert result.credential =~ "tuist_"
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{account: %{user_id: anonymous_user_id}} =
+               Authentication.authenticated_subject(result.credential)
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.20"
+        })
+
+      claim_view_token = extract_claim_view_token(resent.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.21"
+        })
+
+      {:ok, claimed_user} = Accounts.get_user_by_email(email)
+      assert claimed.registration.claimed_by_user_id == claimed_user.id
+
+      assert %AuthenticatedAccount{account: %{user_id: claimed_user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert claimed_user_id == claimed_user.id
+      refute claimed_user_id == anonymous_user_id
+
+      assert [:created, :claim_resent, :claimed] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider access token and revokes it from a logout token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-to-revoke")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :access_token,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :access_token
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{issued_by: %{email: ^email}} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert %AgentRegistration{
+               registration_type: :agent_provider,
+               status: :claimed,
+               email: ^email,
+               issuer: "https://agent-provider.example.com",
+               subject: "provider-user-1",
+               client_id: "test-agent-client",
+               assertion_jti: "id-jag-to-revoke"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [:created, :claimed] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+
+      logout_token = logout_token(jwk, "logout-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Authentication.authenticated_subject(result.credential) == nil
+
+      assert %AgentRegistration{status: :revoked, revoked_at: revoked_at} =
+               Repo.get!(AgentRegistration, result.registration.id)
+
+      assert revoked_at
+
+      assert [:created, :claimed, :revoked] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider API key and revokes the backing account token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-api-key")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :api_key,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+
+      assert %AuthenticatedAccount{account: %{user_id: user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert user_id == user.id
+
+      assert %AgentRegistration{account_token_id: account_token_id} = result.registration
+      assert Repo.get!(AccountToken, account_token_id)
+
+      logout_token = logout_token(jwk, "logout-api-key-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Repo.get(AccountToken, account_token_id) == nil
+      assert Authentication.authenticated_subject(result.credential) == nil
+    end
+
+    test "rejects an agent-provider assertion from an untrusted issuer" do
+      email = AccountsFixtures.unique_user_email()
+      {_provider, assertion, _jwk} = id_jag_with_jwk(email, "untrusted-id-jag")
+
+      assert {:error, :invalid_issuer} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects replayed agent-provider assertions" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "replayed-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      attrs = %{
+        registration_type: :agent_provider,
+        assertion: assertion,
+        requested_credential_type: :access_token,
+        audience: "https://tuist.dev"
+      }
+
+      assert {:ok, _result} = Accounts.create_agent_registration(attrs)
+      assert {:error, :replay_detected} = Accounts.create_agent_registration(attrs)
+    end
+
+    test "rejects agent-provider assertions without a verified email" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "unverified-email-jti", %{
+            "email_verified" => false
+          })
+        )
+
+      assert {:error, :missing_verified_email} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects agent-provider assertions for the wrong client" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "wrong-client-jti", %{
+            "client_id" => "other-client"
+          })
+        )
+
+      assert {:error, :invalid_client_id} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
   end
 
   defp extract_claim_view_token(html_body) do
@@ -4475,5 +4685,62 @@ defmodule Tuist.AccountsTest do
         order_by: e.occurred_at
       )
     )
+  end
+
+  defp id_jag_with_jwk(email, jti) do
+    jwk = JOSE.JWK.generate_key({:rsa, 2048})
+    provider = agent_auth_provider(jwk)
+
+    {provider, sign_agent_auth_jwt(jwk, "oauth-id-jag+jwt", claims(email, jti)), jwk}
+  end
+
+  defp agent_auth_provider(jwk) do
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    public_jwk = Map.put(public_jwk, "kid", "agent-auth-test-key")
+
+    %{
+      "issuer" => "https://agent-provider.example.com",
+      "jwks" => %{"keys" => [public_jwk]},
+      "client_ids" => ["test-agent-client"]
+    }
+  end
+
+  defp logout_token(jwk, jti) do
+    sign_agent_auth_jwt(jwk, "logout+jwt", %{
+      "iss" => "https://agent-provider.example.com",
+      "sub" => "provider-user-1",
+      "aud" => "https://tuist.dev",
+      "client_id" => "test-agent-client",
+      "jti" => jti,
+      "iat" => DateTime.to_unix(DateTime.utc_now()),
+      "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+      "events" => %{
+        "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked" => %{}
+      }
+    })
+  end
+
+  defp claims(email, jti, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "iss" => "https://agent-provider.example.com",
+        "sub" => "provider-user-1",
+        "aud" => "https://tuist.dev",
+        "client_id" => "test-agent-client",
+        "jti" => jti,
+        "iat" => DateTime.to_unix(DateTime.utc_now()),
+        "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+        "email" => email,
+        "email_verified" => true
+      },
+      overrides
+    )
+  end
+
+  defp sign_agent_auth_jwt(jwk, typ, claims) do
+    jwt = JOSE.JWT.from_map(claims)
+    jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
+    {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
+    token
   end
 end
