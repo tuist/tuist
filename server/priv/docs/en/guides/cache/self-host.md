@@ -13,7 +13,7 @@ The Tuist cache service can be self-hosted to provide a private binary cache for
 > [!NOTE]
 > Self-hosting cache nodes requires an **Enterprise plan**.
 >
-> You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/install">server self-hosting guide</.localized_link>.
+> You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/control-plane">server self-hosting guide</.localized_link>.
 
 
 ## Prerequisites {#prerequisites}

@@ -65,7 +65,7 @@ defmodule Tuist.Runners.PromExPluginTest do
           workflow_job_id: 999_001,
           account_id: account.id,
           fleet_name: "fleet-poll",
-          repo: "acme/cli",
+          repository: "acme/cli",
           workflow_run_id: 9001,
           run_attempt: 1,
           job_name: "build",

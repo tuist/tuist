@@ -490,7 +490,8 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     case_study_urls =
       for locale <- Localization.all_locales(),
-          case_study <- Customers.get_case_studies() do
+          case_study <- Customers.get_case_studies(),
+          Customers.local_case_study?(case_study) do
         localized_path = Localization.localized_href(case_study.slug, locale)
         Tuist.Environment.app_url(path: localized_path)
       end
@@ -581,37 +582,42 @@ defmodule TuistWeb.Marketing.MarketingController do
     request_path = Localization.path_without_locale(request_path)
     case_study = Customers.get_case_study(request_path, locale)
 
-    if is_nil(case_study) do
-      raise NotFoundError
-    else
-      related_case_studies =
-        locale
-        |> Customers.get_case_studies()
-        |> Enum.reject(&(&1.slug == case_study.slug))
-        |> Enum.take_random(3)
+    cond do
+      is_nil(case_study) ->
+        raise NotFoundError
 
-      customers_path = Localization.localized_href("/customers", locale)
-      case_study_path = Localization.localized_href(case_study.slug, locale)
+      Customers.external_case_study?(case_study) ->
+        redirect(conn, external: Customers.case_study_href(case_study))
 
-      conn
-      |> assign(:head_title, case_study.title)
-      |> assign(:head_description, case_study.excerpt)
-      |> assign(
-        :head_image,
-        Tuist.Environment.app_url(path: case_study.og_image_path)
-      )
-      |> assign(:head_twitter_card, "summary_large_image")
-      |> assign_structured_data(
-        get_breadcrumbs_structured_data([
-          {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
-          {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
-        ])
-      )
-      |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
-      |> assign(:case_study, case_study)
-      |> assign(:related_case_studies, related_case_studies)
-      |> render(:case_study, layout: false)
+      true ->
+        related_case_studies =
+          locale
+          |> Customers.get_case_studies()
+          |> Enum.reject(&(&1.slug == case_study.slug))
+          |> Enum.take_random(3)
+
+        customers_path = Localization.localized_href("/customers", locale)
+        case_study_path = Localization.localized_href(case_study.slug, locale)
+
+        conn
+        |> assign(:head_title, case_study.title)
+        |> assign(:head_description, case_study.excerpt)
+        |> assign(
+          :head_image,
+          Tuist.Environment.app_url(path: case_study.og_image_path)
+        )
+        |> assign(:head_twitter_card, "summary_large_image")
+        |> assign_structured_data(
+          get_breadcrumbs_structured_data([
+            {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
+            {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: customers_path)},
+            {case_study.title, Tuist.Environment.app_url(path: case_study_path)}
+          ])
+        )
+        |> assign_structured_data(get_case_study_article_structured_data(case_study, locale))
+        |> assign(:case_study, case_study)
+        |> assign(:related_case_studies, related_case_studies)
+        |> render(:case_study, layout: false)
     end
   end
 

@@ -1866,14 +1866,23 @@ defmodule Tuist.Accounts do
   end
 
   def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
-    case get_account_by_handle(account_handle) do
-      %Account{} = account -> kura_cache_endpoint_urls(account)
-      _ -> []
+    case Environment.kura_endpoints() do
+      endpoints when is_list(endpoints) ->
+        endpoints
+
+      nil ->
+        case get_account_by_handle(account_handle) do
+          %Account{} = account -> kura_cache_endpoint_urls(account)
+          _ -> []
+        end
     end
   end
 
   def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
-  def get_cache_endpoints_for_handle(_, :kura), do: []
+
+  def get_cache_endpoints_for_handle(_, :kura) do
+    Environment.kura_endpoints() || []
+  end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
