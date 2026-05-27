@@ -1,6 +1,6 @@
 defmodule Tuist.Accounts.AgentAuth do
   @moduledoc """
-  Workflow for [auth.md](https://auth.md) agent registrations.
+  Workflow for [auth.md](https://workos.com/auth-md) agent registrations.
 
   Owns identity-assertion verification (ID-JAG), JTI replay protection, the
   email-claim ceremony (claim tokens, claim-view tokens, OTPs), credential
