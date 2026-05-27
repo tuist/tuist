@@ -109,14 +109,7 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 </details>
 
-If your agent asks you to complete the `auth.md` flow instead of opening a browser, expect this sequence:
-
-1. The agent calls `POST /agent/auth` with either your verified email address or an anonymous API-key registration.
-2. Tuist emails you a secure link that shows a six-digit code when a user-claimed flow is used.
-3. You read the code back to the agent.
-4. The agent exchanges that code for a credential, or upgrades the anonymous API key in place, and connects to `https://tuist.dev/mcp`.
-
-Agent providers that support ID-JAG can skip the OTP ceremony after you approve the provider-side identity assertion. Tuist verifies the provider signature against its trusted provider configuration and can process provider logout tokens at `/agent/auth/revoke`. Tuist trusts OpenAI's published issuer by default. Self-hosted deployments can replace the defaults with `TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON` or the `agent_auth.trusted_providers` secret, including setting it to `[]` to disable built-in providers. Add Claude or other providers there once they publish the exact ID-JAG issuer and JWKS metadata you want to trust.
+If your agent supports `auth.md`, you can connect without opening a browser. Depending on the agent, Tuist will either confirm with the agent provider directly or email you a secure link with a six-digit code to read back to the agent.
 
 
 ## Capabilities

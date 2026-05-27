@@ -19,6 +19,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Organization memberships and roles (user, organization, role, and timestamps)
 - Account billing information and subscriptions
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
+- Agent registration audit records (`agent_registrations`, `agent_registration_events`, and `agent_auth_jtis` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and OTP expiry timestamps, claim request / completion IP metadata, claimed user relationship, linked account-token id or JWT id, ID-JAG issuer/subject/audience/client metadata, replay-protection `jti` records, append-only state-change events (`created`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event IP metadata, event metadata, and timestamps. The claim token hash, claim-view token hash, OTP hash, issued API key value, and signed JWT value are excluded from exports as authentication secrets.
 - Custom cache endpoint configurations
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 - Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`) recording which image the backing cluster reports running and when it was last observed
@@ -85,6 +86,7 @@ The following data is stored in ClickHouse for analytics purposes:
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
+- Agent registration claim token hashes, claim-view token hashes, OTP hashes, issued API key values, and signed JWT values
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 - Internal Kura shared secrets used by the control plane and Kura runtime extensions
