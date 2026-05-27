@@ -122,10 +122,14 @@ auto-download entirely:
    `ghcr.io/tuist/xcode-xips:<version>`. ~10 min wall-clock for
    the download; ~2 min for the push.
 
-3. **Promote**. Bump the relevant `infra/runner-image/XCODE_VERSION`
-   or `infra/xcresult-processor-image/XCODE_VERSION` pin file and
-   merge — the release flow rebuilds Layer 2 against the new
-   Layer 1 and updates the chart digest pin.
+3. **Promote**. For runner-image: bump
+   `infra/runner-image/XCODE_VERSION` and merge — the release flow
+   rebuilds the runner image against the new base and updates the
+   chart digest pin. The xcresult-processor doesn't have a pin file;
+   it always resolves the newest `ghcr.io/tuist/macos-tahoe-xcode`
+   tag at build time, so it picks up the new Xcode on its next
+   rebuild (any commit under `infra/xcresult-processor-image/**` or
+   a manual `workflow_dispatch`).
 
 The Apple ID used for the local mint is the one stored in 1Password
 under `Tuist Apple ID` (Employee vault). `mise.toml` pins the
@@ -165,13 +169,16 @@ automatically roll customer runners to Xcode 26.5. To promote:
 
 1. Trigger this workflow with the new `xcode_version`. Verify the
    tag appears in GHCR.
-2. Bump `infra/runner-image/XCODE_VERSION` and
-   `infra/xcresult-processor-image/XCODE_VERSION` to the same
-   value. Commit with a `feat(runner-image): bump to Xcode X.Y.Z`
-   (and a parallel `feat(xcresult-processor-image): ...`) message
-   so check-releases picks it up — each file lives under its
+2. Bump `infra/runner-image/XCODE_VERSION` to the new value and
+   commit with a `feat(runner-image): bump to Xcode X.Y.Z` message
+   so check-releases picks it up — the pin file lives under the
    image's release-include-path, so a touch is what triggers the
-   Layer 2 rebuild.
+   runner-image rebuild.
+3. (Optional) Force a parallel xcresult-processor rebuild against
+   the freshly-published base. The processor resolves the newest
+   Xcode tag at build time and doesn't have a pin file, so it'll
+   pick the new Xcode up on its next natural rebuild — but if you
+   want it now, dispatch `xcresult-processor-image.yml`.
 3. After merge, `release-runner-image` rebuilds
    `tuist-runner:macos-<xcode-version-dashes>` against the new
    base and rewrites the chart's `runnersFleet.runnerImage`

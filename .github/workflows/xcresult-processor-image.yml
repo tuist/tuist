@@ -29,9 +29,9 @@ on:
   workflow_dispatch:
     inputs:
       base_image:
-        description: "Base macos-tahoe-xcode Tart image. Bump the tag to test against a different Xcode profile."
+        description: "Override the base Tart image (leave empty to use the newest ghcr.io/tuist/macos-tahoe-xcode tag)."
         required: false
-        default: "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
+        default: ""
 
 concurrency:
   group: xcresult-processor-image
@@ -137,10 +137,26 @@ jobs:
 
       - name: Build image
         working-directory: infra/xcresult-processor-image
+        env:
+          BASE_IMAGE_OVERRIDE: ${{ inputs.base_image }}
         run: |
           set -euo pipefail
+          # Same dynamic-resolution rationale as release-xcresult-processor-image:
+          # the singleton processor parses bundles from every customer
+          # runner profile and shouldn't lag behind any of them.
+          if [ -n "$BASE_IMAGE_OVERRIDE" ]; then
+            BASE_IMAGE="$BASE_IMAGE_OVERRIDE"
+          else
+            BASE_TAG=$(crane ls ghcr.io/tuist/macos-tahoe-xcode | grep -E '^[0-9]+(-[0-9]+){0,2}$' | sort -t- -k1,1n -k2,2n -k3,3n | tail -n1)
+            if [ -z "$BASE_TAG" ]; then
+              echo "Error: No version-shaped tags found at ghcr.io/tuist/macos-tahoe-xcode. Trigger macos-xcode-image.yml first." >&2
+              exit 1
+            fi
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          fi
+          echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "base_image=${{ inputs.base_image || 'ghcr.io/tuist/macos-tahoe-xcode:26-4-1' }}" \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl

@@ -54,18 +54,30 @@ This is **Layer 2** on top of
 the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
 ships in full Xcode (not the Command Line Tools).
 
-Bumping the Xcode the processor runs against is a two-step:
+Unlike `infra/runner-image` (where customers pin a specific runner
+profile to a specific Xcode), the xcresult-processor is a
+**singleton backend service** that has to parse .xcresult bundles
+produced by every customer runner profile. xcresulttool's JSON
+schema changes across Xcode majors, so a pinned-to-older processor
+would silently fail on bundles produced by any newer Xcode. To avoid
+that, the build resolves the **newest published `ghcr.io/tuist/macos-tahoe-xcode`
+tag at build time** via `crane ls | sort | tail -n1` — no
+`XCODE_VERSION` file to keep in sync.
+
+Bumping the Xcode the processor runs against is therefore a
+one-step:
 
 1. Publish a Layer 1 image with the new Xcode — first run
    `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Bump the version pin in `infra/xcresult-processor-image/XCODE_VERSION`
-   and commit with a `feat(xcresult-processor-image): bump to
-   Xcode X.Y.Z` message. The file lives under this image's
-   release-include-path so check-releases triggers a rebuild
-   against `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`.
+
+The next commit touching anything under
+`infra/xcresult-processor-image/**` triggers `check-releases`, which
+rebuilds the processor against whatever tag is newest at that point.
+To force a rebuild against a freshly-published Xcode without an
+unrelated commit, dispatch `xcresult-processor-image.yml` manually.
 
 ## Env injection at runtime
 

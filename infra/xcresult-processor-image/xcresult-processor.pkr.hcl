@@ -35,7 +35,7 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump to roll onto a new Xcode."
+  description = "Base Tart image. Resolved at build time to the newest published ghcr.io/tuist/macos-tahoe-xcode tag — the processor parses .xcresult bundles from every customer runner profile and shouldn't lag behind any of them."
   default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
