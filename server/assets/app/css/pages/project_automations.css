@@ -363,6 +363,70 @@
       }
     }
 
+    [data-part="github-issue-action"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      min-width: 0;
+
+      & > [data-part="github-issue-action-header"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+
+        & [data-part="action-label"] {
+          flex-shrink: 0;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="github-issue-action-body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="form-row"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-3);
+
+          & > [data-part="label"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="sublabel"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+
+          & > [data-part="variables-hint"] {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+            & > [data-part="label"] {
+              flex-shrink: 0;
+            }
+
+            & > code {
+              border-radius: var(--noora-radius-2);
+              background: var(--noora-surface-background-secondary);
+              padding: 1px 6px;
+              font-size: 12px;
+            }
+          }
+        }
+      }
+    }
+
     [data-part="toggle"] {
       display: flex;
       flex-direction: row;

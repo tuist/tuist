@@ -598,6 +598,88 @@ defmodule Tuist.Automations.Alerts.AlertTest do
 
       refute changeset.valid?
     end
+
+    test "accepts a create_github_issue action with a title template" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [
+              %{"type" => "create_github_issue", "title_template" => "Flaky: {{test_case.name}}"}
+            ]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a create_github_issue action with a blank title template" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_actions" => [%{"type" => "create_github_issue", "title_template" => ""}]
+          })
+        )
+
+      refute changeset.valid?
+    end
+  end
+
+  describe "github_issue monitor" do
+    test "accepts a github_issue monitor with closed in events" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "github_issue",
+            "trigger_config" => %{"events" => ["closed"]},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a github_issue monitor with an empty events list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "github_issue",
+            "trigger_config" => %{"events" => []},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects a github_issue monitor with unknown event names" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "github_issue",
+            "trigger_config" => %{"events" => ["closed", "deleted"]},
+            "trigger_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
   end
 
   describe "foreign key" do

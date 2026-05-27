@@ -6,7 +6,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
+  @monitor_types ~w(flakiness_rate flaky_run_count test_updated github_issue)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -16,6 +16,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     state_changed_to_muted
     state_changed_to_skipped
   )
+  @github_issue_events ~w(closed)
   @window_types ~w(last_days rolling)
 
   # Cap on `rolling_window_size`. The monitor reads from
@@ -31,6 +32,12 @@ defmodule Tuist.Automations.Alerts.Alert do
   threshold or content filter.
   """
   def test_updated_events, do: @test_updated_events
+
+  @doc """
+  Subscription keys recognised on the `github_issue` monitor's
+  `trigger_config["events"]` array.
+  """
+  def github_issue_events, do: @github_issue_events
 
   @doc """
   Maximum value the `trigger_config.rolling_window_size` /
@@ -126,6 +133,9 @@ defmodule Tuist.Automations.Alerts.Alert do
   defp valid_action?(%{"type" => "add_label", "label" => label}) when is_binary(label) and label != "", do: true
   defp valid_action?(%{"type" => "remove_label", "label" => label}) when is_binary(label) and label != "", do: true
 
+  defp valid_action?(%{"type" => "create_github_issue", "title_template" => title}) when is_binary(title) and title != "",
+    do: true
+
   defp valid_action?(_), do: false
 
   defp change_state_action?(%{"type" => "change_state"}), do: true
@@ -147,6 +157,7 @@ defmodule Tuist.Automations.Alerts.Alert do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
+        "github_issue" -> validate_github_issue_config(changeset, trigger_config)
         _ -> changeset
       end
 
@@ -156,9 +167,17 @@ defmodule Tuist.Automations.Alerts.Alert do
   end
 
   defp validate_test_updated_config(changeset, trigger_config) do
+    validate_events_subscription(changeset, trigger_config, @test_updated_events)
+  end
+
+  defp validate_github_issue_config(changeset, trigger_config) do
+    validate_events_subscription(changeset, trigger_config, @github_issue_events)
+  end
+
+  defp validate_events_subscription(changeset, trigger_config, allowed_events) do
     case Map.get(trigger_config, "events") do
       events when is_list(events) and events != [] ->
-        invalid = Enum.reject(events, &(&1 in @test_updated_events))
+        invalid = Enum.reject(events, &(&1 in allowed_events))
 
         if invalid == [] do
           changeset

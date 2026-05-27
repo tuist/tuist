@@ -14,6 +14,7 @@ defmodule Tuist.Automations.ActionExecutor do
   them sequentially could revert earlier writes when the read had not yet
   observed them.
   """
+  alias Tuist.Automations.Actions.CreateGithubIssueAction
   alias Tuist.Automations.Actions.SendSlackAction
   alias Tuist.Tests
 
@@ -81,6 +82,10 @@ defmodule Tuist.Automations.ActionExecutor do
 
   defp execute_action(%{"type" => "send_slack"} = action, automation, entity) do
     SendSlackAction.execute(automation, entity, action)
+  end
+
+  defp execute_action(%{"type" => "create_github_issue"} = action, automation, entity) do
+    CreateGithubIssueAction.execute(automation, entity, action)
   end
 
   defp execute_action(%{"type" => type}, _automation, _entity) when type in ["add_label", "remove_label"] do

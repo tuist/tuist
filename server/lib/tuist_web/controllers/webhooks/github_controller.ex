@@ -1,8 +1,10 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
+  alias Tuist.Automations
   alias Tuist.Environment
   alias Tuist.Runners.Workers.DispatchWorker
+  alias Tuist.Tests
   alias Tuist.VCS
 
   require Logger
@@ -198,6 +200,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
       "check_run" ->
         handle_check_run(conn, params)
 
+      "issues" ->
+        handle_issues(conn, params)
+
       "workflow_job" ->
         handle_workflow_job(conn, params)
 
@@ -352,6 +357,48 @@ defmodule TuistWeb.Webhooks.GitHubController do
   end
 
   defp handle_check_run(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_issues(
+         conn,
+         %{
+           "action" => "closed",
+           "issue" => %{"number" => issue_number},
+           "repository" => %{"full_name" => repository_full_name},
+           "installation" => %{"id" => installation_id}
+         } = params
+       ) do
+    with {:ok, installation} <-
+           lookup_installation_by_id(conn, params, to_string(installation_id)),
+         {:ok, link} <-
+           Automations.get_issue_link_by_github_coordinates(
+             installation.id,
+             repository_full_name,
+             issue_number
+           ),
+         {:ok, link} <- Automations.resolve_issue_link(link),
+         {:ok, test_case} <- Tests.get_test_case_by_id(link.test_case_id) do
+      Automations.dispatch_issue_link_event(:closed, link, test_case)
+    else
+      {:error, :not_found} ->
+        # Either no installation row, no IssueLink (issue wasn't created by
+        # us), or the test_case no longer exists. All are normal no-ops.
+        :ok
+
+      other ->
+        Logger.warning("GitHub issues.closed webhook handling failed: #{inspect(other)}")
+        :ok
+    end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
+  end
+
+  defp handle_issues(conn, _params) do
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})
