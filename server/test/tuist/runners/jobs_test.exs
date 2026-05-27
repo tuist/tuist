@@ -85,21 +85,20 @@ defmodule Tuist.Runners.JobsTest do
       assert Map.get(counts, "queued", 0) == 0
     end
 
-    test "opens a billing session anchored on claimed_at" do
+    test "does not open a billing session — that happens after JIT mint succeeds in Tuist.Runners.serve_claim/5" do
+      # Opening at claim-win would leak a session for every
+      # dispatch that fails between claim and JIT mint, because
+      # `Tuist.Runners.release_safely/3` only re-queues the CH
+      # row and releases the PG claim — it doesn't close the
+      # session. `Billing.compute_milliseconds/4` would then
+      # clamp the orphan to the 6h max-lifetime safety cap.
       account = account_fixture()
       :ok = enqueue_fixture(account, 5002, fleet: "fleet-bs")
       {:ok, candidate} = Jobs.pick_queued("fleet-bs", [])
-      claimed_at = DateTime.utc_now()
 
-      assert :ok = Jobs.record_claimed(candidate, "pod-bs", claimed_at)
+      assert :ok = Jobs.record_claimed(candidate, "pod-bs", DateTime.utc_now())
 
-      [session] =
-        Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002))
-
-      assert session.account_id == account.id
-      assert session.pod_name == "pod-bs"
-      assert session.ended_at == nil
-      assert DateTime.compare(session.started_at, claimed_at) == :eq
+      assert Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002)) == []
     end
   end
 

@@ -56,7 +56,6 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.Job
-  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -141,6 +140,14 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Records the `claimed` state transition for customer visibility.
   Called after `Claims.attempt/4` succeeds and we're about to mint.
+
+  Does NOT open the per-Pod billing session — `Tuist.Runners`
+  opens it only after `serve_claim/5` commits (JIT minted +
+  `running` recorded). Opening here would leak an open session
+  for every dispatch that fails between claim and JIT-mint
+  (pool lookup, GH API hiccup, etc.), which `Billing` then
+  clamps to the 6h max-lifetime — over-billing for compute the
+  customer never received.
   """
   def record_claimed(candidate, pod_name, claimed_at) when is_map(candidate) and is_binary(pod_name) do
     now = DateTime.utc_now()
@@ -148,21 +155,6 @@ defmodule Tuist.Runners.Jobs do
     row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
 
     insert_row!(row)
-
-    # Open the per-Pod billing session. `claimed_at` is within a
-    # few hundred ms of the controller actually creating the
-    # Pod, which is the best server-side approximation we have
-    # until the controller reports Pod timestamps directly. See
-    # `Tuist.Runners.RunnerSessions` for the rationale.
-    RunnerSessions.open(%{
-      workflow_job_id: Map.fetch!(candidate, :workflow_job_id),
-      account_id: Map.fetch!(candidate, :account_id),
-      fleet_name: Map.get(candidate, :fleet_name, ""),
-      pod_name: pod_name,
-      repository: Map.get(candidate, :repository, ""),
-      workflow_name: Map.get(candidate, :workflow_name, ""),
-      started_at: claimed_at
-    })
 
     :telemetry.execute(
       Telemetry.event_name_job_claim(),

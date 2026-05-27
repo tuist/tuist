@@ -3479,21 +3479,28 @@ completed_jobs
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{rem(idx, 4)}")
   {:ok, _} = Jobs.complete(workflow_job_id, job.conclusion)
 
-  # `Jobs.complete/2` stamped the billing session's `ended_at`
-  # with `DateTime.utc_now()` and `record_claimed/3` set
-  # `started_at` to the simulated claim. Retroactively rewrite
-  # both so the seeded session window matches the simulated
-  # `claimed_at`/`completed_at` — otherwise the Compute Minutes
-  # widget would render ~zero seconds for every seeded job
-  # regardless of `duration_s`.
-  Repo.update_all(
-    from(s in RunnerSession, where: s.workflow_job_id == ^workflow_job_id),
-    set: [
-      started_at: claimed_at,
-      ended_at: completed_at,
-      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-    ]
-  )
+  # In production `Tuist.Runners.serve_claim/5` opens a billing
+  # session AFTER `record_running_safe` succeeds (so failed
+  # dispatches don't leak open sessions). The seed bypasses
+  # serve_claim entirely, so insert the session directly with
+  # the simulated claim/completion window — otherwise the
+  # Compute Minutes widget would render nothing for the seeded
+  # jobs.
+  now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+  Repo.insert!(%RunnerSession{
+    account_id: runner_jobs_account_id,
+    workflow_job_id: workflow_job_id,
+    fleet_name: fleet,
+    pod_name: "runner-pod-#{rem(idx, 4)}",
+    runner_name: "tuist-tuist-runner-pod-#{rem(idx, 4)}",
+    repository: repo,
+    workflow_name: job.workflow,
+    started_at: claimed_at,
+    ended_at: completed_at,
+    inserted_at: now_seconds,
+    updated_at: now_seconds
+  })
 
   # `completed_at` is set by `complete/2` to `DateTime.utc_now()`, but for seed
   # realism we re-INSERT a final row with the desired completion time so the
@@ -3576,6 +3583,23 @@ running_jobs
     )
 
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{idx + 10}")
+
+  # Open billing session for the still-running seeded job —
+  # mirrors what `serve_claim/5` does after a successful mint.
+  now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+  Repo.insert!(%RunnerSession{
+    account_id: runner_jobs_account_id,
+    workflow_job_id: workflow_job_id,
+    fleet_name: fleet,
+    pod_name: "runner-pod-#{idx + 10}",
+    runner_name: "tuist-tuist-runner-pod-#{idx + 10}",
+    repository: repo,
+    workflow_name: job.workflow,
+    started_at: claimed_at,
+    inserted_at: now_seconds,
+    updated_at: now_seconds
+  })
 
   # Backdate `started_at` to make the duration visible in the dashboard.
   case Tuist.ClickHouseRepo.one(

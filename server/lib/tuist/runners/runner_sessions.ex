@@ -49,11 +49,14 @@ defmodule Tuist.Runners.RunnerSessions do
   require Logger
 
   @doc """
-  Open a billing session at claim-win. The `started_at` lands at
-  the claim time — within a few hundred ms of the controller
-  actually creating the Pod, which is the closest server-side
-  signal we have until the controller starts reporting Pod
-  timestamps directly.
+  Open a billing session once dispatch has committed (JIT
+  minted + `running` recorded). `started_at` is the claim
+  timestamp — the moment we bound the warm Pod to this
+  workflow_job — which is a few hundred ms earlier than
+  `running`. Opening at this point and not at claim-win is
+  what makes failed dispatches leak-free: every call site is on
+  the success branch of `Tuist.Runners.serve_claim/5`, after the
+  with chain that can return `release_safely`.
   """
   def open(
         %{
@@ -71,6 +74,7 @@ defmodule Tuist.Runners.RunnerSessions do
       account_id: account_id,
       fleet_name: fleet_name,
       pod_name: pod_name,
+      runner_name: Map.get(attrs, :runner_name, ""),
       repository: Map.get(attrs, :repository, ""),
       workflow_name: Map.get(attrs, :workflow_name, ""),
       started_at: started_at,
