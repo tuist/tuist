@@ -218,6 +218,10 @@ local function request_target(ctx)
     }
   end
 
+  if requested_tenant == nil and ctx.transport ~= "grpc" then
+    return nil, { status = 400, message = "Missing tenant_id/account_handle" }
+  end
+
   if namespace == nil then
     return {
       scope = "account",

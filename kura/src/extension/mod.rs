@@ -1632,6 +1632,7 @@ end
             let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1640,6 +1641,71 @@ end
 
             let decision = engine.evaluate_access(&context).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn allows_namespace_only_grpc_requests_for_bazel() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/bazel"],
+                            &["acme/bazel"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.transport = "grpc".into();
+            context.route =
+                "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
+            context.method = "RPC".into();
+            context.tenant_id = None;
+            context.namespace_id = Some("bazel".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn denies_namespace_only_http_project_requests() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &["acme/ios"])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = None;
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 400);
+            assert!(deny.message.contains("Missing tenant_id"));
         }
 
         #[tokio::test]
@@ -1657,6 +1723,7 @@ end
             let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1682,6 +1749,7 @@ end
             let mut context = ctx();
             context.method = "POST".into();
             context.operation = "artifact.write".into();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1707,6 +1775,7 @@ end
             let mut context = ctx();
             context.method = "POST".into();
             context.operation = "artifact.write".into();
+            context.tenant_id = Some("acme".into());
             context.namespace_id = Some("ios".into());
             context
                 .headers
@@ -1727,6 +1796,7 @@ end
             }));
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
@@ -1765,6 +1835,7 @@ end
             }));
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
@@ -1796,6 +1867,7 @@ end
             let engine = engine_pointing_at(&base, false).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1821,6 +1893,7 @@ end
             let engine = engine_pointing_at(&base, false).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1852,6 +1925,7 @@ end
             let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
@@ -1879,6 +1953,7 @@ end
             let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer bad-token".into());
@@ -1898,6 +1973,7 @@ end
             let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer bad-token".into());
