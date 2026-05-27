@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.AgentRegistrationEventTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.AgentRegistration
   alias Tuist.Accounts.AgentRegistrationEvent

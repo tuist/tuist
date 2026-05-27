@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.AgentAuthJTITest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.AgentAuthJTI
 
