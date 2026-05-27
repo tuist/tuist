@@ -6,10 +6,15 @@ defmodule Tuist.IngestRepo.Migrations.AddWorkflowNameToRunnerJobs do
   # Jobs dashboard. Pairs with the existing `job_name` to render a
   # familiar "<workflow> › <job>" breadcrumb on the runs list, and
   # powers the workflow filter.
+  #
+  # Plain `String` (not `LowCardinality`): workflow_name is
+  # user-defined free-form input, so the per-part dictionary would
+  # outgrow the ~10K-distinct sweet spot on any sizable account and
+  # turn into compression / read overhead rather than a win.
   def up do
     execute("""
     ALTER TABLE runner_jobs
-      ADD COLUMN IF NOT EXISTS workflow_name LowCardinality(String) DEFAULT ''
+      ADD COLUMN IF NOT EXISTS workflow_name String DEFAULT ''
     """)
   end
 
