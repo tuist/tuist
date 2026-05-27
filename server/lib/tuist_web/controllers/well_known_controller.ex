@@ -12,6 +12,9 @@ defmodule TuistWeb.WellKnownController do
   @oauth_token_path "/oauth2/token"
   @oauth_authorize_path "/oauth2/authorize"
   @oauth_registration_path "/oauth2/register"
+  @agent_auth_register_path "/agent/auth"
+  @agent_auth_claim_path "/agent/auth/claim"
+  @agent_auth_revocation_path "/agent/auth/revoke"
 
   def api_catalog(conn, _params) do
     origin = RequestOrigin.from_conn(conn)
@@ -110,7 +113,8 @@ defmodule TuistWeb.WellKnownController do
         "client_secret_post",
         "client_secret_jwt",
         "private_key_jwt"
-      ]
+      ],
+      agent_auth: agent_auth_metadata(issuer)
     }
 
     conn
@@ -128,12 +132,12 @@ defmodule TuistWeb.WellKnownController do
       [] ->
         conn
         |> put_resp_content_type("application/json")
-        |> json(oauth_protected_resource_metadata(app_url))
+        |> json(oauth_protected_resource_metadata(app_url, "", "Tuist"))
 
       ["mcp"] ->
         conn
         |> put_resp_content_type("application/json")
-        |> json(oauth_protected_resource_metadata(app_url, @mcp_path))
+        |> json(oauth_protected_resource_metadata(app_url, @mcp_path, "Tuist MCP"))
 
       _ ->
         conn
@@ -218,12 +222,32 @@ defmodule TuistWeb.WellKnownController do
     "#{team_id}.#{bundle_id}"
   end
 
-  defp oauth_protected_resource_metadata(resource_identifier, resource_path \\ "") do
+  defp oauth_protected_resource_metadata(resource_identifier, resource_path, resource_name) do
     %{
       resource: "#{resource_identifier}#{resource_path}",
+      resource_name: resource_name,
       authorization_servers: [resource_identifier],
       bearer_methods_supported: ["header"],
-      scopes_supported: ["mcp"]
+      scopes_supported: ["mcp"],
+      agent_auth: agent_auth_metadata(resource_identifier)
+    }
+  end
+
+  defp agent_auth_metadata(issuer) do
+    %{
+      skill: "https://workos.com/auth.md",
+      register_uri: "#{issuer}#{@agent_auth_register_path}",
+      claim_uri: "#{issuer}#{@agent_auth_claim_path}",
+      revocation_uri: "#{issuer}#{@agent_auth_revocation_path}",
+      identity_types_supported: ["anonymous", "identity_assertion"],
+      anonymous: %{
+        credential_types_supported: ["api_key"]
+      },
+      identity_assertion: %{
+        assertion_types_supported: ["verified_email", "urn:ietf:params:oauth:token-type:id-jag"],
+        credential_types_supported: ["access_token", "api_key"]
+      },
+      events_supported: ["https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"]
     }
   end
 end

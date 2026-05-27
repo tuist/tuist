@@ -8,12 +8,16 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentRegistration
+  alias Tuist.Accounts.AgentRegistrationEvent
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
@@ -4268,5 +4272,208 @@ defmodule Tuist.AccountsTest do
       # Then
       assert accounts |> Enum.map(& &1.name) |> Enum.sort() == ["acme", "acmetools"]
     end
+  end
+
+  describe "agent registration" do
+    setup do
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
+      :ok
+    end
+
+    test "creates an email-required registration and emails a claim link" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: String.upcase(email),
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.claim_token =~ "clm_"
+
+      assert %AgentRegistration{
+               email: ^email,
+               status: :pending,
+               registration_ip: "127.0.0.1",
+               claim_requested_ip: "127.0.0.1"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [%AgentRegistrationEvent{event_type: :created, actor_ip: "127.0.0.1", metadata: metadata}] =
+               Repo.all(
+                 from(e in AgentRegistrationEvent,
+                   where: e.agent_registration_id == ^result.registration.id,
+                   order_by: e.occurred_at
+                 )
+               )
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "credential_type" => "access_token",
+               "registration_type" => "email_verification"
+             }
+
+      assert result.email_delivery.subject == "Your Tuist agent sign-in code"
+      assert result.email_delivery.html_body =~ "/agent/auth/claim/view?token="
+      refute result.email_delivery.html_body =~ result.claim_token
+      refute result.email_delivery.html_body =~ "<div class=\"otp\">"
+    end
+
+    test "claims the registration for an existing unconfirmed user" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email, confirmed_at: nil)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.4"
+        })
+
+      assert %AgentRegistration{
+               status: :claimed,
+               claim_completed_ip: "192.0.2.4",
+               claimed_by_user_id: claimed_by_user_id
+             } = Repo.get!(AgentRegistration, claimed.registration.id)
+
+      assert claimed_by_user_id == user.id
+      assert %User{confirmed_at: confirmed_at} = Repo.get!(User, user.id)
+      assert confirmed_at
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^claimed_by_user_id},
+               scopes: ["mcp"],
+               all_projects: true,
+               issued_by: %{id: ^claimed_by_user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+
+      assert [:created, :claimed] =
+               claimed.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "provisions and claims a new user when none exists" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.5"
+        })
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+      user_id = user.id
+
+      assert user.confirmed_at
+      assert claimed.registration.claimed_by_user_id == user_id
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^user_id},
+               issued_by: %{id: ^user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+    end
+
+    test "resends claim instructions and records an audit event" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.10"
+        })
+
+      assert resent.registration.claim_requested_ip == "192.0.2.10"
+
+      assert [
+               %AgentRegistrationEvent{event_type: :created},
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => resent.registration.claim_attempt_id,
+               "email" => email
+             }
+    end
+
+    test "persists failed OTP attempts and records audit events" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :otp_invalid} =
+               Accounts.complete_agent_registration_claim(%{
+                 claim_token: result.claim_token,
+                 otp: "000000",
+                 claim_completed_ip: "192.0.2.11"
+               })
+
+      assert %AgentRegistration{otp_attempt_count: 1} = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [
+               %AgentRegistrationEvent{event_type: :created},
+               %AgentRegistrationEvent{event_type: :otp_failed, actor_ip: "192.0.2.11", metadata: metadata}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "otp_attempt_count" => 1
+             }
+    end
+  end
+
+  defp extract_claim_view_token(html_body) do
+    [_, encoded_token] = Regex.run(~r{/agent/auth/claim/view\?token=([^"&]+)}, html_body)
+    URI.decode_www_form(encoded_token)
+  end
+
+  defp agent_registration_events(agent_registration_id) do
+    Repo.all(
+      from(e in AgentRegistrationEvent,
+        where: e.agent_registration_id == ^agent_registration_id,
+        order_by: e.occurred_at
+      )
+    )
   end
 end

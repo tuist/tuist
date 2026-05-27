@@ -10,8 +10,12 @@ defmodule Tuist.Authentication do
 
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
-      {:ok, %AuthenticatedAccount{} = resource, _opts} ->
-        reject_if_inactive_account_user(resource)
+      {:ok, %AuthenticatedAccount{} = resource, claims} ->
+        if Accounts.agent_registration_credential_revoked?(claims) do
+          nil
+        else
+          reject_if_inactive_account_user(resource)
+        end
 
       {:ok, resource, _opts} ->
         resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()

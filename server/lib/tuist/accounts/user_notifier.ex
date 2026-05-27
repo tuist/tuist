@@ -154,6 +154,34 @@ defmodule Tuist.Accounts.UserNotifier do
   end
 
   @doc """
+  Deliver instructions to view an agent registration OTP.
+  """
+  def deliver_agent_registration_claim_instructions(%{email: email, claim_view_url: claim_view_url}) do
+    deliver(
+      email,
+      "Your Tuist agent sign-in code",
+      html_email(
+        """
+            <div class="container">
+              <h1>View your Tuist sign-in code</h1>
+              <p>
+                An agent is requesting access to Tuist on your behalf.
+                Open the secure page below to view the one-time code, then read it back to the agent.
+              </p>
+              <p style="padding-top: 16px; padding-bottom: 16px;">
+                <a href="#{claim_view_url}" style="color: #ffffff;" class="button">View sign-in code</a>
+              </p>
+              <p style="font-size: 14px; color: #555555; text-align: center;">
+                If you did not ask an agent to connect to Tuist, ignore this email.
+              </p>
+            </div>
+        """,
+        Environment.email_icon_url()
+      )
+    )
+  end
+
+  @doc """
   Deliver invitation to an organization
   """
   def deliver_invitation(invitee_email, %{

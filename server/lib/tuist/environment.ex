@@ -225,6 +225,22 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def agent_auth_trusted_providers(secrets \\ secrets()) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+      providers when is_list(providers) ->
+        providers
+
+      providers_json when is_binary(providers_json) and providers_json != "" ->
+        case JSON.decode(providers_json) do
+          {:ok, providers} when is_list(providers) -> providers
+          _ -> []
+        end
+
+      _ ->
+        []
+    end
+  end
+
   def cache_endpoints(secrets \\ secrets()) do
     case get([:cache, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->

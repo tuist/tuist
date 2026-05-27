@@ -20,7 +20,11 @@ MCP and <.localized_link href="/guides/features/agentic-coding/skills">Skills</.
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Tuist advertises both OAuth discovery metadata and an `auth.md` file at `https://tuist.dev/auth.md`.
+
+Clients that already support remote MCP OAuth can continue authenticating in the browser. Clients and agents that support `auth.md` can use Tuist's agent registration endpoints. Tuist supports agent-verified ID-JAG registration, user-claimed anonymous start with an API key, and user-claimed email-required registration with either an access token or API key.
+
+The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. The resulting credential is still user-scoped, so account setup tools are only available when the authenticated user has the required permissions. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
 <details>
 <summary>Claude Code</summary>
@@ -104,6 +108,15 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 - **URL:** `https://tuist.dev/mcp`
 
 </details>
+
+If your agent asks you to complete the `auth.md` flow instead of opening a browser, expect this sequence:
+
+1. The agent calls `POST /agent/auth` with either your verified email address or an anonymous API-key registration.
+2. Tuist emails you a secure link that shows a six-digit code when a user-claimed flow is used.
+3. You read the code back to the agent.
+4. The agent exchanges that code for a credential, or upgrades the anonymous API key in place, and connects to `https://tuist.dev/mcp`.
+
+Agent providers that support ID-JAG can skip the OTP ceremony after you approve the provider-side identity assertion. Tuist verifies the provider signature against its trusted provider configuration and can process provider logout tokens at `/agent/auth/revoke`.
 
 
 ## Capabilities
