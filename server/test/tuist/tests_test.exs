@@ -1174,10 +1174,7 @@ defmodule Tuist.TestsTest do
 
     test "uses multipart ClickHouse lookups for large test case batches" do
       # Given
-      project =
-        ProjectsFixtures.project_fixture()
-        |> Ecto.Changeset.change(default_branch: nil)
-        |> Tuist.Repo.update!()
+      project = ProjectsFixtures.project_fixture()
 
       test_cases =
         for index <- 1..5_001 do
@@ -1189,14 +1186,17 @@ defmodule Tuist.TestsTest do
           }
         end
 
-      expect(ClickHouseRepo, :query!, 2, fn sql, %{project_id: project_id}, opts ->
-        assert project_id == project.id
+      expect(ClickHouseRepo, :all, 2, fn query, opts ->
         assert Keyword.get(opts, :multipart) == true
+        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+
         assert sql =~ "FROM test_cases"
-        assert sql =~ "project_id = {project_id:Int64}"
-        assert sql =~ "AND id IN ("
-        assert sql =~ "::UUID"
-        %{rows: []}
+        assert sql =~ ~s["project_id"]
+        assert sql =~ ~s["id"]
+        assert project.id in params
+        assert length(params) > 1
+
+        []
       end)
 
       test_attrs = %{
