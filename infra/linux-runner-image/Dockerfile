@@ -47,7 +47,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #     when actions/setup-{node,python,ruby,...} compiles them
 #   - archive: zip + bzip2 + p7zip-full (unzip + xz-utils already
 #     covered above)
-#   - VCS extras: git-lfs (assumed present by many CI workflows)
+#   - VCS extras: git-lfs (assumed present by many CI workflows),
+#     openssh-client for ssh-agent / scp / git-over-ssh (required by
+#     webfactory/ssh-agent and any workflow step that talks SSH)
 #   - DB clients: client-only — services land in containers in
 #     workflows that need them
 #   - common CLI utilities: ripgrep, fd-find, tree, less, vim,
@@ -105,6 +107,7 @@ RUN apt-get update \
         p7zip-full \
         file \
         git-lfs \
+        openssh-client \
         postgresql-client \
         mariadb-client \
         redis-tools \
