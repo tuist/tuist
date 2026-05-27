@@ -48,7 +48,7 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 180
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
