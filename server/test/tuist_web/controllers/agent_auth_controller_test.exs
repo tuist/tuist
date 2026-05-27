@@ -22,6 +22,8 @@ defmodule TuistWeb.AgentAuthControllerTest do
     stub(Tuist.Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
     stub(Tuist.Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
     stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [] end)
+    stub(Tuist.Environment, :app_url, fn -> "http://www.example.com" end)
+    stub(AgentAuth, :hit, fn _conn -> {:allow, 1} end)
     stub(AgentAuth, :hit, fn _conn, _subject -> {:allow, 1} end)
     :ok
   end
@@ -206,6 +208,22 @@ defmodule TuistWeb.AgentAuthControllerTest do
 
       second_claim_view_token = extract_claim_view_token(html_body)
       assert second_claim_view_token != first_claim_view_token
+    end
+
+    test "returns 400 invalid_email when the supplied email is malformed", %{conn: conn} do
+      email = AccountsFixtures.unique_user_email()
+      %{claim_token: claim_token} = register_agent(email)
+
+      conn =
+        post(conn, "/agent/auth/claim", %{
+          "claim_token" => claim_token,
+          "email" => "not-an-email"
+        })
+
+      assert json_response(conn, 400) == %{
+               "error" => "invalid_email",
+               "message" => "The claim email must be a valid email address."
+             }
     end
   end
 

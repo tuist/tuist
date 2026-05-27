@@ -2,9 +2,9 @@ defmodule TuistWeb.AgentAuthController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistWeb.RateLimit.AgentAuth
   alias TuistWeb.RemoteIp
-  alias TuistWeb.RequestOrigin
 
   @supported_assertion_type "verified_email"
   @id_jag_assertion_type "urn:ietf:params:oauth:token-type:id-jag"
@@ -12,11 +12,9 @@ defmodule TuistWeb.AgentAuthController do
   @supported_credential_types ["access_token", "api_key"]
 
   def auth_md(conn, _params) do
-    origin = RequestOrigin.from_conn(conn)
-
     conn
     |> put_resp_content_type("text/markdown")
-    |> send_resp(:ok, auth_md_document(origin))
+    |> send_resp(:ok, auth_md_document(canonical_origin()))
   end
 
   def register(conn, %{
@@ -26,15 +24,13 @@ defmodule TuistWeb.AgentAuthController do
         "requested_credential_type" => requested_credential_type
       })
       when requested_credential_type in @supported_credential_types do
-    origin = RequestOrigin.from_conn(conn)
-
     with {:allow, _count} <- AgentAuth.hit(conn, assertion),
          {:ok, result} <-
            Accounts.create_agent_registration(%{
              registration_type: :agent_provider,
              assertion: assertion,
              requested_credential_type: String.to_existing_atom(requested_credential_type),
-             audience: origin,
+             audience: canonical_origin(),
              registration_ip: RemoteIp.get(conn)
            }) do
       json(conn, %{
@@ -71,20 +67,18 @@ defmodule TuistWeb.AgentAuthController do
         "requested_credential_type" => requested_credential_type
       })
       when requested_credential_type in @supported_credential_types do
-    origin = RequestOrigin.from_conn(conn)
-
     with {:allow, _count} <- AgentAuth.hit(conn, email),
          {:ok, result} <-
            Accounts.create_agent_registration(%{
              email: email,
              requested_credential_type: String.to_existing_atom(requested_credential_type),
-             claim_view_url: &claim_view_url(origin, &1),
+             claim_view_url: &claim_view_url/1,
              registration_ip: RemoteIp.get(conn)
            }) do
       json(conn, %{
         registration_id: external_registration_id(result.registration),
         registration_type: "email-verification",
-        claim_url: "#{origin}/agent/auth/claim",
+        claim_url: "#{canonical_origin()}/agent/auth/claim",
         claim_token: result.claim_token,
         claim_token_expires: result.claim_token_expires_at,
         post_claim_scopes: Accounts.agent_registration_scopes()
@@ -110,8 +104,6 @@ defmodule TuistWeb.AgentAuthController do
   end
 
   def register(conn, %{"type" => "anonymous", "requested_credential_type" => "api_key"}) do
-    origin = RequestOrigin.from_conn(conn)
-
     with {:allow, _count} <- AgentAuth.hit(conn, "anonymous"),
          {:ok, result} <-
            Accounts.create_agent_registration(%{
@@ -126,7 +118,7 @@ defmodule TuistWeb.AgentAuthController do
         credential: result.credential,
         credential_expires: result.credential_expires_at,
         scopes: result.scopes,
-        claim_url: "#{origin}/agent/auth/claim",
+        claim_url: "#{canonical_origin()}/agent/auth/claim",
         claim_token: result.claim_token,
         claim_token_expires: result.claim_token_expires_at,
         post_claim_scopes: Accounts.agent_registration_scopes()
@@ -166,7 +158,6 @@ defmodule TuistWeb.AgentAuthController do
   end
 
   def claim(conn, %{"claim_token" => claim_token} = params) do
-    origin = RequestOrigin.from_conn(conn)
     subject = Map.get(params, "email", claim_token)
 
     with {:allow, _count} <- AgentAuth.hit(conn, subject),
@@ -174,7 +165,7 @@ defmodule TuistWeb.AgentAuthController do
            Accounts.resend_agent_registration_claim(%{
              claim_token: claim_token,
              email: Map.get(params, "email"),
-             claim_view_url: &claim_view_url(origin, &1),
+             claim_view_url: &claim_view_url/1,
              claim_requested_ip: RemoteIp.get(conn)
            }) do
       json(conn, %{
@@ -186,6 +177,9 @@ defmodule TuistWeb.AgentAuthController do
     else
       {:deny, _limit} ->
         render_error(conn, :too_many_requests, "rate_limited", "Too many claim attempts.")
+
+      {:error, :invalid_email} ->
+        render_error(conn, :bad_request, "invalid_email", "The claim email must be a valid email address.")
 
       {:error, :invalid_claim_token} ->
         render_error(conn, :not_found, "invalid_claim_token", "The claim token is invalid.")
@@ -253,11 +247,9 @@ defmodule TuistWeb.AgentAuthController do
   end
 
   def revoke(conn, _params) do
-    origin = RequestOrigin.from_conn(conn)
-
     with {:allow, _count} <- AgentAuth.hit(conn),
          {:ok, body, _conn} <- Plug.Conn.read_body(conn),
-         {:ok, result} <- Accounts.revoke_agent_registrations(body, origin) do
+         {:ok, result} <- Accounts.revoke_agent_registrations(body, canonical_origin()) do
       json(conn, %{revoked_count: result.revoked_count})
     else
       {:deny, _limit} ->
@@ -318,8 +310,15 @@ defmodule TuistWeb.AgentAuthController do
 
   defp external_registration_id(registration), do: "reg_#{registration.id}"
 
-  defp claim_view_url(origin, claim_view_token) do
-    "#{origin}/agent/auth/claim/view?token=#{URI.encode_www_form(claim_view_token)}"
+  # All outbound origins (audience binding for ID-JAG/logout tokens, emailed
+  # claim links, and JSON `claim_url`s) come from the configured canonical
+  # app URL, never from request headers — otherwise a caller could spoof
+  # `X-Forwarded-Host` and have Tuist email a secret claim-view link to
+  # an attacker-controlled origin.
+  defp canonical_origin, do: Environment.app_url()
+
+  defp claim_view_url(claim_view_token) do
+    "#{canonical_origin()}/agent/auth/claim/view?token=#{URI.encode_www_form(claim_view_token)}"
   end
 
   defp render_error(conn, status, error, message) do
