@@ -44,6 +44,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunByCommit
+  alias Tuist.Tests.TestCaseRunByProject
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
@@ -1042,6 +1043,12 @@ defmodule Tuist.Tests do
       {:test_run_id, _test_run_id} ->
         list_test_case_runs_via_test_run_mv(attrs, preloads)
 
+      {:test_case_id, _test_case_id} ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+
+      {:project_id, _project_id} ->
+        list_test_case_runs_via_project_mv(attrs, preloads)
+
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
     end
@@ -1084,6 +1091,27 @@ defmodule Tuist.Tests do
 
     {slim_results, meta} =
       Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByShardId)
+
+    ids = Enum.map(slim_results, & &1.id)
+
+    full_results = fetch_full_test_case_runs(slim_results)
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
+  defp list_test_case_runs_via_project_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByProject, hints: ["FINAL"])
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByProject)
 
     ids = Enum.map(slim_results, & &1.id)
 
@@ -1145,25 +1173,38 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Filter precedence for routing: a narrower scope wins so we use the
+  # most-selective MV available. `test_case_id` keeps the main table because
+  # its primary key `(project_id, test_case_id, ran_at, id)` already serves
+  # those queries cheaply. `project_id` falls through to the project MV when
+  # no narrower scope is present — without it, the listing query scans every
+  # row for the project.
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
-    Enum.find_value(filters, fn
-      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    filters
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(%Flop{} = flop) do
     flop.filters
     |> List.wrap()
-    |> Enum.find_value(fn
-      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(_), do: nil
+
+  defp filter_scope(%{field: :test_run_id, op: :==, value: value}), do: {:test_run_id, value}
+  defp filter_scope(%{field: :shard_id, op: :==, value: value}), do: {:shard_id, value}
+  defp filter_scope(%{field: :test_case_id, op: :==, value: value}), do: {:test_case_id, value}
+  defp filter_scope(%{field: :project_id, op: :==, value: value}), do: {:project_id, value}
+  defp filter_scope(_), do: nil
+
+  defp pick_mv_scope(scopes) do
+    Enum.find_value([:test_run_id, :shard_id, :test_case_id, :project_id], fn key ->
+      Enum.find(scopes, &match?({^key, _}, &1))
+    end)
+  end
 
   @doc """
   Gets a test case run by its UUID.
