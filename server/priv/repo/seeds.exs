@@ -3282,36 +3282,48 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # Runner Profiles (customer-facing vCPU/RAM bundles)
 # =============================================================================
 
-# Two profiles per seeded org so the Profiles UI is non-empty in dev.
-# The shape entries must exist in the local Helm-rendered shape pools;
-# absent K8s, the catalog discovery returns [] and the UI dropdown is
-# blank, but the rows still render for visual review.
-runner_profile_account_id = organization.account.id
+# Enable runners (cap > 0) and seed a few profiles per dev account so
+# the sidebar Profiles tab is non-empty for both the personal account
+# (where the seed login lands) and the `tuist` organization (the
+# context most demo flows switch into).
+#
+# `runner_max_concurrent` gates dispatch, not the UI — the UI uses
+# `FeatureFlags.runners_enabled?` which is always true outside prod.
+# But setting a cap here keeps the seed data internally consistent.
+runner_profile_accounts =
+  [user.account, organization.account]
+  |> Enum.uniq_by(& &1.id)
+
+Enum.each(runner_profile_accounts, fn account ->
+  account
+  |> Ecto.Changeset.change(runner_max_concurrent: 10)
+  |> Repo.update!()
+end)
+
+runner_profile_seeds = [
+  %{name: "default", vcpus: 4, memory_gb: 16},
+  %{name: "large", vcpus: 8, memory_gb: 32},
+  %{name: "xlarge", vcpus: 16, memory_gb: 32}
+]
 
 now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
 
-Enum.each(
-  [
-    %{name: "default", vcpus: 4, memory_gb: 16},
-    %{name: "large", vcpus: 8, memory_gb: 32}
-  ],
-  fn shape ->
-    case Repo.get_by(Profile, account_id: runner_profile_account_id, name: shape.name) do
-      nil ->
-        Repo.insert!(%Profile{
-          account_id: runner_profile_account_id,
-          name: shape.name,
-          vcpus: shape.vcpus,
-          memory_gb: shape.memory_gb,
-          inserted_at: now_seconds,
-          updated_at: now_seconds
-        })
+for account <- runner_profile_accounts, shape <- runner_profile_seeds do
+  case Repo.get_by(Profile, account_id: account.id, name: shape.name) do
+    nil ->
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: shape.name,
+        vcpus: shape.vcpus,
+        memory_gb: shape.memory_gb,
+        inserted_at: now_seconds,
+        updated_at: now_seconds
+      })
 
-      _existing ->
-        :ok
-    end
+    _existing ->
+      :ok
   end
-)
+end
 
 # =============================================================================
 # Runner Jobs (GitHub Actions on Tuist-hosted runners)
