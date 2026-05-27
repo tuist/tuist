@@ -1117,8 +1117,13 @@ postgresql:
       limits:
         cpu: "1000m"
         memory: "2Gi"
+    # PodMonitor stays off: managed clusters scrape via Alloy with
+    # annotation autodiscovery, not the prometheus-operator
+    # `monitoring.coreos.com/v1` CRD set. Re-enable once we either
+    # install prometheus-operator CRDs or the CNPG operator grows
+    # annotation-emit support on the instance Pods (it doesn't today).
     monitoring:
-      enablePodMonitor: true
+      enablePodMonitor: false
     roles:
       # Least-privilege Oban-queue consumer. CNPG creates the role;
       # per-table GRANTs run via the bootstrap SQL in
