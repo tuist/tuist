@@ -49,8 +49,6 @@ jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 180
-    env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
     steps:
       - uses: actions/checkout@v4
 
