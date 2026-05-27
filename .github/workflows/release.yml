@@ -1035,9 +1035,9 @@ jobs:
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
@@ -1045,6 +1045,8 @@ jobs:
         run: |
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
           sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
+          sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
@@ -1053,9 +1055,9 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
           else
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
       - name: Install Helm
@@ -1064,11 +1066,15 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package Helm chart
-        run: helm package infra/helm/tuist
+      - name: Package Helm charts
+        run: |
+          helm package infra/helm/tuist
+          helm package kura/ops/helm/kura
 
-      - name: Push Helm chart
-        run: helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+      - name: Push Helm charts
+        run: |
+          helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+          helm push kura-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
 
       - name: Upload Helm artifacts
         id: upload
@@ -1078,6 +1084,7 @@ jobs:
           path: |
             infra/helm/CHANGELOG.md
             infra/helm/tuist/Chart.yaml
+            kura/ops/helm/kura/Chart.yaml
           retention-days: 1
 
   release-capi-scaleway:
@@ -2264,7 +2271,9 @@ jobs:
           name: Helm Chart ${{ needs.check-releases.outputs.helm-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.helm-next-version }}
           body: |
-            OCI registry: `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            OCI registries:
+            - `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            - `oci://ghcr.io/tuist/charts/kura:${{ needs.check-releases.outputs.helm-next-version-number }}`
 
             ${{ needs.release-helm.outputs.release-notes }}
 
@@ -2414,7 +2423,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.helm-should-release }}" == "true" ] && [ "${{ needs.release-helm.result }}" == "success" ]; then
-            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml
+            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml kura/ops/helm/kura/Chart.yaml
             FILES_ADDED=true
           fi
 
