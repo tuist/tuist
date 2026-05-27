@@ -297,13 +297,21 @@ jobs:
   docker_build:
     name: Docker build
     # `tuist-staging-linux-large` is the larger per-tenant slot
-    # variant (4 vCPU / 32 GiB) provisioned in the Linux runner
+    # variant (4 vCPU / 48 GiB) provisioned in the Linux runner
     # fleet — the standard `tuist-staging-linux` 1 vCPU / 4 GiB
     # slot is too small for the full server image build (swift
     # toolchain + Erlang/Elixir + node tree). Same dind sidecar
     # shape, same kata microVM, just a bigger budget.
     runs-on: tuist-staging-linux-large
-    timeout-minutes: 30
+    # 60 min instead of 30 because the bare-metal Linux fleet
+    # pays a per-job tax the cloud-hosted runners don't: cold
+    # base-image pulls (~2-3 min), virtio-fs I/O amplification on
+    # the loop-mounted ext4 hosting /var/lib/docker (worst on the
+    # trivy fs walk over multi-GB image layers), and the trivy DB
+    # pull. A successful warm-cache build clocks ~14 min on this
+    # fleet; the headroom absorbs cold-cache and any trivy slow
+    # paths without falsely terminating the job.
+    timeout-minutes: 60
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -332,25 +340,38 @@ jobs:
           curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
+      - name: Pre-warm Trivy DB
+        # Separate step so DB-pull time is visible in the timeline
+        # and doesn't masquerade as scan-time. Trivy's default
+        # `--db-repository` points at `mirror.gcr.io/aquasec/trivy-db`
+        # (Google's pull-through mirror of Aqua's DB) — egress from
+        # the bare-metal Linux runner fleet to that mirror is
+        # rate-limited / routing-poor and the DB pull hangs past
+        # the job timeout. Pull from ghcr.io directly instead; we
+        # already pull our own images from there so connectivity is
+        # known-good.
+        run: |
+          trivy --debug image \
+            --download-db-only \
+            --db-repository ghcr.io/aquasecurity/trivy-db:2
+          trivy --debug image \
+            --download-java-db-only \
+            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1
       - name: Scan image for vulnerabilities
         # Use the absolute workspace path because `trivy image` in 0.69.3
         # resolves --ignorefile against an undocumented base, not cwd.
-        #
-        # --db-repository: default is mirror.gcr.io/aquasec/trivy-db
-        # (Google's pull-through mirror of Aqua's DB). Egress from the
-        # bare-metal Linux runner fleet to that mirror is rate-limited
-        # / routing-poor — the DB pull hangs past the job timeout. Hit
-        # ghcr.io directly instead; we already pull our own images from
-        # there so connectivity is known-good.
+        # --skip-db-update + --skip-java-db-update because the
+        # previous step already pre-warmed both caches; this scan
+        # step is now pure analysis time, no network.
         run: |
           trivy image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
             --no-progress \
+            --skip-db-update \
+            --skip-java-db-update \
             --ignorefile "$GITHUB_WORKSPACE/.trivyignore" \
-            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
-            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 \
             tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
