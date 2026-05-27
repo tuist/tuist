@@ -686,7 +686,9 @@
               dgettext("dashboard_runners", "No jobs match the current filters")
             end
           }
-          get_started_href="https://tuist.dev/en/docs"
+          get_started_href={
+            TuistWeb.Marketing.Localization.localized_href("https://tuist.dev/en/docs")
+          }
           data-part="empty-runner-jobs-card-section"
         >
           <:image>
