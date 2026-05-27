@@ -26,24 +26,26 @@ defmodule Tuist.SCIM.Workers.AttachmentNotifierWorkerTest do
                })
     end
 
-    test "discards the job when the user no longer exists" do
+    test "raises when the user no longer exists so Oban retries and surfaces the bug" do
       organization = organization_fixture()
 
-      assert {:discard, :user_or_organization_gone} =
-               perform_job(AttachmentNotifierWorker, %{
-                 "user_id" => -1,
-                 "organization_id" => organization.id
-               })
+      assert_raise Ecto.NoResultsError, fn ->
+        perform_job(AttachmentNotifierWorker, %{
+          "user_id" => -1,
+          "organization_id" => organization.id
+        })
+      end
     end
 
-    test "discards the job when the organization no longer exists" do
+    test "raises when the organization no longer exists so Oban retries and surfaces the bug" do
       user = user_fixture()
 
-      assert {:discard, :user_or_organization_gone} =
-               perform_job(AttachmentNotifierWorker, %{
-                 "user_id" => user.id,
-                 "organization_id" => -1
-               })
+      assert_raise Ecto.NoResultsError, fn ->
+        perform_job(AttachmentNotifierWorker, %{
+          "user_id" => user.id,
+          "organization_id" => -1
+        })
+      end
     end
   end
 end
