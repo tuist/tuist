@@ -1,0 +1,81 @@
+name: op document get (with rate-limit diagnostics)
+description: >
+  Fetch a 1Password document to a file. On failure, dump the service
+  account's rate-limit counters and the verbose `op` error, then retry
+  with exponential backoff. Assumes the 1Password CLI is already on PATH
+  (install it with 1password/install-cli-action before calling this).
+
+  The diagnostics exist because canary deploys started getting 429
+  `Too many requests` on the kubeconfig fetch while the documented
+  hourly/daily quotas showed ample headroom. With OP_SERVICE_ACCOUNT_TOKEN
+  set, `op service-account ratelimit` reports the deploy account's own
+  counters, so a 429 shows which limit fired and whether USED climbs
+  across attempts (a continuous drain) or stays flat (a short-window or
+  sign-in throttle the published counters don't surface).
+
+inputs:
+  document:
+    description: 'Document title or ID to fetch, e.g. "kubeconfig: tuist-canary".'
+    required: true
+  vault:
+    description: Vault holding the document.
+    required: true
+  output:
+    description: File path to write the document to (chmod 600 on success).
+    required: true
+  service-account-token:
+    description: OP_SERVICE_ACCOUNT_TOKEN used for the fetch and the ratelimit dump.
+    required: true
+  max-attempts:
+    description: Attempts before giving up. Backoff is 15s, doubling each retry.
+    required: false
+    default: "4"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.service-account-token }}
+        OP_DOCUMENT: ${{ inputs.document }}
+        OP_VAULT: ${{ inputs.vault }}
+        OP_OUTPUT: ${{ inputs.output }}
+        MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+      run: |
+        set -uo pipefail
+        mkdir -p "$(dirname "$OP_OUTPUT")"
+
+        dump_ratelimit() {
+          echo "::group::op service-account ratelimit (after attempt $1)"
+          # No name arg: with OP_SERVICE_ACCOUNT_TOKEN set, this reports
+          # the deploy account's own counters. token read/write are
+          # per-token hourly; account read_write is the org-wide daily
+          # pool. A 429 with headroom on all three points at a limit
+          # 1Password doesn't surface here (open a support ticket with
+          # this dump plus the run URL).
+          op service-account ratelimit || echo "(ratelimit query itself failed)"
+          echo "::endgroup::"
+        }
+
+        attempt=1
+        backoff=15
+        while :; do
+          if err="$(op document get "$OP_DOCUMENT" --vault "$OP_VAULT" --output "$OP_OUTPUT" 2>&1)"; then
+            chmod 600 "$OP_OUTPUT"
+            echo "Fetched '$OP_DOCUMENT' from vault '$OP_VAULT' on attempt ${attempt}/${MAX_ATTEMPTS}."
+            exit 0
+          fi
+
+          echo "::warning::op document get '$OP_DOCUMENT' failed (attempt ${attempt}/${MAX_ATTEMPTS}): ${err}"
+          dump_ratelimit "$attempt"
+
+          if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
+            echo "::error::op document get '$OP_DOCUMENT' failed after ${MAX_ATTEMPTS} attempts. Last error: ${err}"
+            exit 1
+          fi
+
+          echo "Retrying in ${backoff}s..."
+          sleep "$backoff"
+          attempt=$((attempt + 1))
+          backoff=$((backoff * 2))
+        done
