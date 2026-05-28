@@ -10,6 +10,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AccountTokenProject
+  alias Tuist.Accounts.AgentAuth
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
@@ -32,6 +33,16 @@ defmodule Tuist.Accounts do
   require Logger
 
   @reset_password_delivery_cooldown_in_minutes 5
+
+  # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
+  # These delegators keep `Tuist.Accounts` as the single context facade.
+  defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+  defdelegate revoke_agent_registrations(logout_token, audience), to: AgentAuth, as: :revoke_registrations
+  defdelegate agent_registration_credential_revoked?(claims), to: AgentAuth, as: :credential_revoked?
+  defdelegate resend_agent_registration_claim(attrs), to: AgentAuth, as: :resend_claim
+  defdelegate complete_agent_registration_claim(attrs), to: AgentAuth, as: :complete_claim
+  defdelegate get_agent_registration_claim_view(claim_view_token), to: AgentAuth, as: :get_claim_view
 
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
@@ -1193,6 +1204,54 @@ defmodule Tuist.Accounts do
     Repo.exists?(oauth2_identity_query)
   end
 
+  @doc """
+  Returns true when SSO is enforced for the given email — either because an
+  existing user belongs to at least one organization with `sso_enforced: true`,
+  or because no user exists yet but the email's domain maps to an SSO-enforced
+  organization (Okta or generic OAuth2 / OIDC, the providers whose org id is
+  derived from the email domain).
+
+  Used by the auth.md agent-registration flow to refuse minting MCP credentials
+  for SSO-managed users via mailbox proof or trusted agent-provider assertions:
+  those paths bypass the configured IdP and would otherwise be a back door
+  around the organization's SSO policy.
+  """
+  def sso_enforced_for_email?(email) when is_binary(email) do
+    case get_user_by_email(email) do
+      {:ok, user} -> user_has_sso_enforced_organization?(user)
+      {:error, :not_found} -> email_domain_has_sso_enforced_organization?(email)
+    end
+  end
+
+  def sso_enforced_for_email?(_email), do: false
+
+  defp user_has_sso_enforced_organization?(user) do
+    user
+    |> get_user_organization_accounts()
+    |> Enum.any?(fn %{organization: organization} -> organization.sso_enforced end)
+  end
+
+  defp email_domain_has_sso_enforced_organization?(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        okta_domain = String.replace(domain, ".com", ".okta.com")
+        url_domain = "https://#{domain}"
+
+        Repo.exists?(
+          from(o in Organization,
+            where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
+            where:
+              o.sso_organization_id == ^domain or
+                o.sso_organization_id == ^okta_domain or
+                o.sso_organization_id == ^url_domain
+          )
+        )
+
+      _ ->
+        false
+    end
+  end
+
   def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
       from(u in UserRole,
@@ -1866,14 +1925,23 @@ defmodule Tuist.Accounts do
   end
 
   def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
-    case get_account_by_handle(account_handle) do
-      %Account{} = account -> kura_cache_endpoint_urls(account)
-      _ -> []
+    case Environment.kura_endpoints() do
+      endpoints when is_list(endpoints) ->
+        endpoints
+
+      nil ->
+        case get_account_by_handle(account_handle) do
+          %Account{} = account -> kura_cache_endpoint_urls(account)
+          _ -> []
+        end
     end
   end
 
   def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
-  def get_cache_endpoints_for_handle(_, :kura), do: []
+
+  def get_cache_endpoints_for_handle(_, :kura) do
+    Environment.kura_endpoints() || []
+  end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do

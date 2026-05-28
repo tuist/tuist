@@ -550,6 +550,34 @@ defmodule Tuist.TestsTest do
       assert hd(tests).id == failure_test.id
     end
 
+    test "filters by git branch not containing a substring" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/GH-READONLY-QUEUE/main"
+        )
+
+      {:ok, non_queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/main"
+        )
+
+      {tests, _meta} =
+        Tests.list_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == non_queue_test.id
+      refute Enum.any?(tests, &(&1.id == queue_test.id))
+    end
+
     test "returns empty list when no tests exist for project" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -751,6 +779,70 @@ defmodule Tuist.TestsTest do
       # Then
       assert test_cases == []
       assert meta.total_count == 0
+    end
+
+    test "lists test case runs scoped to a project across multiple test runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testAlpha", status: "success", duration: 100},
+                %{name: "testBeta", status: "failure", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      {:ok, _second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testGamma", status: "success", duration: 50}
+              ]
+            }
+          ]
+        )
+
+      # Different project — must not show up.
+      {:ok, _other_project_test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "ModuleC",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "testDelta", status: "success", duration: 25}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {runs, meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:ran_at],
+          order_directions: [:desc]
+        })
+
+      # Then
+      assert meta.total_count == 3
+      names = runs |> Enum.map(& &1.name) |> Enum.sort()
+      assert names == ["testAlpha", "testBeta", "testGamma"]
     end
   end
 
@@ -1170,6 +1262,56 @@ defmodule Tuist.TestsTest do
       assert test.git_branch == "main"
       assert test.git_commit_sha == "abc123def456"
       assert test.is_ci == true
+    end
+
+    test "uses multipart ClickHouse lookups for large test case batches" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..5_001 do
+          %{
+            name: "test_#{index}",
+            status: "success",
+            duration: 10,
+            test_suite_name: "Suite"
+          }
+        end
+
+      expect(ClickHouseRepo, :all, 2, fn query, opts ->
+        assert Keyword.get(opts, :multipart) == true
+        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+
+        assert sql =~ ~s[FROM "test_cases"]
+        assert sql =~ ~s["project_id"]
+        assert sql =~ ~s["id"]
+        assert project.id in params
+        assert length(params) > 1
+
+        []
+      end)
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: project.account_id,
+        duration: 1500,
+        status: "success",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "Module",
+            status: "success",
+            duration: 1500,
+            test_suites: [%{name: "Suite", status: "success", duration: 1500}],
+            test_cases: test_cases
+          }
+        ]
+      }
+
+      # When/Then
+      assert {:ok, _test} = Tests.create_test(test_attrs)
     end
 
     test "persists run_destinations as separate rows linked to the test run" do

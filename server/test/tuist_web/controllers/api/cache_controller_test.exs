@@ -3,6 +3,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.Projects.Workers.CleanProjectWorker
@@ -248,6 +249,63 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       response = json_response(conn, 200)
       assert response["endpoints"] == []
+    end
+  end
+
+  describe "GET /api/cache/access" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
+    test "returns account-scoped and project-scoped cache access for a user", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "acme-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert %{
+               "accounts" => accounts,
+               "projects" => projects
+             } = json_response(conn, 200)
+
+      assert Enum.sort(accounts) == Enum.sort([user.account.name, organization.account.name])
+      assert projects == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "keeps restricted account tokens project-scoped", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "restricted-org")
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["project:cache:read"],
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert json_response(conn, 200) == %{
+               "accounts" => [],
+               "projects" => ["#{organization.account.name}/#{project.name}"]
+             }
     end
   end
 

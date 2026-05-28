@@ -10,6 +10,12 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @agent_auth_default_trusted_providers [
+    %{
+      "issuer" => "https://auth0.openai.com/",
+      "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+    }
+  ]
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -225,10 +231,38 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
+
+  def agent_auth_trusted_providers(secrets \\ secrets()) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+      providers when is_list(providers) ->
+        providers
+
+      providers_json when is_binary(providers_json) and providers_json != "" ->
+        case JSON.decode(providers_json) do
+          {:ok, providers} when is_list(providers) -> providers
+          _ -> []
+        end
+
+      _ ->
+        agent_auth_default_trusted_providers()
+    end
+  end
+
   def cache_endpoints(secrets \\ secrets()) do
     case get([:cache, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
-        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+        split_endpoints(endpoints)
+
+      _ ->
+        nil
+    end
+  end
+
+  def kura_endpoints(secrets \\ secrets()) do
+    case get([:kura, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        split_endpoints(endpoints)
 
       _ ->
         nil
@@ -980,6 +1014,19 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  def kura_introspection_client_id(secrets \\ secrets()) do
+    get([:kura, :introspection_client_id], secrets)
+  end
+
+  def kura_introspection_client_secret(secrets \\ secrets()) do
+    get([:kura, :introspection_client_secret], secrets)
+  end
+
+  def kura_introspection_configured?(secrets \\ secrets()) do
+    kura_introspection_client_id(secrets) != nil and
+      kura_introspection_client_secret(secrets) != nil
+  end
+
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
   """
@@ -1033,6 +1080,28 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
+  @doc """
+  Namespace where the runners-controller's ServiceAccount lives —
+  used to gate `POST /api/internal/runners/pods/stopped` so only
+  the controller can close billing sessions. Defaults to `tuist`
+  (the typical chart release namespace); helm sets it explicitly
+  to `.Release.Namespace`.
+  """
+  def runners_controller_namespace do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_NAMESPACE", "tuist")
+  end
+
+  @doc """
+  Name of the runners-controller's ServiceAccount. Pairs with
+  `runners_controller_namespace/0` to identify the only principal
+  authorised to call the pod-lifecycle endpoints. Defaults to
+  `tuist-runners-controller` (chart-rendered name); helm overrides
+  via env when the release name differs.
+  """
+  def runners_controller_sa_name do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
@@ -1073,6 +1142,13 @@ defmodule Tuist.Environment do
 
   defp falsey?(value) when is_binary(value) do
     String.downcase(value) in ["0", "false", "no", "off"]
+  end
+
+  defp split_endpoints(endpoints) do
+    endpoints
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 
   def secrets do

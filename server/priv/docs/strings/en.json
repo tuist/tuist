@@ -474,8 +474,11 @@
             "self-hosting": {
               "text": "Self-hosting",
               "items": {
-                "installation": {
-                  "text": "Installation"
+                "control-plane": {
+                  "text": "Control plane"
+                },
+                "kura": {
+                  "text": "Kura"
                 },
                 "telemetry": {
                   "text": "Telemetry"

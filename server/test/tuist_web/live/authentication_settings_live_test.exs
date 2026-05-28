@@ -29,12 +29,12 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   test "sets the right title", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/authentication")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Authentication · #{account.name} · Tuist"
   end
 
   test "displays SSO and SCIM sections for organizations", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/authentication")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert html =~ "Single Sign-On"
     assert html =~ "Enable Single Sign-On"
     assert html =~ "SCIM provisioning"
@@ -43,7 +43,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   test "raises NotFoundError for personal accounts", %{conn: conn, user: user} do
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/authentication")
+      live(conn, ~p"/#{user.account.name}/settings/authentication")
     end
   end
 
@@ -54,17 +54,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     conn = log_in_user(conn, other_user)
 
     assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
-      live(conn, ~p"/#{organization.account.name}/authentication")
+      live(conn, ~p"/#{organization.account.name}/settings/authentication")
     end
   end
 
   test "hides provider options when SSO is disabled", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/authentication")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
     refute html =~ "SSO provider"
   end
 
   test "shows provider options when SSO is enabled via toggle", %{conn: conn, account: account} do
-    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
     html = render_hook(lv, "toggle_sso")
 
@@ -73,7 +73,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   describe "Google SSO" do
     test "disables save button when domain is empty", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       html = render_hook(lv, "select_provider", %{"value" => ["google"]})
@@ -82,7 +82,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "shows error when user has no Google OAuth identity", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       render_hook(lv, "select_provider", %{"value" => ["google"]})
@@ -106,7 +106,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         provider_organization_id: "example.com"
       })
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       render_hook(lv, "select_provider", %{"value" => ["google"]})
@@ -123,7 +123,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   describe "Okta SSO" do
     test "disables save button when required fields are empty", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       html = render_hook(lv, "select_provider", %{"value" => ["okta"]})
@@ -132,7 +132,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "configures Okta SSO with all fields", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       render_hook(lv, "select_provider", %{"value" => ["okta"]})
@@ -155,7 +155,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   describe "Custom OAuth2 SSO" do
     test "disables save button when required fields are empty", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       html = render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
@@ -164,7 +164,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "shows error when submitting invalid URLs", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_hook(lv, "toggle_sso")
       render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
@@ -189,7 +189,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
   describe "SCIM provisioning" do
     test "shows the empty-state message when no tokens exist", %{conn: conn, account: account} do
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
       assert html =~ "No SCIM tokens yet"
     end
 
@@ -198,7 +198,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       account: account,
       organization: org
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       html = render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
 
@@ -223,7 +223,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "rejects empty token name", %{conn: conn, account: account, organization: org} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       html = render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "  "}})
 
@@ -232,7 +232,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "dismissing the modal clears the revealed plaintext", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
 
@@ -242,7 +242,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
 
     test "open_change reset clears any leftover plaintext", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       render_submit(lv, "generate_scim_token", %{"scim_token" => %{"name" => "okta"}})
 
@@ -253,7 +253,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     test "revokes a token", %{conn: conn, account: account, organization: org} do
       {:ok, {token, _plaintext}} = SCIM.create_token(org, %{name: "to-revoke"})
 
-      {:ok, lv, html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/authentication")
       assert html =~ "to-revoke"
 
       html = render_hook(lv, "revoke_scim_token", %{"id" => token.id})
@@ -266,7 +266,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       other_org = AccountsFixtures.organization_fixture()
       {:ok, {other_token, _plaintext}} = SCIM.create_token(other_org, %{name: "other-org-token"})
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/authentication")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
       html = render_hook(lv, "revoke_scim_token", %{"id" => other_token.id})
       assert html =~ "Token not found."

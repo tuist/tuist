@@ -5,6 +5,7 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
+  alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
@@ -13,6 +14,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.Authentication
   alias TuistWeb.Headers
 
   plug(
@@ -21,7 +23,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -29,9 +31,9 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:endpoints]
+       when action not in [:access, :endpoints]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
 
   tags(["Cache"])
 
@@ -71,6 +73,40 @@ defmodule TuistWeb.API.CacheController do
       Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(conn))
 
     json(conn, %{endpoints: endpoints})
+  end
+
+  operation(:access,
+    summary: "Get first-class cache access scopes.",
+    description: "Returns the authenticated subject's account-scoped and project-scoped cache access handles.",
+    operation_id: "getCacheAccess",
+    responses: %{
+      ok:
+        {"Cache access handles", "application/json",
+         %Schema{
+           title: "CacheAccess",
+           description: "Account-scoped and project-scoped cache access handles",
+           type: :object,
+           required: [:accounts, :projects],
+           properties: %{
+             accounts: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             },
+             projects: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+    }
+  )
+
+  def access(conn, _params) do
+    conn
+    |> Authentication.authenticated_subject()
+    |> Cache.accessible_handles()
+    |> then(&json(conn, &1))
   end
 
   defp technology(conn) do

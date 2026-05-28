@@ -11,7 +11,9 @@ defmodule Tuist.OAuth.TokenGenerator do
   @behaviour Boruta.Oauth.TokenGenerator
 
   alias Boruta.Oauth.TokenGenerator
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Cache
   alias Tuist.OAuth.Clients
   alias Tuist.Repo
 
@@ -38,6 +40,19 @@ defmodule Tuist.OAuth.TokenGenerator do
         "email" => user.email
       }
 
+      cache_subject = %AuthenticatedAccount{
+        account: user.account,
+        scopes: scopes,
+        all_projects: true,
+        issued_by: user
+      }
+
+      claims =
+        claims
+        |> Map.put("projects", Cache.accessible_project_handles(cache_subject, recent: 5))
+        |> Map.put("accounts", Cache.accessible_account_handles(cache_subject))
+        |> Map.put("cache_grants", Cache.cache_grants(cache_subject, recent: 5))
+
       {:ok, jwt_token, _claims} =
         Tuist.Guardian.encode_and_sign(user.account, claims,
           token_type: Atom.to_string(token_type),
@@ -49,6 +64,8 @@ defmodule Tuist.OAuth.TokenGenerator do
   end
 
   @default_user_scopes [
+    "account:cache:read",
+    "account:cache:write",
     "project:admin:read",
     "project:cache:read",
     "project:cache:write",

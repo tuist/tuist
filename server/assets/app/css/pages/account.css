@@ -33,6 +33,12 @@
 }
 
 #projects {
+  & > [data-part="page-title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+  }
+
   & > [data-part="recent-section"],
   & > [data-part="all-section"] {
     display: flex;
