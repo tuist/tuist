@@ -1,0 +1,56 @@
+defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+
+  import TuistTestSupport.Fixtures.ProjectsFixtures
+
+  alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
+
+  describe "perform/1" do
+    test "enqueues one deletion job per account and artifact type and schedules the next page" do
+      first_project = project_fixture()
+      second_project = project_fixture()
+      [first_account_id, _second_account_id] = Enum.sort([first_project.account.id, second_project.account.id])
+
+      assert :ok = perform_job(ScheduleExpiredArtifactsWorker, %{"batch_size" => 10, "page_size" => 1})
+
+      assert_deletion_jobs_enqueued(first_account_id)
+
+      assert_enqueued(
+        worker: ScheduleExpiredArtifactsWorker,
+        args: %{"after_id" => first_account_id, "page_size" => 1, "batch_size" => 10}
+      )
+    end
+
+    test "continues from the provided account cursor" do
+      first_project = project_fixture()
+      second_project = project_fixture()
+      [first_account_id, second_account_id] = Enum.sort([first_project.account.id, second_project.account.id])
+
+      assert :ok =
+               perform_job(ScheduleExpiredArtifactsWorker, %{
+                 "after_id" => first_account_id,
+                 "batch_size" => 10,
+                 "page_size" => 1
+               })
+
+      assert_deletion_jobs_enqueued(second_account_id)
+    end
+
+    test "does not enqueue deletion jobs for an empty account page" do
+      assert :ok = perform_job(ScheduleExpiredArtifactsWorker, %{"after_id" => 0, "page_size" => 1})
+
+      Enum.each(ScheduleExpiredArtifactsWorker.deletion_workers(), fn deletion_worker ->
+        refute_enqueued(worker: deletion_worker)
+      end)
+    end
+  end
+
+  defp assert_deletion_jobs_enqueued(account_id) do
+    Enum.each(ScheduleExpiredArtifactsWorker.deletion_workers(), fn deletion_worker ->
+      assert_enqueued(
+        worker: deletion_worker,
+        args: %{"account_id" => account_id, "batch_size" => 10}
+      )
+    end)
+  end
+end

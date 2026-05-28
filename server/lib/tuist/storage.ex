@@ -6,6 +6,8 @@ defmodule Tuist.Storage do
   alias Tuist.Environment
   alias Tuist.Performance
 
+  @delete_objects_max_concurrency 4
+
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
       opts
@@ -241,6 +243,76 @@ defmodule Tuist.Storage do
 
     :ok
   end
+
+  def delete_object(object_key, actor) do
+    delete_objects([object_key], actor)
+  end
+
+  def delete_objects(object_keys, actor, opts \\ [])
+
+  def delete_objects([], _actor, _opts), do: :ok
+
+  def delete_objects(object_keys, actor, opts) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+    delete_objects_from_bucket(object_keys, bucket_name, config, opts)
+  end
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts \\ [])
+
+  def delete_objects_from_bucket([], _bucket_name, _opts), do: :ok
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts) do
+    delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
+  end
+
+  def list_objects_from_bucket(bucket_name, opts \\ []) do
+    prefix = Keyword.get(opts, :prefix, "")
+    max_keys = Keyword.get(opts, :max_keys, 1000)
+    continuation_token = Keyword.get(opts, :continuation_token)
+
+    list_opts = maybe_put_continuation_token([prefix: prefix, max_keys: max_keys], continuation_token)
+
+    bucket_name
+    |> ExAws.S3.list_objects_v2(list_opts)
+    |> ExAws.request(Map.merge(ExAws.Config.new(:s3), fast_api_req_opts()))
+  end
+
+  defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
+
+    object_keys
+    |> Enum.chunk_every(1000)
+    |> Task.async_stream(
+      fn object_keys_chunk ->
+        bucket_name
+        |> ExAws.S3.delete_multiple_objects(object_keys_chunk)
+        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> handle_delete_objects_response()
+      end,
+      max_concurrency: max_concurrency,
+      ordered: false
+    )
+    |> Enum.reduce_while(:ok, fn
+      {:ok, :ok}, :ok ->
+        {:cont, :ok}
+
+      {:ok, {:error, reason}}, :ok ->
+        {:halt, {:error, reason}}
+
+      {:exit, reason}, :ok ->
+        {:halt, {:error, reason}}
+    end)
+  end
+
+  defp handle_delete_objects_response({:ok, %{status_code: status_code}}) when status_code in 200..299, do: :ok
+  defp handle_delete_objects_response({:ok, %{body: %{deleted: _deleted}}}), do: :ok
+  defp handle_delete_objects_response({:ok, response}), do: {:error, {:unexpected_response, response}}
+  defp handle_delete_objects_response({:error, reason}), do: {:error, reason}
+
+  defp maybe_put_continuation_token(opts, nil), do: opts
+
+  defp maybe_put_continuation_token(opts, continuation_token),
+    do: Keyword.put(opts, :continuation_token, continuation_token)
 
   def get_object_size(object_key, actor) do
     {config, bucket_name} = s3_config_and_bucket(actor)

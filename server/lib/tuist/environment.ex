@@ -489,6 +489,19 @@ defmodule Tuist.Environment do
     end
   end
 
+  def cache_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_S3_BUCKET_NAME") ||
+      System.get_env("S3_BUCKET") ||
+      get([:cache, :s3, :bucket], secrets)
+  end
+
+  def cache_xcode_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_XCODE_S3_BUCKET_NAME") ||
+      System.get_env("S3_XCODE_CACHE_BUCKET") ||
+      get([:cache, :s3, :xcode_cache_bucket], secrets) ||
+      cache_s3_bucket_name(secrets)
+  end
+
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
       System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)

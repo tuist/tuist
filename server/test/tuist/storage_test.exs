@@ -516,6 +516,90 @@ defmodule Tuist.StorageTest do
     end
   end
 
+  describe "delete_object/2" do
+    test "deletes one object using the bulk deletion API" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, opts ->
+        assert Map.get(opts, :receive_timeout) == 5_000
+        assert Map.get(opts, :pool_timeout) == 1_000
+        assert Map.get(opts, :test) == :config
+        {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_object(object_key, :test) == :ok
+    end
+
+    test "returns an error on unexpected S3 responses" do
+      # Given
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      delete_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn ^bucket_name, [^object_key] ->
+        delete_operation
+      end)
+
+      expect(ExAws, :request, fn ^delete_operation, _opts ->
+        {:ok, %{status_code: 500}}
+      end)
+
+      # When/Then
+      assert {:error, {:unexpected_response, %{status_code: 500}}} = Storage.delete_object(object_key, :test)
+    end
+
+    test "deletes object chunks concurrently" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+
+      object_keys =
+        Enum.map(1..1001, fn index ->
+          "object-#{index}"
+        end)
+
+      first_chunk = Enum.take(object_keys, 1000)
+      second_chunk = Enum.drop(object_keys, 1000)
+
+      stub(Environment, :s3_bucket_name, fn -> bucket_name end)
+      stub(ExAws.Config, :new, fn :s3 -> config end)
+
+      first_operation = %S3{body: UUIDv7.generate()}
+      second_operation = %S3{body: UUIDv7.generate()}
+
+      expect(ExAws.S3, :delete_multiple_objects, fn
+        ^bucket_name, ^first_chunk -> first_operation
+        ^bucket_name, ^second_chunk -> second_operation
+      end)
+
+      expect(ExAws, :request, 2, fn
+        ^first_operation, _opts -> {:ok, %{status_code: 204}}
+        ^second_operation, _opts -> {:ok, %{status_code: 204}}
+      end)
+
+      # When/Then
+      assert Storage.delete_objects(object_keys, :test, max_concurrency: 2) == :ok
+    end
+  end
+
   describe "get_object_size/1" do
     test "gets the size using ExAws.S3 and sends the right telemetry event" do
       # Given
