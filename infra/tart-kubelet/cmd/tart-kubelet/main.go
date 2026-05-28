@@ -495,6 +495,10 @@ func diskPressureFromGuests(ctx context.Context, tartClient *tart.Client, thresh
 		return false, "", err
 	}
 
+	// Drop stale series up front so a VM that's gone since the last
+	// sweep stops reporting its last-known capacity.
+	podagent.ResetGuestDiskUsage()
+
 	var pressured []string
 	for _, vm := range vms {
 		if vm.Source != "local" {
@@ -512,6 +516,7 @@ func diskPressureFromGuests(ctx context.Context, tartClient *tart.Client, thresh
 			log.FromContext(ctx).Error(err, "guest disk usage probe", "vm", vm.Name)
 			continue
 		}
+		podagent.RecordGuestDiskUsage(vm.Name, pct)
 		if pct >= threshold {
 			pressured = append(pressured, fmt.Sprintf("%s at %d%%", vm.Name, pct))
 		}
