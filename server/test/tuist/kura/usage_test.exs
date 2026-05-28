@@ -184,6 +184,70 @@ defmodule Tuist.Kura.UsageTest do
 
       assert %{egress: %{bytes: 100}} = Usage.totals(mine, start_dt, end_dt)
     end
+
+    # Kura delivers usage events at-least-once: a network blip between the
+    # node and the control plane can land the same event_id twice. The query
+    # path has to dedupe by event_id so retries don't inflate the customer's
+    # bill.
+    test "dedupes duplicate event_ids via argMax on inserted_at" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+      event_id = "duplicate-#{System.unique_integer([:positive])}"
+
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        direction: "egress",
+        bytes: 100,
+        request_count: 1,
+        inserted_at: ~N[2026-05-01 12:00:00]
+      })
+
+      # Same event_id, later inserted_at — should win the argMax tiebreak.
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        direction: "egress",
+        bytes: 100,
+        request_count: 1,
+        inserted_at: ~N[2026-05-01 12:05:00]
+      })
+
+      assert %{egress: %{bytes: 100, request_count: 1}, request_count: 1} =
+               Usage.totals(account_id, start_dt, end_dt)
+    end
+
+    test "returns trend percentage vs the equivalent previous window" do
+      account_id = unique_account_id()
+      start_dt = ~U[2026-05-08 00:00:00Z]
+      end_dt = ~U[2026-05-15 00:00:00Z]
+
+      # Current window: 200 bytes egress.
+      insert_event(%{
+        account_id: account_id,
+        direction: "egress",
+        bytes: 200,
+        request_count: 4,
+        window_start: ~N[2026-05-10 00:00:00]
+      })
+
+      # Previous window (same 7-day length, ending where current starts): 100 bytes.
+      insert_event(%{
+        account_id: account_id,
+        direction: "egress",
+        bytes: 100,
+        request_count: 2,
+        window_start: ~N[2026-05-03 00:00:00]
+      })
+
+      result = Usage.totals(account_id, start_dt, end_dt)
+
+      # 200 vs 100 = +100% growth.
+      assert result.egress.bytes == 200
+      assert result.egress.bytes_trend == 100.0
+      assert result.request_count == 4
+      assert result.request_count_trend == 100.0
+    end
   end
 
   describe "per_node/4" do

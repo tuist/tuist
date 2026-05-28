@@ -96,32 +96,53 @@ defmodule Tuist.Kura.Usage do
 
   @doc """
   Totals broken down by direction (egress + ingress) for an account in
-  `[start_dt, end_dt]`. Pass `:project_id` to scope to a single project.
+  `[start_dt, end_dt]`, plus a trend (% change) versus the equivalent
+  previous window so the dashboard widgets can show "since last week" /
+  "since yesterday" deltas. Pass `:project_id` to scope to a single
+  project.
 
-  Returns `%{egress: %{bytes, request_count}, ingress: %{bytes, request_count},
-  request_count: total}` so callers can render per-direction widgets and a
-  combined request counter without re-summing.
+  Returns `%{egress: %{bytes, bytes_trend, request_count},
+  ingress: %{bytes, bytes_trend, request_count}, request_count,
+  request_count_trend}`.
   """
   def totals(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
+    current = totals_in_range(account_id, start_dt, end_dt, opts)
+    {prev_start, prev_end} = previous_window(start_dt, end_dt)
+    previous = totals_in_range(account_id, prev_start, prev_end, opts)
+
+    %{
+      egress: %{
+        bytes: current.egress.bytes,
+        request_count: current.egress.request_count,
+        bytes_trend: trend(previous.egress.bytes, current.egress.bytes)
+      },
+      ingress: %{
+        bytes: current.ingress.bytes,
+        request_count: current.ingress.request_count,
+        bytes_trend: trend(previous.ingress.bytes, current.ingress.bytes)
+      },
+      request_count: current.request_count,
+      request_count_trend: trend(previous.request_count, current.request_count)
+    }
+  end
+
+  defp totals_in_range(account_id, start_dt, end_dt, opts) do
     rows =
-      account_id
-      |> base_event_query(start_dt, end_dt, opts)
-      |> group_by([e], e.direction)
-      |> select([e], %{
-        direction: e.direction,
-        bytes: fragment("sum(?)", e.bytes),
-        request_count: fragment("sum(?)", e.request_count)
-      })
-      |> ClickHouseRepo.all()
+      ClickHouseRepo.all(
+        from(e in subquery(deduped_event_query(account_id, start_dt, end_dt, opts)),
+          group_by: e.direction,
+          select: %{
+            direction: e.direction,
+            bytes: fragment("sum(?)", e.bytes),
+            request_count: fragment("sum(?)", e.request_count)
+          }
+        )
+      )
 
     egress = find_direction_row(rows, "egress")
     ingress = find_direction_row(rows, "ingress")
 
-    %{
-      egress: egress,
-      ingress: ingress,
-      request_count: egress.request_count + ingress.request_count
-    }
+    %{egress: egress, ingress: ingress, request_count: egress.request_count + ingress.request_count}
   end
 
   defp find_direction_row(rows, direction) do
@@ -138,17 +159,18 @@ defmodule Tuist.Kura.Usage do
   """
   def per_node(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
     rows =
-      account_id
-      |> base_event_query(start_dt, end_dt, opts)
-      |> group_by([e], [e.node_id, e.region, e.direction])
-      |> select([e], %{
-        node_id: e.node_id,
-        region: e.region,
-        direction: e.direction,
-        bytes: fragment("sum(?)", e.bytes),
-        request_count: fragment("sum(?)", e.request_count)
-      })
-      |> ClickHouseRepo.all()
+      ClickHouseRepo.all(
+        from(e in subquery(deduped_event_query(account_id, start_dt, end_dt, opts)),
+          group_by: [e.node_id, e.region, e.direction],
+          select: %{
+            node_id: e.node_id,
+            region: e.region,
+            direction: e.direction,
+            bytes: fragment("sum(?)", e.bytes),
+            request_count: fragment("sum(?)", e.request_count)
+          }
+        )
+      )
 
     rows
     |> Enum.group_by(fn r -> {r.node_id, r.region} end)
@@ -197,19 +219,19 @@ defmodule Tuist.Kura.Usage do
   end
 
   defp traffic_per_bucket_by_region(account_id, start_dt, end_dt, opts, :hour, metric) do
-    account_id
-    |> base_event_query(start_dt, end_dt, opts)
-    |> group_by([e], [fragment("toStartOfHour(?)", e.window_start), e.region])
-    |> order_by([e], fragment("toStartOfHour(?)", e.window_start))
+    from(e in subquery(deduped_event_query(account_id, start_dt, end_dt, opts)),
+      group_by: [fragment("toStartOfHour(?)", e.window_start), e.region],
+      order_by: fragment("toStartOfHour(?)", e.window_start)
+    )
     |> select_metric_series(metric, :hour)
     |> ClickHouseRepo.all()
   end
 
   defp traffic_per_bucket_by_region(account_id, start_dt, end_dt, opts, :day, metric) do
-    account_id
-    |> base_event_query(start_dt, end_dt, opts)
-    |> group_by([e], [fragment("toDate(?)", e.window_start), e.region])
-    |> order_by([e], fragment("toDate(?)", e.window_start))
+    from(e in subquery(deduped_event_query(account_id, start_dt, end_dt, opts)),
+      group_by: [fragment("toDate(?)", e.window_start), e.region],
+      order_by: fragment("toDate(?)", e.window_start)
+    )
     |> select_metric_series(metric, :day)
     |> ClickHouseRepo.all()
   end
@@ -261,21 +283,38 @@ defmodule Tuist.Kura.Usage do
     )
   end
 
-  defp base_event_query(account_id, start_dt, end_dt, opts) do
+  # Dedupes the raw event stream by `event_id`, picking the latest version of
+  # each column via argMax(column, inserted_at). Kura delivers usage events
+  # at-least-once and the ReplacingMergeTree only collapses duplicates at merge
+  # time, so aggregating directly over the table risks counting a retried
+  # event_id twice. Every aggregation in this module sits on top of this
+  # subquery so retries can't inflate customer-visible usage.
+  defp deduped_event_query(account_id, start_dt, end_dt, opts) do
     start_naive = to_naive(start_dt)
     end_naive = to_naive(end_dt)
 
-    query =
+    base =
       from(e in UsageEvent,
         where:
           e.account_id == ^account_id and
             e.window_start >= ^start_naive and
             e.window_start <= ^end_naive
       )
+      |> maybe_project_filter(Keyword.get(opts, :project_id))
+      |> maybe_direction_filter(Keyword.get(opts, :direction))
 
-    query
-    |> maybe_project_filter(Keyword.get(opts, :project_id))
-    |> maybe_direction_filter(Keyword.get(opts, :direction))
+    from(e in base,
+      group_by: e.event_id,
+      select: %{
+        project_id: fragment("argMax(?, ?)", e.project_id, e.inserted_at),
+        direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
+        node_id: fragment("argMax(?, ?)", e.node_id, e.inserted_at),
+        region: fragment("argMax(?, ?)", e.region, e.inserted_at),
+        window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+        bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at),
+        request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+      }
+    )
   end
 
   defp maybe_project_filter(query, nil), do: query
@@ -287,6 +326,24 @@ defmodule Tuist.Kura.Usage do
 
   defp maybe_direction_filter(query, direction) when direction in ["egress", "ingress"],
     do: from(e in query, where: e.direction == ^direction)
+
+  # The previous window is the same length as the current one, ending where
+  # the current one begins. Matches the convention `Tuist.Runners.Analytics`
+  # uses for "since last week" / "since yesterday" trend badges.
+  defp previous_window(%DateTime{} = start_dt, %DateTime{} = end_dt) do
+    seconds = DateTime.diff(end_dt, start_dt, :second)
+    {DateTime.add(start_dt, -seconds, :second), start_dt}
+  end
+
+  defp trend(previous, current) when is_number(previous) and is_number(current) do
+    cond do
+      previous == 0 -> 0.0
+      current == 0 -> 0.0
+      true -> Float.round(current / previous * 100, 1) - 100.0
+    end
+  end
+
+  defp trend(_, _), do: 0.0
 
   defp to_naive(%DateTime{} = dt), do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
   defp to_naive(%NaiveDateTime{} = nd), do: NaiveDateTime.truncate(nd, :second)
