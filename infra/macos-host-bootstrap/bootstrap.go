@@ -407,11 +407,18 @@ sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
-running() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | grep -qE '^[[:space:]]*pid = [0-9]+'; }
+# pid prints the launchd-tracked PID (empty when not running). restarted
+# is true only once a NEW pid appears (different from the pre-reload one):
+# a no-op kickstart that leaves the old process running must not be
+# mistaken for a successful roll into the freshly-uploaded binary.
+pid() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}' || true; }
+OLD="$(pid)"
+restarted() { p="$(pid)"; [ -n "$p" ] && [ "$p" != "$OLD" ]; }
 
-# Restart in place when the plist is unchanged (avoids BTM churn);
-# otherwise rewrite it and bootout+bootstrap to pick up the new args.
-if cmp -s "$NEW" "$PLIST" && running; then
+# Restart in place when the plist is unchanged and a process is running
+# (avoids BTM re-registration churn); otherwise rewrite it and
+# bootout+bootstrap to pick up the new args / start it fresh.
+if cmp -s "$NEW" "$PLIST" && [ -n "$OLD" ]; then
   sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
 else
   sudo cp "$NEW" "$PLIST"
@@ -421,10 +428,13 @@ else
   sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
 fi
 
-# Verify the agent reached a running state; force a kickstart if not.
-for _ in $(seq 1 20); do running && exit 0; sleep 1; done
+# Require a fresh process (new PID) — not merely "something is alive" —
+# then force a kickstart and re-check if the reload didn't restart it.
+# Exit non-zero if it never restarts so the reconciler keeps the drift
+# set and retries instead of recording a roll that never took.
+for _ in $(seq 1 20); do restarted && exit 0; sleep 1; done
 sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
-for _ in $(seq 1 20); do running && exit 0; sleep 1; done
+for _ in $(seq 1 20); do restarted && exit 0; sleep 1; done
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
 `, shellQuote(cfg.SSHUser))
