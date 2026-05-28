@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
 
@@ -88,6 +89,24 @@ defmodule TuistWeb.RunnerProfilesLive do
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
 
+  def handle_event("delete_profile", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    case account |> Profiles.list_for_account() |> Enum.find(&(to_string(&1.id) == id)) do
+      nil ->
+        {:noreply, socket}
+
+      profile ->
+        {:ok, _} = Profiles.delete(profile)
+
+        {:noreply,
+         socket
+         |> assign_profiles()
+         |> put_flash(
+           :info,
+           dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name)
+         )}
+    end
+  end
+
   defp save_profile(%{form_mode: :new, selected_account: account}, attrs), do: Profiles.create(account, attrs)
 
   defp save_profile(%{form_mode: {:edit, id}, selected_account: account}, attrs) do
@@ -125,29 +144,12 @@ defmodule TuistWeb.RunnerProfilesLive do
   defp save_success_flash({:edit, _}, profile),
     do: dgettext("dashboard_runners", "Profile %{name} updated.", name: profile.name)
 
-  def handle_event("delete_profile", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
-    case account |> Profiles.list_for_account() |> Enum.find(&(to_string(&1.id) == id)) do
-      nil ->
-        {:noreply, socket}
-
-      profile ->
-        {:ok, _} = Profiles.delete(profile)
-
-        {:noreply,
-         socket
-         |> assign_profiles()
-         |> put_flash(
-           :info,
-           dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name)
-         )}
-    end
-  end
-
   defp assign_profiles(%{assigns: %{selected_account: account}} = socket) do
     profiles = Profiles.list_for_account(account)
 
     assign(socket,
       profiles: profiles,
+      last_used: Jobs.last_used_at_by_dispatch_label(account.id),
       max_profiles_reached?: length(profiles) >= Profiles.max_per_account()
     )
   end
@@ -174,6 +176,24 @@ defmodule TuistWeb.RunnerProfilesLive do
   The `runs-on:` snippet to show in the table — `tuist-<name>`.
   """
   def dispatch_snippet(%Profile{} = profile), do: Profile.dispatch_label(profile)
+
+  @doc """
+  Relative "last used" string for a profile, from the precomputed
+  `last_used` map (label => DateTime). Renders "Never" when the
+  profile has no jobs yet.
+  """
+  def last_used_label(last_used, %Profile{} = profile) when is_map(last_used) do
+    case Map.get(last_used, Profile.dispatch_label(profile)) do
+      %DateTime{} = ts -> Tuist.Utilities.DateFormatter.from_now(ts)
+      _ -> dgettext("dashboard_runners", "Never")
+    end
+  end
+
+  @doc """
+  Platform a profile runs on. Linux-only in v1 — macOS profiles are a
+  future addition, at which point this reads off the shape/catalog.
+  """
+  def platform_label(%Profile{}), do: "Linux"
 
   @doc """
   Shape key in the catalog format used as the dropdown value.

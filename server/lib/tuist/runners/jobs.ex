@@ -61,6 +61,27 @@ defmodule Tuist.Runners.Jobs do
   require Logger
 
   @doc """
+  Latest `enqueued_at` per `requested_dispatch_label` for an account.
+
+  Powers the "Last used" column on the Profiles page — a profile's
+  customer-facing label (`tuist-<name>`) is the key. Returns a map of
+  `label => %DateTime{}`; labels with no jobs are simply absent (the
+  caller renders those as "never used"). `enqueued_at` is stable
+  across a workflow_job's state transitions, so `max/1` over the RMT
+  rows gives the most recent job's enqueue time without needing
+  `argMax`.
+  """
+  def last_used_at_by_dispatch_label(account_id) when is_integer(account_id) do
+    from(j in Job,
+      where: j.account_id == ^account_id and j.requested_dispatch_label != "",
+      group_by: j.requested_dispatch_label,
+      select: {j.requested_dispatch_label, max(j.enqueued_at)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Idempotent enqueue. Inserts a `status='queued'` row for the
   workflow_job. Called from the `workflow_job.queued` webhook.
   """

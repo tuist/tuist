@@ -1,105 +1,22 @@
 #account-runner-profiles {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
-
-  & > [data-part="page-header"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
-
-    & > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
-    }
-
-    & > [data-part="subtitle"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    }
-  }
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
 
   & > [data-part="profiles-card"] {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    border-radius: var(--noora-radius-8);
-    padding: 0;
-
-    & > [data-part="header"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-7) var(--noora-spacing-8);
-
-      & > [data-part="title-group"] {
-        display: flex;
-        flex-grow: 1;
-        flex-direction: column;
-        gap: var(--noora-spacing-2);
-        min-width: 0;
-
-        & > [data-part="title"] {
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
-        }
-
-        & > [data-part="subtitle"] {
-          color: var(--noora-surface-label-secondary);
-          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-        }
-      }
-
-      & > [data-part="actions"] {
-        display: flex;
-        flex-shrink: 0;
-        flex-direction: row;
-        align-items: center;
-      }
-    }
-
     & > #runner-profiles-table {
-      box-sizing: border-box;
-      margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
-      width: calc(100% - 2 * var(--noora-spacing-8));
+      margin-top: var(--noora-spacing-6);
     }
   }
 
-  /* Monospace the dispatch label so the `tuist-` prefix shares a baseline
-     with the customer-chosen suffix. Mirrors the signing-secret cell on
-     the webhooks page. */
+  /* Monospace the dispatch label so the `tuist-` prefix shares a
+     baseline with the customer-chosen suffix. */
   & #runner-profiles-table td:nth-child(2) [data-part="label"] {
     font-family: "Geist Mono", monospace;
   }
 
   & #runner-profiles-table {
-    & table {
-      min-width: 0;
-      table-layout: fixed;
-    }
-
-    & th:first-child {
-      width: 24%;
-    }
-
-    & th:nth-child(2) {
-      width: 32%;
-    }
-
-    & th:nth-child(3) {
-      width: 14%;
-    }
-
-    & th:nth-child(4) {
-      width: 22%;
-    }
-
-    & th:last-child {
-      width: 8%;
-    }
-
     & td:last-child > [data-part="cell"][data-type="button"] {
       justify-content: flex-end;
       width: 100%;
