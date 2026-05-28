@@ -86,8 +86,6 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
                event_id: "event-1",
                account_id: account_id,
                project_id: project_id,
-               account_handle: "acme",
-               project_handle: "ios",
                bytes: 123,
                request_count: 2
              }

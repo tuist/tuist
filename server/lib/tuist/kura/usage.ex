@@ -13,9 +13,10 @@ defmodule Tuist.Kura.Usage do
 
   @max_events_per_batch 5_000
 
-  # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic).
-  # We translate at the boundary to Tuist's account_handle/project_handle so
-  # the rest of the server doesn't have to know Kura's vocabulary.
+  # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic). We
+  # resolve them to Tuist account/project ids at the boundary and persist only
+  # the ids — anything that can't be resolved drops to 0 and is treated as
+  # unattributable traffic.
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
     full_handles =
       events
@@ -46,8 +47,6 @@ defmodule Tuist.Kura.Usage do
 
         %{
           event_id: event["event_id"],
-          account_handle: account_handle,
-          project_handle: project_handle,
           account_id: (project && project.account_id) || Map.get(account_ids_by_handle, account_handle) || 0,
           project_id: (project && project.id) || 0,
           node_id: event["node_id"],

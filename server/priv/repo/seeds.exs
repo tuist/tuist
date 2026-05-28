@@ -3875,7 +3875,7 @@ kura_directions = [
 
 kura_events =
   for hour_offset <- 1..kura_hours_back,
-      {project, account_handle} <- kura_seed_projects,
+      {project, _account_handle} <- kura_seed_projects,
       {node_id, region} <- kura_seed_nodes,
       {direction, operation, scale} <- kura_directions do
     window_start =
@@ -3894,8 +3894,6 @@ kura_events =
 
     %{
       event_id: "seed-#{hour_offset}-#{project.id}-#{node_id}-#{direction}",
-      account_handle: account_handle,
-      project_handle: project.name,
       account_id: organization.account.id,
       project_id: project.id,
       node_id: node_id,

@@ -7,8 +7,6 @@ defmodule Tuist.Kura.UsageEvent do
   @primary_key false
   schema "kura_usage_events" do
     field :event_id, :string
-    field :account_handle, :string
-    field :project_handle, :string
     field :account_id, Ch, type: "Int64"
     field :project_id, Ch, type: "Int64"
     field :node_id, :string
