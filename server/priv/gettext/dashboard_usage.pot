@@ -11,7 +11,7 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:123
+#: lib/tuist_web/live/usage_live.ex:130
 #: lib/tuist_web/live/usage_live.html.heex:27
 #, elixir-autogen, elixir-format
 msgid "Any"
@@ -52,7 +52,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:214
+#: lib/tuist_web/live/usage_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Node"
 msgstr ""
@@ -62,13 +62,13 @@ msgstr ""
 msgid "Project:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:217
+#: lib/tuist_web/live/usage_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:139
-#: lib/tuist_web/live/usage_live.html.heex:226
+#: lib/tuist_web/live/usage_live.html.heex:149
+#: lib/tuist_web/live/usage_live.html.heex:241
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -83,7 +83,7 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:190
+#: lib/tuist_web/live/usage_live.html.heex:205
 #, elixir-autogen, elixir-format
 msgid "Traffic by node"
 msgstr ""
@@ -95,24 +95,24 @@ msgid "Usage"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:105
-#: lib/tuist_web/live/usage_live.html.heex:220
+#: lib/tuist_web/live/usage_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:122
-#: lib/tuist_web/live/usage_live.html.heex:223
+#: lib/tuist_web/live/usage_live.html.heex:127
+#: lib/tuist_web/live/usage_live.html.heex:238
 #, elixir-autogen, elixir-format
 msgid "Ingress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:229
-#: lib/tuist_web/live/usage_live.ex:230
+#: lib/tuist_web/live/usage_live.ex:236
+#: lib/tuist_web/live/usage_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:125
+#: lib/tuist_web/live/usage_live.html.heex:130
 #, elixir-autogen, elixir-format
 msgid "Bytes received by the cache from clients (cache uploads) in the selected window."
 msgstr ""
@@ -127,12 +127,12 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:237
+#: lib/tuist_web/live/usage_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:142
+#: lib/tuist_web/live/usage_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Number of cache requests served in the selected window."
 msgstr ""
@@ -140,4 +140,29 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Traffic and request volume served by Tuist Cache for this account."
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:124
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:123
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:121
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:122
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.ex:120
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
 msgstr ""

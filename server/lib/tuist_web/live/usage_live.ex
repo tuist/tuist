@@ -70,6 +70,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:project_handle, project_handle)
      |> assign(:bucket, bucket)
      |> assign(:analytics_selected_widget, selected_widget)
+     |> assign(:analytics_trend_label, trend_label(preset))
      |> assign_async(
        [:totals, :egress_series, :ingress_series, :requests_series, :per_node],
        fn ->
@@ -115,6 +116,12 @@ defmodule TuistWeb.UsageLive do
 
   defp widget_param(widget) when widget in @widgets, do: widget
   defp widget_param(_), do: "egress"
+
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_usage", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_usage", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_usage", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_usage", "since last period")
+  defp trend_label(_), do: dgettext("dashboard_usage", "since last month")
 
   def project_patch(%URI{} = uri, handle) do
     "?" <> Query.put(uri.query, "project", handle)
@@ -233,6 +240,14 @@ defmodule TuistWeb.UsageLive do
   def format_bytes(value), do: ByteFormatter.format_bytes(value || 0)
   def format_count(value) when is_integer(value), do: CldrHelpers.format_number(value)
   def format_count(_), do: CldrHelpers.format_number(0)
+
+  @doc """
+  Trend widgets expect an integer percentage. `Tuist.Kura.Usage.totals/4`
+  returns floats so the sign survives small deltas; this collapses them
+  to the integer shape the Noora widget renders.
+  """
+  def trend_to_int(trend) when is_number(trend), do: round(trend)
+  def trend_to_int(_), do: 0
 
   def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
 end
