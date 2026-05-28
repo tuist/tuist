@@ -254,8 +254,13 @@ defmodule Tuist.Runners.Jobs do
   Returns `{:ok, %Job{}}` if the job was found and transitioned,
   or `{:error, :not_found}` if no row exists for the workflow_job
   yet (delivery race where `completed` arrives before `queued`).
+
+  `steps` is the JSON-encoded steps array from the webhook (GitHub
+  only populates it at completion); `""` leaves the carried-forward
+  value untouched.
   """
-  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
+  def complete(workflow_job_id, conclusion, steps \\ "")
+      when is_integer(workflow_job_id) and is_binary(conclusion) and is_binary(steps) do
     case current(workflow_job_id) do
       nil ->
         {:error, :not_found}
@@ -263,15 +268,19 @@ defmodule Tuist.Runners.Jobs do
       %Job{} = job ->
         now = DateTime.utc_now()
 
+        completion = %{
+          status: "completed",
+          conclusion: conclusion,
+          completed_at: now,
+          updated_at: now
+        }
+
+        completion = if steps == "", do: completion, else: Map.put(completion, :steps, steps)
+
         row =
           job
           |> job_to_row()
-          |> Map.merge(%{
-            status: "completed",
-            conclusion: conclusion,
-            completed_at: now,
-            updated_at: now
-          })
+          |> Map.merge(completion)
 
         insert_row!(row)
 
@@ -291,15 +300,48 @@ defmodule Tuist.Runners.Jobs do
 
         broadcast_status_change(job.account_id, "completed")
 
-        {:ok,
-         Map.merge(job, %{
-           status: "completed",
-           conclusion: conclusion,
-           completed_at: now,
-           updated_at: now
-         })}
+        {:ok, Map.merge(job, completion)}
     end
   end
+
+  @doc """
+  Records the captured-log lifecycle for a job as a state-transition
+  INSERT, carrying all other columns forward (so the job's lifecycle
+  state, conclusion, and steps are preserved). Called by the log
+  ingest endpoint: `"streaming"` on the first chunk, `"complete"` /
+  `"partial"` when the stream closes.
+
+  `:line_count` (set at finalization) denormalizes the total onto the
+  row; omitted while streaming, where it keeps its current value.
+
+  No-op when no row exists yet for the workflow_job (a log chunk that
+  raced ahead of the `queued` webhook has nothing to attach to).
+  """
+  def set_log_state(workflow_job_id, state, opts \\ [])
+      when is_integer(workflow_job_id) and is_binary(state) and is_list(opts) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        now = DateTime.utc_now()
+
+        updates = maybe_put_line_count(%{log_state: state, updated_at: now}, Keyword.get(opts, :line_count))
+
+        row =
+          job
+          |> job_to_row()
+          |> Map.merge(updates)
+
+        insert_row!(row)
+
+        broadcast_status_change(job.account_id, job.status)
+        :ok
+    end
+  end
+
+  defp maybe_put_line_count(updates, count) when is_integer(count), do: Map.put(updates, :log_line_count, count)
+  defp maybe_put_line_count(updates, _), do: updates
 
   @doc """
   Lists jobs for an account, ordered so the most recently updated

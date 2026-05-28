@@ -162,4 +162,55 @@ defmodule TuistWeb.RunnerJobLive do
       true -> DateTime.diff(completed, started, :millisecond)
     end
   end
+
+  @doc """
+  Decodes the JSON-encoded `steps` column into the list of step
+  maps the template renders. Returns `[]` for jobs without captured
+  steps (anything not yet completed) or on malformed JSON.
+  """
+  def steps(%{steps: steps}) when is_binary(steps) and steps != "" do
+    case JSON.decode(steps) do
+      {:ok, list} when is_list(list) -> list
+      _ -> []
+    end
+  end
+
+  def steps(_), do: []
+
+  @doc """
+  Maps a step's GitHub conclusion/status to the same badge kind the
+  page header uses, so a step's icon reads identically to the
+  job-level status indicator.
+  """
+  def step_status(%{"conclusion" => "success"}), do: :success
+  def step_status(%{"conclusion" => "failure"}), do: :failure
+  def step_status(%{"conclusion" => "cancelled"}), do: :warning
+  def step_status(%{"conclusion" => "skipped"}), do: :warning
+  def step_status(%{"status" => "completed"}), do: :success
+  def step_status(_), do: :processing
+
+  @doc """
+  Elapsed time for a single step, in milliseconds. Returns `nil`
+  when either timestamp is missing (e.g. a skipped step) so the
+  template can omit the duration badge entirely.
+  """
+  def step_duration_ms(%{"started_at" => started, "completed_at" => completed}) do
+    with {:ok, started_at} <- parse_step_time(started),
+         {:ok, completed_at} <- parse_step_time(completed) do
+      max(DateTime.diff(completed_at, started_at, :millisecond), 0)
+    else
+      _ -> nil
+    end
+  end
+
+  def step_duration_ms(_), do: nil
+
+  defp parse_step_time(value) when is_binary(value) and value != "" do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} -> {:ok, datetime}
+      _ -> :error
+    end
+  end
+
+  defp parse_step_time(_), do: :error
 end

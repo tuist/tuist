@@ -177,13 +177,13 @@ defmodule Tuist.Runners.Dispatch do
     conclusion = Map.get(job, "conclusion", "") || ""
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion)
+      mark_completed(workflow_job_id, conclusion, encode_steps(job))
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion) do
+  defp mark_completed(workflow_job_id, conclusion, steps) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -192,7 +192,7 @@ defmodule Tuist.Runners.Dispatch do
     # accounting reads PG.
     :ok = Claims.complete(workflow_job_id)
 
-    case Jobs.complete(workflow_job_id, conclusion) do
+    case Jobs.complete(workflow_job_id, conclusion, steps) do
       {:ok, _} ->
         Logger.info("runners: completed",
           workflow_job_id: workflow_job_id,
@@ -407,6 +407,40 @@ defmodule Tuist.Runners.Dispatch do
       _ -> {"", ""}
     end
   end
+
+  # GitHub only populates the workflow_job's `steps` array on the
+  # `completed` event. We sanitise each entry to the bounded set of
+  # fields the UI renders and re-encode as JSON for the `steps`
+  # column. Returns `""` when the payload carries no usable steps so
+  # the completion INSERT leaves the carried-forward value untouched.
+  defp encode_steps(job) do
+    case Map.get(job, "steps") do
+      steps when is_list(steps) ->
+        steps
+        |> Enum.map(&sanitize_step/1)
+        |> Enum.reject(&is_nil/1)
+        |> case do
+          [] -> ""
+          sanitized -> JSON.encode!(sanitized)
+        end
+
+      _ ->
+        ""
+    end
+  end
+
+  defp sanitize_step(%{"name" => name} = step) when is_binary(name) do
+    %{
+      "name" => name,
+      "status" => get_string(step, "status"),
+      "conclusion" => get_string(step, "conclusion"),
+      "number" => get_integer(step, "number"),
+      "started_at" => get_string(step, "started_at"),
+      "completed_at" => get_string(step, "completed_at")
+    }
+  end
+
+  defp sanitize_step(_), do: nil
 
   defp get_integer(map, key, default \\ 0) do
     case Map.get(map, key) do

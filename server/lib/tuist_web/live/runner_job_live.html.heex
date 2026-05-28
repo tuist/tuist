@@ -13,6 +13,7 @@
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
   <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
+  <% steps = TuistWeb.RunnerJobLive.steps(@job) %>
 
   <div data-part="header">
     <div data-part="title-group">
@@ -131,6 +132,38 @@
             </span>
           </div>
         </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_runners", "Steps")}
+    icon="apps"
+    data-part="steps-card"
+  >
+    <.card_section data-part="steps-section">
+      <div :if={steps == []} data-part="steps-empty">
+        {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
+      </div>
+      <div :for={step <- steps} data-part="step">
+        <% step_kind = TuistWeb.RunnerJobLive.step_status(step) %>
+        <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
+        <div data-part="step-info">
+          <div data-part={"step-icon-#{step_kind}"}>
+            <.circle_check :if={step_kind == :success} />
+            <.alert_circle :if={step_kind == :failure} />
+            <.alert_hexagon :if={step_kind == :warning} />
+            <.circle_dashed :if={step_kind == :processing} />
+          </div>
+          <span data-part="step-name">{step["name"]}</span>
+        </div>
+        <.badge
+          :if={step_duration}
+          label={Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        />
       </div>
     </.card_section>
   </.card>

@@ -3300,6 +3300,47 @@ random_sha = fn ->
   20 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
 end
 
+# Builds a realistic GitHub Actions step breakdown for a completed
+# job, mirroring the JSON `Tuist.Runners.Dispatch` captures from the
+# `workflow_job.completed` webhook. The step window is spread across
+# the job's runtime; for non-success jobs the test step carries the
+# job's conclusion while the trailing cleanup step still succeeds.
+runner_job_step_names = [
+  "Set up job",
+  "Run actions/checkout@v4",
+  "Set up runner",
+  "Restore cache",
+  "Run mise run install",
+  "Build",
+  "Run tests",
+  "Complete job"
+]
+
+build_runner_job_steps = fn started_at, completed_at, conclusion ->
+  names = runner_job_step_names
+  step_count = length(names)
+  total_seconds = max(DateTime.diff(completed_at, started_at, :second), step_count)
+  per_step = max(div(total_seconds, step_count), 1)
+  outcome_index = if conclusion == "success", do: nil, else: step_count - 2
+
+  names
+  |> Enum.with_index()
+  |> Enum.map(fn {name, index} ->
+    step_started = DateTime.add(started_at, index * per_step, :second)
+    step_completed = DateTime.add(step_started, per_step, :second)
+
+    %{
+      "name" => name,
+      "status" => "completed",
+      "conclusion" => if(index == outcome_index, do: conclusion, else: "success"),
+      "number" => index + 1,
+      "started_at" => DateTime.to_iso8601(step_started),
+      "completed_at" => DateTime.to_iso8601(step_completed)
+    }
+  end)
+  |> JSON.encode!()
+end
+
 # Completed jobs — history (most recent first by `enqueued_at`)
 completed_jobs = [
   %{
@@ -3477,7 +3518,13 @@ completed_jobs
     )
 
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{rem(idx, 4)}")
-  {:ok, _} = Jobs.complete(workflow_job_id, job.conclusion)
+
+  {:ok, _} =
+    Jobs.complete(
+      workflow_job_id,
+      job.conclusion,
+      build_runner_job_steps.(started_at, completed_at, job.conclusion)
+    )
 
   # In production `Tuist.Runners.serve_claim/5` opens a billing
   # session AFTER `record_running_safe` succeeds (so failed

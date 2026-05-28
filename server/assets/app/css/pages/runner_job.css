@@ -158,4 +158,78 @@
       }
     }
   }
+
+  & [data-part="steps-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="steps-empty"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="step"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-4);
+
+      & > [data-part="step-info"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+        min-width: 0;
+
+        & > [data-part^="step-icon-"] {
+          display: flex;
+          flex-shrink: 0;
+          justify-content: center;
+          align-items: center;
+          border-radius: var(--noora-radius-3);
+          padding: var(--noora-spacing-3);
+
+          & > svg {
+            width: var(--noora-icon-size-medium);
+            height: var(--noora-icon-size-medium);
+          }
+        }
+
+        & > [data-part="step-icon-success"] {
+          background: var(--noora-icon-success-background);
+          color: var(--noora-icon-success-label);
+        }
+
+        & > [data-part="step-icon-failure"] {
+          background: var(--noora-icon-destructive-background);
+          color: var(--noora-icon-destructive-label);
+        }
+
+        & > [data-part="step-icon-warning"] {
+          background: var(--noora-icon-warning-background);
+          color: var(--noora-icon-warning-label);
+        }
+
+        & > [data-part="step-icon-processing"] {
+          background: var(--noora-surface-background-secondary);
+          color: var(--noora-surface-label-secondary);
+        }
+
+        & > [data-part="step-name"] {
+          min-width: 0;
+          overflow: hidden;
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+    }
+  }
 }

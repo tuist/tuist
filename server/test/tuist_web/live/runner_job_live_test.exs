@@ -80,6 +80,79 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Passed"
   end
 
+  test "renders the captured steps for a completed job", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_401,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_401, "tuist-runner-x")
+
+    steps =
+      JSON.encode!([
+        %{
+          "name" => "Set up job",
+          "status" => "completed",
+          "conclusion" => "success",
+          "number" => 1,
+          "started_at" => "2026-05-28T10:00:00Z",
+          "completed_at" => "2026-05-28T10:00:05Z"
+        },
+        %{
+          "name" => "Run tests",
+          "status" => "completed",
+          "conclusion" => "failure",
+          "number" => 2,
+          "started_at" => "2026-05-28T10:00:05Z",
+          "completed_at" => "2026-05-28T10:00:35Z"
+        }
+      ])
+
+    {:ok, _completed} = Jobs.complete(31_401, "failure", steps)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+
+    assert html =~ "Steps"
+    assert html =~ "Set up job"
+    assert html =~ "Run tests"
+    # 30-second duration badge for the failing step
+    assert html =~ "30.0s"
+  end
+
+  test "renders the steps empty state for a job without captured steps", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_501,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/cli",
+        workflow_run_id: 315_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Lint",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
+
+    assert html =~ "No steps have been recorded"
+  end
+
   test "raises 404 when the workflow_job_id belongs to another account", %{
     conn: conn,
     account: account

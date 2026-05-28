@@ -477,6 +477,45 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "set_log_state/3" do
+    test "records the log lifecycle without reverting the job's own state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7300, fleet: "fleet-logs")
+      {:ok, candidate} = Jobs.pick_queued("fleet-logs", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7300, "runner-x")
+      {:ok, _} = Jobs.complete(7300, "success")
+
+      :ok = Jobs.set_log_state(7300, "complete", line_count: 42)
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7300)
+      assert job.log_state == "complete"
+      assert job.log_line_count == 42
+      # Carrying the other columns forward preserves lifecycle state.
+      assert job.status == "completed"
+      assert job.conclusion == "success"
+    end
+
+    test "streaming state leaves line_count at its default" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7301, fleet: "fleet-logs2")
+      {:ok, candidate} = Jobs.pick_queued("fleet-logs2", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7301, "runner-x")
+
+      :ok = Jobs.set_log_state(7301, "streaming")
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7301)
+      assert job.log_state == "streaming"
+      assert job.log_line_count == 0
+      assert job.status == "running"
+    end
+
+    test "is a no-op when the job row doesn't exist yet" do
+      assert :ok = Jobs.set_log_state(7_399_999, "streaming")
+    end
+  end
+
   describe "complete/2" do
     test "transitions to completed with the conclusion" do
       account = account_fixture()
@@ -490,6 +529,19 @@ defmodule Tuist.Runners.JobsTest do
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "completed", 0) == 1
+    end
+
+    test "persists the steps JSON so the detail page can read it back" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7050, fleet: "fleet-steps")
+      {:ok, candidate} = Jobs.pick_queued("fleet-steps", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7050, "runner-x")
+
+      steps = JSON.encode!([%{"name" => "Set up job", "status" => "completed", "conclusion" => "success"}])
+
+      assert {:ok, %{steps: ^steps}} = Jobs.complete(7050, "success", steps)
+      assert {:ok, %{steps: ^steps}} = Jobs.get_for_account(account.id, 7050)
     end
 
     test "emits :tuist, :runners, :job, :completed with timing measurements" do
