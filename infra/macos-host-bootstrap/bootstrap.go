@@ -71,6 +71,13 @@ type Config struct {
 	// nodes` reflects the inventory.
 	NodeName string
 
+	// ProviderID is the CAPI machine ID (scw-applesilicon://<zone>/<id>)
+	// rendered into tart-kubelet's --provider-id flag so it sets
+	// Node.spec.providerID — the field CAPI core matches to bind the
+	// Machine to its Node. Empty omits the flag (Node left unbound until
+	// patched by hand).
+	ProviderID string
+
 	// Kubeconfig is the YAML kubeconfig the controller built for this
 	// host (contains a long-lived ServiceAccount token + the API
 	// server's external URL + CA bundle). Dropped at
@@ -501,6 +508,15 @@ func renderLaunchdPlist(cfg Config) string {
 	if len(cfg.TailscaleBinaries) > 0 && cfg.TailscaleAuthKey != "" {
 		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
 	}
+	// providerID binds the Node to its CAPI Machine. Rendered as a flag so
+	// freshly-provisioned and re-rolled nodes self-bind without a manual
+	// `kubectl patch node ... providerID`. Empty (e.g. before the server
+	// is ordered) omits it; tart-kubelet then leaves spec.providerID unset
+	// and a later reconcile re-renders the plist once it's known.
+	providerIDArg := ""
+	if cfg.ProviderID != "" {
+		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -523,7 +539,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -537,7 +553,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg)
 }
 
 func shellQuote(s string) string {

@@ -4,9 +4,72 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func newNodeFakeClient(objs ...client.Object) client.Client {
+	scheme := runtime.NewScheme()
+	_ = corev1.AddToScheme(scheme)
+	return fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&corev1.Node{}).
+		WithObjects(objs...).
+		Build()
+}
+
+func nodeProviderID(t *testing.T, c client.Client, name string) string {
+	t.Helper()
+	node := &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: name}, node); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	return node.Spec.ProviderID
+}
+
+func TestEnsureNodeSetsProviderIDOnCreate(t *testing.T) {
+	c := newNodeFakeClient()
+	m := &Maintainer{Client: c, NodeName: "mac-1", ProviderID: "scw-applesilicon://fr-par-1/abc", Heartbeat: time.Second}
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatalf("ensureNode: %v", err)
+	}
+	if got := nodeProviderID(t, c, "mac-1"); got != "scw-applesilicon://fr-par-1/abc" {
+		t.Fatalf("providerID = %q, want it set on create", got)
+	}
+}
+
+func TestEnsureNodePatchesEmptyProviderID(t *testing.T) {
+	existing := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "mac-1"}}
+	c := newNodeFakeClient(existing)
+	m := &Maintainer{Client: c, NodeName: "mac-1", ProviderID: "scw-applesilicon://fr-par-1/abc", Heartbeat: time.Second}
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatalf("ensureNode: %v", err)
+	}
+	if got := nodeProviderID(t, c, "mac-1"); got != "scw-applesilicon://fr-par-1/abc" {
+		t.Fatalf("providerID = %q, want it patched onto a node registered without one", got)
+	}
+}
+
+func TestEnsureNodeDoesNotOverwriteExistingProviderID(t *testing.T) {
+	existing := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "mac-1"},
+		Spec:       corev1.NodeSpec{ProviderID: "scw-applesilicon://fr-par-1/original"},
+	}
+	c := newNodeFakeClient(existing)
+	m := &Maintainer{Client: c, NodeName: "mac-1", ProviderID: "scw-applesilicon://fr-par-1/different", Heartbeat: time.Second}
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatalf("ensureNode: %v", err)
+	}
+	if got := nodeProviderID(t, c, "mac-1"); got != "scw-applesilicon://fr-par-1/original" {
+		t.Fatalf("providerID = %q, want the original left untouched (immutable)", got)
+	}
+}
 
 func conditionByType(conds []corev1.NodeCondition, t corev1.NodeConditionType) (corev1.NodeCondition, bool) {
 	for _, c := range conds {
