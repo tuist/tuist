@@ -56,6 +56,86 @@ defmodule Tuist.Runners.JobLogs do
   end
 
   @doc """
+  The most recent `limit` lines of a job, in ascending display order.
+  This is what the Logs view loads on mount — a tail, not the whole
+  stream — so a job with hundreds of thousands of lines doesn't pull
+  them all into memory.
+  """
+  def recent(workflow_job_id, limit) when is_integer(workflow_job_id) and is_integer(limit) do
+    JobLog
+    |> from(hints: ["FINAL"])
+    |> where([l], l.workflow_job_id == ^workflow_job_id)
+    |> order_by([l], desc: l.line_number)
+    |> limit(^limit)
+    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    |> ClickHouseRepo.all()
+    |> Enum.reverse()
+  end
+
+  @doc """
+  The `limit` lines immediately before `before_line_number`, ascending
+  — the previous page when the user clicks "Load older logs".
+  """
+  def older(workflow_job_id, before_line_number, limit)
+      when is_integer(workflow_job_id) and is_integer(before_line_number) and is_integer(limit) do
+    JobLog
+    |> from(hints: ["FINAL"])
+    |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number)
+    |> order_by([l], desc: l.line_number)
+    |> limit(^limit)
+    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    |> ClickHouseRepo.all()
+    |> Enum.reverse()
+  end
+
+  @doc """
+  Whether any line exists before `before_line_number` — drives the
+  visibility of the "Load older logs" button.
+  """
+  def has_older?(_workflow_job_id, nil), do: false
+
+  def has_older?(workflow_job_id, before_line_number)
+      when is_integer(workflow_job_id) and is_integer(before_line_number) do
+    JobLog
+    |> from(hints: ["FINAL"])
+    |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number)
+    |> select([l], 1)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> is_integer()
+  end
+
+  @doc """
+  Folds `fun` over a job's full log forward in batches (cursor on
+  `line_number`), threading `acc` through. Used by the download
+  endpoint to stream the whole log into a chunked response without
+  materialising it in memory.
+  """
+  def reduce(workflow_job_id, batch_size, acc, fun)
+      when is_integer(workflow_job_id) and is_integer(batch_size) and is_function(fun, 2) do
+    reduce_from(workflow_job_id, 0, batch_size, acc, fun)
+  end
+
+  defp reduce_from(workflow_job_id, after_line_number, batch_size, acc, fun) do
+    batch =
+      JobLog
+      |> from(hints: ["FINAL"])
+      |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number > ^after_line_number)
+      |> order_by([l], asc: l.line_number)
+      |> limit(^batch_size)
+      |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+      |> ClickHouseRepo.all()
+
+    case batch do
+      [] ->
+        acc
+
+      lines ->
+        reduce_from(workflow_job_id, List.last(lines).line_number, batch_size, fun.(lines, acc), fun)
+    end
+  end
+
+  @doc """
   Lists the log lines inside a step's `[started_at, completed_at)`
   window — the per-step slice the job detail page renders when a
   step is expanded.

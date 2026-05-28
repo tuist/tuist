@@ -965,6 +965,10 @@ defmodule TuistWeb.Router do
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
 
+    get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs.txt",
+        RunnerJobLogsController,
+        :download
+
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
       on_mount: [

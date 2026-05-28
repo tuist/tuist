@@ -269,7 +269,8 @@
       }
 
       & > [data-part="step-logs"] {
-        border-top: 1px solid var(--noora-surface-border-primary);
+        margin: var(--noora-spacing-4);
+        margin-top: 0;
       }
     }
   }
@@ -279,14 +280,41 @@
     flex-direction: column;
   }
 
-  & [data-part="log-stream"],
+  /* The scrollable terminal area: a recessed, off-white surface
+     distinct from the white card section, matching the design. */
+  & [data-part="log-viewport"],
   & [data-part="step-logs"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);
-    padding: var(--noora-spacing-4);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+  }
+
+  & [data-part="log-stream"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="load-older"] {
+    align-self: center;
+    cursor: pointer;
+    margin-bottom: var(--noora-spacing-3);
+    box-shadow: var(--noora-border-light-default);
+    border: none;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-2) var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
   }
 
   & [data-part="log-line"] {

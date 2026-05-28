@@ -225,15 +225,36 @@
           style="light-fill"
           size="large"
         />
+        <.button
+          :if={@has_logs}
+          href={
+            ~p"/#{@selected_account.name}/runners/runs/#{@job.workflow_run_id}/jobs/#{@job.workflow_job_id}/logs.txt"
+          }
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Download")}
+        >
+          <:icon_left><.download /></:icon_left>
+        </.button>
       </:actions>
       <.card_section data-part="logs-section">
         <div :if={!@has_logs} data-part="log-empty">
           {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
         </div>
-        <div id="runner-logs" data-part="log-stream" phx-update="stream">
-          <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
-            <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-            <span data-part="log-message">{line.message}</span>
+        <div :if={@has_logs} data-part="log-viewport">
+          <button
+            :if={@has_older}
+            type="button"
+            phx-click="load_older"
+            data-part="load-older"
+          >
+            {dgettext("dashboard_runners", "Load older logs")}
+          </button>
+          <div id="runner-logs" data-part="log-stream" phx-update="stream">
+            <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
+              <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
+              <span data-part="log-message">{line.message}</span>
+            </div>
           </div>
         </div>
       </.card_section>

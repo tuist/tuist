@@ -11,10 +11,10 @@ defmodule TuistWeb.RunnerJobLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
-  # Upper bound on lines loaded into the Logs view on mount. Live
-  # appends arrive on top via Pub/Sub; older overflow is a follow-up
-  # ("load earlier" pagination).
-  @log_window 10_000
+  # The Logs view loads a tail of this many lines on mount and pages
+  # backwards in the same increment via "Load older logs". Live appends
+  # arrive at the bottom via Pub/Sub. We never load the whole stream.
+  @page_size 200
 
   @impl true
   def mount(
@@ -44,7 +44,8 @@ defmodule TuistWeb.RunnerJobLive do
           Tuist.PubSub.subscribe(JobLogs.topic(job.workflow_job_id))
         end
 
-        log_lines = JobLogs.list_for_job(job.workflow_job_id, limit: @log_window)
+        log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
+        oldest_line = oldest_line_number(log_lines)
 
         {:ok,
          socket
@@ -54,6 +55,8 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:has_logs, log_lines != [])
+         |> assign(:oldest_line, oldest_line)
+         |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, oldest_line))
          |> stream(:log_lines, Enum.map(log_lines, &log_stream_item/1))}
 
       _ ->
@@ -264,6 +267,27 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
+  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
+
+  def handle_event("load_older", _params, socket) do
+    %{job: job, oldest_line: oldest_line} = socket.assigns
+    older = JobLogs.older(job.workflow_job_id, oldest_line, @page_size)
+
+    socket =
+      older
+      |> Enum.reverse()
+      |> Enum.reduce(socket, fn line, acc ->
+        stream_insert(acc, :log_lines, log_stream_item(line), at: 0)
+      end)
+
+    new_oldest = oldest_line_number(older) || oldest_line
+
+    {:noreply,
+     socket
+     |> assign(:oldest_line, new_oldest)
+     |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
+  end
+
   @impl true
   def handle_info({:runner_job_log_lines, %{lines: lines}}, socket) do
     socket =
@@ -324,4 +348,7 @@ defmodule TuistWeb.RunnerJobLive do
       message: line.message
     }
   end
+
+  defp oldest_line_number([]), do: nil
+  defp oldest_line_number([first | _]), do: first.line_number
 end

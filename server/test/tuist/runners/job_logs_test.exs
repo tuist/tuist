@@ -117,4 +117,69 @@ defmodule Tuist.Runners.JobLogsTest do
       assert JobLogs.count_for_job(90_999) == 0
     end
   end
+
+  describe "recent/2, older/3, has_older?/2 pagination" do
+    setup do
+      job_id = 90_500
+
+      :ok =
+        JobLogs.append(
+          for n <- 1..10 do
+            %{
+              workflow_job_id: job_id,
+              account_id: 1,
+              line_number: n,
+              ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+              message: "line #{n}"
+            }
+          end
+        )
+
+      %{job_id: job_id}
+    end
+
+    test "recent/2 returns the last N lines in ascending order", %{job_id: job_id} do
+      lines = JobLogs.recent(job_id, 3)
+      assert Enum.map(lines, & &1.line_number) == [8, 9, 10]
+      assert Enum.map(lines, & &1.message) == ["line 8", "line 9", "line 10"]
+    end
+
+    test "older/3 returns the page before the cursor, ascending", %{job_id: job_id} do
+      older = JobLogs.older(job_id, 8, 3)
+      assert Enum.map(older, & &1.line_number) == [5, 6, 7]
+    end
+
+    test "has_older?/2 reflects whether earlier lines exist", %{job_id: job_id} do
+      assert JobLogs.has_older?(job_id, 8)
+      refute JobLogs.has_older?(job_id, 1)
+      refute JobLogs.has_older?(job_id, nil)
+    end
+  end
+
+  describe "reduce/4" do
+    test "folds every line forward in batches" do
+      job_id = 90_600
+
+      :ok =
+        JobLogs.append(
+          for n <- 1..25 do
+            %{
+              workflow_job_id: job_id,
+              account_id: 1,
+              line_number: n,
+              ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+              message: "m#{n}"
+            }
+          end
+        )
+
+      {batches, lines} =
+        JobLogs.reduce(job_id, 10, {0, []}, fn batch, {count, acc} ->
+          {count + 1, acc ++ batch}
+        end)
+
+      assert batches == 3
+      assert Enum.map(lines, & &1.line_number) == Enum.to_list(1..25)
+    end
+  end
 end

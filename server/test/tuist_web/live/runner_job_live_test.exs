@@ -278,6 +278,47 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
+  test "loads only the tail and pages older logs on demand", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_801,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # More than one page (page size is 200), so the oldest line is not
+    # in the initial tail.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_801,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "FIRST_LINE_MARKER", else: "line #{n}")
+          }
+        end
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31801?tab=logs")
+
+    refute html =~ "FIRST_LINE_MARKER"
+    assert has_element?(lv, ~s{[phx-click="load_older"]})
+
+    html_after = lv |> element(~s{[phx-click="load_older"]}) |> render_click()
+
+    assert html_after =~ "FIRST_LINE_MARKER"
+    refute has_element?(lv, ~s{[phx-click="load_older"]})
+  end
+
   test "raises 404 when the workflow_job_id belongs to another account", %{
     conn: conn,
     account: account
