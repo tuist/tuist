@@ -74,8 +74,7 @@ defmodule Tuist.Kura.Usage do
   defp resolve_account_id(nil, account_ids_by_handle, account_handle),
     do: Map.get(account_ids_by_handle, account_handle) || 0
 
-  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle),
-    do: account_id
+  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle), do: account_id
 
   defp resolve_project_id(nil), do: 0
   defp resolve_project_id(%{id: id}), do: id
@@ -201,8 +200,7 @@ defmodule Tuist.Kura.Usage do
     * `:direction` — `"egress"` or `"ingress"` to scope the series.
     * `:project_id` — scope to a single project.
   """
-  def traffic_time_series_by_region(account_id, start_dt, end_dt, opts \\ [])
-      when is_integer(account_id) do
+  def traffic_time_series_by_region(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
     bucket = Keyword.get(opts, :bucket, :day)
     metric = Keyword.get(opts, :metric, :bytes)
     rows = traffic_per_bucket_by_region(account_id, start_dt, end_dt, opts, bucket, metric)
@@ -346,8 +344,7 @@ defmodule Tuist.Kura.Usage do
 
   defp trend(_, _), do: 0.0
 
-  defp to_naive(%DateTime{} = dt),
-    do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+  defp to_naive(%DateTime{} = dt), do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
 
   defp to_naive(%NaiveDateTime{} = nd), do: NaiveDateTime.truncate(nd, :second)
 
