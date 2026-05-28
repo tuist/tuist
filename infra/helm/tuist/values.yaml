@@ -502,6 +502,25 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  # Workload kubeconfig CAPI core's cluster cache uses to reach this
+  # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
+  # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
+  # Off by default — self-hosters without the 1Password item leave it
+  # off; the in-cluster CAPI then can't bind Machines, but the fleet
+  # still works at the Kubernetes level (tart-kubelet registers the
+  # nodes directly). Managed envs enable it.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: false
+      refreshInterval: "1h"
+      # 1Password item holding the assembled kubeconfig (server =
+      # in-cluster API, cluster CA, the capi-remote SA token). Populated
+      # once per cluster — see infra/k8s/onboarding.md.
+      item: "capi-workload-kubeconfig"
+      field: "kubeconfig"
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:

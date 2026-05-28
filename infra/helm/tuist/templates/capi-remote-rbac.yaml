@@ -1,0 +1,72 @@
+{{- if and .Values.capi.enabled (or .Values.macosFleet.enabled .Values.runnersFleet.enabled) }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "capi-remote") }}
+{{- /*
+Identity CAPI core's cluster cache uses to reach this cluster.
+
+The in-cluster CAPI manages the Mac-mini fleet as Machines in the same
+cluster it runs in, so the <cluster>-kubeconfig Secret it connects with
+must point at the local API server with permission to watch Nodes (to
+set Machine.status.nodeRef by matching Node.spec.providerID) and to
+drain + delete a Node when its Machine is removed.
+
+This SA + scoped ClusterRole is that identity. The kubeconfig itself
+(server + CA + this SA's token) lives in 1Password and is synced by ESO
+into <cluster>-kubeconfig — see capi-remote-kubeconfig-external-secret.yaml.
+The token Secret below is a long-lived (non-expiring) SA token so the
+stored kubeconfig stays valid without rotation churn.
+*/ -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-remote
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-remote
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-remote
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}-token
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: capi-remote
+  annotations:
+    kubernetes.io/service-account.name: {{ $name }}
+type: kubernetes.io/service-account-token
+{{- end }}

@@ -120,6 +120,43 @@ shred -u /tmp/ci-kubeconfig.yaml
 # changes automatically.
 ```
 
+## 5b. CAPI workload kubeconfig (Mac-mini fleets only)
+
+Skip this for clusters without a Mac-mini fleet (`macosFleet.enabled: false` and `runnersFleet.enabled: false`).
+
+The chart runs an in-cluster CAPI that manages the Mac minis as `Machine`/`MachineDeployment` objects in this same cluster. CAPI core's cluster cache reaches the cluster through a `<release>-capi-kubeconfig` Secret; the chart's [`capi-cluster.yaml`](../helm/tuist/templates/capi-cluster.yaml) sets a stub `controlPlaneEndpoint` (`127.0.0.1`), so that Secret has to be supplied. Without it CAPI can't bind Machines to Nodes, every fleet `MachineDeployment` stays unavailable, and the server deploy's `helm --wait` times out on them.
+
+The chart creates the identity (`capi-remote` SA + scoped `ClusterRole` + non-expiring token Secret) and an `ExternalSecret` that syncs the kubeconfig from 1Password (`capi.remoteKubeconfig.externalSecrets`, on for managed envs). You populate the 1Password item once — assemble a kubeconfig pointing at the in-cluster API with the `capi-remote` SA token:
+
+```bash
+export KUBECONFIG=~/.kube/<cluster_name>.yaml
+NS=tuist-<env>   # production uses tuist
+TOKEN=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.ca\.crt}')   # already base64
+cat > /tmp/capi-workload-kubeconfig.yaml <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- name: tuist-tuist-capi
+  cluster: { server: https://kubernetes.default.svc:443, certificate-authority-data: $CA }
+contexts:
+- name: tuist-tuist-capi
+  context: { cluster: tuist-tuist-capi, user: tuist-tuist-capi }
+current-context: tuist-tuist-capi
+users:
+- name: tuist-tuist-capi
+  user: { token: $TOKEN }
+EOF
+op document create /tmp/capi-workload-kubeconfig.yaml \
+  --title capi-workload-kubeconfig --vault tuist-k8s-<env>   # or store the contents in the `kubeconfig` field of that item
+shred -u /tmp/capi-workload-kubeconfig.yaml
+```
+
+ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The `capi-remote-token` Secret is non-expiring, so this is a one-time step per cluster.
+
+> **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
+> `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
+
 ## 6. First deploy
 
 ### Manual smoke test
