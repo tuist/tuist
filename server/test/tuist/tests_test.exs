@@ -1264,7 +1264,7 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
-    test "uses multipart ClickHouse lookups for large test case batches" do
+    test "looks up existing test cases via a single multipart array parameter for large batches" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -1278,17 +1278,19 @@ defmodule Tuist.TestsTest do
           }
         end
 
-      expect(ClickHouseRepo, :all, 2, fn query, opts ->
+      expect(ClickHouseRepo, :query, 3, fn sql, params, opts ->
         assert Keyword.get(opts, :multipart) == true
-        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
 
-        assert sql =~ ~s[FROM "test_cases"]
-        assert sql =~ ~s["project_id"]
-        assert sql =~ ~s["id"]
-        assert project.id in params
-        assert length(params) > 1
+        # The IDs must be bound as a single `{ids:Array(UUID)}` parameter so the
+        # multipart request carries a constant number of form fields regardless
+        # of how many test cases the report contains.
+        assert sql =~ "test_cases"
+        assert sql =~ "{project_id:Int64}"
+        assert sql =~ "{ids:Array(UUID)}"
+        assert params["project_id"] == project.id
+        assert is_list(params["ids"])
 
-        []
+        {:ok, %{rows: []}}
       end)
 
       test_attrs = %{
