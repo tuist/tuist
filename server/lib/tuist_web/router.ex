@@ -716,6 +716,9 @@ defmodule TuistWeb.Router do
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
+    # Authenticated by the per-job `log_token` from dispatch (not the
+    # SA token) — see TuistWeb.RunnerLogsController / RunnerLogToken.
+    post "/runners/logs", RunnerLogsController, :ingest
   end
 
   scope "/oauth2", TuistWeb.Oauth do

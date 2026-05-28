@@ -185,6 +185,8 @@ defmodule Tuist do
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.JobLogs,
+      Runners.JobLog,
       Runners.RunnerSession,
       Runners.RunnerSessions,
       Runners.PromExPlugin,

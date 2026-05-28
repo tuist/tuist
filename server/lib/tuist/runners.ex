@@ -229,7 +229,13 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id
           )
 
-          {:ok, %{jit: jit, account: account, runner_name: runner_name}}
+          {:ok,
+           %{
+             jit: jit,
+             account: account,
+             runner_name: runner_name,
+             workflow_job_id: candidate.workflow_job_id
+           }}
         else
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
