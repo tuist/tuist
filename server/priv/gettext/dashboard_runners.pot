@@ -842,7 +842,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:293
+#: lib/tuist_web/live/runner_job_live.html.heex:303
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
 msgstr ""
@@ -852,7 +852,7 @@ msgstr ""
 msgid "Download logs"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:271
+#: lib/tuist_web/live/runner_job_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "No log lines match your search."
 msgstr ""
@@ -862,7 +862,12 @@ msgstr ""
 msgid "Search logs..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:259
+#: lib/tuist_web/live/runner_job_live.html.heex:264
 #, elixir-autogen, elixir-format
-msgid "Timestamps"
+msgid "Hide timestamps"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Show timestamps"
 msgstr ""

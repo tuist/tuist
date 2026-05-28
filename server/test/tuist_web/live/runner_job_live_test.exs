@@ -393,9 +393,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
     assert html =~ ~s(data-show-timestamps="true")
+    assert html =~ "Hide timestamps"
 
-    toggled = lv |> element("#logs-timestamps-toggle") |> render_click()
+    toggled = lv |> element("#logs-timestamps-button") |> render_click()
     assert toggled =~ ~s(data-show-timestamps="false")
+    assert toggled =~ "Show timestamps"
   end
 
   test "raises 404 when the workflow_job_id belongs to another account", %{

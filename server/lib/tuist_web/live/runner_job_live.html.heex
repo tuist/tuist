@@ -254,12 +254,22 @@
               data-part="logs-search"
             />
           </.form>
-          <.toggle
-            id="logs-timestamps-toggle"
-            label={dgettext("dashboard_runners", "Timestamps")}
-            checked={@show_timestamps}
+          <.button
+            id="logs-timestamps-button"
             phx-click="toggle_timestamps"
-          />
+            variant="secondary"
+            size="medium"
+            label={
+              if @show_timestamps,
+                do: dgettext("dashboard_runners", "Hide timestamps"),
+                else: dgettext("dashboard_runners", "Show timestamps")
+            }
+          >
+            <:icon_left>
+              <.eye_off :if={@show_timestamps} />
+              <.eye :if={!@show_timestamps} />
+            </:icon_left>
+          </.button>
         </div>
 
         <div
