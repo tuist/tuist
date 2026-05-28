@@ -171,65 +171,136 @@
 
     & > [data-part="step"] {
       display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-      gap: var(--noora-spacing-5);
+      flex-direction: column;
       box-shadow: var(--noora-border-light-default);
       border-radius: var(--noora-radius-4);
       background: var(--noora-surface-background-primary);
-      padding: var(--noora-spacing-4);
+      overflow: hidden;
 
-      & > [data-part="step-info"] {
+      & > [data-part="step-header"] {
         display: flex;
         flex-direction: row;
+        justify-content: space-between;
         align-items: center;
         gap: var(--noora-spacing-5);
-        min-width: 0;
+        cursor: pointer;
+        padding: var(--noora-spacing-4);
 
-        & > [data-part^="step-icon-"] {
+        & > [data-part="step-info"] {
           display: flex;
-          flex-shrink: 0;
-          justify-content: center;
+          flex-direction: row;
           align-items: center;
-          border-radius: var(--noora-radius-3);
-          padding: var(--noora-spacing-3);
+          gap: var(--noora-spacing-5);
+          min-width: 0;
 
-          & > svg {
-            width: var(--noora-icon-size-medium);
-            height: var(--noora-icon-size-medium);
+          & > [data-part^="step-icon-"] {
+            display: flex;
+            flex-shrink: 0;
+            justify-content: center;
+            align-items: center;
+            border-radius: var(--noora-radius-3);
+            padding: var(--noora-spacing-3);
+
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+            }
+          }
+
+          & > [data-part="step-icon-success"] {
+            background: var(--noora-icon-success-background);
+            color: var(--noora-icon-success-label);
+          }
+
+          & > [data-part="step-icon-failure"] {
+            background: var(--noora-icon-destructive-background);
+            color: var(--noora-icon-destructive-label);
+          }
+
+          & > [data-part="step-icon-warning"] {
+            background: var(--noora-icon-warning-background);
+            color: var(--noora-icon-warning-label);
+          }
+
+          & > [data-part="step-icon-processing"] {
+            background: var(--noora-surface-background-secondary);
+            color: var(--noora-surface-label-secondary);
+          }
+
+          & > [data-part="step-name"] {
+            min-width: 0;
+            overflow: hidden;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
         }
 
-        & > [data-part="step-icon-success"] {
-          background: var(--noora-icon-success-background);
-          color: var(--noora-icon-success-label);
-        }
+        & > [data-part="step-meta"] {
+          display: flex;
+          flex-shrink: 0;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
 
-        & > [data-part="step-icon-failure"] {
-          background: var(--noora-icon-destructive-background);
-          color: var(--noora-icon-destructive-label);
-        }
+          & > [data-part="step-chevron"] {
+            display: flex;
+            color: var(--noora-surface-label-secondary);
 
-        & > [data-part="step-icon-warning"] {
-          background: var(--noora-icon-warning-background);
-          color: var(--noora-icon-warning-label);
-        }
-
-        & > [data-part="step-icon-processing"] {
-          background: var(--noora-surface-background-secondary);
-          color: var(--noora-surface-label-secondary);
-        }
-
-        & > [data-part="step-name"] {
-          min-width: 0;
-          overflow: hidden;
-          color: var(--noora-surface-label-primary);
-          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-          text-overflow: ellipsis;
-          white-space: nowrap;
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+            }
+          }
         }
       }
+
+      & > [data-part="step-logs"] {
+        border-top: 1px solid var(--noora-surface-border-primary);
+      }
     }
+  }
+
+  & [data-part="logs-section"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  & [data-part="log-stream"],
+  & [data-part="step-logs"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    padding: var(--noora-spacing-4);
+    max-height: 480px;
+    overflow: auto;
+  }
+
+  & [data-part="log-line"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="log-ts"] {
+      flex-shrink: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+    }
+
+    & > [data-part="log-message"] {
+      flex: 1;
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  & [data-part="log-empty"] {
+    padding: var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
   }
 }

@@ -5,9 +5,15 @@ defmodule TuistWeb.RunnerJobLive do
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+
+  # Upper bound on lines loaded into the Logs view on mount. Live
+  # appends arrive on top via Pub/Sub; older overflow is a follow-up
+  # ("load earlier" pagination).
+  @log_window 10_000
 
   @impl true
   def mount(
@@ -33,10 +39,21 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
+        if connected?(socket) do
+          Tuist.PubSub.subscribe(JobLogs.topic(job.workflow_job_id))
+        end
+
+        log_lines = JobLogs.list_for_job(job.workflow_job_id, limit: @log_window)
+
         {:ok,
          socket
          |> assign(:head_title, head_title)
-         |> assign(:job, job)}
+         |> assign(:job, job)
+         |> assign(:steps, steps(job))
+         |> assign(:expanded_steps, MapSet.new())
+         |> assign(:step_logs, %{})
+         |> assign(:has_logs, log_lines != [])
+         |> stream(:log_lines, Enum.map(log_lines, &log_stream_item/1))}
 
       _ ->
         raise NotFoundError,
@@ -213,4 +230,87 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp parse_step_time(_), do: :error
+
+  @impl true
+  def handle_event("toggle_step", %{"number" => number}, socket) do
+    case Integer.parse(number) do
+      {n, ""} ->
+        expanded = socket.assigns.expanded_steps
+
+        socket =
+          if MapSet.member?(expanded, n) do
+            assign(socket, :expanded_steps, MapSet.delete(expanded, n))
+          else
+            socket
+            |> assign(:expanded_steps, MapSet.put(expanded, n))
+            |> load_step_logs(n)
+          end
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:runner_job_log_lines, %{lines: lines}}, socket) do
+    socket =
+      Enum.reduce(lines, socket, fn line, acc ->
+        stream_insert(acc, :log_lines, log_stream_item(line))
+      end)
+
+    {:noreply, assign(socket, :has_logs, socket.assigns.has_logs or lines != [])}
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  def step_expanded?(expanded_steps, %{"number" => number}), do: MapSet.member?(expanded_steps, number)
+  def step_expanded?(_expanded_steps, _step), do: false
+
+  @doc """
+  Whether the job's logs are still being streamed in — drives the
+  live "tail" affordance vs a settled, finished log.
+  """
+  def streaming?(%{log_state: "streaming"}), do: true
+  def streaming?(%{status: status}) when status in ["queued", "claimed", "running"], do: true
+  def streaming?(_), do: false
+
+  @doc """
+  Time-of-day label for a captured log line, matching the terminal
+  styling of the Logs view.
+  """
+  def log_ts(%DateTime{} = ts), do: Calendar.strftime(ts, "%H:%M:%S")
+  def log_ts(_), do: ""
+
+  # Fetches and caches the per-step log slice the first time a step is
+  # expanded. Subsequent toggles reuse the cached lines.
+  defp load_step_logs(socket, number) do
+    if Map.has_key?(socket.assigns.step_logs, number) do
+      socket
+    else
+      lines = fetch_step_logs(socket.assigns.job, socket.assigns.steps, number)
+      assign(socket, :step_logs, Map.put(socket.assigns.step_logs, number, lines))
+    end
+  end
+
+  defp fetch_step_logs(job, steps, number) do
+    with %{"started_at" => started, "completed_at" => completed} <-
+           Enum.find(steps, fn step -> step["number"] == number end),
+         {:ok, started_at} <- parse_step_time(started),
+         {:ok, completed_at} <- parse_step_time(completed) do
+      JobLogs.list_for_step(job.workflow_job_id, started_at, completed_at)
+    else
+      _ -> []
+    end
+  end
+
+  defp log_stream_item(line) do
+    %{
+      id: "log-#{line.line_number}",
+      line_number: line.line_number,
+      ts: line.ts,
+      message: line.message
+    }
+  end
 end

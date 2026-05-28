@@ -13,7 +13,6 @@
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
   <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
-  <% steps = TuistWeb.RunnerJobLive.steps(@job) %>
 
   <div data-part="header">
     <div data-part="title-group">
@@ -142,28 +141,84 @@
     data-part="steps-card"
   >
     <.card_section data-part="steps-section">
-      <div :if={steps == []} data-part="steps-empty">
+      <div :if={@steps == []} data-part="steps-empty">
         {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
       </div>
-      <div :for={step <- steps} data-part="step">
+      <div
+        :for={step <- @steps}
+        data-part="step"
+        data-expanded={to_string(TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step))}
+      >
         <% step_kind = TuistWeb.RunnerJobLive.step_status(step) %>
         <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
-        <div data-part="step-info">
-          <div data-part={"step-icon-#{step_kind}"}>
-            <.circle_check :if={step_kind == :success} />
-            <.alert_circle :if={step_kind == :failure} />
-            <.alert_hexagon :if={step_kind == :warning} />
-            <.circle_dashed :if={step_kind == :processing} />
+        <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
+        <div
+          data-part="step-header"
+          phx-click="toggle_step"
+          phx-value-number={step["number"]}
+        >
+          <div data-part="step-info">
+            <div data-part={"step-icon-#{step_kind}"}>
+              <.circle_check :if={step_kind == :success} />
+              <.alert_circle :if={step_kind == :failure} />
+              <.alert_hexagon :if={step_kind == :warning} />
+              <.circle_dashed :if={step_kind == :processing} />
+            </div>
+            <span data-part="step-name">{step["name"]}</span>
           </div>
-          <span data-part="step-name">{step["name"]}</span>
+          <div data-part="step-meta">
+            <.badge
+              :if={step_duration}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)
+              }
+              color="neutral"
+              style="light-fill"
+              size="large"
+            />
+            <span data-part="step-chevron">
+              <.chevron_up :if={expanded} />
+              <.chevron_down :if={!expanded} />
+            </span>
+          </div>
         </div>
-        <.badge
-          :if={step_duration}
-          label={Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)}
-          color="neutral"
-          style="light-fill"
-          size="large"
-        />
+        <div :if={expanded} data-part="step-logs">
+          <% step_lines = Map.get(@step_logs, step["number"], []) %>
+          <div :if={step_lines == []} data-part="log-empty">
+            {dgettext("dashboard_runners", "No logs were captured for this step.")}
+          </div>
+          <div :for={line <- step_lines} data-part="log-line">
+            <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
+            <span data-part="log-message">{line.message}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_runners", "Logs")}
+    icon="file_text"
+    data-part="logs-card"
+  >
+    <:actions>
+      <.badge
+        :if={TuistWeb.RunnerJobLive.streaming?(@job)}
+        label={dgettext("dashboard_runners", "Live")}
+        color="information"
+        style="light-fill"
+        size="large"
+      />
+    </:actions>
+    <.card_section data-part="logs-section">
+      <div :if={!@has_logs} data-part="log-empty">
+        {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
+      </div>
+      <div id="runner-logs" data-part="log-stream" phx-update="stream">
+        <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
+          <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
+          <span data-part="log-message">{line.message}</span>
+        </div>
       </div>
     </.card_section>
   </.card>

@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -151,6 +152,106 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
     assert html =~ "No steps have been recorded"
+  end
+
+  test "renders captured logs and live-appends streamed lines", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_601,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_601,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "compiling project"
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
+
+    assert html =~ "Logs"
+    assert html =~ "compiling project"
+
+    send(
+      lv.pid,
+      {:runner_job_log_lines,
+       %{lines: [%{line_number: 2, ts: ~U[2026-05-28 12:00:01.000000Z], message: "linking binary"}]}}
+    )
+
+    assert render(lv) =~ "linking binary"
+  end
+
+  test "expanding a step reveals only that step's logs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_602,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_602, "runner-x")
+
+    steps =
+      JSON.encode!([
+        %{
+          "name" => "Build",
+          "status" => "completed",
+          "conclusion" => "success",
+          "number" => 1,
+          "started_at" => "2026-05-28T12:00:00Z",
+          "completed_at" => "2026-05-28T12:01:00Z"
+        }
+      ])
+
+    {:ok, _} = Jobs.complete(31_602, "success", steps)
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "inside the build step"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 2,
+          ts: ~U[2026-05-28 12:05:00.000000Z],
+          message: "after the build step"
+        }
+      ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
+
+    lv |> element(~s{[data-part="step-header"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "inside the build step"
+    refute panel =~ "after the build step"
   end
 
   test "raises 404 when the workflow_job_id belongs to another account", %{
