@@ -5,7 +5,7 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_usage",
-          "Traffic and request volume served by Kura nodes for this account."
+          "Traffic and request volume served by Tuist Cache for this account."
         )}
       </span>
     </div>
@@ -95,7 +95,7 @@
   </div>
 
   <.card
-    title={dgettext("dashboard_usage", "Kura traffic")}
+    title={dgettext("dashboard_usage", "Cache traffic")}
     icon="chart_column"
     data-part="kura-traffic"
   >
@@ -107,7 +107,7 @@
         description={
           dgettext(
             "dashboard_usage",
-            "Bytes sent from Kura nodes to clients (cache downloads) in the selected window."
+            "Bytes sent from the cache to clients (cache downloads) in the selected window."
           )
         }
         value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.egress.bytes)}
@@ -124,7 +124,7 @@
         description={
           dgettext(
             "dashboard_usage",
-            "Bytes received by Kura nodes from clients (cache uploads) in the selected window."
+            "Bytes received by the cache from clients (cache uploads) in the selected window."
           )
         }
         value={if @totals.ok?, do: TuistWeb.UsageLive.format_bytes(@totals.result.ingress.bytes)}
@@ -141,7 +141,7 @@
         description={
           dgettext(
             "dashboard_usage",
-            "Number of cache requests served by Kura nodes in the selected window."
+            "Number of cache requests served in the selected window."
           )
         }
         value={if @totals.ok?, do: TuistWeb.UsageLive.format_count(@totals.result.request_count)}

@@ -234,5 +234,5 @@ defmodule TuistWeb.UsageLive do
   def format_count(value) when is_integer(value), do: CldrHelpers.format_number(value)
   def format_count(_), do: CldrHelpers.format_number(0)
 
-  def empty_label, do: dgettext("dashboard_usage", "No Kura traffic in this window yet")
+  def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
 end
