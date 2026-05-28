@@ -157,11 +157,10 @@
         <.text_cell data-part="dispatch-label-cell" label={dispatch_snippet(profile)} />
       </:col>
       <:col :let={profile} label={dgettext("dashboard_runners", "Platform")}>
-        <.badge
+        <.badge_cell
           label={platform_label(profile)}
           color={platform_badge_color(profile)}
           style="light-fill"
-          size="small"
         />
       </:col>
       <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
