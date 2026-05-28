@@ -47,179 +47,196 @@
     </div>
   </div>
 
-  <.card
-    title={dgettext("dashboard_runners", "CI Details")}
-    icon="git_merge"
-    data-part="ci-details"
-  >
-    <.card_section data-part="ci-details-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
-            <.badge
-              label={status_props.label}
-              color={status_props.color}
-              style="fill"
-              size="large"
-            />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "CI duration")}</div>
-            <span data-part="label">
-              <.history />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                TuistWeb.RunnerJobLive.run_duration_ms(@job)
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Queue time")}</div>
-            <span data-part="label">
-              <.history />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                TuistWeb.RunnerJobLive.queued_duration_ms(@job)
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Ran at")}</div>
-            <span data-part="label">
-              <.tooltip
-                id="ran-at-tooltip"
-                title={Tuist.Utilities.DateFormatter.format_iso(@job.started_at)}
-              >
-                <:trigger :let={attrs}>
-                  <span {attrs}>
-                    {Tuist.Utilities.DateFormatter.from_now(@job.started_at)}
-                  </span>
-                </:trigger>
-              </.tooltip>
-            </span>
-          </div>
-        </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div>
-            <.badge
-              label={platform_label}
-              color={TuistWeb.RunnerJobLive.platform_badge_color(@job.fleet_name)}
-              style="light-fill"
-              size="large"
-            />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Branch")}</div>
-            <span data-part="label">
-              <.git_branch />
-              {if(@job.head_branch == "",
-                do: dgettext("dashboard_runners", "None"),
-                else: @job.head_branch
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Commit SHA")}</div>
-            <span data-part="command-label">
-              {TuistWeb.Utilities.SHA.format_commit_sha(@job.head_sha)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
-            <span data-part="label">
-              {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
-            </span>
-          </div>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
+  <.tab_menu_horizontal data-part="tabs">
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_runners", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_runners", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+    />
+  </.tab_menu_horizontal>
 
-  <.card
-    title={dgettext("dashboard_runners", "Steps")}
-    icon="apps"
-    data-part="steps-card"
-  >
-    <.card_section data-part="steps-section">
-      <div :if={@steps == []} data-part="steps-empty">
-        {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
-      </div>
-      <div
-        :for={step <- @steps}
-        data-part="step"
-        data-expanded={to_string(TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step))}
-      >
-        <% step_kind = TuistWeb.RunnerJobLive.step_status(step) %>
-        <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
-        <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
-        <div
-          data-part="step-header"
-          phx-click="toggle_step"
-          phx-value-number={step["number"]}
-        >
-          <div data-part="step-info">
-            <div data-part={"step-icon-#{step_kind}"}>
-              <.circle_check :if={step_kind == :success} />
-              <.alert_circle :if={step_kind == :failure} />
-              <.alert_hexagon :if={step_kind == :warning} />
-              <.circle_dashed :if={step_kind == :processing} />
+  <div :if={@selected_tab == "overview"} data-part="tab-panel">
+    <.card
+      title={dgettext("dashboard_runners", "CI Details")}
+      icon="git_merge"
+      data-part="ci-details"
+    >
+      <.card_section data-part="ci-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
+              <.badge
+                label={status_props.label}
+                color={status_props.color}
+                style="fill"
+                size="large"
+              />
             </div>
-            <span data-part="step-name">{step["name"]}</span>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "CI duration")}</div>
+              <span data-part="label">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  TuistWeb.RunnerJobLive.run_duration_ms(@job)
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Queue time")}</div>
+              <span data-part="label">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  TuistWeb.RunnerJobLive.queued_duration_ms(@job)
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Ran at")}</div>
+              <span data-part="label">
+                <.tooltip
+                  id="ran-at-tooltip"
+                  title={Tuist.Utilities.DateFormatter.format_iso(@job.started_at)}
+                >
+                  <:trigger :let={attrs}>
+                    <span {attrs}>
+                      {Tuist.Utilities.DateFormatter.from_now(@job.started_at)}
+                    </span>
+                  </:trigger>
+                </.tooltip>
+              </span>
+            </div>
           </div>
-          <div data-part="step-meta">
-            <.badge
-              :if={step_duration}
-              label={
-                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)
-              }
-              color="neutral"
-              style="light-fill"
-              size="large"
-            />
-            <span data-part="step-chevron">
-              <.chevron_up :if={expanded} />
-              <.chevron_down :if={!expanded} />
-            </span>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div>
+              <.badge
+                label={platform_label}
+                color={TuistWeb.RunnerJobLive.platform_badge_color(@job.fleet_name)}
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {if(@job.head_branch == "",
+                  do: dgettext("dashboard_runners", "None"),
+                  else: @job.head_branch
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Commit SHA")}</div>
+              <span data-part="command-label">
+                {TuistWeb.Utilities.SHA.format_commit_sha(@job.head_sha)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
+              <span data-part="label">
+                {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
+              </span>
+            </div>
           </div>
         </div>
-        <div :if={expanded} data-part="step-logs">
-          <% step_lines = Map.get(@step_logs, step["number"], []) %>
-          <div :if={step_lines == []} data-part="log-empty">
-            {dgettext("dashboard_runners", "No logs were captured for this step.")}
+      </.card_section>
+    </.card>
+
+    <.card
+      title={dgettext("dashboard_runners", "Steps")}
+      icon="apps"
+      data-part="steps-card"
+    >
+      <.card_section data-part="steps-section">
+        <div :if={@steps == []} data-part="steps-empty">
+          {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
+        </div>
+        <div
+          :for={step <- @steps}
+          data-part="step"
+          data-expanded={to_string(TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step))}
+        >
+          <% step_kind = TuistWeb.RunnerJobLive.step_status(step) %>
+          <% step_duration = TuistWeb.RunnerJobLive.step_duration_ms(step) %>
+          <% expanded = TuistWeb.RunnerJobLive.step_expanded?(@expanded_steps, step) %>
+          <div
+            data-part="step-header"
+            phx-click="toggle_step"
+            phx-value-number={step["number"]}
+          >
+            <div data-part="step-info">
+              <div data-part={"step-icon-#{step_kind}"}>
+                <.circle_check :if={step_kind == :success} />
+                <.alert_circle :if={step_kind == :failure} />
+                <.alert_hexagon :if={step_kind == :warning} />
+                <.circle_dashed :if={step_kind == :processing} />
+              </div>
+              <span data-part="step-name">{step["name"]}</span>
+            </div>
+            <div data-part="step-meta">
+              <.badge
+                :if={step_duration}
+                label={
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)
+                }
+                color="neutral"
+                style="light-fill"
+                size="large"
+              />
+              <span data-part="step-chevron">
+                <.chevron_up :if={expanded} />
+                <.chevron_down :if={!expanded} />
+              </span>
+            </div>
           </div>
-          <div :for={line <- step_lines} data-part="log-line">
+          <div :if={expanded} data-part="step-logs">
+            <% step_lines = Map.get(@step_logs, step["number"], []) %>
+            <div :if={step_lines == []} data-part="log-empty">
+              {dgettext("dashboard_runners", "No logs were captured for this step.")}
+            </div>
+            <div :for={line <- step_lines} data-part="log-line">
+              <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
+              <span data-part="log-message">{line.message}</span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div data-part="tab-panel" hidden={@selected_tab != "logs"}>
+    <.card
+      title={dgettext("dashboard_runners", "Logs")}
+      icon="file_text"
+      data-part="logs-card"
+    >
+      <:actions>
+        <.badge
+          :if={TuistWeb.RunnerJobLive.streaming?(@job)}
+          label={dgettext("dashboard_runners", "Live")}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
+      </:actions>
+      <.card_section data-part="logs-section">
+        <div :if={!@has_logs} data-part="log-empty">
+          {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
+        </div>
+        <div id="runner-logs" data-part="log-stream" phx-update="stream">
+          <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
             <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
             <span data-part="log-message">{line.message}</span>
           </div>
         </div>
-      </div>
-    </.card_section>
-  </.card>
-
-  <.card
-    title={dgettext("dashboard_runners", "Logs")}
-    icon="file_text"
-    data-part="logs-card"
-  >
-    <:actions>
-      <.badge
-        :if={TuistWeb.RunnerJobLive.streaming?(@job)}
-        label={dgettext("dashboard_runners", "Live")}
-        color="information"
-        style="light-fill"
-        size="large"
-      />
-    </:actions>
-    <.card_section data-part="logs-section">
-      <div :if={!@has_logs} data-part="log-empty">
-        {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
-      </div>
-      <div id="runner-logs" data-part="log-stream" phx-update="stream">
-        <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
-          <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-          <span data-part="log-message">{line.message}</span>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
+      </.card_section>
+    </.card>
+  </div>
 </div>

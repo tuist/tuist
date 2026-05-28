@@ -8,6 +8,18 @@
     align-self: flex-start;
   }
 
+  & > [data-part="tab-panel"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    /* Two attribute selectors so this wins over the `display: flex`
+       above and the Logs panel actually hides when inactive. */
+    &[hidden] {
+      display: none;
+    }
+  }
+
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;

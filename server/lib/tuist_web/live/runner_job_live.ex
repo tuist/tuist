@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Query
 
   # Upper bound on lines loaded into the Logs view on mount. Live
   # appends arrive on top via Pub/Sub; older overflow is a follow-up
@@ -59,6 +60,16 @@ defmodule TuistWeb.RunnerJobLive do
         raise NotFoundError,
               dgettext("dashboard_runners", "The job you are looking for doesn't exist or has been moved.")
     end
+  end
+
+  @impl true
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
+
+    {:noreply,
+     socket
+     |> assign(:selected_tab, params["tab"] || "overview")
+     |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))}
   end
 
   defp parse_id(value) when is_binary(value) do

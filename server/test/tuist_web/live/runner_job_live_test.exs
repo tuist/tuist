@@ -254,6 +254,30 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute panel =~ "after the build step"
   end
 
+  test "defaults to the Overview tab and selects Logs via ?tab=logs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_701,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701")
+    assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+
+    {:ok, lv2, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701?tab=logs")
+    assert has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+    refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
   test "raises 404 when the workflow_job_id belongs to another account", %{
     conn: conn,
     account: account
