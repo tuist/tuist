@@ -115,9 +115,7 @@
         selected={@analytics_selected_widget == "egress"}
         phx_click="select_widget"
         phx_value_widget="egress"
-        trend_value={
-          if @totals.ok?, do: TuistWeb.UsageLive.trend_to_int(@totals.result.egress.bytes_trend)
-        }
+        trend_value={if @totals.ok?, do: @totals.result.egress.bytes_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={@totals.ok? && @totals.result.egress.bytes == 0}
@@ -137,9 +135,7 @@
         selected={@analytics_selected_widget == "ingress"}
         phx_click="select_widget"
         phx_value_widget="ingress"
-        trend_value={
-          if @totals.ok?, do: TuistWeb.UsageLive.trend_to_int(@totals.result.ingress.bytes_trend)
-        }
+        trend_value={if @totals.ok?, do: @totals.result.ingress.bytes_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={@totals.ok? && @totals.result.ingress.bytes == 0}
@@ -159,9 +155,7 @@
         selected={@analytics_selected_widget == "requests"}
         phx_click="select_widget"
         phx_value_widget="requests"
-        trend_value={
-          if @totals.ok?, do: TuistWeb.UsageLive.trend_to_int(@totals.result.request_count_trend)
-        }
+        trend_value={if @totals.ok?, do: @totals.result.request_count_trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         empty={@totals.ok? && @totals.result.request_count == 0}

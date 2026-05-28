@@ -241,13 +241,5 @@ defmodule TuistWeb.UsageLive do
   def format_count(value) when is_integer(value), do: CldrHelpers.format_number(value)
   def format_count(_), do: CldrHelpers.format_number(0)
 
-  @doc """
-  Trend widgets expect an integer percentage. `Tuist.Kura.Usage.totals/4`
-  returns floats so the sign survives small deltas; this collapses them
-  to the integer shape the Noora widget renders.
-  """
-  def trend_to_int(trend) when is_number(trend), do: round(trend)
-  def trend_to_int(_), do: 0
-
   def empty_label, do: dgettext("dashboard_usage", "No cache traffic in this window yet")
 end
