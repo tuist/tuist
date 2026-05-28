@@ -1,45 +1,19 @@
 defmodule Tuist.Kura.UsageTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
 
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Kura.Usage
   alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  # ClickHouse INSERTs don't roll back with the Postgres sandbox. Each test
-  # uses a unique account_id so it can't observe rows from another test, and
-  # the on_exit callback wipes everything that test inserted. The Agent is
-  # started under ExUnit's per-test supervisor so it outlives the test
-  # process and is still alive when on_exit fires.
-  setup do
-    account_ids_pid = start_supervised!({Agent, fn -> MapSet.new() end})
-
-    on_exit(fn ->
-      ids =
-        case Process.info(account_ids_pid) do
-          nil -> []
-          _ -> account_ids_pid |> Agent.get(& &1) |> MapSet.to_list()
-        end
-
-      if ids != [] do
-        IngestRepo.query!(
-          "DELETE FROM kura_usage_events WHERE account_id IN {ids:Array(Int64)}",
-          %{ids: ids}
-        )
-      end
-    end)
-
-    {:ok, account_ids_pid: account_ids_pid}
-  end
-
-  defp insert_event(attrs, %{account_ids_pid: account_ids_pid}) do
-    account_id = Map.fetch!(attrs, :account_id)
-    Agent.update(account_ids_pid, &MapSet.put(&1, account_id))
-
+  defp insert_event(attrs) do
     base = %{
       event_id: "evt-#{System.unique_integer([:positive])}",
-      account_id: account_id,
+      account_id: Map.fetch!(attrs, :account_id),
       project_id: 0,
       node_id: "kura-test",
       region: "us-east-1",
@@ -65,17 +39,19 @@ defmodule Tuist.Kura.UsageTest do
     }
   end
 
+  defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
+
   describe "create_events/1" do
-    test "resolves tenant/namespace handles to account/project ids", ctx do
-      account = AccountsFixtures.organization_fixture(name: "acme-#{System.unique_integer([:positive])}").account
+    test "resolves tenant/namespace handles to account/project ids" do
+      handle = "acme-#{System.unique_integer([:positive])}"
+      account = AccountsFixtures.organization_fixture(name: handle).account
       project = ProjectsFixtures.project_fixture(account: account, name: "ios")
-      Agent.update(ctx.account_ids_pid, &MapSet.put(&1, account.id))
 
       {:ok, 1} =
         Usage.create_events([
           %{
             "event_id" => "wire-1",
-            "tenant_id" => account.name,
+            "tenant_id" => handle,
             "namespace_id" => "ios",
             "node_id" => "kura-0",
             "region" => "us-east-1",
@@ -91,19 +67,16 @@ defmodule Tuist.Kura.UsageTest do
           }
         ])
 
-      import Ecto.Query
-
       assert [%UsageEvent{account_id: a_id, project_id: p_id, bytes: 100}] =
-               Tuist.ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
+               ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
 
       assert a_id == account.id
       assert p_id == project.id
     end
 
-    test "falls back to account_id alone when only the account handle resolves", ctx do
+    test "falls back to account_id alone when only the account handle resolves" do
       handle = "lonely-#{System.unique_integer([:positive])}"
       account = AccountsFixtures.organization_fixture(name: handle).account
-      Agent.update(ctx.account_ids_pid, &MapSet.put(&1, account.id))
 
       {:ok, 1} =
         Usage.create_events([
@@ -125,10 +98,8 @@ defmodule Tuist.Kura.UsageTest do
           }
         ])
 
-      import Ecto.Query
-
       assert [%UsageEvent{account_id: a_id, project_id: 0}] =
-               Tuist.ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
+               ClickHouseRepo.all(from(e in UsageEvent, where: e.account_id == ^account.id))
 
       assert a_id == account.id
     end
@@ -159,13 +130,13 @@ defmodule Tuist.Kura.UsageTest do
   end
 
   describe "totals/4" do
-    test "splits bytes and requests by direction", ctx do
+    test "splits bytes and requests by direction" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(%{account_id: account_id, direction: "egress", bytes: 1_000, request_count: 5}, ctx)
-      insert_event(%{account_id: account_id, direction: "egress", bytes: 500, request_count: 2}, ctx)
-      insert_event(%{account_id: account_id, direction: "ingress", bytes: 200, request_count: 1}, ctx)
+      insert_event(%{account_id: account_id, direction: "egress", bytes: 1_000, request_count: 5})
+      insert_event(%{account_id: account_id, direction: "egress", bytes: 500, request_count: 2})
+      insert_event(%{account_id: account_id, direction: "ingress", bytes: 200, request_count: 1})
 
       assert %{
                egress: %{bytes: 1_500, request_count: 7},
@@ -174,19 +145,16 @@ defmodule Tuist.Kura.UsageTest do
              } = Usage.totals(account_id, start_dt, end_dt)
     end
 
-    test "returns zeros when there's no traffic in window", ctx do
+    test "returns zeros when there's no traffic in window" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
       # An event well outside the window to prove it isn't picked up.
-      insert_event(
-        %{
-          account_id: account_id,
-          bytes: 9_999,
-          request_count: 9,
-          window_start: ~N[2026-04-01 00:00:00]
-        },
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        bytes: 9_999,
+        request_count: 9,
+        window_start: ~N[2026-04-01 00:00:00]
+      })
 
       assert %{
                egress: %{bytes: 0, request_count: 0},
@@ -195,48 +163,60 @@ defmodule Tuist.Kura.UsageTest do
              } = Usage.totals(account_id, start_dt, end_dt)
     end
 
-    test "scopes by project_id when supplied", ctx do
+    test "scopes by project_id when supplied" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(%{account_id: account_id, project_id: 100, bytes: 100, request_count: 1}, ctx)
-      insert_event(%{account_id: account_id, project_id: 200, bytes: 700, request_count: 3}, ctx)
+      insert_event(%{account_id: account_id, project_id: 100, bytes: 100, request_count: 1})
+      insert_event(%{account_id: account_id, project_id: 200, bytes: 700, request_count: 3})
 
       assert %{egress: %{bytes: 100, request_count: 1}} =
                Usage.totals(account_id, start_dt, end_dt, project_id: 100)
     end
 
-    test "is scoped to account_id", ctx do
+    test "is scoped to account_id" do
       mine = unique_account_id()
       other = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(%{account_id: mine, bytes: 100, request_count: 1}, ctx)
-      insert_event(%{account_id: other, bytes: 9_999, request_count: 9}, ctx)
+      insert_event(%{account_id: mine, bytes: 100, request_count: 1})
+      insert_event(%{account_id: other, bytes: 9_999, request_count: 9})
 
       assert %{egress: %{bytes: 100}} = Usage.totals(mine, start_dt, end_dt)
     end
   end
 
   describe "per_node/4" do
-    test "rolls up egress + ingress bytes per (node_id, region)", ctx do
+    test "rolls up egress + ingress bytes per (node_id, region)" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(
-        %{account_id: account_id, node_id: "kura-a", region: "us-east-1", direction: "egress", bytes: 1_000, request_count: 4},
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        node_id: "kura-a",
+        region: "us-east-1",
+        direction: "egress",
+        bytes: 1_000,
+        request_count: 4
+      })
 
-      insert_event(
-        %{account_id: account_id, node_id: "kura-a", region: "us-east-1", direction: "ingress", bytes: 200, request_count: 2},
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        node_id: "kura-a",
+        region: "us-east-1",
+        direction: "ingress",
+        bytes: 200,
+        request_count: 2
+      })
 
-      insert_event(
-        %{account_id: account_id, node_id: "kura-b", region: "eu-west-1", direction: "egress", bytes: 400, request_count: 1},
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        node_id: "kura-b",
+        region: "eu-west-1",
+        direction: "egress",
+        bytes: 400,
+        request_count: 1
+      })
 
       assert [
                %{node_id: "kura-a", region: "us-east-1", egress_bytes: 1_000, ingress_bytes: 200, request_count: 6},
@@ -246,29 +226,23 @@ defmodule Tuist.Kura.UsageTest do
   end
 
   describe "traffic_time_series_by_region/4" do
-    test "groups bytes by region and fills empty days with zero", ctx do
+    test "groups bytes by region and fills empty days with zero" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(
-        %{
-          account_id: account_id,
-          region: "us-east-1",
-          bytes: 100,
-          window_start: ~N[2026-05-02 09:00:00]
-        },
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east-1",
+        bytes: 100,
+        window_start: ~N[2026-05-02 09:00:00]
+      })
 
-      insert_event(
-        %{
-          account_id: account_id,
-          region: "eu-west-1",
-          bytes: 50,
-          window_start: ~N[2026-05-02 10:00:00]
-        },
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "eu-west-1",
+        bytes: 50,
+        window_start: ~N[2026-05-02 10:00:00]
+      })
 
       result = Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :day)
 
@@ -282,20 +256,17 @@ defmodule Tuist.Kura.UsageTest do
       assert Enum.sum(us.values) == 100
     end
 
-    test "switches to :requests metric when requested", ctx do
+    test "switches to :requests metric when requested" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(
-        %{
-          account_id: account_id,
-          region: "us-east-1",
-          bytes: 999_999,
-          request_count: 7,
-          window_start: ~N[2026-05-02 09:00:00]
-        },
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east-1",
+        bytes: 999_999,
+        request_count: 7,
+        window_start: ~N[2026-05-02 09:00:00]
+      })
 
       result =
         Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :day, metric: :requests)
@@ -305,40 +276,46 @@ defmodule Tuist.Kura.UsageTest do
       assert us.total == 7
     end
 
-    test "filters by direction when supplied", ctx do
+    test "filters by direction when supplied" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
-      insert_event(
-        %{account_id: account_id, region: "us-east-1", direction: "egress", bytes: 100, window_start: ~N[2026-05-02 09:00:00]},
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east-1",
+        direction: "egress",
+        bytes: 100,
+        window_start: ~N[2026-05-02 09:00:00]
+      })
 
-      insert_event(
-        %{account_id: account_id, region: "us-east-1", direction: "ingress", bytes: 999, window_start: ~N[2026-05-02 09:00:00]},
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east-1",
+        direction: "ingress",
+        bytes: 999,
+        window_start: ~N[2026-05-02 09:00:00]
+      })
 
       result =
-        Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :day, direction: "egress")
+        Usage.traffic_time_series_by_region(account_id, start_dt, end_dt,
+          bucket: :day,
+          direction: "egress"
+        )
 
       assert [%{region: "us-east-1", total: 100}] = result
     end
 
-    test "uses hourly buckets when bucket: :hour", ctx do
+    test "uses hourly buckets when bucket: :hour" do
       account_id = unique_account_id()
       start_dt = ~U[2026-05-02 06:00:00Z]
       end_dt = ~U[2026-05-02 12:00:00Z]
 
-      insert_event(
-        %{
-          account_id: account_id,
-          region: "us-east-1",
-          bytes: 50,
-          window_start: ~N[2026-05-02 07:00:00]
-        },
-        ctx
-      )
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east-1",
+        bytes: 50,
+        window_start: ~N[2026-05-02 07:00:00]
+      })
 
       result = Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :hour)
 
@@ -351,18 +328,16 @@ defmodule Tuist.Kura.UsageTest do
   end
 
   describe "project_ids_with_usage/1" do
-    test "returns distinct project ids with at least one event", ctx do
+    test "returns distinct project ids with at least one event" do
       account_id = unique_account_id()
 
-      insert_event(%{account_id: account_id, project_id: 11, bytes: 1, request_count: 1}, ctx)
-      insert_event(%{account_id: account_id, project_id: 11, bytes: 1, request_count: 1}, ctx)
-      insert_event(%{account_id: account_id, project_id: 22, bytes: 1, request_count: 1}, ctx)
+      insert_event(%{account_id: account_id, project_id: 11, bytes: 1, request_count: 1})
+      insert_event(%{account_id: account_id, project_id: 11, bytes: 1, request_count: 1})
+      insert_event(%{account_id: account_id, project_id: 22, bytes: 1, request_count: 1})
       # Unresolved events (project_id == 0) shouldn't appear in the dropdown.
-      insert_event(%{account_id: account_id, project_id: 0, bytes: 1, request_count: 1}, ctx)
+      insert_event(%{account_id: account_id, project_id: 0, bytes: 1, request_count: 1})
 
       assert Enum.sort(Usage.project_ids_with_usage(account_id)) == [11, 22]
     end
   end
-
-  defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
 end
