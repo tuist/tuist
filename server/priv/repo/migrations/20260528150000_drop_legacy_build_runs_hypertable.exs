@@ -4,23 +4,24 @@ defmodule Tuist.Repo.Migrations.DropLegacyBuildRunsHypertable do
 
   # Build analytics live in ClickHouse: `Tuist.Builds.Build` is a
   # ClickHouse-backed schema and nothing in the app reads or writes the
-  # Postgres `build_runs` table anymore. It survives only as a legacy
-  # TimescaleDB hypertable (the sole hypertable in the database). Drop it,
-  # then drop the now-unused timescaledb extension so the Postgres schema is
-  # vanilla — required for the CloudNativePG data plane (plain Postgres, no
-  # TimescaleDB).
+  # Postgres `build_runs` table anymore. On Supabase it survives only as a
+  # legacy TimescaleDB hypertable (the sole hypertable in the database; the
+  # conversion was done Supabase-side, never in a repo migration, which is
+  # why it's absent from the dev schema).
   #
-  # IF EXISTS keeps this a no-op in dev/test, where timescaledb was never
-  # installed and the table may not exist. Runs outside a transaction:
-  # `DROP EXTENSION timescaledb` cannot execute in a transaction that has
-  # already touched timescaledb objects.
-  @disable_ddl_transaction true
-
+  # Drop the dead table so the canonical Postgres schema doesn't carry it
+  # onto the CloudNativePG data plane. We intentionally do NOT drop the
+  # timescaledb extension: nothing uses it once build_runs is gone, dropping
+  # it on Supabase needs privileges the managed `postgres` role may not have,
+  # and the only place it would otherwise leak is the schema dump for CNPG —
+  # which filters the single `CREATE EXTENSION timescaledb` line instead. The
+  # unused extension on Supabase is harmless and goes away when Supabase is
+  # decommissioned post-cutover.
+  #
+  # IF EXISTS keeps this a no-op in dev/test, where the table never existed.
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DROP TABLE IF EXISTS build_runs CASCADE")
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute("DROP EXTENSION IF EXISTS timescaledb CASCADE")
   end
 
   def down do
