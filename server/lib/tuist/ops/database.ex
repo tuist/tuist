@@ -484,22 +484,54 @@ defmodule Tuist.Ops.Database do
       {:ok, _} = Repo.query("SET TRANSACTION READ ONLY")
       {:ok, _} = Repo.query("SET LOCAL statement_timeout = #{@statement_timeout_ms}")
 
-      case Repo.query(sql) do
-        {:ok, %{columns: cols, rows: rows, num_rows: n}} ->
-          {kept, truncated?} =
-            if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
-
-          columns = cols || []
-          %{columns: columns, rows: rows_with_ids(kept, columns), num_rows: n, truncated?: truncated?}
-
-        {:error, %Postgrex.Error{} = err} ->
-          Repo.rollback(Exception.message(err))
-
-        {:error, reason} ->
-          Repo.rollback(inspect(reason))
+      if cursorable?(sql) do
+        fetch_via_cursor(sql, limit)
+      else
+        build_result(Repo.query(sql), limit)
       end
     end)
   end
+
+  # SELECT / WITH go through a server-side cursor so we pull only `limit + 1`
+  # rows off the wire instead of materializing the whole result set into the
+  # BEAM — a bare `SELECT * FROM huge_table` would otherwise load millions of
+  # rows before we truncate to `limit` and could exhaust the web node's memory
+  # (the statement_timeout only bounds time, not result size). EXPLAIN / SHOW
+  # can't be wrapped in a cursor but their output is inherently small, so they
+  # run directly.
+  defp cursorable?(sql), do: Regex.match?(~r/^\s*(select|with)\b/i, sql)
+
+  defp fetch_via_cursor(sql, limit) do
+    case Repo.query("DECLARE _ops_cursor NO SCROLL CURSOR FOR #{sql}") do
+      {:ok, _} ->
+        fetched = Repo.query("FETCH FORWARD #{limit + 1} FROM _ops_cursor")
+        # Close explicitly on success: under the test SQL sandbox the
+        # surrounding Repo.transaction is a savepoint rather than a real
+        # commit, so the cursor would otherwise linger and collide with the
+        # next query's DECLARE. On a FETCH error the savepoint rollback drops
+        # it, so only close when the fetch succeeded.
+        if match?({:ok, _}, fetched), do: Repo.query("CLOSE _ops_cursor")
+        build_result(fetched, limit)
+
+      {:error, %Postgrex.Error{} = err} ->
+        Repo.rollback(Exception.message(err))
+
+      {:error, reason} ->
+        Repo.rollback(inspect(reason))
+    end
+  end
+
+  defp build_result({:ok, %{columns: cols, rows: rows}}, limit) do
+    columns = cols || []
+
+    {kept, truncated?} =
+      if length(rows) > limit, do: {Enum.take(rows, limit), true}, else: {rows, false}
+
+    %{columns: columns, rows: rows_with_ids(kept, columns), num_rows: length(kept), truncated?: truncated?}
+  end
+
+  defp build_result({:error, %Postgrex.Error{} = err}, _limit), do: Repo.rollback(Exception.message(err))
+  defp build_result({:error, reason}, _limit), do: Repo.rollback(inspect(reason))
 
   defp scalar(sql) do
     case Repo.query(sql) do

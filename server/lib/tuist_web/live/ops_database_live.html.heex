@@ -438,7 +438,7 @@
                   duration: format_duration(@query_result.duration_us),
                   trunc:
                     if(@query_result.truncated?,
-                      do: " · truncated to #{length(@query_result.rows)}",
+                      do: " · result truncated (more rows omitted)",
                       else: ""
                     )
                 )}
