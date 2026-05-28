@@ -13,12 +13,7 @@
     "description": "Health of the Tuist-managed GitHub Actions runner fleet. Combines server-side dispatch + lifecycle telemetry (PromEx) with host-side VM boot telemetry scraped from each Mac mini's tart-kubelet over the tailnet.",
     "schemaVersion": 39,
     "refresh": "30s",
-    "tags": [
-      "tuist",
-      "runners",
-      "macos",
-      "linux"
-    ],
+    "tags": ["tuist", "runners", "macos", "linux"],
     "time": {
       "from": "now-6h",
       "to": "now"
@@ -175,9 +170,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
@@ -236,9 +229,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
@@ -289,9 +280,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
@@ -342,9 +331,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
@@ -404,9 +391,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
@@ -471,10 +456,7 @@
         "id": 210,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -575,10 +557,7 @@
         "id": 211,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -632,9 +611,7 @@
         "id": 212,
         "options": {
           "legend": {
-            "calcs": [
-              "mean"
-            ],
+            "calcs": ["mean"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -695,9 +672,7 @@
         "id": 213,
         "options": {
           "legend": {
-            "calcs": [
-              "mean"
-            ],
+            "calcs": ["mean"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -764,10 +739,7 @@
         "id": 310,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -835,10 +807,7 @@
         "id": 311,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -906,10 +875,7 @@
         "id": 312,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -977,10 +943,7 @@
         "id": 313,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1055,7 +1018,7 @@
             "color": "rgba(255,0,255,0.7)"
           },
           "filterValues": {
-            "le": 1e-09
+            "le": 1e-9
           },
           "legend": {
             "show": true
@@ -1132,10 +1095,7 @@
         "id": 410,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1211,10 +1171,7 @@
         "id": 411,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "bottom"
           },
@@ -1268,10 +1225,7 @@
         "id": 412,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1325,10 +1279,7 @@
         "id": 413,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1395,10 +1346,7 @@
         "id": 421,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1452,10 +1400,7 @@
         "id": 422,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1509,10 +1454,7 @@
         "id": 423,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1648,10 +1590,7 @@
         "id": 510,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1705,10 +1644,7 @@
         "id": 511,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "bottom"
           },
@@ -1789,10 +1725,7 @@
         "id": 610,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1876,10 +1809,7 @@
         "id": 2,
         "options": {
           "legend": {
-            "calcs": [
-              "mean",
-              "max"
-            ],
+            "calcs": ["mean", "max"],
             "displayMode": "table",
             "placement": "right"
           },
@@ -1964,9 +1894,7 @@
         "id": 3,
         "options": {
           "legend": {
-            "calcs": [
-              "mean"
-            ],
+            "calcs": ["mean"],
             "displayMode": "table",
             "placement": "bottom"
           },
@@ -2027,7 +1955,7 @@
             "color": "rgba(255,0,255,0.7)"
           },
           "filterValues": {
-            "le": 1e-09
+            "le": 1e-9
           },
           "legend": {
             "show": true
@@ -2099,9 +2027,7 @@
           "justifyMode": "center",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
+            "calcs": ["lastNotNull"],
             "fields": "",
             "values": false
           },
