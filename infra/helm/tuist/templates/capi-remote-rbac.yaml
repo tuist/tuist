@@ -41,6 +41,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
+  # CAPI core's cluster cache health-probes the connection with `GET /`
+  # (clustercache/cluster_accessor_client.go) before it will use the
+  # cluster. Without this the probe 403s and CAPI reports the cluster as
+  # "not reachable", so Machines never bind to Nodes.
+  - nonResourceURLs: ["/"]
+    verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
