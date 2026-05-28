@@ -222,3 +222,53 @@ func TestRunSurfacesEnsureGUISessionFailure(t *testing.T) {
 		t.Fatal("fake tart was executed despite preflight failure")
 	}
 }
+
+func TestParseDFCapacityPercent(t *testing.T) {
+	tests := []struct {
+		name    string
+		out     string
+		want    int
+		wantErr bool
+	}{
+		{
+			name: "returns block capacity not inode usage",
+			// macOS `df -k /` — Capacity (100%) precedes %iused (31%).
+			out: "Filesystem     1024-blocks      Used Available Capacity iused   ifree %iused  Mounted on\n" +
+				"/dev/disk3s1s1   136318784  11534336    102400     100%  453000 1048576   31%   /",
+			want: 100,
+		},
+		{
+			name: "mid-range capacity",
+			out: "Filesystem     1024-blocks     Used Available Capacity iused   ifree %iused  Mounted on\n" +
+				"/dev/disk3s1s1   136318784 60000000  76318784      44%  100000 2000000    5%   /",
+			want: 44,
+		},
+		{
+			name:    "no data line",
+			out:     "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on",
+			wantErr: true,
+		},
+		{
+			name:    "empty",
+			out:     "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDFCapacityPercent([]byte(tt.out))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %d", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("capacity = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
