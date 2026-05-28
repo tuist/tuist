@@ -2,8 +2,8 @@ defmodule TuistWeb.RunnerJobLogsController do
   @moduledoc """
   Serves a runner job's full captured log as a downloadable text file.
 
-  Streamed in batches (`send_chunked` + `JobLogs.stream_each/3`) so even
-  a very large log never materialises in memory. Authenticated and
+  Streamed in batches (`send_chunked` + `JobLogs.reduce/4`) so even a
+  very large log never materialises in memory. Authenticated and
   account-scoped — a user can only download logs for a job in an
   account they can read, and the run id in the URL must match the job's
   (same gate as the detail LiveView).
