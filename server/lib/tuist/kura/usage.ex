@@ -43,15 +43,7 @@ defmodule Tuist.Kura.Usage do
   defp lookup_account_ids(events) do
     events
     |> Enum.map(& &1["tenant_id"])
-    |> Enum.uniq()
-    |> Map.new(&{&1, account_id_for_handle(&1)})
-  end
-
-  defp account_id_for_handle(handle) do
-    case Accounts.get_account_by_handle(handle) do
-      nil -> nil
-      account -> account.id
-    end
+    |> Accounts.get_account_ids_by_handles()
   end
 
   defp build_row(event, projects_by_handle, account_ids_by_handle, now) do
@@ -82,7 +74,8 @@ defmodule Tuist.Kura.Usage do
   defp resolve_account_id(nil, account_ids_by_handle, account_handle),
     do: Map.get(account_ids_by_handle, account_handle) || 0
 
-  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle), do: account_id
+  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle),
+    do: account_id
 
   defp resolve_project_id(nil), do: 0
   defp resolve_project_id(%{id: id}), do: id
@@ -142,7 +135,11 @@ defmodule Tuist.Kura.Usage do
     egress = find_direction_row(rows, "egress")
     ingress = find_direction_row(rows, "ingress")
 
-    %{egress: egress, ingress: ingress, request_count: egress.request_count + ingress.request_count}
+    %{
+      egress: egress,
+      ingress: ingress,
+      request_count: egress.request_count + ingress.request_count
+    }
   end
 
   defp find_direction_row(rows, direction) do
@@ -175,8 +172,11 @@ defmodule Tuist.Kura.Usage do
     rows
     |> Enum.group_by(fn r -> {r.node_id, r.region} end)
     |> Enum.map(fn {{node_id, region}, direction_rows} ->
-      egress = Enum.find(direction_rows, &(&1.direction == "egress")) || %{bytes: 0, request_count: 0}
-      ingress = Enum.find(direction_rows, &(&1.direction == "ingress")) || %{bytes: 0, request_count: 0}
+      egress =
+        Enum.find(direction_rows, &(&1.direction == "egress")) || %{bytes: 0, request_count: 0}
+
+      ingress =
+        Enum.find(direction_rows, &(&1.direction == "ingress")) || %{bytes: 0, request_count: 0}
 
       %{
         node_id: node_id,
@@ -201,7 +201,8 @@ defmodule Tuist.Kura.Usage do
     * `:direction` — `"egress"` or `"ingress"` to scope the series.
     * `:project_id` — scope to a single project.
   """
-  def traffic_time_series_by_region(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
+  def traffic_time_series_by_region(account_id, start_dt, end_dt, opts \\ [])
+      when is_integer(account_id) do
     bucket = Keyword.get(opts, :bucket, :day)
     metric = Keyword.get(opts, :metric, :bytes)
     rows = traffic_per_bucket_by_region(account_id, start_dt, end_dt, opts, bucket, metric)
@@ -345,7 +346,9 @@ defmodule Tuist.Kura.Usage do
 
   defp trend(_, _), do: 0.0
 
-  defp to_naive(%DateTime{} = dt), do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+  defp to_naive(%DateTime{} = dt),
+    do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+
   defp to_naive(%NaiveDateTime{} = nd), do: NaiveDateTime.truncate(nd, :second)
 
   defp zeroed(nil), do: 0
