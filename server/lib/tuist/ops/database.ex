@@ -28,13 +28,11 @@ defmodule Tuist.Ops.Database do
       database: scalar("SELECT current_database()"),
       user: scalar("SELECT current_user"),
       server_addr: scalar("SELECT COALESCE(inet_server_addr()::text, 'local')"),
-      uptime:
-        scalar("SELECT date_trunc('second', now() - pg_postmaster_start_time())::text"),
+      uptime: scalar("SELECT date_trunc('second', now() - pg_postmaster_start_time())::text"),
       connections: scalar("SELECT count(*)::text FROM pg_stat_activity"),
       max_connections: scalar("SHOW max_connections"),
       in_recovery: scalar("SELECT pg_is_in_recovery()::text"),
-      database_size:
-        scalar("SELECT pg_size_pretty(pg_database_size(current_database()))")
+      database_size: scalar("SELECT pg_size_pretty(pg_database_size(current_database()))")
     }
   end
 
@@ -47,10 +45,11 @@ defmodule Tuist.Ops.Database do
 
   @doc """
   Tables in the database with size + estimated-row stats, ready for the
-  /ops/db tables list. Excludes Postgres internals + CNPG operator
-  schemas so the operator only sees app-owned tables. Ordered by total
-  on-disk size (largest first) — matches operator intuition about
-  what's worth opening.
+  /ops/db tables list. Excludes Postgres internals, CNPG operator, and
+  TimescaleDB schemas (the `_timescaledb_internal` chunk tables of a
+  hypertable would otherwise flood the list) so the operator only sees
+  app-owned tables. Ordered by total on-disk size (largest first) —
+  matches operator intuition about what's worth opening.
 
   `estimated_rows` comes from `pg_class.reltuples` and is whatever the
   last ANALYZE recorded; counting exactly would touch every row and
@@ -71,6 +70,7 @@ defmodule Tuist.Ops.Database do
         AND n.nspname NOT IN ('pg_catalog', 'information_schema')
         AND n.nspname NOT LIKE 'pg_%'
         AND n.nspname NOT LIKE 'cnpg_%'
+        AND n.nspname NOT LIKE '%timescaledb%'
       ORDER BY pg_total_relation_size(c.oid) DESC
       """)
 
@@ -249,11 +249,9 @@ defmodule Tuist.Ops.Database do
   # column can still be matched by an `==` clause coming from a text
   # input, and ILIKE always needs text semantics. The performance hit
   # is acceptable for an ops inspection surface.
-  defp to_clause(%{id: id, operator: :empty}, _idx),
-    do: {"#{quote_ident(id)} IS NULL", []}
+  defp to_clause(%{id: id, operator: :empty}, _idx), do: {"#{quote_ident(id)} IS NULL", []}
 
-  defp to_clause(%{id: id, operator: :not_empty}, _idx),
-    do: {"#{quote_ident(id)} IS NOT NULL", []}
+  defp to_clause(%{id: id, operator: :not_empty}, _idx), do: {"#{quote_ident(id)} IS NOT NULL", []}
 
   defp to_clause(%{value: nil}, _idx), do: :skip
   defp to_clause(%{value: ""}, _idx), do: :skip
