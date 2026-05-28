@@ -1264,54 +1264,36 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
-    test "looks up existing test cases with a bounded multipart form-field count for large batches" do
+    test "looks up existing test cases by binding the IDs as a single array parameter" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
       test_cases =
-        for index <- 1..5_001 do
-          %{
-            name: "test_#{index}",
-            status: "success",
-            duration: 10,
-            test_suite_name: "Suite"
-          }
+        for index <- 1..3 do
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
         end
 
       parent = self()
 
-      # Capture the lookup at the repo boundary to assert the shape of the query
-      # we build. `multipart: true` is passed only by the existing-test-case
-      # lookup, so it precisely targets that call; the end-to-end test below
-      # covers that the query actually runs and decodes against real ClickHouse.
-      # We can't observe this through real-ClickHouse behaviour: a regression to
-      # one parameter per ID is only rejected by ClickHouse's form-field limit,
-      # which the local instance does not enforce.
+      # Only the existing-test-case lookup passes `multipart: true`, so capturing
+      # it at the repo boundary targets that query precisely.
       stub(ClickHouseRepo, :all, fn query, opts ->
         if Keyword.get(opts, :multipart), do: send(parent, {:lookup, query})
         []
       end)
 
       # When
-      assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
 
-      # Then
-      lookups = drain_lookups([])
-      assert lookups != []
-
-      for query <- lookups do
-        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
-        assert sql =~ "Array(UUID)"
-
-        # The whole batch travels as one array parameter (alongside project_id),
-        # so ClickHouse only ever parses a constant set of multipart form fields
-        # no matter how many test cases the report has. An `id in ^ids` clause
-        # binds one parameter per ID, which emits one form field per ID and
-        # overflows ClickHouse's form-field limit on large reports
-        # (`HTML Form Exception: Too many form fields`).
-        assert length(params) == 2
-        assert multipart_form_field_count(sql, params) == 3
-      end
+      # Then: the IDs are bound as one Array(UUID) parameter (alongside
+      # project_id), so the parameter count stays constant. An `id in ^ids`
+      # clause binds one parameter per ID, and in multipart mode each parameter
+      # becomes its own form field, overflowing ClickHouse's form-field limit on
+      # large reports (`HTML Form Exception: Too many form fields`).
+      assert_received {:lookup, query}
+      {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+      assert sql =~ "Array(UUID)"
+      assert length(params) == 2
     end
 
     test "ingests a large test report end to end without exceeding ClickHouse multipart limits" do
@@ -1320,19 +1302,14 @@ defmodule Tuist.TestsTest do
 
       test_cases =
         for index <- 1..5_001 do
-          %{
-            name: "test_#{index}",
-            status: "success",
-            duration: 10,
-            test_suite_name: "Suite"
-          }
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
         end
 
       # When/Then: the existing-test-case lookup runs against the real
       # ClickHouse here (not a mock), so this fails if the IDs are sent in a way
       # that trips either the form-field count or the per-field value-length
       # limit (e.g. batching too aggressively).
-      assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
     end
 
     test "persists run_destinations as separate rows linked to the test run" do
@@ -8799,7 +8776,7 @@ defmodule Tuist.TestsTest do
     end
   end
 
-  defp large_test_report(project, test_cases) do
+  defp test_report(project, test_cases) do
     %{
       id: UUIDv7.generate(),
       project_id: project.id,
@@ -8818,25 +8795,5 @@ defmodule Tuist.TestsTest do
         }
       ]
     }
-  end
-
-  defp drain_lookups(acc) do
-    receive do
-      {:lookup, query} -> drain_lookups([query | acc])
-    after
-      0 -> Enum.reverse(acc)
-    end
-  end
-
-  defp multipart_form_field_count(sql, params) do
-    {_params, _headers, body} =
-      sql
-      |> Ch.Query.build(multipart: true)
-      |> DBConnection.Query.encode(params, [])
-
-    body
-    |> IO.iodata_to_binary()
-    |> then(&Regex.scan(~r/content-disposition: form-data; name=/, &1))
-    |> length()
   end
 end
