@@ -6,24 +6,31 @@
 
   & > [data-part="page-header"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-2);
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--noora-spacing-5);
 
-    & > [data-part="title"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    & > [data-part="heading"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
     }
 
-    & > [data-part="subtitle"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-    }
-  }
-
-  & > [data-part="profiles-card"] {
-    & > #runner-profiles-table {
-      margin-top: var(--noora-spacing-6);
+    & > [data-part="actions"] {
+      flex-shrink: 0;
     }
   }
 

@@ -1,20 +1,15 @@
 <div id="account-runner-profiles">
   <div data-part="page-header">
-    <h1 data-part="title">{dgettext("dashboard_runners", "Profiles")}</h1>
-    <span data-part="subtitle">
-      {dgettext(
-        "dashboard_runners",
-        "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: tuist-<name>."
-      )}
-    </span>
-  </div>
-
-  <.card
-    title={dgettext("dashboard_runners", "Profiles")}
-    icon="category"
-    data-part="profiles-card"
-  >
-    <:actions>
+    <div data-part="heading">
+      <h1 data-part="title">{dgettext("dashboard_runners", "Profiles")}</h1>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_runners",
+          "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: tuist-<name>."
+        )}
+      </span>
+    </div>
+    <div data-part="actions">
       <%!-- Single modal shared by create + edit. The trigger opens it in
             create mode; row-level Edit dropdowns push-open it after
             populating the form. --%>
@@ -157,84 +152,84 @@
           </.modal_footer>
         </:footer>
       </.modal>
-    </:actions>
+    </div>
+  </div>
 
-    <.table id="runner-profiles-table" rows={@profiles}>
-      <:col :let={profile} label={dgettext("dashboard_runners", "Name")}>
-        <.text_cell label={profile.name} />
-      </:col>
-      <:col :let={profile} label={dgettext("dashboard_runners", "Label")}>
-        <.text_cell data-part="dispatch-label-cell" label={dispatch_snippet(profile)} />
-      </:col>
-      <:col :let={profile} label={dgettext("dashboard_runners", "Platform")}>
-        <.badge_cell
-          label={platform_label(profile)}
-          color={platform_badge_color(profile)}
-          style="light-fill"
-        />
-      </:col>
-      <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
-        <.text_cell label={Integer.to_string(profile.vcpus)} />
-      </:col>
-      <:col :let={profile} label={dgettext("dashboard_runners", "RAM")}>
-        <.text_cell label={"#{profile.memory_gb} GB"} />
-      </:col>
-      <:col :let={profile} label={dgettext("dashboard_runners", "Last used")}>
-        <.text_cell label={last_used_label(@last_used, profile)} />
-      </:col>
-      <:col :let={profile} label="">
-        <.button_cell>
-          <:button>
-            <div
-              id={"runner-profile-row-actions-#{profile.id}"}
-              phx-hook="StopRowNavigate"
-            >
-              <.dropdown id={"runner-profile-actions-#{profile.id}"} icon_only>
-                <:icon><.dots_vertical /></:icon>
+  <.table id="runner-profiles-table" rows={@profiles}>
+    <:col :let={profile} label={dgettext("dashboard_runners", "Name")}>
+      <.text_cell label={profile.name} />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "Label")}>
+      <.text_cell data-part="dispatch-label-cell" label={dispatch_snippet(profile)} />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "Platform")}>
+      <.badge_cell
+        label={platform_label(profile)}
+        color={platform_badge_color(profile)}
+        style="light-fill"
+      />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
+      <.text_cell label={Integer.to_string(profile.vcpus)} />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "RAM")}>
+      <.text_cell label={"#{profile.memory_gb} GB"} />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "Last used")}>
+      <.text_cell label={last_used_label(@last_used, profile)} />
+    </:col>
+    <:col :let={profile} label="">
+      <.button_cell>
+        <:button>
+          <div
+            id={"runner-profile-row-actions-#{profile.id}"}
+            phx-hook="StopRowNavigate"
+          >
+            <.dropdown id={"runner-profile-actions-#{profile.id}"} icon_only>
+              <:icon><.dots_vertical /></:icon>
 
-                <.dropdown_item
-                  label={dgettext("dashboard_runners", "Edit")}
-                  value="edit"
-                  on_click="open_edit_modal"
-                  phx-value-id={profile.id}
-                >
-                  <:left_icon><.pencil /></:left_icon>
-                </.dropdown_item>
-                <%!-- The last profile isn't deletable: removing it would
+              <.dropdown_item
+                label={dgettext("dashboard_runners", "Edit")}
+                value="edit"
+                on_click="open_edit_modal"
+                phx-value-id={profile.id}
+              >
+                <:left_icon><.pencil /></:left_icon>
+              </.dropdown_item>
+              <%!-- The last profile isn't deletable: removing it would
                       leave the account with no `tuist-default` target and
                       break every workflow that resolves through it. --%>
-                <.dropdown_item
-                  :if={length(@profiles) > 1}
-                  label={dgettext("dashboard_runners", "Delete")}
-                  value="delete"
-                  on_click="delete_profile"
-                  phx-value-id={profile.id}
-                  data-confirm={
-                    dgettext(
-                      "dashboard_runners",
-                      "Delete profile %{name}? Workflows that reference it will fail to dispatch until updated.",
-                      name: profile.name
-                    )
-                  }
-                >
-                  <:left_icon><.trash /></:left_icon>
-                </.dropdown_item>
-              </.dropdown>
-            </div>
-          </:button>
-        </.button_cell>
-      </:col>
-      <:empty_state>
-        <.table_empty_state
-          title={dgettext("dashboard_runners", "No profiles yet")}
-          subtitle={
-            dgettext(
-              "dashboard_runners",
-              "Create one to let your workflows reference Tuist runners by name."
-            )
-          }
-        />
-      </:empty_state>
-    </.table>
-  </.card>
+              <.dropdown_item
+                :if={length(@profiles) > 1}
+                label={dgettext("dashboard_runners", "Delete")}
+                value="delete"
+                on_click="delete_profile"
+                phx-value-id={profile.id}
+                data-confirm={
+                  dgettext(
+                    "dashboard_runners",
+                    "Delete profile %{name}? Workflows that reference it will fail to dispatch until updated.",
+                    name: profile.name
+                  )
+                }
+              >
+                <:left_icon><.trash /></:left_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+        </:button>
+      </.button_cell>
+    </:col>
+    <:empty_state>
+      <.table_empty_state
+        title={dgettext("dashboard_runners", "No profiles yet")}
+        subtitle={
+          dgettext(
+            "dashboard_runners",
+            "Create one to let your workflows reference Tuist runners by name."
+          )
+        }
+      />
+    </:empty_state>
+  </.table>
 </div>
