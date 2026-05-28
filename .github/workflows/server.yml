@@ -296,8 +296,10 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    runs-on: tuist-staging-linux-large
-    timeout-minutes: 60
+    # TODO: migrate to tuist-production-linux once the runner image ships a
+    # docker daemon — buildx requires a working docker engine.
+    runs-on: namespace-profile-default-with-volume
+    timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -327,19 +329,9 @@ jobs:
           sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
           rm /tmp/trivy.tar.gz
       - name: Scan image for vulnerabilities
-        # `trivy image` in 0.69.3 resolves --ignorefile against an
-        # undocumented base, not cwd, so pass an absolute path.
-        # ghcr.io trivy-db avoids the mirror.gcr.io DB pull hang.
-        run: |
-          trivy image \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 1 \
-            --no-progress \
-            --ignorefile "$GITHUB_WORKSPACE/.trivyignore" \
-            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
-            --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 \
-            tuist/tuist
+        # Use the absolute workspace path because `trivy image` in 0.69.3
+        # resolves --ignorefile against an undocumented base, not cwd.
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile "$GITHUB_WORKSPACE/.trivyignore" tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
