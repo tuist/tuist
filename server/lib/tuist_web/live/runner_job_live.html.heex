@@ -241,7 +241,13 @@
         <div :if={!@has_logs} data-part="log-empty">
           {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
         </div>
-        <div :if={@has_logs} data-part="log-viewport">
+        <div
+          :if={@has_logs}
+          id="runner-log-viewport"
+          phx-hook="LogTail"
+          data-active={to_string(@selected_tab == "logs")}
+          data-part="log-viewport"
+        >
           <button
             :if={@has_older}
             type="button"
