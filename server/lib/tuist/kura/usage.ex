@@ -82,8 +82,7 @@ defmodule Tuist.Kura.Usage do
   defp resolve_account_id(nil, account_ids_by_handle, account_handle),
     do: Map.get(account_ids_by_handle, account_handle) || 0
 
-  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle),
-    do: account_id
+  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle), do: account_id
 
   defp resolve_project_id(nil), do: 0
   defp resolve_project_id(%{id: id}), do: id
