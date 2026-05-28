@@ -1280,31 +1280,34 @@ defmodule Tuist.TestsTest do
 
       parent = self()
 
-      stub(ClickHouseRepo, :query, fn sql, params, opts ->
-        send(parent, {:test_case_lookup, sql, params, opts})
-        {:ok, %{rows: []}}
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        send(parent, {:ch_all, query, opts})
+        []
       end)
 
       # When
       assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
 
-      # Then
-      lookups = drain_test_case_lookups([])
+      # Then: isolate the existing-test-case lookups, the only reads on the
+      # test_cases table during ingestion.
+      lookups =
+        []
+        |> drain_ch_all()
+        |> Enum.filter(fn {sql, _params, _opts} -> sql =~ ~s["test_cases"] end)
+
       assert lookups != []
 
       for {sql, params, opts} <- lookups do
         assert Keyword.get(opts, :multipart) == true
-        assert sql =~ "{project_id:Int64}"
-        assert sql =~ "{ids:Array(UUID)}"
-        assert params["project_id"] == project.id
-        assert is_list(params["ids"])
+        assert sql =~ "Array(UUID)"
 
-        # The whole batch travels as one `{ids:Array(UUID)}` parameter, so
-        # ClickHouse only ever parses a constant set of multipart form fields
-        # (query + project_id + ids) no matter how many test cases the report
-        # has. An `id in ^ids` clause binds one parameter per ID, which emits
-        # one form field per ID and overflows ClickHouse's form-field limit on
-        # large reports (`HTML Form Exception: Too many form fields`).
+        # The whole batch travels as one array parameter (alongside project_id),
+        # so ClickHouse only ever parses a constant set of multipart form fields
+        # no matter how many test cases the report has. An `id in ^ids` clause
+        # binds one parameter per ID, which emits one form field per ID and
+        # overflows ClickHouse's form-field limit on large reports
+        # (`HTML Form Exception: Too many form fields`).
+        assert length(params) == 2
         assert multipart_form_field_count(sql, params) == 3
       end
     end
@@ -8815,10 +8818,11 @@ defmodule Tuist.TestsTest do
     }
   end
 
-  defp drain_test_case_lookups(acc) do
+  defp drain_ch_all(acc) do
     receive do
-      {:test_case_lookup, sql, params, opts} ->
-        drain_test_case_lookups([{sql, params, opts} | acc])
+      {:ch_all, query, opts} ->
+        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+        drain_ch_all([{sql, params, opts} | acc])
     after
       0 -> Enum.reverse(acc)
     end

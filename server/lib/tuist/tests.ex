@@ -785,18 +785,12 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for the `id IN {ids:Array(UUID)}` lookup. The IDs travel as a
-  # single ClickHouse array parameter sent over multipart, so the request always
-  # carries one form field for the IDs regardless of batch size. We still chunk
-  # to keep that parameter's encoded value below ClickHouse's per-field value
-  # length limit on large reports.
+  # Batch size for the existing-test-case lookup. The IDs travel as a single
+  # ClickHouse array parameter (see existing_test_cases_chunk_query/2), so the
+  # multipart request always carries one form field for them regardless of batch
+  # size. We still chunk to keep that parameter's encoded value below
+  # ClickHouse's per-field value-length limit on large reports.
   @existing_test_cases_batch_size 2_000
-
-  @existing_test_cases_chunk_sql """
-  SELECT id, recent_durations, is_flaky, state, last_ran_at_ci, last_ran_at_local, inserted_at
-  FROM test_cases
-  WHERE project_id = {project_id:Int64} AND id IN ({ids:Array(UUID)})
-  """
 
   defp get_existing_test_cases(_project_id, []), do: %{}
 
@@ -814,40 +808,31 @@ defmodule Tuist.Tests do
     end)
   end
 
-  # Sent as a raw multipart query with a single `{ids:Array(UUID)}` parameter
-  # rather than an Ecto `id in ^ids` clause: the latter binds one parameter per
-  # ID, and in multipart mode each parameter becomes its own form field, which
-  # overflows ClickHouse's form-field limit on large reports.
   defp fetch_existing_test_cases_chunk(project_id, ids_chunk) do
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(
-        @existing_test_cases_chunk_sql,
-        %{"project_id" => project_id, "ids" => ids_chunk},
-        multipart: true
-      )
+    project_id
+    |> existing_test_cases_chunk_query(ids_chunk)
+    |> ClickHouseRepo.all(multipart: true)
+  end
 
-    Enum.map(rows, fn [
-                        id,
-                        recent_durations,
-                        is_flaky,
-                        state,
-                        last_ran_at_ci,
-                        last_ran_at_local,
-                        inserted_at
-                      ] ->
-      # A raw query decodes the UUID column to its 16-byte binary form, so load
-      # it back into the canonical string that `generate_test_case_id/4` emits;
-      # callers key off this value.
-      %{
-        id: Ecto.UUID.load!(id),
-        recent_durations: recent_durations,
-        is_flaky: is_flaky,
-        state: state,
-        last_ran_at_ci: last_ran_at_ci,
-        last_ran_at_local: last_ran_at_local,
-        inserted_at: inserted_at
+  # Binds the IDs as a single `Array(UUID)` parameter via a fragment instead of
+  # `tc.id in ^ids_chunk`. `in` expands to one bound parameter per ID, and in
+  # multipart mode each parameter becomes its own form field, which overflows
+  # ClickHouse's form-field limit on large reports.
+  defp existing_test_cases_chunk_query(project_id, ids_chunk) do
+    from(tc in TestCase,
+      where:
+        tc.project_id == ^project_id and
+          fragment("? IN (?)", tc.id, type(^ids_chunk, {:array, Ecto.UUID})),
+      select: %{
+        id: tc.id,
+        recent_durations: tc.recent_durations,
+        is_flaky: tc.is_flaky,
+        state: tc.state,
+        last_ran_at_ci: tc.last_ran_at_ci,
+        last_ran_at_local: tc.last_ran_at_local,
+        inserted_at: tc.inserted_at
       }
-    end)
+    )
   end
 
   defp merge_latest_test_case(row, acc) do
