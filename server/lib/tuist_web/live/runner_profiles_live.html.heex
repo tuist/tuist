@@ -68,7 +68,10 @@
                 />
               </div>
               <span :if={@form_mode == :new} data-part="hint">
-                {dgettext("dashboard_runners", "Cannot be changed after creation.")}
+                {dgettext(
+                  "dashboard_runners",
+                  "Becomes part of your runs-on label, so it can't be renamed later."
+                )}
               </span>
             </div>
 
