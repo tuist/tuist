@@ -230,7 +230,10 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage)
+	if err != nil {
+		return fmt.Errorf("build pod: %w", err)
+	}
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return fmt.Errorf("pod owner ref: %w", err)
 	}

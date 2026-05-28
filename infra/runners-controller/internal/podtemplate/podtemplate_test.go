@@ -12,25 +12,36 @@ import (
 const testDindImage = "docker:28-dind"
 
 func basePool(os string) *tuistv1.RunnerPool {
+	spec := tuistv1.RunnerPoolSpec{
+		OS:            os,
+		Image:         "ghcr.io/tuist/tuist-runner:test",
+		FleetSelector: "fleet-x",
+		DispatchLabel: "tuist-test",
+		PodCPUMilli:   4000,
+		PodMemoryMB:   16384,
+	}
+	// Linux pools get the privileged dind sidecar, which Build
+	// only permits under the kata-qemu microVM boundary.
+	if os == "linux" {
+		spec.RuntimeClass = "kata-qemu"
+	}
 	return &tuistv1.RunnerPool{
 		ObjectMeta: metav1.ObjectMeta{Name: "pool-1", Namespace: "tuist-runners"},
-		Spec: tuistv1.RunnerPoolSpec{
-			OS:            os,
-			Image:         "ghcr.io/tuist/tuist-runner:test",
-			FleetSelector: "fleet-x",
-			DispatchLabel: "tuist-test",
-			PodCPUMilli:   4000,
-			PodMemoryMB:   16384,
-		},
+		Spec:       spec,
 	}
 }
 
-func build(p *tuistv1.RunnerPool) *corev1.Pod {
-	return Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+func build(t *testing.T, p *tuistv1.RunnerPool) *corev1.Pod {
+	t.Helper()
+	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	return pod
 }
 
 func TestBuild_MacOSScheduling(t *testing.T) {
-	pod := build(basePool(""))
+	pod := build(t, basePool(""))
 
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want %q", got, want)
@@ -47,7 +58,7 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 }
 
 func TestBuild_LinuxScheduling(t *testing.T) {
-	pod := build(basePool("linux"))
+	pod := build(t, basePool("linux"))
 	// Linux pools must use the in-cluster URL — the public path
 	// hits Hetzner Cloud LB hairpin and silently times out.
 	for _, env := range pod.Spec.Containers[0].Env {
@@ -85,7 +96,7 @@ func TestBuild_LinuxScheduling(t *testing.T) {
 func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 	// A misconfigured OS field should still produce a schedulable
 	// Pod against the macOS fleet rather than fail open.
-	pod := build(basePool("solaris"))
+	pod := build(t, basePool("solaris"))
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "darwin"; got != want {
 		t.Errorf("nodeSelector os = %q, want darwin fallback", got)
 	}
@@ -94,7 +105,7 @@ func TestBuild_UnknownOSFallsBackToMacOS(t *testing.T) {
 func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = "kata-qemu"
-	pod := build(pool)
+	pod := build(t, pool)
 	if pod.Spec.RuntimeClassName == nil {
 		t.Fatalf("RuntimeClassName = nil, want \"kata-qemu\"")
 	}
@@ -104,10 +115,34 @@ func TestBuild_RuntimeClassNameStampedWhenSet(t *testing.T) {
 }
 
 func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
+	// A pool with no RuntimeClass and no dind sidecar (empty
+	// dindImage) is allowed to fall back to the default runtime.
 	pool := basePool("linux")
-	pod := build(pool)
+	pool.Spec.RuntimeClass = ""
+	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
 	if pod.Spec.RuntimeClassName != nil {
 		t.Errorf("RuntimeClassName = %v, want nil for default runtime", *pod.Spec.RuntimeClassName)
+	}
+}
+
+func TestBuild_LinuxDindWithoutKataFailsClosed(t *testing.T) {
+	// A Linux pool that would get the privileged dind sidecar but
+	// isn't pinned to kata-qemu must be refused — otherwise the
+	// privileged container runs on the host runtime, escaping the
+	// microVM boundary.
+	pool := basePool("linux")
+	pool.Spec.RuntimeClass = ""
+	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	if err == nil {
+		t.Fatal("Build returned nil error; want refusal for Linux+dind without kata-qemu")
+	}
+
+	pool.Spec.RuntimeClass = "some-other-runtime"
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage); err == nil {
+		t.Fatal("Build accepted non-kata runtimeClass for Linux+dind; want refusal")
 	}
 }
 
@@ -115,7 +150,7 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// Linux pods get a dind native sidecar (initContainer with
 	// restartPolicy=Always) instead of running dockerd in the
 	// runner container. Mirrors the ARC pattern.
-	pod := build(basePool("linux"))
+	pod := build(t, basePool("linux"))
 
 	if len(pod.Spec.InitContainers) != 1 {
 		t.Fatalf("InitContainers = %d, want 1 (dind sidecar)", len(pod.Spec.InitContainers))
@@ -214,14 +249,14 @@ func TestBuild_LinuxPodHasNoKataVirtioFsAnnotation(t *testing.T) {
 	// via --xattrmap, were either silent no-ops (--xattr) or
 	// broke kata sandbox creation (--xattrmap, which Rust
 	// virtiofsd-rs doesn't accept).
-	pod := build(basePool("linux"))
+	pod := build(t, basePool("linux"))
 	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]; ok {
 		t.Errorf("Linux pod should not carry virtio_fs_extra_args annotation anymore; got %+v", pod.Annotations)
 	}
 }
 
 func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
-	pod := build(basePool(""))
+	pod := build(t, basePool(""))
 	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]; ok {
 		t.Errorf("macOS pod should not carry kata virtiofsd annotations; got %+v", pod.Annotations)
 	}
@@ -230,7 +265,10 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.
-	pod := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
 	if len(pod.Spec.InitContainers) != 0 {
 		t.Errorf("InitContainers = %d, want 0 when dindImage is empty", len(pod.Spec.InitContainers))
 	}
@@ -242,7 +280,7 @@ func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 }
 
 func TestBuild_MacOSPodHasNoDindSidecar(t *testing.T) {
-	pod := build(basePool(""))
+	pod := build(t, basePool(""))
 	if len(pod.Spec.InitContainers) != 0 {
 		t.Errorf("macOS pods must not get the dind sidecar; got %d initContainers", len(pod.Spec.InitContainers))
 	}

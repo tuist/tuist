@@ -209,8 +209,14 @@ Every Linux runner Pod gets a `dind` native sidecar (k8s ≥ 1.29:
 initContainer with `restartPolicy: Always`) running the upstream
 `docker:dind` image. The runner container stays unprivileged;
 only the sidecar is `privileged: true`, bounded by the Pod's
-`kata-qemu` microVM. **Linux pools must always set
-`spec.runtimeClass: kata-qemu`** — there is no escape valve.
+`kata-qemu` microVM. **Linux pools must set `spec.runtimeClass:
+kata-qemu`** — `podtemplate.Build` fails closed (returns an
+error, controller logs it and creates no Pod) for a Linux pool
+that would get the dind sidecar without it, so the privileged
+container can't fall back to the host runc runtime and escape
+the microVM boundary. The sidecar image (`runnersController.
+dindImage`) is digest-pinned for the same reason: a privileged
+container's exact bytes shouldn't move outside review.
 
 Mirrors the ARC `gha-runner-scale-set` sidecar pattern. The
 sidecar's `startupProbe` (`exec: docker info`) blocks the runner

@@ -14,6 +14,8 @@
 package podtemplate
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,9 +36,21 @@ import (
 // `dindImage` is the OCI ref of the dockerd sidecar baked into
 // every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
 // the sidecar, which is fine for macOS-only installs.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage string) *corev1.Pod {
+//
+// Returns an error (fails closed) when a Linux pool would get the
+// privileged dind sidecar without `spec.runtimeClass == kata-qemu`.
+// The sidecar runs `privileged: true`; that's only safe because the
+// kata-qemu microVM is the isolation boundary. Without the runtime
+// class the Pod falls back to runc on the host kernel and the
+// privileged container escapes onto the bare-metal host — so refuse
+// to build it rather than ship an unbounded privileged container.
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
+
+	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
+		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
+	}
 
 	nodeSelector, tolerations := schedulingFor(pool)
 
@@ -274,7 +288,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // BuildServiceAccount returns the per-Pod ServiceAccount manifest.
