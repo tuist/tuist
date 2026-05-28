@@ -364,6 +364,14 @@ func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) 
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
+# Re-sign in place. The binary already carries a valid Go linker ad-hoc
+# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
+# leaves macOS's AMFI validating the new pages against the previous
+# binary's cached cdhash — a mismatch the kernel kills as
+# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
+# A forced ad-hoc re-sign refreshes the signature and invalidates that
+# stale cache so the rolled binary actually runs.
+sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
 	return RunCommandWithStdin(ctx, client, script, string(binary))
 }
@@ -414,13 +422,26 @@ sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
-# pid prints the launchd-tracked PID (empty when not running). restarted
-# is true only once a NEW pid appears (different from the pre-reload one):
-# a no-op kickstart that leaves the old process running must not be
-# mistaken for a successful roll into the freshly-uploaded binary.
+# pid prints the launchd-tracked PID (empty when not running). settled
+# waits for a NEW pid (different from the pre-reload one) and confirms it
+# is still the same a few seconds later. That rules out two false
+# positives: a no-op kickstart that leaves the old process running, and a
+# crash-looping launch (e.g. an OS_REASON_CODESIGNING kill) that briefly
+# shows a transient pid on each respawn — neither must be mistaken for a
+# successful roll into the freshly-uploaded binary.
 pid() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}' || true; }
 OLD="$(pid)"
-restarted() { p="$(pid)"; [ -n "$p" ] && [ "$p" != "$OLD" ]; }
+settled() {
+  for _ in $(seq 1 20); do
+    p="$(pid)"
+    if [ -n "$p" ] && [ "$p" != "$OLD" ]; then
+      sleep 5
+      [ "$(pid)" = "$p" ] && return 0 || return 1
+    fi
+    sleep 1
+  done
+  return 1
+}
 
 # Restart in place when the plist is unchanged and a process is running
 # (avoids BTM re-registration churn); otherwise rewrite it and
@@ -435,13 +456,13 @@ else
   sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
 fi
 
-# Require a fresh process (new PID) — not merely "something is alive" —
-# then force a kickstart and re-check if the reload didn't restart it.
-# Exit non-zero if it never restarts so the reconciler keeps the drift
-# set and retries instead of recording a roll that never took.
-for _ in $(seq 1 20); do restarted && exit 0; sleep 1; done
+# Require a fresh, stable process — then force a kickstart and re-check if
+# the reload didn't restart it. Exit non-zero if it never settles so the
+# reconciler keeps the drift set and retries instead of recording a roll
+# that never took.
+settled && exit 0
 sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
-for _ in $(seq 1 20); do restarted && exit 0; sleep 1; done
+settled && exit 0
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
 `, shellQuote(cfg.SSHUser))
