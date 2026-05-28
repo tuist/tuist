@@ -10,6 +10,12 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @agent_auth_default_trusted_providers [
+    %{
+      "issuer" => "https://auth0.openai.com/",
+      "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+    }
+  ]
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -223,6 +229,24 @@ defmodule Tuist.Environment do
 
   def redis_url(secrets \\ secrets()) do
     get([:redis_url], secrets)
+  end
+
+  def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
+
+  def agent_auth_trusted_providers(secrets \\ secrets()) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+      providers when is_list(providers) ->
+        providers
+
+      providers_json when is_binary(providers_json) and providers_json != "" ->
+        case JSON.decode(providers_json) do
+          {:ok, providers} when is_list(providers) -> providers
+          _ -> []
+        end
+
+      _ ->
+        agent_auth_default_trusted_providers()
+    end
   end
 
   def cache_endpoints(secrets \\ secrets()) do
@@ -988,6 +1012,19 @@ defmodule Tuist.Environment do
       oauth_client_name(secrets) != nil and
       oauth_jwt_public_key(secrets) != nil and
       oauth_private_key(secrets) != nil
+  end
+
+  def kura_introspection_client_id(secrets \\ secrets()) do
+    get([:kura, :introspection_client_id], secrets)
+  end
+
+  def kura_introspection_client_secret(secrets \\ secrets()) do
+    get([:kura, :introspection_client_secret], secrets)
+  end
+
+  def kura_introspection_configured?(secrets \\ secrets()) do
+    kura_introspection_client_id(secrets) != nil and
+      kura_introspection_client_secret(secrets) != nil
   end
 
   @doc """

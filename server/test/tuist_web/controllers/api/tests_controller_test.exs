@@ -127,6 +127,46 @@ defmodule TuistWeb.API.TestsControllerTest do
       assert json_response(conn, :ok)
     end
 
+    test "filters test runs with a query expression", %{conn: conn, user: user, project: project} do
+      # Given
+      stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      # When
+      query = URI.encode_query(%{query: ~s(-git_branch~"gh-readonly-queue")})
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}"
+        )
+
+      # Then
+      assert json_response(conn, :ok)
+    end
+
+    test "returns bad request for invalid query expressions", %{conn: conn, user: user, project: project} do
+      # When
+      query = URI.encode_query(%{query: ~s(unknown~"value")})
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/tests?#{query}")
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] == "Invalid query parameter"
+    end
+
     test "filters test runs by status", %{conn: conn, user: user, project: project} do
       # Given
       stub(Analytics, :test_runs_metrics, fn _project_id, _test_runs -> [] end)

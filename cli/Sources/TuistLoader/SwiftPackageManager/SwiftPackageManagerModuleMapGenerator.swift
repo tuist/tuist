@@ -8,6 +8,8 @@ import TuistSupport
 public enum ModuleMap: Equatable {
     /// No headers and hence no modulemap file
     case none
+    /// A Swift-only framework target with no Clang headers.
+    case swiftOnly(moduleMapPath: AbsolutePath)
     /// Custom modulemap file provided in SPM package
     case custom(AbsolutePath, umbrellaHeaderPath: AbsolutePath?)
     /// Umbrella header provided in SPM package
@@ -18,6 +20,8 @@ public enum ModuleMap: Equatable {
     var moduleMapPath: AbsolutePath? {
         switch self {
         case let .custom(path, umbrellaHeaderPath: _):
+            return path
+        case let .swiftOnly(moduleMapPath: path):
             return path
         case let .header(_, moduleMapPath: path):
             return path
@@ -42,7 +46,8 @@ public protocol SwiftPackageManagerModuleMapGenerating {
         packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath,
-        swiftPackageManagerScratchDirectory: AbsolutePath?
+        swiftPackageManagerScratchDirectory: AbsolutePath?,
+        generateModuleMapForSwiftOnlyTargets: Bool
     ) async throws -> ModuleMap
 }
 
@@ -63,7 +68,8 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
         packageDirectory: AbsolutePath,
         moduleName: String,
         publicHeadersPath: AbsolutePath,
-        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil,
+        generateModuleMapForSwiftOnlyTargets: Bool = false
     ) async throws -> ModuleMap {
         let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
@@ -132,6 +138,14 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
             return .custom(customModuleMapPath, umbrellaHeaderPath: nil)
         } else if try await fileSystem.exists(publicHeadersPath) {
             if try await fileSystem.glob(directory: publicHeadersPath, include: ["**/*.h", "*.h"]).collect().isEmpty {
+                if generateModuleMapForSwiftOnlyTargets {
+                    try await writeIfDifferent(
+                        moduleMapContent: swiftOnlyModuleMap(sanitizedModuleName: sanitizedModuleName),
+                        to: generatedModuleMapPath,
+                        atomically: true
+                    )
+                    return .swiftOnly(moduleMapPath: generatedModuleMapPath)
+                }
                 return .none
             }
             // Consider the public headers folder as umbrella directory
@@ -146,6 +160,14 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
 
             return .directory(moduleMapPath: generatedModuleMapPath, umbrellaDirectory: publicHeadersPath)
         } else {
+            if generateModuleMapForSwiftOnlyTargets {
+                try await writeIfDifferent(
+                    moduleMapContent: swiftOnlyModuleMap(sanitizedModuleName: sanitizedModuleName),
+                    to: generatedModuleMapPath,
+                    atomically: true
+                )
+                return .swiftOnly(moduleMapPath: generatedModuleMapPath)
+            }
             return .none
         }
     }
@@ -191,6 +213,14 @@ public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMa
 
           export *
           module * { export * }
+        }
+        """
+    }
+
+    private func swiftOnlyModuleMap(sanitizedModuleName: String) -> String {
+        """
+        framework module \(sanitizedModuleName) {
+          export *
         }
         """
     }

@@ -44,10 +44,13 @@ kuraController:
       managed: true
       item: cloudflare-tuist-dns
   sharedSecrets:
-    # In managed regions, kura-shared-secrets is populated by CI from
-    # the same secret store as the Tuist server release.
+    # In managed regions, kura-shared-secrets is populated from the
+    # same 1Password vault as the Tuist server release.
     enabled: true
     data: {}
+    externalSecret:
+      enabled: true
+      item: kura-introspection-oauth-client
 
 server:
   enabled: false

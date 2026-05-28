@@ -105,12 +105,12 @@ defmodule Tuist.Authorization.Checks do
   """
   def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
       when is_binary(scope) do
-    expanded_scopes = expand_scope_groups(scopes)
+    expanded_scopes = expand_scopes(scopes)
     Enum.member?(expanded_scopes, scope) and project_access_permitted(auth_account, project)
   end
 
   def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
-    expanded_scopes = expand_scope_groups(scopes)
+    expanded_scopes = expand_scopes(scopes)
     Enum.member?(expanded_scopes, scope)
   end
 
@@ -118,7 +118,7 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  defp expand_scope_groups(scopes) do
+  def expand_scopes(scopes) do
     Enum.flat_map(scopes, fn scope ->
       Map.get(@scope_groups, scope, [scope])
     end)

@@ -452,6 +452,58 @@
         ],
         "title": "Discards & Cancellations Rate",
         "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+        "id": 104,
+        "panels": [],
+        "title": "Host / VM Disk",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Percent-used of each xcresult-processor VM's guest root volume, published by tart-kubelet (`tart_kubelet_guest_disk_usage_percent`, scraped from the macOS fleet's :8080). This is the gradient behind the node's DiskPressure condition (reported True at 90%): the host disk stays near-empty even when a guest fills, so this guest-level series is the one that matters. A steady climb is a leaking workload — it surfaces days before the volume hits 100% and parses start failing with :enospc.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "thresholdsStyle": {"mode": "line"}
+            },
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 80},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+        "id": 11,
+        "options": {
+          "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (instance, vm) (tart_kubelet_guest_disk_usage_percent)",
+            "legendFormat": "{{instance}} / {{vm}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Guest Disk Usage",
+        "type": "timeseries"
       }
     ],
     "refresh": "30s",
@@ -512,7 +564,7 @@
     "timezone": "browser",
     "title": "Tuist xcresult Processor",
     "uid": "tuist-xcresult-processor",
-    "version": 1,
+    "version": 2,
     "weekStart": ""
   }
 }

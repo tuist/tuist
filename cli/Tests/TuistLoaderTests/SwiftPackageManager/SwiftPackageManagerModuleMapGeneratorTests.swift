@@ -49,6 +49,13 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         try await test_generate(for: .none)
     }
 
+    func test_generate_when_no_headersAndSwiftOnlyModuleMapRequested() async throws {
+        try await test_generate(
+            for: .swiftOnly(moduleMapPath: packageDirectory.appending(components: "Derived", "Module.modulemap")),
+            generateModuleMapForSwiftOnlyTargets: true
+        )
+    }
+
     func test_generate_when_custom_module_map() async throws {
         try await test_generate(for: .custom(publicHeadersPath.appending(component: "module.modulemap"), umbrellaHeaderPath: nil))
     }
@@ -234,13 +241,18 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    private func test_generate(for moduleMap: ModuleMap) async throws {
+    private func test_generate(
+        for moduleMap: ModuleMap,
+        generateModuleMapForSwiftOnlyTargets: Bool = false
+    ) async throws {
         var writeCount = 0
 
         try await fileSystem.makeDirectory(at: publicHeadersPath)
         try await fileSystem.makeDirectory(at: packageDirectory.appending(component: "Derived"))
         switch moduleMap {
         case .none:
+            break
+        case .swiftOnly:
             break
         case let .custom(moduleMapPath, umbrellaHeaderPath: umbrellaHeaderPath):
             try await fileSystem.touch(moduleMapPath)
@@ -269,7 +281,8 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         let got = try await subject.generate(
             packageDirectory: packageDirectory,
             moduleName: "Module",
-            publicHeadersPath: publicHeadersPath
+            publicHeadersPath: publicHeadersPath,
+            generateModuleMapForSwiftOnlyTargets: generateModuleMapForSwiftOnlyTargets
         )
 
         let moduleMapPath = packageDirectory.appending(components: "Derived", "Module.modulemap")
@@ -286,14 +299,15 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         _ = try await subject.generate(
             packageDirectory: packageDirectory,
             moduleName: "Module",
-            publicHeadersPath: publicHeadersPath
+            publicHeadersPath: publicHeadersPath,
+            generateModuleMapForSwiftOnlyTargets: generateModuleMapForSwiftOnlyTargets
         )
 
         XCTAssertEqual(got, moduleMap)
         switch moduleMap {
         case .none, .custom:
             XCTAssertEqual(writeCount, 0)
-        case .directory, .header:
+        case .directory, .header, .swiftOnly:
             XCTAssertEqual(writeCount, 1)
         }
     }
@@ -303,6 +317,12 @@ final class SwiftPackageManagerModuleMapGeneratorTests: TuistUnitTestCase {
         switch moduleMap {
         case .none, .custom:
             return nil
+        case .swiftOnly:
+            expectedContent = """
+            framework module Module {
+              export *
+            }
+            """
         case let .header(umbrellaHeaderPath, moduleMapPath: _):
             if umbrellaHeaderPath.parentDirectory.basename == "Module" {
                 expectedContent = """
