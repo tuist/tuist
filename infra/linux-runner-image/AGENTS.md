@@ -27,8 +27,10 @@ substrate's terminal signal.
 ## Build
 
 ```bash
-cd infra/linux-runner-image
-docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
+# Context is `infra/` (not the image dir) so the Dockerfile's
+# shipper-builder stage can reach `infra/runner-log-shipper/`.
+cd infra
+docker build --pull -f linux-runner-image/Dockerfile -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the

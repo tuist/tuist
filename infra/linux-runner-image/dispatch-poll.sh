@@ -75,6 +75,11 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      # Per-job log token (see the macOS image for the rationale).
+      # When present we stream the runner's output through
+      # tuist-log-shipper to the server's log ingest endpoint.
+      log_token=$(jq -r '.log_token // empty' /tmp/dispatch.json)
+      logs_url="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/logs"
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # `--jitconfig` makes the runner ephemeral (one job + exit).
       # `--disableupdate` pins to whatever runner version is baked
@@ -83,7 +88,16 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
-      exec ./run.sh --jitconfig "${jit}" --disableupdate
+      if [ -n "${log_token}" ] && command -v tuist-log-shipper >/dev/null 2>&1; then
+        # Can't `exec` here: the script must outlive run.sh so the
+        # shipper drains its closing flush before the container exits.
+        # `PIPESTATUS[0]` carries run.sh's exit code out of the pipe.
+        ./run.sh --jitconfig "${jit}" --disableupdate 2>&1 |
+          tuist-log-shipper --url "${logs_url}" --token "${log_token}"
+        exit "${PIPESTATUS[0]}"
+      else
+        exec ./run.sh --jitconfig "${jit}" --disableupdate
+      fi
       ;;
     204)
       # No work yet. Quiet log every 30th attempt (~once per

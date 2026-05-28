@@ -16,6 +16,16 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
+# Build the log shipper (streams the runner's stdout to the server's
+# log ingest endpoint) from the shared Go module. This stage reaches
+# `runner-log-shipper/` a level up, so the Docker build context must be
+# `infra/` with `-f linux-runner-image/Dockerfile` — see AGENTS.md and
+# .github/workflows/linux-runner-image.yml.
+FROM golang:1.25 AS shipper-builder
+WORKDIR /src
+COPY runner-log-shipper/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/tuist-log-shipper .
+
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
@@ -173,8 +183,9 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
-COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh
+COPY linux-runner-image/dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
+COPY --from=shipper-builder /out/tuist-log-shipper /usr/local/bin/tuist-log-shipper
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/tuist-log-shipper
 
 USER runner
 

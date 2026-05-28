@@ -99,6 +99,15 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      # The dispatch response also carries a per-job log token. When
+      # present we pipe the runner's stdout/stderr through
+      # tuist-log-shipper, which streams every line to the server's log
+      # ingest endpoint while passing it straight through to poll.log.
+      # The shipper's POSTs are short-timeout + bounded-retry, so its
+      # closing flush can't wedge the EXIT-trap VM halt below. The logs
+      # URL is the dispatch URL with the trailing path swapped.
+      log_token=$(sed -n 's/.*"log_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      logs_url="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/logs"
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
@@ -112,8 +121,16 @@ while true; do
       # cold boot. The EXIT trap above halts the VM regardless of
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
-      ./run.sh --jitconfig "${jit}" --disableupdate
-      exit $?
+      if [ -n "${log_token}" ] && [ -x /opt/tuist/tuist-log-shipper ]; then
+        # `PIPESTATUS[0]` preserves run.sh's exit code through the pipe.
+        ./run.sh --jitconfig "${jit}" --disableupdate 2>&1 |
+          /opt/tuist/tuist-log-shipper --url "${logs_url}" --token "${log_token}"
+        exit "${PIPESTATUS[0]}"
+      else
+        # No token (older server) or shipper missing — run bare.
+        ./run.sh --jitconfig "${jit}" --disableupdate
+        exit $?
+      fi
       ;;
     204)
       # Server has nothing for us yet. Keep polling — the VM is

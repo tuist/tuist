@@ -1806,7 +1806,9 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: infra/linux-runner-image
+          # Context is `infra/` so the Dockerfile's shipper-builder
+          # stage can reach `infra/runner-log-shipper/`.
+          context: infra
           file: infra/linux-runner-image/Dockerfile
           # Linux runners run on Hetzner bare-metal x86 nodes at v1.
           # arm64 is a future option and can land as an additive
