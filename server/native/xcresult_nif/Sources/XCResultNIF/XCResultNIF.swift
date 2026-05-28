@@ -23,13 +23,13 @@ public func parseXCResult(
             let rootDirectory = try AbsolutePath(validating: rootDir)
             // The server worker passes its per-run temp dir as rootDir and
             // removes it wholesale once the run is processed, so it's also
-            // a safe scratch dir for exported attachments — opt in so the
-            // worker's cleanup reclaims them instead of leaking them in a
-            // process-wide temp dir.
+            // a directory we can export attachments into — point them there
+            // so the worker's cleanup reclaims them instead of leaking them
+            // in a process-wide temp dir.
             guard let parsed = try await XCResultParser().parse(
                 path: xcresultPath,
                 rootDirectory: rootDirectory,
-                attachmentScratchDirectory: rootDirectory
+                attachmentsDirectory: rootDirectory
             ) else {
                 result = .failure(XCResultParserError.failedToParseOutput(xcresultPath))
                 semaphore.signal()
