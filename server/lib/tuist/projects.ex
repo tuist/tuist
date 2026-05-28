@@ -77,24 +77,17 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
-    with {:account, %{id: account_id}} <-
-           {:account,
-            Repo.one(
-              from a in Account,
-                where: a.name == ^account_handle
-            )},
-         {:project, project} <-
-           {:project,
-            Repo.one(
-              from(p in Project,
-                where: p.name == ^project_handle,
-                where: p.account_id == ^account_id
-              )
-            )} do
-      Repo.preload(project, Keyword.get(opts, :preload, [:account]))
-    else
-      {:account, nil} -> nil
-      {:project, nil} -> nil
+    extra_preloads = Keyword.get(opts, :preload, [:account]) -- [:account]
+
+    case Repo.one(
+           from p in Project,
+             join: a in assoc(p, :account),
+             where: a.name == ^account_handle and p.name == ^project_handle,
+             preload: [account: a]
+         ) do
+      nil -> nil
+      project when extra_preloads == [] -> project
+      project -> Repo.preload(project, extra_preloads)
     end
   end
 

@@ -37,11 +37,11 @@ defmodule TuistWeb.LayoutLive do
   def on_mount(
         :project,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = params,
-        session,
+        _session,
         socket
       )
       when is_binary(account_handle) and is_binary(project_handle) do
-    current_user = get_current_user(session)
+    current_user = socket.assigns[:current_user]
 
     selected_project =
       case Map.get(socket.assigns, :selected_project) do
@@ -138,8 +138,8 @@ defmodule TuistWeb.LayoutLive do
      |> assign_selected_run(params)}
   end
 
-  def on_mount(:account, params, session, socket) do
-    current_user = get_current_user(session)
+  def on_mount(:account, params, _session, socket) do
+    current_user = socket.assigns[:current_user]
 
     # Deferred until connected — see :project.
     current_user_accounts =
@@ -199,8 +199,8 @@ defmodule TuistWeb.LayoutLive do
      |> assign(:current_user_accounts, current_user_accounts)}
   end
 
-  def on_mount(:ops, _params, session, socket) do
-    current_user = get_current_user(session)
+  def on_mount(:ops, _params, _session, socket) do
+    current_user = socket.assigns[:current_user]
 
     {:cont,
      socket
@@ -239,19 +239,6 @@ defmodule TuistWeb.LayoutLive do
       user_belongs_to_account? or project.visibility == :public
     end)
     |> Enum.map(&%{&1.project | account: &1.account})
-  end
-
-  defp get_current_user(session) do
-    user_token = session["user_token"]
-
-    user =
-      if is_nil(user_token) do
-        nil
-      else
-        Accounts.get_user_by_session_token(session["user_token"], preload: [:account])
-      end
-
-    user
   end
 
   defp assign_selected_run(socket, params) do

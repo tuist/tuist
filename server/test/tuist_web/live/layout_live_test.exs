@@ -101,7 +101,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :project,
           params,
           session,
-          connected_socket()
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -173,9 +173,11 @@ defmodule TuistWeb.LayoutLiveTest do
     @tag user_role: :user
     test "uses the session locale for translated dashboard labels", %{
       params: params,
-      session: session
+      session: session,
+      user: user
     } do
-      {:cont, socket} = Locale.on_mount(:assign_locale, %{}, Map.put(session, "locale", "es"), %LiveView.Socket{})
+      {:cont, socket} =
+        Locale.on_mount(:assign_locale, %{}, Map.put(session, "locale", "es"), disconnected_socket(current_user: user))
 
       {:cont, socket} = LayoutLive.on_mount(:project, params, session, socket)
 
@@ -197,7 +199,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           %{},
           session,
-          connected_socket()
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -248,7 +250,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          connected_socket()
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -307,7 +309,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          connected_socket()
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -354,20 +356,29 @@ defmodule TuistWeb.LayoutLiveTest do
     end
 
     test "when the account is invalid", %{
-      session: session
+      session: session,
+      user: user
     } do
       assert_raise NotFoundError, fn ->
         LayoutLive.on_mount(
           :account,
           %{"account_handle" => "invalid"},
           session,
-          %LiveView.Socket{}
+          disconnected_socket(current_user: user)
         )
       end
     end
   end
 
-  # Mirrors what `Phoenix.LiveView.connected?/1` checks so on_mount runs the
-  # branches reserved for the WebSocket-connected render path.
-  defp connected_socket, do: %LiveView.Socket{transport_pid: self()}
+  defp connected_socket(assigns \\ []) do
+    Enum.reduce(assigns, %LiveView.Socket{transport_pid: self()}, fn {key, value}, socket ->
+      Phoenix.Component.assign(socket, key, value)
+    end)
+  end
+
+  defp disconnected_socket(assigns \\ []) do
+    Enum.reduce(assigns, %LiveView.Socket{}, fn {key, value}, socket ->
+      Phoenix.Component.assign(socket, key, value)
+    end)
+  end
 end
