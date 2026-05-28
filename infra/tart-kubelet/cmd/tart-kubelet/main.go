@@ -30,6 +30,7 @@ import (
 	cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -267,6 +268,9 @@ func main() {
 		MemoryMB:   hostMemoryMB,
 		MaxPods:    maxPods,
 		Heartbeat:  30 * time.Second,
+		DiskPressure: func(ctx context.Context) (bool, string, error) {
+			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
+		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
@@ -471,6 +475,57 @@ func pickPodsForNode(nodeName string) fields.Selector {
 // pickThisNode narrows the Node informer to just our Node.
 func pickThisNode(nodeName string) fields.Selector {
 	return fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})
+}
+
+// diskPressureThresholdPercent is the guest root-volume capacity at or
+// above which the host Node reports DiskPressure. Below 100% so the
+// condition fires (stopping new scheduling and triggering alerts) before
+// the guest actually starts failing writes with ENOSPC.
+const diskPressureThresholdPercent = 90
+
+// diskPressureFromGuests reports DiskPressure=True when any running VM's
+// guest root volume is at or above the threshold. Each probe is bounded
+// so an unresponsive guest agent can't stall the node heartbeat, and a
+// per-VM error is logged and skipped rather than failing the whole check
+// — one bad guest shouldn't blind the others. A List error propagates so
+// the maintainer keeps the previous condition instead of flapping.
+func diskPressureFromGuests(ctx context.Context, tartClient *tart.Client, threshold int) (bool, string, error) {
+	vms, err := tartClient.List(ctx)
+	if err != nil {
+		return false, "", err
+	}
+
+	// Drop stale series up front so a VM that's gone since the last
+	// sweep stops reporting its last-known capacity.
+	podagent.ResetGuestDiskUsage()
+
+	var pressured []string
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		running, err := tartClient.IsRunning(ctx, vm.Name)
+		if err != nil || !running {
+			continue
+		}
+
+		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		pct, err := tartClient.GuestDiskUsagePercent(probeCtx, vm.Name)
+		cancel()
+		if err != nil {
+			log.FromContext(ctx).Error(err, "guest disk usage probe", "vm", vm.Name)
+			continue
+		}
+		podagent.RecordGuestDiskUsage(vm.Name, pct)
+		if pct >= threshold {
+			pressured = append(pressured, fmt.Sprintf("%s at %d%%", vm.Name, pct))
+		}
+	}
+
+	if len(pressured) > 0 {
+		return true, "guest root volume(s) near capacity: " + strings.Join(pressured, ", "), nil
+	}
+	return false, "", nil
 }
 
 // recoverState rebuilds the Pod ↔ VM map by intersecting the host's

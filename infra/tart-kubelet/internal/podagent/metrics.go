@@ -32,6 +32,36 @@ var vmBootDurationSeconds = prometheus.NewHistogramVec(
 	[]string{"pool"},
 )
 
+// guestDiskUsagePercent is the percent-used of each running VM's guest
+// root volume, as read by the node maintainer's DiskPressure probe. It's
+// the gradient signal behind the binary DiskPressure node condition:
+// graphing it shows a leaking workload's slope days before the volume
+// hits 100% and writes start failing with ENOSPC, and it lets alert
+// thresholds be tuned (warn vs page) without redeploying tart-kubelet.
+//
+// Labelled by VM name; the scrape adds the per-mini `instance` label.
+// Lands on the same `:8080/metrics` page Alloy scrapes via the
+// `tuist-macos-tart-kubelet` job.
+var guestDiskUsagePercent = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_guest_disk_usage_percent",
+		Help: "Percent-used of a running VM's guest root volume (0-100).",
+	},
+	[]string{"vm"},
+)
+
 func init() {
-	metrics.Registry.MustRegister(vmBootDurationSeconds)
+	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent)
+}
+
+// RecordGuestDiskUsage publishes a VM's guest root-volume usage percent.
+func RecordGuestDiskUsage(vm string, percent int) {
+	guestDiskUsagePercent.WithLabelValues(vm).Set(float64(percent))
+}
+
+// ResetGuestDiskUsage drops all guest-disk series. Called at the start
+// of each probe sweep so a VM that's gone (stopped, deleted, migrated)
+// stops reporting a stale last-known capacity.
+func ResetGuestDiskUsage() {
+	guestDiskUsagePercent.Reset()
 }
