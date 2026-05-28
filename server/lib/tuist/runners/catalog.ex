@@ -69,15 +69,15 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  Parse the `TUIST_RUNNER_LINUX_SHAPES` JSON Helm injects into the
-  `:runner_linux_shapes` config shape (atom keys, `memoryGb` → `:memory_gb`).
-  Called from `config/runtime.exs`. Returns the shapes list, or `:error`
-  on malformed JSON so the caller can fall back to the compiled default
-  rather than crash the boot.
-
-  Helm renders the array with `toJson`, so each element is a JSON object
-  with `vcpus`, `memoryGb`, and an optional `default`. Unknown keys are
+  Decode the JSON wire form of the catalog into the
+  `:runner_linux_shapes` config shape (atom keys, `memoryGb` →
+  `:memory_gb`). The inverse of how Helm serialises
+  `runnersFleetLinux.shapes` with `toJson`: a JSON array of objects with
+  `vcpus`, `memoryGb`, and an optional `default`; unknown keys are
   ignored.
+
+  Returns the shapes list, or `:error` for anything that isn't a JSON
+  array of objects.
   """
   def parse_shapes_json(json) when is_binary(json) do
     case JSON.decode(json) do
