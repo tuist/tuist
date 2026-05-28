@@ -842,12 +842,12 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/runner_job_live.html.heex:235
-#, elixir-autogen, elixir-format
-msgid "Download"
-msgstr ""
-
-#: lib/tuist_web/live/runner_job_live.html.heex:251
+#: lib/tuist_web/live/runner_job_live.html.heex:257
 #, elixir-autogen, elixir-format
 msgid "Load older logs"
+msgstr ""
+
+#: lib/tuist_web/live/runner_job_live.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "Download logs"
 msgstr ""
