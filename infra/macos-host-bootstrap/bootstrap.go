@@ -365,14 +365,38 @@ sudo chmod 0755 /usr/local/bin/tart-kubelet
 // with this host's flags substituted in, fixes ownership on the
 // kubelet's writable paths so the SSH user owns them (the launchd job
 // runs as that user — see the comment in renderLaunchdPlist), then
-// `launchctl bootstrap`s it. Idempotent across reruns.
+// reloads the launchd job and verifies it actually came up. Idempotent
+// across reruns.
+//
+// The reload is the fragile part on a headless Mac, and getting it
+// wrong is what strands a fleet Node NotReady:
+//
+//   - Re-registration churn: every `bootout`+`bootstrap` re-registers
+//     the plist with macOS Background Task Management. BTM caps "legacy
+//     daemon" notifications and, once exceeded, stops honouring the
+//     job's KeepAlive automatic respawn — so a later clean exit never
+//     restarts and the Node goes NotReady. We avoid this by only
+//     rewriting + bootout/bootstrapping when the plist content actually
+//     changed; a binary-only roll (the common drift case) leaves the
+//     launchd args identical, so we restart in place with `kickstart -k`
+//     instead, which re-execs the new binary without touching BTM.
+//
+//   - Silent reload failure: `bootout` immediately followed by
+//     `bootstrap` can race (or be BTM-throttled) and leave the job
+//     booted-out, which KeepAlive cannot recover. The old code returned
+//     success regardless, so the reconciler recorded the SHA roll as
+//     done and never retried, leaving the Node NotReady indefinitely.
+//     We now poll for a live PID, force a `kickstart` if it didn't come
+//     up, and exit non-zero if it still won't run — so the caller keeps
+//     the drift set and retries instead of recording a roll that never
+//     took.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
 	script := fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
-sudo tee "$PLIST" >/dev/null
-sudo chown root:wheel "$PLIST"
-sudo chmod 0644 "$PLIST"
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW"
 # Apple's Virtualization.framework requires the calling process to be
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
@@ -382,10 +406,27 @@ sudo touch /var/log/tart-kubelet.log
 sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
-# launchctl bootstrap is the modern API; bootout first to make this
-# idempotent across reruns with new args.
-sudo launchctl bootout system "$PLIST" 2>/dev/null || true
-sudo launchctl bootstrap system "$PLIST"
+
+running() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | grep -qE '^[[:space:]]*pid = [0-9]+'; }
+
+# Restart in place when the plist is unchanged (avoids BTM churn);
+# otherwise rewrite it and bootout+bootstrap to pick up the new args.
+if cmp -s "$NEW" "$PLIST" && running; then
+  sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+
+# Verify the agent reached a running state; force a kickstart if not.
+for _ in $(seq 1 20); do running && exit 0; sleep 1; done
+sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+for _ in $(seq 1 20); do running && exit 0; sleep 1; done
+echo "tart-kubelet did not reach a running state after launchd reload" >&2
+exit 1
 `, shellQuote(cfg.SSHUser))
 	return RunCommandWithStdin(ctx, client, script, plist)
 }
