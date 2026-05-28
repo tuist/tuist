@@ -1,4 +1,14 @@
 <div id="account-runner-profiles">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_runners", "Profiles")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_runners",
+        "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: tuist-<name>."
+      )}
+    </span>
+  </div>
+
   <.card
     title={dgettext("dashboard_runners", "Profiles")}
     icon="category"
