@@ -1280,25 +1280,27 @@ defmodule Tuist.TestsTest do
 
       parent = self()
 
+      # Capture the lookup at the repo boundary to assert the shape of the query
+      # we build. `multipart: true` is passed only by the existing-test-case
+      # lookup, so it precisely targets that call; the end-to-end test below
+      # covers that the query actually runs and decodes against real ClickHouse.
+      # We can't observe this through real-ClickHouse behaviour: a regression to
+      # one parameter per ID is only rejected by ClickHouse's form-field limit,
+      # which the local instance does not enforce.
       stub(ClickHouseRepo, :all, fn query, opts ->
-        send(parent, {:ch_all, query, opts})
+        if Keyword.get(opts, :multipart), do: send(parent, {:lookup, query})
         []
       end)
 
       # When
       assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
 
-      # Then: isolate the existing-test-case lookups, the only reads on the
-      # test_cases table during ingestion.
-      lookups =
-        []
-        |> drain_ch_all()
-        |> Enum.filter(fn {sql, _params, _opts} -> sql =~ ~s["test_cases"] end)
-
+      # Then
+      lookups = drain_lookups([])
       assert lookups != []
 
-      for {sql, params, opts} <- lookups do
-        assert Keyword.get(opts, :multipart) == true
+      for query <- lookups do
+        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
         assert sql =~ "Array(UUID)"
 
         # The whole batch travels as one array parameter (alongside project_id),
@@ -8818,11 +8820,9 @@ defmodule Tuist.TestsTest do
     }
   end
 
-  defp drain_ch_all(acc) do
+  defp drain_lookups(acc) do
     receive do
-      {:ch_all, query, opts} ->
-        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
-        drain_ch_all([{sql, params, opts} | acc])
+      {:lookup, query} -> drain_lookups([query | acc])
     after
       0 -> Enum.reverse(acc)
     end
