@@ -416,9 +416,13 @@ mod tests {
 
     fn test_usage(window_secs: u64, max_buckets: usize) -> Usage {
         let metrics = Metrics::new("test-region".to_owned(), "test-tenant".to_owned());
-        Usage::from_config(Some(&test_config(window_secs, max_buckets)), "http://node-1.kura.local", metrics)
-            .expect("usage config valid")
-            .expect("usage enabled when config present")
+        Usage::from_config(
+            Some(&test_config(window_secs, max_buckets)),
+            "http://node-1.kura.local",
+            metrics,
+        )
+        .expect("usage config valid")
+        .expect("usage enabled when config present")
     }
 
     fn bucket_key(tenant: &str, namespace: &str, window_start: u64) -> UsageBucketKey {
@@ -443,8 +447,14 @@ mod tests {
 
     #[test]
     fn usage_node_id_uses_host_when_url_is_parseable() {
-        assert_eq!(usage_node_id("http://node-1.kura.local"), "node-1.kura.local");
-        assert_eq!(usage_node_id("https://node-2.kura.local:8443/path"), "node-2.kura.local");
+        assert_eq!(
+            usage_node_id("http://node-1.kura.local"),
+            "node-1.kura.local"
+        );
+        assert_eq!(
+            usage_node_id("https://node-2.kura.local:8443/path"),
+            "node-2.kura.local"
+        );
     }
 
     #[test]
@@ -492,7 +502,11 @@ mod tests {
 
         let buckets = usage.inner.buckets.lock().unwrap();
         assert_eq!(buckets.len(), 2);
-        let key = bucket_key("acme", "ios", buckets.keys().next().unwrap().window_start_unix_seconds);
+        let key = bucket_key(
+            "acme",
+            "ios",
+            buckets.keys().next().unwrap().window_start_unix_seconds,
+        );
         let acme_ios = buckets.get(&key).unwrap();
         assert_eq!(acme_ios.bytes, 10);
         assert!(!buckets.keys().any(|k| k.tenant_id == "globex"));
@@ -588,8 +602,20 @@ mod tests {
 
         {
             let mut buckets = usage.inner.buckets.lock().unwrap();
-            buckets.insert(acme_key.clone(), UsageBucket { bytes: 1, request_count: 1 });
-            buckets.insert(globex_key.clone(), UsageBucket { bytes: 1, request_count: 1 });
+            buckets.insert(
+                acme_key.clone(),
+                UsageBucket {
+                    bytes: 1,
+                    request_count: 1,
+                },
+            );
+            buckets.insert(
+                globex_key.clone(),
+                UsageBucket {
+                    bytes: 1,
+                    request_count: 1,
+                },
+            );
         }
 
         usage.remove_buckets(std::slice::from_ref(&acme_key));
