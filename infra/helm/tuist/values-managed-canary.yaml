@@ -185,10 +185,6 @@ kataContainers:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  # No legacy pool: the shape catalog below is the whole Linux fleet.
-  # Workflows still using the old `tuist-canary-linux` label are aliased
-  # to the default shape by the server's dispatch path
-  # (`@legacy_linux_labels` in `Tuist.Runners.Dispatch`).
   pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail

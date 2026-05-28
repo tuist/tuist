@@ -312,10 +312,6 @@ runnersFleetLinux:
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
-  # No legacy pool: the shape catalog below is the whole Linux fleet.
-  # Workflows still using the old `tuist-staging-linux` label are
-  # aliased to the default shape by the server's dispatch path
-  # (`@legacy_linux_labels` in `Tuist.Runners.Dispatch`).
   pools: []
   # Shape-keyed pools backing Runner Profiles. Customers reference them
   # via account-scoped profiles (`runs-on: tuist-<name>`); the server
