@@ -3894,8 +3894,8 @@ kura_events =
 
     %{
       event_id: "seed-#{hour_offset}-#{project.id}-#{node_id}-#{direction}",
-      tenant_id: account_handle,
-      namespace_id: project.name,
+      account_handle: account_handle,
+      project_handle: project.name,
       account_id: organization.account.id,
       project_id: project.id,
       node_id: node_id,

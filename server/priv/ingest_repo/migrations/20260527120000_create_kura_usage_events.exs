@@ -8,8 +8,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateKuraUsageEvents do
              options: "PARTITION BY toYYYYMM(window_start) ORDER BY (event_id)"
            ) do
       add :event_id, :string
-      add :tenant_id, :string
-      add :namespace_id, :string
+      add :account_handle, :string
+      add :project_handle, :string
       add :account_id, :Int64
       add :project_id, :Int64
       add :node_id, :string

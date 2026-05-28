@@ -13,6 +13,9 @@ defmodule Tuist.Kura.Usage do
 
   @max_events_per_batch 5_000
 
+  # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic).
+  # We translate at the boundary to Tuist's account_handle/project_handle so
+  # the rest of the server doesn't have to know Kura's vocabulary.
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
     full_handles =
       events
@@ -36,16 +39,16 @@ defmodule Tuist.Kura.Usage do
 
     rows =
       Enum.map(events, fn event ->
-        tenant_id = event["tenant_id"]
-        namespace_id = event["namespace_id"]
-        full_handle = "#{tenant_id}/#{namespace_id}"
+        account_handle = event["tenant_id"]
+        project_handle = event["namespace_id"]
+        full_handle = "#{account_handle}/#{project_handle}"
         project = Map.get(projects_by_handle, full_handle)
 
         %{
           event_id: event["event_id"],
-          tenant_id: tenant_id,
-          namespace_id: namespace_id,
-          account_id: (project && project.account_id) || Map.get(account_ids_by_handle, tenant_id) || 0,
+          account_handle: account_handle,
+          project_handle: project_handle,
+          account_id: (project && project.account_id) || Map.get(account_ids_by_handle, account_handle) || 0,
           project_id: (project && project.id) || 0,
           node_id: event["node_id"],
           region: event["region"],
