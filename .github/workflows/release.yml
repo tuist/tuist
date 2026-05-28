@@ -1633,13 +1633,22 @@ jobs:
           install_args: "git-cliff"
 
       - name: Resolve default profile image
-        # The default profile is the first matrix entry in
-        # runner-image-build above — keep this `macos-26-5` in sync.
-        # The chart pins the immutable per-release tag
-        # (`:macos-<profile>-<semver>`), which the matrix job already
-        # pushed — no registry lookup needed since the release knows
-        # both halves. The tag is immutable in practice because the
-        # semver is monotonic (check-releases never reissues one).
+        # TRANSITIONAL: the chart's runnersFleet has a single pool
+        # (`name: default`), so the release pins that one pool to one
+        # profile's image — the first matrix entry in
+        # runner-image-build above (keep this `macos-26-5` in sync).
+        # The chart is designed for one pool per profile (see
+        # runner-pool.yaml), and once #10970 lands the pool-per-profile
+        # values structure, this step goes away: the release will
+        # instead bump every pool's image to its matching
+        # `:macos-<that-pool's-profile>-<semver>` tag and there'll be
+        # no "default".
+        #
+        # We pin the immutable per-release tag (`:macos-<profile>-<semver>`)
+        # the matrix job already pushed — no registry lookup, since the
+        # release knows both halves. The tag is immutable in practice
+        # because the semver is monotonic (check-releases never reissues
+        # one).
         id: image
         run: |
           set -euo pipefail

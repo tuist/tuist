@@ -179,13 +179,19 @@ customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. `runnersFleet.runnerImage` (helm value) is pinned to the
-   default profile's immutable per-release tag
+1. Each `runnersFleet.pools[].runnerImage` (helm value) is pinned to
+   a profile's immutable per-release tag
    (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
    chart's `required` directive only enforces non-empty; the
    release flow writes the immutable tag (not a digest) because
    the semver is monotonic, so the ref is reproducible without a
    registry lookup.
+
+   > **Transitional:** today there's a single pool (`name: default`)
+   > and the release pins it to the first matrix profile (the
+   > "default profile"). The chart is built for one pool per profile
+   > — once #10970 lands the pool-per-profile values, each pool pins
+   > its own profile tag and the "default" goes away.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.
