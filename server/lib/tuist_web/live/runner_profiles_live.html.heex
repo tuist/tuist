@@ -78,37 +78,47 @@
 
             <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Platform")}</span>
-              <.select
-                id="runner-profile-platform-select"
-                name="platform"
-                label={dgettext("dashboard_runners", "Select platform")}
-                value={@form_platform}
-                on_value_change="select_platform"
+              <.dropdown
+                id="runner-profile-platform-dropdown"
+                label={platform_label_for_value(@form_platform)}
               >
-                <:item
+                <.dropdown_item
                   :for={platform <- platforms()}
                   value={platform.value}
                   label={platform.label}
-                />
-              </.select>
+                  on_click="select_platform"
+                  phx-value-data={platform.value}
+                >
+                  <:right_icon :if={platform.value == @form_platform}><.check /></:right_icon>
+                </.dropdown_item>
+              </.dropdown>
             </div>
 
             <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Resources")}</span>
-              <.select
+              <.dropdown
                 :if={not Enum.empty?(@catalog)}
-                id="runner-profile-shape-select"
-                name="shape"
-                label={dgettext("dashboard_runners", "Select resources")}
-                value={shape_key(@form_vcpus, @form_memory_gb)}
-                on_value_change="select_shape"
+                id="runner-profile-shape-dropdown"
+                label={
+                  if is_integer(@form_vcpus) and is_integer(@form_memory_gb),
+                    do: shape_label(@form_vcpus, @form_memory_gb),
+                    else: dgettext("dashboard_runners", "Select resources")
+                }
               >
-                <:item
+                <.dropdown_item
                   :for={shape <- @catalog}
                   value={shape_key(shape.vcpus, shape.memory_gb)}
                   label={shape_label(shape.vcpus, shape.memory_gb)}
-                />
-              </.select>
+                  on_click="select_shape"
+                  phx-value-data={shape_key(shape.vcpus, shape.memory_gb)}
+                >
+                  <:right_icon :if={
+                    shape.vcpus == @form_vcpus and shape.memory_gb == @form_memory_gb
+                  }>
+                    <.check />
+                  </:right_icon>
+                </.dropdown_item>
+              </.dropdown>
 
               <span :if={Enum.empty?(@catalog)} data-part="empty-catalog">
                 {dgettext(

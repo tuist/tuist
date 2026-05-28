@@ -245,6 +245,17 @@ defmodule TuistWeb.RunnerProfilesLive do
   def platforms, do: [%{value: "linux", label: dgettext("dashboard_runners", "Linux")}]
 
   @doc """
+  Label for the platform dropdown trigger, resolved from the selected
+  value. Falls back to a placeholder when nothing matches.
+  """
+  def platform_label_for_value(value) do
+    case Enum.find(platforms(), &(&1.value == value)) do
+      %{label: label} -> label
+      _ -> dgettext("dashboard_runners", "Select platform")
+    end
+  end
+
+  @doc """
   Shape key in the catalog format used as the dropdown value.
   """
   def shape_key(vcpus, memory_gb) when is_integer(vcpus) and is_integer(memory_gb), do: "#{vcpus}vcpu-#{memory_gb}gb"
