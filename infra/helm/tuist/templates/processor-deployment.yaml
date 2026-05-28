@@ -107,6 +107,14 @@ spec:
             # mode), so this flag stays off.
             - name: TUIST_DATABASE_POOLED
               value: "1"
+            {{- else }}
+            # Match the server / migration pods: the in-cluster `-rw` Service
+            # is reached over plaintext. Without this, TUIST_USE_SSL_FOR_DATABASE
+            # defaults to "1" (runtime.exs) and only the processor would dial
+            # CNPG with SSL, diverging from the rest of the app's connection
+            # shape.
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
             {{- end }}
             # Override DATABASE_URL baked into priv/secrets/<env>.yml.enc with
             # the least-privilege tuist_processor role. Scope: SELECT/INSERT/
