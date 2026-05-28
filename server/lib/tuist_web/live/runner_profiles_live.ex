@@ -65,8 +65,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
   end
 
-  def handle_event("select_shape", %{"data" => key}, socket) do
-    case parse_shape_key(key) do
+  def handle_event("select_shape", params, socket) do
+    case params |> shape_key_from_params() |> parse_shape_key() do
       {vcpus, memory_gb} ->
         {:noreply,
          socket
@@ -165,12 +165,23 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_error, nil)
   end
 
+  # Noora's <.select> fires on_value_change with `%{"value" => [key]}`;
+  # accept the bare-string and `%{"data" => key}` shapes too so tests
+  # and any future trigger can drive the same handler.
+  defp shape_key_from_params(%{"value" => [key | _]}), do: key
+  defp shape_key_from_params(%{"value" => key}) when is_binary(key), do: key
+  defp shape_key_from_params(%{"data" => key}) when is_binary(key), do: key
+  defp shape_key_from_params(key) when is_binary(key), do: key
+  defp shape_key_from_params(_), do: nil
+
   defp parse_shape_key(key) when is_binary(key) do
     case Regex.run(~r/^(\d+)vcpu-(\d+)gb$/, key) do
       [_, vcpus, memory_gb] -> {String.to_integer(vcpus), String.to_integer(memory_gb)}
       _ -> :error
     end
   end
+
+  defp parse_shape_key(_), do: :error
 
   @doc """
   The `runs-on:` snippet to show in the table — `tuist-<name>`.

@@ -330,6 +330,24 @@ config :tuist, :blocked_handles, [
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
 
+# Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
+# pick when creating a profile. MUST stay in sync with
+# `runnersFleetLinux.shapes` in infra/helm/tuist/values*.yaml: this
+# list drives the dashboard dropdown + profile validation, while the
+# Helm list renders the matching shape-keyed RunnerPool CRs. Exactly
+# one entry should carry `default: true` (used by the profile
+# backfill and preselected in the "new profile" form).
+config :tuist, :runner_linux_shapes, [
+  %{vcpus: 1, memory_gb: 2},
+  %{vcpus: 2, memory_gb: 4},
+  %{vcpus: 2, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 16, default: true},
+  %{vcpus: 8, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 32}
+]
+
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",

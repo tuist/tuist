@@ -51,53 +51,43 @@
               title={@form_error}
             />
 
-            <.text_input
-              id="runner-profile-name"
-              name="name"
-              type="basic"
-              label={dgettext("dashboard_runners", "Name")}
-              sublabel={
-                dgettext(
+            <div data-part="field">
+              <.text_input
+                id="runner-profile-name"
+                name="name"
+                type="basic"
+                label={dgettext("dashboard_runners", "Name")}
+                value={@form_name}
+                placeholder="default"
+                disabled={match?({:edit, _}, @form_mode)}
+                phx-keyup="update_form_name"
+                phx-debounce="200"
+              />
+              <span data-part="hint">
+                {dgettext(
                   "dashboard_runners",
-                  "Lowercase letters, digits, and hyphens. The runs-on label is tuist-<name>."
-                )
-              }
-              value={@form_name}
-              placeholder="default"
-              disabled={match?({:edit, _}, @form_mode)}
-              phx-keyup="update_form_name"
-              phx-debounce="200"
-            />
-
-            <div data-part="runs-on-preview">
-              <span data-part="label">{dgettext("dashboard_runners", "runs-on label")}</span>
-              <code>{"runs-on: " <> dispatch_label_preview(@form_name)}</code>
+                  "Lowercase letters, digits, and hyphens. Used in your workflow as:"
+                )}
+                <code>{"runs-on: " <> dispatch_label_preview(@form_name)}</code>
+              </span>
             </div>
 
-            <div data-part="shape-field">
-              <span data-part="label">{dgettext("dashboard_runners", "Resources")}</span>
-              <.dropdown
-                id="runner-profile-shape-dropdown"
-                label={
-                  if is_integer(@form_vcpus) and is_integer(@form_memory_gb),
-                    do: shape_label(@form_vcpus, @form_memory_gb),
-                    else: dgettext("dashboard_runners", "Select resources")
-                }
+            <div data-part="field">
+              <span data-part="field-label">{dgettext("dashboard_runners", "Resources")}</span>
+              <.select
+                :if={not Enum.empty?(@catalog)}
+                id="runner-profile-shape-select"
+                name="shape"
+                label={dgettext("dashboard_runners", "Select resources")}
+                value={shape_key(@form_vcpus, @form_memory_gb)}
+                on_value_change="select_shape"
               >
-                <.dropdown_item
+                <:item
                   :for={shape <- @catalog}
                   value={shape_key(shape.vcpus, shape.memory_gb)}
                   label={shape_label(shape.vcpus, shape.memory_gb)}
-                  on_click="select_shape"
-                  phx-value-data={shape_key(shape.vcpus, shape.memory_gb)}
-                >
-                  <:right_icon :if={
-                    shape.vcpus == @form_vcpus and shape.memory_gb == @form_memory_gb
-                  }>
-                    <.check />
-                  </:right_icon>
-                </.dropdown_item>
-              </.dropdown>
+                />
+              </.select>
 
               <span :if={Enum.empty?(@catalog)} data-part="empty-catalog">
                 {dgettext(
