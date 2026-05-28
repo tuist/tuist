@@ -1264,7 +1264,7 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
-    test "looks up existing test cases via a single multipart array parameter for large batches" do
+    test "looks up existing test cases with a bounded multipart form-field count for large batches" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -1278,42 +1278,56 @@ defmodule Tuist.TestsTest do
           }
         end
 
-      expect(ClickHouseRepo, :query, 3, fn sql, params, opts ->
-        assert Keyword.get(opts, :multipart) == true
+      parent = self()
 
-        # The IDs must be bound as a single `{ids:Array(UUID)}` parameter so the
-        # multipart request carries a constant number of form fields regardless
-        # of how many test cases the report contains.
-        assert sql =~ "test_cases"
+      stub(ClickHouseRepo, :query, fn sql, params, opts ->
+        send(parent, {:test_case_lookup, sql, params, opts})
+        {:ok, %{rows: []}}
+      end)
+
+      # When
+      assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
+
+      # Then
+      lookups = drain_test_case_lookups([])
+      assert lookups != []
+
+      for {sql, params, opts} <- lookups do
+        assert Keyword.get(opts, :multipart) == true
         assert sql =~ "{project_id:Int64}"
         assert sql =~ "{ids:Array(UUID)}"
         assert params["project_id"] == project.id
         assert is_list(params["ids"])
 
-        {:ok, %{rows: []}}
-      end)
+        # The whole batch travels as one `{ids:Array(UUID)}` parameter, so
+        # ClickHouse only ever parses a constant set of multipart form fields
+        # (query + project_id + ids) no matter how many test cases the report
+        # has. An `id in ^ids` clause binds one parameter per ID, which emits
+        # one form field per ID and overflows ClickHouse's form-field limit on
+        # large reports (`HTML Form Exception: Too many form fields`).
+        assert multipart_form_field_count(sql, params) == 3
+      end
+    end
 
-      test_attrs = %{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: project.account_id,
-        duration: 1500,
-        status: "success",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: false,
-        test_modules: [
+    test "ingests a large test report end to end without exceeding ClickHouse multipart limits" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..5_001 do
           %{
-            name: "Module",
+            name: "test_#{index}",
             status: "success",
-            duration: 1500,
-            test_suites: [%{name: "Suite", status: "success", duration: 1500}],
-            test_cases: test_cases
+            duration: 10,
+            test_suite_name: "Suite"
           }
-        ]
-      }
+        end
 
-      # When/Then
-      assert {:ok, _test} = Tests.create_test(test_attrs)
+      # When/Then: the existing-test-case lookup runs against the real
+      # ClickHouse here (not a mock), so this fails if the IDs are sent in a way
+      # that trips either the form-field count or the per-field value-length
+      # limit (e.g. batching too aggressively).
+      assert {:ok, _test} = Tests.create_test(large_test_report(project, test_cases))
     end
 
     test "persists run_destinations as separate rows linked to the test run" do
@@ -8778,5 +8792,47 @@ defmodule Tuist.TestsTest do
 
       assert run.status == "success"
     end
+  end
+
+  defp large_test_report(project, test_cases) do
+    %{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      account_id: project.account_id,
+      duration: 1500,
+      status: "success",
+      ran_at: NaiveDateTime.utc_now(),
+      is_ci: false,
+      test_modules: [
+        %{
+          name: "Module",
+          status: "success",
+          duration: 1500,
+          test_suites: [%{name: "Suite", status: "success", duration: 1500}],
+          test_cases: test_cases
+        }
+      ]
+    }
+  end
+
+  defp drain_test_case_lookups(acc) do
+    receive do
+      {:test_case_lookup, sql, params, opts} ->
+        drain_test_case_lookups([{sql, params, opts} | acc])
+    after
+      0 -> Enum.reverse(acc)
+    end
+  end
+
+  defp multipart_form_field_count(sql, params) do
+    {_params, _headers, body} =
+      sql
+      |> Ch.Query.build(multipart: true)
+      |> DBConnection.Query.encode(params, [])
+
+    body
+    |> IO.iodata_to_binary()
+    |> then(&Regex.scan(~r/content-disposition: form-data; name=/, &1))
+    |> length()
   end
 end
