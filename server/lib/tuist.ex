@@ -50,7 +50,6 @@ defmodule Tuist do
       Kura.Server,
       Kura.Usage,
       Kura.UsageEvent,
-      Kura.ControlPlaneAuth,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
