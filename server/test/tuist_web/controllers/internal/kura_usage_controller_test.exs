@@ -2,8 +2,8 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.IngestRepo
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -69,7 +69,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
                bytes: 123,
                request_count: 2
              }
-           ] = IngestRepo.all(UsageEvent)
+           ] = ClickHouseRepo.all(UsageEvent)
 
     assert account_id == account.id
     assert project_id == project.id
