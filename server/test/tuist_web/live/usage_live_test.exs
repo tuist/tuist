@@ -123,19 +123,29 @@ defmodule TuistWeb.UsageLiveTest do
   end
 
   describe "widget switching" do
+    # Each widget renders an `empty` variant (no `phx-value-widget` attribute)
+    # when its bytes/count is zero, so seed at least one event of each kind so
+    # the click wrappers always render in this describe block.
     setup %{account: account} do
       enable_kura(account)
+
+      insert_event(%{account_id: account.id, direction: "egress", bytes: 1_000, request_count: 1})
+      insert_event(%{account_id: account.id, direction: "ingress", bytes: 500, request_count: 1})
+
       :ok
     end
 
     test "egress is the default selected widget", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
+      _ = render_async(lv)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
 
     test "clicking a widget patches the URL with ?widget=ingress", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+
+      _ = render_async(lv)
 
       lv
       |> element(~s|[phx-value-widget="ingress"]|)
@@ -148,6 +158,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "honors widget=requests in the URL on initial mount", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=requests")
 
+      _ = render_async(lv)
       assert has_element?(lv, ~s|[phx-value-widget="requests"][data-selected]|)
     end
 
@@ -157,6 +168,7 @@ defmodule TuistWeb.UsageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=bogus")
 
+      _ = render_async(lv)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
   end
