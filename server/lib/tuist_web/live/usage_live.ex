@@ -12,6 +12,7 @@ defmodule TuistWeb.UsageLive do
   alias Tuist.Kura.Usage
   alias Tuist.Projects
   alias Tuist.Utilities.ByteFormatter
+  alias TuistWeb.CldrHelpers
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -230,8 +231,8 @@ defmodule TuistWeb.UsageLive do
   def region_label(region) when is_binary(region), do: region
 
   def format_bytes(value), do: ByteFormatter.format_bytes(value || 0)
-  def format_count(value) when is_integer(value), do: Integer.to_string(value)
-  def format_count(_), do: "0"
+  def format_count(value) when is_integer(value), do: CldrHelpers.format_number(value)
+  def format_count(_), do: CldrHelpers.format_number(0)
 
   def empty_label, do: dgettext("dashboard_usage", "No Kura traffic in this window yet")
 end
