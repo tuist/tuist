@@ -7,8 +7,8 @@
   & > [data-part="page-header"] {
     display: flex;
     flex-direction: row;
-    align-items: flex-start;
     justify-content: space-between;
+    align-items: flex-start;
     gap: var(--noora-spacing-5);
 
     & > [data-part="heading"] {
@@ -44,6 +44,21 @@
     & td:last-child > [data-part="cell"][data-type="button"] {
       justify-content: flex-end;
       width: 100%;
+    }
+  }
+}
+
+#runner-profile-delete-modal {
+  & [data-part="delete-modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & > [data-part="delete-modal-message"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
   }
 }

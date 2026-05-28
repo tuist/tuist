@@ -203,15 +203,8 @@
                 :if={length(@profiles) > 1}
                 label={dgettext("dashboard_runners", "Delete")}
                 value="delete"
-                on_click="delete_profile"
+                on_click="request_delete_profile"
                 phx-value-id={profile.id}
-                data-confirm={
-                  dgettext(
-                    "dashboard_runners",
-                    "Delete profile %{name}? Workflows that reference it will fail to dispatch until updated.",
-                    name: profile.name
-                  )
-                }
               >
                 <:left_icon><.trash /></:left_icon>
               </.dropdown_item>
@@ -232,4 +225,58 @@
       />
     </:empty_state>
   </.table>
+
+  <%!-- Delete confirmation. One page-level modal opened by a row's
+        Delete action via push_event (the table can't host a per-row
+        trigger). The required trigger slot is an empty placeholder. --%>
+  <.modal
+    id={@delete_modal_id}
+    title={dgettext("dashboard_runners", "Delete profile")}
+    header_size="large"
+    on_dismiss="cancel_delete_profile"
+  >
+    <:trigger><span hidden></span></:trigger>
+    <.line_divider />
+    <div data-part="delete-modal-body">
+      <.alert
+        :if={@deleting_profile}
+        status="warning"
+        type="secondary"
+        size="small"
+        title={
+          dgettext(
+            "dashboard_runners",
+            "Workflows using runs-on: %{label} will fail to dispatch until they're updated.",
+            label: dispatch_snippet(@deleting_profile)
+          )
+        }
+      />
+      <p data-part="delete-modal-message">
+        {dgettext(
+          "dashboard_runners",
+          "Delete profile %{name}? This can't be undone.",
+          name: (@deleting_profile && @deleting_profile.name) || ""
+        )}
+      </p>
+    </div>
+    <.line_divider />
+    <:footer>
+      <.modal_footer>
+        <:action>
+          <.button
+            label={dgettext("dashboard_runners", "Cancel")}
+            variant="secondary"
+            phx-click="cancel_delete_profile"
+          />
+        </:action>
+        <:action>
+          <.button
+            label={dgettext("dashboard_runners", "Delete profile")}
+            variant="destructive"
+            phx-click="confirm_delete_profile"
+          />
+        </:action>
+      </.modal_footer>
+    </:footer>
+  </.modal>
 </div>

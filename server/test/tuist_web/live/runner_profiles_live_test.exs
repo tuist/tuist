@@ -59,16 +59,30 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert html =~ "tuist-large"
     end
 
-    test "delete_profile removes the row", %{conn: conn, account: account} do
+    test "request + confirm deletes the profile", %{conn: conn, account: account} do
       {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
       {:ok, _} = Profiles.create(account, %{"name" => "large", "vcpus" => 8, "memory_gb" => 32})
 
       {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      render_hook(lv, "delete_profile", %{"id" => to_string(profile.id)})
+      # Row action opens the confirm modal; only the confirm commits.
+      render_hook(lv, "request_delete_profile", %{"id" => to_string(profile.id)})
+      assert Profiles.get_by_name(account, "default")
 
+      render_hook(lv, "confirm_delete_profile", %{})
       refute Profiles.get_by_name(account, "default")
       assert Profiles.get_by_name(account, "large")
+    end
+
+    test "cancel keeps the profile", %{conn: conn, account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      {:ok, _} = Profiles.create(account, %{"name" => "large", "vcpus" => 8, "memory_gb" => 32})
+
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      render_hook(lv, "request_delete_profile", %{"id" => to_string(profile.id)})
+      render_hook(lv, "cancel_delete_profile", %{})
+      assert Profiles.get_by_name(account, "default")
     end
 
     test "refuses to delete the only remaining profile", %{conn: conn, account: account} do
@@ -76,10 +90,11 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
 
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
       # The Delete row action is hidden when one profile remains.
-      refute html =~ "delete_profile"
+      refute html =~ "request_delete_profile"
 
-      # Even a crafted event is rejected server-side.
-      render_hook(lv, "delete_profile", %{"id" => to_string(only.id)})
+      # Even a crafted request + confirm is rejected server-side.
+      render_hook(lv, "request_delete_profile", %{"id" => to_string(only.id)})
+      render_hook(lv, "confirm_delete_profile", %{})
       assert Profiles.get_by_name(account, "default")
     end
   end

@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnerProfilesLive do
   alias Tuist.Runners.Profiles
 
   @modal_id "runner-profile-modal"
+  @delete_modal_id "runner-profile-delete-modal"
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -28,6 +29,8 @@ defmodule TuistWeb.RunnerProfilesLive do
      )
      |> assign(:catalog, Catalog.list())
      |> assign(:modal_id, @modal_id)
+     |> assign(:delete_modal_id, @delete_modal_id)
+     |> assign(:deleting_profile, nil)
      |> assign_profiles()
      |> reset_form()}
   end
@@ -109,34 +112,53 @@ defmodule TuistWeb.RunnerProfilesLive do
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
 
-  def handle_event("delete_profile", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
-    profiles = Profiles.list_for_account(account)
-
-    case Enum.find(profiles, &(to_string(&1.id) == id)) do
+  # Row action: stash the target and open the Noora confirm modal.
+  def handle_event("request_delete_profile", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    case account |> Profiles.list_for_account() |> Enum.find(&(to_string(&1.id) == id)) do
       nil ->
         {:noreply, socket}
 
-      _profile when length(profiles) <= 1 ->
+      %Profile{} = profile ->
+        {:noreply,
+         socket
+         |> assign(:deleting_profile, profile)
+         |> push_event("open-modal", %{id: @delete_modal_id})}
+    end
+  end
+
+  def handle_event("cancel_delete_profile", _params, socket) do
+    {:noreply, socket |> assign(:deleting_profile, nil) |> close_delete_modal()}
+  end
+
+  def handle_event("confirm_delete_profile", _params, %{assigns: %{deleting_profile: nil}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "confirm_delete_profile",
+        _params,
+        %{assigns: %{deleting_profile: %Profile{} = profile, selected_account: account}} = socket
+      ) do
+    socket = socket |> assign(:deleting_profile, nil) |> close_delete_modal()
+
+    cond do
+      is_nil(Profiles.get_by_name(account, profile.name)) ->
+        # Raced away (already deleted) — nothing to do.
+        {:noreply, socket}
+
+      length(Profiles.list_for_account(account)) <= 1 ->
         # Authoritative guard mirroring the hidden row action: never let
         # an account drop to zero profiles, which would break every
         # workflow resolving through `tuist-<name>`.
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "You can't delete your only profile.")
-         )}
+        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "You can't delete your only profile."))}
 
-      profile ->
+      true ->
         {:ok, _} = Profiles.delete(profile)
 
         {:noreply,
          socket
          |> assign_profiles()
-         |> put_flash(
-           :info,
-           dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name)
-         )}
+         |> put_flash(:info, dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name))}
     end
   end
 
@@ -189,6 +211,8 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   defp close_modal(socket), do: push_event(socket, "close-modal", %{id: @modal_id})
+
+  defp close_delete_modal(socket), do: push_event(socket, "close-modal", %{id: @delete_modal_id})
 
   defp reset_form(%{assigns: %{catalog: catalog}} = socket) do
     default_shape = Enum.find(catalog, & &1.default?) || List.first(catalog)
