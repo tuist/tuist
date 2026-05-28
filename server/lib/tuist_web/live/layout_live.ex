@@ -8,12 +8,30 @@ defmodule TuistWeb.LayoutLive do
   import Phoenix.Component
   import TuistWeb.AppLayoutComponents
 
+  require Logger
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.CommandEvents
   alias Tuist.GitHub.Releases
   alias Tuist.Projects
   alias TuistWeb.Errors.NotFoundError
+
+  # TEMP investigation: time each step of the connected mount so we can
+  # spot which one is responsible for the >10s LV join timeouts users
+  # report when switching between projects. Revert once diagnosed.
+  defp lvt(label, socket, fun) do
+    {micros, result} = :timer.tc(fun)
+    ms = div(micros, 1000)
+
+    if ms >= 50 or connected?(socket) do
+      Logger.warning(
+        "[lv-timing] #{label} connected=#{connected?(socket)} took=#{ms}ms"
+      )
+    end
+
+    result
+  end
 
   def on_mount(
         :optional_project,
@@ -41,20 +59,22 @@ defmodule TuistWeb.LayoutLive do
         socket
       )
       when is_binary(account_handle) and is_binary(project_handle) do
-    current_user = get_current_user(session)
+    current_user = lvt("project.get_current_user", socket, fn -> get_current_user(session) end)
 
     selected_project =
-      case Map.get(socket.assigns, :selected_project) do
-        nil ->
-          TuistWeb.Authorization.require_user_can_read_project(%{
-            user: current_user,
-            account_handle: account_handle,
-            project_handle: project_handle
-          })
+      lvt("project.require_user_can_read_project", socket, fn ->
+        case Map.get(socket.assigns, :selected_project) do
+          nil ->
+            TuistWeb.Authorization.require_user_can_read_project(%{
+              user: current_user,
+              account_handle: account_handle,
+              project_handle: project_handle
+            })
 
-        project ->
-          TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
-      end
+          project ->
+            TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
+        end
+      end)
 
     %{account: selected_account} = selected_project
 
@@ -62,14 +82,16 @@ defmodule TuistWeb.LayoutLive do
     # the queries until the LiveView is connected.
     {selected_projects, current_user_accounts} =
       if connected?(socket) do
-        organization_accounts =
-          if is_nil(current_user) do
-            []
-          else
-            get_user_organization_accounts(current_user) ++ [current_user.account]
-          end
+        lvt("project.dropdown_queries", socket, fn ->
+          organization_accounts =
+            if is_nil(current_user) do
+              []
+            else
+              get_user_organization_accounts(current_user) ++ [current_user.account]
+            end
 
-        {get_projects(selected_account, current_user), organization_accounts}
+          {get_projects(selected_account, current_user), organization_accounts}
+        end)
       else
         {[], []}
       end
@@ -139,21 +161,25 @@ defmodule TuistWeb.LayoutLive do
   end
 
   def on_mount(:account, params, session, socket) do
-    current_user = get_current_user(session)
+    current_user = lvt("account.get_current_user", socket, fn -> get_current_user(session) end)
 
     # Deferred until connected — see :project.
     current_user_accounts =
       if connected?(socket) do
-        get_user_organization_accounts(current_user) ++ [current_user.account]
+        lvt("account.dropdown_queries", socket, fn ->
+          get_user_organization_accounts(current_user) ++ [current_user.account]
+        end)
       else
         []
       end
 
     selected_account =
-      case Map.get(params, "account_handle") do
-        handle when is_binary(handle) -> Accounts.get_account_by_handle(handle)
-        _ -> current_user.account
-      end
+      lvt("account.get_account_by_handle", socket, fn ->
+        case Map.get(params, "account_handle") do
+          handle when is_binary(handle) -> Accounts.get_account_by_handle(handle)
+          _ -> current_user.account
+        end
+      end)
 
     if is_nil(selected_account) do
       raise NotFoundError,

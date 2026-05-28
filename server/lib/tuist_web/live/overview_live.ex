@@ -3,11 +3,15 @@ defmodule TuistWeb.OverviewLive do
   use TuistWeb, :live_view
   use Noora
 
+  require Logger
+
   alias Tuist.Projects.Project
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
+    start = System.monotonic_time(:millisecond)
+
     socket =
       socket
       |> assign(
@@ -22,6 +26,10 @@ defmodule TuistWeb.OverviewLive do
       else
         TuistWeb.XcodeOverviewLive.assign_mount(socket)
       end
+
+    Logger.warning(
+      "[lv-timing] OverviewLive.mount connected=#{connected?(socket)} took=#{System.monotonic_time(:millisecond) - start}ms"
+    )
 
     {:ok, socket}
   end
@@ -81,6 +89,7 @@ defmodule TuistWeb.OverviewLive do
   end
 
   def handle_params(_params, request_uri, %{assigns: %{selected_project: project}} = socket) do
+    start = System.monotonic_time(:millisecond)
     params = Query.query_params(request_uri)
     full_uri = URI.parse(request_uri)
 
@@ -90,6 +99,10 @@ defmodule TuistWeb.OverviewLive do
       else
         TuistWeb.XcodeOverviewLive.assign_handle_params(socket, params, full_uri.path)
       end
+
+    Logger.warning(
+      "[lv-timing] OverviewLive.handle_params connected=#{connected?(socket)} took=#{System.monotonic_time(:millisecond) - start}ms"
+    )
 
     {:noreply, socket}
   end
