@@ -150,7 +150,19 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
 
-    test "falls back to legacy pool match when no profile matches", %{account: account} do
+    test "aliases a legacy tuist-<env>-linux label to the default shape", %{account: account} do
+      # No profile matches the legacy label, but it resolves to the
+      # catalog default shape with the original label preserved so
+      # GitHub still binds the job.
+      assert {:ok,
+              %{
+                pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
+                requested_dispatch_label: "tuist-production-linux"
+              }} =
+               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-production-linux"])
+    end
+
+    test "falls back to legacy pool match for non-Linux labels (macOS)", %{account: account} do
       stub(Client, :list_runner_pools, fn _ns ->
         {:ok,
          [

@@ -311,37 +311,17 @@ kataContainers:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  pools:
-    - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
-      dispatchLabel: "tuist-production-linux"
-      runnerLabels:
-        - self-hosted
-        - Linux
-        - X64
-      runtimeClass: kata-qemu
-      pod:
-        cpuMilli: 1000
-        memoryMB: 4096
-      # Pod-level autoscaling only. Bare-metal host count is operator-
-      # managed via the cluster topology — see staging values for the
-      # rationale.
-      autoscaling:
-        enabled: true
-        # ~50% of P95: keeps warm runners pre-thawed without paying
-        # for steady-state idle capacity equal to peak.
-        minWarmPoolFloor: 30
-        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
-        # reserved for system DaemonSets (Cilium agent, kube-proxy
-        # replacement, node-exporter) and per-Pod kata overhead.
-        maxReplicas: 120
-        scaleDownCooldownSeconds: 300
+  # No legacy pool: the shape catalog below is the whole Linux fleet.
+  # Workflows still using the old `tuist-production-linux` label are
+  # aliased to the default shape by the server's dispatch path
+  # (`@legacy_linux_labels` in `Tuist.Runners.Dispatch`).
+  pools: []
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
-  # `:runner_linux_shapes` in `server/config/config.exs`. Scale-to-zero
-  # (floor 0) so the catalog adds no steady-state capacity next to the
-  # floor-30 legacy pool; the fleet-aware autoscaler bin-packs shapes
-  # on demand. Watch the Capacity-fit dashboard row before raising
-  # floors or retiring the legacy pool.
+  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
+  # default shape keeps the warm floor the legacy pool used to carry,
+  # since it absorbs both new `tuist-default` traffic and the aliased
+  # legacy `tuist-production-linux` jobs.
   shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
@@ -354,7 +334,13 @@ runnersFleetLinux:
     - { vcpus: 2, memoryGb: 4 }
     - { vcpus: 2, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 16, default: true }
+    # Default shape: ~50% of P95 warm floor (the legacy pool's value),
+    # since all `tuist-default` + aliased legacy traffic lands here.
+    - vcpus: 4
+      memoryGb: 16
+      default: true
+      autoscaling:
+        minWarmPoolFloor: 30
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
