@@ -177,12 +177,13 @@ jobs:
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
-        uses: ./.github/actions/op-document-get
-        with:
-          document: "kubeconfig: tuist-${{ inputs.environment }}"
-          vault: "tuist-k8s-${{ inputs.environment }}"
-          output: ${{ env.KUBECONFIG }}
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         # Fail fast if the 1P-stored kubeconfig points at an unreachable
         # apiserver. Without this, the next step would hang for `--timeout`
@@ -260,12 +261,13 @@ jobs:
         uses: 1password/install-cli-action@v2
       - if: steps.check-values.outputs.exists == 'true'
         name: Load kubeconfig from 1Password
-        uses: ./.github/actions/op-document-get
-        with:
-          document: "kubeconfig: tuist-${{ inputs.environment }}"
-          vault: "tuist-k8s-${{ inputs.environment }}"
-          output: ${{ env.KUBECONFIG }}
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
       - if: steps.check-values.outputs.exists == 'true'
         name: Verify cluster reachability
         run: |
@@ -318,12 +320,13 @@ jobs:
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
-        uses: ./.github/actions/op-document-get
-        with:
-          document: "kubeconfig: tuist-${{ inputs.environment }}"
-          vault: "tuist-k8s-${{ inputs.environment }}"
-          output: ${{ env.KUBECONFIG }}
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         run: |
           set -euo pipefail
@@ -388,12 +391,13 @@ jobs:
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load kubeconfig from 1Password
-        uses: ./.github/actions/op-document-get
-        with:
-          document: "kubeconfig: tuist-${{ inputs.environment }}"
-          vault: "tuist-k8s-${{ inputs.environment }}"
-          output: ${{ env.KUBECONFIG }}
-          service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         # Fail fast if the 1P-stored kubeconfig points at an unreachable
         # apiserver. Without this, helm upgrade would hang for `--timeout`
