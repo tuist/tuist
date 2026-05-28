@@ -1014,12 +1014,21 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The server still falls back to the legacy
+  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
+  # so existing deployments and dev secrets keep working through the
+  # rename.
   def kura_control_plane_client_id(secrets \\ secrets()) do
-    get([:kura, :control_plane_client_id], secrets) || get([:kura, :introspection_client_id], secrets)
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
   end
 
   def kura_control_plane_client_secret(secrets \\ secrets()) do
-    get([:kura, :control_plane_client_secret], secrets) || get([:kura, :introspection_client_secret], secrets)
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
   end
 
   def kura_control_plane_configured?(secrets \\ secrets()) do
