@@ -73,19 +73,53 @@
       }
 
       & > [data-part="hint"] {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--noora-spacing-2);
-        color: var(--noora-surface-label-secondary);
+        color: var(--noora-surface-label-tertiary);
         font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
 
-        & > code {
-          border-radius: var(--noora-radius-3);
-          background: var(--noora-surface-background-tertiary);
-          padding: var(--noora-spacing-1) var(--noora-spacing-3);
-          color: var(--noora-surface-label-primary);
+      & > [data-part="prefixed-input"] {
+        display: flex;
+        align-items: stretch;
+        align-self: stretch;
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-3);
+        background: var(--noora-surface-background-primary);
+        overflow: hidden;
+
+        &[data-disabled="true"] {
+          opacity: 0.6;
+        }
+
+        &:focus-within {
+          box-shadow: var(--noora-border-light-focus);
+        }
+
+        & > [data-part="prefix"] {
+          display: flex;
+          align-items: center;
+          background: var(--noora-surface-background-secondary);
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+          color: var(--noora-surface-label-secondary);
           font-family: "Geist Mono", monospace;
+          white-space: nowrap;
+        }
+
+        & > input {
+          flex-grow: 1;
+          outline: none;
+          border: none;
+          background: none;
+          padding: var(--noora-spacing-3) var(--noora-spacing-4);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-body-medium);
+
+          &::placeholder {
+            color: var(--noora-surface-label-tertiary);
+          }
+
+          &:disabled {
+            cursor: not-allowed;
+          }
         }
       }
 

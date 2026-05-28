@@ -52,23 +52,23 @@
             />
 
             <div data-part="field">
-              <.text_input
-                id="runner-profile-name"
-                name="name"
-                type="basic"
-                label={dgettext("dashboard_runners", "Name")}
-                value={@form_name}
-                placeholder="default"
-                disabled={match?({:edit, _}, @form_mode)}
-                phx-keyup="update_form_name"
-                phx-debounce="200"
-              />
-              <span data-part="hint">
-                {dgettext(
-                  "dashboard_runners",
-                  "Lowercase letters, digits, and hyphens. Used in your workflow as:"
-                )}
-                <code>{"runs-on: " <> dispatch_label_preview(@form_name)}</code>
+              <span data-part="field-label">{dgettext("dashboard_runners", "Name")}</span>
+              <div data-part="prefixed-input" data-disabled={match?({:edit, _}, @form_mode)}>
+                <span data-part="prefix">tuist-</span>
+                <input
+                  id="runner-profile-name"
+                  name="name"
+                  type="text"
+                  value={@form_name}
+                  placeholder={dgettext("dashboard_runners", ~s(e.g. "default", "large", "ci"))}
+                  disabled={match?({:edit, _}, @form_mode)}
+                  autocomplete="off"
+                  phx-keyup="update_form_name"
+                  phx-debounce="200"
+                />
+              </div>
+              <span :if={@form_mode == :new} data-part="hint">
+                {dgettext("dashboard_runners", "Cannot be changed after creation.")}
               </span>
             </div>
 

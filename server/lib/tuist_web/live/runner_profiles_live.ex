@@ -221,13 +221,6 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def shape_label(_, _), do: ""
 
-  @doc """
-  Preview the `runs-on:` line as the user types in the name field.
-  Renders the placeholder `tuist-<name>` when the field is blank.
-  """
-  def dispatch_label_preview(name) when is_binary(name) and name != "", do: "tuist-" <> name
-  def dispatch_label_preview(_), do: "tuist-<name>"
-
   defp humanize_changeset_errors(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, "; ", fn {field, {msg, opts}} ->
       msg = Enum.reduce(opts, msg, fn {key, value}, acc -> String.replace(acc, "%{#{key}}", to_string(value)) end)
