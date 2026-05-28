@@ -82,6 +82,9 @@ jobs:
           echo "DEST=$(get '{.spec.backup.barmanObjectStore.destinationPath}')" >> "$GITHUB_ENV"
           echo "ENDPOINT=$(get '{.spec.backup.barmanObjectStore.endpointURL}')" >> "$GITHUB_ENV"
           echo "IMG=$(get '{.spec.imageName}')" >> "$GITHUB_ENV"
+          # Match the live volume size so the restore can actually hold the
+          # data (and validates prod-sized recovery), not a hardcoded floor.
+          echo "SIZE=$(get '{.spec.storage.size}')" >> "$GITHUB_ENV"
           # Baseline counts from any live instance (replicas hold the same data).
           pod=$(kubectl -n "$NS" get pods -l "cnpg.io/cluster=$CLUSTER" -o jsonpath='{.items[0].metadata.name}')
           q() { kubectl -n "$NS" exec "$pod" -c postgres -- psql -U postgres -d tuist -tAc "$1" | tr -d '[:space:]'; }
@@ -107,7 +110,7 @@ jobs:
             imageName: $IMG
             enableSuperuserAccess: true
             storage:
-              size: 10Gi
+              size: $SIZE
             resources:
               requests: { cpu: "100m", memory: "256Mi" }
               limits: { cpu: "1000m", memory: "1Gi" }
