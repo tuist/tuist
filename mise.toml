@@ -22,11 +22,7 @@
     "github:tuist/blick" = "0.8.0"
     "npm:opencode-ai" = "1.14.39"
     kubectl = "1.36.1"
-    # 4.2.0 (set by #10907) 404s in aqua's helm provider —
-    # `helm-4.2.0-linux-amd64.tar.gz` doesn't exist upstream
-    # (only `helm-v4.2.0-...` does). Hold on 3.x until aqua's
-    # registry catches up.
-    helm = "3.16.3"
+    helm = "4.2.0"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
