@@ -37,20 +37,40 @@ struct XCResultParserTests {
     }
 
     @Test
-    func parse_extractsAttachmentsUnderTheProvidedRootDirectory() async throws {
+    func parse_extractsAttachmentsUnderTheScratchDirectory() async throws {
         let zipPath = try fixtureZipPath("test-with-arguments.xcresult")
 
         try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
             try await fileSystem.unzip(zipPath, to: workDir)
             let xcresult = workDir.appending(component: "test-with-arguments.xcresult")
+            let scratch = workDir.appending(component: "scratch")
+            try await fileSystem.makeDirectory(at: scratch)
 
-            _ = try await parser.parse(path: xcresult, rootDirectory: workDir)
+            _ = try await parser.parse(path: xcresult, rootDirectory: workDir, attachmentScratchDirectory: scratch)
 
-            // Exported attachments must live under the caller's root
-            // directory so the caller's wholesale cleanup reclaims them,
-            // rather than leaking into the process-wide temp dir.
-            let attachmentsDirectory = workDir.appending(component: "xcresult-attachments")
-            #expect(try await fileSystem.exists(attachmentsDirectory))
+            // Exported attachments must live under the caller-owned scratch
+            // dir so its wholesale cleanup reclaims them.
+            #expect(try await fileSystem.exists(scratch.appending(component: "xcresult-attachments")))
+        }
+    }
+
+    @Test
+    func parse_doesNotExportAttachmentsIntoRootDirectoryWhenNoScratchGiven() async throws {
+        // rootDirectory is the caller's *source* root (the user's project
+        // for CLI callers) and is read-only. Without an explicit scratch
+        // dir, attachments must NOT be dropped into it — they go to a temp
+        // dir instead.
+        let zipPath = try fixtureZipPath("test-with-arguments.xcresult")
+
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
+            try await fileSystem.unzip(zipPath, to: workDir)
+            let xcresult = workDir.appending(component: "test-with-arguments.xcresult")
+            let projectRoot = workDir.appending(component: "project")
+            try await fileSystem.makeDirectory(at: projectRoot)
+
+            _ = try await parser.parse(path: xcresult, rootDirectory: projectRoot)
+
+            #expect(try await !fileSystem.exists(projectRoot.appending(component: "xcresult-attachments")))
         }
     }
 }
