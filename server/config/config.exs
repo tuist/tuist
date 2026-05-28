@@ -337,8 +337,7 @@ config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1
 # renders the RunnerPool CRs from (see config/runtime.exs). So the
 # cluster's pools and the server's catalog share one source of truth in
 # prod and can't drift. Exactly one entry should carry `default: true`
-# (used by the profile backfill and preselected in the "new profile"
-# form).
+# (preselected in the "new profile" form).
 config :tuist, :runner_linux_shapes, [
   %{vcpus: 1, memory_gb: 2},
   %{vcpus: 2, memory_gb: 4},

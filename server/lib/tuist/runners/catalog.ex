@@ -45,9 +45,9 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  The shape tagged `default: true` in config — the one the profile
-  backfill and the "new profile" form preselect. Returns `nil` when
-  no default is tagged.
+  The shape tagged `default: true` in config — the one the "new
+  profile" form preselects and the legacy `tuist-<env>-linux` alias
+  resolves to. Returns `nil` when no default is tagged.
   """
   def default do
     Enum.find(list(), & &1.default?)

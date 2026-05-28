@@ -121,18 +121,6 @@ defmodule Tuist.Runners.Profiles do
     end
   end
 
-  @doc """
-  Whether `account` has at least one profile. Used by the dispatch
-  layer to distinguish "no profile matched the label" (probably a
-  typo) from "this account hasn't been backfilled / has zero
-  profiles" (a different operator concern).
-  """
-  def any_for_account?(%{id: account_id}) do
-    Profile
-    |> where([p], p.account_id == ^account_id)
-    |> Repo.exists?()
-  end
-
   defp count_for_account(account_id) do
     Profile
     |> where([p], p.account_id == ^account_id)
