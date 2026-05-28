@@ -110,9 +110,22 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   def handle_event("delete_profile", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
-    case account |> Profiles.list_for_account() |> Enum.find(&(to_string(&1.id) == id)) do
+    profiles = Profiles.list_for_account(account)
+
+    case Enum.find(profiles, &(to_string(&1.id) == id)) do
       nil ->
         {:noreply, socket}
+
+      _profile when length(profiles) <= 1 ->
+        # Authoritative guard mirroring the hidden row action: never let
+        # an account drop to zero profiles, which would break every
+        # workflow resolving through `tuist-<name>`.
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard_runners", "You can't delete your only profile.")
+         )}
 
       profile ->
         {:ok, _} = Profiles.delete(profile)

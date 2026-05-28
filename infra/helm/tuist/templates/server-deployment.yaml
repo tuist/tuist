@@ -135,6 +135,13 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # Prefix the dispatch path prepends to a shape key to address
+            # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+            # Injected from the same helper that names the CRs in
+            # runner-pool.yaml so the server always resolves to a pool a
+            # Pod actually polls, regardless of the helm release name.
+            - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}

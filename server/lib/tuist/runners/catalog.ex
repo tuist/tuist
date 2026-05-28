@@ -50,12 +50,18 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
-  Pool name a profile resolves to. Mirrors the chart's render:
-  `<release>-tuist-runner-pool-linux-<vcpus>vcpu-<gb>gb`. The
-  prefix is read from app config so test envs can override.
+  Name of the `RunnerPool` CR a profile of this shape dispatches to.
+  Mirrors the chart's render of `runnersFleetLinux.shapes` in
+  `runner-pool.yaml`: `<prefix>-<vcpus>vcpu-<gb>gb`, where the prefix is
+  the `tuist.componentName` value Helm injects via
+  `TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX` (see
+  `Tuist.Environment.runners_linux_pool_name_prefix/0`). Injecting it
+  keeps the server's enqueue target identical to the rendered CR name
+  regardless of the helm release name, so jobs never land on a fleet no
+  Pod polls.
   """
   def pool_name(vcpus, memory_gb) when is_integer(vcpus) and is_integer(memory_gb) do
-    "#{pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
+    "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
   end
 
   defp normalize(%{vcpus: vcpus, memory_gb: memory_gb} = shape) when is_integer(vcpus) and is_integer(memory_gb) do
@@ -68,10 +74,4 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp normalize(_), do: nil
-
-  defp pool_name_prefix do
-    :tuist
-    |> Application.get_env(:runners, [])
-    |> Keyword.get(:linux_pool_name_prefix, "tuist-runner-pool-linux")
-  end
 end

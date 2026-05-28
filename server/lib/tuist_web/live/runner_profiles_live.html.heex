@@ -200,7 +200,11 @@
                 >
                   <:left_icon><.pencil /></:left_icon>
                 </.dropdown_item>
+                <%!-- The last profile isn't deletable: removing it would
+                      leave the account with no `tuist-default` target and
+                      break every workflow that resolves through it. --%>
                 <.dropdown_item
+                  :if={length(@profiles) > 1}
                   label={dgettext("dashboard_runners", "Delete")}
                   value="delete"
                   on_click="delete_profile"

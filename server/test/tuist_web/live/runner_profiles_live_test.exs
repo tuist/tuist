@@ -70,6 +70,18 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute Profiles.get_by_name(account, "default")
       assert Profiles.get_by_name(account, "large")
     end
+
+    test "refuses to delete the only remaining profile", %{conn: conn, account: account} do
+      {:ok, only} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
+      # The Delete row action is hidden when one profile remains.
+      refute html =~ "delete_profile"
+
+      # Even a crafted event is rejected server-side.
+      render_hook(lv, "delete_profile", %{"id" => to_string(only.id)})
+      assert Profiles.get_by_name(account, "default")
+    end
   end
 
   describe "create modal" do

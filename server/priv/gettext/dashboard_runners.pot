@@ -64,7 +64,7 @@ msgid "Branch"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:89
-#: lib/tuist_web/live/runner_profiles_live.html.heex:129
+#: lib/tuist_web/live/runner_profiles_live.html.heex:139
 #: lib/tuist_web/live/runner_workflows_live.html.heex:89
 #: lib/tuist_web/live/runners_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -705,8 +705,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.ex:105
 #: lib/tuist_web/live/runner_jobs_live.ex:579
 #: lib/tuist_web/live/runner_jobs_live.ex:623
-#: lib/tuist_web/live/runner_profiles_live.ex:231
-#: lib/tuist_web/live/runner_profiles_live.ex:245
+#: lib/tuist_web/live/runner_profiles_live.ex:244
+#: lib/tuist_web/live/runner_profiles_live.ex:258
 #: lib/tuist_web/live/runner_workflows_live.ex:241
 #: lib/tuist_web/live/runners_live.ex:287
 #, elixir-autogen, elixir-format
@@ -755,7 +755,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:416
 #: lib/tuist_web/live/runner_jobs_live.html.heex:630
 #: lib/tuist_web/live/runner_profiles_live.html.heex:80
-#: lib/tuist_web/live/runner_profiles_live.html.heex:159
+#: lib/tuist_web/live/runner_profiles_live.html.heex:169
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -811,28 +811,28 @@ msgstr ""
 msgid "Search by job name..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:138
+#: lib/tuist_web/live/runner_profiles_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Create profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:195
+#: lib/tuist_web/live/runner_profiles_live.html.heex:208
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:187
+#: lib/tuist_web/live/runner_profiles_live.html.heex:196
 #, elixir-autogen, elixir-format
 msgid "Edit"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:156
+#: lib/tuist_web/live/runner_profiles_live.html.heex:166
 #, elixir-autogen, elixir-format
 msgid "Label"
 msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:56
-#: lib/tuist_web/live/runner_profiles_live.html.heex:153
+#: lib/tuist_web/live/runner_profiles_live.html.heex:163
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -843,27 +843,27 @@ msgstr ""
 msgid "New profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:216
+#: lib/tuist_web/live/runner_profiles_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "No profiles yet"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:163
+#: lib/tuist_web/live/runner_profiles_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} created."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:125
+#: lib/tuist_web/live/runner_profiles_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} deleted."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:166
+#: lib/tuist_web/live/runner_profiles_live.ex:179
 #, elixir-autogen, elixir-format
 msgid "Profile %{name} updated."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:153
+#: lib/tuist_web/live/runner_profiles_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "Profile limit reached (%{max})."
 msgstr ""
@@ -875,32 +875,32 @@ msgstr ""
 msgid "Profiles"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:170
+#: lib/tuist_web/live/runner_profiles_live.html.heex:179
 #, elixir-autogen, elixir-format
 msgid "RAM"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:97
+#: lib/tuist_web/live/runner_profiles_live.html.heex:98
 #, elixir-autogen, elixir-format
 msgid "Resources"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:139
+#: lib/tuist_web/live/runner_profiles_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Save changes"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:167
+#: lib/tuist_web/live/runner_profiles_live.html.heex:176
 #, elixir-autogen, elixir-format
 msgid "vCPU"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:218
+#: lib/tuist_web/live/runner_profiles_live.html.heex:231
 #, elixir-autogen, elixir-format
 msgid "Create one to let your workflows reference Tuist runners by name."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:200
+#: lib/tuist_web/live/runner_profiles_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Delete profile %{name}? Workflows that reference it will fail to dispatch until updated."
 msgstr ""
@@ -910,22 +910,22 @@ msgstr ""
 msgid "Edit profile"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:114
+#: lib/tuist_web/live/runner_profiles_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "No resource catalog is configured yet. Contact support."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:102
+#: lib/tuist_web/live/runner_profiles_live.html.heex:105
 #, elixir-autogen, elixir-format
 msgid "Select resources"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:173
+#: lib/tuist_web/live/runner_profiles_live.html.heex:182
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.ex:223
+#: lib/tuist_web/live/runner_profiles_live.ex:236
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr ""
@@ -945,7 +945,12 @@ msgstr ""
 msgid "Becomes part of your runs-on label, so it can't be renamed later."
 msgstr ""
 
-#: lib/tuist_web/live/runner_profiles_live.html.heex:84
+#: lib/tuist_web/live/runner_profiles_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "Select platform"
+msgstr ""
+
+#: lib/tuist_web/live/runner_profiles_live.ex:127
+#, elixir-autogen, elixir-format
+msgid "You can't delete your only profile."
 msgstr ""

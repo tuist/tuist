@@ -1081,6 +1081,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
   Namespace where the runners-controller's ServiceAccount lives —
   used to gate `POST /api/internal/runners/pods/stopped` so only
   the controller can close billing sessions. Defaults to `tuist`
