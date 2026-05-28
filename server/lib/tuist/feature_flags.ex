@@ -14,6 +14,17 @@ defmodule Tuist.FeatureFlags do
     not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)
   end
 
+  @doc """
+  Whether the managed Kura deployment surface (the per-account Kura
+  servers and the Usage dashboard) should be visible for the given
+  account. Mirrors the inline check already used in
+  `account_settings_live` so the sidebar entry, the LiveView guard,
+  and the settings page all answer the same question.
+  """
+  def kura_enabled?(account) do
+    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"
