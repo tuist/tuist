@@ -19,6 +19,23 @@ import Config
 # See `Tuist.Environment.mode/0` for the full list.
 alias Tuist.Oban.RuntimeConfig
 
+# Runner Profiles shape catalog. Helm injects the same
+# `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
+# CRs from, so in a managed deploy the server's catalog and the
+# cluster's pools share one source of truth and can't drift. Unset in
+# local dev / tests / CI, where the `config/config.exs` default applies.
+# Malformed JSON falls back to that default rather than crashing boot.
+case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
+  nil ->
+    :ok
+
+  json ->
+    case Tuist.Runners.Catalog.parse_shapes_json(json) do
+      :error -> :ok
+      shapes -> config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end

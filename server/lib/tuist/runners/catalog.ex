@@ -1,17 +1,21 @@
 defmodule Tuist.Runners.Catalog do
   @moduledoc """
   The set of `(vcpus, memory_gb)` shapes the Linux runner fleet
-  exposes. Read from application config (`:tuist, :runner_linux_shapes`),
-  the same list the Helm chart renders into `RunnerPool` CRs via
-  `runnersFleetLinux.shapes`.
+  exposes. Read from application config (`:tuist, :runner_linux_shapes`).
 
-  Config rather than a K8s LIST: the shapes are a small, operator-
-  controlled set that rarely changes, the dispatch path resolves pool
-  names deterministically (`pool_name/2`) without needing to enumerate
-  pods, and config works in every environment — local dev with no
-  cluster, tests, and prod alike. The two lists (this config and the
-  Helm values) must be kept in sync; they live in the same repo and
-  are reviewed together.
+  **Single source of truth: the Helm `runnersFleetLinux.shapes` list.**
+  Helm both renders the shape-keyed `RunnerPool` CRs *and* injects the
+  same list into the server as `TUIST_RUNNER_LINUX_SHAPES` (JSON), which
+  `config/runtime.exs` parses into `:runner_linux_shapes`. So in a
+  managed deploy the pools and the server's view of them can't drift —
+  they come from one place. `config/config.exs` carries a default for
+  local dev, tests, and CI, where there's no cluster and the env var is
+  unset.
+
+  Config rather than a live K8s LIST: dispatch stays a pure, fast hot
+  path (no apiserver dependency to decide where a job goes), the catalog
+  is available with no cluster, and pool names resolve deterministically
+  via `pool_name/2`.
 
   Backs both `Tuist.Runners.Profile`'s shape validation and the
   resources dropdown in the Profiles LiveView.
@@ -63,6 +67,32 @@ defmodule Tuist.Runners.Catalog do
   def pool_name(vcpus, memory_gb) when is_integer(vcpus) and is_integer(memory_gb) do
     "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{vcpus}vcpu-#{memory_gb}gb"
   end
+
+  @doc """
+  Parse the `TUIST_RUNNER_LINUX_SHAPES` JSON Helm injects into the
+  `:runner_linux_shapes` config shape (atom keys, `memoryGb` → `:memory_gb`).
+  Called from `config/runtime.exs`. Returns the shapes list, or `:error`
+  on malformed JSON so the caller can fall back to the compiled default
+  rather than crash the boot.
+
+  Helm renders the array with `toJson`, so each element is a JSON object
+  with `vcpus`, `memoryGb`, and an optional `default`. Unknown keys are
+  ignored.
+  """
+  def parse_shapes_json(json) when is_binary(json) do
+    case JSON.decode(json) do
+      {:ok, list} when is_list(list) ->
+        Enum.map(list, fn shape ->
+          base = %{vcpus: shape["vcpus"], memory_gb: shape["memoryGb"]}
+          if shape["default"] == true, do: Map.put(base, :default, true), else: base
+        end)
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_shapes_json(_), do: :error
 
   defp normalize(%{vcpus: vcpus, memory_gb: memory_gb} = shape) when is_integer(vcpus) and is_integer(memory_gb) do
     %{
