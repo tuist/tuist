@@ -71,12 +71,13 @@ CI:
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
      fails, sibling builds abort so the chart pin doesn't move to a
      partially-published set.
-  2. `release-runner-image` (ubuntu) resolves the default profile's
-     digest with `crane digest`, rewrites `runnersFleet.runnerImage`
-     across managed-env values files that already have a digest pin,
-     generates release notes / `CHANGELOG.md`, uploads artifacts.
-     Downstream tag + GitHub-Release jobs key off this job's
-     `result == 'success'`.
+  2. `release-runner-image` (ubuntu) pins `runnersFleet.runnerImage`
+     to the default profile's immutable per-release tag
+     (`:macos-<profile>-<semver>` — constructed from the version, no
+     registry lookup), rewrites the managed-env values files that
+     already carry a pin, generates release notes / `CHANGELOG.md`,
+     uploads artifacts. Downstream tag + GitHub-Release jobs key off
+     this job's `result == 'success'`.
 
   Concurrency scales with builder count: 2 hosts publish 2 profiles
   in parallel, more hosts cut the wall-clock proportionally. No
@@ -124,8 +125,8 @@ runner-image-build:
   the fleet so adding a third builder lets you carry a third profile
   at the same wall-clock cost.
 - **Default profile.** The first matrix entry. The chart's
-  `runnersFleet.runnerImage` digest pin tracks its
-  `:macos-<dashes>` rolling tag, so a new fleet rollout = put the
+  `runnersFleet.runnerImage` pin tracks its immutable
+  `:macos-<dashes>-<semver>` tag, so a new fleet rollout = put the
   desired profile first.
 - **Out-of-rotation profiles.** Any other `:macos-<dashes>` tag
   that's been published in the past and still exists in GHCR. They
@@ -138,8 +139,9 @@ runner-image-build:
   That dispatch path doesn't move the chart pin.
 
 Active rebuilds always produce both an immutable tag
-(`:macos-<dashes>-<semver>`) and the rolling tag (`:macos-<dashes>`,
-the one the chart's digest pin resolves through).
+(`:macos-<dashes>-<semver>`, the one the chart pins) and a rolling
+tag (`:macos-<dashes>`, convenient for humans pulling "latest in
+this profile").
 
 Bumping the Xcode customers see on their runners:
 
@@ -153,8 +155,8 @@ Bumping the Xcode customers see on their runners:
    customers it alongside the existing default), or put it first to
    make it the chart's default profile. **If you move the first
    entry, also update `release-runner-image`'s "Resolve default
-   profile + digest" step to match — the two are kept adjacent in
-   the workflow for exactly this reason.** Commit with a
+   profile image" step (the `PROFILE="macos-26-5"` line) to match.**
+   Commit with a
    `feat(runner-image): ...` message so check-releases triggers the
    rebuild.
 3. Once customers have migrated off an older Xcode, drop its entry
@@ -169,16 +171,21 @@ in that profile) plus `:macos-26-4-1-<semver>` (immutable, for
 rollbacks and traceability). The tag form is the Xcode version
 with dots → dashes, matching Layer 1's tag scheme: a 26.4.1 Layer
 1 produces a `:macos-26-4-1` runner image, a 26.5 Layer 1
-produces `:macos-26-5`. The chart pins by digest, not tag, so
-multiple Xcode profiles can coexist in GHCR — the runner-fleet
-config currently selects one as the default but the structure is
-ready for the future customer-facing profile selection.
+produces `:macos-26-5`. The chart pins the immutable per-release
+tag (`:macos-<profile>-<semver>`), so multiple Xcode profiles can
+coexist in GHCR — the runner-fleet config currently selects one as
+the default but the structure is ready for the future
+customer-facing profile selection.
 
 ## How it ends up serving traffic
 
-1. `runnersFleet.runnerImage` (helm value) is digest-pinned to a
-   built image. Server-deployment.yaml's `required` directive
-   rejects non-digest values.
+1. `runnersFleet.runnerImage` (helm value) is pinned to the
+   default profile's immutable per-release tag
+   (`ghcr.io/tuist/tuist-runner:macos-<profile>-<semver>`). The
+   chart's `required` directive only enforces non-empty; the
+   release flow writes the immutable tag (not a digest) because
+   the semver is monotonic, so the ref is reproducible without a
+   registry lookup.
 2. `Tuist.Runners.Reconciler` creates a Pod with this image as
    `spec.containers[0].image`; tart-kubelet on the target Mac
    mini calls `tart pull`/`tart clone`/`tart run`.

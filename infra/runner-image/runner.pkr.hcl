@@ -87,7 +87,7 @@ variable "runner_version" {
   # Renovate watches actions/runner releases (see renovate.json's
   # custom regex manager keyed off the marker comment below) and
   # opens `fix(runner-image): …` PRs which release-runner-image
-  # picks up to rebuild + bump the digest pin. Renovate PRs
+  # picks up to rebuild + bump the chart's image pin. Renovate PRs
   # auto-merge on green CI, same flow we use for other external
   # deps; falling more than ~1 release behind would re-introduce
   # the v2.328-style deprecation risk so the cadence is

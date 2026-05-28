@@ -5,10 +5,12 @@ name: Runner Image
 # <branch>` when probing image contents or smoke-testing a Packer
 # change before merging.
 #
-# The push-on-main flow lives in release.yml's release-runner-image
-# job — that's the path that produces digest-pinned tags and rewrites
-# the runnersFleet.runnerImage value in the chart. This workflow's
-# `:<git-sha>` tag is dispatch-only and not consumed by the chart.
+# The push-on-main flow lives in release.yml's runner-image-build +
+# release-runner-image jobs — that's the path that publishes the
+# immutable per-release profile tags and pins
+# runnersFleet.runnerImage in the chart. This workflow's
+# `:macos-<dashes>-<git-sha>` tag is dispatch-only and not consumed
+# by the chart.
 #
 # Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
 # (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs

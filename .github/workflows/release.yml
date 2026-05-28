@@ -1606,10 +1606,11 @@ jobs:
         run: tart delete tuist-runner 2>/dev/null || true
 
   release-runner-image:
-    # Post-job: every profile is now in GHCR. Resolve the default
-    # profile's digest, update the chart pin, generate release notes
-    # + CHANGELOG, upload artifacts. Lightweight, runs on ubuntu.
-    # Downstream `release-*` jobs key off this job's outputs + result.
+    # Post-job: every profile is now in GHCR. Pin the chart to the
+    # default profile's immutable per-release tag, generate release
+    # notes + CHANGELOG, upload artifacts. Lightweight, runs on
+    # ubuntu. Downstream `release-*` jobs key off this job's
+    # outputs + result.
     name: Release runner image
     needs: [check-releases, runner-image-build]
     runs-on: ubuntu-latest
@@ -1619,8 +1620,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      profile: ${{ steps.digest.outputs.profile }}
-      digest: ${{ steps.digest.outputs.digest }}
+      profile: ${{ steps.image.outputs.profile }}
+      image: ${{ steps.image.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1631,24 +1632,23 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      # Resolve the default profile's digest from GHCR. The matrix
-      # job published it; we look it up here because matrix outputs
-      # don't aggregate cleanly into a sibling job's `needs.*.outputs`.
-      - uses: imjasonh/setup-crane@v0.4
-      - name: Log in to GHCR (crane)
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-      - name: Resolve default profile + digest
-        # Single declaration of which profile is the default — the
-        # chart pin tracks its digest. Keep in sync with the first
-        # matrix entry in runner-image-build above (dots → dashes).
-        id: digest
+      - name: Resolve default profile image
+        # The default profile is the first matrix entry in
+        # runner-image-build above — keep this `macos-26-5` in sync.
+        # The chart pins the immutable per-release tag
+        # (`:macos-<profile>-<semver>`), which the matrix job already
+        # pushed — no registry lookup needed since the release knows
+        # both halves. The tag is immutable in practice because the
+        # semver is monotonic (check-releases never reissues one).
+        id: image
         run: |
           set -euo pipefail
-          DEFAULT="macos-26-5"
-          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${DEFAULT}")
-          echo "Default profile: ${DEFAULT} digest: ${DIGEST}"
-          echo "profile=${DEFAULT}" >> "$GITHUB_OUTPUT"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          PROFILE="macos-26-5"
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          IMAGE="ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
+          echo "Default profile image: ${IMAGE}"
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Get release notes
         id: release-notes
@@ -1676,15 +1676,14 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump runner image digest pin in chart values
+      - name: Bump runner image pin in chart values
         run: |
-          # The runner image digest pin lives in each managed env's
-          # values file under runnersFleet.runnerImage. Anchor the
+          # The runner image pin lives in each managed env's values
+          # file under runnersFleet.runnerImage. Anchor the
           # substitution to the runnerImage line so we only touch
           # that one (the values files carry several image refs).
-          # GNU sed (-i without an argument) — this job runs on
-          # ubuntu, unlike the previous BSD-sed-style `sed -i ''`.
-          DIGEST="${{ steps.digest.outputs.digest }}"
+          # GNU sed (-i without an argument) — this job runs on ubuntu.
+          IMAGE="${{ steps.image.outputs.image }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
@@ -1693,14 +1692,11 @@ jobs:
             # the runner image — values-managed-{canary,production}.yaml
             # ship with `runnerImage: ""` until those envs are flipped
             # on, and we don't want to populate them silently from the
-            # release flow. The match accepts both pin styles the chart
-            # has used: a digest (`@sha256:...`) and a tag (`:<short-sha>`
-            # or `:<semver>`). Staging is on `:08e66c9b` during bring-up;
-            # narrowing the guard to `@sha256:` would skip it on every
-            # release and leave the only enabled env on the previous
-            # image.
+            # release flow. The match accepts every pin style the chart
+            # has used: a digest (`@sha256:...`) and a tag (`:<short-sha>`,
+            # `:<semver>`, `:macos-<profile>-<semver>`).
             if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
-              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
+              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1${IMAGE}\2|" "$f"
             fi
           done
 
@@ -2309,8 +2305,7 @@ jobs:
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
-            Tart image: `ghcr.io/tuist/tuist-runner:${{ needs.release-runner-image.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}`
-            Digest: `ghcr.io/tuist/tuist-runner@${{ needs.release-runner-image.outputs.digest }}`
+            Tart image: `${{ needs.release-runner-image.outputs.image }}`
 
             ${{ needs.release-runner-image.outputs.release-notes }}
 
