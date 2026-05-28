@@ -18,51 +18,11 @@ defmodule Tuist.Kura.Usage do
   # the ids — anything that can't be resolved drops to 0 and is treated as
   # unattributable traffic.
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    full_handles =
-      events
-      |> Enum.map(&"#{&1["tenant_id"]}/#{&1["namespace_id"]}")
-      |> Enum.uniq()
-
-    projects_by_handle = Projects.projects_by_full_handles(full_handles)
-
-    account_ids_by_handle =
-      events
-      |> Enum.map(& &1["tenant_id"])
-      |> Enum.uniq()
-      |> Map.new(fn handle ->
-        case Accounts.get_account_by_handle(handle) do
-          nil -> {handle, nil}
-          account -> {handle, account.id}
-        end
-      end)
-
+    projects_by_handle = lookup_projects(events)
+    account_ids_by_handle = lookup_account_ids(events)
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
-    rows =
-      Enum.map(events, fn event ->
-        account_handle = event["tenant_id"]
-        project_handle = event["namespace_id"]
-        full_handle = "#{account_handle}/#{project_handle}"
-        project = Map.get(projects_by_handle, full_handle)
-
-        %{
-          event_id: event["event_id"],
-          account_id: (project && project.account_id) || Map.get(account_ids_by_handle, account_handle) || 0,
-          project_id: (project && project.id) || 0,
-          node_id: event["node_id"],
-          region: event["region"],
-          traffic_plane: event["traffic_plane"],
-          direction: event["direction"],
-          operation: event["operation"],
-          protocol: event["protocol"],
-          artifact_kind: event["artifact_kind"],
-          bytes: event["bytes"],
-          request_count: event["request_count"],
-          window_start: unix_seconds_to_naive_datetime(event["window_start_unix_seconds"]),
-          window_seconds: event["window_seconds"],
-          inserted_at: now
-        }
-      end)
+    rows = Enum.map(events, &build_row(&1, projects_by_handle, account_ids_by_handle, now))
 
     if rows != [] do
       IngestRepo.insert_all(UsageEvent, rows)
@@ -72,6 +32,61 @@ defmodule Tuist.Kura.Usage do
   end
 
   def create_events(events) when is_list(events), do: {:error, :too_many_events}
+
+  defp lookup_projects(events) do
+    events
+    |> Enum.map(&"#{&1["tenant_id"]}/#{&1["namespace_id"]}")
+    |> Enum.uniq()
+    |> Projects.projects_by_full_handles()
+  end
+
+  defp lookup_account_ids(events) do
+    events
+    |> Enum.map(& &1["tenant_id"])
+    |> Enum.uniq()
+    |> Map.new(&{&1, account_id_for_handle(&1)})
+  end
+
+  defp account_id_for_handle(handle) do
+    case Accounts.get_account_by_handle(handle) do
+      nil -> nil
+      account -> account.id
+    end
+  end
+
+  defp build_row(event, projects_by_handle, account_ids_by_handle, now) do
+    account_handle = event["tenant_id"]
+    project_handle = event["namespace_id"]
+    full_handle = "#{account_handle}/#{project_handle}"
+    project = Map.get(projects_by_handle, full_handle)
+
+    %{
+      event_id: event["event_id"],
+      account_id: resolve_account_id(project, account_ids_by_handle, account_handle),
+      project_id: resolve_project_id(project),
+      node_id: event["node_id"],
+      region: event["region"],
+      traffic_plane: event["traffic_plane"],
+      direction: event["direction"],
+      operation: event["operation"],
+      protocol: event["protocol"],
+      artifact_kind: event["artifact_kind"],
+      bytes: event["bytes"],
+      request_count: event["request_count"],
+      window_start: unix_seconds_to_naive_datetime(event["window_start_unix_seconds"]),
+      window_seconds: event["window_seconds"],
+      inserted_at: now
+    }
+  end
+
+  defp resolve_account_id(nil, account_ids_by_handle, account_handle),
+    do: Map.get(account_ids_by_handle, account_handle) || 0
+
+  defp resolve_account_id(%{account_id: account_id}, _account_ids_by_handle, _account_handle),
+    do: account_id
+
+  defp resolve_project_id(nil), do: 0
+  defp resolve_project_id(%{id: id}), do: id
 
   defp unix_seconds_to_naive_datetime(seconds) when is_integer(seconds) do
     seconds
