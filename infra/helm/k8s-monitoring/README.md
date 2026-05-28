@@ -16,7 +16,7 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 
 ## Install
 
-Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
+Installed automatically by the `chart-installs` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
 
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
