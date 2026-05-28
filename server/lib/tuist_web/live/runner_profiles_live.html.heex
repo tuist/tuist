@@ -77,6 +77,23 @@
             </div>
 
             <div data-part="field">
+              <span data-part="field-label">{dgettext("dashboard_runners", "Platform")}</span>
+              <.select
+                id="runner-profile-platform-select"
+                name="platform"
+                label={dgettext("dashboard_runners", "Select platform")}
+                value={@form_platform}
+                on_value_change="select_platform"
+              >
+                <:item
+                  :for={platform <- platforms()}
+                  value={platform.value}
+                  label={platform.label}
+                />
+              </.select>
+            </div>
+
+            <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Resources")}</span>
               <.select
                 :if={not Enum.empty?(@catalog)}
@@ -140,7 +157,12 @@
         <.text_cell data-part="dispatch-label-cell" label={dispatch_snippet(profile)} />
       </:col>
       <:col :let={profile} label={dgettext("dashboard_runners", "Platform")}>
-        <.text_cell label={platform_label(profile)} />
+        <.badge
+          label={platform_label(profile)}
+          color={platform_badge_color(profile)}
+          style="light-fill"
+          size="small"
+        />
       </:col>
       <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
         <.text_cell label={Integer.to_string(profile.vcpus)} />

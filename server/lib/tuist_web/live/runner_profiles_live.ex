@@ -50,6 +50,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          socket
          |> assign(:form_mode, {:edit, profile.id})
          |> assign(:form_name, profile.name)
+         |> assign(:form_platform, "linux")
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
          |> assign(:form_error, nil)
@@ -72,6 +73,16 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("update_form_name", %{"value" => name}, socket) do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
+  end
+
+  def handle_event("select_platform", params, socket) do
+    case shape_key_from_params(params) do
+      platform when is_binary(platform) and platform != "" ->
+        {:noreply, assign(socket, :form_platform, platform)}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("select_shape", params, socket) do
@@ -172,6 +183,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
+    |> assign(:form_platform, "linux")
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
     |> assign(:form_error, nil)
@@ -214,9 +226,23 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   @doc """
   Platform a profile runs on. Linux-only in v1 — macOS profiles are a
-  future addition, at which point this reads off the shape/catalog.
+  future addition, at which point this reads off the stored platform.
   """
-  def platform_label(%Profile{}), do: "Linux"
+  def platform_label(%Profile{}), do: dgettext("dashboard_runners", "Linux")
+
+  @doc """
+  Noora badge color for a profile's platform, matching the Platform
+  column on the Jobs table: `attention` (warm) for Linux, `information`
+  (cool) for macOS once it lands.
+  """
+  def platform_badge_color(%Profile{}), do: "attention"
+
+  @doc """
+  Platforms selectable in the create form. Linux-only today; macOS
+  follows, at which point a second entry (and a stored platform on the
+  profile) joins the list.
+  """
+  def platforms, do: [%{value: "linux", label: dgettext("dashboard_runners", "Linux")}]
 
   @doc """
   Shape key in the catalog format used as the dropdown value.
