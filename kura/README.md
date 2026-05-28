@@ -101,6 +101,8 @@ Kura exposes multiple cache protocols behind one service. The actively supported
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
 - 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
+For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests still carry their namespace explicitly.
+
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`
@@ -134,6 +136,18 @@ curl -X PUT \
 
 curl \
   "http://localhost:4103/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios"
+```
+
+Example tenant-scoped Xcode artifact round trip without a namespace:
+
+```bash
+curl -X POST \
+  "http://localhost:4101/api/cache/cas/account-artifact?tenant_id=acme" \
+  -H "content-type: application/octet-stream" \
+  --data-binary "account-binary"
+
+curl \
+  "http://localhost:4102/api/cache/cas/account-artifact?tenant_id=acme"
 ```
 
 ## 🗄️ Storage And Replication
@@ -322,7 +336,9 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem that mirrors the legacy cache analytics contract for Xcode and Gradle traffic.
+Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode and Gradle traffic.
+
+Kura emits those webhook events only for namespace-scoped Xcode and Gradle HTTP requests, using the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Tenant-scoped requests skip analytics until Tuist grows account-scoped binary analytics.
 
 When enabled:
 
@@ -483,10 +499,19 @@ The script may define these hooks:
 - `authorize(ctx, principal)`
 - `response_headers(ctx, principal)`
 
-For tenant-aware deployments, `ctx` carries both the request target
+The runtime exports these host helpers to the script:
+
+- `kura.sign_hmac_base64(id, payload)`
+- `kura.jwt_verify(id, token)`
+- `kura.http_json(id, request)`
+- `kura.env(key)`
+
+For tenant-aware deployments, `ctx` carries the request target
 (`tenant_id`, `namespace_id`) and the node's configured tenant as
-`server_tenant_id` (derived from `KURA_TENANT_ID`). Concrete auth and
-policy decisions are hook-specific and should be documented with the
-hook implementation rather than in the generic runtime contract.
+`server_tenant_id` (derived from `KURA_TENANT_ID`). Namespace-scoped
+requests set `namespace_id`; tenant-scoped requests leave it unset.
+Concrete auth and policy decisions are hook-specific and should be
+documented with the hook implementation rather than in the generic
+runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

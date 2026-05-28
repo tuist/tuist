@@ -123,6 +123,16 @@ xcresultProcessor:
   # Mac mini and replicaCount=2 the second pod has nowhere to land
   # without violating Apple's 2-VM SLA cap that Tart enforces.
   replicaCount: 1
+  # Single-host fleet override. The chart default
+  # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
+  # Deployment controller create the new Pod in Pending before the
+  # old Pod releases hostPort 9091, generating a FailedScheduling
+  # warning every rollout. Recreate waits for full termination first
+  # so no Pending pod is created against an occupied port. Same
+  # effective downtime - Tart VM cold-boot dominates either way.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can

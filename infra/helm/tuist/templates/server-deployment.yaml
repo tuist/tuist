@@ -154,6 +154,7 @@ spec:
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY

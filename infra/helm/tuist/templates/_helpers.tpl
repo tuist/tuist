@@ -315,6 +315,27 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{- end -}}
 
 {{/*
+Kura OAuth introspection client env vars. The values are synced from
+1Password into the server-external-secrets Secret when
+server.externalSecrets.kuraIntrospection.item is set.
+*/}}
+{{- define "tuist.kuraIntrospectionEnv" -}}
+{{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
+{{- if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
+- name: TUIST_KURA_INTROSPECTION_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: TUIST_KURA_INTROSPECTION_CLIENT_ID
+- name: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+{{- end }}
+{{- end }}
+
+{{/*
 License env vars. Resolves to (in order):
   1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
      managed envs that sync the license from 1Password. Mirrors the MASTER_KEY

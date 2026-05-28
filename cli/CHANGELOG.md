@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* Fix Swift-only package framework modulemaps by [@pepicrft](https://github.com/pepicrft) in [#10971](https://github.com/tuist/tuist/pull/10971)
+* avoid checkout cwd for SwiftPM package dumps by [@pepicrft](https://github.com/pepicrft) in [#10966](https://github.com/tuist/tuist/pull/10966)
 * avoid expanding recursive exclusion globs by [@pepicrft](https://github.com/pepicrft) in [#10957](https://github.com/tuist/tuist/pull/10957)
 
 

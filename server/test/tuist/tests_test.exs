@@ -1264,54 +1264,52 @@ defmodule Tuist.TestsTest do
       assert test.is_ci == true
     end
 
-    test "uses multipart ClickHouse lookups for large test case batches" do
+    test "looks up existing test cases by binding the IDs as a single array parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..3 do
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
+        end
+
+      parent = self()
+
+      # Only the existing-test-case lookup passes `multipart: true`, so capturing
+      # it at the repo boundary targets that query precisely.
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        if Keyword.get(opts, :multipart), do: send(parent, {:lookup, query})
+        []
+      end)
+
+      # When
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
+
+      # Then: the IDs are bound as one Array(UUID) parameter (alongside
+      # project_id), so the parameter count stays constant. An `id in ^ids`
+      # clause binds one parameter per ID, and in multipart mode each parameter
+      # becomes its own form field, overflowing ClickHouse's form-field limit on
+      # large reports (`HTML Form Exception: Too many form fields`).
+      assert_received {:lookup, query}
+      {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+      assert sql =~ "Array(UUID)"
+      assert length(params) == 2
+    end
+
+    test "ingests a large test report end to end without exceeding ClickHouse multipart limits" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
       test_cases =
         for index <- 1..5_001 do
-          %{
-            name: "test_#{index}",
-            status: "success",
-            duration: 10,
-            test_suite_name: "Suite"
-          }
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
         end
 
-      expect(ClickHouseRepo, :all, 2, fn query, opts ->
-        assert Keyword.get(opts, :multipart) == true
-        {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
-
-        assert sql =~ ~s[FROM "test_cases"]
-        assert sql =~ ~s["project_id"]
-        assert sql =~ ~s["id"]
-        assert project.id in params
-        assert length(params) > 1
-
-        []
-      end)
-
-      test_attrs = %{
-        id: UUIDv7.generate(),
-        project_id: project.id,
-        account_id: project.account_id,
-        duration: 1500,
-        status: "success",
-        ran_at: NaiveDateTime.utc_now(),
-        is_ci: false,
-        test_modules: [
-          %{
-            name: "Module",
-            status: "success",
-            duration: 1500,
-            test_suites: [%{name: "Suite", status: "success", duration: 1500}],
-            test_cases: test_cases
-          }
-        ]
-      }
-
-      # When/Then
-      assert {:ok, _test} = Tests.create_test(test_attrs)
+      # When/Then: the existing-test-case lookup runs against the real
+      # ClickHouse here (not a mock), so this fails if the IDs are sent in a way
+      # that trips either the form-field count or the per-field value-length
+      # limit (e.g. batching too aggressively).
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
     end
 
     test "persists run_destinations as separate rows linked to the test run" do
@@ -8776,5 +8774,26 @@ defmodule Tuist.TestsTest do
 
       assert run.status == "success"
     end
+  end
+
+  defp test_report(project, test_cases) do
+    %{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      account_id: project.account_id,
+      duration: 1500,
+      status: "success",
+      ran_at: NaiveDateTime.utc_now(),
+      is_ci: false,
+      test_modules: [
+        %{
+          name: "Module",
+          status: "success",
+          duration: 1500,
+          test_suites: [%{name: "Suite", status: "success", duration: 1500}],
+          test_cases: test_cases
+        }
+      ]
+    }
   end
 end

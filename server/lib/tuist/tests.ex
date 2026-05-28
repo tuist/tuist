@@ -785,10 +785,12 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for multipart `id IN ^ids` lookups. The generated SQL still
-  # contains one placeholder per test case ID, so we keep the batches small
-  # enough to stay below ClickHouse query/form limits on large reports.
-  @existing_test_cases_batch_size 5_000
+  # Batch size for the existing-test-case lookup. The IDs travel as a single
+  # ClickHouse array parameter (see existing_test_cases_chunk_query/2), so the
+  # multipart request always carries one form field for them regardless of batch
+  # size. We still chunk to keep that parameter's encoded value below
+  # ClickHouse's per-field value-length limit on large reports.
+  @existing_test_cases_batch_size 2_000
 
   defp get_existing_test_cases(_project_id, []), do: %{}
 
@@ -812,9 +814,15 @@ defmodule Tuist.Tests do
     |> ClickHouseRepo.all(multipart: true)
   end
 
+  # Binds the IDs as a single `Array(UUID)` parameter via a fragment instead of
+  # `tc.id in ^ids_chunk`. `in` expands to one bound parameter per ID, and in
+  # multipart mode each parameter becomes its own form field, which overflows
+  # ClickHouse's form-field limit on large reports.
   defp existing_test_cases_chunk_query(project_id, ids_chunk) do
     from(tc in TestCase,
-      where: tc.project_id == ^project_id and tc.id in ^ids_chunk,
+      where:
+        tc.project_id == ^project_id and
+          fragment("? IN (?)", tc.id, type(^ids_chunk, {:array, Ecto.UUID})),
       select: %{
         id: tc.id,
         recent_durations: tc.recent_durations,

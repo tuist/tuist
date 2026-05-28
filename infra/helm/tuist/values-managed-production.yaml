@@ -18,6 +18,10 @@ server:
 
   appUrl: https://tuist.dev
 
+  externalSecrets:
+    kuraIntrospection:
+      item: kura-introspection-oauth-client
+
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires
@@ -112,6 +116,11 @@ kuraController:
     apiTokenSecret:
       managed: true
       item: cloudflare-tuist-dns
+  sharedSecrets:
+    externalSecret:
+      enabled: true
+      item: kura-introspection-oauth-client
+
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 250Gi storage. Backups land in the
 # `tuist-prod-pg-backups` Tigris bucket.

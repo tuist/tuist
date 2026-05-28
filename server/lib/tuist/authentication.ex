@@ -6,12 +6,17 @@ defmodule Tuist.Authentication do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Cache
   alias Tuist.Projects
 
   def authenticated_subject(token) do
     case Tuist.Guardian.resource_from_token(token) do
-      {:ok, %AuthenticatedAccount{} = resource, _opts} ->
-        reject_if_inactive_account_user(resource)
+      {:ok, %AuthenticatedAccount{} = resource, claims} ->
+        if Accounts.agent_registration_credential_revoked?(claims) do
+          nil
+        else
+          reject_if_inactive_account_user(resource)
+        end
 
       {:ok, resource, _opts} ->
         resource |> Tuist.Repo.preload(:account) |> reject_if_inactive_user()
@@ -111,12 +116,12 @@ defmodule Tuist.Authentication do
   end
 
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
-    projects =
-      resource
-      |> Projects.list_accessible_projects(recent: 5)
-      |> Enum.map(&"#{&1.account.name}/#{&1.name}")
+    claims =
+      claims
+      |> Map.put("projects", Cache.accessible_project_handles(resource, recent: 5))
+      |> Map.put("accounts", Cache.accessible_account_handles(resource))
+      |> Map.put("cache_grants", Cache.cache_grants(resource, recent: 5))
 
-    claims = Map.put(claims, "projects", projects)
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
   end
 
