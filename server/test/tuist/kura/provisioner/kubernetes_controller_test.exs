@@ -13,7 +13,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
-      stub(Tuist.Environment, :kura_introspection_client_id, fn ->
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
@@ -47,7 +47,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "podAnnotations")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
+      assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
 
       assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
                "00000000-0000-0000-0000-000000000001"
@@ -63,7 +65,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
 
-      stub(Tuist.Environment, :kura_introspection_client_id, fn ->
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
@@ -86,7 +88,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "grpcPublicHost")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "http://host.docker.internal:8080"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "http://host.docker.internal:8080"
+      assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
 
       assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
                "00000000-0000-0000-0000-000000000001"

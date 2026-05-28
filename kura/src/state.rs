@@ -19,6 +19,7 @@ use crate::{
     metrics::Metrics,
     runtime::{DataDirLock, InflightGuard, RuntimeState, TrafficState},
     store::Store,
+    usage::Usage,
 };
 
 const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
@@ -33,6 +34,7 @@ pub struct AppState {
     pub runtime: Arc<RuntimeState>,
     pub extension: Option<SharedExtension>,
     pub analytics: Option<Analytics>,
+    pub usage: Option<Usage>,
     pub geoip: Option<GeoIp>,
     pub client: Client,
     pub notify: Notify,

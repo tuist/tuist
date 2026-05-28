@@ -24,6 +24,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
 - Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`) recording which image the backing cluster reports running and when it was last observed
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
+- Kura usage rollups (`kura_usage_events` ClickHouse table): per-minute usage records pushed by managed Kura nodes, including tenant/project handles, mapped account/project ids when available, node id, region, traffic plane, direction, operation, protocol, artifact kind, transferred bytes, request count, and window timestamps. Used for usage reporting and future egress billing.
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
 
@@ -69,6 +70,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Build files** (`build_files` table): Individual file compilation metrics
 - **Build targets** (`build_targets` table): Target/module build performance
 - **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
+- **Kura usage daily stats** (`kura_usage_daily_stats` materialized view): Daily byte and request-count aggregates derived from `kura_usage_events` by account/project, region, traffic plane, direction, operation, protocol, and artifact kind. Contains no data not already covered by the source `kura_usage_events` table.
 - **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records
 - **Shard plans** (`shard_plans` table): Test sharding plan data including reference, shard count, and granularity
 - **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations

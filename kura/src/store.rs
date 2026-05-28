@@ -32,7 +32,7 @@ use crate::{
         MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
         ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
         SEGMENT_FREE_SPACE_MARGIN,
@@ -46,6 +46,7 @@ use crate::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
     },
+    usage::UsageRollup,
     utils::{
         artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
@@ -237,6 +238,14 @@ impl Store {
             ),
             ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_USAGE_OUTBOX,
                 rocksdb_column_family_options(
                     config,
                     &rocksdb_block_cache,
@@ -1675,6 +1684,60 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_OUTBOX)
     }
 
+    pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
+        if rollups.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for rollup in rollups {
+            let value = serde_json::to_vec(rollup)
+                .map_err(|error| format!("failed to encode usage rollup: {error}"))?;
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_USAGE_OUTBOX),
+                rollup.event_id.as_bytes(),
+                value,
+            );
+        }
+        self.write_batch_sync(batch, "usage rollups")
+    }
+
+    pub fn next_usage_rollups(&self, limit: usize) -> Result<Vec<(Vec<u8>, UsageRollup)>, String> {
+        let mut rollups = Vec::new();
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), IteratorMode::Start);
+
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate usage outbox: {error}"))?;
+            let rollup = serde_json::from_slice::<UsageRollup>(&value)
+                .map_err(|error| format!("failed to decode usage rollup: {error}"))?;
+            rollups.push((key.to_vec(), rollup));
+            if rollups.len() >= limit {
+                break;
+            }
+        }
+
+        Ok(rollups)
+    }
+
+    pub fn usage_outbox_message_count(&self) -> Result<usize, String> {
+        self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
+    }
+
+    pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for key in keys {
+            batch.delete_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), key);
+        }
+        self.write_batch_sync(batch, "usage rollup deletes")
+    }
+
     #[cfg(test)]
     pub fn outbox_messages(&self) -> Result<Vec<(Vec<u8>, OutboxMessage)>, String> {
         let mut messages = Vec::new();
@@ -2599,6 +2662,7 @@ mod tests {
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             analytics: None,
+            usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),

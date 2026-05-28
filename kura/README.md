@@ -223,6 +223,15 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
 | `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
+| `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
+| `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
+| `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
+| `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
+| `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
+| `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |
+| `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
+| `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
+| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
@@ -365,6 +374,18 @@ It also exposes analytics-specific runtime metrics for:
 - 📣 queue depth and drops
 - 📦 batch sizes and flush outcomes
 - 🧯 circuit-breaker state and open events
+
+## Usage Metering
+
+When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL_PLANE_CLIENT_SECRET` are set, Kura records first-party usage rollups for public cache traffic and pushes them to:
+
+```text
+POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
+```
+
+Usage metering is built into the Rust runtime rather than the Lua extension. The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
+
+The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
 
 ## ☸️ Deployment Options
 
