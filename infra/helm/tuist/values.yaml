@@ -1157,9 +1157,12 @@ postgresql:
       opsRo:
         name: tuist_ops_ro
     backup:
-      # Daily base backup; the continuous WAL archive keeps PITR alive
-      # between snapshots.
-      schedule: "0 3 * * *"
+      # Daily base backup at 03:00 UTC; the continuous WAL archive keeps
+      # PITR alive between snapshots. CNPG's ScheduledBackup cron is
+      # 6-field (leading seconds), unlike the 5-field Kubernetes CronJob
+      # format — `0 3 * * *` there parses as "second 0, minute 3, every
+      # hour" and fires hourly. `0 0 3 * * *` is the correct daily-03:00.
+      schedule: "0 0 3 * * *"
       # Barman retention. Older base backups (and the WALs they pin)
       # are pruned automatically once outside this window.
       retention: "30d"
