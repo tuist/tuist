@@ -172,7 +172,7 @@ public struct XCResultParser: Sendable {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
-        let extractedAttachments = await attachmentsByTestIdentifiers(from: xcresultPath)
+        let extractedAttachments = await attachmentsByTestIdentifiers(from: xcresultPath, rootDirectory: rootDirectory)
 
         allTestCases = allTestCases.map { testCase in
             let testIdentifier = normalizeTestIdentifier(
@@ -573,11 +573,33 @@ public struct XCResultParser: Sendable {
         }
     }
 
+    /// Attachments are exported for the caller to consume *after* parse
+    /// returns (the server worker uploads them to S3), so they can't live
+    /// in an auto-cleaned `runInTemporaryDirectory` block like the other
+    /// xcresulttool scratch dirs. When the caller provides a root
+    /// directory — its per-run scratch dir, which it removes wholesale
+    /// once processing finishes — we export into a subdirectory of it so
+    /// that cleanup reclaims them too. Without this the exported bundles
+    /// (test videos, crash logs) accumulate in the process-wide temp dir
+    /// and never get reclaimed.
+    private func attachmentsDirectory(rootDirectory: AbsolutePath?) async throws -> AbsolutePath {
+        guard let rootDirectory else {
+            return try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+        }
+
+        let directory = rootDirectory.appending(component: "xcresult-attachments")
+        if try await !fileSystem.exists(directory) {
+            try await fileSystem.makeDirectory(at: directory)
+        }
+        return directory
+    }
+
     private func attachmentsByTestIdentifiers(
-        from xcresultPath: AbsolutePath
+        from xcresultPath: AbsolutePath,
+        rootDirectory: AbsolutePath?
     ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
         do {
-            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+            let temporaryDirectory = try await attachmentsDirectory(rootDirectory: rootDirectory)
 
             _ = try await commandRunner.run(
                 arguments: [
