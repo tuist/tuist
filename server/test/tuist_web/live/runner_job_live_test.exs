@@ -319,6 +319,85 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv, ~s{[phx-click="load_older"]})
   end
 
+  test "searches the full log, including lines outside the loaded tail", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_901,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # 250 lines (> page size). The match is on line 1, which is NOT in
+    # the initially-loaded tail — search must hit the server.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_901,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "DEEP_MATCH_TOKEN", else: "line #{n}")
+          }
+        end
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319010/jobs/31901?tab=logs")
+
+    refute html =~ "DEEP_MATCH_TOKEN"
+
+    results =
+      lv
+      |> form(~s{[data-part="logs-search-form"]}, %{search: "DEEP_MATCH_TOKEN"})
+      |> render_change()
+
+    assert results =~ "DEEP_MATCH_TOKEN"
+
+    scoped = lv |> element("#runner-log-search-results") |> render()
+    assert scoped =~ "DEEP_MATCH_TOKEN"
+    refute scoped =~ "line 200"
+  end
+
+  test "toggles timestamp visibility", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_902,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_902,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "a line"
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
+    assert html =~ ~s(data-show-timestamps="true")
+
+    toggled = lv |> element("#logs-timestamps-toggle") |> render_click()
+    assert toggled =~ ~s(data-show-timestamps="false")
+  end
+
   test "raises 404 when the workflow_job_id belongs to another account", %{
     conn: conn,
     account: account

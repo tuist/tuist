@@ -89,6 +89,36 @@ defmodule Tuist.Runners.JobLogs do
   end
 
   @doc """
+  Case-insensitive substring search across a job's full log (every
+  captured line, not just the loaded tail). Returns up to `limit`
+  matching lines in ascending order.
+  """
+  def search(workflow_job_id, term, limit \\ 500)
+
+  def search(_workflow_job_id, "", _limit), do: []
+
+  def search(workflow_job_id, term, limit) when is_integer(workflow_job_id) and is_binary(term) and is_integer(limit) do
+    pattern = "%" <> escape_like(term) <> "%"
+
+    JobLog
+    |> from(hints: ["FINAL"])
+    |> where([l], l.workflow_job_id == ^workflow_job_id and fragment("? ILIKE ?", l.message, ^pattern))
+    |> order_by([l], asc: l.line_number)
+    |> limit(^limit)
+    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    |> ClickHouseRepo.all()
+  end
+
+  # Escape the LIKE wildcards so a user's literal `%` / `_` aren't
+  # treated as patterns (ClickHouse LIKE escapes with backslash).
+  defp escape_like(term) do
+    term
+    |> String.replace("\\", "\\\\")
+    |> String.replace("%", "\\%")
+    |> String.replace("_", "\\_")
+  end
+
+  @doc """
   Whether any line exists before `before_line_number` — drives the
   visibility of the "Load older logs" button.
   """

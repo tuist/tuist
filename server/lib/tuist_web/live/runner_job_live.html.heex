@@ -237,16 +237,52 @@
           <:icon_left><.download /></:icon_left>
         </.button>
       </:actions>
-      <.card_section data-part="logs-section">
+      <.card_section data-part="logs-section" data-show-timestamps={to_string(@show_timestamps)}>
         <div :if={!@has_logs} data-part="log-empty">
           {dgettext("dashboard_runners", "No logs have been captured for this job yet.")}
         </div>
+
+        <div :if={@has_logs} data-part="logs-toolbar">
+          <.form for={%{}} phx-change="search_logs" data-part="logs-search-form">
+            <.text_input
+              type="search"
+              id="logs-search"
+              name="search"
+              value={@search}
+              placeholder={dgettext("dashboard_runners", "Search logs...")}
+              phx-debounce="300"
+              data-part="logs-search"
+            />
+          </.form>
+          <.toggle
+            id="logs-timestamps-toggle"
+            label={dgettext("dashboard_runners", "Timestamps")}
+            checked={@show_timestamps}
+            phx-click="toggle_timestamps"
+          />
+        </div>
+
+        <div
+          :if={@has_logs and @search != ""}
+          id="runner-log-search-results"
+          data-part="log-viewport"
+        >
+          <div :if={@search_results == []} data-part="log-empty">
+            {dgettext("dashboard_runners", "No log lines match your search.")}
+          </div>
+          <div :for={line <- @search_results} data-part="log-line">
+            <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
+            <span data-part="log-message">{line.message}</span>
+          </div>
+        </div>
+
         <div
           :if={@has_logs}
           id="runner-log-viewport"
           phx-hook="LogTail"
-          data-active={to_string(@selected_tab == "logs")}
+          data-active={to_string(@selected_tab == "logs" and @search == "")}
           data-part="log-viewport"
+          hidden={@search != ""}
         >
           <button
             :if={@has_older}

@@ -156,6 +156,68 @@ defmodule Tuist.Runners.JobLogsTest do
     end
   end
 
+  describe "search/3" do
+    test "case-insensitively matches a substring across all lines, scoped to the job" do
+      job_id = 90_700
+      other_job_id = 90_701
+
+      :ok =
+        JobLogs.append([
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 1,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "Compiling project"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 2,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "Running TESTS now"
+          },
+          %{
+            workflow_job_id: other_job_id,
+            account_id: 1,
+            line_number: 1,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "tests in another job"
+          }
+        ])
+
+      assert Enum.map(JobLogs.search(job_id, "tests"), & &1.message) == ["Running TESTS now"]
+    end
+
+    test "an empty term returns no results" do
+      assert JobLogs.search(90_710, "") == []
+    end
+
+    test "treats LIKE wildcards as literals" do
+      job_id = 90_720
+
+      :ok =
+        JobLogs.append([
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 1,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "literal 50% off"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 2,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "no percent here"
+          }
+        ])
+
+      assert Enum.map(JobLogs.search(job_id, "50%"), & &1.message) == ["literal 50% off"]
+    end
+  end
+
   describe "reduce/4" do
     test "folds every line forward in batches" do
       job_id = 90_600

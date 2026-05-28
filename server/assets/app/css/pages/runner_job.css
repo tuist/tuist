@@ -278,6 +278,25 @@
   & [data-part="logs-section"] {
     display: flex;
     flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    &[data-show-timestamps="false"] [data-part="log-ts"] {
+      display: none;
+    }
+  }
+
+  & [data-part="logs-toolbar"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="logs-search-form"] {
+      flex: 1;
+      min-width: 0;
+      max-width: 360px;
+    }
   }
 
   /* The scrollable terminal area: a recessed, off-white surface
@@ -292,6 +311,12 @@
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
     max-height: 480px;
     overflow: auto;
+  }
+
+  /* Two attribute selectors so this beats the `display: flex` above —
+     the tail viewport hides while a search is active. */
+  & [data-part="log-viewport"][hidden] {
+    display: none;
   }
 
   & [data-part="log-stream"] {

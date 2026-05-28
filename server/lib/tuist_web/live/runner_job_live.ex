@@ -16,6 +16,10 @@ defmodule TuistWeb.RunnerJobLive do
   # arrive at the bottom via Pub/Sub. We never load the whole stream.
   @page_size 200
 
+  # Max matching lines returned by an in-page log search (across the
+  # whole job, not just the loaded tail).
+  @search_limit 500
+
   @impl true
   def mount(
         %{"workflow_run_id" => workflow_run_id_param, "workflow_job_id" => workflow_job_id_param},
@@ -54,6 +58,9 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:steps, steps(job))
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
+         |> assign(:search, "")
+         |> assign(:search_results, [])
+         |> assign(:show_timestamps, true)
          |> assign(:has_logs, log_lines != [])
          |> assign(:oldest_line, oldest_line)
          |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, oldest_line))
@@ -265,6 +272,20 @@ defmodule TuistWeb.RunnerJobLive do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  def handle_event("search_logs", %{"search" => term}, socket) do
+    term = String.trim(term)
+    results = JobLogs.search(socket.assigns.job.workflow_job_id, term, @search_limit)
+
+    {:noreply,
+     socket
+     |> assign(:search, term)
+     |> assign(:search_results, results)}
+  end
+
+  def handle_event("toggle_timestamps", _params, socket) do
+    {:noreply, assign(socket, :show_timestamps, not socket.assigns.show_timestamps)}
   end
 
   def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
