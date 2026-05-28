@@ -22,17 +22,26 @@ alias Tuist.Oban.RuntimeConfig
 # Runner Profiles shape catalog. Helm injects the same
 # `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
 # CRs from, so in a managed deploy the server's catalog and the
-# cluster's pools share one source of truth and can't drift. Unset in
-# local dev / tests / CI, where the `config/config.exs` default applies.
-# Malformed JSON falls back to that default rather than crashing boot.
+# cluster's pools share one source of truth and can't drift.
+#
+# Absent (local dev / tests / CI) → the `config/config.exs` default
+# applies. Present but unparseable → raise: the value is Helm-rendered
+# via `toJson`, so a malformed one is a chart bug, and silently falling
+# back to the default would run a catalog that doesn't match the pools
+# that actually exist — reintroducing the drift this injection removes.
+# A boot failure here is caught in the canary stage before production.
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
 
   json ->
     case Tuist.Runners.Catalog.parse_shapes_json(json) do
-      :error -> :ok
-      shapes -> config :tuist, :runner_linux_shapes, shapes
+      :error ->
+        raise "TUIST_RUNNER_LINUX_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleetLinux.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_linux_shapes, shapes
     end
 end
 
