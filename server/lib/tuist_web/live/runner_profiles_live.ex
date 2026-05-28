@@ -58,8 +58,17 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   def handle_event("dismiss_modal", _params, socket) do
+    {:noreply, socket |> reset_form() |> close_modal()}
+  end
+
+  # Fired by Noora's modal hook on every open/close transition
+  # (including escape + click-outside). Reset the form when it closes
+  # so the next open starts clean; ignore the open transition.
+  def handle_event("modal_open_changed", %{"open" => false}, socket) do
     {:noreply, reset_form(socket)}
   end
+
+  def handle_event("modal_open_changed", _params, socket), do: {:noreply, socket}
 
   def handle_event("update_form_name", %{"value" => name}, socket) do
     {:noreply, socket |> assign(:form_name, name) |> assign(:form_error, nil)}
@@ -121,6 +130,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      socket
      |> assign_profiles()
      |> reset_form()
+     |> close_modal()
      |> put_flash(:info, save_success_flash(form_mode, profile))}
   end
 
@@ -153,6 +163,8 @@ defmodule TuistWeb.RunnerProfilesLive do
       max_profiles_reached?: length(profiles) >= Profiles.max_per_account()
     )
   end
+
+  defp close_modal(socket), do: push_event(socket, "close-modal", %{id: @modal_id})
 
   defp reset_form(%{assigns: %{catalog: catalog}} = socket) do
     default_shape = Enum.find(catalog, & &1.default?) || List.first(catalog)
