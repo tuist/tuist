@@ -101,7 +101,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :project,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket()
         )
 
       # Then
@@ -197,7 +197,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           %{},
           session,
-          %LiveView.Socket{}
+          connected_socket()
         )
 
       # Then
@@ -248,7 +248,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket()
         )
 
       # Then
@@ -307,7 +307,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket()
         )
 
       # Then
@@ -366,4 +366,8 @@ defmodule TuistWeb.LayoutLiveTest do
       end
     end
   end
+
+  # Mirrors what `Phoenix.LiveView.connected?/1` checks so on_mount runs the
+  # branches reserved for the WebSocket-connected render path.
+  defp connected_socket, do: %LiveView.Socket{transport_pid: self()}
 end

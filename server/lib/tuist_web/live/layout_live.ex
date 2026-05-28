@@ -43,33 +43,35 @@ defmodule TuistWeb.LayoutLive do
       when is_binary(account_handle) and is_binary(project_handle) do
     current_user = get_current_user(session)
 
-    TuistWeb.Authorization.require_user_can_read_project(%{
-      user: current_user,
-      account_handle: account_handle,
-      project_handle: project_handle
-    })
-
     selected_project =
-      Map.get(
-        socket.assigns,
-        :selected_project,
-        Projects.get_project_by_account_and_project_handles(account_handle, project_handle, preload: [:account])
-      )
+      case Map.get(socket.assigns, :selected_project) do
+        nil ->
+          TuistWeb.Authorization.require_user_can_read_project(%{
+            user: current_user,
+            account_handle: account_handle,
+            project_handle: project_handle
+          })
 
-    if is_nil(selected_project) do
-      raise NotFoundError,
-            dgettext("dashboard", "The project you are looking for doesn't exist or has been moved.")
-    end
+        project ->
+          TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
+      end
 
     %{account: selected_account} = selected_project
 
-    selected_projects = get_projects(selected_account, current_user)
+    # Dropdown contents only matter once the user can click them, so defer
+    # the queries until the LiveView is connected.
+    {selected_projects, current_user_accounts} =
+      if connected?(socket) do
+        organization_accounts =
+          if is_nil(current_user) do
+            []
+          else
+            get_user_organization_accounts(current_user) ++ [current_user.account]
+          end
 
-    current_user_accounts =
-      if is_nil(current_user) do
-        []
+        {get_projects(selected_account, current_user), organization_accounts}
       else
-        get_user_organization_accounts(current_user) ++ [current_user.account]
+        {[], []}
       end
 
     {:cont,
@@ -139,8 +141,13 @@ defmodule TuistWeb.LayoutLive do
   def on_mount(:account, params, session, socket) do
     current_user = get_current_user(session)
 
+    # Deferred until connected — see :project.
     current_user_accounts =
-      get_user_organization_accounts(current_user) ++ [current_user.account]
+      if connected?(socket) do
+        get_user_organization_accounts(current_user) ++ [current_user.account]
+      else
+        []
+      end
 
     selected_account =
       case Map.get(params, "account_handle") do
