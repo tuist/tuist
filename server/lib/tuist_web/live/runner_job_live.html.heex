@@ -247,7 +247,7 @@
         <.button
           :if={@has_logs}
           href={
-            ~p"/#{@selected_account.name}/runners/runs/#{@job.workflow_run_id}/jobs/#{@job.workflow_job_id}/logs.txt"
+            ~p"/#{@selected_account.name}/runners/runs/#{@job.workflow_run_id}/jobs/#{@job.workflow_job_id}/logs/download"
           }
           variant="secondary"
           size="medium"

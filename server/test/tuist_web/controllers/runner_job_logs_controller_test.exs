@@ -62,7 +62,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
         }
       ])
 
-    conn = get(conn, ~p"/#{account.name}/runners/runs/320010/jobs/32001/logs.txt")
+    conn = get(conn, ~p"/#{account.name}/runners/runs/320010/jobs/32001/logs/download")
 
     assert response_content_type(conn, :txt) =~ "text/plain"
 
@@ -86,7 +86,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
       "https://s3.example.com/signed-archive-url"
     end)
 
-    conn = get(conn, ~p"/#{account.name}/runners/runs/322010/jobs/32201/logs.txt")
+    conn = get(conn, ~p"/#{account.name}/runners/runs/322010/jobs/32201/logs/download")
 
     assert redirected_to(conn) == "https://s3.example.com/signed-archive-url"
   end
@@ -96,7 +96,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
     enqueue(other, 32_101, 321_010)
 
     assert_raise NotFoundError, fn ->
-      get(conn, ~p"/#{account.name}/runners/runs/321010/jobs/32101/logs.txt")
+      get(conn, ~p"/#{account.name}/runners/runs/321010/jobs/32101/logs/download")
     end
   end
 end
