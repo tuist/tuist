@@ -13,6 +13,7 @@ public protocol TargetContentHashing {
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
         destination: SimulatorDeviceAndRuntime?,
+        embeddedProductReferences: [String],
         additionalStrings: [String]
     ) async throws -> TargetContentHash
 }
@@ -122,8 +123,12 @@ public struct TargetContentHasher: TargetContentHashing {
         hashedTargets: [GraphHashedTarget: String],
         hashedPaths: [AbsolutePath: String],
         destination: SimulatorDeviceAndRuntime?,
+        embeddedProductReferences: [String] = [],
         additionalStrings: [String] = []
     ) async throws -> TargetContentHash {
+        let embeddedProductReferencesHash: String? = embeddedProductReferences.isEmpty
+            ? nil
+            : try contentHasher.hash(embeddedProductReferences.sorted())
         let projectHash: String? =
             switch graphTarget.project.type {
             case let .external(hash: hash): hash
@@ -156,6 +161,7 @@ public struct TargetContentHasher: TargetContentHashing {
                     projectSettingsHash,
                     settingsHash,
                     dependenciesHash.hash,
+                    embeddedProductReferencesHash,
                 ].compactMap { $0 } + destinations + additionalStrings
             )
 
@@ -168,6 +174,7 @@ public struct TargetContentHasher: TargetContentHashing {
                 projectSettings: \(projectSettingsHash)
                 targetSettings: \(settingsHash ?? "nil")
                 dependencies: \(dependenciesHash.hash)
+                embeddedProductReferences: \(embeddedProductReferencesHash ?? "nil")
                 destinations: \(destinations.joined(separator: ", "))
                 additionalStrings: \(additionalStrings.joined(separator: ", "))
             """)
@@ -177,7 +184,8 @@ public struct TargetContentHasher: TargetContentHashing {
                 projectSettings: projectSettingsHash,
                 targetSettings: settingsHash,
                 additionalStrings: additionalStrings,
-                external: projectHash
+                external: projectHash,
+                embeddedProductReferences: embeddedProductReferencesHash
             )
 
             return TargetContentHash(
@@ -325,6 +333,10 @@ public struct TargetContentHasher: TargetContentHashing {
             stringsToHash.append(foreignBuildHash)
         }
 
+        if let embeddedProductReferencesHash {
+            stringsToHash.append(embeddedProductReferencesHash)
+        }
+
         let hash = try contentHasher.hash(stringsToHash)
 
         Logger.current.debug("""
@@ -351,6 +363,7 @@ public struct TargetContentHasher: TargetContentHashing {
             deploymentTarget: \(deploymentTargetHash)
             infoPlist: \(infoPlistHash ?? "nil")
             entitlements: \(entitlementsHash ?? "nil")
+            embeddedProductReferences: \(embeddedProductReferencesHash ?? "nil")
         """)
 
         let subhashes = TargetContentHashSubhashes(
@@ -368,7 +381,8 @@ public struct TargetContentHasher: TargetContentHashing {
             projectSettings: projectSettingsHash,
             targetSettings: settingsHash,
             buildableFolders: buildableFoldersHash,
-            additionalStrings: additionalStrings
+            additionalStrings: additionalStrings,
+            embeddedProductReferences: embeddedProductReferencesHash
         )
 
         return TargetContentHash(
