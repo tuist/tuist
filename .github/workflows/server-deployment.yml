@@ -153,98 +153,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-  eso-secret-refresh:
-    # Re-stamp the 1Password Service Account token External Secrets Operator
-    # authenticates with, then restart the controller so it reloads it (the
-    # onepasswordSDK provider caches its client and won't otherwise). The token
-    # is laid down
-    # once per cluster at bootstrap (bootstrap-workload.sh, from
-    # OP_SERVICE_ACCOUNT_TOKEN) and can later expire / be rotated out from
-    # under the cluster; when it does, EVERY ExternalSecret fails auth ("bad
-    # credentials: failed to authenticate") and the ESO-dependent install
-    # jobs below stall on `helm --wait` until timeout. Re-stamping from this
-    # deploy's own OP token — the same service account scoped to the
-    # tuist-k8s-<env> vault the ESO store reads — keeps the in-cluster token
-    # current on every deploy, self-healing a stale one. Mirrors how
-    # install-platform.sh re-stamps the cloudflare-api-token Secret.
-    name: Refresh ESO 1Password token (${{ inputs.environment }})
-    needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
-    environment:
-      name: server-k8s-${{ inputs.environment }}
-    concurrency:
-      group: server-deploy-${{ inputs.environment }}-eso-refresh
-      cancel-in-progress: false
-    timeout-minutes: 10
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.DEPLOY_SHA }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "kubectl"
-          cache: "false"
-      - uses: 1password/install-cli-action@v2
-      - name: Load kubeconfig from 1Password
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
-            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-      - name: Verify cluster reachability
-        run: |
-          set -euo pipefail
-          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
-          echo "Reaching apiserver at $API"
-          kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Re-stamp onepassword-sa-token + roll ESO onto it
-        # The token flows through the pipe into `kubectl apply`, never echoed;
-        # GHA also masks secrets.OP_SERVICE_ACCOUNT_TOKEN in step output. Same
-        # create-secret shape as bootstrap-workload.sh:338.
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          set -euo pipefail
-          kubectl create namespace onepassword \
-            --dry-run=client -o yaml | kubectl apply -f -
-          # `kubectl apply` prints "configured" when the token value changed,
-          # "unchanged" otherwise — capture it to decide whether ESO needs a
-          # bounce.
-          apply_out="$(kubectl -n onepassword create secret generic onepassword-sa-token \
-            --from-literal=token="$OP_SERVICE_ACCOUNT_TOKEN" \
-            --dry-run=client -o yaml | kubectl apply -f -)"
-          printf '%s\n' "$apply_out"
-          # ESO's onepasswordSDK provider builds its 1Password client once and
-          # caches it for the controller's lifetime — it does NOT re-read
-          # onepassword-sa-token on a plain reconcile. So when the token
-          # rotates, every ExternalSecret keeps failing auth ("bad
-          # credentials: failed to authenticate") until the controller
-          # restarts. Bounce it only when the token actually changed (avoids a
-          # needless reconcile pause on steady-state deploys), then wait for
-          # the new pod before the install jobs start gating on ExternalSecrets.
-          if printf '%s' "$apply_out" | grep -qE 'onepassword-sa-token (configured|created)' \
-            && kubectl -n platform get deployment platform-external-secrets >/dev/null 2>&1; then
-            echo "Token changed; restarting ESO so it rebuilds its 1Password client."
-            kubectl -n platform rollout restart deployment platform-external-secrets
-            kubectl -n platform rollout status deployment platform-external-secrets --timeout=180s
-          fi
-          # Belt-and-suspenders: nudge an immediate reconcile so the
-          # ExternalSecrets the install jobs gate on flip Ready inside their
-          # helm --wait window instead of waiting out ESO's refresh interval.
-          # No-op (|| true) on a fresh cluster where the CRD isn't installed yet.
-          kubectl get externalsecrets.external-secrets.io -A \
-            -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null \
-            | while IFS=/ read -r ns name; do
-                [ -n "$ns" ] || continue
-                kubectl -n "$ns" annotate externalsecrets.external-secrets.io "$name" \
-                  force-sync="$(date +%s%N)" --overwrite >/dev/null 2>&1 || true
-              done
-
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -257,11 +165,9 @@ jobs:
     # queue at running + 1 waiting and drops the rest, which used to
     # leave only one of the three install jobs running per deploy.
     name: Observability chart (${{ inputs.environment }})
-    needs: [build, eso-secret-refresh]
+    needs: build
     # `build` is skipped when image_tag is supplied - keep running.
-    # `eso-secret-refresh` must succeed: this chart's k8s-monitoring-grafana-cloud
-    # ExternalSecret can't sync (helm --wait would stall) if ESO's 1P token is stale.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.eso-secret-refresh.result == 'success'
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -326,10 +232,8 @@ jobs:
     # observability-install. Serializes this install against its own
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
-    needs: [build, eso-secret-refresh]
-    # `eso-secret-refresh` must succeed: the operator-oauth ExternalSecret can't
-    # sync (helm --wait would stall) if ESO's 1P token is stale.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.eso-secret-refresh.result == 'success'
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -458,7 +362,7 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, eso-secret-refresh, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `platform-install` brings up CRDs (cert-manager, ESO,
     # cloudnative-pg) the Tuist chart consumes; if it fails the chart
@@ -471,7 +375,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.eso-secret-refresh.result == 'success' && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-production-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
