@@ -9,6 +9,22 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
+  # Front the staging apiserver over the tailnet in auth mode so the
+  # team gets identity-based kubectl access. Staging is first in the
+  # rollout; canary and production follow once this is proven.
+  apiServerProxyConfig:
+    mode: "true"
+    allowImpersonation: "true"
+
+# Human access tiers for staging: engineers get write, founders admin.
+# The impersonated group names here must match the ACL grants in
+# infra/tailscale/acls.json.
+accessBindings:
+  - group: tuist-admins
+    clusterRole: cluster-admin
+  - group: tuist-eng
+    clusterRole: edit
+
 connector:
   hostname: tuist-cluster-router-staging
   tags:

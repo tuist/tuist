@@ -1,0 +1,28 @@
+{{- /*
+ClusterRoleBindings that map tailnet-impersonated groups to built-in
+Kubernetes roles for human kubectl access through the API server proxy.
+
+Inert until the proxy is enabled (apiServerProxyConfig.mode "true" +
+allowImpersonation "true") AND a matching tailnet ACL grant impersonates
+the group, so shipping these to a cluster grants nothing on its own.
+The `group` field must match the `impersonate.groups` value in the
+grant in infra/tailscale/acls.json.
+*/}}
+{{- range .Values.accessBindings }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tailnet-access-{{ .group }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: human-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .clusterRole }}
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: {{ .group }}
+{{- end }}

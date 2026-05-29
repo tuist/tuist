@@ -37,6 +37,19 @@
 //                            not human access boundaries.
 
 {
+	// Human access groups for the Kubernetes API server proxy (see
+	// the kubernetes grants below). Members must be each person's
+	// tailnet login identity, the SSO email Tailscale shows in the
+	// admin console. CONFIRM these match before merging.
+	"groups": {
+		// Founders: cluster-admin on every cluster they're granted.
+		"group:tuist-admins": ["pedro@tuist.dev", "marek@tuist.dev"],
+		// Engineers: write on staging/canary, read-only on
+		// production. The tier is enforced by per-cluster RBAC
+		// (accessBindings in the tailscale-operator chart), not here.
+		"group:tuist-eng": ["eduardo@tuist.dev"],
+	},
+
 	"tagOwners": {
 		"tag:tuist-mgmt":              ["autogroup:admin"],
 		"tag:tuist-ops":               ["autogroup:admin"],
@@ -105,6 +118,29 @@
 			],
 			"ip": ["tcp:22"],
 		},
+
+		// Human kubectl access to the staging cluster's API server
+		// proxy, served by the tailscale operator under
+		// tag:tuist-k8s-staging. The `app` capability authorizes
+		// impersonation; the impersonated group is mapped to a
+		// ClusterRole by accessBindings in the tailscale-operator
+		// chart (tuist-eng -> edit on staging). tcp:443 is the
+		// proxy's listen port, included so the rule survives removal
+		// of the catch-all above. Extend `dst` to
+		// tag:tuist-k8s-canary / tag:tuist-k8s-production as the
+		// rollout proceeds (production maps tuist-eng to read-only).
+		{
+			"src": ["group:tuist-admins"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-admins"]}}]},
+		},
+		{
+			"src": ["group:tuist-eng"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-eng"]}}]},
+		},
 	],
 
 	// Tailscale SSH (distinct from "grants") permits humans into
@@ -156,6 +192,14 @@
 				"tag:tuist-macmini-canary:22",
 				"tag:tuist-macmini-production:22",
 			],
+		},
+		{
+			"src": "group:tuist-admins",
+			"accept": ["tag:tuist-k8s-staging:443"],
+		},
+		{
+			"src": "group:tuist-eng",
+			"accept": ["tag:tuist-k8s-staging:443"],
 		},
 	],
 }

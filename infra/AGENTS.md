@@ -25,6 +25,9 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 ### `helm/platform/` — platform bootstrap chart
 cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
+### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
+Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and the API server proxy in auth mode for human kubectl access. In auth mode the proxy impersonates the caller's tailnet identity; tailnet ACL grants in [`tailscale/acls.json`](tailscale/acls.json) authorize impersonation and `accessBindings` maps the impersonated group to a built-in ClusterRole (staging/canary `edit`, production `view`, founders `cluster-admin`). The proxy is additive: the public apiserver endpoint and the CI deployer kubeconfig are unaffected.
+
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).

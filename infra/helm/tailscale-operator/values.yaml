@@ -56,6 +56,28 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
+  # API server proxy. In auth mode the operator fronts the cluster's
+  # kube-apiserver over the tailnet and impersonates the caller's
+  # tailnet identity, so human kubectl access is granted by tailnet ACL
+  # grants (infra/tailscale/acls.json) plus the RBAC bindings in
+  # `accessBindings` below. Off by default; per-env overlays opt in,
+  # staging first. Purely additive: the cluster's existing public
+  # apiserver endpoint and the CI deployer kubeconfig keep working.
+  apiServerProxyConfig:
+    # "true" runs the in-process proxy; "noauth" skips impersonation.
+    mode: "false"
+    # "true" creates the ClusterRole the proxy needs to impersonate.
+    allowImpersonation: "false"
+
+# Human kubectl access tiers, rendered into ClusterRoleBindings by
+# templates/rbac.yaml. Each entry binds a Kubernetes group (the name
+# the API server proxy impersonates, set in the matching tailnet ACL
+# grant) to a built-in ClusterRole. Default is empty: every env opts in
+# explicitly so a new cluster never inherits standing access. Tiers:
+#   staging / canary -> edit   (write, no RBAC/Secret escalation)
+#   production        -> view   (read-only, excludes Secrets)
+accessBindings: []
+
 # Connector CR — the operator-managed `tailscaled` subnet router
 # that announces the cluster's reachability to the tailnet's
 # 100.64.0.0/10 range. Lets tailnet devices dial in-cluster Services
