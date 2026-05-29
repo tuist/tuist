@@ -42,10 +42,13 @@ spec:
   primaryUpdateStrategy: unsupervised
   primaryUpdateMethod: switchover
 
-  # Synchronous replication keeps committed writes on at least one
-  # additional instance before the primary acks the client. Drops back
-  # to async if not enough sync replicas are available (the standard
-  # `ANY <n>` quorum) so a single-replica blip doesn't stall writes.
+  # Synchronous replication: the primary holds a COMMIT's ack until a
+  # standby has the WAL durably (`ANY 1` quorum), so an acknowledged
+  # write survives losing the primary's node (RPO≈0) and failover
+  # promotes a caught-up standby. `dataDurability: required` keeps that
+  # guarantee under replica loss — writes wait rather than fall back to
+  # async. With 2 standbys (canary/production) one being down still
+  # satisfies the quorum; a 1-standby cluster (staging) can stall.
   {{- if gt (int .Values.postgresql.cnpg.instances) 1 }}
   postgresql:
     synchronous:

@@ -106,8 +106,7 @@ env:
   # instead of /<ver>) and 404s on cache-cold runners. GitHub artifact
   # attestations still verify. Aqua-backend SLSA stays ON: mise.lock
   # records slsa provenance for aqua tools (e.g. getsops/sops), and
-  # disabling it trips mise's downgrade-attack guard. Mirrors the toggle
-  # release.yml uses (#10960).
+  # disabling it trips mise's downgrade-attack guard.
   MISE_GITHUB_SLSA: false
 
 jobs:
