@@ -1,0 +1,81 @@
+name: Linux Runner Profiles Staging Smoke Test
+
+# Manual smoke test for Runner Profiles on staging. Each matrix leg
+# targets `runs-on: tuist-<profile>`, so it requires the matching
+# profile to exist on the staging account that owns this repo's GitHub
+# App installation (create them at
+# `staging.tuist.dev/<account>/runners/profiles`). There is no backfill,
+# so the profiles are created by hand before the first run.
+#
+# Validates, end-to-end, the profile dispatch path:
+#   1. workflow_job: queued webhook reaches the staging server.
+#   2. Tuist.Runners.Dispatch.match_for_dispatch resolves
+#      `tuist-<profile>` to the profile's (vcpus, memory_gb), then to the
+#      shape pool's RunnerPool CR (the Helm-injected name prefix must
+#      match what the chart rendered).
+#   3. A Pod from that shape pool claims the JIT (stamped with
+#      `tuist-<profile>` so GitHub binds), registers, runs the job.
+#   4. The job lands on a microVM sized to the profile — asserted below
+#      via nproc + MemTotal.
+#
+# Coverage split:
+#   - `default` (4 vCPU / 16 GB) has a warm floor in the staging values,
+#     so it should dispatch without a cold start.
+#   - `large` (8 vCPU / 32 GB) is a long-tail shape at floor 0, so this
+#     leg also exercises a microVM cold start.
+#
+# Manual-trigger only — profile creation is a prerequisite and we don't
+# want every push to burn elastic capacity.
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: tuist-default
+            vcpus: 4
+            min_mem_gib: 14
+          - profile: tuist-large
+            vcpus: 8
+            min_mem_gib: 28
+    runs-on: ${{ matrix.profile }}
+    timeout-minutes: 10
+    steps:
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          echo "Profile:      ${{ matrix.profile }}"
+          echo "Hostname:     $(hostname)"
+          echo "Architecture: $(uname -m)"
+          echo "vCPUs:        $(nproc)"
+          echo "Memory:       $(grep MemTotal /proc/meminfo)"
+
+      - name: Assert the machine matches the profile
+        env:
+          EXPECTED_VCPUS: ${{ matrix.vcpus }}
+          MIN_MEM_GIB: ${{ matrix.min_mem_gib }}
+        run: |
+          set -euo pipefail
+          # kata sizes the microVM to the pod request, so nproc is exact.
+          actual_vcpus="$(nproc)"
+          if [ "$actual_vcpus" -ne "$EXPECTED_VCPUS" ]; then
+            echo "ERROR: expected ${EXPECTED_VCPUS} vCPUs for ${{ matrix.profile }}, got ${actual_vcpus}"
+            exit 1
+          fi
+
+          # MemTotal is a touch below the nominal RAM (kernel + kata
+          # overhead), so assert a floor rather than an exact match.
+          mem_kib="$(grep MemTotal /proc/meminfo | awk '{print $2}')"
+          min_kib=$((MIN_MEM_GIB * 1024 * 1024))
+          if [ "$mem_kib" -lt "$min_kib" ]; then
+            echo "ERROR: expected >= ${MIN_MEM_GIB} GiB for ${{ matrix.profile }}, got $((mem_kib / 1024 / 1024)) GiB"
+            exit 1
+          fi
+
+          echo "OK: ${{ matrix.profile }} → ${actual_vcpus} vCPU, $((mem_kib / 1024 / 1024)) GiB"

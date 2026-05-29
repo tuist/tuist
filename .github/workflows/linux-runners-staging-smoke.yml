@@ -1,30 +1,32 @@
 name: Linux Runners Staging Smoke Test
 
-# Manual smoke test for the staging Linux runner pool. Targets
-# `runs-on: tuist-staging-linux` so the pool's warm Pods (configured
-# in infra/helm/tuist/values-managed-staging.yaml under
-# `runnersFleetLinux.pools[]` with `autoscaling.minWarmPoolFloor: 1`)
-# pick up this job.
+# Manual smoke test for the legacy `tuist-staging-linux` label. There
+# is no longer a dedicated pool by that name — the shape catalog
+# replaced it. This test exercises the backward-compat alias: the
+# server maps the retired `tuist-{env}-linux` labels to the default
+# shape (`@legacy_linux_labels` in Tuist.Runners.Dispatch), so existing
+# workflows keep dispatching without an edit. See
+# `linux-runner-profiles-staging-smoke.yml` for the profile path
+# (`runs-on: tuist-<name>`).
 #
 # Validates, end-to-end:
 #   1. workflow_job: queued webhook reaches the staging server.
-#   2. Tuist.Runners.dispatch_for_sa finds an idle Pod, mints a JIT
-#      with `["self-hosted", "Linux", "X64", "tuist-staging-linux"]`,
-#      stamps `tuist.dev/runner-pool-owner` on the Pod.
+#   2. No profile matches `tuist-staging-linux`, so dispatch aliases it
+#      to the default shape pool, mints a JIT stamped with
+#      `["self-hosted", "Linux", "X64", "tuist-staging-linux"]` (the
+#      original label, so GitHub binds), and sets
+#      `tuist.dev/runner-pool-owner` on the Pod.
 #   3. The runner container polls /api/internal/runners/dispatch on
 #      staging.tuist.dev, claims the JIT, registers as a runner.
 #   4. GitHub dispatches this job to the registered runner.
-#   5. The job runs inside the OCI container on a Hetzner Cloud
-#      `ccx23` node (provisioned by the workload cluster's
-#      ClusterClass topology — see cluster-staging.yaml).
-#   6. After completion the Pod terminates, kubelet observes the
-#      exit, the RunnerPoolReconciler reaps the Pod + sibling SA
-#      and the autoscaler's next 15s tick re-evaluates desired
-#      replicas to refill the warm pool.
+#   5. The job runs inside the OCI container on a Hetzner Cloud node
+#      from the default shape pool (warm floor in the staging values).
+#   6. After completion the Pod terminates, kubelet observes the exit,
+#      the RunnerPoolReconciler reaps the Pod + sibling SA, and the
+#      autoscaler's next tick re-evaluates desired replicas.
 #
-# Mirrors `.github/workflows/runners-staging-smoke.yml` for the
-# macOS fleet. Manual-trigger only — we don't want every push to
-# burn elastic capacity.
+# Manual-trigger only — we don't want every push to burn elastic
+# capacity.
 
 on:
   workflow_dispatch:
