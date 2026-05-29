@@ -212,6 +212,17 @@ xcresultProcessor:
     # xcresult-processor-image.yml workflow pushed.
     tag: "0.9.1"
 
+capi:
+  # Managed clusters store the CAPI workload kubeconfig in their
+  # per-env 1Password vault, so ESO can sync it into the
+  # <release>-capi-kubeconfig Secret that CAPI core's cluster cache
+  # reads. Without it CAPI can't bind fleet Machines to Nodes and the
+  # server deploy's `helm --wait` times out on the fleet
+  # MachineDeployments.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: true
+
 # Mac mini fleet provisioned declaratively via the Cluster API
 # Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
 # machinedeployment <name> --replicas=N`. Per-env overlay sets the

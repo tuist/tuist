@@ -71,6 +71,13 @@ type Config struct {
 	// nodes` reflects the inventory.
 	NodeName string
 
+	// ProviderID is the CAPI machine ID (scw-applesilicon://<zone>/<id>)
+	// rendered into tart-kubelet's --provider-id flag so it sets
+	// Node.spec.providerID — the field CAPI core matches to bind the
+	// Machine to its Node. Empty omits the flag (Node left unbound until
+	// patched by hand).
+	ProviderID string
+
 	// Kubeconfig is the YAML kubeconfig the controller built for this
 	// host (contains a long-lived ServiceAccount token + the API
 	// server's external URL + CA bundle). Dropped at
@@ -357,6 +364,14 @@ func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) 
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
+# Re-sign in place. The binary already carries a valid Go linker ad-hoc
+# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
+# leaves macOS's AMFI validating the new pages against the previous
+# binary's cached cdhash — a mismatch the kernel kills as
+# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
+# A forced ad-hoc re-sign refreshes the signature and invalidates that
+# stale cache so the rolled binary actually runs.
+sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
 	return RunCommandWithStdin(ctx, client, script, string(binary))
 }
@@ -365,14 +380,38 @@ sudo chmod 0755 /usr/local/bin/tart-kubelet
 // with this host's flags substituted in, fixes ownership on the
 // kubelet's writable paths so the SSH user owns them (the launchd job
 // runs as that user — see the comment in renderLaunchdPlist), then
-// `launchctl bootstrap`s it. Idempotent across reruns.
+// reloads the launchd job and verifies it actually came up. Idempotent
+// across reruns.
+//
+// The reload is the fragile part on a headless Mac, and getting it
+// wrong is what strands a fleet Node NotReady:
+//
+//   - Re-registration churn: every `bootout`+`bootstrap` re-registers
+//     the plist with macOS Background Task Management. BTM caps "legacy
+//     daemon" notifications and, once exceeded, stops honouring the
+//     job's KeepAlive automatic respawn — so a later clean exit never
+//     restarts and the Node goes NotReady. We avoid this by only
+//     rewriting + bootout/bootstrapping when the plist content actually
+//     changed; a binary-only roll (the common drift case) leaves the
+//     launchd args identical, so we restart in place with `kickstart -k`
+//     instead, which re-execs the new binary without touching BTM.
+//
+//   - Silent reload failure: `bootout` immediately followed by
+//     `bootstrap` can race (or be BTM-throttled) and leave the job
+//     booted-out, which KeepAlive cannot recover. The old code returned
+//     success regardless, so the reconciler recorded the SHA roll as
+//     done and never retried, leaving the Node NotReady indefinitely.
+//     We now poll for a live PID, force a `kickstart` if it didn't come
+//     up, and exit non-zero if it still won't run — so the caller keeps
+//     the drift set and retries instead of recording a roll that never
+//     took.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
 	script := fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
-sudo tee "$PLIST" >/dev/null
-sudo chown root:wheel "$PLIST"
-sudo chmod 0644 "$PLIST"
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW"
 # Apple's Virtualization.framework requires the calling process to be
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
@@ -382,10 +421,50 @@ sudo touch /var/log/tart-kubelet.log
 sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
-# launchctl bootstrap is the modern API; bootout first to make this
-# idempotent across reruns with new args.
-sudo launchctl bootout system "$PLIST" 2>/dev/null || true
-sudo launchctl bootstrap system "$PLIST"
+
+# pid prints the launchd-tracked PID (empty when not running). settled
+# waits for a NEW pid (different from the pre-reload one) and confirms it
+# is still the same a few seconds later. That rules out two false
+# positives: a no-op kickstart that leaves the old process running, and a
+# crash-looping launch (e.g. an OS_REASON_CODESIGNING kill) that briefly
+# shows a transient pid on each respawn — neither must be mistaken for a
+# successful roll into the freshly-uploaded binary.
+pid() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}' || true; }
+OLD="$(pid)"
+settled() {
+  for _ in $(seq 1 20); do
+    p="$(pid)"
+    if [ -n "$p" ] && [ "$p" != "$OLD" ]; then
+      sleep 5
+      [ "$(pid)" = "$p" ] && return 0 || return 1
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Restart in place when the plist is unchanged and a process is running
+# (avoids BTM re-registration churn); otherwise rewrite it and
+# bootout+bootstrap to pick up the new args / start it fresh.
+if cmp -s "$NEW" "$PLIST" && [ -n "$OLD" ]; then
+  sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+
+# Require a fresh, stable process — then force a kickstart and re-check if
+# the reload didn't restart it. Exit non-zero if it never settles so the
+# reconciler keeps the drift set and retries instead of recording a roll
+# that never took.
+settled && exit 0
+sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+settled && exit 0
+echo "tart-kubelet did not reach a running state after launchd reload" >&2
+exit 1
 `, shellQuote(cfg.SSHUser))
 	return RunCommandWithStdin(ctx, client, script, plist)
 }
@@ -450,6 +529,15 @@ func renderLaunchdPlist(cfg Config) string {
 	if len(cfg.TailscaleBinaries) > 0 && cfg.TailscaleAuthKey != "" {
 		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
 	}
+	// providerID binds the Node to its CAPI Machine. Rendered as a flag so
+	// freshly-provisioned and re-rolled nodes self-bind without a manual
+	// `kubectl patch node ... providerID`. Empty (e.g. before the server
+	// is ordered) omits it; tart-kubelet then leaves spec.providerID unset
+	// and a later reconcile re-renders the plist once it's known.
+	providerIDArg := ""
+	if cfg.ProviderID != "" {
+		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -472,7 +560,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -486,7 +574,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg)
 }
 
 func shellQuote(s string) string {
