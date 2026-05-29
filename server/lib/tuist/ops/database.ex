@@ -1,11 +1,10 @@
 defmodule Tuist.Ops.Database do
   @moduledoc """
   Read-only database inspection helpers used by the `/ops/db` LiveView.
-  Replaces the pgweb instance the RFC originally proposed: every query
-  runs through `Tuist.Repo` inside an explicit read-only transaction
-  AND the query string is whitelisted against a SELECT-only grammar
-  before it ever reaches the driver. Two layers, both required to be
-  bypassed before any write reaches Postgres.
+  Every query runs through `Tuist.Repo` inside an explicit read-only
+  transaction AND the query string is whitelisted against a SELECT-only
+  grammar before it ever reaches the driver. Two layers, both required
+  to be bypassed before any write reaches Postgres.
 
   `EctoPSQLExtras` powers the canned reports (table sizes, unused
   indexes, long-running queries, locks). The ad-hoc SQL runner is the

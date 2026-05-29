@@ -399,7 +399,7 @@
           <form
             id="ops-db-form"
             phx-submit="run_query"
-            phx-hook="OpsDatabaseSqlEditor"
+            phx-hook="SubmitOnCmdEnter"
             data-part="ops-db-form"
           >
             <.text_area
@@ -430,6 +430,13 @@
               </.button>
             </div>
           </form>
+          <div
+            id="ops-db-export-sink"
+            phx-hook="CopyOrDownload"
+            data-copy-download-event="ops-db-export"
+            hidden
+          >
+          </div>
           <.alert :if={@query_error} status="error" title={@query_error} />
           <%= if @query_result do %>
             <div data-part="ops-db-results-meta">

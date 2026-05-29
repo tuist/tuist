@@ -8,21 +8,6 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorker do
   the server pods enqueue jobs but never claim them. In self-hosted installs
   the server runs both roles in the same BEAM.
 
-  ## Postgres surface
-
-  Managed envs run this worker as the least-privilege `tuist_processor`
-  role provisioned by CNPG. Reachable PG tables: `accounts` (SELECT —
-  via `Accounts.get_account_by_id/1`), `projects` (SELECT — via
-  `Repo.get(Project, ...)` for the PubSub broadcast), `oban_jobs` /
-  `oban_peers` (RW — Oban itself, the `Pruner` plugin, and the
-  `Tuist.VCS.enqueue_vcs_pull_request_comment/1` re-enqueue). Every
-  build/file/target/issue/cacheable-task/CAS/machine-metric write goes
-  to ClickHouse via `Tuist.Ingestion.Bufferable`, not Postgres. Adding
-  a new PG read or write here means updating
-  `infra/cnpg/tuist-processor-grants.sql` in the same change — without
-  that, the worker will crash with `permission denied` on the first
-  managed-env job.
-
   ## Uniqueness
 
   Jobs are unique on `build_id` over `available | scheduled | executing |

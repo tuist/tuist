@@ -1,7 +1,7 @@
-/* /ops/db — the in-app replacement for pgweb. Shares the wrapper rhythm
-   of the rest of /ops (header, padding, gap) and adds the bits this
-   page needs: a horizontal tab menu under the title and an
-   ad-hoc-SQL editor card with stacked controls. */
+/* /ops/db layout. Shares the wrapper rhythm of the rest of /ops
+   (header, padding, gap) and adds the bits this page needs: a
+   horizontal tab menu under the title and an ad-hoc-SQL editor card
+   with stacked controls. */
 #ops-database {
   display: flex;
   flex-direction: column;
@@ -79,9 +79,9 @@
      fits without scrolling on first paint. */
   & [data-part="ops-db-form"] .noora-text-area textarea {
     min-height: 180px;
-    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 13px;
     line-height: 1.55;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     tab-size: 2;
   }
 
@@ -106,10 +106,10 @@
      uses the same font as the rest of the button so it inherits the
      button's color stack instead of carrying its own. */
   & [data-part="ops-db-kbd"] {
-    color: inherit;
     opacity: 0.55;
-    font-size: 12px;
+    color: inherit;
     font-weight: 400;
+    font-size: 12px;
     letter-spacing: 0.5px;
   }
 
@@ -145,9 +145,9 @@
      Hiding part of a row's data behind an ellipsis is more painful
      for an inspection surface than the horizontal scroll cost. */
   & [data-part="ops-db-result-wrapper"] .noora-table td {
-    white-space: nowrap;
-    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: nowrap;
   }
 
   /* NULL cells: muted color, same alignment as regular cells (still
@@ -185,9 +185,7 @@
     & > [data-part="title"] {
       margin: var(--noora-spacing-0);
       color: var(--noora-surface-label-primary);
-      font:
-        var(--noora-font-weight-medium)
-        var(--noora-font-heading-large);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
       font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     }
 
@@ -204,9 +202,9 @@
      Hiding part of a row's data behind an ellipsis is more painful
      for an inspection surface than the horizontal scroll cost. */
   & [data-part="ops-db-result-wrapper"] .noora-table td {
-    white-space: nowrap;
-    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12px;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: nowrap;
   }
 
   & [data-part="ops-db-result-wrapper"] [data-part="cell"][data-null="true"] [data-part="label"] {

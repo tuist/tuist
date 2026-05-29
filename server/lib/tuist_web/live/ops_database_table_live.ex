@@ -109,8 +109,7 @@ defmodule TuistWeb.OpsDatabaseTableLive do
           {:noreply, base |> assign(:preview, preview) |> assign(:preview_error, nil)}
 
         {:error, reason} ->
-          {:noreply,
-           base |> assign(:preview, nil) |> assign(:preview_error, format_error(reason))}
+          {:noreply, base |> assign(:preview, nil) |> assign(:preview_error, format_error(reason))}
       end
     else
       {:noreply, base |> assign(:preview, nil) |> assign(:preview_error, nil)}
@@ -164,7 +163,7 @@ defmodule TuistWeb.OpsDatabaseTableLive do
   end
 
   defp pick(nil, _allowed), do: nil
-  defp pick(value, allowed), do: if(value in allowed, do: value, else: nil)
+  defp pick(value, allowed), do: if(value in allowed, do: value)
 
   defp parse_dir("desc"), do: :desc
   defp parse_dir(_), do: :asc

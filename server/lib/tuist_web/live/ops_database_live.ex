@@ -1,10 +1,9 @@
 defmodule TuistWeb.OpsDatabaseLive do
   @moduledoc """
-  Database inspection page under `/ops/db`. Replaces the pgweb instance
-  the RFC originally specified — the same operator workflow (cluster
-  stats, table sizes, index health, live activity, ad-hoc SQL) but
-  running inside the Tuist server's authenticated `/ops` pipeline so
-  every action carries the operator's identity through to logs and
+  Database inspection page under `/ops/db`: an operator workflow for
+  cluster stats, table sizes, index health, live activity, and ad-hoc
+  SQL, running inside the Tuist server's authenticated `/ops` pipeline
+  so every action carries the operator's identity through to logs and
   audit.
 
   All queries are read-only by construction: stats use
