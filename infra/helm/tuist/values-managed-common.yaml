@@ -210,7 +210,7 @@ xcresultProcessor:
     # in the same auto-commit. Until release.yml has run for this
     # component, pin to a known-good SHA-tagged build that the standalone
     # xcresult-processor-image.yml workflow pushed.
-    tag: "0.9.2"
+    tag: "0.10.0"
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
