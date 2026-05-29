@@ -403,6 +403,49 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert toggled =~ "M3 3l18 18"
   end
 
+  test "the Steps card also has a timestamps button toggling per-step timestamps", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_950,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_500,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_950, "runner-x")
+
+    steps =
+      JSON.encode!([
+        %{
+          "name" => "Build",
+          "status" => "completed",
+          "conclusion" => "success",
+          "number" => 1,
+          "started_at" => "2026-05-28T12:00:00Z",
+          "completed_at" => "2026-05-28T12:01:00Z"
+        }
+      ])
+
+    {:ok, _} = Jobs.complete(31_950, "success", steps)
+
+    # Overview tab is the default, where the Steps card lives.
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")
+
+    assert has_element?(lv, "#steps-timestamps-button")
+    assert html =~ ~s(data-show-timestamps="true")
+
+    toggled = lv |> element("#steps-timestamps-button") |> render_click()
+    assert toggled =~ ~s(data-show-timestamps="false")
+  end
+
   test "raises 404 when the workflow_job_id belongs to another account", %{
     conn: conn,
     account: account

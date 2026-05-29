@@ -154,7 +154,22 @@
       icon="apps"
       data-part="steps-card"
     >
-      <.card_section data-part="steps-section">
+      <:actions>
+        <.button
+          :if={@steps != []}
+          id="steps-timestamps-button"
+          phx-click="toggle_timestamps"
+          variant="secondary"
+          size="medium"
+          label={dgettext("dashboard_runners", "Timestamps")}
+        >
+          <:icon_left>
+            <.hourglass :if={@show_timestamps} />
+            <.hourglass_off :if={!@show_timestamps} />
+          </:icon_left>
+        </.button>
+      </:actions>
+      <.card_section data-part="steps-section" data-show-timestamps={to_string(@show_timestamps)}>
         <div :if={@steps == []} data-part="steps-empty">
           {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
         </div>
