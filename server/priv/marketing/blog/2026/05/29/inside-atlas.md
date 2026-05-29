@@ -107,4 +107,6 @@ The thing I love most about Tuist is that we also optimise for having fun. I thi
 
 If you zoom out, Atlas sits on top of investments that have been compounding for months. The muscle to scale compute for running agents in sandboxed environments. Our own framework for building agents in Elixir, so we can codify all of this easily. Each of these makes the next one cheaper, and we are genuinely excited about where it goes.
 
+There is something specific about our moment that I do not want to gloss over. We are still shaping the company, which means we get to shape it around the capabilities that are possible today, rather than retrofitting them onto a structure designed for a different world. Moving an entire organisation into this model is a far heavier lift, one that goes well beyond the technical execution of an internal framework and a product. It touches how people work, what their roles mean, and what the company believes about itself. We get to skip most of that, not because we are smarter, but because we are early. That is a privilege, and we intend to use it.
+
 That is the company we want to build.
