@@ -38,9 +38,9 @@
 
 {
 	// Human access groups for the Kubernetes API server proxy (see
-	// the kubernetes grants below). Members must be each person's
-	// tailnet login identity, the SSO email Tailscale shows in the
-	// admin console. CONFIRM these match before merging.
+	// the kubernetes grants below). Members are each person's tailnet
+	// login identity (the SSO email Tailscale shows in the admin
+	// console).
 	"groups": {
 		// Founders: cluster-admin on every cluster they're granted.
 		"group:tuist-admins": ["pedro@tuist.dev", "marek@tuist.dev"],
