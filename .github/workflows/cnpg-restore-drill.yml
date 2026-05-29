@@ -1,32 +1,21 @@
 name: CNPG Restore Drill
 
-# Periodically proves the in-cluster Postgres backup is *restorable*, not just
-# that it's being produced. "Working WAL archiving" + a completed base backup
-# only show backups are written; the failure modes that matter (a WAL gap that
-# won't bridge to the recovery target, backup-credential read perms differing
-# from write, a CNPG/Postgres version regression on restore) are invisible
-# until you actually replay it.
+# Placeholder. This exists only so the workflow is registered on the default
+# branch and `workflow_dispatch` becomes available — GitHub won't expose
+# dispatch for a workflow that lives only on a feature branch.
 #
-# The drill bootstraps an isolated recovery Cluster from the barman object
-# store, waits for it to reach a healthy state, checks the restored data and
-# schema against the live cluster, then tears the recovery cluster down. It
-# never touches the live cluster (read-only baseline query) or its backup
-# path (the recovery cluster has no backup stanza, so it doesn't archive).
-#
-# Mirrors the manual procedure in infra/cnpg/MIGRATION.md (the soak gate).
-#
-# Required secrets: OP_SERVICE_ACCOUNT_TOKEN per GitHub Environment
-# server-k8s-<env> (read-only on the tuist-k8s-<env> vault, where the
-# cluster kubeconfig is stored as `kubeconfig: tuist-<env>`).
+# The real drill (bootstrap an isolated recovery Cluster from the barman
+# object store, validate the restored schema + data against the live cluster,
+# tear it down) lives on the in-cluster Postgres migration branch (#10942).
+# To run it before that PR merges, dispatch this workflow with the migration
+# branch as the ref — GitHub runs the workflow file from the chosen ref, not
+# this placeholder. When #10942 merges, its version replaces this file.
 
 on:
-  schedule:
-    - cron: "0 6 * * 1" # Mondays 06:00 UTC
   workflow_dispatch:
     inputs:
       environment:
         description: Target environment
-        required: true
         default: staging
         type: choice
         options:
@@ -34,137 +23,8 @@ on:
           - canary
           - production
 
-permissions:
-  contents: read
-
 jobs:
-  restore-drill:
-    name: Restore drill (${{ inputs.environment || 'staging' }})
-    runs-on: tuist-production-linux
-    environment:
-      name: server-k8s-${{ inputs.environment || 'staging' }}
-    concurrency:
-      group: cnpg-restore-drill-${{ inputs.environment || 'staging' }}
-      cancel-in-progress: false
-    timeout-minutes: 30
-    env:
-      KUBECONFIG: ${{ github.workspace }}/.kube/config
-      ENVIRONMENT: ${{ inputs.environment || 'staging' }}
-      CLUSTER: tuist-tuist-pg
-      BACKUP_SECRET: tuist-tuist-pg-backup-credentials
-      RECOVERY: pg-restore-drill-${{ github.run_id }}
+  placeholder:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          install_args: "kubectl"
-          cache: "false"
-      - uses: 1password/install-cli-action@v2
-      - name: Load kubeconfig from 1Password
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$(dirname "$KUBECONFIG")"
-          op document get "kubeconfig: tuist-$ENVIRONMENT" \
-            --vault "tuist-k8s-$ENVIRONMENT" --output "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
-          kubectl --request-timeout=10s get --raw /version >/dev/null
-          echo "NS=tuist-$ENVIRONMENT" >> "$GITHUB_ENV"
-
-      - name: Read live cluster spec + baseline
-        run: |
-          set -euo pipefail
-          get() { kubectl -n "$NS" get clusters.postgresql.cnpg.io "$CLUSTER" -o jsonpath="$1"; }
-          # Pull the barman store + image straight from the source cluster so
-          # the recovery config can't drift from it (bucket paths, endpoint,
-          # and the PG image differ per env / over time).
-          echo "DEST=$(get '{.spec.backup.barmanObjectStore.destinationPath}')" >> "$GITHUB_ENV"
-          echo "ENDPOINT=$(get '{.spec.backup.barmanObjectStore.endpointURL}')" >> "$GITHUB_ENV"
-          echo "IMG=$(get '{.spec.imageName}')" >> "$GITHUB_ENV"
-          # Match the live volume size so the restore can actually hold the
-          # data (and validates prod-sized recovery), not a hardcoded floor.
-          echo "SIZE=$(get '{.spec.storage.size}')" >> "$GITHUB_ENV"
-          # Baseline counts from any live instance (replicas hold the same data).
-          pod=$(kubectl -n "$NS" get pods -l "cnpg.io/cluster=$CLUSTER" -o jsonpath='{.items[0].metadata.name}')
-          q() { kubectl -n "$NS" exec "$pod" -c postgres -- psql -U postgres -d tuist -tAc "$1" | tr -d '[:space:]'; }
-          {
-            echo "LIVE_TABLES=$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
-            echo "LIVE_ACCOUNTS=$(q "SELECT count(*) FROM accounts;")"
-            echo "LIVE_USERS=$(q "SELECT count(*) FROM users;")"
-          } >> "$GITHUB_ENV"
-
-      - name: Launch recovery cluster
-        run: |
-          set -euo pipefail
-          cat <<YAML | kubectl apply -f -
-          apiVersion: postgresql.cnpg.io/v1
-          kind: Cluster
-          metadata:
-            name: $RECOVERY
-            namespace: $NS
-            labels:
-              purpose: cnpg-restore-drill
-          spec:
-            instances: 1
-            imageName: $IMG
-            enableSuperuserAccess: true
-            storage:
-              size: $SIZE
-            resources:
-              requests: { cpu: "100m", memory: "256Mi" }
-              limits: { cpu: "1000m", memory: "1Gi" }
-            bootstrap:
-              recovery:
-                source: $CLUSTER
-            externalClusters:
-              - name: $CLUSTER
-                barmanObjectStore:
-                  destinationPath: $DEST
-                  endpointURL: $ENDPOINT
-                  s3Credentials:
-                    accessKeyId: { name: $BACKUP_SECRET, key: ACCESS_KEY_ID }
-                    secretAccessKey: { name: $BACKUP_SECRET, key: ACCESS_SECRET_KEY }
-                  wal: { compression: gzip }
-          YAML
-
-      - name: Wait for recovery to reach healthy
-        run: |
-          set -euo pipefail
-          deadline=$(( SECONDS + 1200 ))
-          while [ $SECONDS -lt $deadline ]; do
-            phase=$(kubectl -n "$NS" get clusters.postgresql.cnpg.io "$RECOVERY" -o jsonpath='{.status.phase}' 2>/dev/null || true)
-            echo "phase: ${phase:-<pending>}"
-            case "$phase" in
-              "Cluster in healthy state") exit 0 ;;
-              *Failed*|*Fatal*) echo "::error::recovery failed: $phase"; exit 1 ;;
-            esac
-            sleep 15
-          done
-          echo "::error::timed out waiting for recovery"; exit 1
-
-      - name: Validate restored data + schema
-        run: |
-          set -euo pipefail
-          pod="$RECOVERY-1"
-          q() { kubectl -n "$NS" exec "$pod" -c postgres -- psql -U postgres -d tuist -tAc "$1" | tr -d '[:space:]'; }
-          tables=$(q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")
-          accounts=$(q "SELECT count(*) FROM accounts;")
-          users=$(q "SELECT count(*) FROM users;")
-          echo "recovered: tables=$tables accounts=$accounts users=$users"
-          echo "live:      tables=${LIVE_TABLES:-?} accounts=${LIVE_ACCOUNTS:-?} users=${LIVE_USERS:-?}"
-          fail=0
-          # Schema must match the live cluster exactly.
-          [ "$tables" = "${LIVE_TABLES:-}" ] || { echo "::error::table count $tables != live ${LIVE_TABLES:-?}"; fail=1; }
-          # Data comes from the latest backup, so it may trail live slightly,
-          # but must be present and within 10% of live.
-          [ "${accounts:-0}" -gt 0 ] || { echo "::error::accounts empty after restore"; fail=1; }
-          [ "${users:-0}" -gt 0 ] || { echo "::error::users empty after restore"; fail=1; }
-          [ "${accounts:-0}" -ge $(( ${LIVE_ACCOUNTS:-0} * 9 / 10 )) ] || { echo "::error::accounts $accounts < 90% of live ${LIVE_ACCOUNTS:-?}"; fail=1; }
-          exit $fail
-
-      - name: Tear down recovery cluster
-        if: always()
-        run: |
-          kubectl -n "${NS:-tuist-$ENVIRONMENT}" delete clusters.postgresql.cnpg.io "$RECOVERY" \
-            --ignore-not-found --wait=false || true
+      - run: echo "Placeholder. Dispatch with the #10942 branch as the ref to run the real restore drill."
