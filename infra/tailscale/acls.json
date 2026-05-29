@@ -47,7 +47,7 @@
 		// Engineers: write on staging/canary, read-only on
 		// production. The tier is enforced by per-cluster RBAC
 		// (accessBindings in the tailscale-operator chart), not here.
-		"group:tuist-eng": ["eduardo@tuist.dev"],
+		"group:tuist-eng": ["eduardo.ext@tuist.dev"],
 	},
 
 	"tagOwners": {
