@@ -93,7 +93,7 @@ This is the beginning, and I think this is the kind of investment that is going 
 
 I know this cuts against the grain of the industry, where investment is usually routed into hires, and headcount is the story you tell investors about the bets you are making on a market. We have bets too. **We just do not want to tie those bets to resources.** With the right information system, we believe we can make much better decisions, and with the right tools in place, we can be much better at our roles. We do not need a roster of hyper-specialised functions. We need to be creative about product and business, and with the right data in front of us, we have a real shot at being good at that.
 
-There is one place where the human is not optional, and that is sales. Sales is a human skill, a social process. By taking the rest of the burden off ourselves, we get to focus on the part where we think we add the most value, which is innovating on the product and figuring out where the business could go next.
+There are two kinds of work where the human stays central. One is sales, which is a social process and a deeply human skill, no matter how much context you put behind it. The other is the creative work of product and business, deciding what to build and where to take the company. Those are the parts where we add the most value. What Atlas does is take care of everything around them, so the human effort lands there instead of on the plumbing in between.
 
 ## What is next
 
