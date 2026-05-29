@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* track Kura node usage and add Usage dashboard by [@pepicrft](https://github.com/pepicrft) in [#10979](https://github.com/tuist/tuist/pull/10979)
 * authorize tenant-scoped cache via OAuth introspection by [@pepicrft](https://github.com/pepicrft) in [#10935](https://github.com/tuist/tuist/pull/10935)
 ### ⚡ Performance
 

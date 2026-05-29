@@ -91,6 +91,39 @@ type cloudflareError struct {
 	Message string `json:"message"`
 }
 
+type cloudflareRequestError struct {
+	Method     string
+	Path       string
+	StatusCode int
+	Body       string
+	Errors     []cloudflareError
+}
+
+func (e cloudflareRequestError) Error() string {
+	if len(e.Errors) > 0 {
+		return fmt.Sprintf("cloudflare %s %s failed with status %d: %v", e.Method, e.Path, e.StatusCode, e.Errors)
+	}
+	return fmt.Sprintf("cloudflare %s %s failed with status %d: %s", e.Method, e.Path, e.StatusCode, e.Body)
+}
+
+func (e cloudflareRequestError) OriginLimitExceeded() bool {
+	if e.StatusCode != http.StatusBadRequest {
+		return false
+	}
+
+	body := strings.ToLower(e.Body)
+	if strings.Contains(body, "origin") && strings.Contains(body, "limit") {
+		return true
+	}
+	for _, err := range e.Errors {
+		message := strings.ToLower(err.Message)
+		if strings.Contains(message, "origin") && strings.Contains(message, "limit") {
+			return true
+		}
+	}
+	return false
+}
+
 type cloudflareZone struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -461,7 +494,13 @@ func (c *cloudflareClient) do(ctx context.Context, method, path string, body any
 		return err
 	}
 	if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 300 {
-		return fmt.Errorf("cloudflare %s %s failed with status %d: %s", method, path, httpResponse.StatusCode, string(responseBody))
+		return cloudflareRequestError{
+			Method:     method,
+			Path:       path,
+			StatusCode: httpResponse.StatusCode,
+			Body:       string(responseBody),
+			Errors:     cloudflareErrors(responseBody),
+		}
 	}
 	if response == nil || len(responseBody) == 0 {
 		return nil
@@ -470,6 +509,16 @@ func (c *cloudflareClient) do(ctx context.Context, method, path string, body any
 		return err
 	}
 	return cloudflareResponseError(response)
+}
+
+func cloudflareErrors(body []byte) []cloudflareError {
+	var response struct {
+		Errors []cloudflareError `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil
+	}
+	return response.Errors
 }
 
 func cloudflareResponseError(response any) error {

@@ -48,6 +48,8 @@ defmodule Tuist do
       Kura,
       Kura.Deployment,
       Kura.Server,
+      Kura.Usage,
+      Kura.UsageEvent,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,

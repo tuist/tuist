@@ -20,8 +20,8 @@ defmodule TuistWeb.Oauth.IntrospectControllerTest do
       token_endpoint_auth_methods: ["client_secret_post"]
     }
 
-    stub(Environment, :kura_introspection_configured?, fn -> true end)
-    stub(Environment, :kura_introspection_client_id, fn -> introspection_client.id end)
+    stub(Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Environment, :kura_control_plane_client_id, fn -> introspection_client.id end)
 
     stub(Clients, :get_client, fn
       "00000000-0000-0000-0000-000000000001" -> introspection_client

@@ -1,0 +1,30 @@
+name: CNPG Restore Drill
+
+# Placeholder. This exists only so the workflow is registered on the default
+# branch and `workflow_dispatch` becomes available — GitHub won't expose
+# dispatch for a workflow that lives only on a feature branch.
+#
+# The real drill (bootstrap an isolated recovery Cluster from the barman
+# object store, validate the restored schema + data against the live cluster,
+# tear it down) lives on the in-cluster Postgres migration branch (#10942).
+# To run it before that PR merges, dispatch this workflow with the migration
+# branch as the ref — GitHub runs the workflow file from the chosen ref, not
+# this placeholder. When #10942 merges, its version replaces this file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        default: staging
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Placeholder. Dispatch with the #10942 branch as the ref to run the real restore drill."
