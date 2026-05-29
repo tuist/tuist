@@ -1,7 +1,7 @@
 defmodule Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker do
   @moduledoc false
   use Oban.Worker,
-    queue: :default,
+    queue: :storage_retention,
     max_attempts: 3,
     unique: [keys: [:continuation_token], states: [:available, :scheduled, :executing, :retryable]]
 
@@ -23,5 +23,9 @@ defmodule Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker do
     %{"continuation_token" => continuation_token}
     |> __MODULE__.new()
     |> Oban.insert()
+    |> case do
+      {:ok, _job} -> :ok
+      error -> error
+    end
   end
 end

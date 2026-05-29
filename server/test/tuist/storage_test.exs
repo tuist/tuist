@@ -585,7 +585,7 @@ defmodule Tuist.StorageTest do
       first_operation = %S3{body: UUIDv7.generate()}
       second_operation = %S3{body: UUIDv7.generate()}
 
-      expect(ExAws.S3, :delete_multiple_objects, fn
+      expect(ExAws.S3, :delete_multiple_objects, 2, fn
         ^bucket_name, ^first_chunk -> first_operation
         ^bucket_name, ^second_chunk -> second_operation
       end)

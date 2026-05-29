@@ -106,7 +106,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
 
       test_run_id = UUIDv7.generate()
 
-      expired_test =
+      {:ok, expired_test} =
         test_fixture(
           id: test_run_id,
           project_id: project.id,
@@ -114,7 +114,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
           ran_at: DateTime.utc_now() |> DateTime.add(-31, :day) |> DateTime.to_naive()
         )
 
-      [expired_test_case_run] = expired_test.test_case_runs
+      expired_test_case_run = List.first(expired_test.test_case_runs)
 
       expired_attachment =
         test_case_run_attachment_fixture(

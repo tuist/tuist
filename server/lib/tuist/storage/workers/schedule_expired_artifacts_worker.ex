@@ -1,7 +1,7 @@
 defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   @moduledoc false
   use Oban.Worker,
-    queue: :default,
+    queue: :storage_retention,
     max_attempts: 3,
     unique: [keys: [:after_id], states: [:available, :scheduled, :executing, :retryable]]
 
