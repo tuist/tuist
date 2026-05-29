@@ -9,6 +9,9 @@
 #     -f infra/helm/tuist/values-managed-canary.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraGlobalEndpointsEnabled: false
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 1
 
@@ -63,6 +66,12 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+kuraController:
+  cloudflareLoadBalancing:
+    # Cloudflare Load Balancing is disabled for Kura. The server should use
+    # regional Kura endpoints and fail closed if no valid endpoint is resolved.
+    enabled: false
 
 objectStorage:
   external:

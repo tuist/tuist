@@ -8,6 +8,9 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraGlobalEndpointsEnabled: false
+kuraGlobalEndpointsRequired: false
+
 server:
   replicaCount: 1
 
@@ -82,6 +85,12 @@ server:
       requests:
         cpu: "100m"
         memory: "200Mi"
+
+kuraController:
+  cloudflareLoadBalancing:
+    # Cloudflare Load Balancing is disabled for Kura. The server should use
+    # regional Kura endpoints and fail closed if no valid endpoint is resolved.
+    enabled: false
 
 objectStorage:
   external:
