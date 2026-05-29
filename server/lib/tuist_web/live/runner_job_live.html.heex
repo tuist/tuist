@@ -83,7 +83,8 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.run_duration_ms(@job)
+                  TuistWeb.RunnerJobLive.run_duration_ms(@job),
+                  fractional_seconds: false
                 )}
               </span>
             </div>
@@ -92,7 +93,8 @@
               <span data-part="label">
                 <.history />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerJobLive.queued_duration_ms(@job)
+                  TuistWeb.RunnerJobLive.queued_duration_ms(@job),
+                  fractional_seconds: false
                 )}
               </span>
             </div>
@@ -199,7 +201,9 @@
               <.badge
                 :if={step_duration}
                 label={
-                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration)
+                  Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(step_duration,
+                    fractional_seconds: false
+                  )
                 }
                 color="neutral"
                 style="light-fill"

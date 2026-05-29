@@ -127,8 +127,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Steps"
     assert html =~ "Set up job"
     assert html =~ "Run tests"
-    # 30-second duration badge for the failing step
-    assert html =~ "30.0s"
+    # 30-second duration badge for the failing step (no fractional seconds)
+    assert html =~ "30s"
+    refute html =~ "30.0s"
   end
 
   test "renders the steps empty state for a job without captured steps", %{
