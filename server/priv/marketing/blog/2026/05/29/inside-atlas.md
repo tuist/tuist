@@ -73,7 +73,7 @@ The obvious interface is the dashboard. But it is just as obvious that everyone 
 
 Then we came across [Shopify's blog post](https://shopify.engineering/under-the-river), and [Tobi's post on X](https://x.com/tobi/status/2053121182044451016) about River. River is a Slack bot, a public interface where anyone in the company can see the conversations. We loved that idea, so we took inspiration from it and built our own internal bot. People can ask about a particular deal or account, or dig into the finances, right there in Slack. Everything happens in the open, and anyone can follow along with conversations other people are having at any time. There is something quietly beautiful about that, so we borrowed it.
 
-![A Slack thread where Pedro asks the Tuist Atlas bot how the company's expenses evolved over the past three months](/marketing/images/blog/2026/05/29/inside-atlas/slack-bot.png)
+![A Slack thread where Pedro asks the Tuist Atlas bot how the company's expenses evolved over the past three months, with the bot replying that it is reading recent activity](/marketing/images/blog/2026/05/29/inside-atlas/slack-bot.png)
 
 ## Under the hood
 
