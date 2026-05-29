@@ -392,14 +392,16 @@ defmodule TuistWeb.RunnerJobLiveTest do
       ])
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
-    assert html =~ ~s(data-show-timestamps="true")
+    # Hidden by default; the icon points to the action (show) — a plain
+    # hourglass, so the hourglass-off slash path is absent.
+    assert html =~ ~s(data-show-timestamps="false")
     assert html =~ "Timestamps"
-    # hourglass (on) shown; the hourglass-off slash path is absent
     refute html =~ "M3 3l18 18"
 
     toggled = lv |> element("#logs-timestamps-button") |> render_click()
-    assert toggled =~ ~s(data-show-timestamps="false")
-    # icon swapped to hourglass-off (its distinctive diagonal slash path)
+    # Now visible; the action becomes "hide", so the icon is hourglass-off
+    # (its distinctive diagonal slash path).
+    assert toggled =~ ~s(data-show-timestamps="true")
     assert toggled =~ "M3 3l18 18"
   end
 
@@ -440,10 +442,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")
 
     assert has_element?(lv, "#steps-timestamps-button")
-    assert html =~ ~s(data-show-timestamps="true")
+    assert html =~ ~s(data-show-timestamps="false")
 
     toggled = lv |> element("#steps-timestamps-button") |> render_click()
-    assert toggled =~ ~s(data-show-timestamps="false")
+    assert toggled =~ ~s(data-show-timestamps="true")
   end
 
   test "raises 404 when the workflow_job_id belongs to another account", %{

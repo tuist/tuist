@@ -60,7 +60,7 @@ defmodule TuistWeb.RunnerJobLive do
          |> assign(:step_logs, %{})
          |> assign(:search, "")
          |> assign(:search_results, [])
-         |> assign(:show_timestamps, true)
+         |> assign(:show_timestamps, false)
          |> assign(:has_logs, log_lines != [])
          |> assign(:oldest_line, oldest_line)
          |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, oldest_line))

@@ -164,8 +164,8 @@
           label={dgettext("dashboard_runners", "Timestamps")}
         >
           <:icon_left>
-            <.hourglass :if={@show_timestamps} />
-            <.hourglass_off :if={!@show_timestamps} />
+            <.hourglass_off :if={@show_timestamps} />
+            <.hourglass :if={!@show_timestamps} />
           </:icon_left>
         </.button>
       </:actions>
@@ -278,8 +278,8 @@
             label={dgettext("dashboard_runners", "Timestamps")}
           >
             <:icon_left>
-              <.hourglass :if={@show_timestamps} />
-              <.hourglass_off :if={!@show_timestamps} />
+              <.hourglass_off :if={@show_timestamps} />
+              <.hourglass :if={!@show_timestamps} />
             </:icon_left>
           </.button>
         </div>
