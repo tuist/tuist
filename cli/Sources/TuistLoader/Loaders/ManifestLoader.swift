@@ -344,9 +344,6 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            // Pass an explicit working directory so manifest evaluation doesn't depend on
-            // `CommandRunner` resolving `getcwd`, which fails on CI when the process's
-            // working directory can no longer be resolved.
             let workingDirectory = try await Environment.current.currentWorkingDirectory()
             let string = try await commandRunner.capture(
                 arguments: arguments,
