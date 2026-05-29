@@ -20,6 +20,7 @@ mod segment;
 mod state;
 mod store;
 mod telemetry;
+mod usage;
 mod utils;
 
 #[cfg(test)]
