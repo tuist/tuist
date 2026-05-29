@@ -38,7 +38,9 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
 
             try await TuistEnvironmentTesting
                 .withMockedEnvironment {
-                    existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
+                    existingEnvVariables
+                        .filter { key, _ in !key.hasPrefix("TUIST_FEATURE_FLAG_") }
+                        .forEach { Environment.mocked?.variables[$0.key] = $0.value }
 
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
                         component: fixtureDirectory.basename
