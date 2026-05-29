@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -168,11 +169,15 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	globalStatusWarnings := []string{}
 	if r.CloudflareLoadBalancing.Enabled() && r.CloudflareLoadBalancing.ReconcileGlobalEndpoints {
 		if err := newCloudflareClient(r.CloudflareLoadBalancing).reconcileKuraLoadBalancers(ctx, instance); err != nil {
-			if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
+			if cloudflareOriginLimitExceeded(err) {
+				logger.Error(err, "global endpoint reconciliation hit the Cloudflare origin limit; continuing with workload status update")
+				globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
+			} else if r.CloudflareLoadBalancing.RequireGlobalEndpoints {
 				return ctrl.Result{}, err
+			} else {
+				logger.Error(err, "global endpoint reconciliation degraded; continuing with workload status update")
+				globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
 			}
-			logger.Error(err, "global endpoint reconciliation degraded; continuing with workload status update")
-			globalStatusWarnings = append(globalStatusWarnings, fmt.Sprintf("global endpoint reconciliation degraded: %v", err))
 		} else {
 			statusGlobalPublicURL = globalPublicURL(instance)
 			statusGlobalGRPCPublicURL = globalGRPCPublicURL(instance)
@@ -213,6 +218,11 @@ func joinStatusMessage(primary string, extras ...string) string {
 		}
 	}
 	return strings.Join(parts, "; ")
+}
+
+func cloudflareOriginLimitExceeded(err error) bool {
+	var requestError cloudflareRequestError
+	return errors.As(err, &requestError) && requestError.OriginLimitExceeded()
 }
 
 func (r *KuraInstanceReconciler) reconcileConfigMap(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
