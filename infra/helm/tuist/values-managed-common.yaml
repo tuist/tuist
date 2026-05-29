@@ -212,7 +212,18 @@ xcresultProcessor:
     # in the same auto-commit. Until release.yml has run for this
     # component, pin to a known-good SHA-tagged build that the standalone
     # xcresult-processor-image.yml workflow pushed.
-    tag: "0.9.0"
+    tag: "0.10.0"
+
+capi:
+  # Managed clusters store the CAPI workload kubeconfig in their
+  # per-env 1Password vault, so ESO can sync it into the
+  # <release>-capi-kubeconfig Secret that CAPI core's cluster cache
+  # reads. Without it CAPI can't bind fleet Machines to Nodes and the
+  # server deploy's `helm --wait` times out on the fleet
+  # MachineDeployments.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: true
 
 # Mac mini fleet provisioned declaratively via the Cluster API
 # Scaleway-Apple-Silicon provider. Scaling is `kubectl scale
@@ -229,7 +240,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.6.1"
+    tag: "0.7.0"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on

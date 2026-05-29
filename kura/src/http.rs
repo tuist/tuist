@@ -1758,6 +1758,7 @@ async fn get_artifact(
                 state
                     .metrics
                     .record_artifact_read(producer, "ok", manifest.size);
+                record_usage_event(&state, producer, "download", analytics, manifest.size);
                 record_project_scoped_cache_event(
                     &state,
                     producer,
@@ -1850,6 +1851,7 @@ async fn put_blob_artifact(
             state
                 .metrics
                 .record_artifact_write(producer, "ok", manifest.size);
+            record_usage_event(&state, producer, "upload", spec.analytics, manifest.size);
             record_project_scoped_cache_event(
                 &state,
                 producer,
@@ -1867,6 +1869,46 @@ async fn put_blob_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
             )
         }
+    }
+}
+
+fn record_usage_event(
+    state: &SharedState,
+    producer: ArtifactProducer,
+    action: &str,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
+    size: u64,
+) {
+    let Some(context) = analytics else {
+        return;
+    };
+    let Some(usage) = state.usage.as_ref() else {
+        return;
+    };
+    let artifact_kind = artifact_kind_for_usage(producer);
+
+    match action {
+        "download" => usage.record_public_download(
+            context.tenant_id,
+            context.namespace_id,
+            artifact_kind,
+            size,
+        ),
+        "upload" => {
+            usage.record_public_upload(context.tenant_id, context.namespace_id, artifact_kind, size)
+        }
+        _ => {}
+    }
+}
+
+fn artifact_kind_for_usage(producer: ArtifactProducer) -> &'static str {
+    match producer {
+        ArtifactProducer::Xcode => "xcode",
+        ArtifactProducer::Gradle => "gradle",
+        ArtifactProducer::Nx => "nx",
+        ArtifactProducer::Metro => "metro",
+        ArtifactProducer::Module => "module",
+        ArtifactProducer::Reapi => "reapi",
     }
 }
 

@@ -250,6 +250,25 @@ defmodule TuistWeb.API.CacheControllerTest do
       response = json_response(conn, 200)
       assert response["endpoints"] == []
     end
+
+    test "returns service unavailable when Kura resolves to an empty endpoint", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      stub(Tuist.Environment, :kura_endpoints, fn -> [""] end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      assert json_response(conn, 503) == %{"message" => "Kura cache endpoint is unavailable."}
+    end
   end
 
   describe "GET /api/cache/access" do

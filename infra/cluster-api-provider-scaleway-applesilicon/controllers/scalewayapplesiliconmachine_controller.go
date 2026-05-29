@@ -498,6 +498,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			UserPassword:         bootstrapCreds.SudoPassword,
 			SSHPrivateKey:        sshKey,
 			NodeName:             machine.Name,
+			ProviderID:           providerIDOf(machine),
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
@@ -596,6 +597,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			SSHUser:           bootstrapCreds.SSHUsername,
 			SSHPrivateKey:     sshKey,
 			NodeName:          machine.Name,
+			ProviderID:        providerIDOf(machine),
 			Kubeconfig:        kubeconfigYAML,
 			TartKubeletBinary: r.TartKubeletBinary,
 			TailscaleBinaries: r.TailscaleBinaries,
@@ -967,6 +969,17 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 		}
 	}
 	return ""
+}
+
+// providerIDOf returns the machine's providerID
+// (scw-applesilicon://<zone>/<id>), set once the server is ordered or
+// adopted. Empty until then — bootstrap renders no --provider-id flag
+// and a later reconcile re-renders the plist once it's known.
+func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {
+	if m.Spec.ProviderID == nil {
+		return ""
+	}
+	return *m.Spec.ProviderID
 }
 
 // hostCPUFor / hostMemoryMBFor select the per-Machine capacity
