@@ -19,6 +19,7 @@ defmodule TuistWeb.RunnerLogsController do
 
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias TuistWeb.RunnerLogToken
 
   require Logger
@@ -47,7 +48,7 @@ defmodule TuistWeb.RunnerLogsController do
       :ok = JobLogs.append(lines)
       broadcast(workflow_job_id, lines)
       maybe_mark_streaming(workflow_job_id, lines)
-      maybe_finalize(workflow_job_id, params, lines)
+      maybe_finalize(workflow_job_id, account_id, params, lines)
 
       send_resp(conn, :accepted, "")
     else
@@ -128,12 +129,38 @@ defmodule TuistWeb.RunnerLogsController do
     :ok
   end
 
-  defp maybe_finalize(workflow_job_id, %{"done" => true} = params, lines) do
+  defp maybe_finalize(workflow_job_id, account_id, %{"done" => true} = params, lines) do
     state = if Map.get(params, "partial", false) == true, do: "partial", else: "complete"
-    Jobs.set_log_state(workflow_job_id, state, line_count: final_line_count(workflow_job_id, lines))
+    line_count = final_line_count(workflow_job_id, lines)
+    Jobs.set_log_state(workflow_job_id, state, line_count: line_count)
+    maybe_enqueue_archive(workflow_job_id, account_id, line_count)
   end
 
-  defp maybe_finalize(_workflow_job_id, _params, _lines), do: :ok
+  defp maybe_finalize(_workflow_job_id, _account_id, _params, _lines), do: :ok
+
+  # The stream closed — hand the finished log to the archive worker so
+  # the download endpoint can serve it from S3. Skip empty logs (a
+  # runner that died before emitting a line); there's nothing to gzip.
+  defp maybe_enqueue_archive(_workflow_job_id, _account_id, 0), do: :ok
+
+  defp maybe_enqueue_archive(workflow_job_id, account_id, _line_count) do
+    case %{workflow_job_id: workflow_job_id, account_id: account_id}
+         |> ArchiveLogsWorker.new()
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        # The archive is an optimization — the download endpoint falls
+        # back to streaming ClickHouse — so a failed enqueue is logged,
+        # not surfaced to the shipper's closing request.
+        Logger.warning("runners: failed to enqueue log archive: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
+    end
+  end
 
   # Line numbers are monotonic, so the highest in the closing batch is
   # the total. An empty closing batch (the runner died with nothing

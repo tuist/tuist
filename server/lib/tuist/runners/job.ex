@@ -49,6 +49,13 @@ defmodule Tuist.Runners.Job do
     field :log_state, Ch, type: "LowCardinality(String)", default: ""
     field :log_line_count, Ch, type: "UInt32", default: 0
 
+    # S3 object key of the gzipped full-log archive, set by
+    # `Tuist.Runners.Workers.ArchiveLogsWorker` once the job finishes.
+    # Empty while logs are still streaming or before the archive is
+    # built; the download endpoint streams ClickHouse directly in that
+    # window. See `Tuist.Runners.Jobs.set_log_archive_key/2`.
+    field :log_archive_key, Ch, type: "String", default: ""
+
     # RMT version column. Every state-transition INSERT advances
     # this; merge keeps the row with the latest `updated_at` for
     # each `workflow_job_id`.

@@ -516,6 +516,31 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "set_log_archive_key/2" do
+    test "records the archive key while preserving the job's lifecycle state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7350, fleet: "fleet-archive")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7350, "runner-x")
+      {:ok, _} = Jobs.complete(7350, "success")
+      :ok = Jobs.set_log_state(7350, "complete", line_count: 7)
+
+      :ok = Jobs.set_log_archive_key(7350, "runners/#{account.id}/7350/runner.log.gz")
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7350)
+      assert job.log_archive_key == "runners/#{account.id}/7350/runner.log.gz"
+      assert job.log_state == "complete"
+      assert job.log_line_count == 7
+      assert job.status == "completed"
+      assert job.conclusion == "success"
+    end
+
+    test "is a no-op when the job row doesn't exist yet" do
+      assert :ok = Jobs.set_log_archive_key(7_399_998, "runners/1/7399998/runner.log.gz")
+    end
+  end
+
   describe "complete/2" do
     test "transitions to completed with the conclusion" do
       account = account_fixture()

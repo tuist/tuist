@@ -181,6 +181,7 @@ defmodule Tuist do
       Runners.Dispatch,
       Runners.Workers.DispatchWorker,
       Runners.Workers.WebhookRedeliveryWorker,
+      Runners.Workers.ArchiveLogsWorker,
       Runners.Claims,
       Runners.Claim,
       Runners.Jobs,

@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerLogsControllerTest do
 
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias TuistWeb.RunnerLogToken
 
   defp enqueue(account, workflow_job_id) do
@@ -64,6 +65,22 @@ defmodule TuistWeb.RunnerLogsControllerTest do
 
       assert response(conn, 202)
       assert {:ok, %{log_state: "complete", log_line_count: 2}} = Jobs.get_for_account(account.id, 8_800_002)
+
+      assert_enqueued(
+        worker: ArchiveLogsWorker,
+        args: %{workflow_job_id: 8_800_002, account_id: account.id}
+      )
+    end
+
+    test "does not enqueue an archive when the stream closes with no lines", %{conn: conn} do
+      account = account_fixture()
+      enqueue(account, 8_800_004)
+      token = RunnerLogToken.sign(8_800_004, account.id)
+
+      conn = post_logs(conn, token, %{"lines" => [], "done" => true})
+
+      assert response(conn, 202)
+      refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 8_800_004})
     end
 
     test "attributes lines from the token, ignoring any client-supplied ids", %{conn: conn} do

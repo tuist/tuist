@@ -2,8 +2,11 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
 
+  import Mimic
+
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -70,6 +73,22 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
     body = response(conn, 200)
     assert body =~ "first log line"
     assert body =~ "second log line"
+  end
+
+  test "redirects to a presigned S3 URL once the log archive has been built", %{conn: conn, account: account} do
+    enqueue(account, 32_201, 322_010)
+    :ok = Jobs.set_log_archive_key(32_201, "runners/#{account.id}/32201/runner.log.gz")
+
+    expect(Storage, :generate_download_url, fn key, actor, opts ->
+      assert key == "runners/#{account.id}/32201/runner.log.gz"
+      assert actor.id == account.id
+      assert opts[:query_params] == [{"response-content-disposition", ~s(attachment; filename="runner-job-32201.log.gz")}]
+      "https://s3.example.com/signed-archive-url"
+    end)
+
+    conn = get(conn, ~p"/#{account.name}/runners/runs/322010/jobs/32201/logs.txt")
+
+    assert redirected_to(conn) == "https://s3.example.com/signed-archive-url"
   end
 
   test "404s when the job belongs to another account", %{conn: conn, account: account} do

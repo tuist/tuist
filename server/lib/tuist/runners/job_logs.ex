@@ -19,6 +19,7 @@ defmodule Tuist.Runners.JobLogs do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Runners.JobLog
+  alias Tuist.Utilities.DateFormatter
 
   @doc """
   Appends a batch of log lines. Each entry is a map carrying
@@ -193,6 +194,18 @@ defmodule Tuist.Runners.JobLogs do
     |> select([l], count(l.line_number))
     |> ClickHouseRepo.one()
     |> Kernel.||(0)
+  end
+
+  @doc """
+  Renders a batch of log lines to the plain-text download format —
+  one `"<ISO timestamp> <message>"` per line, newline-terminated.
+  Shared by the chunked download endpoint and the S3 archive worker so
+  a job's logs read identically whichever path served them.
+  """
+  def encode_lines(lines) when is_list(lines) do
+    Enum.map_join(lines, "\n", fn %{ts: ts, message: message} ->
+      "#{DateFormatter.format_iso(ts)} #{message}"
+    end) <> "\n"
   end
 
   @doc """

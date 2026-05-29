@@ -344,6 +344,32 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_put_line_count(updates, _), do: updates
 
   @doc """
+  Records the S3 object key of a job's gzipped log archive as a
+  state-transition INSERT, carrying all other columns forward. Called
+  by `Tuist.Runners.Workers.ArchiveLogsWorker` after it uploads the
+  archive, so the download endpoint can hand back a presigned URL.
+
+  No-op when no row exists yet for the workflow_job.
+  """
+  def set_log_archive_key(workflow_job_id, archive_key) when is_integer(workflow_job_id) and is_binary(archive_key) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        now = DateTime.utc_now()
+
+        row =
+          job
+          |> job_to_row()
+          |> Map.merge(%{log_archive_key: archive_key, updated_at: now})
+
+        insert_row!(row)
+        :ok
+    end
+  end
+
+  @doc """
   Lists jobs for an account, ordered so the most recently updated
   rows come first. Used by the customer-facing Jobs dashboard.
 
