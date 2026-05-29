@@ -90,27 +90,7 @@ public struct GraphCommand: AsyncParsableCommand {
     var outputPath: String?
 
     public func run() async throws {
-        let resolvedPath: AbsolutePath
-        if let path {
-            resolvedPath = try AbsolutePath(validating: path)
-        } else {
-            resolvedPath = try await Environment.current.currentWorkingDirectory()
-        }
-
-        let resolvedOutputPath: AbsolutePath
-        if let outputPath {
-            if let absoluteOutputPath = try? AbsolutePath(validating: outputPath) {
-                resolvedOutputPath = absoluteOutputPath
-            } else {
-                resolvedOutputPath = try await AbsolutePath(
-                    validating: outputPath,
-                    relativeTo: Environment.current.currentWorkingDirectory()
-                )
-            }
-        } else {
-            resolvedOutputPath = try await Environment.current.currentWorkingDirectory()
-        }
-
+        let cwd = try await Environment.current.currentWorkingDirectory()
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
@@ -120,8 +100,9 @@ public struct GraphCommand: AsyncParsableCommand {
             open: open,
             platformToFilter: platform,
             targetsToFilter: targets,
-            path: resolvedPath,
-            outputPath: resolvedOutputPath
+            path: path.map { try AbsolutePath(validating: $0) } ?? cwd,
+            outputPath: outputPath
+                .map { try AbsolutePath(validating: $0, relativeTo: cwd) } ?? cwd
         )
     }
 }
