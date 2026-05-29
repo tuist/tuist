@@ -155,7 +155,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   eso-secret-refresh:
     # Re-stamp the 1Password Service Account token External Secrets Operator
-    # authenticates with, then nudge it to reconcile. The token is laid down
+    # authenticates with, then restart the controller so it reloads it (the
+    # onepasswordSDK provider caches its client and won't otherwise). The token
+    # is laid down
     # once per cluster at bootstrap (bootstrap-workload.sh, from
     # OP_SERVICE_ACCOUNT_TOKEN) and can later expire / be rotated out from
     # under the cluster; when it does, EVERY ExternalSecret fails auth ("bad
@@ -200,7 +202,7 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Re-stamp onepassword-sa-token + force ESO reconcile
+      - name: Re-stamp onepassword-sa-token + roll ESO onto it
         # The token flows through the pipe into `kubectl apply`, never echoed;
         # GHA also masks secrets.OP_SERVICE_ACCOUNT_TOKEN in step output. Same
         # create-secret shape as bootstrap-workload.sh:338.
@@ -210,13 +212,31 @@ jobs:
           set -euo pipefail
           kubectl create namespace onepassword \
             --dry-run=client -o yaml | kubectl apply -f -
-          kubectl -n onepassword create secret generic onepassword-sa-token \
+          # `kubectl apply` prints "configured" when the token value changed,
+          # "unchanged" otherwise — capture it to decide whether ESO needs a
+          # bounce.
+          apply_out="$(kubectl -n onepassword create secret generic onepassword-sa-token \
             --from-literal=token="$OP_SERVICE_ACCOUNT_TOKEN" \
-            --dry-run=client -o yaml | kubectl apply -f -
-          # Trigger an immediate reconcile so the ExternalSecrets the install
-          # jobs gate on flip Ready inside their helm --wait window instead of
-          # waiting out ESO's error backoff. No-op (|| true) on a fresh cluster
-          # where the CRD isn't installed yet.
+            --dry-run=client -o yaml | kubectl apply -f -)"
+          printf '%s\n' "$apply_out"
+          # ESO's onepasswordSDK provider builds its 1Password client once and
+          # caches it for the controller's lifetime — it does NOT re-read
+          # onepassword-sa-token on a plain reconcile. So when the token
+          # rotates, every ExternalSecret keeps failing auth ("bad
+          # credentials: failed to authenticate") until the controller
+          # restarts. Bounce it only when the token actually changed (avoids a
+          # needless reconcile pause on steady-state deploys), then wait for
+          # the new pod before the install jobs start gating on ExternalSecrets.
+          if printf '%s' "$apply_out" | grep -qE 'onepassword-sa-token (configured|created)' \
+            && kubectl -n platform get deployment platform-external-secrets >/dev/null 2>&1; then
+            echo "Token changed; restarting ESO so it rebuilds its 1Password client."
+            kubectl -n platform rollout restart deployment platform-external-secrets
+            kubectl -n platform rollout status deployment platform-external-secrets --timeout=180s
+          fi
+          # Belt-and-suspenders: nudge an immediate reconcile so the
+          # ExternalSecrets the install jobs gate on flip Ready inside their
+          # helm --wait window instead of waiting out ESO's refresh interval.
+          # No-op (|| true) on a fresh cluster where the CRD isn't installed yet.
           kubectl get externalsecrets.external-secrets.io -A \
             -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null \
             | while IFS=/ read -r ns name; do
