@@ -269,6 +269,25 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Then
       assert json_response(conn, 503) == %{"message" => "Kura cache endpoint is unavailable."}
     end
+
+    test "returns service unavailable when Kura resolves to an endpoint without a host", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      stub(Tuist.Environment, :kura_endpoints, fn -> ["https://"] end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      assert json_response(conn, 503) == %{"message" => "Kura cache endpoint is unavailable."}
+    end
   end
 
   describe "GET /api/cache/access" do

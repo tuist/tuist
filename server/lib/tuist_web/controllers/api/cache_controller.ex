@@ -76,7 +76,7 @@ defmodule TuistWeb.API.CacheController do
       |> Accounts.get_cache_endpoints_for_handle(technology)
       |> Enum.reject(&is_nil/1)
 
-    if technology == :kura and Enum.any?(endpoints, &(String.trim(&1) == "")) do
+    if technology == :kura and Enum.any?(endpoints, &invalid_kura_endpoint_url?/1) do
       conn
       |> put_status(:service_unavailable)
       |> json(%{message: "Kura cache endpoint is unavailable."})
@@ -84,6 +84,14 @@ defmodule TuistWeb.API.CacheController do
       json(conn, %{endpoints: endpoints})
     end
   end
+
+  defp invalid_kura_endpoint_url?(endpoint) when is_binary(endpoint) do
+    uri = URI.parse(String.trim(endpoint))
+
+    uri.scheme not in ["http", "https"] or is_nil(uri.host) or uri.host == ""
+  end
+
+  defp invalid_kura_endpoint_url?(_endpoint), do: true
 
   operation(:access,
     summary: "Get first-class cache access scopes.",
