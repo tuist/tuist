@@ -1,7 +1,3 @@
-/* /ops/db layout. Shares the wrapper rhythm of the rest of /ops
-   (header, padding, gap) and adds the bits this page needs: a
-   horizontal tab menu under the title and an ad-hoc-SQL editor card
-   with stacked controls. */
 #ops-database {
   display: flex;
   flex-direction: column;
