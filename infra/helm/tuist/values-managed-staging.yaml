@@ -159,15 +159,8 @@ processor:
       memory: "1536Mi"
 
 xcresultProcessor:
-  # TEMPORARY: disabled while the staging Mac mini fleet is down. The
-  # Scaleway Apple Silicon machines backing macosFleet / runnersFleet /
-  # buildersFleet are gone, so the xcresult-processor Pod has no darwin
-  # node to schedule on and helm --wait --atomic times out and rolls the
-  # whole release (including the CNPG cluster) back. Re-enable once the
-  # fleet is recovered. See macosFleet / runnersFleet / buildersFleet
-  # below, disabled for the same reason.
   # Single replica in staging, matching macosFleet.replicas=1.
-  enabled: false
+  enabled: true
   replicaCount: 1
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
@@ -192,10 +185,7 @@ xcresultProcessor:
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
-  # TEMPORARY: disabled while the staging Mac mini fleet is down (see
-  # xcresultProcessor above). Re-enable once the Scaleway Apple Silicon
-  # machines are recovered.
-  enabled: false
+  enabled: true
   replicas: 1
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
@@ -237,10 +227,7 @@ macosFleet:
 # automation lands when the image flow gets its own
 # release-bump workflow.
 runnersFleet:
-  # TEMPORARY: disabled while the staging Mac mini fleet is down (see
-  # xcresultProcessor above). Re-enable once the Scaleway Apple Silicon
-  # machines are recovered.
-  enabled: false
+  enabled: true
   hostCount: 1
   # Pre-ordered Mac mini pool. Operator orders Mac minis in the
   # Scaleway console with names starting with `tuist-pool-`
@@ -310,10 +297,7 @@ runnersFleet:
 # on every bootstrap by the CAPI reconciler from the
 # `BUILDERS_FLEET_GITHUB_APP` 1P item synced via ESO.
 buildersFleet:
-  # TEMPORARY: disabled while the staging Mac mini fleet is down (see
-  # xcresultProcessor above). Re-enable once the Scaleway Apple Silicon
-  # machines are recovered.
-  enabled: false
+  enabled: true
   replicas: 1
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
