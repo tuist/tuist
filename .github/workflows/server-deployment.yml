@@ -307,7 +307,7 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-platform
       cancel-in-progress: false
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
