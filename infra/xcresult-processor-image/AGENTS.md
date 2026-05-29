@@ -49,10 +49,27 @@ The local build:
 ## Layer 1 dependency
 
 This is **Layer 2** on top of
-`ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
-`infra/macos-xcode-image`). Xcode itself lives in Layer 1 because
-the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
-ships in full Xcode (not the Command Line Tools).
+`ghcr.io/tuist/macos-tahoe-xcode-slim:<xcode-version-dashes>` — the
+**slim** variant built by `infra/macos-xcode-image` with
+`slim=true`. Xcode itself lives in Layer 1 because the NIF shells
+out to `/usr/bin/xcrun xcresulttool`, which only ships in full Xcode
+(not the Command Line Tools).
+
+The slim base keeps `Xcode.app` whole (xcresulttool's framework
+closure must stay intact — it loads private frameworks at parse
+time) but drops the simulator runtimes and the CI dev-tool grab-bag
+that the runner image carries. The processor only *parses*
+`.xcresult` bundles — it never runs tests — so it needs none of
+that. Dropping it shrinks the cold pull, which matters because the
+processor runs on Scaleway Mac minis behind a fixed 1 GbE NIC
+(~125 MB/s): a too-slow pull trips the Deployment's progress
+deadline and fails the server deploy under `helm --atomic`. See the
+[Slim variant](../macos-xcode-image/AGENTS.md#slim-variant) section
+for the measured pull sizes and the full rationale. The Packer
+build's sanity check proves the slim base can still parse a real
+`.xcresult` (generated from a throwaway macOS unit test, no
+simulator needed) with the exact `xcresulttool get test-results
+tests` command the NIF uses.
 
 Unlike `infra/runner-image` (where customers pin a specific runner
 profile to a specific Xcode), the xcresult-processor is a
@@ -66,11 +83,12 @@ The Xcode version is declared inline in `.github/workflows/release.yml`'s
 the `XCODE_VERSION` env var on that step). Bump it alongside the
 runner-image matrix when promoting a new Xcode to the fleet:
 
-1. Publish a Layer 1 image with the new Xcode — first run
+1. Publish the **slim** Layer 1 base with the new Xcode — first run
    `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
-   `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
-   See `infra/macos-xcode-image/AGENTS.md` for the runbook.
+   `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y -f slim=true`.
+   That publishes `macos-tahoe-xcode-slim:<tag>`, which this image
+   builds on. See `infra/macos-xcode-image/AGENTS.md` for the runbook.
 2. Update the runner-image active matrix and this image's
    `XCODE_VERSION` env var in `release.yml` in the same commit so
    the processor never lags an active runner profile. Merge with
@@ -78,7 +96,8 @@ runner-image matrix when promoting a new Xcode to the fleet:
    check-releases picks it up from `infra/xcresult-processor-image/**`.
 
 To rebuild against a different Xcode without bumping the inline
-version (e.g. testing a 26.X.Y release candidate), dispatch
+version (e.g. testing a 26.X.Y release candidate), publish the slim
+base for it (`-f slim=true`) and dispatch
 `xcresult-processor-image.yml` with `-f xcode_version=26.X.Y`.
 
 ## Env injection at runtime

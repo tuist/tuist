@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #MISE description "Build the Tuist xcresult-processor Tart image locally"
 #MISE raw=true
-#USAGE arg "<xcode_version>" help="Xcode version of the base macos-tahoe-xcode image (e.g. 26.5, 26.4.1). The tag must already be published — `gh workflow run macos-xcode-image.yml -f xcode_version=...` if not."
+#USAGE arg "<xcode_version>" help="Xcode version of the base macos-tahoe-xcode-slim image (e.g. 26.5, 26.4.1). The slim tag must already be published — `gh workflow run macos-xcode-image.yml -f xcode_version=... -f slim=true` if not."
 
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SERVER_DIR="${REPO_ROOT}/server"
 PACKER_DIR="${REPO_ROOT}/infra/xcresult-processor-image"
-BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${usage_xcode_version//./-}"
+BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode-slim:${usage_xcode_version//./-}"
 
 for cmd in tart packer mix swift; do
   if ! command -v "$cmd" &>/dev/null; then

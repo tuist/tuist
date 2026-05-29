@@ -1435,7 +1435,7 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # macos-tahoe-xcode-slim base (a private ghcr.io/tuist/* image)
       # authenticates with the tuist-bot token. crane writes creds
       # to ~/.docker/config.json, which Tart reads via the Docker
       # credential-helper protocol for both the pull (this build's
@@ -1471,12 +1471,15 @@ jobs:
         # as the newest active runner-image profile (xcresulttool's
         # JSON schema changes across Xcode majors). Promotion rule:
         # when you bump the first matrix entry in runner-image-build
-        # above, bump this too.
+        # above, bump this too — AND publish the matching slim base
+        # (`gh workflow run macos-xcode-image.yml -f xcode_version=<v>
+        # -f slim=true`) before this job runs, since it builds on
+        # macos-tahoe-xcode-slim, not the full runner base.
         env:
           XCODE_VERSION: "26.5"
         run: |
           set -euo pipefail
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode-slim:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \

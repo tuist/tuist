@@ -12,11 +12,14 @@ name: Xcresult Processor Image
 # workflow's `:<git-sha>` tag is dispatch-only and not consumed by
 # the chart.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
-# (built by `infra/macos-xcode-image`). Xcode lives in the base —
-# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
-# ships in full Xcode (not the Command Line Tools). This build just
-# adds the Erlang release and launchd unit on top.
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode-slim:<xcode-version-dashes>`
+# (the slim variant from `infra/macos-xcode-image`). Xcode lives in
+# the base — the NIF shells out to `/usr/bin/xcrun xcresulttool`,
+# which only ships in full Xcode (not the Command Line Tools). The
+# slim base keeps Xcode whole but drops the simulator runtimes + CI
+# tools (the processor only parses bundles, never runs tests) so the
+# image pulls fast enough to clear the fleet's 1 GbE deploy deadline.
+# This build just adds the Erlang release and launchd unit on top.
 #
 # Two stages on the same self-hosted bare-metal Mac mini (the same
 # vm-image-builder host #10264 introduces — Tart needs a live GUI session
@@ -29,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       xcode_version:
-        description: "Xcode version of the base macos-tahoe-xcode image to build against (e.g. 26.5, 26.4.1). Must already be published."
+        description: "Xcode version of the base macos-tahoe-xcode-slim image to build against (e.g. 26.5, 26.4.1). The slim base must already be published — dispatch macos-xcode-image.yml with slim=true for this version first."
         required: true
 
 concurrency:
@@ -101,7 +104,7 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # Log in BEFORE Packer build so Tart's clone of the
-      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # macos-tahoe-xcode-slim base (a private ghcr.io/tuist/* image)
       # authenticates. crane writes creds to ~/.docker/config.json,
       # which Tart reads via the Docker credential-helper protocol
       # for both the pull (this build's clone of the base) and the
@@ -140,7 +143,7 @@ jobs:
           XCODE_VERSION: ${{ inputs.xcode_version }}
         run: |
           set -euo pipefail
-          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode-slim:${XCODE_VERSION//./-}"
           echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${BASE_IMAGE}" \

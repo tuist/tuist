@@ -11,6 +11,18 @@ metadata:
     app.kubernetes.io/component: xcresult-processor
 spec:
   replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  # A new Pod boots a fresh Tart VM, which means a cold pull of the
+  # (large) macOS+Xcode image over the Mac mini's fixed 1 GbE NIC
+  # (~125 MB/s) plus first-boot. The slim image keeps that pull to
+  # ~7 min, but VM-create + boot + 1 GbE variance can still push the
+  # time-to-Available past Kubernetes' default 600s progress
+  # deadline. When that deadline trips, the Deployment reports
+  # ProgressDeadlineExceeded, `helm --wait --atomic` marks the
+  # release failed and rolls back — and the rollback image has often
+  # been GC'd too, so the fleet thrashes re-pulling. Widen the
+  # deadline well past the worst-case cold pull so a slow-but-
+  # progressing rollout isn't mistaken for a stuck one.
+  progressDeadlineSeconds: {{ .Values.xcresultProcessor.progressDeadlineSeconds }}
   strategy:
     {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
   selector:

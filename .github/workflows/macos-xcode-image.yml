@@ -28,17 +28,23 @@ on:
       xcode_version:
         description: "Xcode version to install (e.g. 26.4.1, 26.5). Must be available on developer.apple.com. Drives the push tag (dots → dashes)."
         required: true
+      slim:
+        description: "Build the slim variant for the xcresult-processor (full Xcode, no simulators, no CI tools). Pushes ghcr.io/tuist/macos-tahoe-xcode-slim:<tag> instead of macos-tahoe-xcode:<tag>. Leave unchecked for the runner-image base."
+        type: boolean
+        required: false
+        default: false
       base_image:
         description: "Base Tart image to layer Xcode onto"
         required: false
         default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
 
 concurrency:
-  # Different Xcode versions can build in parallel (different push
-  # tags, no shared state). Same Xcode re-dispatched cancels the
+  # Different Xcode versions — and the full vs slim variant of the
+  # same version — can build in parallel (different push tags, no
+  # shared state). Same version+variant re-dispatched cancels the
   # in-flight build — it would publish to the same tag and the
   # second dispatch always represents the more recent intent.
-  group: macos-xcode-image-${{ inputs.xcode_version }}
+  group: macos-xcode-image-${{ inputs.xcode_version }}-${{ inputs.slim }}
   cancel-in-progress: true
 
 permissions:
@@ -146,6 +152,7 @@ jobs:
         working-directory: infra/macos-xcode-image
         env:
           XCODE_VERSION: ${{ inputs.xcode_version }}
+          SLIM: ${{ inputs.slim }}
         run: |
           set -euo pipefail
           docker_config="$HOME/.docker/config.json"
@@ -163,9 +170,19 @@ jobs:
             mv "$docker_config" "$docker_config_backup"
           fi
 
+          # The slim variant (xcresult-processor base) is a distinct
+          # image — full Xcode but no sims / CI tools — so it gets its
+          # own name and tag namespace. Runners stay on macos-tahoe-xcode.
+          if [ "${SLIM}" = "true" ]; then
+            IMAGE_NAME="macos-tahoe-xcode-slim"
+          else
+            IMAGE_NAME="macos-tahoe-xcode"
+          fi
+
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
             -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-base:latest' }}" \
-            -var "output_image=macos-tahoe-xcode" \
+            -var "output_image=${IMAGE_NAME}" \
+            -var "slim=${SLIM}" \
             -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
             -var "xcode_version=${XCODE_VERSION}" \
             macos-xcode.pkr.hcl
@@ -179,6 +196,7 @@ jobs:
           # (`:26-4-1`), not a same-tag replacement.
           TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
 
       # crane writes creds to ~/.docker/config.json, which Tart's
       # push reads via the Docker credential-helper protocol.
@@ -211,10 +229,11 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.build.outputs.tag }}"
+          IMAGE_NAME="${{ steps.build.outputs.image_name }}"
           for attempt in 1 2 3; do
             echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
-              echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
+            if tart push "${IMAGE_NAME}" "ghcr.io/tuist/${IMAGE_NAME}:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/${IMAGE_NAME}:${TAG} on attempt ${attempt}"
               exit 0
             fi
             echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
@@ -225,4 +244,6 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: tart delete macos-tahoe-xcode 2>/dev/null || true
+        run: |
+          tart delete macos-tahoe-xcode 2>/dev/null || true
+          tart delete macos-tahoe-xcode-slim 2>/dev/null || true
