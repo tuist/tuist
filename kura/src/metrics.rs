@@ -741,6 +741,10 @@ impl Metrics {
         metrics
     }
 
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
     pub fn record_node_geo(&self, location: &NodeLocation) {
         self.node_geo
             .get_or_create(&NodeGeoLabels {

@@ -197,7 +197,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
   defp cloudflare_pool_longitude(_), do: nil
 
-  # Tuist-platform-wide secrets (JWT verifier, introspection client
+  # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
@@ -211,13 +211,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
       env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ] ++
       maybe_env_var(
+        "KURA_CONTROL_PLANE_CLIENT_ID",
+        Tuist.Environment.kura_control_plane_client_id()
+      ) ++
+      maybe_env_var(
         "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
-        Tuist.Environment.kura_introspection_client_id()
+        Tuist.Environment.kura_control_plane_client_id()
       ) ++
       telemetry_env(region)
   end

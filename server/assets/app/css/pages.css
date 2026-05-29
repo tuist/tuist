@@ -49,4 +49,5 @@
 @import "./pages/webhook.css";
 @import "./pages/webhook_event.css";
 @import "./pages/machine_metrics.css";
+@import "./pages/usage.css";
 @import "./pages/xcode_cache.css";

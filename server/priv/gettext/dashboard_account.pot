@@ -32,7 +32,7 @@ msgstr ""
 msgid "%{month}/%{year}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:180
+#: lib/tuist/accounts/user_notifier.ex:208
 #: lib/tuist_web/live/accept_invitation_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
@@ -419,7 +419,7 @@ msgstr ""
 msgid "Get started with no credit card required—try with no commitment."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:177
+#: lib/tuist/accounts/user_notifier.ex:205
 #, elixir-autogen, elixir-format
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
@@ -440,7 +440,7 @@ msgstr ""
 msgid "Invitation not found"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:171
+#: lib/tuist/accounts/user_notifier.ex:199
 #, elixir-autogen, elixir-format
 msgid "Invitation to %{organization_name}"
 msgstr ""
@@ -933,7 +933,7 @@ msgstr ""
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:175
+#: lib/tuist/accounts/user_notifier.ex:203
 #, elixir-autogen, elixir-format
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
@@ -1825,28 +1825,28 @@ msgstr ""
 msgid "Retry"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:216
+#: lib/tuist/accounts/user_notifier.ex:244
 #, elixir-autogen, elixir-format
 msgid "Hi %{user_email}, your account was added to %{organization_name} by your identity provider's automated user provisioning (SCIM)."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:225
+#: lib/tuist/accounts/user_notifier.ex:253
 #, elixir-autogen, elixir-format
 msgid "If this is unexpected, contact your identity provider administrator (the team that manages your single sign-on) to remove this provisioning. An organization admin in Tuist can also remove you from %{organization_name}."
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:219
+#: lib/tuist/accounts/user_notifier.ex:247
 #, elixir-autogen, elixir-format
 msgid "If you expected this, no action is needed. You can open the organization here:"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:222
+#: lib/tuist/accounts/user_notifier.ex:250
 #, elixir-autogen, elixir-format
 msgid "Open %{organization_name}"
 msgstr ""
 
-#: lib/tuist/accounts/user_notifier.ex:206
-#: lib/tuist/accounts/user_notifier.ex:214
+#: lib/tuist/accounts/user_notifier.ex:234
+#: lib/tuist/accounts/user_notifier.ex:242
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
 msgstr ""

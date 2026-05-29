@@ -243,6 +243,7 @@ spec:
     template:
       engineVersion: v2
       data:
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
         KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
   data:
     - secretKey: kura_introspection_client_secret
