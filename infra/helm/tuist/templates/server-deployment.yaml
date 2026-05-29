@@ -153,6 +153,13 @@ spec:
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
             {{- end }}
+            {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+            # Namespace of the CNPG Cluster + Backup CRs (this release's
+            # namespace). The /ops/db Backups tab lists those CRs via the
+            # K8s API; the server SA's read grant is in postgresql-cnpg.yaml.
+            - name: TUIST_CNPG_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}

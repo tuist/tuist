@@ -12,6 +12,8 @@ defmodule Tuist.Ops.Database do
   only path that accepts operator input; it goes through `execute/2`.
   """
 
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
 
   @max_rows 200
@@ -425,6 +427,60 @@ defmodule Tuist.Ops.Database do
       """)
 
     rows_to_maps(%{rows: rows, columns: cols})
+  end
+
+  @doc """
+  Lists the CNPG `Backup` CRs for the in-cluster Postgres cluster via the
+  Kubernetes API. Complements `archiver_status/0`: the archiver snapshot
+  only reports whether WAL is currently streaming to the object store,
+  while this surfaces each base backup's completion phase, method, and
+  error — the signal an operator needs to confirm a snapshot actually
+  completed (a failed base backup can coexist with healthy WAL archiving).
+
+  Returns `{:ok, backups}` (newest first), `{:error, :not_configured}`
+  when the cluster namespace isn't wired (dev, or CNPG not provisioned),
+  or `{:error, :unavailable}` when the Kubernetes API can't be reached or
+  the read is denied.
+  """
+  def list_base_backups do
+    case Environment.cnpg_namespace() do
+      namespace when is_binary(namespace) and namespace != "" ->
+        list_base_backups(namespace)
+
+      _ ->
+        {:error, :not_configured}
+    end
+  end
+
+  defp list_base_backups(namespace) do
+    case K8sClient.get("/apis/postgresql.cnpg.io/v1/namespaces/#{namespace}/backups") do
+      {:ok, %{"items" => items}} when is_list(items) ->
+        backups =
+          items
+          |> Enum.map(&parse_backup/1)
+          |> Enum.sort_by(&(&1.created_at || ""), :desc)
+
+        {:ok, backups}
+
+      {:error, _reason} ->
+        {:error, :unavailable}
+    end
+  end
+
+  defp parse_backup(item) do
+    status = Map.get(item, "status", %{})
+    spec = Map.get(item, "spec", %{})
+
+    %{
+      name: get_in(item, ["metadata", "name"]),
+      created_at: get_in(item, ["metadata", "creationTimestamp"]),
+      cluster: get_in(spec, ["cluster", "name"]),
+      method: Map.get(spec, "method") || Map.get(status, "method"),
+      phase: Map.get(status, "phase"),
+      started_at: Map.get(status, "startedAt"),
+      stopped_at: Map.get(status, "stoppedAt"),
+      error: Map.get(status, "error")
+    }
   end
 
   @doc """

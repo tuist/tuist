@@ -1,6 +1,9 @@
 defmodule Tuist.Ops.DatabaseTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Ops.Database
 
   describe "execute/2 grammar gate" do
@@ -79,9 +82,7 @@ defmodule Tuist.Ops.DatabaseTest do
   describe "export serializers" do
     setup do
       {:ok, result} =
-        Database.execute(
-          "SELECT * FROM (VALUES (1, 'one'), (2, NULL)) AS t (n, label) ORDER BY n"
-        )
+        Database.execute("SELECT * FROM (VALUES (1, 'one'), (2, NULL)) AS t (n, label) ORDER BY n")
 
       {:ok, result: result}
     end
@@ -109,6 +110,64 @@ defmodule Tuist.Ops.DatabaseTest do
     test "to_csv/1 quotes cells containing commas or quotes" do
       {:ok, result} = Database.execute(~s|SELECT 'a, "b"' AS v|)
       assert Database.to_csv(result) == ~s|v\n"a, ""b"""|
+    end
+  end
+
+  describe "list_base_backups/0" do
+    test "returns :not_configured when no CNPG namespace is wired" do
+      stub(Environment, :cnpg_namespace, fn -> nil end)
+      assert {:error, :not_configured} = Database.list_base_backups()
+    end
+
+    test "lists backups newest-first and parses CR fields" do
+      stub(Environment, :cnpg_namespace, fn -> "tuist-staging" end)
+
+      stub(K8sClient, :get, fn "/apis/postgresql.cnpg.io/v1/namespaces/tuist-staging/backups" ->
+        {:ok,
+         %{
+           "items" => [
+             %{
+               "metadata" => %{"name" => "older", "creationTimestamp" => "2026-05-28T03:00:00Z"},
+               "spec" => %{"method" => "barmanObjectStore", "cluster" => %{"name" => "tuist-tuist-pg"}},
+               "status" => %{
+                 "phase" => "completed",
+                 "startedAt" => "2026-05-28T03:00:01Z",
+                 "stoppedAt" => "2026-05-28T03:01:00Z"
+               }
+             },
+             %{
+               "metadata" => %{"name" => "newer", "creationTimestamp" => "2026-05-29T03:00:00Z"},
+               "spec" => %{"method" => "barmanObjectStore", "cluster" => %{"name" => "tuist-tuist-pg"}},
+               "status" => %{"phase" => "walArchivingFailing", "error" => "boom"}
+             }
+           ]
+         }}
+      end)
+
+      assert {:ok, [first, second]} = Database.list_base_backups()
+
+      assert first.name == "newer"
+      assert first.phase == "walArchivingFailing"
+      assert first.error == "boom"
+      assert first.method == "barmanObjectStore"
+      assert first.cluster == "tuist-tuist-pg"
+
+      assert second.name == "older"
+      assert second.phase == "completed"
+      assert second.stopped_at == "2026-05-28T03:01:00Z"
+      assert is_nil(second.error)
+    end
+
+    test "returns an empty list when the cluster has no backups" do
+      stub(Environment, :cnpg_namespace, fn -> "tuist-staging" end)
+      stub(K8sClient, :get, fn _path -> {:ok, %{"items" => []}} end)
+      assert {:ok, []} = Database.list_base_backups()
+    end
+
+    test "returns :unavailable when the Kubernetes read fails" do
+      stub(Environment, :cnpg_namespace, fn -> "tuist-staging" end)
+      stub(K8sClient, :get, fn _path -> {:error, :not_found} end)
+      assert {:error, :unavailable} = Database.list_base_backups()
     end
   end
 end

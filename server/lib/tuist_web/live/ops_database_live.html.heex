@@ -111,7 +111,9 @@
                 <span
                   data-part="label"
                   data-null={is_nil(@archiver["last_archived_time"])}
-                >{archive_freshness(@archiver)}</span>
+                >
+                  {archive_freshness(@archiver)}
+                </span>
               </div>
               <div data-part="metadata">
                 <span data-part="title">{dgettext("dashboard", "Archives total")}</span>
@@ -125,7 +127,6 @@
           </div>
         </.card_section>
       </.card>
-
     <% "tables" -> %>
       <.card title={dgettext("dashboard", "Tables")} icon="stack_2">
         <.card_section>
@@ -220,7 +221,9 @@
               <.table_empty_state
                 icon="clock_hour_4"
                 title={dgettext("dashboard", "No long queries")}
-                subtitle={dgettext("dashboard", "Nothing is currently running for longer than 200ms.")}
+                subtitle={
+                  dgettext("dashboard", "Nothing is currently running for longer than 200ms.")
+                }
               />
             </:empty_state>
           </.table>
@@ -291,13 +294,46 @@
       </.card>
     <% "backups" -> %>
       <%!--
-        Backups tab. Surfaces what the Postgres side knows about the
-        backup pipeline (WAL archive timestamps + archive settings) —
-        the closest proxy for "is point-in-time recovery alive" we
-        can read without going through the Kubernetes API for the
-        CNPG `Backup` CR list. Reading those CRs is a follow-up that
-        needs ServiceAccount RBAC on the cnpg-system namespace.
+        Backups tab. Two complementary signals:
+          * Base backups — the CNPG `Backup` CRs, read from the
+            Kubernetes API (the server SA has namespaced get/list on
+            postgresql.cnpg.io). Shows whether each snapshot actually
+            completed, which `pg_stat_archiver` can't tell you.
+          * WAL archive + settings — the Postgres-side view of whether
+            continuous archiving to the object store is alive.
+        Neither proves a backup is restorable; the weekly restore drill
+        (.github/workflows/cnpg-restore-drill.yml) is the source of truth
+        for that.
       --%>
+      <.card title={dgettext("dashboard", "Base backups")} icon="database">
+        <.card_section>
+          <.table id="ops-db-base-backups" rows={@base_backups} row_key={fn b -> b.name end}>
+            <:col :let={b} label={dgettext("dashboard", "Backup")}>
+              <.text_cell label={b.name} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Phase")}>
+              <.text_cell label={b.phase || "—"} data-null={is_nil(b.phase)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Method")}>
+              <.text_cell label={b.method || "—"} data-null={is_nil(b.method)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Completed")}>
+              <.text_cell label={b.stopped_at || "—"} data-null={is_nil(b.stopped_at)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Error")}>
+              <.text_cell label={b.error || "—"} data-null={is_nil(b.error)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="database"
+                title={dgettext("dashboard", "No base backups")}
+                subtitle={base_backups_empty_subtitle(@base_backups_status)}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+
       <.card title={dgettext("dashboard", "WAL archive")} icon="file_zip">
         <.card_section>
           <.table id="ops-db-archiver" rows={[@archiver]}>
@@ -337,7 +373,11 @@
 
       <.card title={dgettext("dashboard", "Archive settings")} icon="settings">
         <.card_section>
-          <.table id="ops-db-archive-settings" rows={@archive_settings} row_key={fn s -> s["name"] end}>
+          <.table
+            id="ops-db-archive-settings"
+            rows={@archive_settings}
+            row_key={fn s -> s["name"] end}
+          >
             <:col :let={row} label={dgettext("dashboard", "Setting")}>
               <.text_cell label={row["name"]} />
             </:col>

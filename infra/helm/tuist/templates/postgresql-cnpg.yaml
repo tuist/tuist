@@ -241,4 +241,37 @@ spec:
     - secretKey: password
       remoteRef:
         key: "{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.item }}/{{ .Values.postgresql.cnpg.externalSecrets.opsRoPassword.field }}"
+---
+# Lets the Tuist server read this cluster's Backup / ScheduledBackup CRs
+# so the /ops/db Backups tab can list base backups (per-snapshot phase,
+# method, error) — detail pg_stat_archiver can't surface. Read-only,
+# namespaced to the release namespace (where the CRs live), scoped to
+# the postgresql.cnpg.io group.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["backups", "scheduledbackups"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-backups-reader") }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
 {{- end }}

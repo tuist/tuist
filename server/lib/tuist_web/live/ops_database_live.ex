@@ -175,8 +175,7 @@ defmodule TuistWeb.OpsDatabaseLive do
   the Overview and Backups tabs as a single-glance "is the backup
   pipeline alive" indicator.
   """
-  def archive_freshness(%{"last_archived_time" => nil}),
-    do: dgettext("dashboard", "Not configured")
+  def archive_freshness(%{"last_archived_time" => nil}), do: dgettext("dashboard", "Not configured")
 
   def archive_freshness(%{"last_archived_time" => time}) do
     seconds = max(DateTime.diff(DateTime.utc_now(), time, :second), 0)
@@ -184,6 +183,29 @@ defmodule TuistWeb.OpsDatabaseLive do
   end
 
   def archive_freshness(_), do: "—"
+
+  @doc """
+  Subtitle for the Base backups empty state. Distinguishes "the page
+  can't see the cluster" (dev / CNPG not provisioned, or the Kubernetes
+  read was denied) from "the cluster has no backups yet", so an operator
+  isn't misled into thinking backups are missing when it's really an
+  access gap.
+  """
+  def base_backups_empty_subtitle(:not_configured),
+    do:
+      dgettext(
+        "dashboard",
+        "No CNPG cluster wired to this server (dev, or Postgres still on the external provider). Base backups appear once the server runs against the in-cluster cluster."
+      )
+
+  def base_backups_empty_subtitle(:unavailable),
+    do:
+      dgettext(
+        "dashboard",
+        "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
+      )
+
+  def base_backups_empty_subtitle(_), do: dgettext("dashboard", "The cluster has not produced any base backups yet.")
 
   defp relative_time(s) when s < 60, do: "#{s}s"
   defp relative_time(s) when s < 3600, do: "#{div(s, 60)}m"
@@ -205,9 +227,17 @@ defmodule TuistWeb.OpsDatabaseLive do
   end
 
   defp load_for_section(socket, "backups") do
+    {base_backups, base_backups_status} =
+      case Database.list_base_backups() do
+        {:ok, backups} -> {backups, :ok}
+        {:error, reason} -> {[], reason}
+      end
+
     socket
     |> assign(:archiver, Database.archiver_status())
     |> assign(:archive_settings, Database.archive_settings())
+    |> assign(:base_backups, base_backups)
+    |> assign(:base_backups_status, base_backups_status)
   end
 
   defp load_for_section(socket, "indexes") do
