@@ -1518,16 +1518,16 @@ defmodule Tuist.Tests do
   # large. Chunks are disjoint, so the per-chunk `distinct` already yields a
   # distinct union.
   defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
-    from(tcr in TestCaseRun,
-      where: tcr.project_id == ^project_id,
-      where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
-      where: tcr.git_branch == ^default_branch,
-      where: fragment("? = 'success'", tcr.status),
-      where: tcr.is_flaky == false,
-      distinct: true,
-      select: tcr.test_case_id
-    )
-    |> ClickHouseRepo.all(multipart: true)
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+        where: tcr.git_branch == ^default_branch,
+        where: fragment("? = 'success'", tcr.status),
+        where: tcr.is_flaky == false,
+        distinct: true,
+        select: tcr.test_case_id
+      ), multipart: true)
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do

@@ -59,9 +59,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
 
     validated =
-      MapSet.new(
-        Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch)
-      )
+      MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch))
 
     Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
   end
