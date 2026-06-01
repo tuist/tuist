@@ -78,8 +78,22 @@ defmodule Tuist.IngestRepo.Migrations.BackfillArtifactsFromPostgres do
       {:error, {:already_started, _}} -> :ok
     end
 
-    Logger.info("Starting artifact backfill to ClickHouse")
-    drain(0, 0)
+    if postgres_bundles_exists?() do
+      Logger.info("Starting artifact backfill to ClickHouse")
+      drain(0, 0)
+    else
+      # The `drop_legacy_postgres_tables` Repo migration removes the
+      # Postgres `bundles` / `artifacts` tables once bundle analytics
+      # have moved fully to ClickHouse. On any env where that has
+      # happened (fresh test DBs, post-drop dev, new installs) there's
+      # nothing left to drain.
+      Logger.info("Postgres bundles table no longer exists; skipping artifact backfill.")
+    end
+  end
+
+  defp postgres_bundles_exists? do
+    {:ok, %{rows: [[result]]}} = Repo.query("SELECT to_regclass('public.bundles')")
+    result != nil
   end
 
   def down, do: :ok
