@@ -344,11 +344,9 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let workingDirectory = try await Environment.current.currentWorkingDirectory()
             let string = try await commandRunner.capture(
                 arguments: arguments,
-                environment: Environment.current.manifestLoadingVariables,
-                workingDirectory: workingDirectory
+                environment: Environment.current.manifestLoadingVariables
             )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken, options: .literal),

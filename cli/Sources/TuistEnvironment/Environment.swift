@@ -232,18 +232,7 @@ public struct Environment: Environmenting {
     }
 
     public func currentWorkingDirectory() async throws -> AbsolutePath {
-        do {
-            return try await FileSystem().currentWorkingDirectory()
-        } catch {
-            // Some CI environments leave the process with a working directory that
-            // `getcwd` can no longer resolve (e.g. it was deleted and recreated by a
-            // previous step), so `FileManager` reports an empty path. Fall back to the
-            // shell-provided `PWD` when it points at a valid absolute path.
-            if let pwd = variables["PWD"], let path = try? AbsolutePath(validating: pwd) {
-                return path
-            }
-            throw error
-        }
+        return try await FileSystem().currentWorkingDirectory()
     }
 
     private func variable(_ variableName: String) -> String? {
