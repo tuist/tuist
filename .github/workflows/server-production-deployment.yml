@@ -171,15 +171,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        # Temporary: mise.toml's [env] sets TUIST_FEATURE_FLAG_KURA=1 globally,
-        # which makes the CLI route the cache through Kura. Canary's global Kura
-        # endpoints are intentionally unprovisioned, so the cache resolves to an
-        # empty URL and the suite fails with "bad URL". Drop the flag for this
-        # step (env-level, so it covers the EE canary harness too) until we run
-        # acceptance against Kura properly.
-        run: |
-          unset TUIST_FEATURE_FLAG_KURA
-          tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes
