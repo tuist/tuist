@@ -85,7 +85,7 @@ On top of that sits the web layer, and this is where the work compounds. We use 
 
 For inference, we use [Fireworks AI](https://fireworks.ai) to host and expose endpoints for us. We have been running [Kimi 2.6](https://huggingface.co/moonshotai/Kimi-K2.6) for our operations, and it has been a great balance of value against cost. For the more demanding coding operations we may end up exploring other models that are better suited to that kind of task, and the nice thing about this architecture is that swapping the model underneath is a small change, not a rewrite.
 
-All of it runs on our own Kubernetes cluster, the same one we built the muscle for while moving Tuist's infrastructure there. That is not an accident. Owning the cluster is what lets us think about scaling compute for one-off coding sessions, the kind that need to clone a repository, compile the work, run a tool, and then disappear. Each of these pieces was an investment on its own, and watching them click together into a single platform is one of the more satisfying things I have built.
+All of it runs on our own Kubernetes cluster, the same one we built the muscle for while moving Tuist's infrastructure there. That is not an accident. Owning the cluster is what lets us think about scaling compute for one-off coding sessions, the kind that need to clone a repository, compile the work, run a tool, and then disappear. Each of these pieces was an investment on its own, and watching them click together into a single platform is one of the most satisfying things we have built.
 
 ## The bet
 
