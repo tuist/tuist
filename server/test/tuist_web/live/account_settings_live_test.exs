@@ -1,5 +1,5 @@
 defmodule TuistWeb.AccountSettingsLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
