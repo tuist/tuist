@@ -79,6 +79,32 @@ defmodule Tuist.Ops.DatabaseTest do
     end
   end
 
+  describe "execute/2 statement timeout" do
+    test "configures Postgres `statement_timeout` for the read-only transaction" do
+      # SHOW runs through the direct (non-cursor) path, but the SET LOCAL
+      # in `run_read_only/2` applies regardless of path — this is the
+      # cheap way to confirm the configuration actually reaches Postgres.
+      assert {:ok, result} = Database.execute("SHOW statement_timeout")
+      assert [%{"statement_timeout" => timeout}] = Enum.map(result.rows, &Map.delete(&1, :id))
+      # Postgres normalizes the value depending on version: "5s" on
+      # recent releases, "5000ms" on older ones. Either confirms the SET
+      # LOCAL landed.
+      assert timeout in ["5s", "5000ms"]
+    end
+
+    @tag timeout: 30_000
+    test "Postgres aborts queries that exceed the timeout" do
+      # `@statement_timeout_ms` is 5s; pg_sleep(10) deliberately
+      # overshoots so we exercise the second enforcement layer
+      # (Postgres-side abort) rather than just the grammar gate. The
+      # error surfaces as `:error` with the canceled-statement message
+      # instead of crashing the LiveView. Runs through the cursor path
+      # (SELECT) on purpose to cover both gates simultaneously.
+      assert {:error, msg} = Database.execute("SELECT pg_sleep(10)")
+      assert msg =~ "canceling statement" or msg =~ "statement timeout"
+    end
+  end
+
   describe "export serializers" do
     setup do
       {:ok, result} =
