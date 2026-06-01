@@ -106,7 +106,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     withoutBuildSpecificInformation: false
                 )
             } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+                logSkippedBuildTimeExtraction(error: error, path: activityLogPath)
+                continue
             }
             let buildStep: BuildStep
             do {
@@ -117,7 +118,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
                 .parse(activityLog: activityLog)
             } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+                logSkippedBuildTimeExtraction(error: error, path: activityLogPath)
+                continue
             }
 
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
@@ -134,6 +136,13 @@ public struct XCActivityLogController: XCActivityLogControlling {
         }
 
         return buildTimes
+    }
+
+    private func logSkippedBuildTimeExtraction(error: Error, path: AbsolutePath) {
+        let wrappedError = XCActivityLogControllerError.wrap(error, path: path)
+        Logger.current.warning(
+            "Skipping activity log build-time extraction: \(wrappedError.localizedDescription)"
+        )
     }
 
     private func flattenedXCLogParserBuildStep(_ buildSteps: [XCLogParser.BuildStep])

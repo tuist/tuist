@@ -31,6 +31,19 @@ struct XCActivityLogControllerTests {
         #expect(got == ["Framework": 4.696011543273926])
     }
 
+    @Test(.inTemporaryDirectory) func buildTimesByTarget_skipsInvalidActivityLog() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let invalidActivityLog = temporaryDirectory.appending(component: "invalid.xcactivitylog")
+        try await fileSystem.writeText("not an activity log", at: invalidActivityLog)
+
+        // When
+        let got = try await subject.buildTimesByTarget(activityLogPaths: [invalidActivityLog])
+
+        // Then
+        #expect(got.isEmpty)
+    }
+
     @Test func parseCleanBuildXCActivityLog() async throws {
         // Given
         let cleanBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory
