@@ -230,8 +230,7 @@ defmodule TuistWeb.LayoutLive do
          %{account: %{name: account_handle}, name: project_handle},
          account_handle,
          project_handle
-       ),
-    do: true
+       ), do: true
 
   defp project_matches_handles?(_project, _account_handle, _project_handle), do: false
 

@@ -442,13 +442,13 @@ defmodule TuistWeb.LayoutLiveTest do
     end
   end
 
-  defp connected_socket(assigns \\ []) do
+  defp connected_socket(assigns) do
     Enum.reduce(assigns, %LiveView.Socket{transport_pid: self()}, fn {key, value}, socket ->
       Phoenix.Component.assign(socket, key, value)
     end)
   end
 
-  defp disconnected_socket(assigns \\ []) do
+  defp disconnected_socket(assigns) do
     Enum.reduce(assigns, %LiveView.Socket{}, fn {key, value}, socket ->
       Phoenix.Component.assign(socket, key, value)
     end)
