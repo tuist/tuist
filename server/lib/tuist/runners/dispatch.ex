@@ -249,7 +249,17 @@ defmodule Tuist.Runners.Dispatch do
   # without a workflow edit; the original label is still stamped on the
   # runner so GitHub binds the job. Remove once no workflow references
   # them.
-  @legacy_linux_labels ~w(tuist-staging-linux tuist-canary-linux tuist-production-linux)
+  #
+  # Scoped per-env on purpose: the GitHub App installation delivers
+  # `workflow_job` events for every org workflow to every env's
+  # server, so staging would enqueue `tuist-production-linux` jobs
+  # (and vice versa) if any env aliased a label that used to address
+  # a different env's pool. Each label is owned by exactly one env.
+  @legacy_linux_label_by_env %{
+    prod: "tuist-production-linux",
+    can: "tuist-canary-linux",
+    stag: "tuist-staging-linux"
+  }
 
   @doc """
   Resolve a webhook's `(account, requested_labels)` into the pool
@@ -290,24 +300,25 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp resolve_legacy_linux_alias(requested_labels) do
-    legacy = Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) in @legacy_linux_labels))
+    with own_label when is_binary(own_label) <- Map.get(@legacy_linux_label_by_env, Environment.env()),
+         legacy when is_binary(legacy) <-
+           Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) == own_label)) do
+      case Catalog.default() do
+        nil ->
+          # Legacy label requested but the catalog has no default shape
+          # (misconfigured chart). Surface as no-pool so the webhook 200s
+          # and ops sees the loud log rather than a phantom enqueue.
+          {:error, :no_pools}
 
-    cond do
-      is_nil(legacy) ->
-        {:error, :no_legacy_alias}
-
-      shape = Catalog.default() ->
-        {:ok,
-         %{
-           pool_name: Catalog.pool_name(shape.vcpus, shape.memory_gb),
-           requested_dispatch_label: legacy
-         }}
-
-      true ->
-        # Legacy label requested but the catalog has no default shape
-        # (misconfigured chart). Surface as no-pool so the webhook 200s
-        # and ops sees the loud log rather than a phantom enqueue.
-        {:error, :no_pools}
+        shape ->
+          {:ok,
+           %{
+             pool_name: Catalog.pool_name(shape.vcpus, shape.memory_gb),
+             requested_dispatch_label: legacy
+           }}
+      end
+    else
+      _ -> {:error, :no_legacy_alias}
     end
   end
 
