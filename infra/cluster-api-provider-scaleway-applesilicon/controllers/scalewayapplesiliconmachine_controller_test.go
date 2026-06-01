@@ -500,6 +500,9 @@ type scalewayAPIStub struct {
 	updatedNames   []string
 	reinstalledIDs []string
 	reinstallCalls int
+	rebootedIDs    []string
+	rebootCalls    int
+	rebootError    error
 }
 
 func (f *scalewayAPIStub) ListServers(*applesilicon.ListServersRequest, ...scw.RequestOption) (*applesilicon.ListServersResponse, error) {
@@ -534,6 +537,20 @@ func (f *scalewayAPIStub) ReinstallServer(req *applesilicon.ReinstallServerReque
 	for _, s := range f.servers {
 		if s.ID == req.ServerID {
 			f.reinstalledIDs = append(f.reinstalledIDs, s.ID)
+			return s, nil
+		}
+	}
+	return nil, errors.New("not found")
+}
+
+func (f *scalewayAPIStub) RebootServer(req *applesilicon.RebootServerRequest, _ ...scw.RequestOption) (*applesilicon.Server, error) {
+	f.rebootCalls++
+	if f.rebootError != nil {
+		return nil, f.rebootError
+	}
+	for _, s := range f.servers {
+		if s.ID == req.ServerID {
+			f.rebootedIDs = append(f.rebootedIDs, s.ID)
 			return s, nil
 		}
 	}
@@ -621,4 +638,221 @@ func TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease(t *testing.T) {
 
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+// --- handleBootstrapFailure ------------------------------------------------
+//
+// Tiered host recovery contract:
+//   - Every call increments BootstrapAttempts and flips the
+//     Bootstrapped condition to False with reason BootstrapFailed.
+//   - At rebootAfter the controller asks Scaleway to reboot once
+//     (gated on BootstrapRebootIssued).
+//   - At maxAttempts the controller releases the host to the pool;
+//     the counter + reboot flag reset because they describe the
+//     now-discarded host.
+//   - Scaleway API errors at either tier are non-fatal — the
+//     machine stays in the failed state and the next call retries.
+
+// recoveryStub is the smallest in-memory bootstrapRecoveryClient
+// sufficient to drive the controller helper. It records every call so
+// tests can assert on the exact API surface the recovery code
+// triggered, and lets each method's first call inject an error.
+type recoveryStub struct {
+	rebootCalls   []recoveryCall
+	rebootErr     error
+	releaseCalls  []recoveryReleaseCall
+	releaseErr    error
+}
+
+type recoveryCall struct {
+	id   string
+	zone string
+}
+
+type recoveryReleaseCall struct {
+	id         string
+	zone       string
+	poolPrefix string
+}
+
+func (s *recoveryStub) RebootServer(_ context.Context, id, zone string) error {
+	s.rebootCalls = append(s.rebootCalls, recoveryCall{id: id, zone: zone})
+	if s.rebootErr != nil {
+		return s.rebootErr
+	}
+	return nil
+}
+
+func (s *recoveryStub) ReleaseToPool(_ context.Context, id, zone, poolPrefix string) error {
+	s.releaseCalls = append(s.releaseCalls, recoveryReleaseCall{id: id, zone: zone, poolPrefix: poolPrefix})
+	if s.releaseErr != nil {
+		return s.releaseErr
+	}
+	return nil
+}
+
+func newBootstrapFailureMachine(serverID, poolPrefix string) *infrav1.ScalewayAppleSiliconMachine {
+	return &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "machine-x", Namespace: "ns"},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			AdoptPoolPrefix: poolPrefix,
+			Zone:            "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: serverID},
+	}
+}
+
+func TestHandleBootstrapFailure_IncrementsAttempts(t *testing.T) {
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	stub := &recoveryStub{}
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+
+	if machine.Status.BootstrapAttempts != 1 {
+		t.Fatalf("expected attempts=1, got %d", machine.Status.BootstrapAttempts)
+	}
+	if !conditions.IsFalse(machine, BootstrappedCondition) {
+		t.Fatalf("expected Bootstrapped condition False")
+	}
+	if res.RequeueAfter != 60*time.Second {
+		t.Fatalf("expected 60s requeue, got %v", res.RequeueAfter)
+	}
+	if len(stub.rebootCalls)+len(stub.releaseCalls) != 0 {
+		t.Fatalf("first failure must not call Reboot or Release; got %+v / %+v", stub.rebootCalls, stub.releaseCalls)
+	}
+}
+
+func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
+	// At rebootAfter the controller fires RebootServer once and
+	// marks the attempt. Subsequent failures (gated on the issued
+	// flag) must not re-fire the reboot — that would extend any
+	// recovery window we just opened.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 2 // next call lands at 3
+	stub := &recoveryStub{}
+
+	res := handleBootstrapFailure(context.Background(), machine, errors.New("sudo locked"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+	if res.RequeueAfter != 60*time.Second {
+		t.Fatalf("expected 60s requeue, got %v", res.RequeueAfter)
+	}
+	if len(stub.rebootCalls) != 1 {
+		t.Fatalf("expected one reboot at threshold, got %d", len(stub.rebootCalls))
+	}
+	if stub.rebootCalls[0] != (recoveryCall{id: "srv-1", zone: "fr-par-1"}) {
+		t.Fatalf("unexpected reboot call shape: %+v", stub.rebootCalls[0])
+	}
+	if !machine.Status.BootstrapRebootIssued {
+		t.Fatalf("Status.BootstrapRebootIssued must flip true after a successful reboot")
+	}
+
+	// Drive attempts past the threshold without crossing maxAttempts.
+	// The reboot must not fire again because BootstrapRebootIssued is set.
+	res = handleBootstrapFailure(context.Background(), machine, errors.New("still wedged"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+	if len(stub.rebootCalls) != 1 {
+		t.Fatalf("reboot must be one-shot per host; got %d calls", len(stub.rebootCalls))
+	}
+	if machine.Status.BootstrapAttempts != 4 {
+		t.Fatalf("expected attempts=4 after post-reboot retry, got %d", machine.Status.BootstrapAttempts)
+	}
+	if res.RequeueAfter != 60*time.Second {
+		t.Fatalf("expected 60s requeue on post-reboot retry, got %v", res.RequeueAfter)
+	}
+}
+
+func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 7 // next call lands at 8 = maxAttempts
+	machine.Status.BootstrapRebootIssued = true // assume reboot already tried earlier
+	stub := &recoveryStub{}
+
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+
+	if len(stub.releaseCalls) != 1 {
+		t.Fatalf("expected one release call at max attempts, got %d", len(stub.releaseCalls))
+	}
+	if stub.releaseCalls[0] != (recoveryReleaseCall{id: "srv-1", zone: "fr-par-1", poolPrefix: "tuist-pool-"}) {
+		t.Fatalf("unexpected release call shape: %+v", stub.releaseCalls[0])
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("Status.ServerID must clear after release; got %q", machine.Status.ServerID)
+	}
+	if machine.Status.BootstrapAttempts != 0 || machine.Status.BootstrapRebootIssued {
+		t.Fatalf("counters/flags must reset after release; got attempts=%d issued=%v",
+			machine.Status.BootstrapAttempts, machine.Status.BootstrapRebootIssued)
+	}
+}
+
+func TestHandleBootstrapFailure_ReleaseAPIErrorKeepsState(t *testing.T) {
+	// Scaleway 5xx / network blip at release time: stay in the
+	// failed state so the next reconcile retries the release. We
+	// must NOT clear ServerID or the counter — that would let the
+	// adoption stage try to claim a new host while the old one is
+	// still wedged in our account.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 7
+	stub := &recoveryStub{releaseErr: errors.New("scaleway 503")}
+
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+
+	if machine.Status.ServerID != "srv-1" {
+		t.Fatalf("ServerID must persist when release fails; got %q", machine.Status.ServerID)
+	}
+	if machine.Status.BootstrapAttempts != 8 {
+		t.Fatalf("attempts must still increment when release fails; got %d", machine.Status.BootstrapAttempts)
+	}
+}
+
+func TestHandleBootstrapFailure_RebootAPIErrorDoesNotConsumeOneShot(t *testing.T) {
+	// If RebootServer returns an error, BootstrapRebootIssued must
+	// stay false — otherwise the one-shot guard would consume the
+	// reboot tier on a Scaleway 5xx without actually rebooting,
+	// and the controller would never retry the cheap recovery.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 2
+	stub := &recoveryStub{rebootErr: errors.New("scaleway 503")}
+
+	handleBootstrapFailure(context.Background(), machine, errors.New("ssh wedged"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+
+	if len(stub.rebootCalls) != 1 {
+		t.Fatalf("expected one reboot attempt despite error, got %d", len(stub.rebootCalls))
+	}
+	if machine.Status.BootstrapRebootIssued {
+		t.Fatalf("BootstrapRebootIssued must stay false on RebootServer error to preserve the one-shot retry")
+	}
+}
+
+func TestHandleBootstrapFailure_LegacyCRWithoutPoolPrefixNeverReleases(t *testing.T) {
+	// Legacy CRs adopted under the old (no-prefix) chart contract
+	// can't be safely returned to the pool — the client refuses an
+	// empty prefix to avoid orphaning hosts outside the pool
+	// namespace. Cap behaviour: stay in the failed state, never
+	// trigger release. (Operator can clear FailureReason + ServerID
+	// out-of-band to recover.)
+	machine := newBootstrapFailureMachine("srv-legacy", "")
+	machine.Status.BootstrapAttempts = 7
+
+	stub := &recoveryStub{}
+	handleBootstrapFailure(context.Background(), machine, errors.New("unrecoverable"), stub, fakeRecorder(), logr.Discard(), 3, 8)
+
+	if len(stub.releaseCalls) != 0 {
+		t.Fatalf("legacy CR (no pool prefix) must not trigger release; got %+v", stub.releaseCalls)
+	}
+	if machine.Status.ServerID == "" {
+		t.Fatalf("legacy CR ServerID must persist; release path was bypassed")
+	}
+}
+
+func TestHandleBootstrapFailure_DisabledThresholdsSkipBothTiers(t *testing.T) {
+	// Setting either threshold to 0 disables that tier. Pure-retry
+	// mode (both 0) is the operator escape hatch when fleet-wide
+	// disruption shouldn't be automated.
+	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
+	machine.Status.BootstrapAttempts = 100
+	stub := &recoveryStub{}
+
+	handleBootstrapFailure(context.Background(), machine, errors.New("boom"), stub, fakeRecorder(), logr.Discard(), 0, 0)
+
+	if len(stub.rebootCalls) != 0 || len(stub.releaseCalls) != 0 {
+		t.Fatalf("zero thresholds must skip both tiers; got reboots=%+v releases=%+v",
+			stub.rebootCalls, stub.releaseCalls)
+	}
 }
