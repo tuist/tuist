@@ -7,14 +7,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
-  alias Tuist.Tests.Analytics
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
   setup do
     # By default, treat every triggered test case as validated on the default
     # branch so the existing transition/recovery assertions are unaffected.
     # Tests exercising the new-test exclusion override this stub.
-    stub(Analytics, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch -> ids end)
+    stub(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch -> ids end)
     :ok
   end
 
@@ -341,7 +341,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         %{triggered: [new_test_id], all: [new_test_id]}
       end)
 
-      expect(Analytics, :test_case_ids_with_successful_default_branch_run, fn _project_id, [^new_test_id], _branch ->
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, [^new_test_id], _branch ->
         []
       end)
 
@@ -364,7 +364,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         %{triggered: [validated_id, new_test_id], all: [validated_id, new_test_id]}
       end)
 
-      expect(Analytics, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch ->
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch ->
         assert validated_id in ids
         assert new_test_id in ids
         [validated_id]
@@ -390,7 +390,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         %{triggered: [validated_id, new_test_id], all: [validated_id, new_test_id]}
       end)
 
-      expect(Analytics, :test_case_ids_with_successful_default_branch_run, fn _project_id, _ids, _branch ->
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, _ids, _branch ->
         [validated_id]
       end)
 

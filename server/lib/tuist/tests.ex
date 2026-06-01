@@ -1490,6 +1490,29 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
+  @doc """
+  Given a list of test case ids, returns the subset that has at least one
+  successful, non-flaky run on the project's default branch. A test case with
+  no such run has never been validated on the trusted branch (for example, a
+  brand-new test that has only ever run on a pull-request branch) and should
+  not be eligible for automated quarantine.
+  """
+  def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
+
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.git_branch == ^default_branch,
+        where: fragment("? = 'success'", tcr.status),
+        where: tcr.is_flaky == false,
+        distinct: true,
+        select: tcr.test_case_id
+      )
+    )
+  end
+
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->

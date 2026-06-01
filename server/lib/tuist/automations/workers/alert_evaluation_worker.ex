@@ -9,7 +9,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
-  alias Tuist.Tests.Analytics
+  alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
 
   require Logger
@@ -60,7 +60,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
     validated =
       MapSet.new(
-        Analytics.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch)
+        Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch)
       )
 
     Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
