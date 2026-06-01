@@ -469,7 +469,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
             graph: graph,
             action: action,
             requestedTestTargets: testTargets,
-            skipTestTargets: skipTestTargets,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         ) {
             if action == .build {
@@ -1316,7 +1315,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         graph: Graph,
         action: XcodeBuildTestAction,
         requestedTestTargets: [TestIdentifier] = [],
-        skipTestTargets: [TestIdentifier] = [],
         passthroughXcodeBuildArguments: [String] = []
     ) -> Bool {
         let testActionTargets = testActionTargets(
@@ -1375,25 +1373,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
-        let skippedTargetNames = Set(
-            skipTestTargets
-                .filter { $0.class == nil && $0.method == nil }
-                .map(\.target)
-        )
-        let buildableTargets = targetsAfterPassthroughSkip.filter { target in
-            if requestedTargetNames.isEmpty {
-                return !skippedTargetNames.contains(target.name)
-            } else {
-                return requestedTargetNames.contains(target.name)
-            }
-        }
-
-        if buildableTargets.isEmpty {
-            Logger.current.notice("There are no test targets to run, finishing early")
-            return false
-        }
-
-        let testedTargetNames = buildableTargets.map(\.name).sorted()
+        let testedTargetNames = targetsAfterPassthroughSkip.map(\.name).sorted()
         if !testedTargetNames.isEmpty {
             Logger.current
                 .notice(
@@ -1592,6 +1572,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         else {
+            if action == .build {
+                Logger.current.notice(
+                    "The scheme \(scheme.name) has no test targets left to build after filtering, skipping."
+                )
+                return
+            }
             throw TestServiceError.schemeWithoutTestableTargets(
                 scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan
             )
