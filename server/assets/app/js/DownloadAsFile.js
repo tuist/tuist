@@ -1,10 +1,10 @@
 /**
- * Receives a server `push_event` carrying `{ payload, filename, mime }`
- * and triggers a browser download of the payload as a file. Reusable
- * across pages: the event name is read from `data-event` on the hook
- * element. Wire with:
+ * Triggers a browser download of a server-supplied payload as a file.
+ * The hook listens for a Phoenix LiveView `push_event` whose name is
+ * read from `data-event`, and downloads the event's `payload` field as
+ * `filename` (with optional `mime`). Wire with:
  *
- *   <div phx-hook="DownloadFromEvent" data-event="my-download-event" hidden></div>
+ *   <div phx-hook="DownloadAsFile" data-event="my-download-event" hidden></div>
  */
 export default {
   mounted() {

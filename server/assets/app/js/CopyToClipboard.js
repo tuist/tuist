@@ -1,15 +1,15 @@
 import { copyTextToClipboard } from "../../shared/js/clipboard.js";
 
 /**
- * Receives a server `push_event` carrying `{ payload }` and copies the
- * payload to the clipboard. Reusable across pages: the event name is
- * read from `data-event` on the hook element. Wire with:
+ * Copies a server-supplied payload to the clipboard. The hook listens
+ * for a Phoenix LiveView `push_event` whose name is read from
+ * `data-event` and copies the event's `payload` field. Wire with:
  *
- *   <div phx-hook="CopyFromEvent" data-event="my-copy-event" hidden></div>
+ *   <div phx-hook="CopyToClipboard" data-event="my-copy-event" hidden></div>
  *
  * Click-driven copy lives in the separate `Clipboard` hook
- * (`data-clipboard-value`); this one is for the server-push-driven
- * case where the server builds the payload first.
+ * (`data-clipboard-value`); this one is for the server-driven case
+ * where the server builds the payload first.
  */
 export default {
   mounted() {
