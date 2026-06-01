@@ -104,6 +104,26 @@ All uploaded files associated with the account are included:
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
 
+## Data Retention
+
+Stored artifact blobs are subject to plan-based retention. Once an artifact is
+older than its retention window, its binary is removed from object storage by a
+daily cleanup process; the associated metadata rows (build runs, test runs,
+preview records, shard plans) are kept so analytics and dashboards remain
+intact. Retention windows, in days, by plan:
+
+| Artifact | Air / Open Source | Pro | Enterprise |
+| --- | --- | --- | --- |
+| Cache artifacts (Xcode compilation, module, Gradle) | 14 | 30 | 90 |
+| App preview builds and icons | 60 | 180 | 365 |
+| Build archives | 30 | 90 | 365 |
+| Test run attachments | 30 | 90 | 365 |
+| Shard bundles | 7 | 14 | 30 |
+
+An export reflects the artifacts present at export time; binaries already
+purged under these windows are no longer available, though their metadata is
+still exported.
+
 ## Export Process
 
 1. Verify user identity and account ownership
