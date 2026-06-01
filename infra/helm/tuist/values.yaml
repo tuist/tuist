@@ -8,18 +8,6 @@ global:
   nodeSelector: {}
   tolerations: []
 
-# When false, the regional Kura controller stops reconciling the
-# Cloudflare-fronted global endpoint layer for Kura instances. Regional
-# HTTPS and gRPC traffic still uses the per-region Hetzner
-# LoadBalancer Services managed by the controller.
-kuraGlobalEndpointsEnabled: true
-
-# When false, the server and Kura controller keep reconciling workload
-# readiness even if the Cloudflare-fronted global Kura endpoints are not
-# available yet. This only relaxes readiness; it does not disable the
-# global endpoint wiring by itself.
-kuraGlobalEndpointsRequired: true
-
 kuraController:
   enabled: false
   namespace: kura
@@ -43,23 +31,6 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
-  # Reconciles DNS-only Cloudflare load balancers that steer the global
-  # Kura hostnames to healthy regional origins without proxying traffic.
-  cloudflareLoadBalancing:
-    enabled: false
-    zoneName: ""
-    accountID: ""
-    zoneID: ""
-    apiTokenSecret:
-      name: cloudflare-api-token
-      key: api-token
-      managed: false
-      refreshInterval: "1h"
-      storeRef:
-        kind: ClusterSecretStore
-        name: onepassword
-      item: cloudflare-tuist-dns
-      field: credential
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override

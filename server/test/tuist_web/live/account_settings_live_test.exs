@@ -147,23 +147,12 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     refute html =~ "kura@0.5.2"
   end
 
-  test "shows the global Cloudflare endpoint in the table when an endpoint is active" do
-    assigns = kura_section_assigns(global_endpoint_url: "https://test-org.kura.tuist.dev")
-
-    html = render_component(&TuistWeb.AccountSettingsLive.kura_servers_section/1, assigns)
-
-    assert html =~ "https://test-org.kura.tuist.dev"
-    refute html =~ "https://test-org-us-east-1.kura.tuist.dev"
-    refute html =~ "Global Kura endpoint"
-  end
-
-  test "falls back to the Kura server endpoint in the table when there is no active global endpoint" do
-    assigns = kura_section_assigns(global_endpoint_url: nil)
+  test "shows the Kura server endpoint in the table" do
+    assigns = kura_section_assigns(%{})
 
     html = render_component(&TuistWeb.AccountSettingsLive.kura_servers_section/1, assigns)
 
     assert html =~ "https://test-org-us-east-1.kura.tuist.dev"
-    refute html =~ "Global Kura endpoint"
   end
 
   defp kura_section_assigns(overrides) do
@@ -180,8 +169,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
       kura_servers: [server],
       available_kura_regions: [],
       add_kura_server_form: Phoenix.Component.to_form(%{}, as: :server),
-      latest_kura_version: nil,
-      global_endpoint_url: nil
+      latest_kura_version: nil
     })
   end
 

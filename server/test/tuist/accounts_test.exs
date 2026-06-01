@@ -4166,7 +4166,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == environment_endpoints
     end
 
-    test "returns regional Kura endpoints until the global endpoint has been reconciled" do
+    test "returns configured Kura endpoints for the account" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
@@ -4195,34 +4195,6 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns the global Kura endpoint over regional Kura endpoints once reconciled" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == ["https://#{account.name}.kura.tuist.dev"]
-    end
-
     test "returns default endpoints when account has no Kura endpoints configured" do
       # Given
       default_endpoints = ["https://default.tuist.dev"]
@@ -4230,30 +4202,6 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == default_endpoints
-    end
-
-    test "returns default endpoints instead of a stale global Kura endpoint without regional endpoints" do
-      # Given
-      default_endpoints = ["https://default.tuist.dev"]
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
