@@ -1572,6 +1572,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         else {
+            if action == .build {
+                Logger.current.notice(
+                    "The scheme \(scheme.name) has no testable targets to build, skipping."
+                )
+                return
+            }
             throw TestServiceError.schemeWithoutTestableTargets(
                 scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan
             )

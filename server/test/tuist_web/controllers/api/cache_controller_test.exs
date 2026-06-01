@@ -231,12 +231,19 @@ defmodule TuistWeb.API.CacheControllerTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns empty list when Kura is requested without account-specific endpoints", %{
+    test "returns default endpoints when Kura is requested without account-specific endpoints", %{
       conn: conn
     } do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
 
       conn =
         conn
@@ -248,15 +255,21 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       response = json_response(conn, 200)
-      assert response["endpoints"] == []
+      assert response["endpoints"] == default_endpoints
     end
 
-    test "returns service unavailable when Kura resolves to an empty endpoint", %{conn: conn} do
+    test "returns default endpoints when Kura resolves to an empty endpoint", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
       stub(Tuist.Environment, :kura_endpoints, fn -> [""] end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
 
       conn =
         conn
@@ -267,7 +280,34 @@ defmodule TuistWeb.API.CacheControllerTest do
       conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
 
       # Then
-      assert json_response(conn, 503) == %{"message" => "Kura cache endpoint is unavailable."}
+      response = json_response(conn, 200)
+      assert response["endpoints"] == default_endpoints
+    end
+
+    test "returns default endpoints when configured Kura endpoints are empty", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :kura_endpoints, fn -> [] end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == default_endpoints
     end
   end
 
