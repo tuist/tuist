@@ -56,11 +56,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp reject_unvalidated_test_cases(_alert, []), do: []
 
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
-    default_branch =
-      case Projects.get_project_by_id(alert.project_id) do
-        %{default_branch: branch} when is_binary(branch) -> branch
-        _ -> "main"
-      end
+    %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
 
     validated =
       MapSet.new(
