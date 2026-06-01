@@ -88,11 +88,39 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+# CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
+# replica), 100Gi storage. WAL archive + daily base backups land in the
+# `tuist-stag-pg-backups` Tigris bucket; barman writes a directory
+# per cluster name under `destinationPath`.
+#
+# Memory request kept low (1Gi vs the 2Gi default in values.yaml) because
+# the cpx22 staging workers only have ~2.5Gi allocatable each after
+# system DaemonSets. With hard pod anti-affinity (one CNPG instance per
+# node) plus the server / processor pods plus the migration-job hook
+# during deploys, a 2Gi request commits more than each node has free and
+# the migration-job ends up Pending. The 4Gi limit stays so runtime
+# memory isn't constrained.
+postgresql:
+  cnpg:
+    instances: 2
+    storage:
+      size: "100Gi"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "4Gi"
+    backup:
+      destinationPath: s3://tuist-stag-pg-backups/
+
 processor:
-  # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`. After cutover, the
+  # processor-external-secrets template ignores `database.host` and
+  # composes against the in-cluster `<cluster>-rw` Service instead.
   database:
     host: db.inzgspjesrhqhleomvkb.supabase.co
   # Single replica on staging — 2-replica redundancy isn't needed for a
@@ -131,16 +159,21 @@ processor:
       memory: "1536Mi"
 
 xcresultProcessor:
-  # Single replica in staging. Inherits the chart default rolling
-  # strategy (maxSurge=1, maxUnavailable=0) so helm upgrade --wait
-  # actually blocks on the new Tart-VM Pod becoming Ready before
-  # marking the rollout done — without this, replicas=1 +
-  # maxUnavailable=1 lets a Deployment look "Available" with zero
-  # actually-running Pods, and a stuck rollout slips past --atomic.
-  # Surge-during-roll fits within tart-kubelet's max-pods=3
-  # (chart default): csi-daemonset(1) + old(1) + new(1) = 3.
+  # Single replica in staging, matching macosFleet.replicas=1.
   enabled: true
   replicaCount: 1
+  # Single-host fleet override. The chart default
+  # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
+  # Deployment controller create the new Pod in Pending before the
+  # old Pod releases hostPort 9091, generating a FailedScheduling
+  # warning every rollout. Recreate waits for full termination first
+  # so no Pending pod is created against an occupied port, and
+  # `helm upgrade --wait` blocks until the new Pod is actually Ready
+  # before declaring the rollout done. Same effective downtime -
+  # Tart VM cold-boot dominates either way.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: stag

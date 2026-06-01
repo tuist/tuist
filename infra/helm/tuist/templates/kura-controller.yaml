@@ -203,10 +203,8 @@ spec:
 # The controller mounts this Secret via envFrom on the StatefulSet so
 # the JWT verifier secret never has to live in the KuraInstance spec
 # (anyone with list/watch on the CR could otherwise read forging
-# material). Keys are populated either through
-# Helm values (CI deploy) or by an out-of-band operator (sealed-secrets,
-# external-secrets, etc.) — leave .Values.kuraController.sharedSecrets.data
-# empty to keep operator-managed secrets unchanged on each deploy.
+# material). Keys are populated either through ExternalSecret, Helm
+# values, or by an out-of-band operator (sealed-secrets, etc.).
 apiVersion: v1
 kind: Secret
 metadata:
@@ -224,5 +222,34 @@ type: Opaque
 stringData:
   {{- toYaml . | nindent 2 }}
 {{- end }}
+{{- if .Values.kuraController.sharedSecrets.externalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-shared-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.sharedSecrets.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+        KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+  data:
+    - secretKey: kura_introspection_client_secret
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ .Values.kuraController.sharedSecrets.externalSecret.fields.introspectionClientSecret | default "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}"
 {{- end }}
+{{- end }}
+
 {{- end }}

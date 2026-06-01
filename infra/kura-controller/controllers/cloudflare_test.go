@@ -73,6 +73,35 @@ func TestCloudflareClientResolvesZoneMetadataFromZoneName(t *testing.T) {
 	}
 }
 
+func TestCloudflareClientClassifiesOriginLimitErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/accounts/account-123/load_balancers/pools" {
+			t.Fatalf("unexpected request path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"success":false,"errors":[{"code":1000,"message":"origin limit exceeded for pool"}]}`))
+	}))
+	defer server.Close()
+
+	client := newCloudflareClient(CloudflareLoadBalancingConfig{
+		AccountID: "account-123",
+		ZoneID:    "zone-123",
+		APIToken:  "token",
+	})
+	client.baseURL = server.URL
+	client.httpClient = server.Client()
+
+	_, err := client.createPool(context.Background(), cloudflarePool{Name: "pool"})
+	if err == nil {
+		t.Fatal("expected Cloudflare request to fail")
+	}
+	if !cloudflareOriginLimitExceeded(err) {
+		t.Fatalf("expected origin limit error classification, got %v", err)
+	}
+}
+
 func TestJoinStatusMessage(t *testing.T) {
 	got := joinStatusMessage("3/3 replicas ready", "global endpoint reconciliation degraded: quota exceeded")
 

@@ -63,17 +63,36 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central
 
 objectStorage:
   external:
     buckets:
       default: tuist-can-storage
 
+# CloudNativePG cluster — canary shape. 3 instances (primary + 2 sync
+# replicas), 250Gi storage. Backups land in the `tuist-can-pg-backups`
+# Tigris bucket.
+postgresql:
+  cnpg:
+    instances: 3
+    storage:
+      size: "250Gi"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        cpu: "2000m"
+        memory: "8Gi"
+    backup:
+      destinationPath: s3://tuist-can-pg-backups/
+
 processor:
-  # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1
@@ -106,6 +125,16 @@ xcresultProcessor:
   # Mac mini and replicaCount=2 the second pod has nowhere to land
   # without violating Apple's 2-VM SLA cap that Tart enforces.
   replicaCount: 1
+  # Single-host fleet override. The chart default
+  # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
+  # Deployment controller create the new Pod in Pending before the
+  # old Pod releases hostPort 9091, generating a FailedScheduling
+  # warning every rollout. Recreate waits for full termination first
+  # so no Pending pod is created against an occupied port. Same
+  # effective downtime - Tart VM cold-boot dominates either way.
+  strategy:
+    type: Recreate
+    rollingUpdate: null
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: can

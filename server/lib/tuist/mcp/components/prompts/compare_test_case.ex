@@ -56,7 +56,7 @@ defmodule Tuist.MCP.Components.Prompts.CompareTestCase do
     - **list_test_case_runs**: List runs for a test case (supports filtering by test_run_id).
     - **get_test_case_run**: Get failure details, repetitions for a specific run.
     - **list_test_case_run_attachments**: List attachments (screenshots, logs, crash reports) for a test case run. Each attachment includes a temporary download URL.
-    - **list_test_runs**: List test runs (supports git_branch filter).
+    - **list_test_runs**: List test runs (supports git_branch filters and richer query expressions such as `-git_branch~"gh-readonly-queue"`).
 
     ## Workflow
 

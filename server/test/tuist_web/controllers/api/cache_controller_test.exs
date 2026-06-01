@@ -3,6 +3,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.API.Pipeline
   alias Tuist.CacheActionItems
   alias Tuist.Projects.Workers.CleanProjectWorker
@@ -230,12 +231,19 @@ defmodule TuistWeb.API.CacheControllerTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns empty list when Kura is requested without account-specific endpoints", %{
+    test "returns default endpoints when Kura is requested without account-specific endpoints", %{
       conn: conn
     } do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
 
       conn =
         conn
@@ -247,7 +255,116 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # Then
       response = json_response(conn, 200)
-      assert response["endpoints"] == []
+      assert response["endpoints"] == default_endpoints
+    end
+
+    test "returns default endpoints when Kura resolves to an empty endpoint", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :kura_endpoints, fn -> [""] end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == default_endpoints
+    end
+
+    test "returns default endpoints when configured Kura endpoints are empty", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :kura_endpoints, fn -> [] end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> Headers.put_client_feature_flags(["kura"])
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints?account_handle=#{account.name}")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == default_endpoints
+    end
+  end
+
+  describe "GET /api/cache/access" do
+    test "requires authentication", %{conn: conn} do
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert json_response(conn, 401) == %{
+               "message" => "You need to be authenticated to access this resource."
+             }
+    end
+
+    test "returns account-scoped and project-scoped cache access for a user", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(name: "acme-org", creator: user)
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert %{
+               "accounts" => accounts,
+               "projects" => projects
+             } = json_response(conn, 200)
+
+      assert Enum.sort(accounts) == Enum.sort([user.account.name, organization.account.name])
+      assert projects == ["#{organization.account.name}/#{project.name}"]
+    end
+
+    test "keeps restricted account tokens project-scoped", %{conn: conn} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "restricted-org")
+      project = ProjectsFixtures.project_fixture(account: organization.account)
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: organization.account,
+          scopes: ["project:cache:read"],
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      conn = get(conn, ~p"/api/cache/access")
+
+      # Then
+      assert json_response(conn, 200) == %{
+               "accounts" => [],
+               "projects" => ["#{organization.account.name}/#{project.name}"]
+             }
     end
   end
 

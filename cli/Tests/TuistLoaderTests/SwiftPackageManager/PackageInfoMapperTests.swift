@@ -4557,7 +4557,19 @@ struct PackageInfoMapperTests {
                 .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
-                        .test("RxSwift", basePath: basePath, product: .framework),
+                        .test(
+                            "RxSwift",
+                            basePath: basePath,
+                            product: .framework,
+                            customSettings: [
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=RxSwift"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Derived/RxSwift.modulemap"
+                        ),
                     ] + testTargets.map {
                         var customSettings: ProjectDescription.SettingsDictionary
                         var customProductName: String?
