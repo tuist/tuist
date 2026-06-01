@@ -71,11 +71,28 @@ objectStorage:
     buckets:
       default: tuist-can-storage
 
+# CloudNativePG cluster — canary shape. 3 instances (primary + 2 sync
+# replicas), 250Gi storage. Backups land in the `tuist-can-pg-backups`
+# Tigris bucket.
+postgresql:
+  cnpg:
+    instances: 3
+    storage:
+      size: "250Gi"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        cpu: "2000m"
+        memory: "8Gi"
+    backup:
+      destinationPath: s3://tuist-can-pg-backups/
+
 processor:
-  # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1

@@ -32,6 +32,8 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      # Read-only database inspection backing the /ops/db LiveView.
+      Ops.Database,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
