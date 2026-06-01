@@ -6,7 +6,7 @@ settings:
 
 overrides:
   ajv: 8.18.0
-  axios: 1.15.2
+  axios: 1.16.0
   defu: 6.1.5
   dompurify: 3.4.0
   fast-uri: 3.1.2
@@ -21,7 +21,7 @@ time:
   '@protobufjs/codegen@2.0.5': 2026-04-27T20:30:11.789Z
   '@protobufjs/inquire@1.1.1': 2026-04-27T20:32:10.012Z
   '@protobufjs/utf8@1.1.1': 2026-04-27T20:31:28.490Z
-  axios@1.15.2: 2026-04-21T17:53:03.731Z
+  axios@1.16.0: 2026-05-02T15:04:00.274Z
   fast-uri@3.1.2: 2026-05-05T08:31:31.849Z
   protobufjs@7.5.8: 2026-05-12T09:40:11.300Z
 
@@ -519,7 +519,7 @@ packages:
     resolution: {integrity: sha512-SDobKBbPIOe0cVL7QxMzGkuUGHvWTdihi9zOrrWaWUgFKe15cwEcwfWmgrcNzjT6kHnNmWuTajPHoIzUjYNYYQ==}
     peerDependencies:
       async-validator: ^4
-      axios: 1.15.0
+      axios: 1.16.0
       change-case: ^5
       drauu: ^0.4
       focus-trap: ^7
@@ -603,8 +603,8 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
-  axios@1.15.2:
-    resolution: {integrity: sha512-wLrXxPtcrPTsNlJmKjkPnNPK2Ihe0hn0wGSaTEiHRPxwjvJwT3hKmXF4dpqxmPO9SoNb2FsYXj/xEo0gHN+D5A==}
+  axios@1.16.0:
+    resolution: {integrity: sha512-6hp5CwvTPlN2A31g5dxnwAX0orzM7pmCRDLnZSX772mv8WDqICwFjowHuPs04Mc8deIld1+ejhtaMn5vp6b+1w==}
 
   bail@2.0.2:
     resolution: {integrity: sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==}
@@ -1906,7 +1906,7 @@ snapshots:
       '@scalar/workspace-store': 0.44.0
       '@types/har-format': 1.2.16
       '@vueuse/core': 13.9.0(vue@3.5.30(typescript@5.9.3))
-      '@vueuse/integrations': 13.9.0(axios@1.15.2)(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.30(typescript@5.9.3))
+      '@vueuse/integrations': 13.9.0(axios@1.16.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.30(typescript@5.9.3))
       focus-trap: 7.8.0
       fuse.js: 7.1.0
       js-base64: 3.7.8
@@ -2317,13 +2317,13 @@ snapshots:
       '@vueuse/shared': 13.9.0(vue@3.5.30(typescript@5.9.3))
       vue: 3.5.30(typescript@5.9.3)
 
-  '@vueuse/integrations@13.9.0(axios@1.15.2)(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.30(typescript@5.9.3))':
+  '@vueuse/integrations@13.9.0(axios@1.16.0)(focus-trap@7.8.0)(fuse.js@7.1.0)(vue@3.5.30(typescript@5.9.3))':
     dependencies:
       '@vueuse/core': 13.9.0(vue@3.5.30(typescript@5.9.3))
       '@vueuse/shared': 13.9.0(vue@3.5.30(typescript@5.9.3))
       vue: 3.5.30(typescript@5.9.3)
     optionalDependencies:
-      axios: 1.15.2
+      axios: 1.16.0
       focus-trap: 7.8.0
       fuse.js: 7.1.0
 
@@ -2371,7 +2371,7 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.15.2:
+  axios@1.16.0:
     dependencies:
       follow-redirects: 1.16.0(debug@4.4.1)
       form-data: 4.0.5
@@ -3383,7 +3383,7 @@ snapshots:
   typesense@3.0.5(@babel/runtime@7.29.2):
     dependencies:
       '@babel/runtime': 7.29.2
-      axios: 1.15.2
+      axios: 1.16.0
       loglevel: 1.9.2
       tslib: 2.8.1
     transitivePeerDependencies:

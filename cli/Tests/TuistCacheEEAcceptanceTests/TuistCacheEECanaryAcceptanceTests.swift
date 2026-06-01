@@ -28,7 +28,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_project_with_caching_enabled")
+        .withFixtureConnectedToCanary("generated_project_with_caching_enabled", accountHandle: "tuist")
     ) func generated_project_with_caching_enabled() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
@@ -103,7 +103,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_multiplatform_app")
+        .withFixtureConnectedToCanary("generated_multiplatform_app", accountHandle: "tuist")
     ) func multiplatform_app_module_cache() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -146,7 +146,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_multiplatform_app")
+        .withFixtureConnectedToCanary("generated_multiplatform_app", accountHandle: "tuist")
     ) func multiplatform_app_selective_testing() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
