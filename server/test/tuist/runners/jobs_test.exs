@@ -556,19 +556,6 @@ defmodule Tuist.Runners.JobsTest do
       assert Map.get(counts, "completed", 0) == 1
     end
 
-    test "persists the steps JSON so the detail page can read it back" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 7050, fleet: "fleet-steps")
-      {:ok, candidate} = Jobs.pick_queued("fleet-steps", [])
-      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-      :ok = Jobs.record_running(7050, "runner-x")
-
-      steps = JSON.encode!([%{"name" => "Set up job", "status" => "completed", "conclusion" => "success"}])
-
-      assert {:ok, %{steps: ^steps}} = Jobs.complete(7050, "success", steps)
-      assert {:ok, %{steps: ^steps}} = Jobs.get_for_account(account.id, 7050)
-    end
-
     test "emits :tuist, :runners, :job, :completed with timing measurements" do
       handler_id = make_ref()
       on_exit(fn -> :telemetry.detach(handler_id) end)

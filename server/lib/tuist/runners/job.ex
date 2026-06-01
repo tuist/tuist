@@ -36,12 +36,6 @@ defmodule Tuist.Runners.Job do
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""
 
-    # JSON-encoded array of the workflow_job's steps, captured from
-    # the `workflow_job.completed` webhook. Empty until the job
-    # finishes. See `Tuist.Runners.Dispatch` for the encode path
-    # and `TuistWeb.RunnerJobLive` for decoding/rendering.
-    field :steps, Ch, type: "String", default: ""
-
     # Captured-log lifecycle. Per-line logs live in `runner_job_logs`;
     # these mirror their state onto the job row so the detail page can
     # decide between a live tail and a finished read. See

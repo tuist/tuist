@@ -186,7 +186,7 @@
           <div
             data-part="step-header"
             phx-click="toggle_step"
-            phx-value-number={step["number"]}
+            phx-value-number={step.number}
           >
             <div data-part="step-info">
               <div data-part={"step-icon-#{step_kind}"}>
@@ -195,7 +195,7 @@
                 <.alert_hexagon :if={step_kind == :warning} />
                 <.circle_dashed :if={step_kind == :processing} />
               </div>
-              <span data-part="step-name">{step["name"]}</span>
+              <span data-part="step-name">{step.name}</span>
             </div>
             <div data-part="step-meta">
               <.badge
@@ -216,7 +216,7 @@
             </div>
           </div>
           <div :if={expanded} data-part="step-logs">
-            <% step_lines = Map.get(@step_logs, step["number"], []) %>
+            <% step_lines = Map.get(@step_logs, step.number, []) %>
             <div :if={step_lines == []} data-part="log-empty">
               {dgettext("dashboard_runners", "No logs were captured for this step.")}
             </div>

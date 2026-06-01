@@ -255,12 +255,10 @@ defmodule Tuist.Runners.Jobs do
   or `{:error, :not_found}` if no row exists for the workflow_job
   yet (delivery race where `completed` arrives before `queued`).
 
-  `steps` is the JSON-encoded steps array from the webhook (GitHub
-  only populates it at completion); `""` leaves the carried-forward
-  value untouched.
+  Per-step data lives in `runner_job_steps`; the caller writes it
+  via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
-  def complete(workflow_job_id, conclusion, steps \\ "")
-      when is_integer(workflow_job_id) and is_binary(conclusion) and is_binary(steps) do
+  def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
     case current(workflow_job_id) do
       nil ->
         {:error, :not_found}
@@ -274,8 +272,6 @@ defmodule Tuist.Runners.Jobs do
           completed_at: now,
           updated_at: now
         }
-
-        completion = if steps == "", do: completion, else: Map.put(completion, :steps, steps)
 
         row =
           job

@@ -8,6 +8,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -130,13 +131,18 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   describe "handle_webhook/2 completed" do
-    test "sanitises the workflow_job steps and forwards them to Jobs.complete" do
+    test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
       test_pid = self()
       stub(Claims, :complete, fn _ -> :ok end)
 
-      stub(Jobs, :complete, fn _id, conclusion, steps ->
-        send(test_pid, {:completed, conclusion, steps})
-        {:ok, %{}}
+      stub(Jobs, :complete, fn _id, conclusion ->
+        send(test_pid, {:completed, conclusion})
+        {:ok, %{account_id: 777}}
+      end)
+
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
       end)
 
       payload =
@@ -159,32 +165,39 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ok, :completed} = Dispatch.handle_webhook(payload, 1)
 
-      assert_receive {:completed, "success", steps_json}
+      assert_receive {:completed, "success"}
+      assert_receive {:steps, rows}
 
       assert [
                %{
-                 "name" => "Set up job",
-                 "status" => "completed",
-                 "conclusion" => "success",
-                 "number" => 1,
-                 "started_at" => "2026-05-28T10:00:00Z",
-                 "completed_at" => "2026-05-28T10:00:05Z"
+                 workflow_job_id: 4242,
+                 account_id: 777,
+                 number: 1,
+                 name: "Set up job",
+                 status: "completed",
+                 conclusion: "success",
+                 started_at: %DateTime{} = started_at,
+                 completed_at: %DateTime{} = completed_at
                }
-             ] = JSON.decode!(steps_json)
+             ] = rows
+
+      assert DateTime.to_iso8601(started_at) =~ "2026-05-28T10:00:00"
+      assert DateTime.to_iso8601(completed_at) =~ "2026-05-28T10:00:05"
     end
 
-    test "forwards an empty steps payload as a blank string" do
+    test "skips the steps write entirely when the payload carries no steps" do
       test_pid = self()
       stub(Claims, :complete, fn _ -> :ok end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
 
-      stub(Jobs, :complete, fn _id, _conclusion, steps ->
-        send(test_pid, {:steps, steps})
-        {:ok, %{}}
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
       end)
 
       assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
 
-      assert_receive {:steps, ""}
+      assert_receive {:steps, []}
     end
   end
 

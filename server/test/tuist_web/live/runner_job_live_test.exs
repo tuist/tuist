@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -100,27 +101,31 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_401, "tuist-runner-x")
 
-    steps =
-      JSON.encode!([
+    {:ok, _completed} = Jobs.complete(31_401, "failure")
+
+    :ok =
+      JobSteps.record([
         %{
-          "name" => "Set up job",
-          "status" => "completed",
-          "conclusion" => "success",
-          "number" => 1,
-          "started_at" => "2026-05-28T10:00:00Z",
-          "completed_at" => "2026-05-28T10:00:05Z"
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:00.000000Z],
+          completed_at: ~U[2026-05-28 10:00:05.000000Z]
         },
         %{
-          "name" => "Run tests",
-          "status" => "completed",
-          "conclusion" => "failure",
-          "number" => 2,
-          "started_at" => "2026-05-28T10:00:05Z",
-          "completed_at" => "2026-05-28T10:00:35Z"
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 2,
+          name: "Run tests",
+          status: "completed",
+          conclusion: "failure",
+          started_at: ~U[2026-05-28 10:00:05.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
         }
       ])
-
-    {:ok, _completed} = Jobs.complete(31_401, "failure", steps)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
 
@@ -214,19 +219,21 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_602, "runner-x")
 
-    steps =
-      JSON.encode!([
+    {:ok, _} = Jobs.complete(31_602, "success")
+
+    :ok =
+      JobSteps.record([
         %{
-          "name" => "Build",
-          "status" => "completed",
-          "conclusion" => "success",
-          "number" => 1,
-          "started_at" => "2026-05-28T12:00:00Z",
-          "completed_at" => "2026-05-28T12:01:00Z"
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 1,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
         }
       ])
-
-    {:ok, _} = Jobs.complete(31_602, "success", steps)
 
     :ok =
       JobLogs.append([
@@ -425,19 +432,21 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_950, "runner-x")
 
-    steps =
-      JSON.encode!([
+    {:ok, _} = Jobs.complete(31_950, "success")
+
+    :ok =
+      JobSteps.record([
         %{
-          "name" => "Build",
-          "status" => "completed",
-          "conclusion" => "success",
-          "number" => 1,
-          "started_at" => "2026-05-28T12:00:00Z",
-          "completed_at" => "2026-05-28T12:01:00Z"
+          workflow_job_id: 31_950,
+          account_id: account.id,
+          number: 1,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
         }
       ])
-
-    {:ok, _} = Jobs.complete(31_950, "success", steps)
 
     # Overview tab is the default, where the Steps card lives.
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")

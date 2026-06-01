@@ -129,6 +129,7 @@ Mimic.copy(Tuist.Runners)
 Mimic.copy(Tuist.Runners.Claims)
 Mimic.copy(Tuist.Runners.Dispatch)
 Mimic.copy(Tuist.Runners.Jobs)
+Mimic.copy(Tuist.Runners.JobSteps)
 Mimic.copy(Tuist.Kubernetes.Client)
 Mimic.copy(Tuist.Tasks)
 

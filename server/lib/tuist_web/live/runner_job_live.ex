@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -55,7 +56,7 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
-         |> assign(:steps, steps(job))
+         |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:expanded_steps, MapSet.new())
          |> assign(:step_logs, %{})
          |> assign(:search, "")
@@ -202,29 +203,15 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   @doc """
-  Decodes the JSON-encoded `steps` column into the list of step
-  maps the template renders. Returns `[]` for jobs without captured
-  steps (anything not yet completed) or on malformed JSON.
-  """
-  def steps(%{steps: steps}) when is_binary(steps) and steps != "" do
-    case JSON.decode(steps) do
-      {:ok, list} when is_list(list) -> list
-      _ -> []
-    end
-  end
-
-  def steps(_), do: []
-
-  @doc """
   Maps a step's GitHub conclusion/status to the same badge kind the
   page header uses, so a step's icon reads identically to the
   job-level status indicator.
   """
-  def step_status(%{"conclusion" => "success"}), do: :success
-  def step_status(%{"conclusion" => "failure"}), do: :failure
-  def step_status(%{"conclusion" => "cancelled"}), do: :warning
-  def step_status(%{"conclusion" => "skipped"}), do: :warning
-  def step_status(%{"status" => "completed"}), do: :success
+  def step_status(%{conclusion: "success"}), do: :success
+  def step_status(%{conclusion: "failure"}), do: :failure
+  def step_status(%{conclusion: "cancelled"}), do: :warning
+  def step_status(%{conclusion: "skipped"}), do: :warning
+  def step_status(%{status: "completed"}), do: :success
   def step_status(_), do: :processing
 
   @doc """
@@ -232,25 +219,11 @@ defmodule TuistWeb.RunnerJobLive do
   when either timestamp is missing (e.g. a skipped step) so the
   template can omit the duration badge entirely.
   """
-  def step_duration_ms(%{"started_at" => started, "completed_at" => completed}) do
-    with {:ok, started_at} <- parse_step_time(started),
-         {:ok, completed_at} <- parse_step_time(completed) do
-      max(DateTime.diff(completed_at, started_at, :millisecond), 0)
-    else
-      _ -> nil
-    end
+  def step_duration_ms(%{started_at: %DateTime{} = started, completed_at: %DateTime{} = completed}) do
+    max(DateTime.diff(completed, started, :millisecond), 0)
   end
 
   def step_duration_ms(_), do: nil
-
-  defp parse_step_time(value) when is_binary(value) and value != "" do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> {:ok, datetime}
-      _ -> :error
-    end
-  end
-
-  defp parse_step_time(_), do: :error
 
   @impl true
   def handle_event("toggle_step", %{"number" => number}, socket) do
@@ -321,7 +294,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   def handle_info(_message, socket), do: {:noreply, socket}
 
-  def step_expanded?(expanded_steps, %{"number" => number}), do: MapSet.member?(expanded_steps, number)
+  def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
   def step_expanded?(_expanded_steps, _step), do: false
 
   @doc """
@@ -351,13 +324,12 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   defp fetch_step_logs(job, steps, number) do
-    with %{"started_at" => started, "completed_at" => completed} <-
-           Enum.find(steps, fn step -> step["number"] == number end),
-         {:ok, started_at} <- parse_step_time(started),
-         {:ok, completed_at} <- parse_step_time(completed) do
-      JobLogs.list_for_step(job.workflow_job_id, started_at, completed_at)
-    else
-      _ -> []
+    case Enum.find(steps, fn step -> step.number == number end) do
+      %{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at} ->
+        JobLogs.list_for_step(job.workflow_job_id, started_at, completed_at)
+
+      _ ->
+        []
     end
   end
 

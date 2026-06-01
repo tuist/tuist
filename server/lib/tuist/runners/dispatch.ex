@@ -38,6 +38,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -177,13 +178,13 @@ defmodule Tuist.Runners.Dispatch do
     conclusion = Map.get(job, "conclusion", "") || ""
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion, encode_steps(job))
+      mark_completed(workflow_job_id, conclusion, raw_steps(job))
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, steps) do
+  defp mark_completed(workflow_job_id, conclusion, raw_steps) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -192,8 +193,14 @@ defmodule Tuist.Runners.Dispatch do
     # accounting reads PG.
     :ok = Claims.complete(workflow_job_id)
 
-    case Jobs.complete(workflow_job_id, conclusion, steps) do
-      {:ok, _} ->
+    case Jobs.complete(workflow_job_id, conclusion) do
+      {:ok, %{account_id: account_id}} ->
+        # Persist steps after marking the job complete: the row's
+        # `account_id` is the denormalisation key on the step row, and
+        # an empty list (cancelled jobs sometimes ship no steps) is a
+        # safe no-op. Webhook retries collapse on the RMT key.
+        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+
         Logger.info("runners: completed",
           workflow_job_id: workflow_job_id,
           conclusion: conclusion
@@ -409,38 +416,48 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   # GitHub only populates the workflow_job's `steps` array on the
-  # `completed` event. We sanitise each entry to the bounded set of
-  # fields the UI renders and re-encode as JSON for the `steps`
-  # column. Returns `""` when the payload carries no usable steps so
-  # the completion INSERT leaves the carried-forward value untouched.
-  defp encode_steps(job) do
+  # `completed` event. We keep only entries with a usable name so a
+  # malformed payload doesn't leak placeholder rows.
+  defp raw_steps(job) do
     case Map.get(job, "steps") do
-      steps when is_list(steps) ->
-        steps
-        |> Enum.map(&sanitize_step/1)
-        |> Enum.reject(&is_nil/1)
-        |> case do
-          [] -> ""
-          sanitized -> JSON.encode!(sanitized)
-        end
-
-      _ ->
-        ""
+      steps when is_list(steps) -> Enum.filter(steps, &valid_step?/1)
+      _ -> []
     end
   end
 
-  defp sanitize_step(%{"name" => name} = step) when is_binary(name) do
-    %{
-      "name" => name,
-      "status" => get_string(step, "status"),
-      "conclusion" => get_string(step, "conclusion"),
-      "number" => get_integer(step, "number"),
-      "started_at" => get_string(step, "started_at"),
-      "completed_at" => get_string(step, "completed_at")
-    }
+  defp valid_step?(%{"name" => name}) when is_binary(name) and name != "", do: true
+  defp valid_step?(_), do: false
+
+  # Convert each raw GitHub step into a `runner_job_steps` row,
+  # parsing the ISO timestamps into DateTime values the CH driver can
+  # bind to `DateTime64(6, 'UTC')`.
+  defp build_step_rows(workflow_job_id, account_id, raw_steps) do
+    Enum.map(raw_steps, fn step ->
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: get_integer(step, "number"),
+        name: get_string(step, "name"),
+        status: get_string(step, "status"),
+        conclusion: get_string(step, "conclusion"),
+        started_at: parse_step_time(Map.get(step, "started_at")),
+        completed_at: parse_step_time(Map.get(step, "completed_at"))
+      }
+    end)
   end
 
-  defp sanitize_step(_), do: nil
+  # Step start / finish timestamps arrive as ISO-8601 strings or
+  # `null`. `DateTime64(6)` requires microsecond precision, so we
+  # promote the parsed value to 6-digit microseconds (mirrors the
+  # log ingest path).
+  defp parse_step_time(value) when is_binary(value) and value != "" do
+    case DateTime.from_iso8601(value) do
+      {:ok, %DateTime{microsecond: {us, _}} = dt, _offset} -> %{dt | microsecond: {us, 6}}
+      _ -> nil
+    end
+  end
+
+  defp parse_step_time(_), do: nil
 
   defp get_integer(map, key, default \\ 0) do
     case Map.get(map, key) do

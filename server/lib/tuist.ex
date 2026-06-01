@@ -188,6 +188,8 @@ defmodule Tuist do
       Runners.Job,
       Runners.JobLogs,
       Runners.JobLog,
+      Runners.JobSteps,
+      Runners.JobStep,
       Runners.RunnerSession,
       Runners.RunnerSessions,
       Runners.PromExPlugin,
