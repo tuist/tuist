@@ -44,6 +44,14 @@ local function bearer_token(headers)
   return string.gsub(authorization, "^Bearer%s+", "")
 end
 
+local function env_value(key)
+  if type(kura.env) ~= "function" then
+    return nil
+  end
+
+  return kura.env(key)
+end
+
 local function normalized_handles(handles)
   local normalized = {}
 
@@ -282,15 +290,15 @@ local function grant_allows(grants, scope, action, identifier)
 end
 
 local function introspection_client_configured()
-  local client_id = kura.env("KURA_CONTROL_PLANE_CLIENT_ID") or kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
-  local client_secret = kura.env("KURA_CONTROL_PLANE_CLIENT_SECRET") or kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
+  local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+  local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
 
   return client_id ~= nil and client_id ~= "" and client_secret ~= nil and client_secret ~= ""
 end
 
 local function authenticate_via_introspection_endpoint(token)
-  local client_id = kura.env("KURA_CONTROL_PLANE_CLIENT_ID") or kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
-  local client_secret = kura.env("KURA_CONTROL_PLANE_CLIENT_SECRET") or kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
+  local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+  local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
   local response = kura.http_json("tuist", {
     method = "POST",
     path = "/oauth2/introspect",
