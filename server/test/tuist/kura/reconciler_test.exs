@@ -56,6 +56,22 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get!(Server, server.id)
   end
 
+  test "marks a pending deployment running before succeeding when the requested image is already observed" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+  end
+
   test "keeps a deployment running until the public HTTPS endpoint is ready" do
     {account, server, deployment} = create_server()
     {:ok, deployment} = Kura.mark_running(deployment)
