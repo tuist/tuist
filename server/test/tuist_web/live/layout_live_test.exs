@@ -171,6 +171,58 @@ defmodule TuistWeb.LayoutLiveTest do
     end
 
     @tag user_role: :user
+    test "defers dropdown assigns when the socket is disconnected", %{
+      params: params,
+      session: session,
+      user: user,
+      project: project
+    } do
+      # Given/When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          disconnected_socket(current_user: user)
+        )
+
+      # Then
+      assert socket.assigns.selected_project == project
+      assert socket.assigns.selected_projects == []
+
+      [account_breadcrumb, project_breadcrumb] = socket.assigns.breadcrumbs
+      assert account_breadcrumb.items == []
+      assert project_breadcrumb.items == []
+    end
+
+    @tag user_role: :user
+    test "uses the requested project when a cached project has different handles", %{
+      params: params,
+      session: session,
+      user: user,
+      project: project
+    } do
+      # Given
+      cached_project =
+        ProjectsFixtures.project_fixture(
+          account_id: user.account.id,
+          preload: [:account]
+        )
+
+      # When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          connected_socket(current_user: user, selected_project: cached_project)
+        )
+
+      # Then
+      assert socket.assigns.selected_project == project
+    end
+
+    @tag user_role: :user
     test "uses the session locale for translated dashboard labels", %{
       params: params,
       session: session,
@@ -235,6 +287,26 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.selected_account == user.account
       assert socket.assigns.current_user_accounts == [user.account]
       assert socket.assigns.can_read_billing == true
+    end
+
+    test "defers account dropdown assigns when the socket is disconnected", %{
+      session: session,
+      user: user
+    } do
+      # Given/When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{},
+          session,
+          disconnected_socket(current_user: user)
+        )
+
+      # Then
+      assert socket.assigns.current_user_accounts == []
+
+      [account_breadcrumb] = socket.assigns.breadcrumbs
+      assert account_breadcrumb.items == []
     end
 
     @tag user_role: :user

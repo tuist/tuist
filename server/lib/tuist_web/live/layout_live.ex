@@ -53,7 +53,15 @@ defmodule TuistWeb.LayoutLive do
           })
 
         project ->
-          TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
+          if project_matches_handles?(project, account_handle, project_handle) do
+            TuistWeb.Authorization.require_user_can_read_project(%{user: current_user, project: project})
+          else
+            TuistWeb.Authorization.require_user_can_read_project(%{
+              user: current_user,
+              account_handle: account_handle,
+              project_handle: project_handle
+            })
+          end
       end
 
     %{account: selected_account} = selected_project
@@ -217,6 +225,15 @@ defmodule TuistWeb.LayoutLive do
       user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
     end
   end
+
+  defp project_matches_handles?(
+         %{account: %{name: account_handle}, name: project_handle},
+         account_handle,
+         project_handle
+       ),
+    do: true
+
+  defp project_matches_handles?(_project, _account_handle, _project_handle), do: false
 
   defp assign_current_path(socket) do
     attach_hook(socket, :assign_current_path, :handle_params, fn _params, url, socket ->
