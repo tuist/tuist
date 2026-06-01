@@ -1527,7 +1527,9 @@ defmodule Tuist.Tests do
         where: tcr.is_flaky == false,
         distinct: true,
         select: tcr.test_case_id
-      ), multipart: true)
+      ),
+      multipart: true
+    )
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
