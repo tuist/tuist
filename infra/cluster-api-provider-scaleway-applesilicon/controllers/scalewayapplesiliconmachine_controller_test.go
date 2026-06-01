@@ -658,10 +658,10 @@ func startsWith(s, prefix string) bool {
 // tests can assert on the exact API surface the recovery code
 // triggered, and lets each method's first call inject an error.
 type recoveryStub struct {
-	rebootCalls   []recoveryCall
-	rebootErr     error
-	releaseCalls  []recoveryReleaseCall
-	releaseErr    error
+	rebootCalls  []recoveryCall
+	rebootErr    error
+	releaseCalls []recoveryReleaseCall
+	releaseErr   error
 }
 
 type recoveryCall struct {
@@ -760,7 +760,7 @@ func TestHandleBootstrapFailure_RebootsAtThresholdOnce(t *testing.T) {
 
 func TestHandleBootstrapFailure_ReleasesToPoolAtMax(t *testing.T) {
 	machine := newBootstrapFailureMachine("srv-1", "tuist-pool-")
-	machine.Status.BootstrapAttempts = 7 // next call lands at 8 = maxAttempts
+	machine.Status.BootstrapAttempts = 7        // next call lands at 8 = maxAttempts
 	machine.Status.BootstrapRebootIssued = true // assume reboot already tried earlier
 	stub := &recoveryStub{}
 
