@@ -1354,7 +1354,7 @@ final class TestServiceTests: TuistUnitTestCase {
             )
 
             XCTAssertEmpty(testedSchemes)
-            XCTAssertStandardOutput(pattern: "has no test targets left to build after filtering, skipping")
+            XCTAssertStandardOutput(pattern: "has no testable targets to build, skipping")
         }
     }
 

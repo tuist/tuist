@@ -1574,7 +1574,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         else {
             if action == .build {
                 Logger.current.notice(
-                    "The scheme \(scheme.name) has no test targets left to build after filtering, skipping."
+                    "The scheme \(scheme.name) has no testable targets to build, skipping."
                 )
                 return
             }
