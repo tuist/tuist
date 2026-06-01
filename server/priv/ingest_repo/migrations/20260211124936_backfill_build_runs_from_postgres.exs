@@ -50,7 +50,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBuildRunsFromPostgres do
         }
       end
 
-    try do
+    if postgres_build_runs_exists?() do
       execute("""
       INSERT INTO build_runs
       SELECT
@@ -91,22 +91,21 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBuildRunsFromPostgres do
       """)
 
       Logger.info("Backfill complete")
-    rescue
-      # `build_runs` was dropped from Postgres by the
-      # `drop_legacy_postgres_tables` migration once build analytics
-      # moved fully to ClickHouse. On envs where the historical Postgres
-      # table is already gone (fresh test DBs, post-drop dev, any new
-      # install) there's nothing to backfill, so swallow the specific
-      # "does not exist" Ch.Error and move on. Anything else is a real
-      # failure and re-raises.
-      e in Ch.Error ->
-        if String.contains?(Exception.message(e), "does not exist") do
-          Logger.info(
-            "Postgres build_runs table no longer exists; skipping historical backfill."
-          )
-        else
-          reraise e, __STACKTRACE__
-        end
+    else
+      Logger.info("Postgres build_runs table no longer exists; skipping historical backfill.")
     end
+  end
+
+  # The `drop_legacy_postgres_tables` Repo migration removes the Postgres
+  # `build_runs` table once build analytics have moved fully to
+  # ClickHouse. On any env where that has happened (fresh test DBs,
+  # post-drop dev, new installs) there's nothing to backfill, so probe
+  # for the source table and skip the INSERT when it's gone. The probe
+  # runs synchronously via `Tuist.Repo.query/1`, unlike
+  # `Ecto.Migration.execute/1` which queues the SQL and runs it at
+  # migration flush time outside this function's scope.
+  defp postgres_build_runs_exists? do
+    {:ok, %{rows: [[result]]}} = Tuist.Repo.query("SELECT to_regclass('public.build_runs')")
+    result != nil
   end
 end
