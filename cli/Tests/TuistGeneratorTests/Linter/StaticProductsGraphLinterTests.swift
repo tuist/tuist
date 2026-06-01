@@ -1237,6 +1237,41 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
     // MARK: - Helpers
 
+    func test_lint_whenStaticSideEffectsWarningTargetsIsNone_returnsNoIssues() throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.test(name: "App")
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: "/tmp/app", name: "AppProject", targets: [app, framework])
+        let package = Package.remote(url: "https://test.tuist.io", requirement: .branch("main"))
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package", type: .runtime)]),
+            frameworkDependency: Set([.packageProduct(path: path, product: "Package", type: .runtime)]),
+            .packageProduct(path: path, product: "Package", type: .runtime): Set(),
+        ]
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            packages: [path: ["Package": package]],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let results = subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(
+                generationOptions: .test(staticSideEffectsWarningTargets: .none)
+            )
+        )
+
+        // Then
+        XCTAssertTrue(results.isEmpty)
+    }
+
     private func warning(product node: String, type: String = "Target", linkedBy: [GraphDependency]) -> LintingIssue {
         let reason =
             "\(type) \'\(node)\' has been linked from \(linkedBy.map(\.description).listed()), it is a static product so may introduce unwanted side effects."
