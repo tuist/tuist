@@ -50,19 +50,25 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     plans_by_account_handle = plans_by_account_handle(objects)
 
     Enum.filter(objects, fn object ->
-      plan =
-        object
-        |> account_handle()
-        |> then(&Map.get(plans_by_account_handle, &1, :air))
+      # An object whose account handle doesn't resolve to a known account is
+      # skipped rather than deleted: defaulting to a plan here would apply the
+      # shortest (`:air`) retention window and risk purging a paying account's
+      # cache early on any handle mismatch. Orphaned blobs from deleted accounts
+      # are reclaimed through account deletion, not this job.
+      case Map.get(plans_by_account_handle, account_handle(object)) do
+        nil ->
+          false
 
-      cutoff =
-        artifact_type
-        |> retention_artifact_type()
-        |> RetentionPolicy.cutoff(plan)
+        plan ->
+          cutoff =
+            artifact_type
+            |> retention_artifact_type()
+            |> RetentionPolicy.cutoff(plan)
 
-      object
-      |> last_modified()
-      |> expired?(cutoff)
+          object
+          |> last_modified()
+          |> expired?(cutoff)
+      end
     end)
   end
 

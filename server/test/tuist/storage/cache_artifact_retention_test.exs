@@ -71,6 +71,31 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_module, continuation_token: "cursor") == {:ok, nil}
     end
 
+    test "skips objects whose account handle does not resolve to a known account" do
+      orphan_key = "deleted-account/app/xcode/AB/CD/ABCD"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -3650, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect(Repo, :all, fn _query -> [] end)
+
+      expect(Storage, :delete_objects_from_bucket, fn [], "xcode-cache-bucket" -> :ok end)
+
+      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
+    end
+
     test "skips cleanup when the cache bucket is not configured" do
       expect(Environment, :cache_s3_bucket_name, fn -> nil end)
 
