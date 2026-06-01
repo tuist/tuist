@@ -430,10 +430,11 @@
               </.button>
             </div>
           </form>
+          <div id="ops-db-copy-sink" phx-hook="CopyFromEvent" data-event="ops-db-copy" hidden></div>
           <div
-            id="ops-db-export-sink"
-            phx-hook="CopyOrDownload"
-            data-copy-download-event="ops-db-export"
+            id="ops-db-download-sink"
+            phx-hook="DownloadFromEvent"
+            data-event="ops-db-download"
             hidden
           >
           </div>

@@ -69,26 +69,26 @@ defmodule TuistWeb.OpsDatabaseLive do
 
   def handle_event("export", %{"format" => format}, socket) do
     case socket.assigns.query_result do
-      nil ->
-        {:noreply, socket}
-
-      result ->
-        payload = export_payload(result, format)
-        filename = "tuist-query-#{System.system_time(:second)}.csv"
-
-        {:noreply,
-         push_event(socket, "ops-db-export", %{
-           format: format,
-           payload: payload,
-           filename: filename
-         })}
+      nil -> {:noreply, socket}
+      result -> {:noreply, push_export(socket, format, result)}
     end
+  end
+
+  defp push_export(socket, "download-csv", result) do
+    push_event(socket, "ops-db-download", %{
+      payload: Database.to_csv(result),
+      filename: "tuist-query-#{System.system_time(:second)}.csv",
+      mime: "text/csv"
+    })
+  end
+
+  defp push_export(socket, format, result) do
+    push_event(socket, "ops-db-copy", %{payload: export_payload(result, format)})
   end
 
   defp export_payload(result, "markdown"), do: Database.to_markdown(result)
   defp export_payload(result, "json"), do: Database.to_json(result)
   defp export_payload(result, "csv"), do: Database.to_csv(result)
-  defp export_payload(result, "download-csv"), do: Database.to_csv(result)
 
   defp validate_section(s) when s in @sections, do: s
   defp validate_section(_), do: "overview"
