@@ -9,7 +9,9 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   import TuistTestSupport.Fixtures.ShardsFixtures
 
   alias Tuist.AppBuilds
+  alias Tuist.AppBuilds.AppBuild
   alias Tuist.Builds
+  alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Storage
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
@@ -60,6 +62,61 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert_received {:deleted, object_keys}
       assert expired_app_build_key in object_keys
       assert expired_icon_key in object_keys
+    end
+
+    test "a full batch self-enqueues the next page and the cursor advances past the oldest rows" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      older =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -63, :day)
+        )
+
+      newer =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -62, :day)
+        )
+
+      older_key =
+        AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: older})
+
+      newer_key =
+        AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: newer})
+
+      stub(Storage, :delete_objects, fn object_keys, _account ->
+        send(self(), {:deleted, object_keys})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredPreviewArtifactsWorker, %{"account_id" => account.id, "batch_size" => 1})
+
+      assert_received {:deleted, first_keys}
+      assert older_key in first_keys
+      refute newer_key in first_keys
+
+      assert_enqueued(
+        worker: DeleteExpiredPreviewArtifactsWorker,
+        args: %{"account_id" => account.id, "batch_size" => 1, "after_id" => older.id}
+      )
+
+      cursor_inserted_at = Repo.get(AppBuild, older.id).inserted_at
+
+      assert :ok =
+               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 1,
+                 "after_inserted_at" => DateTime.to_iso8601(cursor_inserted_at),
+                 "after_id" => older.id
+               })
+
+      assert_received {:deleted, second_keys}
+      assert newer_key in second_keys
+      refute older_key in second_keys
     end
 
     test "the build archive worker deletes expired build archives according to the account plan" do

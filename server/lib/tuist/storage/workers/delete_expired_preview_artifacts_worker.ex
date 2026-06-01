@@ -3,7 +3,9 @@ defmodule Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker do
   use Oban.Worker,
     queue: :storage_retention,
     max_attempts: 3,
-    unique: [keys: [:account_id], states: [:available, :scheduled, :executing, :retryable]]
+    unique: [keys: [:account_id, :after_inserted_at, :after_id], states: [:available, :scheduled, :executing, :retryable]]
+
+  import Tuist.Storage.Workers.ExpiredArtifactWorker
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
@@ -16,10 +18,13 @@ defmodule Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker do
     batch_size = Map.get(args, "batch_size", @default_batch_size)
 
     case Repo.get(Account, account_id) do
-      nil -> :ok
-      account -> ExpiredArtifacts.delete_previews(account, batch_size)
-    end
+      nil ->
+        :ok
 
-    :ok
+      account ->
+        account
+        |> ExpiredArtifacts.delete_previews(batch_size, cursor_from_args(args))
+        |> continue(__MODULE__, account_id, batch_size)
+    end
   end
 end
