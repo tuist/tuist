@@ -1,4 +1,6 @@
 defmodule Tuist.Repo.Migrations.RemoveKuraAccountLevelCacheEndpoints do
+  # excellent_migrations:safety-assured-for-this-file raw_sql_executed
+
   use Ecto.Migration
 
   def up do
