@@ -96,24 +96,11 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBundlesFromPostgres do
       {:error, {:already_started, _}} -> :ok
     end
 
-    if postgres_bundles_exists?() do
-      Logger.info("Starting bundle backfill to ClickHouse")
-      drain(0)
-    else
-      # The `drop_legacy_postgres_tables` Repo migration removes the
-      # Postgres `bundles` table once bundle analytics have moved fully
-      # to ClickHouse. On any env where that has happened (fresh test
-      # DBs, post-drop dev, new installs) there's nothing left to drain.
-      Logger.info("Postgres bundles table no longer exists; skipping bundle backfill.")
-    end
+    Logger.info("Starting bundle backfill to ClickHouse")
+    drain(0)
   end
 
   def down, do: :ok
-
-  defp postgres_bundles_exists? do
-    {:ok, %{rows: [[result]]}} = Repo.query("SELECT to_regclass('public.bundles')")
-    result != nil
-  end
 
   defp drain(total) do
     case run_batch() do

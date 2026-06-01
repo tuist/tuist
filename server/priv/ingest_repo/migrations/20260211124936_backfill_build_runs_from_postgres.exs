@@ -50,75 +50,45 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBuildRunsFromPostgres do
         }
       end
 
-    if postgres_build_runs_exists?() do
-      execute("""
-      INSERT INTO build_runs
-      SELECT
-        id,
-        duration,
-        project_id,
-        account_id,
-        coalesce(macos_version, '') AS macos_version,
-        coalesce(xcode_version, '') AS xcode_version,
-        coalesce(is_ci, false) AS is_ci,
-        coalesce(model_identifier, '') AS model_identifier,
-        coalesce(scheme, '') AS scheme,
-        CASE status WHEN 0 THEN 'success' WHEN 1 THEN 'failure' ELSE 'success' END AS status,
-        CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE '' END AS category,
-        coalesce(configuration, '') AS configuration,
-        coalesce(git_branch, '') AS git_branch,
-        coalesce(git_commit_sha, '') AS git_commit_sha,
-        coalesce(git_ref, '') AS git_ref,
-        coalesce(ci_run_id, '') AS ci_run_id,
-        coalesce(ci_project_handle, '') AS ci_project_handle,
-        coalesce(ci_host, '') AS ci_host,
-        CASE ci_provider
-          WHEN 0 THEN 'github'
-          WHEN 1 THEN 'gitlab'
-          WHEN 2 THEN 'bitrise'
-          WHEN 3 THEN 'circleci'
-          WHEN 4 THEN 'buildkite'
-          WHEN 5 THEN 'codemagic'
-          ELSE ''
-        END AS ci_provider,
-        coalesce(cacheable_task_remote_hits_count, 0) AS cacheable_task_remote_hits_count,
-        coalesce(cacheable_task_local_hits_count, 0) AS cacheable_task_local_hits_count,
-        coalesce(cacheable_tasks_count, 0) AS cacheable_tasks_count,
-        arrayMap(x -> assumeNotNull(x), arrayFilter(x -> x IS NOT NULL, ifNull(custom_tags, []))) AS custom_tags,
-        JSONExtract(ifNull(custom_values, '{}'), 'Map(String, String)') AS custom_values,
-        inserted_at
-      FROM postgresql('#{host}:#{port}', '#{database}', 'build_runs', '#{username}', '#{password}')
-      """)
+    execute("""
+    INSERT INTO build_runs
+    SELECT
+      id,
+      duration,
+      project_id,
+      account_id,
+      coalesce(macos_version, '') AS macos_version,
+      coalesce(xcode_version, '') AS xcode_version,
+      coalesce(is_ci, false) AS is_ci,
+      coalesce(model_identifier, '') AS model_identifier,
+      coalesce(scheme, '') AS scheme,
+      CASE status WHEN 0 THEN 'success' WHEN 1 THEN 'failure' ELSE 'success' END AS status,
+      CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE '' END AS category,
+      coalesce(configuration, '') AS configuration,
+      coalesce(git_branch, '') AS git_branch,
+      coalesce(git_commit_sha, '') AS git_commit_sha,
+      coalesce(git_ref, '') AS git_ref,
+      coalesce(ci_run_id, '') AS ci_run_id,
+      coalesce(ci_project_handle, '') AS ci_project_handle,
+      coalesce(ci_host, '') AS ci_host,
+      CASE ci_provider
+        WHEN 0 THEN 'github'
+        WHEN 1 THEN 'gitlab'
+        WHEN 2 THEN 'bitrise'
+        WHEN 3 THEN 'circleci'
+        WHEN 4 THEN 'buildkite'
+        WHEN 5 THEN 'codemagic'
+        ELSE ''
+      END AS ci_provider,
+      coalesce(cacheable_task_remote_hits_count, 0) AS cacheable_task_remote_hits_count,
+      coalesce(cacheable_task_local_hits_count, 0) AS cacheable_task_local_hits_count,
+      coalesce(cacheable_tasks_count, 0) AS cacheable_tasks_count,
+      arrayMap(x -> assumeNotNull(x), arrayFilter(x -> x IS NOT NULL, ifNull(custom_tags, []))) AS custom_tags,
+      JSONExtract(ifNull(custom_values, '{}'), 'Map(String, String)') AS custom_values,
+      inserted_at
+    FROM postgresql('#{host}:#{port}', '#{database}', 'build_runs', '#{username}', '#{password}')
+    """)
 
-      Logger.info("Backfill complete")
-    else
-      Logger.info("Postgres build_runs table no longer exists; skipping historical backfill.")
-    end
-  end
-
-  # The `drop_legacy_postgres_tables` Repo migration removes the Postgres
-  # `build_runs` table once build analytics have moved fully to
-  # ClickHouse. On any env where that has happened (fresh test DBs,
-  # post-drop dev, new installs) there's nothing to backfill, so probe
-  # for the source table and skip the INSERT when it's gone. The probe
-  # runs synchronously via `Tuist.Repo.query/1`, unlike
-  # `Ecto.Migration.execute/1` which queues the SQL and runs it at
-  # migration flush time outside this function's scope.
-  #
-  # `mix ecto.migrate -r Tuist.IngestRepo` only starts the IngestRepo, so
-  # start `Tuist.Repo` here on demand. `start_link/1` returns
-  # `{:already_started, _}` when something earlier in the process already
-  # booted it.
-  defp postgres_build_runs_exists? do
-    ensure_tuist_repo_started!()
-    {:ok, %{rows: [[result]]}} = Tuist.Repo.query("SELECT to_regclass('public.build_runs')")
-    result != nil
-  end
-
-  defp ensure_tuist_repo_started! do
-    case Tuist.Repo.start_link(pool_size: 1) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-    end
+    Logger.info("Backfill complete")
   end
 end
