@@ -23,10 +23,6 @@
     }
   }
 
-  /* Metadata grid on the Overview tab. Same shape as the
-     #ops-kura-deployment page so single-entity overviews
-     (one Postgres cluster) read as stacked label/value tiles
-     instead of a wide table row that overflows horizontally. */
   & [data-part="metadata-grid"] {
     display: flex;
     flex-direction: column;
@@ -60,19 +56,12 @@
     }
   }
 
-  /* SQL editor card. Stack the textarea full-width with the action
-     bar pinned to the bottom (Run button right, hint text left) so
-     the editor reads like Supabase's SQL pane: code area on top,
-     persistent submit affordance on the bottom. */
   & [data-part="ops-db-form"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-3);
   }
 
-  /* Code-editor look for the SELECT textarea. Monospace, slightly
-     denser line-height, larger min-height so a multi-line statement
-     fits without scrolling on first paint. */
   & [data-part="ops-db-form"] .noora-text-area textarea {
     min-height: 180px;
     font-size: 13px;
@@ -96,11 +85,6 @@
     font: var(--noora-font-body-small);
   }
 
-  /* Supabase-style: shortcut hint as plain dimmed glyphs trailing the
-     button label, no chips. The `⌘↵` reads as one token (no internal
-     gap) so it doesn't fragment visually, sits at half opacity, and
-     uses the same font as the rest of the button so it inherits the
-     button's color stack instead of carrying its own. */
   & [data-part="ops-db-kbd"] {
     opacity: 0.55;
     color: inherit;
@@ -115,8 +99,6 @@
     font: var(--noora-font-body-small);
   }
 
-  /* Row above the result table: row-count + duration on the left,
-     sort-by dropdown + direction toggle on the right. */
   & [data-part="ops-db-results-meta"] {
     display: flex;
     flex-wrap: wrap;
@@ -131,33 +113,17 @@
     gap: var(--noora-spacing-3);
   }
 
-  /* Monospace cells in the result grid match Supabase's data view.
-     Limit each cell's width so a wide column doesn't push the rest of
-     the grid off-screen; an overflow tooltip is a nice-to-have for
-     later. */
-  /* Monospace data cells. No max-width / no ellipsis: a wide column
-     (UUID, long URL, etc.) gets to render at its natural width and
-     the result table scrolls horizontally inside its container.
-     Hiding part of a row's data behind an ellipsis is more painful
-     for an inspection surface than the horizontal scroll cost. */
   & [data-part="ops-db-result-wrapper"] .noora-table td {
     font-size: 12px;
     font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     white-space: nowrap;
   }
 
-  /* NULL cells: muted color, same alignment as regular cells (still
-     inside Noora's <div data-part="cell">). No italic — operators
-     glance over a NULL grid often, italic adds friction. */
   & [data-part="ops-db-result-wrapper"] [data-part="cell"][data-null="true"] [data-part="label"] {
     color: var(--noora-surface-label-tertiary, var(--noora-surface-label-secondary));
   }
 }
 
-/* Per-table browser at /ops/db/tables/:schema/:name. Shares the
-   monospace cell + NULL-styling rules with #ops-database via the
-   data-part="ops-db-result-wrapper" selector reused inside the
-   template. */
 #ops-database-table {
   display: flex;
   flex-direction: column;
@@ -170,10 +136,6 @@
     align-items: flex-start;
     gap: var(--noora-spacing-3);
 
-    /* Back-to-tables button sits flush-left above the title. The
-       `flex-direction: column` + `align-items: flex-start` on the
-       header is enough to size it to its content rather than stretch
-       it to the full row width. */
     & > .noora-button {
       margin-bottom: var(--noora-spacing-1);
     }
@@ -192,11 +154,6 @@
     }
   }
 
-  /* Monospace data cells. No max-width / no ellipsis: a wide column
-     (UUID, long URL, etc.) gets to render at its natural width and
-     the result table scrolls horizontally inside its container.
-     Hiding part of a row's data behind an ellipsis is more painful
-     for an inspection surface than the horizontal scroll cost. */
   & [data-part="ops-db-result-wrapper"] .noora-table td {
     font-size: 12px;
     font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
@@ -207,10 +164,6 @@
     color: var(--noora-surface-label-tertiary, var(--noora-surface-label-secondary));
   }
 
-  /* Filter + Sort toolbar above the row preview — same shape and
-     spacing as the bundles / generate_runs / build_runs pages so all
-     filterable tables read as one product. The active filter chips
-     wrap to a second row when there are too many to fit. */
   & [data-part="ops-db-table-toolbar"] {
     display: flex;
     flex-wrap: wrap;
