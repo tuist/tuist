@@ -30,6 +30,8 @@ private enum DependenciesError: LocalizedError {
 }
 
 private func initEnv() throws {
+    repairCurrentWorkingDirectoryIfNeeded()
+
     if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
         throw DependenciesError.exclusiveOptionError("quiet", "verbose")
     }
@@ -45,6 +47,21 @@ private func initEnv() throws {
     if CommandLine.arguments.contains("--quiet") {
         setenv(Constants.EnvironmentVariables.quiet, "true", 1)
     }
+}
+
+/// Rebinds the process to `PWD` when `getcwd` can no longer resolve the working directory.
+///
+/// On CI a previous step can delete and recreate the working directory, leaving the process
+/// with a dangling cwd. `getcwd` then returns an empty path, which crashes any subprocess
+/// launch (`NSTask` rejects an empty `currentDirectoryURL`). Re-entering `PWD` repairs the
+/// process-wide cwd so every later `getcwd` succeeds.
+private func repairCurrentWorkingDirectoryIfNeeded() {
+    guard FileManager.default.currentDirectoryPath.isEmpty else { return }
+    guard let pwd = ProcessInfo.processInfo.environment["PWD"], !pwd.isEmpty else { return }
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: pwd, isDirectory: &isDirectory), isDirectory.boolValue
+    else { return }
+    _ = FileManager.default.changeCurrentDirectoryPath(pwd)
 }
 
 struct IgnoreOutputPipeline: StandardPipelining {
