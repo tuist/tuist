@@ -43,10 +43,15 @@ Provisioning step: the next platform/server deploy with `cnpg.enabled: true` bri
 ```bash
 ENV=staging
 SHA=$(git rev-parse --short=12 HEAD)
-# `--show-only` still requires `--set` values for every chart-required
-# image tag, even if those templates aren't being rendered, so pass
-# kuraController.image.tag alongside server.image.tag.
+# `--namespace` is required: the template's backups-reader RoleBinding
+# subject is rendered with `.Release.Namespace`, so without it the
+# binding would point at `tuist-server` in `default` — `kubectl apply
+# -n` only places the resource, it doesn't rewrite fields inside it.
+# `--show-only` still requires every chart-required image tag, even for
+# templates that aren't rendered, so pass kuraController.image.tag
+# alongside server.image.tag.
 kubectl apply -n tuist-$ENV -f <(helm template tuist infra/helm/tuist \
+  --namespace tuist-$ENV \
   -f infra/helm/tuist/values-managed-common.yaml \
   -f infra/helm/tuist/values-managed-$ENV.yaml \
   --show-only templates/postgresql-cnpg.yaml \
