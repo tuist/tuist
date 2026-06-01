@@ -50,45 +50,63 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBuildRunsFromPostgres do
         }
       end
 
-    execute("""
-    INSERT INTO build_runs
-    SELECT
-      id,
-      duration,
-      project_id,
-      account_id,
-      coalesce(macos_version, '') AS macos_version,
-      coalesce(xcode_version, '') AS xcode_version,
-      coalesce(is_ci, false) AS is_ci,
-      coalesce(model_identifier, '') AS model_identifier,
-      coalesce(scheme, '') AS scheme,
-      CASE status WHEN 0 THEN 'success' WHEN 1 THEN 'failure' ELSE 'success' END AS status,
-      CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE '' END AS category,
-      coalesce(configuration, '') AS configuration,
-      coalesce(git_branch, '') AS git_branch,
-      coalesce(git_commit_sha, '') AS git_commit_sha,
-      coalesce(git_ref, '') AS git_ref,
-      coalesce(ci_run_id, '') AS ci_run_id,
-      coalesce(ci_project_handle, '') AS ci_project_handle,
-      coalesce(ci_host, '') AS ci_host,
-      CASE ci_provider
-        WHEN 0 THEN 'github'
-        WHEN 1 THEN 'gitlab'
-        WHEN 2 THEN 'bitrise'
-        WHEN 3 THEN 'circleci'
-        WHEN 4 THEN 'buildkite'
-        WHEN 5 THEN 'codemagic'
-        ELSE ''
-      END AS ci_provider,
-      coalesce(cacheable_task_remote_hits_count, 0) AS cacheable_task_remote_hits_count,
-      coalesce(cacheable_task_local_hits_count, 0) AS cacheable_task_local_hits_count,
-      coalesce(cacheable_tasks_count, 0) AS cacheable_tasks_count,
-      arrayMap(x -> assumeNotNull(x), arrayFilter(x -> x IS NOT NULL, ifNull(custom_tags, []))) AS custom_tags,
-      JSONExtract(ifNull(custom_values, '{}'), 'Map(String, String)') AS custom_values,
-      inserted_at
-    FROM postgresql('#{host}:#{port}', '#{database}', 'build_runs', '#{username}', '#{password}')
-    """)
+    try do
+      execute("""
+      INSERT INTO build_runs
+      SELECT
+        id,
+        duration,
+        project_id,
+        account_id,
+        coalesce(macos_version, '') AS macos_version,
+        coalesce(xcode_version, '') AS xcode_version,
+        coalesce(is_ci, false) AS is_ci,
+        coalesce(model_identifier, '') AS model_identifier,
+        coalesce(scheme, '') AS scheme,
+        CASE status WHEN 0 THEN 'success' WHEN 1 THEN 'failure' ELSE 'success' END AS status,
+        CASE category WHEN 0 THEN 'clean' WHEN 1 THEN 'incremental' ELSE '' END AS category,
+        coalesce(configuration, '') AS configuration,
+        coalesce(git_branch, '') AS git_branch,
+        coalesce(git_commit_sha, '') AS git_commit_sha,
+        coalesce(git_ref, '') AS git_ref,
+        coalesce(ci_run_id, '') AS ci_run_id,
+        coalesce(ci_project_handle, '') AS ci_project_handle,
+        coalesce(ci_host, '') AS ci_host,
+        CASE ci_provider
+          WHEN 0 THEN 'github'
+          WHEN 1 THEN 'gitlab'
+          WHEN 2 THEN 'bitrise'
+          WHEN 3 THEN 'circleci'
+          WHEN 4 THEN 'buildkite'
+          WHEN 5 THEN 'codemagic'
+          ELSE ''
+        END AS ci_provider,
+        coalesce(cacheable_task_remote_hits_count, 0) AS cacheable_task_remote_hits_count,
+        coalesce(cacheable_task_local_hits_count, 0) AS cacheable_task_local_hits_count,
+        coalesce(cacheable_tasks_count, 0) AS cacheable_tasks_count,
+        arrayMap(x -> assumeNotNull(x), arrayFilter(x -> x IS NOT NULL, ifNull(custom_tags, []))) AS custom_tags,
+        JSONExtract(ifNull(custom_values, '{}'), 'Map(String, String)') AS custom_values,
+        inserted_at
+      FROM postgresql('#{host}:#{port}', '#{database}', 'build_runs', '#{username}', '#{password}')
+      """)
 
-    Logger.info("Backfill complete")
+      Logger.info("Backfill complete")
+    rescue
+      # `build_runs` was dropped from Postgres by the
+      # `drop_legacy_postgres_tables` migration once build analytics
+      # moved fully to ClickHouse. On envs where the historical Postgres
+      # table is already gone (fresh test DBs, post-drop dev, any new
+      # install) there's nothing to backfill, so swallow the specific
+      # "does not exist" Ch.Error and move on. Anything else is a real
+      # failure and re-raises.
+      e in Ch.Error ->
+        if String.contains?(Exception.message(e), "does not exist") do
+          Logger.info(
+            "Postgres build_runs table no longer exists; skipping historical backfill."
+          )
+        else
+          reraise e, __STACKTRACE__
+        end
+    end
   end
 end
