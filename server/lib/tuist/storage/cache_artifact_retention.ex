@@ -82,7 +82,11 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     Account
     |> where([account], account.name in ^account_handles)
     |> Repo.all()
-    |> Map.new(fn account -> {account.name, RetentionPolicy.current_plan(account)} end)
+    |> then(fn accounts ->
+      plans_by_account_id = RetentionPolicy.current_plans(accounts)
+
+      Map.new(accounts, fn account -> {account.name, Map.fetch!(plans_by_account_id, account.id)} end)
+    end)
   end
 
   defp matches_artifact_type?(object, artifact_type) do

@@ -4,6 +4,8 @@ defmodule Tuist.Storage.RetentionPolicyTest do
 
   alias Tuist.Accounts.Account
   alias Tuist.Billing
+  alias Tuist.Billing.Subscription
+  alias Tuist.Repo
   alias Tuist.Storage.RetentionPolicy
 
   describe "current_plan/1" do
@@ -25,6 +27,18 @@ defmodule Tuist.Storage.RetentionPolicyTest do
       end)
 
       assert RetentionPolicy.current_plan(account) == :air
+    end
+  end
+
+  describe "current_plans/1" do
+    test "returns active subscription plans for accounts in one query" do
+      accounts = [%Account{id: 1}, %Account{id: 2}, %Account{id: 3}]
+
+      expect(Repo, :all, fn %Ecto.Query{from: %{source: {"subscriptions", Subscription}}} ->
+        [{1, :pro}, {3, :enterprise}]
+      end)
+
+      assert RetentionPolicy.current_plans(accounts) == %{1 => :pro, 2 => :air, 3 => :enterprise}
     end
   end
 

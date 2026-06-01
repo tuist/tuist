@@ -3,7 +3,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
   use Mimic
 
   alias Tuist.Accounts.Account
-  alias Tuist.Billing
+  alias Tuist.Billing.Subscription
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage
@@ -33,8 +33,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
          }}
       end)
 
-      expect(Repo, :all, fn _query -> [%Account{id: 1, name: "tuist"}] end)
-      expect(Billing, :get_current_active_subscription, fn %Account{id: 1} -> nil end)
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
       expect(Storage, :delete_objects_from_bucket, fn [^expired_xcode_key], "xcode-cache-bucket" ->
         :ok
@@ -61,8 +60,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
          }}
       end)
 
-      expect(Repo, :all, fn _query -> [%Account{id: 1, name: "tuist"}] end)
-      expect(Billing, :get_current_active_subscription, fn %Account{id: 1} -> nil end)
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
 
       expect(Storage, :delete_objects_from_bucket, fn [^expired_module_key], "cache-bucket" ->
         :ok
@@ -101,5 +99,15 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       assert CacheArtifactRetention.delete_expired(:gradle) == :ok
     end
+  end
+
+  defp expect_accounts_and_plans(accounts, plans_by_account_id \\ %{}) do
+    expect(Repo, :all, 2, fn
+      %Ecto.Query{from: %{source: {"accounts", Account}}} ->
+        accounts
+
+      %Ecto.Query{from: %{source: {"subscriptions", Subscription}}} ->
+        Map.to_list(plans_by_account_id)
+    end)
   end
 end
