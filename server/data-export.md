@@ -120,6 +120,14 @@ intact. Retention windows, in days, by plan:
 | Test run attachments | 30 | 90 | 365 |
 | Shard bundles | 7 | 14 | 30 |
 
+Retention status is computed when cleanup runs. Cache artifacts use the object
+storage `last_modified` timestamp, while previews, build archives, test
+attachments, and shard bundles use their database `inserted_at` timestamp. The
+active account plan determines the applicable window, with Air used when an
+account has no active subscription.
+
+Tuist does not store a per-artifact purge ledger or separate retention-status
+metadata. Retention is derived from the timestamps and account plan above.
 An export reflects the artifacts present at export time; binaries already
 purged under these windows are no longer available, though their metadata is
 still exported.
