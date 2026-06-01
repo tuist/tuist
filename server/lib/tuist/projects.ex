@@ -77,7 +77,8 @@ defmodule Tuist.Projects do
   end
 
   def get_project_by_account_and_project_handles(account_handle, project_handle, opts \\ []) do
-    extra_preloads = Keyword.get(opts, :preload, [:account]) -- [:account]
+    preloads = Keyword.get(opts, :preload, [:account])
+    extra_preloads = Enum.reject(preloads, &(&1 == :account))
 
     case Repo.one(
            from p in Project,
@@ -86,7 +87,6 @@ defmodule Tuist.Projects do
              preload: [account: a]
          ) do
       nil -> nil
-      project when extra_preloads == [] -> project
       project -> Repo.preload(project, extra_preloads)
     end
   end
