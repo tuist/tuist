@@ -4604,6 +4604,61 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenSwiftOnlyFrameworkExposesObjCInterface_keepsXcodeSynthesizedModuleMap() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let objcTargetPath = basePath.appending(try RelativePath(validating: "Package/Sources/ObjCTarget"))
+        let pureSwiftTargetPath = basePath.appending(try RelativePath(validating: "Package/Sources/PureSwiftTarget"))
+        try await fileSystem.makeDirectory(at: objcTargetPath)
+        try await fileSystem.makeDirectory(at: pureSwiftTargetPath)
+        try await fileSystem.writeText(
+            "import Foundation\n@objc public class Exposed: NSObject {}\n",
+            at: objcTargetPath.appending(component: "ObjCTarget.swift")
+        )
+        try await fileSystem.writeText(
+            "public struct PureSwift {}\n",
+            at: pureSwiftTargetPath.appending(component: "PureSwiftTarget.swift")
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "ObjCTarget", type: .library(.automatic), targets: ["ObjCTarget"]),
+                        .init(name: "PureSwiftTarget", type: .library(.automatic), targets: ["PureSwiftTarget"]),
+                    ],
+                    targets: [
+                        .test(name: "ObjCTarget"),
+                        .test(name: "PureSwiftTarget"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                productTypes: ["ObjCTarget": .framework, "PureSwiftTarget": .framework],
+                baseSettings: .default
+            )
+        )
+
+        let objcTarget = try #require(project?.targets.first(where: { $0.name == "ObjCTarget" }))
+        #expect(objcTarget.product == .framework)
+        #expect(objcTarget.settings?.base["DEFINES_MODULE"] == nil)
+        #expect(objcTarget.settings?.base["MODULEMAP_FILE"] == nil)
+
+        let pureSwiftTarget = try #require(project?.targets.first(where: { $0.name == "PureSwiftTarget" }))
+        #expect(pureSwiftTarget.product == .framework)
+        #expect(pureSwiftTarget.settings?.base["DEFINES_MODULE"] == .string("NO"))
+        #expect(pureSwiftTarget.settings?.base["MODULEMAP_FILE"] != nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenTargetDependenciesOnTargetHaveConditions() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))

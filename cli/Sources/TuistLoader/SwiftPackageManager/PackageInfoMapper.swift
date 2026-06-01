@@ -650,12 +650,19 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } else {
                 nil
             }
+            // The headerless modulemap (issue #10967) hides the generated `-Swift.h`, so restrict it to Swift-only
+            // framework targets that don't expose `@objc` declarations to Objective-C consumers (issue #11007).
+            let generateModuleMapForSwiftOnlyTargets = if product == .framework {
+                try await !targetExposesObjCInterface(at: targetPath)
+            } else {
+                false
+            }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: moduleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
                 swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory,
-                generateModuleMapForSwiftOnlyTargets: product == .framework
+                generateModuleMapForSwiftOnlyTargets: generateModuleMapForSwiftOnlyTargets
             )
         default:
             moduleMap = nil
@@ -961,6 +968,22 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 return []
             }
         }
+    }
+}
+
+extension PackageInfoMapper {
+    /// Whether any of the target's Swift sources expose `@objc` declarations, which Objective-C consumers reach through
+    /// the generated `-Swift.h`.
+    private func targetExposesObjCInterface(at targetPath: AbsolutePath) async throws -> Bool {
+        guard try await fileSystem.exists(targetPath) else { return false }
+        let swiftFiles = try await fileSystem.glob(directory: targetPath, include: ["**/*.swift", "*.swift"]).collect()
+        for swiftFile in swiftFiles {
+            guard let contents = try? await fileSystem.readTextFile(at: swiftFile) else { continue }
+            if contents.contains("@objc") {
+                return true
+            }
+        }
+        return false
     }
 }
 
