@@ -25,8 +25,20 @@ defmodule Tuist.IngestRepo.Migrations.DropPgArtifactsTableAndReplicationFlag do
       {:error, {:already_started, _}} -> :ok
     end
 
-    Repo.query!("ALTER TABLE bundles DROP COLUMN IF EXISTS artifacts_replicated_to_ch")
+    # `DROP COLUMN IF EXISTS` covers the column, not the parent table: if
+    # `bundles` itself is gone (dropped by `drop_legacy_postgres_tables`,
+    # which CASCADEs the dual-write column with it), the ALTER still
+    # raises `undefined_table`. Skip it when the table is missing.
+    if postgres_bundles_exists?() do
+      Repo.query!("ALTER TABLE bundles DROP COLUMN IF EXISTS artifacts_replicated_to_ch")
+    end
+
     Repo.query!("DROP TABLE IF EXISTS artifacts")
+  end
+
+  defp postgres_bundles_exists? do
+    {:ok, %{rows: [[result]]}} = Repo.query("SELECT to_regclass('public.bundles')")
+    result != nil
   end
 
   def down do
