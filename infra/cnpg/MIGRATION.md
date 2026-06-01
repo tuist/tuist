@@ -42,11 +42,16 @@ Provisioning step: the next platform/server deploy with `cnpg.enabled: true` bri
 
 ```bash
 ENV=staging
+SHA=$(git rev-parse --short=12 HEAD)
+# `--show-only` still requires `--set` values for every chart-required
+# image tag, even if those templates aren't being rendered, so pass
+# kuraController.image.tag alongside server.image.tag.
 kubectl apply -n tuist-$ENV -f <(helm template tuist infra/helm/tuist \
   -f infra/helm/tuist/values-managed-common.yaml \
   -f infra/helm/tuist/values-managed-$ENV.yaml \
   --show-only templates/postgresql-cnpg.yaml \
-  --set server.image.tag=$(git rev-parse --short=12 HEAD))
+  --set server.image.tag=$SHA \
+  --set kuraController.image.tag=$SHA)
 ```
 
 Wait for the cluster to reach `phase: Cluster in healthy state`:
@@ -65,6 +70,16 @@ Run it as a one-off Job (in-cluster, so it reaches the `-rw` Service natively an
 
 ```bash
 ENV=staging
+# `TUIST_DEPLOY_ENV` is the deploy-env *alias* (`stag` / `can` / `prod`)
+# the release looks up under `priv/secrets/`, NOT the namespace suffix.
+# Map it before launching the Job — passing `staging` here makes the
+# release try to decrypt `priv/secrets/staging.yml.enc`, which doesn't
+# exist, and the migration job fails to start.
+case "$ENV" in
+  staging)    DEPLOY_ENV=stag ;;
+  canary)     DEPLOY_ENV=can  ;;
+  production) DEPLOY_ENV=prod ;;
+esac
 IMG=$(kubectl -n tuist-$ENV get deploy tuist-tuist-server -o jsonpath='{.spec.template.spec.containers[0].image}')
 kubectl create -f - <<YAML
 apiVersion: batch/v1
@@ -88,7 +103,7 @@ spec:
           env:
             - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: tuist-tuist-pg-app, key: uri } } }
             - { name: TUIST_USE_SSL_FOR_DATABASE, value: "0" }
-            - { name: TUIST_DEPLOY_ENV, value: "$ENV" }
+            - { name: TUIST_DEPLOY_ENV, value: "$DEPLOY_ENV" }
             - { name: TUIST_HOSTED, value: "1" }
             - { name: MASTER_KEY, valueFrom: { secretKeyRef: { name: tuist-tuist-server-external-secrets, key: server-master-key } } }
 YAML
