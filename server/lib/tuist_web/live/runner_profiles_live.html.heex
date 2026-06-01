@@ -156,9 +156,6 @@
   </div>
 
   <.table id="runner-profiles-table" rows={@profiles}>
-    <:col :let={profile} label={dgettext("dashboard_runners", "Name")}>
-      <.text_cell label={profile.name} />
-    </:col>
     <:col :let={profile} label={dgettext("dashboard_runners", "Label")}>
       <.text_cell data-part="dispatch-label-cell" label={dispatch_snippet(profile)} />
     </:col>
