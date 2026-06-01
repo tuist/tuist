@@ -63,8 +63,13 @@ observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 Hooks.ThemeToggle = ThemeToggle;
 
+// On localhost, the WS drops every time the dev server restarts or the
+// live reloader fires. With longpoll fallback enabled, the client gives
+// up on WS too quickly and pins itself to longpoll, which then loops
+// into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
+// https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : 2500,
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
