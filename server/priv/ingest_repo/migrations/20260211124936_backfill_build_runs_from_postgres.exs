@@ -104,8 +104,21 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBuildRunsFromPostgres do
   # runs synchronously via `Tuist.Repo.query/1`, unlike
   # `Ecto.Migration.execute/1` which queues the SQL and runs it at
   # migration flush time outside this function's scope.
+  #
+  # `mix ecto.migrate -r Tuist.IngestRepo` only starts the IngestRepo, so
+  # start `Tuist.Repo` here on demand. `start_link/1` returns
+  # `{:already_started, _}` when something earlier in the process already
+  # booted it.
   defp postgres_build_runs_exists? do
+    ensure_tuist_repo_started!()
     {:ok, %{rows: [[result]]}} = Tuist.Repo.query("SELECT to_regclass('public.build_runs')")
     result != nil
+  end
+
+  defp ensure_tuist_repo_started! do
+    case Tuist.Repo.start_link(pool_size: 1) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
   end
 end
