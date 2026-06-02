@@ -11,6 +11,8 @@ defmodule TuistWeb.UsageLiveTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  @render_async_timeout 1_000
+
   setup :set_mimic_from_context
 
   setup %{conn: conn} do
@@ -96,7 +98,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "shows the empty state when there's no Kura traffic", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
-      html = render_async(lv)
+      html = render_async(lv, @render_async_timeout)
 
       assert html =~ "No cache traffic in this window yet"
     end
@@ -114,7 +116,7 @@ defmodule TuistWeb.UsageLiveTest do
 
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
-      html = render_async(lv)
+      html = render_async(lv, @render_async_timeout)
 
       assert html =~ "kura-test-node"
       # 1 MB rendered through ByteFormatter
@@ -138,14 +140,14 @@ defmodule TuistWeb.UsageLiveTest do
     test "egress is the default selected widget", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
-      _ = render_async(lv)
+      _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
 
     test "clicking a widget patches the URL with ?widget=ingress", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
 
-      _ = render_async(lv)
+      _ = render_async(lv, @render_async_timeout)
 
       lv
       |> element(~s|[phx-value-widget="ingress"]|)
@@ -158,7 +160,7 @@ defmodule TuistWeb.UsageLiveTest do
     test "honors widget=requests in the URL on initial mount", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=requests")
 
-      _ = render_async(lv)
+      _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="requests"][data-selected]|)
     end
 
@@ -168,7 +170,7 @@ defmodule TuistWeb.UsageLiveTest do
     } do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=bogus")
 
-      _ = render_async(lv)
+      _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
   end

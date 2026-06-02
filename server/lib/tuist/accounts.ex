@@ -1933,7 +1933,8 @@ defmodule Tuist.Accounts do
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
 
-  For Kura, account-specific endpoints are returned only when they have been configured.
+  For Kura, configured Kura endpoints are returned when available. When none are configured or usable,
+  the default cache endpoints are returned so clients can fall back to Tuist-hosted cache nodes.
   """
   def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
 
@@ -1952,22 +1953,24 @@ defmodule Tuist.Accounts do
   end
 
   def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
-    case Environment.kura_endpoints() do
-      endpoints when is_list(endpoints) ->
-        endpoints
+    account_handle
+    |> kura_endpoint_urls()
+    |> case do
+      [] ->
+        get_cache_endpoints_for_handle(account_handle, :default)
 
-      nil ->
-        case get_account_by_handle(account_handle) do
-          %Account{} = account -> kura_cache_endpoint_urls(account)
-          _ -> []
-        end
+      endpoints ->
+        endpoints
     end
   end
 
   def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
 
   def get_cache_endpoints_for_handle(_, :kura) do
-    Environment.kura_endpoints() || []
+    case configured_kura_endpoint_urls() do
+      [] -> CacheEndpoints.active_endpoint_urls()
+      endpoints -> endpoints
+    end
   end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
@@ -1983,6 +1986,29 @@ defmodule Tuist.Accounts do
   defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
 
   defp kura_cache_endpoints(_), do: []
+
+  defp kura_endpoint_urls(account_handle) do
+    case configured_kura_endpoint_urls() do
+      [] ->
+        case get_account_by_handle(account_handle) do
+          %Account{} = account -> kura_cache_endpoint_urls(account)
+          _ -> []
+        end
+
+      endpoints ->
+        endpoints
+    end
+  end
+
+  defp configured_kura_endpoint_urls do
+    Environment.kura_endpoints()
+    |> case do
+      endpoints when is_list(endpoints) -> endpoints
+      _ -> []
+    end
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
     endpoints = kura_cache_endpoints(account)

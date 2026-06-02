@@ -1108,6 +1108,16 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
+  end
+
+  @doc """
   Namespace where the runners-controller's ServiceAccount lives —
   used to gate `POST /api/internal/runners/pods/stopped` so only
   the controller can close billing sessions. Defaults to `tuist`

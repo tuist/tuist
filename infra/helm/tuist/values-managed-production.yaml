@@ -117,9 +117,24 @@ kuraController:
     externalSecret:
       enabled: true
       item: kura-introspection-oauth-client
+
+# CloudNativePG cluster — production shape. 3 instances (primary + 2
+# sync replicas), 250Gi storage. Backups land in the
+# `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
-  external:
-    host: db.tuist.dev  # Supabase pooler endpoint for production.
+  cnpg:
+    instances: 3
+    storage:
+      size: "250Gi"
+    resources:
+      requests:
+        cpu: "2000m"
+        memory: "8Gi"
+      limits:
+        cpu: "4000m"
+        memory: "16Gi"
+    backup:
+      destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
   external:
@@ -131,10 +146,9 @@ objectStorage:
       default: tuist-prod-storage
 
 processor:
-  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:

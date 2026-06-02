@@ -1,0 +1,534 @@
+<div id="ops-database">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Database")}</h1>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Overview")}
+      patch={~p"/ops/db?section=overview"}
+      selected={@section == "overview"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Tables")}
+      patch={~p"/ops/db?section=tables"}
+      selected={@section == "tables"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Indexes")}
+      patch={~p"/ops/db?section=indexes"}
+      selected={@section == "indexes"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Activity")}
+      patch={~p"/ops/db?section=activity"}
+      selected={@section == "activity"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Replication")}
+      patch={~p"/ops/db?section=replication"}
+      selected={@section == "replication"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "Backups")}
+      patch={~p"/ops/db?section=backups"}
+      selected={@section == "backups"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard", "SQL")}
+      patch={~p"/ops/db?section=query"}
+      selected={@section == "query"}
+    />
+  </.tab_menu_horizontal>
+
+  <%= case @section do %>
+    <% "overview" -> %>
+      <%!--
+        Metadata-grid layout (same pattern as #ops-kura-deployment) instead
+        of an 8-column table. Single-entity overviews read better as
+        stacked label/value tiles than as a wide table row that overflows
+        horizontally, and grouping by purpose (identity / capacity /
+        backups) lets an operator scan for "is anything wrong" quickly.
+      --%>
+      <.card title={dgettext("dashboard", "Identity")} icon="database">
+        <.card_section>
+          <div data-part="metadata-grid">
+            <div data-part="metadata-row">
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Database")}</span>
+                <span data-part="label">{@cluster_info.database}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Version")}</span>
+                <span data-part="label">{@cluster_info.version}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Connected as")}</span>
+                <span data-part="label">{@cluster_info.user}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Server")}</span>
+                <span data-part="label">{@cluster_info.server_addr}</span>
+              </div>
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "Capacity")} icon="chart_donut_4">
+        <.card_section>
+          <div data-part="metadata-grid">
+            <div data-part="metadata-row">
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Size")}</span>
+                <span data-part="label">{@cluster_info.database_size}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Connections")}</span>
+                <span data-part="label">
+                  {@cluster_info.connections} / {@cluster_info.max_connections}
+                </span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Uptime")}</span>
+                <span data-part="label">{@cluster_info.uptime}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "In recovery")}</span>
+                <span data-part="label">{@cluster_info.in_recovery}</span>
+              </div>
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "Backups")} icon="file_zip">
+        <.card_section>
+          <div data-part="metadata-grid">
+            <div data-part="metadata-row">
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Last WAL archive")}</span>
+                <span
+                  data-part="label"
+                  data-null={is_nil(@archiver["last_archived_time"])}
+                >
+                  {archive_freshness(@archiver)}
+                </span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Archives total")}</span>
+                <span data-part="label">{to_string(@archiver["archived_count"])}</span>
+              </div>
+              <div data-part="metadata">
+                <span data-part="title">{dgettext("dashboard", "Failed")}</span>
+                <span data-part="label">{to_string(@archiver["failed_count"])}</span>
+              </div>
+            </div>
+          </div>
+        </.card_section>
+      </.card>
+    <% "tables" -> %>
+      <.card title={dgettext("dashboard", "Tables")} icon="stack_2">
+        <.card_section>
+          <.table
+            id="ops-db-tables"
+            rows={@table_overviews}
+            row_key={fn t -> "#{t["schema"]}.#{t["name"]}" end}
+            row_navigate={fn t -> ~p"/ops/db/tables/#{t["schema"]}/#{t["name"]}" end}
+          >
+            <:col :let={row} label={dgettext("dashboard", "Name")}>
+              <.text_cell label={row["name"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Size")}>
+              <.text_cell label={row["size"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Rows (est.)")}>
+              <.text_cell label={to_string(row["estimated_rows"])} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="stack_2"
+                title={dgettext("dashboard", "No tables")}
+                subtitle={dgettext("dashboard", "The database is empty.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    <% "indexes" -> %>
+      <.card title={dgettext("dashboard", "Unused indexes")} icon="alert_triangle">
+        <.card_section>
+          <.table id="ops-db-unused-indexes" rows={@unused_indexes}>
+            <:col :let={row} label={dgettext("dashboard", "Schema")}>
+              <.text_cell label={row["schemaname"] || row["schema"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Table")}>
+              <.text_cell label={row["table"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Index")}>
+              <.text_cell label={row["index"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Size")}>
+              <.text_cell label={row["index_size"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Scans")}>
+              <.text_cell label={to_string(row["index_scans"])} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="alert_triangle"
+                title={dgettext("dashboard", "No unused indexes")}
+                subtitle={dgettext("dashboard", "Every index has been used at least once.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "Duplicate indexes")} icon="copy">
+        <.card_section>
+          <.table id="ops-db-duplicate-indexes" rows={@duplicate_indexes}>
+            <:col :let={row} label={dgettext("dashboard", "Size")}>
+              <.text_cell label={row["size"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Indexes")}>
+              <.text_cell label={"#{row["idx1"]} · #{row["idx2"]}"} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="copy"
+                title={dgettext("dashboard", "No duplicates")}
+                subtitle={dgettext("dashboard", "No two indexes cover the same column set.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    <% "activity" -> %>
+      <.card title={dgettext("dashboard", "Long-running queries")} icon="clock_hour_4">
+        <.card_section>
+          <.table id="ops-db-long-queries" rows={@long_running_queries}>
+            <:col :let={row} label={dgettext("dashboard", "PID")}>
+              <.text_cell label={to_string(row["pid"])} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Duration")}>
+              <.text_cell label={to_string(row["duration"])} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Query")}>
+              <.text_cell label={row["query"]} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="clock_hour_4"
+                title={dgettext("dashboard", "No long queries")}
+                subtitle={
+                  dgettext("dashboard", "Nothing is currently running for longer than 200ms.")
+                }
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "Locks")} icon="lock">
+        <.card_section>
+          <.table id="ops-db-locks" rows={@locks}>
+            <:col :let={row} label={dgettext("dashboard", "PID")}>
+              <.text_cell label={to_string(row["pid"])} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Relation")}>
+              <.text_cell label={row["relname"] || row["relation"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Mode")}>
+              <.text_cell label={row["mode"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Granted")}>
+              <.text_cell label={to_string(row["granted"])} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Query")}>
+              <.text_cell label={row["query"]} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="lock"
+                title={dgettext("dashboard", "No locks")}
+                subtitle={dgettext("dashboard", "Nothing is holding a lock right now.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    <% "replication" -> %>
+      <.card title={dgettext("dashboard", "Replicas")} icon="git_branch">
+        <.card_section>
+          <.table id="ops-db-replication" rows={@replication}>
+            <:col :let={row} label={dgettext("dashboard", "Replica")}>
+              <.text_cell label={row["application_name"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "State")}>
+              <.text_cell label={row["state"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Sync state")}>
+              <.text_cell label={row["sync_state"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Write lag (bytes)")}>
+              <.text_cell label={to_string(row["write_lag"])} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Replay lag (bytes)")}>
+              <.text_cell label={to_string(row["replay_lag"])} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="git_branch"
+                title={dgettext("dashboard", "No replicas attached")}
+                subtitle={
+                  dgettext(
+                    "dashboard",
+                    "Single-instance cluster, or replicas have not connected. The Supabase→CNPG migration's zero-lag soak window relies on this view."
+                  )
+                }
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    <% "backups" -> %>
+      <%!--
+        Backups tab. Two complementary signals:
+          * Base backups — the CNPG `Backup` CRs, read from the
+            Kubernetes API (the server SA has namespaced get/list on
+            postgresql.cnpg.io). Shows whether each snapshot actually
+            completed, which `pg_stat_archiver` can't tell you.
+          * WAL archive + settings — the Postgres-side view of whether
+            continuous archiving to the object store is alive.
+        Neither proves a backup is restorable; the weekly restore drill
+        (.github/workflows/cnpg-restore-drill.yml) is the source of truth
+        for that.
+      --%>
+      <.card title={dgettext("dashboard", "Base backups")} icon="database">
+        <.card_section>
+          <.table id="ops-db-base-backups" rows={@base_backups} row_key={fn b -> b.name end}>
+            <:col :let={b} label={dgettext("dashboard", "Backup")}>
+              <.text_cell label={b.name} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Phase")}>
+              <.text_cell label={b.phase || "—"} data-null={is_nil(b.phase)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Method")}>
+              <.text_cell label={b.method || "—"} data-null={is_nil(b.method)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Completed")}>
+              <.text_cell label={b.stopped_at || "—"} data-null={is_nil(b.stopped_at)} />
+            </:col>
+            <:col :let={b} label={dgettext("dashboard", "Error")}>
+              <.text_cell label={b.error || "—"} data-null={is_nil(b.error)} />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="database"
+                title={dgettext("dashboard", "No base backups")}
+                subtitle={base_backups_empty_subtitle(@base_backups_status)}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "WAL archive")} icon="file_zip">
+        <.card_section>
+          <.table id="ops-db-archiver" rows={[@archiver]}>
+            <:col :let={a} label={dgettext("dashboard", "Last archived")}>
+              <.text_cell
+                label={archive_freshness(a)}
+                data-null={is_nil(a["last_archived_time"])}
+              />
+            </:col>
+            <:col :let={a} label={dgettext("dashboard", "Last archived WAL")}>
+              <.text_cell
+                label={a["last_archived_wal"] || "—"}
+                data-null={is_nil(a["last_archived_wal"])}
+              />
+            </:col>
+            <:col :let={a} label={dgettext("dashboard", "Archives total")}>
+              <.text_cell label={to_string(a["archived_count"])} />
+            </:col>
+            <:col :let={a} label={dgettext("dashboard", "Failed")}>
+              <.text_cell label={to_string(a["failed_count"])} />
+            </:col>
+            <:col :let={a} label={dgettext("dashboard", "Last failed WAL")}>
+              <.text_cell
+                label={a["last_failed_wal"] || "—"}
+                data-null={is_nil(a["last_failed_wal"])}
+              />
+            </:col>
+            <:col :let={a} label={dgettext("dashboard", "Stats reset")}>
+              <.text_cell
+                label={(a["stats_reset"] && to_string(a["stats_reset"])) || "—"}
+                data-null={is_nil(a["stats_reset"])}
+              />
+            </:col>
+          </.table>
+        </.card_section>
+      </.card>
+
+      <.card title={dgettext("dashboard", "Archive settings")} icon="settings">
+        <.card_section>
+          <.table
+            id="ops-db-archive-settings"
+            rows={@archive_settings}
+            row_key={fn s -> s["name"] end}
+          >
+            <:col :let={row} label={dgettext("dashboard", "Setting")}>
+              <.text_cell label={row["name"]} />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Value")}>
+              <.text_cell
+                label={(row["setting"] != "" && row["setting"]) || "—"}
+                data-null={row["setting"] == ""}
+              />
+            </:col>
+            <:col :let={row} label={dgettext("dashboard", "Description")}>
+              <.text_cell label={row["short_desc"]} />
+            </:col>
+          </.table>
+        </.card_section>
+      </.card>
+    <% "query" -> %>
+      <.card title={dgettext("dashboard", "SQL editor")} icon="devices_code">
+        <.card_section>
+          <form
+            id="ops-db-form"
+            phx-submit="run_query"
+            phx-hook="SubmitOnCmdEnter"
+            data-part="ops-db-form"
+          >
+            <.text_area
+              id="ops-db-query"
+              name="query"
+              rows={8}
+              max_length={10_000}
+              show_character_count={false}
+              value={@query}
+              placeholder="SELECT id, name FROM accounts ORDER BY inserted_at DESC LIMIT 50;"
+            />
+            <div data-part="ops-db-actionbar">
+              <p data-part="ops-db-hint">
+                {dgettext(
+                  "dashboard",
+                  "SELECT / WITH / EXPLAIN / SHOW only. Runs inside a 5s read-only transaction."
+                )}
+              </p>
+              <.button
+                type="submit"
+                variant="primary"
+                size="medium"
+                label={dgettext("dashboard", "Run")}
+              >
+                <:icon_right>
+                  <span data-part="ops-db-kbd">⌘↵</span>
+                </:icon_right>
+              </.button>
+            </div>
+          </form>
+          <div id="ops-db-copy-sink" phx-hook="CopyToClipboard" data-event="ops-db-copy" hidden>
+          </div>
+          <div
+            id="ops-db-download-sink"
+            phx-hook="DownloadAsFile"
+            data-event="ops-db-download"
+            hidden
+          >
+          </div>
+          <.alert :if={@query_error} status="error" title={@query_error} />
+          <%= if @query_result do %>
+            <div data-part="ops-db-results-meta">
+              <div data-part="ops-db-results-toolbar">
+                <.dropdown
+                  id="ops-db-export"
+                  label={dgettext("dashboard", "Export")}
+                >
+                  <.dropdown_item
+                    value="markdown"
+                    label={dgettext("dashboard", "Copy as Markdown")}
+                    on_click="export"
+                    phx-value-format="markdown"
+                  >
+                    <:left_icon><.copy /></:left_icon>
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="json"
+                    label={dgettext("dashboard", "Copy as JSON")}
+                    on_click="export"
+                    phx-value-format="json"
+                  >
+                    <:left_icon><.copy /></:left_icon>
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="csv"
+                    label={dgettext("dashboard", "Copy as CSV")}
+                    on_click="export"
+                    phx-value-format="csv"
+                  >
+                    <:left_icon><.copy /></:left_icon>
+                  </.dropdown_item>
+                  <.dropdown_item
+                    value="download-csv"
+                    label={dgettext("dashboard", "Download CSV")}
+                    on_click="export"
+                    phx-value-format="download-csv"
+                  >
+                    <:left_icon><.download /></:left_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
+              <p data-part="ops-db-meta">
+                {dgettext("dashboard", "%{n} row(s) · %{duration}%{trunc}",
+                  n: @query_result.num_rows,
+                  duration: format_duration(@query_result.duration_us),
+                  trunc:
+                    if(@query_result.truncated?,
+                      do: " · result truncated (more rows omitted)",
+                      else: ""
+                    )
+                )}
+              </p>
+            </div>
+            <div data-part="ops-db-result-wrapper">
+              <.table
+                id="ops-db-result"
+                rows={displayed_rows(@query_result, @page)}
+              >
+                <:col :let={row} :for={col <- @query_result.columns} label={col}>
+                  <%!--
+                    Always render through Noora's <.text_cell> so every cell
+                    shares the same <div data-part="cell"> container — bare
+                    spans for NULL would skip the padding text_cell applies
+                    and visibly misalign with their neighbours. The
+                    data-null flag rides on `rest` and surfaces on the
+                    container div for the muted-color CSS rule.
+                  --%>
+                  <.text_cell
+                    label={format_cell(Map.get(row, col))}
+                    data-null={is_nil(Map.get(row, col))}
+                  />
+                </:col>
+                <:empty_state>
+                  <.table_empty_state
+                    icon="devices_code"
+                    title={dgettext("dashboard", "Empty result")}
+                    subtitle={dgettext("dashboard", "The query returned no rows.")}
+                  />
+                </:empty_state>
+              </.table>
+            </div>
+            <.pagination_group
+              :if={total_pages(@query_result) > 1}
+              current_page={@page}
+              number_of_pages={total_pages(@query_result)}
+              page_patch={fn page -> page_patch(page) end}
+            />
+          <% end %>
+        </.card_section>
+      </.card>
+  <% end %>
+</div>
