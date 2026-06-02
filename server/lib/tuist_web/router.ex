@@ -528,6 +528,7 @@ defmodule TuistWeb.Router do
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create
+          get "/job-summary", AnalyticsController, :job_summary
           get "/:run_id/module-cache-targets", ModuleCacheTargetsController, :index
           post "/:run_id/start", AnalyticsController, :multipart_start_project
           post "/:run_id/generate-url", AnalyticsController, :multipart_generate_url_project

@@ -130,6 +130,93 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "get_run_report_body/1" do
+    setup do
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      :ok
+    end
+
+    test "renders the run report for a merge queue ref" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      git_ref = "refs/heads/gh-readonly-queue/main/pr-1-abc123"
+      git_commit_sha = "1234567890"
+
+      {:ok, test_run} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: git_ref,
+          git_commit_sha: git_commit_sha,
+          status: "success",
+          scheme: "App",
+          duration: 0,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: []
+        })
+
+      # When
+      body =
+        VCS.get_run_report_body(%{
+          project: project,
+          git_ref: git_ref,
+          git_remote_url_origin: "https://github.com/tuist/tuist",
+          preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
+          preview_qr_code_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}/qr-code.svg" end,
+          test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+          bundle_url: fn _ -> "" end,
+          build_url: fn _ -> "" end
+        })
+
+      # Then
+      assert body =~ "### 🛠️ Tuist Run Report 🛠️"
+      assert body =~ "#### Tests 🧪"
+      assert body =~ "https://tuist.dev/test_runs/#{test_run.id}"
+    end
+
+    test "returns nil when there is nothing to report" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      # When
+      body =
+        VCS.get_run_report_body(%{
+          project: project,
+          git_ref: "refs/heads/gh-readonly-queue/main/pr-2-def456",
+          git_remote_url_origin: "https://github.com/tuist/tuist",
+          preview_url: fn _ -> "" end,
+          preview_qr_code_url: fn _ -> "" end,
+          test_run_url: fn _ -> "" end,
+          bundle_url: fn _ -> "" end,
+          build_url: fn _ -> "" end
+        })
+
+      # Then
+      assert is_nil(body)
+    end
+  end
+
   describe "post_vcs_pull_request_comment/1" do
     @git_ref "refs/pull/1/merge"
     @git_remote_url_origin "https://github.com/tuist/tuist"
