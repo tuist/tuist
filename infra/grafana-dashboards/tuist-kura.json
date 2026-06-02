@@ -302,7 +302,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "instant": true,
             "legendFormat": "p95",
             "range": false,
@@ -597,21 +597,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -1033,21 +1033,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -1883,7 +1883,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Request origins for the selected tenant over the selected time range, alongside the tenant's serving regions.",
+        "description": "Serving-node geography and request-origin geography for the selected tenant and range. Blue markers are deployed Kura nodes; orange markers are client request origins.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1986,7 +1986,7 @@
                 "lookup": "lookup",
                 "mode": "lookup"
               },
-              "name": "US regions",
+              "name": "Serving nodes (US)",
               "tooltip": true,
               "type": "markers"
             },
@@ -2041,7 +2041,7 @@
                 "lookup": "lookup",
                 "mode": "lookup"
               },
-              "name": "Global regions",
+              "name": "Serving nodes (global)",
               "tooltip": true,
               "type": "markers"
             },
@@ -2074,8 +2074,9 @@
                     "vertical": "center"
                   },
                   "text": {
+                    "field": "lookup",
                     "fixed": "",
-                    "mode": "fixed"
+                    "mode": "field"
                   },
                   "textConfig": {
                     "fontSize": 11,
@@ -2095,7 +2096,7 @@
                 "lookup": "lookup",
                 "mode": "lookup"
               },
-              "name": "Request origins",
+              "name": "Request origins (country)",
               "tooltip": true,
               "type": "markers"
             }
@@ -2141,7 +2142,7 @@
             "refId": "C"
           }
         ],
-        "title": "Tenant Geography",
+        "title": "Geography: serving nodes vs request origins",
         "type": "geomap"
       }
     ],
