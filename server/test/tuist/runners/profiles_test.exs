@@ -188,7 +188,7 @@ defmodule Tuist.Runners.ProfilesTest do
       {:ok, default} = Profiles.create_default_for_account(account)
 
       assert {:error, :protected} = Profiles.delete(default)
-      refute is_nil(Profiles.get_by_name(account, default.name))
+      assert Profiles.get_by_name(account, default.name)
     end
   end
 

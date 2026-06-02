@@ -28,8 +28,8 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Namespace
-  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias Tuist.Repo
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 

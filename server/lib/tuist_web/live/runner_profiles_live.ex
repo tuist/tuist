@@ -141,31 +141,29 @@ defmodule TuistWeb.RunnerProfilesLive do
       ) do
     socket = socket |> assign(:deleting_profile, nil) |> close_delete_modal()
 
-    cond do
-      is_nil(Profiles.get_by_name(account, profile.name)) ->
-        # Raced away (already deleted) — nothing to do.
-        {:noreply, socket}
+    if is_nil(Profiles.get_by_name(account, profile.name)) do
+      # Raced away (already deleted) — nothing to do.
+      {:noreply, socket}
+    else
+      # Authoritative guard mirroring the hidden row action. The
+      # context layer rejects `:protected` profiles (the per-account
+      # auto-bootstrapped Linux default), so the `:protected` arm
+      # surfaces a flash without re-fetching state.
+      case Profiles.delete(profile) do
+        {:ok, _} ->
+          {:noreply,
+           socket
+           |> assign_profiles()
+           |> put_flash(:info, dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name))}
 
-      true ->
-        # Authoritative guard mirroring the hidden row action. The
-        # context layer rejects `:protected` profiles (the per-account
-        # auto-bootstrapped Linux default), so the `:protected` arm
-        # surfaces a flash without re-fetching state.
-        case Profiles.delete(profile) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign_profiles()
-             |> put_flash(:info, dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name))}
-
-          {:error, :protected} ->
-            {:noreply,
-             put_flash(
-               socket,
-               :error,
-               dgettext("dashboard_runners", "This profile is a default and can't be deleted.")
-             )}
-        end
+        {:error, :protected} ->
+          {:noreply,
+           put_flash(
+             socket,
+             :error,
+             dgettext("dashboard_runners", "This profile is a default and can't be deleted.")
+           )}
+      end
     end
   end
 

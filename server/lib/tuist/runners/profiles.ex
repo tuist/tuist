@@ -94,14 +94,11 @@ defmodule Tuist.Runners.Profiles do
   bypassed — the customer didn't create this row.
   """
   def create_default_for_account(%{id: account_id}) do
-    catalog = Catalog.list()
-    default = Catalog.default()
-
-    cond do
-      is_nil(default) ->
+    case Catalog.default() do
+      nil ->
         {:error, :no_catalog_default}
 
-      true ->
+      default ->
         attrs = %{
           "account_id" => account_id,
           "name" => default_linux_name(),
@@ -111,7 +108,7 @@ defmodule Tuist.Runners.Profiles do
         }
 
         %Profile{}
-        |> Profile.changeset(attrs, catalog)
+        |> Profile.changeset(attrs, Catalog.list())
         |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :name])
     end
   end
