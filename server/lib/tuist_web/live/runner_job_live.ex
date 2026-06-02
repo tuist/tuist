@@ -323,13 +323,35 @@ defmodule TuistWeb.RunnerJobLive do
     end
   end
 
+  # A log line belongs to step N when its `ts` falls between step N's
+  # `started_at` and the NEXT step's `started_at`. We don't use the
+  # step's own `completed_at`: GitHub's API returns second-resolution
+  # step timestamps, so sub-second steps come back with
+  # `started_at == completed_at` (a zero-width window that's always
+  # empty), and clock skew between the runner Pod's wall clock and
+  # GitHub's coordinator clock can push legitimate lines outside a
+  # tight window even when the step did run for measurable time.
   defp fetch_step_logs(job, steps, number) do
-    case Enum.find(steps, fn step -> step.number == number end) do
-      %{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at} ->
-        JobLogs.list_for_step(job.workflow_job_id, started_at, completed_at)
+    sorted = Enum.sort_by(steps, & &1.number)
 
-      _ ->
+    case Enum.find_index(sorted, fn s -> s.number == number end) do
+      nil ->
         []
+
+      idx ->
+        case Enum.at(sorted, idx) do
+          %{started_at: %DateTime{} = from} ->
+            until =
+              case Enum.at(sorted, idx + 1) do
+                %{started_at: %DateTime{} = next_started_at} -> next_started_at
+                _ -> nil
+              end
+
+            JobLogs.list_for_step(job.workflow_job_id, from, until)
+
+          _ ->
+            []
+        end
     end
   end
 

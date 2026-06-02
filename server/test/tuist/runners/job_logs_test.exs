@@ -53,7 +53,7 @@ defmodule Tuist.Runners.JobLogsTest do
   end
 
   describe "list_for_step/3" do
-    test "returns only the lines inside the step's [start, end) window" do
+    test "returns lines inside the [from, until) window" do
       job_id = 90_002
 
       :ok =
@@ -91,6 +91,39 @@ defmodule Tuist.Runners.JobLogsTest do
       slice = JobLogs.list_for_step(job_id, ~U[2026-05-28 12:00:05.000000Z], ~U[2026-05-28 12:00:10.000000Z])
 
       assert Enum.map(slice, & &1.message) == ["build start", "build end"]
+    end
+
+    test "with `until = nil`, returns everything from `from` onwards (last step)" do
+      job_id = 90_004
+
+      :ok =
+        JobLogs.append([
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 1,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "before"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 2,
+            ts: ~U[2026-05-28 12:00:05.000000Z],
+            message: "final-step"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 3,
+            ts: ~U[2026-05-28 12:00:09.000000Z],
+            message: "final-tail"
+          }
+        ])
+
+      slice = JobLogs.list_for_step(job_id, ~U[2026-05-28 12:00:05.000000Z], nil)
+
+      assert Enum.map(slice, & &1.message) == ["final-step", "final-tail"]
     end
   end
 

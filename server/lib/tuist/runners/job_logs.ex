@@ -167,22 +167,37 @@ defmodule Tuist.Runners.JobLogs do
   end
 
   @doc """
-  Lists the log lines inside a step's `[started_at, completed_at)`
-  window — the per-step slice the job detail page renders when a
-  step is expanded.
+  Lists the log lines that belong to a step.
+
+  The window is `[from, until)`, where `from` is the step's
+  `started_at` and `until` is the NEXT step's `started_at` — matching
+  GitHub's own per-step UI semantics: a log line belongs to step N if
+  it landed between step N's start and step N+1's start. Pass `until
+  = nil` for the final step (everything from `from` to the end of the
+  stream).
+
+  This is robust against two failure modes that windowing on the
+  step's own `[started_at, completed_at)` hits:
+    * Sub-second steps where GitHub returns
+      `started_at == completed_at` (zero-width window, always empty).
+    * Clock skew between the runner Pod's wall clock (which stamps
+      `ts` on every line) and GitHub's coordinator clock (which
+      stamps step events) — a few hundred ms of drift can push
+      legitimate logs outside their own step's tight window.
   """
-  def list_for_step(workflow_job_id, %DateTime{} = started_at, %DateTime{} = completed_at)
-      when is_integer(workflow_job_id) do
+  def list_for_step(workflow_job_id, %DateTime{} = from, until)
+      when is_integer(workflow_job_id) and (is_nil(until) or is_struct(until, DateTime)) do
     JobLog
     |> from(hints: ["FINAL"])
-    |> where(
-      [l],
-      l.workflow_job_id == ^workflow_job_id and l.ts >= ^started_at and l.ts < ^completed_at
-    )
+    |> where([l], l.workflow_job_id == ^workflow_job_id and l.ts >= ^from)
+    |> maybe_upper_bound(until)
     |> order_by([l], asc: l.line_number)
     |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
     |> ClickHouseRepo.all()
   end
+
+  defp maybe_upper_bound(query, nil), do: query
+  defp maybe_upper_bound(query, %DateTime{} = until), do: where(query, [l], l.ts < ^until)
 
   @doc """
   Number of distinct log lines captured for a job.

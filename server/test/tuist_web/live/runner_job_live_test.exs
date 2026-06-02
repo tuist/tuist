@@ -221,6 +221,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, _} = Jobs.complete(31_602, "success")
 
+    # Two steps: a log line belongs to step N if `ts` is between
+    # step N's `started_at` and step N+1's `started_at` (GitHub UI
+    # semantics, robust to sub-second steps with started_at ==
+    # completed_at and to small clock skew between the runner and
+    # GitHub's coordinator).
     :ok =
       JobSteps.record([
         %{
@@ -232,6 +237,16 @@ defmodule TuistWeb.RunnerJobLiveTest do
           conclusion: "success",
           started_at: ~U[2026-05-28 12:00:00.000000Z],
           completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 2,
+          name: "Teardown",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:02:00.000000Z],
+          completed_at: ~U[2026-05-28 12:02:00.000000Z]
         }
       ])
 
@@ -255,7 +270,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
 
-    lv |> element(~s{[data-part="step-header"]}) |> render_click()
+    lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
