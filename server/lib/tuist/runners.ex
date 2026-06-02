@@ -66,6 +66,16 @@ defmodule Tuist.Runners do
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
 
+  # The owner label is no longer cosmetic: the runners-namespace
+  # NetworkPolicy gates dispatch egress on its ABSENCE (idle Pods
+  # poll; a claimed Pod drops out of the churning dispatch policy so
+  # a server rollout can't perturb its egress mid-job). A claimed Pod
+  # that never gets the label stays in the idle policy and is exposed
+  # to that perturbation, so the stamp is retried a few times to ride
+  # out a transient apiserver blip before falling back to best-effort.
+  @owner_label_stamp_attempts 3
+  @owner_label_stamp_retry_backoff_ms 100
+
   # Drain stagger: stale Pods are partitioned into `@drain_slots`
   # buckets keyed by `phash2(pod_name)`. Slot N becomes drain-
   # eligible `N * @drain_interval_seconds` after the controller
@@ -350,18 +360,36 @@ defmodule Tuist.Runners do
       }
     }
 
+    patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
+
+  defp patch_pod_labels(namespace, pod_name, patch, attempts_left) do
     case K8sClient.patch_pod(namespace, pod_name, patch) do
       {:ok, _} ->
         :ok
 
+      {:error, reason} when attempts_left > 1 ->
+        Logger.warning("runners: pod label stamp failed; retrying",
+          pod: pod_name,
+          reason: inspect(reason),
+          attempts_left: attempts_left - 1
+        )
+
+        Process.sleep(@owner_label_stamp_retry_backoff_ms)
+        patch_pod_labels(namespace, pod_name, patch, attempts_left - 1)
+
       {:error, reason} ->
-        Logger.warning("runners: pod label stamp failed; operational view may be wrong",
+        Logger.warning(
+          "runners: pod label stamp failed after retries; Pod stays in the idle dispatch NetworkPolicy and a server rollout may perturb its egress",
           pod: pod_name,
           reason: inspect(reason)
         )
 
-        # Continue — cap accounting reads from Postgres, the K8s
-        # labels are operational visibility only.
+        # Non-fatal on purpose. The claim is already won here; failing
+        # dispatch would strand the job, and a sustained apiserver
+        # outage would block all dispatch. Degrade to "running without
+        # the label" rather than dropping the job. Per-account cap
+        # accounting reads from Postgres, not these labels.
         :ok
     end
   end
