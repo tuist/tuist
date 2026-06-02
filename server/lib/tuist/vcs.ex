@@ -25,6 +25,7 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
+  alias Tuist.VCS.RunReportURLs
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -521,16 +522,29 @@ defmodule Tuist.VCS do
   also renders for merge-queue and branch refs. Returns the markdown string, or
   `nil` when there is nothing to report.
   """
-  def get_run_report_body(%{
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        preview_url: preview_url,
-        preview_qr_code_url: preview_qr_code_url,
-        test_run_url: test_run_url,
-        build_url: build_url,
-        bundle_url: bundle_url,
-        project: project
-      }) do
+  def render_run_report(%{project: project, git_ref: git_ref, git_remote_url_origin: git_remote_url_origin}) do
+    get_run_report_body(%{
+      git_ref: git_ref,
+      git_remote_url_origin: git_remote_url_origin,
+      preview_url: &RunReportURLs.preview_url/1,
+      preview_qr_code_url: &RunReportURLs.preview_qr_code_url/1,
+      test_run_url: &RunReportURLs.test_run_url/1,
+      build_url: &RunReportURLs.build_url/1,
+      bundle_url: &RunReportURLs.bundle_url/1,
+      project: project
+    })
+  end
+
+  defp get_run_report_body(%{
+         git_ref: git_ref,
+         git_remote_url_origin: git_remote_url_origin,
+         preview_url: preview_url,
+         preview_qr_code_url: preview_qr_code_url,
+         test_run_url: test_run_url,
+         build_url: build_url,
+         bundle_url: bundle_url,
+         project: project
+       }) do
     previews =
       latest_previews(%{
         git_ref: git_ref,

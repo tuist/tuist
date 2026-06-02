@@ -20,7 +20,6 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
-  alias TuistWeb.RunReportURLs
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -553,15 +552,10 @@ defmodule TuistWeb.API.AnalyticsController do
 
   def job_summary(%{assigns: %{selected_project: selected_project}, params: %{git_ref: git_ref}} = conn, _params) do
     markdown =
-      VCS.get_run_report_body(%{
+      VCS.render_run_report(%{
         project: selected_project,
         git_ref: git_ref,
-        git_remote_url_origin: Projects.get_repository_url(selected_project),
-        preview_url: &RunReportURLs.preview_url/1,
-        preview_qr_code_url: &RunReportURLs.preview_qr_code_url/1,
-        test_run_url: &RunReportURLs.test_run_url/1,
-        bundle_url: &RunReportURLs.bundle_url/1,
-        build_url: &RunReportURLs.build_url/1
+        git_remote_url_origin: Projects.get_repository_url(selected_project)
       })
 
     json(conn, %{markdown: markdown})

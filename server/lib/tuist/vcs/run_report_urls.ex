@@ -1,4 +1,4 @@
-defmodule TuistWeb.RunReportURLs do
+defmodule Tuist.VCS.RunReportURLs do
   @moduledoc """
   Absolute URL builders for the entities referenced in the "Tuist Run Report".
 

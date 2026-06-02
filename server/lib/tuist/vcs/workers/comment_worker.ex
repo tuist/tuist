@@ -14,7 +14,7 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
-  alias TuistWeb.RunReportURLs
+  alias Tuist.VCS.RunReportURLs
 
   @impl Oban.Worker
   def perform(%Oban.Job{

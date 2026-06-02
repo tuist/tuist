@@ -130,16 +130,7 @@ defmodule Tuist.VCSTest do
     end
   end
 
-  describe "get_run_report_body/1" do
-    setup do
-      stub(Environment, :app_url, fn opts ->
-        path = Keyword.get(opts, :path, "/")
-        "https://tuist.dev#{path}"
-      end)
-
-      :ok
-    end
-
+  describe "render_run_report/1" do
     test "renders the run report for a merge queue ref" do
       # Given
       project =
@@ -172,21 +163,16 @@ defmodule Tuist.VCSTest do
 
       # When
       body =
-        VCS.get_run_report_body(%{
+        VCS.render_run_report(%{
           project: project,
           git_ref: git_ref,
-          git_remote_url_origin: "https://github.com/tuist/tuist",
-          preview_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}" end,
-          preview_qr_code_url: fn %{preview: preview} -> "https://tuist.dev/previews/#{preview.id}/qr-code.svg" end,
-          test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
-          bundle_url: fn _ -> "" end,
-          build_url: fn _ -> "" end
+          git_remote_url_origin: "https://github.com/tuist/tuist"
         })
 
       # Then
       assert body =~ "### 🛠️ Tuist Run Report 🛠️"
       assert body =~ "#### Tests 🧪"
-      assert body =~ "https://tuist.dev/test_runs/#{test_run.id}"
+      assert body =~ "tests/test-runs/#{test_run.id}"
     end
 
     test "returns nil when there is nothing to report" do
@@ -201,15 +187,10 @@ defmodule Tuist.VCSTest do
 
       # When
       body =
-        VCS.get_run_report_body(%{
+        VCS.render_run_report(%{
           project: project,
           git_ref: "refs/heads/gh-readonly-queue/main/pr-2-def456",
-          git_remote_url_origin: "https://github.com/tuist/tuist",
-          preview_url: fn _ -> "" end,
-          preview_qr_code_url: fn _ -> "" end,
-          test_run_url: fn _ -> "" end,
-          bundle_url: fn _ -> "" end,
-          build_url: fn _ -> "" end
+          git_remote_url_origin: "https://github.com/tuist/tuist"
         })
 
       # Then
