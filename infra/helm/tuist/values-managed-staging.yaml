@@ -312,8 +312,6 @@ kataContainers:
   enabled: true
 
 runnersController:
-  image:
-    tag: "sha-43e5f025f808"
   features:
     dindImage: true
 
