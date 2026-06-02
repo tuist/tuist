@@ -377,11 +377,14 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             pbxTarget: pbxTarget
         )
 
-        // OTHER_SWIFT_FLAGS: add -Xcc @response_file so Swift's clang invocations
-        // also pick up the framework search paths
+        // OTHER_SWIFT_FLAGS: add @response_file (no -Xcc) so swift-driver expands it
+        // into native -F flags. Passing -Xcc @file instead forwards the token verbatim
+        // to Swift's ClangImporter, whose createInvocation does not expand @file under
+        // Xcode 26 and treats it as a second Objective-C input, producing two -cc1 jobs
+        // and the "expected exactly one compiler job" error.
         try setup(
             setting: "OTHER_SWIFT_FLAGS",
-            values: ["-Xcc", responseFileRef],
+            values: [responseFileRef],
             pbxTarget: pbxTarget
         )
 
