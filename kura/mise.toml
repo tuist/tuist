@@ -11,4 +11,4 @@ run = "ulimit -n 65536 && cargo test"
 
 [tasks.test-e2e]
 description = "Run the end-to-end shellspec suite against the Dockerized service"
-run = ["docker compose up --build -d", "shellspec"]
+run = "shellspec"
