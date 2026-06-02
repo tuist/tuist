@@ -14,6 +14,10 @@ server:
 
   appUrl: https://canary.tuist.dev
 
+  externalSecrets:
+    kuraIntrospection:
+      item: kura-introspection-oauth-client
+
   autoscaling:
     enabled: false
 
@@ -65,6 +69,12 @@ server:
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central
+
+kuraController:
+  sharedSecrets:
+    externalSecret:
+      enabled: true
+      item: kura-introspection-oauth-client
 
 objectStorage:
   external:
