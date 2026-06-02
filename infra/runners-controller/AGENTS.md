@@ -10,7 +10,12 @@ independent workqueues:
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match
   `spec.replicas`. Idle Pods (those without the
   `tuist.dev/runner-pool-owner` label) are the only ones eligible for
-  scale-down deletion; runners mid-job are never killed.
+  scale-down deletion; runners mid-job are never killed. It also owns
+  a `tuist.dev/runner-pool-drain` finalizer: deleting or renaming a
+  RunnerPool (e.g. a helm pool-topology change) would otherwise let
+  GC cascade-delete the owned Pods — busy ones included — so the
+  finalizer holds the CR Terminating, reaps only idle Pods, and waits
+  for mid-job Pods to finish their single-shot job before releasing.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
