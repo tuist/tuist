@@ -22,6 +22,7 @@ alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
+alias Tuist.Runners.JobSteps
 alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
@@ -3316,7 +3317,7 @@ runner_job_step_names = [
   "Complete job"
 ]
 
-build_runner_job_steps = fn started_at, completed_at, conclusion ->
+build_runner_job_steps = fn workflow_job_id, account_id, started_at, completed_at, conclusion ->
   names = runner_job_step_names
   step_count = length(names)
   total_seconds = max(DateTime.diff(completed_at, started_at, :second), step_count)
@@ -3330,15 +3331,16 @@ build_runner_job_steps = fn started_at, completed_at, conclusion ->
     step_completed = DateTime.add(step_started, per_step, :second)
 
     %{
-      "name" => name,
-      "status" => "completed",
-      "conclusion" => if(index == outcome_index, do: conclusion, else: "success"),
-      "number" => index + 1,
-      "started_at" => DateTime.to_iso8601(step_started),
-      "completed_at" => DateTime.to_iso8601(step_completed)
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      number: index + 1,
+      name: name,
+      status: "completed",
+      conclusion: if(index == outcome_index, do: conclusion, else: "success"),
+      started_at: step_started,
+      completed_at: step_completed
     }
   end)
-  |> JSON.encode!()
 end
 
 # Completed jobs — history (most recent first by `enqueued_at`)
@@ -3519,11 +3521,17 @@ completed_jobs
 
   :ok = Jobs.record_running(workflow_job_id, "tuist-tuist-runner-pod-#{rem(idx, 4)}")
 
-  {:ok, _} =
-    Jobs.complete(
-      workflow_job_id,
-      job.conclusion,
-      build_runner_job_steps.(started_at, completed_at, job.conclusion)
+  {:ok, _} = Jobs.complete(workflow_job_id, job.conclusion)
+
+  :ok =
+    JobSteps.record(
+      build_runner_job_steps.(
+        workflow_job_id,
+        runner_jobs_account_id,
+        started_at,
+        completed_at,
+        job.conclusion
+      )
     )
 
   # In production `Tuist.Runners.serve_claim/5` opens a billing
