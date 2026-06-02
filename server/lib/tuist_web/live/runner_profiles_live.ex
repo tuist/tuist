@@ -34,6 +34,8 @@ defmodule TuistWeb.RunnerProfilesLive do
        "#{dgettext("dashboard_runners", "Profiles")} · #{selected_account.name} · Tuist"
      )
      |> assign(:catalog, Catalog.shapes(:linux))
+     |> assign(:macos_catalog, Catalog.shapes(:macos))
+     |> assign(:xcode_catalog, Catalog.xcode_versions(:macos))
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)
@@ -59,9 +61,10 @@ defmodule TuistWeb.RunnerProfilesLive do
          socket
          |> assign(:form_mode, {:edit, profile.id})
          |> assign(:form_name, profile.name)
-         |> assign(:form_platform, "linux")
+         |> assign(:form_platform, Atom.to_string(profile.platform))
          |> assign(:form_vcpus, profile.vcpus)
          |> assign(:form_memory_gb, profile.memory_gb)
+         |> assign(:form_xcode_version, profile.xcode_version)
          |> assign(:form_error, nil)
          |> push_event("open-modal", %{id: @modal_id})}
     end
@@ -86,8 +89,12 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   def handle_event("select_platform", params, socket) do
     case shape_key_from_params(params) do
-      platform when is_binary(platform) and platform != "" ->
-        {:noreply, assign(socket, :form_platform, platform)}
+      platform when platform in ["linux", "macos"] ->
+        # Switching platforms resets the shape + Xcode pick to the
+        # new catalog's defaults so the form never carries
+        # incompatible state across platforms (e.g. a Linux shape
+        # selected while platform=macos).
+        {:noreply, set_platform_defaults(socket, platform)}
 
       _ ->
         {:noreply, socket}
@@ -108,12 +115,32 @@ defmodule TuistWeb.RunnerProfilesLive do
     end
   end
 
+  def handle_event("select_xcode_version", params, socket) do
+    case shape_key_from_params(params) do
+      version when is_binary(version) and version != "" ->
+        {:noreply,
+         socket
+         |> assign(:form_xcode_version, version)
+         |> assign(:form_error, nil)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("save_profile", _params, %{assigns: assigns} = socket) do
     attrs = %{
       "name" => assigns.form_name,
+      "platform" => assigns.form_platform,
       "vcpus" => assigns.form_vcpus,
       "memory_gb" => assigns.form_memory_gb
     }
+
+    attrs =
+      case assigns.form_platform do
+        "macos" -> Map.put(attrs, "xcode_version", assigns.form_xcode_version)
+        _ -> attrs
+      end
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
@@ -225,16 +252,42 @@ defmodule TuistWeb.RunnerProfilesLive do
 
   defp close_delete_modal(socket), do: push_event(socket, "close-modal", %{id: @delete_modal_id})
 
-  defp reset_form(%{assigns: %{catalog: catalog}} = socket) do
-    default_shape = Enum.find(catalog, & &1.default?) || List.first(catalog)
-
+  defp reset_form(socket) do
     socket
     |> assign(:form_mode, :new)
     |> assign(:form_name, "")
+    |> assign(:form_error, nil)
+    |> set_platform_defaults("linux")
+  end
+
+  # Preselect the shape (and, on macOS, the Xcode version) from the
+  # platform's catalog default. Used both on `reset_form/1` and when
+  # the platform dropdown switches mid-form.
+  defp set_platform_defaults(socket, "linux") do
+    default_shape = pick_default(socket.assigns.catalog)
+
+    socket
     |> assign(:form_platform, "linux")
     |> assign(:form_vcpus, default_shape && default_shape.vcpus)
     |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
+    |> assign(:form_xcode_version, nil)
     |> assign(:form_error, nil)
+  end
+
+  defp set_platform_defaults(socket, "macos") do
+    default_shape = pick_default(socket.assigns.macos_catalog)
+    default_xcode = pick_default(socket.assigns.xcode_catalog)
+
+    socket
+    |> assign(:form_platform, "macos")
+    |> assign(:form_vcpus, default_shape && default_shape.vcpus)
+    |> assign(:form_memory_gb, default_shape && default_shape.memory_gb)
+    |> assign(:form_xcode_version, default_xcode && default_xcode.xcode_version)
+    |> assign(:form_error, nil)
+  end
+
+  defp pick_default(list) when is_list(list) do
+    Enum.find(list, & &1.default?) || List.first(list)
   end
 
   # Noora's <.select> fires on_value_change with `%{"value" => [key]}`;
@@ -274,24 +327,28 @@ defmodule TuistWeb.RunnerProfilesLive do
   end
 
   @doc """
-  Platform a profile runs on. Linux-only in v1 — macOS profiles are a
-  future addition, at which point this reads off the stored platform.
+  Platform a profile runs on. Reads off the stored `platform` field.
   """
-  def platform_label(%Profile{}), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(%Profile{platform: :linux}), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(%Profile{platform: :macos}), do: dgettext("dashboard_runners", "macOS")
 
   @doc """
   Noora badge color for a profile's platform, matching the Platform
-  column on the Jobs table: `attention` (warm) for Linux, `information`
-  (cool) for macOS once it lands.
+  column on the Jobs table: `attention` (warm) for Linux,
+  `information` (cool) for macOS.
   """
-  def platform_badge_color(%Profile{}), do: "attention"
+  def platform_badge_color(%Profile{platform: :linux}), do: "attention"
+  def platform_badge_color(%Profile{platform: :macos}), do: "information"
 
   @doc """
-  Platforms selectable in the create form. Linux-only today; macOS
-  follows, at which point a second entry (and a stored platform on the
-  profile) joins the list.
+  Platforms selectable in the create form. Order matters — the first
+  is what the form lands on by default.
   """
-  def platforms, do: [%{value: "linux", label: dgettext("dashboard_runners", "Linux")}]
+  def platforms,
+    do: [
+      %{value: "linux", label: dgettext("dashboard_runners", "Linux")},
+      %{value: "macos", label: dgettext("dashboard_runners", "macOS")}
+    ]
 
   @doc """
   Label for the platform dropdown trigger, resolved from the selected
@@ -318,6 +375,27 @@ defmodule TuistWeb.RunnerProfilesLive do
     do: "#{vcpus} vCPU, #{memory_gb} GB RAM"
 
   def shape_label(_, _), do: ""
+
+  @doc """
+  The shape catalog the form should render in the Resources dropdown,
+  picked from the live socket assigns based on the current platform.
+  """
+  def shape_catalog_for(catalog, _macos_catalog, "linux"), do: catalog
+  def shape_catalog_for(_catalog, macos_catalog, "macos"), do: macos_catalog
+  def shape_catalog_for(catalog, _, _), do: catalog
+
+  @doc """
+  Label for the Xcode-version dropdown trigger, resolved from the
+  selected `xcode_version` string. Falls back to a placeholder.
+  """
+  def xcode_version_label_for_value(nil),
+    do: dgettext("dashboard_runners", "Select Xcode version")
+
+  def xcode_version_label_for_value(""),
+    do: dgettext("dashboard_runners", "Select Xcode version")
+
+  def xcode_version_label_for_value(version) when is_binary(version),
+    do: dgettext("dashboard_runners", "Xcode %{version}", version: version)
 
   defp humanize_changeset_errors(%Ecto.Changeset{errors: errors}) do
     Enum.map_join(errors, "; ", fn {field, {msg, opts}} ->

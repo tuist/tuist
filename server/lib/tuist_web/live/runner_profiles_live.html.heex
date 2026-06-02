@@ -90,10 +90,39 @@
               </.dropdown>
             </div>
 
+            <div :if={@form_platform == "macos"} data-part="field">
+              <span data-part="field-label">{dgettext("dashboard_runners", "Xcode version")}</span>
+              <.dropdown
+                :if={not Enum.empty?(@xcode_catalog)}
+                id="runner-profile-xcode-version-dropdown"
+                label={xcode_version_label_for_value(@form_xcode_version)}
+              >
+                <.dropdown_item
+                  :for={xcode <- @xcode_catalog}
+                  value={xcode.xcode_version}
+                  label={xcode_version_label_for_value(xcode.xcode_version)}
+                  on_click="select_xcode_version"
+                  phx-value-data={xcode.xcode_version}
+                >
+                  <:right_icon :if={xcode.xcode_version == @form_xcode_version}>
+                    <.check />
+                  </:right_icon>
+                </.dropdown_item>
+              </.dropdown>
+
+              <span :if={Enum.empty?(@xcode_catalog)} data-part="empty-catalog">
+                {dgettext(
+                  "dashboard_runners",
+                  "No Xcode versions are configured yet. Contact support."
+                )}
+              </span>
+            </div>
+
             <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Resources")}</span>
+              <% shape_catalog = shape_catalog_for(@catalog, @macos_catalog, @form_platform) %>
               <.dropdown
-                :if={not Enum.empty?(@catalog)}
+                :if={not Enum.empty?(shape_catalog)}
                 id="runner-profile-shape-dropdown"
                 label={
                   if is_integer(@form_vcpus) and is_integer(@form_memory_gb),
@@ -102,7 +131,7 @@
                 }
               >
                 <.dropdown_item
-                  :for={shape <- @catalog}
+                  :for={shape <- shape_catalog}
                   value={shape_key(shape.vcpus, shape.memory_gb)}
                   label={shape_label(shape.vcpus, shape.memory_gb)}
                   on_click="select_shape"
@@ -116,7 +145,7 @@
                 </.dropdown_item>
               </.dropdown>
 
-              <span :if={Enum.empty?(@catalog)} data-part="empty-catalog">
+              <span :if={Enum.empty?(shape_catalog)} data-part="empty-catalog">
                 {dgettext(
                   "dashboard_runners",
                   "No resource catalog is configured yet. Contact support."
