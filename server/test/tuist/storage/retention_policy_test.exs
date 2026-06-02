@@ -43,30 +43,64 @@ defmodule Tuist.Storage.RetentionPolicyTest do
   end
 
   describe "retention_days/2" do
+    test "returns plan-specific cache artifact retention" do
+      assert RetentionPolicy.retention_days(:cache_artifact, :air) == 14
+      assert RetentionPolicy.retention_days(:cache_artifact, :open_source) == 14
+      assert RetentionPolicy.retention_days(:cache_artifact, :pro) == 30
+      assert RetentionPolicy.retention_days(:cache_artifact, :enterprise) == 90
+
+      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :air) == 14
+      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :open_source) == 14
+      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :pro) == 30
+      assert RetentionPolicy.retention_days(:xcode_cache_artifact, :enterprise) == 90
+    end
+
     test "returns plan-specific app preview retention" do
       assert RetentionPolicy.retention_days(:preview_app_build, :air) == 60
       assert RetentionPolicy.retention_days(:preview_app_build, :open_source) == 60
       assert RetentionPolicy.retention_days(:preview_app_build, :pro) == 180
       assert RetentionPolicy.retention_days(:preview_app_build, :enterprise) == 365
+
+      assert RetentionPolicy.retention_days(:preview_icon, :air) == 60
+      assert RetentionPolicy.retention_days(:preview_icon, :open_source) == 60
+      assert RetentionPolicy.retention_days(:preview_icon, :pro) == 180
+      assert RetentionPolicy.retention_days(:preview_icon, :enterprise) == 365
     end
 
     test "returns plan-specific build and test artifact retention" do
       assert RetentionPolicy.retention_days(:build_archive, :air) == 30
-      assert RetentionPolicy.retention_days(:test_attachment, :air) == 30
+      assert RetentionPolicy.retention_days(:build_archive, :open_source) == 30
       assert RetentionPolicy.retention_days(:build_archive, :pro) == 90
-      assert RetentionPolicy.retention_days(:test_attachment, :pro) == 90
       assert RetentionPolicy.retention_days(:build_archive, :enterprise) == 365
+
+      assert RetentionPolicy.retention_days(:test_attachment, :air) == 30
+      assert RetentionPolicy.retention_days(:test_attachment, :open_source) == 30
+      assert RetentionPolicy.retention_days(:test_attachment, :pro) == 90
       assert RetentionPolicy.retention_days(:test_attachment, :enterprise) == 365
     end
 
     test "returns short shard bundle retention" do
       assert RetentionPolicy.retention_days(:shard_bundle, :air) == 7
+      assert RetentionPolicy.retention_days(:shard_bundle, :open_source) == 7
       assert RetentionPolicy.retention_days(:shard_bundle, :pro) == 14
       assert RetentionPolicy.retention_days(:shard_bundle, :enterprise) == 30
     end
 
     test "falls back to Air for unknown plan values" do
       assert RetentionPolicy.retention_days(:preview_app_build, :unknown) == 60
+    end
+  end
+
+  describe "cutoff/2" do
+    test "subtracts the selected retention window from now" do
+      before_cutoff = DateTime.add(DateTime.utc_now(), -90, :day)
+
+      cutoff = RetentionPolicy.cutoff(:cache_artifact, :enterprise)
+
+      after_cutoff = DateTime.add(DateTime.utc_now(), -90, :day)
+
+      assert DateTime.compare(cutoff, before_cutoff) in [:gt, :eq]
+      assert DateTime.compare(cutoff, after_cutoff) in [:lt, :eq]
     end
   end
 end
