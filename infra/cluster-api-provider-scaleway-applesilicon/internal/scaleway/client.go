@@ -40,6 +40,7 @@ type AppleSiliconAPI interface {
 	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	RebootServer(req *applesilicon.RebootServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 }
 
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
@@ -417,6 +418,33 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 	return scalewayServerToServer(srv), nil
 }
 
+// RebootServer asks Scaleway to reboot the host. Fire-and-forget on
+// the wire; the server transitions through `rebooting → ready` on its
+// own (~1-2 min). Used as a cheap volatile-state clear before
+// considering a host irrecoverable — clears in-memory PAM lockouts,
+// sshd connection throttling, and other state that survives across
+// failed SSH attempts but not across a clean boot.
+func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
+	_, err := c.API.RebootServer(&applesilicon.RebootServerRequest{
+		ServerID: id,
+		Zone:     scw.Zone(zone),
+	}, scw.WithContext(ctx))
+	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		// A reboot issued while the server is already mid-reboot/install
+		// is harmless from our perspective; treat the typed transient
+		// state error as success so callers aren't pushed into
+		// secondary recovery for a no-op.
+		if isTransientState(err) {
+			return nil
+		}
+		return fmt.Errorf("reboot server %s: %w", id, err)
+	}
+	return nil
+}
+
 // ReleaseToPool returns a Mac mini to the adopt pool. Operator-
 // driven physical destruction is intentionally separated from
 // cluster-driven Machine churn: the 24h Apple-licensing floor makes
@@ -519,6 +547,13 @@ func IsNotFound(err error) bool {
 	return false
 }
 
+// SealedSecretMarker is the literal placeholder macOS Tahoe writes when
+// the OS-managed auto-login credential is sealed (e.g., immediately
+// after a fresh adopt or while the server is rebooting). Scaleway
+// surfaces it verbatim through both `sudo_password` and `vnc_url` while
+// the seal is in effect — the string is not a usable password.
+const SealedSecretMarker = "<sealed>"
+
 func scalewayServerToServer(s *applesilicon.Server) *Server {
 	out := &Server{
 		ID:           s.ID,
@@ -529,21 +564,23 @@ func scalewayServerToServer(s *applesilicon.Server) *Server {
 	if s.IP != nil {
 		out.IP = s.IP.String()
 	}
-	// Scaleway never surfaces `sudo_password` on GET/list responses
-	// for pool-adopted hosts (the field is only populated on the
-	// one-time CreateServer response, and the pool workflow never
-	// hits that path). Without a fallback the controller stages an
-	// empty password into the bootstrap Secret and `enableAutoLogin`
-	// either silently skips (writing nothing) or writes a kcpassword
-	// whose plaintext is just the cipher key padding — either way
-	// Aqua never comes up and `tart run` fails forever.
-	//
-	// The `vnc_url` field embeds the same OS-default credentials as
-	// `vnc://<ssh_username>:<password>@<ip>:<port>`. It's surfaced on
-	// every GET and verified out-of-band to authenticate the m1
-	// macOS user; pull the password from there.
-	if out.SudoPassword == "" {
+	// Scaleway either populates `sudo_password` directly (one-time
+	// CreateServer response, or transient post-adopt windows) or
+	// returns the literal `<sealed>` marker while the OS-level seal is
+	// in effect. The `vnc_url` field carries the same OS-default
+	// credentials as `vnc://<ssh_username>:<password>@<ip>:<port>` and
+	// is surfaced on every GET — pull the password from there when the
+	// top-level field isn't directly usable.
+	if out.SudoPassword == "" || out.SudoPassword == SealedSecretMarker {
 		out.SudoPassword = passwordFromVncURL(s.VncURL)
+	}
+	// `vnc_url` itself can carry the sealed marker either as the whole
+	// string (URL parsing returns no userinfo → empty above) or as the
+	// embedded password component (URL parsing succeeds → marker comes
+	// through verbatim). Reject the marker so downstream code never
+	// hands `<sealed>` to sudo.
+	if out.SudoPassword == SealedSecretMarker {
+		out.SudoPassword = ""
 	}
 	return out
 }
