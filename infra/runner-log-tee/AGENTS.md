@@ -13,7 +13,7 @@ is dispatched:
 
 ```bash
 ./run.sh --jitconfig "$jit" --disableupdate 2>&1 \
-  | tuist-log-shipper --url "$logs_url" --token "$log_token"
+  | tuist-log-tee --url "$logs_url" --token "$log_token"
 ```
 
 - `--token` is the per-job `log_token` from the dispatch response
@@ -45,17 +45,17 @@ Degrades to a plain stdin→stdout copy when `--url`/`--token` are empty
 
 The module is built per-image, standalone (no `go.work`):
 
-- **Linux**: a `shipper-builder` stage in
+- **Linux**: a `tee-builder` stage in
   `infra/linux-runner-image/Dockerfile` (`GOOS=linux`). The image's
   Docker build context is `infra/` so the stage can reach this dir.
 - **macOS**: a `shell-local` provisioner in
   `infra/runner-image/runner.pkr.hcl` cross-compiles `GOOS=darwin
   GOARCH=arm64` on the build host (needs Go on PATH) and installs it to
-  `/opt/tuist/tuist-log-shipper`.
+  `/opt/tuist/tuist-log-tee`.
 
 Local check:
 
 ```bash
-cd infra/runner-log-shipper
+cd infra/runner-log-tee
 GOWORK=off go vet ./... && GOWORK=off go build ./...
 ```

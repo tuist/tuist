@@ -23,7 +23,7 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
-      - infra/runner-log-shipper/**
+      - infra/runner-log-tee/**
       - .github/workflows/linux-runner-image.yml
   workflow_dispatch:
     inputs:
@@ -91,7 +91,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           # Context is `infra/` (not the image dir) so the Dockerfile's
-          # shipper-builder stage can reach `infra/runner-log-shipper/`.
+          # tee-builder stage can reach `infra/runner-log-tee/`.
           context: infra
           file: infra/linux-runner-image/Dockerfile
           # Linux runners run on Hetzner Robot bare-metal x86 boxes

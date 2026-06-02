@@ -18,7 +18,7 @@ use (
 	./infra/hetzner-robot-controller
 	./infra/kura-controller
 	./infra/macos-host-bootstrap
-	./infra/runner-log-shipper
+	./infra/runner-log-tee
 	./infra/runners-controller
 	./infra/tart-kubelet
 )

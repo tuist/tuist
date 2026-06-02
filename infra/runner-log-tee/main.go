@@ -1,10 +1,10 @@
-// Command tuist-log-shipper streams a runner job's stdout to the
+// Command tuist-log-tee streams a runner job's stdout to the
 // Tuist server's log ingest endpoint while the GitHub Actions runner
 // is executing the job.
 //
 // It's wired into both runner images' dispatch-poll scripts as a pipe:
 //
-//	./run.sh --jitconfig <jit> ... 2>&1 | tuist-log-shipper --url <logs_url> --token <log_token>
+//	./run.sh --jitconfig <jit> ... 2>&1 | tuist-log-tee --url <logs_url> --token <log_token>
 //
 // Every line read from stdin is echoed straight back to stdout (so the
 // VM/Pod's own log — poll.log on macOS, the container stream on Linux —
@@ -26,7 +26,7 @@
 //     dropped batches just leave gaps, which is acceptable for logs.
 //
 // Auth is the per-job `log_token` from dispatch, sent as a Bearer
-// header. If either flag is empty the shipper degrades to a plain
+// header. If either flag is empty the tee degrades to a plain
 // stdin→stdout copy so a runner image paired with an older server (one
 // that doesn't issue tokens) still works.
 package main
@@ -93,7 +93,7 @@ func main() {
 }
 
 func run(cfg config, in io.Reader, out io.Writer) {
-	s := newShipper(cfg)
+	s := newTee(cfg)
 	go s.loop()
 
 	// SIGTERM/SIGINT (VM/Pod teardown) means the run was cut short —
@@ -148,15 +148,15 @@ func truncate(s string, max int) string {
 	return s
 }
 
-type shipper struct {
+type tee struct {
 	cfg    config
 	client *http.Client
 	in     chan logLine
 	closed chan struct{}
 }
 
-func newShipper(cfg config) *shipper {
-	return &shipper{
+func newTee(cfg config) *tee {
+	return &tee{
 		cfg:    cfg,
 		client: &http.Client{Timeout: cfg.httpTimeout},
 		in:     make(chan logLine, cfg.bufferLines),
@@ -167,14 +167,14 @@ func newShipper(cfg config) *shipper {
 // enqueue hands a line to the shipping loop without ever blocking the
 // reader: if the buffer is full the line is dropped from shipping (it
 // was already echoed to stdout).
-func (s *shipper) enqueue(l logLine) {
+func (s *tee) enqueue(l logLine) {
 	select {
 	case s.in <- l:
 	default:
 	}
 }
 
-func (s *shipper) loop() {
+func (s *tee) loop() {
 	defer close(s.closed)
 
 	buf := make([]logLine, 0, s.cfg.batchLines)
@@ -210,13 +210,13 @@ func (s *shipper) loop() {
 // enqueue — so closing the channel can't race a send. It drains the
 // shipping loop, then sends the closing marker the server uses to set
 // the job's final log_state + line count.
-func (s *shipper) finalize(partial bool) {
+func (s *tee) finalize(partial bool) {
 	close(s.in)
 	<-s.closed
 	s.post(batch{Done: true, Partial: partial})
 }
 
-func (s *shipper) post(b batch) {
+func (s *tee) post(b batch) {
 	body, err := json.Marshal(b)
 	if err != nil {
 		return
@@ -232,7 +232,7 @@ func (s *shipper) post(b batch) {
 	}
 }
 
-func (s *shipper) postOnce(body []byte) bool {
+func (s *tee) postOnce(body []byte) bool {
 	req, err := http.NewRequest(http.MethodPost, s.cfg.url, bytes.NewReader(body))
 	if err != nil {
 		return false

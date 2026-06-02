@@ -237,21 +237,21 @@ build {
   # bare-metal image-builder Mac has it via Homebrew.
   provisioner "shell-local" {
     inline = [
-      "cd ${path.root}/../runner-log-shipper && GOWORK=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o ${path.root}/tuist-log-shipper ."
+      "cd ${path.root}/../runner-log-tee && GOWORK=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o ${path.root}/tuist-log-tee ."
     ]
   }
 
   provisioner "file" {
-    source      = "${path.root}/tuist-log-shipper"
-    destination = "/tmp/tuist-log-shipper"
+    source      = "${path.root}/tuist-log-tee"
+    destination = "/tmp/tuist-log-tee"
   }
 
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
-      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-log-shipper /opt/tuist/tuist-log-shipper",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/tuist-log-shipper"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-log-tee /opt/tuist/tuist-log-tee",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/tuist-log-tee"
     ]
   }
 

@@ -28,7 +28,7 @@ substrate's terminal signal.
 
 ```bash
 # Context is `infra/` (not the image dir) so the Dockerfile's
-# shipper-builder stage can reach `infra/runner-log-shipper/`.
+# tee-builder stage can reach `infra/runner-log-tee/`.
 cd infra
 docker build --pull -f linux-runner-image/Dockerfile -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```

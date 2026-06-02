@@ -18,13 +18,13 @@
 
 # Build the log shipper (streams the runner's stdout to the server's
 # log ingest endpoint) from the shared Go module. This stage reaches
-# `runner-log-shipper/` a level up, so the Docker build context must be
+# `runner-log-tee/` a level up, so the Docker build context must be
 # `infra/` with `-f linux-runner-image/Dockerfile` — see AGENTS.md and
 # .github/workflows/linux-runner-image.yml.
-FROM golang:1.25 AS shipper-builder
+FROM golang:1.25 AS tee-builder
 WORKDIR /src
-COPY runner-log-shipper/ ./
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/tuist-log-shipper .
+COPY runner-log-tee/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/tuist-log-tee .
 
 FROM ubuntu:22.04
 
@@ -184,8 +184,8 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
 
 USER root
 COPY linux-runner-image/dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-COPY --from=shipper-builder /out/tuist-log-shipper /usr/local/bin/tuist-log-shipper
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/tuist-log-shipper
+COPY --from=tee-builder /out/tuist-log-tee /usr/local/bin/tuist-log-tee
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/tuist-log-tee
 
 USER runner
 
