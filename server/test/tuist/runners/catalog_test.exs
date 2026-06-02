@@ -3,6 +3,24 @@ defmodule Tuist.Runners.CatalogTest do
 
   alias Tuist.Runners.Catalog
 
+  describe "linux_fleet_name_prefixes/0" do
+    test "covers both the legacy and the shape-catalog pool naming" do
+      # Both prefixes are what `runner_jobs.fleet_name` can carry on a
+      # Linux row — the platform filter and the analytics grouping
+      # rely on this list to recognise profile-dispatched jobs (their
+      # fleet name comes from `Catalog.pool_name/2`).
+      prefixes = Catalog.linux_fleet_name_prefixes()
+
+      assert "linux-" in prefixes
+      assert "#{Tuist.Environment.runners_linux_pool_name_prefix()}-" in prefixes
+      # `String.starts_with?/2` accepts a list of prefixes — the
+      # filter/grouping callers depend on that calling convention.
+      assert String.starts_with?(Catalog.pool_name(4, 16), prefixes)
+      assert String.starts_with?("linux-amd64", prefixes)
+      refute String.starts_with?("macos-arm64", prefixes)
+    end
+  end
+
   describe "parse_shapes_json/1" do
     test "parses the Helm-injected JSON into the config shape" do
       # The exact value the chart renders into TUIST_RUNNER_LINUX_SHAPES.

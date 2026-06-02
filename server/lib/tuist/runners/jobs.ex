@@ -55,6 +55,7 @@ defmodule Tuist.Runners.Jobs do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
   alias Tuist.Runners.Telemetry
 
@@ -487,19 +488,36 @@ defmodule Tuist.Runners.Jobs do
     where(query, [j], ilike(j.job_name, ^pattern))
   end
 
-  # Platform filter narrows on the `fleet_name` prefix — every
-  # fleet is named after its OS (macos-xcode-26.4, linux-amd64), so
-  # we don't need a dedicated column to support the dropdown.
+  # Platform filter narrows on the `fleet_name` prefix. Linux jobs
+  # write fleet names from either the legacy `linux-…` per-env pool
+  # or the shape catalog (`<runners_linux_pool_name_prefix>-…`, e.g.
+  # `tuist-runner-pool-linux-4vcpu-16gb`), so the dropdown matches
+  # against the union returned by `Catalog.linux_fleet_name_prefixes/0`.
+  # macOS still uses the legacy `macos-…` prefix today (no shape
+  # catalog yet).
   defp maybe_filter_platform(query, nil), do: query
   defp maybe_filter_platform(query, ""), do: query
   defp maybe_filter_platform(query, "any"), do: query
 
-  defp maybe_filter_platform(query, platform) when platform in ["macos", "linux"] do
-    prefix = platform <> "-"
-    where(query, [j], fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
-  end
+  defp maybe_filter_platform(query, "linux"),
+    do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+
+  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
 
   defp maybe_filter_platform(query, _), do: query
+
+  # OR `startsWith(fleet_name, prefix)` across every prefix as a
+  # single `where` clause. `or_where` would OR against the *whole*
+  # prior chain (account scope and other filters), wiping them out;
+  # the dynamic stays nested inside the surrounding ANDs.
+  defp filter_by_prefixes(query, [first | rest]) do
+    predicate =
+      Enum.reduce(rest, dynamic([j], fragment("startsWith(?, ?)", j.fleet_name, ^first)), fn prefix, acc ->
+        dynamic([j], ^acc or fragment("startsWith(?, ?)", j.fleet_name, ^prefix))
+      end)
+
+    where(query, ^predicate)
+  end
 
   defp maybe_filter_status(query, nil), do: query
 

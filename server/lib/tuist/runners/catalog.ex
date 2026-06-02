@@ -69,6 +69,23 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  `fleet_name` prefixes that identify Linux jobs in
+  `runner_jobs.fleet_name`. The dispatch path can write either:
+
+    * `"linux-…"` — legacy pre-catalog single per-env Linux pool.
+    * `"<runners_linux_pool_name_prefix>-…"` — shape-catalog pool
+      names that profile / legacy-alias dispatch produces (e.g.
+      `tuist-runner-pool-linux-4vcpu-16gb`).
+
+  Used by the platform filter + the per-platform analytics
+  grouping so profile-dispatched Linux jobs surface alongside the
+  legacy ones, not under the catch-all "Other" bucket.
+  """
+  def linux_fleet_name_prefixes do
+    ["linux-", Tuist.Environment.runners_linux_pool_name_prefix() <> "-"]
+  end
+
+  @doc """
   Decode the JSON wire form of the catalog into the
   `:runner_linux_shapes` config shape (atom keys, `memoryGb` →
   `:memory_gb`). The inverse of how Helm serialises
