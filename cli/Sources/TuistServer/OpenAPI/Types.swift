@@ -560,6 +560,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/{run_id}/module-cache-targets/get(listModuleCacheTargets)`.
     func listModuleCacheTargets(_ input: Operations.listModuleCacheTargets.Input) async throws -> Operations.listModuleCacheTargets.Output
+    /// Render the Tuist Run Report for a git ref as a CI job summary.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/job-summary`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)`.
+    func getRunJobSummary(_ input: Operations.getRunJobSummary.Input) async throws -> Operations.getRunJobSummary.Output
     /// List cache runs associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs`.
@@ -2034,6 +2039,21 @@ extension APIProtocol {
         headers: Operations.listModuleCacheTargets.Input.Headers = .init()
     ) async throws -> Operations.listModuleCacheTargets.Output {
         try await listModuleCacheTargets(Operations.listModuleCacheTargets.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Render the Tuist Run Report for a git ref as a CI job summary.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/job-summary`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)`.
+    public func getRunJobSummary(
+        path: Operations.getRunJobSummary.Input.Path,
+        query: Operations.getRunJobSummary.Input.Query,
+        headers: Operations.getRunJobSummary.Input.Headers = .init()
+    ) async throws -> Operations.getRunJobSummary.Output {
+        try await getRunJobSummary(Operations.getRunJobSummary.Input(
             path: path,
             query: query,
             headers: headers
@@ -10619,6 +10639,25 @@ public enum Components {
             case miss = "miss"
             case local = "local"
             case remote = "remote"
+        }
+        /// The Tuist Run Report rendered as Markdown for a CI job summary.
+        ///
+        /// - Remark: Generated from `#/components/schemas/RunJobSummary`.
+        public struct RunJobSummary: Codable, Hashable, Sendable {
+            /// The Markdown report, or null when there is nothing to report for the git ref.
+            ///
+            /// - Remark: Generated from `#/components/schemas/RunJobSummary/markdown`.
+            public var markdown: Swift.String?
+            /// Creates a new `RunJobSummary`.
+            ///
+            /// - Parameters:
+            ///   - markdown: The Markdown report, or null when there is nothing to report for the git ref.
+            public init(markdown: Swift.String? = nil) {
+                self.markdown = markdown
+            }
+            public enum CodingKeys: String, CodingKey {
+                case markdown
+            }
         }
         /// Pagination metadata.
         ///
@@ -44854,6 +44893,265 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Render the Tuist Run Report for a git ref as a CI job summary.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/runs/job-summary`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)`.
+    public enum getRunJobSummary {
+        public static let id: Swift.String = "getRunJobSummary"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.getRunJobSummary.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The git ref the report should be rendered for (e.g. a merge queue or branch ref).
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/query/git_ref`.
+                public var git_ref: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - git_ref: The git ref the report should be rendered for (e.g. a merge queue or branch ref).
+                public init(git_ref: Swift.String) {
+                    self.git_ref = git_ref
+                }
+            }
+            public var query: Operations.getRunJobSummary.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunJobSummary.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getRunJobSummary.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getRunJobSummary.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.getRunJobSummary.Input.Path,
+                query: Operations.getRunJobSummary.Input.Query,
+                headers: Operations.getRunJobSummary.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/200/content/application\/json`.
+                    case json(Components.Schemas.RunJobSummary)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas.RunJobSummary {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunJobSummary.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunJobSummary.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// The rendered job summary
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getRunJobSummary.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getRunJobSummary.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunJobSummary.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunJobSummary.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// You need to be authenticated to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.getRunJobSummary.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.getRunJobSummary.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/job-summary/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getRunJobSummary.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getRunJobSummary.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access runs for the project.
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/runs/job-summary/get(getRunJobSummary)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getRunJobSummary.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getRunJobSummary.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

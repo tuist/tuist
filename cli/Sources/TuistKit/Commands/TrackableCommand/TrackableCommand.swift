@@ -44,6 +44,7 @@ public class TrackableCommand {
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
+    private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
     private let sessionDirectory: AbsolutePath
 
     public init(
@@ -55,6 +56,7 @@ public class TrackableCommand {
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
+        gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
         sessionDirectory: AbsolutePath
     ) {
         self.command = command
@@ -65,6 +67,7 @@ public class TrackableCommand {
         self.uploadAnalyticsService = uploadAnalyticsService
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
+        self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
         self.sessionDirectory = sessionDirectory
     }
 
@@ -197,6 +200,13 @@ public class TrackableCommand {
                             "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                         )
                 }
+
+                await gitHubActionsJobSummaryService.writeJobSummary(
+                    gitRef: commandEvent.gitRef,
+                    hasReport: info.testRunId != nil || info.buildRunId != nil || info.previewId != nil,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
                 let commandEventPath = tempDirectory.appending(component: "command-event.json")
