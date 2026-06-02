@@ -26,6 +26,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
+- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for DB-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
@@ -126,11 +127,13 @@ attachments, and shard bundles use their database `inserted_at` timestamp. The
 active account plan determines the applicable window, with Air used when an
 account has no active subscription.
 
-Tuist does not store a per-artifact purge ledger or separate retention-status
-metadata. Retention is derived from the timestamps and account plan above.
+Tuist stores per-account cleanup progress for DB-backed artifact families so
+daily retention jobs can resume after previously-purged metadata rows without
+issuing repeated object-storage deletes. This is not a per-artifact purge
+ledger; retention is still derived from the timestamps and account plan above.
 An export reflects the artifacts present at export time; binaries already
-purged under these windows are no longer available, though their metadata is
-still exported.
+purged under these windows are no longer available, though their metadata and
+the account-level cleanup cursor are still exported.
 
 ## Export Process
 

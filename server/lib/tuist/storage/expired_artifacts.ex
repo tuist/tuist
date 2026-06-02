@@ -9,8 +9,8 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   worker feeds back into the next job to resume after the last processed row.
 
   The metadata rows themselves are intentionally left in place (they back
-  dashboards and analytics); the cursor is what lets a run walk past the oldest
-  batch instead of re-selecting it forever.
+  dashboards and analytics); persisted per-account cursors are what let
+  scheduled runs walk past blobs that were already deleted.
   """
 
   import Ecto.Query
@@ -27,6 +27,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   alias Tuist.Shards
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
+  alias Tuist.Storage.ArtifactRetentionCursor
   alias Tuist.Storage.RetentionPolicy
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
@@ -35,7 +36,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   def delete_previews(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
     cutoff = RetentionPolicy.cutoff(:preview_app_build, plan)
-    cursor = parse_cursor(opts, :utc)
+    cursor = initial_cursor(account, :preview_app_build, opts, :utc)
 
     rows =
       AppBuild
@@ -73,7 +74,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
         [app_build_key, icon_key]
       end)
 
-    delete_and_continue(account, object_keys, next_cursor(rows, batch_size))
+    delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:preview_app_build, rows))
   end
 
   def delete_build_archives(%Account{} = account, batch_size, opts \\ []) do
@@ -81,7 +82,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     cutoff = :build_archive |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
-    cursor = parse_cursor(opts, :naive)
+    cursor = initial_cursor(account, :build_archive, opts, :naive)
 
     if project_ids == [] do
       {:ok, nil}
@@ -103,7 +104,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
           end
         end)
 
-      delete_and_continue(account, object_keys, next_cursor(rows, batch_size))
+      delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:build_archive, rows))
     end
   end
 
@@ -112,7 +113,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     cutoff = :test_attachment |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
-    cursor = parse_cursor(opts, :naive)
+    cursor = initial_cursor(account, :test_attachment, opts, :naive)
 
     if project_ids == [] do
       {:ok, nil}
@@ -157,7 +158,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
           end
         end)
 
-      delete_and_continue(account, object_keys, next_cursor(rows, batch_size))
+      delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:test_attachment, rows))
     end
   end
 
@@ -166,7 +167,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     cutoff = :shard_bundle |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
-    cursor = parse_cursor(opts, :naive)
+    cursor = initial_cursor(account, :shard_bundle, opts, :naive)
 
     if project_ids == [] do
       {:ok, nil}
@@ -192,14 +193,19 @@ defmodule Tuist.Storage.ExpiredArtifacts do
           end
         end)
 
-      delete_and_continue(account, object_keys, next_cursor(rows, batch_size))
+      delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:shard_bundle, rows))
     end
   end
 
-  defp delete_and_continue(%Account{} = account, object_keys, next_cursor) do
+  defp delete_and_continue(%Account{} = account, object_keys, next_cursor, progress_cursor) do
     case object_keys |> Enum.uniq() |> Storage.delete_objects(account) do
-      :ok -> {:ok, next_cursor}
-      {:error, reason} -> {:error, reason}
+      :ok ->
+        with :ok <- persist_progress_cursor(account, progress_cursor) do
+          {:ok, next_cursor}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -220,6 +226,13 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     )
   end
 
+  defp initial_cursor(%Account{} = account, artifact_type, opts, kind) do
+    case parse_cursor(opts, kind) do
+      nil -> persisted_cursor(account, artifact_type, kind)
+      cursor -> cursor
+    end
+  end
+
   defp parse_cursor(opts, kind) do
     with after_inserted_at when is_binary(after_inserted_at) <- Keyword.get(opts, :after_inserted_at),
          after_id when not is_nil(after_id) <- Keyword.get(opts, :after_id),
@@ -227,6 +240,16 @@ defmodule Tuist.Storage.ExpiredArtifacts do
       {inserted_at, after_id}
     else
       _ -> nil
+    end
+  end
+
+  defp persisted_cursor(%Account{id: account_id}, artifact_type, kind) do
+    case Repo.get_by(ArtifactRetentionCursor, account_id: account_id, artifact_type: artifact_type) do
+      nil ->
+        nil
+
+      %ArtifactRetentionCursor{} = cursor ->
+        {stored_inserted_at(cursor.after_inserted_at, kind), cursor.after_id}
     end
   end
 
@@ -245,6 +268,41 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     last = List.last(rows)
     %{"after_inserted_at" => inserted_at_to_iso(last.inserted_at), "after_id" => last.id}
   end
+
+  defp progress_cursor(_artifact_type, []), do: nil
+
+  defp progress_cursor(artifact_type, rows) do
+    last = List.last(rows)
+
+    %{
+      artifact_type: artifact_type,
+      after_inserted_at: progress_inserted_at(last.inserted_at),
+      after_id: last.id
+    }
+  end
+
+  defp persist_progress_cursor(_account, nil), do: :ok
+
+  defp persist_progress_cursor(%Account{id: account_id}, progress_cursor) do
+    attrs = Map.put(progress_cursor, :account_id, account_id)
+
+    %ArtifactRetentionCursor{}
+    |> ArtifactRetentionCursor.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace, [:after_inserted_at, :after_id, :updated_at]},
+      conflict_target: [:account_id, :artifact_type]
+    )
+    |> case do
+      {:ok, _cursor} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp stored_inserted_at(%DateTime{} = inserted_at, :utc), do: inserted_at
+  defp stored_inserted_at(%DateTime{} = inserted_at, :naive), do: DateTime.to_naive(inserted_at)
+
+  defp progress_inserted_at(%DateTime{} = inserted_at), do: inserted_at
+  defp progress_inserted_at(%NaiveDateTime{} = inserted_at), do: DateTime.from_naive!(inserted_at, "Etc/UTC")
 
   defp inserted_at_to_iso(%DateTime{} = inserted_at), do: DateTime.to_iso8601(inserted_at)
   defp inserted_at_to_iso(%NaiveDateTime{} = inserted_at), do: NaiveDateTime.to_iso8601(inserted_at)

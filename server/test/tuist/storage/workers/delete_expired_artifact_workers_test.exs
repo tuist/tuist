@@ -14,6 +14,7 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
   alias Tuist.Repo
   alias Tuist.Shards
   alias Tuist.Storage
+  alias Tuist.Storage.ArtifactRetentionCursor
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
   alias Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredShardBundlesWorker
@@ -62,6 +63,52 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert_received {:deleted, object_keys}
       assert expired_app_build_key in object_keys
       assert expired_icon_key in object_keys
+    end
+
+    test "the preview worker persists progress across scheduled runs" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      expired_app_build =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -61, :day)
+        )
+
+      expired_app_build_key =
+        AppBuilds.storage_key(%{account_handle: account.name, project_handle: project.name, app_build: expired_app_build})
+
+      expired_app_build_id = expired_app_build.id
+
+      stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
+        assert account_id == account.id
+        send(self(), {:deleted, object_keys})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, first_keys}
+      assert expired_app_build_key in first_keys
+
+      assert %ArtifactRetentionCursor{
+               artifact_type: :preview_app_build,
+               after_id: ^expired_app_build_id
+             } = Repo.get_by(ArtifactRetentionCursor, account_id: account.id, artifact_type: :preview_app_build)
+
+      assert :ok =
+               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, second_keys}
+      assert second_keys == []
     end
 
     test "a full batch self-enqueues the next page and the cursor advances past the oldest rows" do
@@ -154,6 +201,50 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
 
       assert_received {:deleted, object_keys}
       assert expired_build_key in object_keys
+    end
+
+    test "the build archive worker uses persisted progress for ClickHouse rows" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      {:ok, expired_build} =
+        build_fixture(
+          project_id: project.id,
+          inserted_at: DateTime.add(DateTime.utc_now(), -31, :day)
+        )
+
+      expired_build_key = Builds.build_storage_key(account.name, project.name, expired_build.id)
+      expired_build_id = expired_build.id
+
+      stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
+        assert account_id == account.id
+        send(self(), {:deleted, object_keys})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredBuildArchivesWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, first_keys}
+      assert expired_build_key in first_keys
+
+      assert %ArtifactRetentionCursor{
+               artifact_type: :build_archive,
+               after_id: ^expired_build_id
+             } = Repo.get_by(ArtifactRetentionCursor, account_id: account.id, artifact_type: :build_archive)
+
+      assert :ok =
+               perform_job(DeleteExpiredBuildArchivesWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, second_keys}
+      assert second_keys == []
     end
 
     test "the test attachment worker deletes expired test attachments according to the account plan" do
