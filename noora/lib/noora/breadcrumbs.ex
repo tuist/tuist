@@ -34,6 +34,7 @@ defmodule Noora.Breadcrumbs do
 
   attr(:id, :string, required: true, doc: "Unique identifier for the breadcrumb component")
   attr(:label, :string, required: true, doc: "Main text displayed in the breadcrumb trigger")
+  attr(:href, :string, default: nil, doc: "Navigation URL for the breadcrumb label")
 
   attr(:on_open_change, :string, default: nil, doc: "Event handler for when the breadcrumb opens")
 
@@ -101,10 +102,11 @@ defmodule Noora.Breadcrumbs do
       data-on-pointer-down-outside={@on_pointer_down_outside}
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
-      data-positioning-offset-main-axis={6}
+      data-positioning-offset-main-axis={8}
+      data-positioning-anchor="selector"
       {@rest}
     >
-      <button data-part="trigger">
+      <a href={@href} data-part="link">
         <.avatar
           :if={@show_avatar}
           id={@id <> "-avatar"}
@@ -118,9 +120,9 @@ defmodule Noora.Breadcrumbs do
         </div>
         <span data-part="label">{@label}</span>
         <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
-        <div :if={has_slot_content?(@inner_block, assigns)} data-part="selector">
-          <.selector />
-        </div>
+      </a>
+      <button :if={has_slot_content?(@inner_block, assigns)} data-part="trigger">
+        <.morphing_icon id={@id <> "-selector-morph"} from="selector" to="selector_2" />
       </button>
       <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
@@ -175,8 +177,9 @@ defmodule Noora.Breadcrumbs do
         />
         <.icon :if={not is_nil(@icon)} name={@icon} />
       </:left_icon>
-      <:right_icon :if={@badge_label}>
-        <.badge label={@badge_label} color={@badge_color} size="small" />
+      <:right_icon :if={@badge_label || @selected}>
+        <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
+        <div data-part="check"><.icon name="check" /></div>
       </:right_icon>
     </.dropdown_item>
     """

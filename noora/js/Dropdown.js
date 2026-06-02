@@ -110,6 +110,17 @@ export default {
       positioning: {
         placement: getOption(this.el, "positioningPlacement") || "bottom-start",
         offset: { mainAxis: getOption(this.el, "positioningOffsetMainAxis") },
+        ...(() => {
+          const anchorPart = getOption(this.el, "positioningAnchor");
+          if (!anchorPart) return {};
+          const el = this.el;
+          return {
+            getAnchorRect: () => {
+              const anchorEl = el.querySelector(`[data-part="${anchorPart}"]`);
+              return anchorEl ? anchorEl.getBoundingClientRect() : null;
+            },
+          };
+        })(),
       },
       onOpenChange: (details) => {
         if (this.el.dataset.onOpenChange) {
