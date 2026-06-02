@@ -8,8 +8,8 @@ defmodule Tuist.Repo.Migrations.AddProtectedToRunnerProfiles do
   # one Linux profile and the default `tuist-<env>-linux` /
   # `tuist-linux` label keeps resolving.
   def change do
-    # excellent_migrations:safety-assured-for-next-line column_added_with_default
     alter table(:runner_profiles) do
+      # excellent_migrations:safety-assured-for-next-line column_added_with_default
       add :protected, :boolean, null: false, default: false
     end
   end
