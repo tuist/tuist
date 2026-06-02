@@ -2,8 +2,13 @@
 
 PROJECT_ROOT="${KURA_PROJECT_ROOT:?missing KURA_PROJECT_ROOT}"
 
+# Detach stdin (`docker compose exec` attaches the caller's stdin by default, unlike
+# raw `docker exec`). Under shellspec the inherited stdin is wired into the
+# executor->reporter pipeline, so an attached `compose exec` corrupts the descriptor
+# the reporter reads from and crashes it ([reporter: 1]) even when examples pass.
+# No `dc` subcommand we use reads stdin, so redirecting from /dev/null is safe.
 dc() {
-  docker compose "${COMPOSE_FILES[@]}" "$@"
+  docker compose "${COMPOSE_FILES[@]}" "$@" </dev/null
 }
 
 dc_container_id() {

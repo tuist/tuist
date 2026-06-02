@@ -41,6 +41,7 @@ Describe 'memory pressure resilience'
   }
 
   teardown_suite() {
+    compose_teardown
     unset COMPOSE_PROJECT_NAME
     unset KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
     unset KURA_US_URL KURA_EU_URL KURA_AP_URL
@@ -50,7 +51,6 @@ Describe 'memory pressure resilience'
     unset KURA_E2E_METADATA_STORE_READ_CACHE_BYTES
     unset KURA_E2E_METADATA_STORE_WRITE_BUFFER_POOL_BYTES
     unset KURA_E2E_METADATA_STORE_WRITE_BUFFER_BYTES
-    compose_teardown
   }
 
   BeforeAll 'setup_suite'

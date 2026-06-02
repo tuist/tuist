@@ -4,3 +4,11 @@ shellspec = "0.28.1"
 bazel = "9.1.0"
 "aqua:facebook/buck2" = "2026-04-15"
 node = "25.9.0"
+
+[tasks.test-unit]
+description = "Run the Rust unit tests with a raised file-descriptor limit (RocksDB-backed tests open many fds in parallel)"
+run = "ulimit -n 65536 && cargo test"
+
+[tasks.test-e2e]
+description = "Run the end-to-end shellspec suite against the Dockerized service"
+run = ["docker compose up --build -d", "shellspec"]
