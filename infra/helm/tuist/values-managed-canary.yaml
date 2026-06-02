@@ -72,13 +72,16 @@ objectStorage:
       default: tuist-can-storage
 
 # CloudNativePG cluster — canary shape. 3 instances (primary + 2 sync
-# replicas), 250Gi storage. Backups land in the `tuist-can-pg-backups`
+# replicas), 30Gi per instance. The live Supabase canary DB sits at
+# ~2 GiB, so 30Gi is ~15× of actual; the Hetzner CSI storage class has
+# `allowVolumeExpansion: true`, so we grow these in place if the
+# footprint ever climbs. Backups land in the `tuist-can-pg-backups`
 # Tigris bucket.
 postgresql:
   cnpg:
     instances: 3
     storage:
-      size: "250Gi"
+      size: "30Gi"
     resources:
       requests:
         cpu: "1000m"
