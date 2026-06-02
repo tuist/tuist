@@ -24,6 +24,13 @@ import (
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
 
+// runnerPoolFinalizer gates RunnerPool deletion on a graceful drain
+// of in-flight runners. Without it, deleting (or renaming, via a
+// helm pool-topology change) a RunnerPool would let Kubernetes GC
+// cascade-delete the owned Pods, killing runners mid-job. See
+// reconcileDelete.
+const runnerPoolFinalizer = "tuist.dev/runner-pool-drain"
+
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
 // RunnerAssignment intermediate). When a Pod hits a terminal
@@ -68,6 +75,23 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	// Graceful drain on delete/rename. A helm upgrade that drops or
+	// renames a RunnerPool deletes the CR; because Pods carry an owner
+	// reference to it, Kubernetes GC would cascade-delete them, busy
+	// or not. The finalizer holds the CR in etcd (GC leaves owned Pods
+	// alone while the owner still exists) until reconcileDelete has
+	// drained the pool: idle Pods deleted now, mid-job Pods left to
+	// finish their single-shot job. Only then is the finalizer
+	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
+	if !pool.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, pool)
+	}
+	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
+		if err := r.Update(ctx, pool); err != nil {
+			return ctrl.Result{}, fmt.Errorf("add drain finalizer: %w", err)
+		}
 	}
 
 	// Track image rolls. The server-side drain endpoint reads
@@ -209,6 +233,64 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// missed events. Pod-event-driven reconcile via Owns() is the
 	// primary trigger; this is the catch-all.
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+}
+
+// reconcileDelete drains a RunnerPool that's being deleted before
+// releasing the finalizer. Idle Pods are reaped immediately; Pods
+// running a job (carrying the `tuist.dev/runner-pool-owner` label)
+// are left to finish their single-shot lifecycle. The CR stays
+// Terminating until no live Pod remains, so GC never cascade-deletes
+// a mid-job runner. Terminal Pods and the per-Pod SAs are collected
+// by GC alongside the CR once the finalizer clears.
+func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv1.RunnerPool) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithValues("pool", client.ObjectKeyFromObject(pool))
+
+	if !controllerutil.ContainsFinalizer(pool, runnerPoolFinalizer) {
+		// Already drained, or never managed by us — let GC proceed.
+		return ctrl.Result{}, nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(pool.Namespace),
+		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
+	}
+
+	running := 0
+	drainedIdle := 0
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		switch {
+		case !isAlive(p):
+			// Terminal or already deleting — GC takes it with the CR.
+		case isIdle(p):
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "drain idle pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			drainedIdle++
+		default:
+			running++
+		}
+	}
+
+	if running > 0 {
+		// Mid-job runners still finishing. Hold the finalizer and
+		// re-check; single-shot Pods turn over to terminal on exit.
+		// Bounded in practice by the GitHub Actions job timeout.
+		logger.Info("draining pool; waiting on in-flight runners",
+			"running", running, "drainedIdle", drainedIdle)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	controllerutil.RemoveFinalizer(pool, runnerPoolFinalizer)
+	if err := r.Update(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
+	}
+	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)
+	return ctrl.Result{}, nil
 }
 
 // createRunner provisions one Pod + per-Pod ServiceAccount pair,

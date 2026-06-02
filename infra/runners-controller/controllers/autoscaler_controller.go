@@ -92,6 +92,13 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	if !pool.DeletionTimestamp.IsZero() {
+		// Pool is being drained by the RunnerPoolReconciler's
+		// finalizer. Don't patch replicas on a Terminating CR, and
+		// don't requeue — the drain owns its lifecycle from here.
+		return ctrl.Result{}, nil
+	}
+
 	if pool.Spec.Autoscaling == nil || !pool.Spec.Autoscaling.Enabled {
 		// Pool opted out (or never opted in) — don't requeue.
 		// A future patch that flips `enabled` true will trigger
