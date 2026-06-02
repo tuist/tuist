@@ -100,9 +100,8 @@ while true; do
         continue
       fi
       # The dispatch response also carries a per-job log token. When
-      # present we pipe the runner's stdout/stderr through
-      # tuist-log-tee, which streams every line to the server's log
-      # ingest endpoint while passing it straight through to poll.log.
+      # present we tail the Worker diag log through tuist-log-tee,
+      # which streams every line to the server's log ingest endpoint.
       # The shipper's POSTs are short-timeout + bounded-retry, so its
       # closing flush can't wedge the EXIT-trap VM halt below. The logs
       # URL is the dispatch URL with the trailing path swapped.
@@ -122,10 +121,29 @@ while true; do
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
       if [ -n "${log_token}" ] && [ -x /opt/tuist/tuist-log-tee ]; then
-        # `PIPESTATUS[0]` preserves run.sh's exit code through the pipe.
-        ./run.sh --jitconfig "${jit}" --disableupdate 2>&1 |
-          /opt/tuist/tuist-log-tee --url "${logs_url}" --token "${log_token}"
-        exit "${PIPESTATUS[0]}"
+        # Tail the Worker diag log rather than run.sh's stdout. The
+        # Listener (run.sh) only prints lifecycle markers; the Worker
+        # child process executes user steps and writes ALL step output
+        # to `_diag/Worker_<utc>.log` rather than echoing it through
+        # the Listener. We poll for the file (it appears within ~1s of
+        # job start in JIT mode) and tail it through the shipper. When
+        # run.sh exits we kill the tailer so the pipe closes and the
+        # shipper flushes its `done:true` finalize batch before the
+        # VM's EXIT trap halts everything.
+        ( for _ in $(seq 1 60); do
+            wlog=$(ls -t /Users/runner/actions-runner/_diag/Worker_*.log 2>/dev/null | head -1)
+            [ -n "${wlog}" ] && break
+            sleep 1
+          done
+          [ -n "${wlog}" ] && exec tail -F -n +1 "${wlog}" 2>/dev/null \
+            | /opt/tuist/tuist-log-tee --url "${logs_url}" --token "${log_token}"
+        ) &
+        tee_pid=$!
+        ./run.sh --jitconfig "${jit}" --disableupdate
+        rc=$?
+        kill -TERM "${tee_pid}" 2>/dev/null || true
+        wait "${tee_pid}" 2>/dev/null || true
+        exit "${rc}"
       else
         # No token (older server) or shipper missing — run bare.
         ./run.sh --jitconfig "${jit}" --disableupdate

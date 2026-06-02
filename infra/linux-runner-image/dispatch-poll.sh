@@ -76,7 +76,7 @@ while true; do
         continue
       fi
       # Per-job log token (see the macOS image for the rationale).
-      # When present we stream the runner's output through
+      # When present we tail the runner's Worker diag log through
       # tuist-log-tee to the server's log ingest endpoint.
       log_token=$(jq -r '.log_token // empty' /tmp/dispatch.json)
       logs_url="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/logs"
@@ -89,12 +89,31 @@ while true; do
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
       if [ -n "${log_token}" ] && command -v tuist-log-tee >/dev/null 2>&1; then
-        # Can't `exec` here: the script must outlive run.sh so the
-        # shipper drains its closing flush before the container exits.
-        # `PIPESTATUS[0]` carries run.sh's exit code out of the pipe.
-        ./run.sh --jitconfig "${jit}" --disableupdate 2>&1 |
-          tuist-log-tee --url "${logs_url}" --token "${log_token}"
-        exit "${PIPESTATUS[0]}"
+        # We tail the Worker diag log instead of piping run.sh's stdout.
+        # The Listener (run.sh) only prints lifecycle markers
+        # ("Listening for Jobs", "Running job:", "Job X completed"); the
+        # Worker child process executes user steps and writes ALL step
+        # output to `_diag/Worker_<utc>.log` rather than its own stdout.
+        # Tailing the diag file is the only way to capture step content
+        # without modifying GitHub's runner binary. The pipeline closes
+        # naturally when we kill the tailer at run.sh exit, letting
+        # tuist-log-tee flush its closing batch.
+        ( for _ in $(seq 1 60); do
+            wlog=$(ls -t "$(pwd)/_diag"/Worker_*.log 2>/dev/null | head -1)
+            [ -n "${wlog}" ] && break
+            sleep 1
+          done
+          [ -n "${wlog}" ] && exec tail -F -n +1 "${wlog}" 2>/dev/null \
+            | tuist-log-tee --url "${logs_url}" --token "${log_token}"
+        ) &
+        tee_pid=$!
+        ./run.sh --jitconfig "${jit}" --disableupdate
+        rc=$?
+        # Close the pipeline so tuist-log-tee sees EOF and flushes
+        # the `done:true` batch before the container exits.
+        kill -TERM "${tee_pid}" 2>/dev/null || true
+        wait "${tee_pid}" 2>/dev/null || true
+        exit "${rc}"
       else
         exec ./run.sh --jitconfig "${jit}" --disableupdate
       fi

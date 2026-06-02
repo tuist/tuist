@@ -1,26 +1,42 @@
-# Runner Log Shipper
+# Runner Log Tee
 
 A tiny, stdlib-only Go binary baked into both runner images
 (`infra/runner-image/` macOS Tart VM, `infra/linux-runner-image/`
-Linux container). It streams a runner job's stdout to the Tuist
+Linux container). It streams a runner job's step output to the Tuist
 server's log ingest endpoint so the job detail page can show logs
 live and per step — the Namespace-style "Logs" tab.
 
 ## How it's wired
 
-Both images' `dispatch-poll.sh` pipe the runner through it once a job
-is dispatched:
+Both images' `dispatch-poll.sh` tail the Worker diag log through it
+once a job is dispatched:
 
 ```bash
-./run.sh --jitconfig "$jit" --disableupdate 2>&1 \
+( wait for _diag/Worker_<utc>.log to appear ) \
+  | tail -F -n +1 "$wlog" \
   | tuist-log-tee --url "$logs_url" --token "$log_token"
 ```
 
 - `--token` is the per-job `log_token` from the dispatch response
   (`TuistWeb.RunnerLogToken`), scoping uploads to one workflow_job.
 - `--url` is the dispatch URL with `/dispatch` swapped for `/logs`.
-- Every line is echoed to stdout (so the VM/Pod log still captures it)
-  and batched + POSTed to `POST /api/internal/runners/logs`.
+- Every line read from stdin is echoed back to stdout and batched +
+  POSTed to `POST /api/internal/runners/logs`.
+
+### Why the Worker diag log, not `run.sh`'s stdout?
+
+`run.sh` is GitHub's `actions/runner` Listener. It only prints
+lifecycle markers ("Listening for Jobs", "Running job: X", "Job X
+completed") to its own stdout. The actual step output (user `run:`
+shell commands) is executed in the Worker child process, which writes
+ALL step content to `_diag/Worker_<utc>.log` rather than echoing it
+back through the Listener. Piping `run.sh`'s stdout into the tee
+yields lifecycle markers and nothing useful — staging smoke confirmed
+this empirically. Tailing the diag file is the only stable way to
+capture step content without modifying GitHub's runner binary.
+
+The diag log is verbose by design (framework metadata interleaved
+with step output). For now we ship it raw; the UI can filter later.
 
 Server side: `TuistWeb.RunnerLogsController` → `Tuist.Runners.JobLogs`
 (ClickHouse `runner_job_logs`).
