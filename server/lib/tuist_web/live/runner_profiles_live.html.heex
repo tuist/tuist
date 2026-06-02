@@ -194,11 +194,12 @@
               >
                 <:left_icon><.pencil /></:left_icon>
               </.dropdown_item>
-              <%!-- The last profile isn't deletable: removing it would
-                      leave the account with no `tuist-default` target and
-                      break every workflow that resolves through it. --%>
+              <%!-- Protected (auto-bootstrapped) profiles aren't
+                      deletable — every account always has its `linux`
+                      default so the `<prefix>linux` label keeps
+                      resolving. Shape stays editable. --%>
               <.dropdown_item
-                :if={length(@profiles) > 1}
+                :if={not profile.protected}
                 label={dgettext("dashboard_runners", "Delete")}
                 value="delete"
                 on_click="request_delete_profile"

@@ -2,6 +2,8 @@ defmodule Tuist.Runners.ProfilesTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Environment
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
@@ -23,6 +25,14 @@ defmodule Tuist.Runners.ProfilesTest do
         name: "profiles-org-#{System.unique_integer([:positive])}",
         preload: [:account]
       )
+
+    # `Accounts.create_organization` auto-bootstraps a protected
+    # `linux` profile via `Profiles.create_default_for_account`.
+    # The CRUD / matcher tests below assert behaviour on hand-
+    # crafted shapes, so start from a clean slate; the default-
+    # creation path has its own describe block that exercises the
+    # auto-bootstrap directly.
+    Tuist.Repo.delete_all(from(p in Profile, where: p.account_id == ^account.id))
 
     %{account: account}
   end
@@ -139,6 +149,46 @@ defmodule Tuist.Runners.ProfilesTest do
 
       assert {:ok, ^profile} =
                Profiles.match_for_dispatch(account, ["self-hosted", "tuist-canary-foo"])
+    end
+  end
+
+  describe "create_default_for_account/1" do
+    test "inserts the protected `linux` profile at the catalog default shape",
+         %{account: account} do
+      assert {:ok, profile} = Profiles.create_default_for_account(account)
+      assert profile.name == "linux"
+      assert profile.protected
+      assert profile.vcpus == 4
+      assert profile.memory_gb == 16
+    end
+
+    test "is idempotent — second call is a no-op on `(account_id, name)` conflict",
+         %{account: account} do
+      {:ok, first} = Profiles.create_default_for_account(account)
+      assert {:ok, _} = Profiles.create_default_for_account(account)
+
+      assert [%Profile{id: id}] = Profiles.list_for_account(account)
+      assert id == first.id
+    end
+
+    test "bypasses the per-account cap", %{account: account} do
+      # Fill the cap with user-created profiles.
+      for i <- 1..Profiles.max_per_account() do
+        {:ok, _} = Profiles.create(account, %{"name" => "u#{i}", "vcpus" => 4, "memory_gb" => 16})
+      end
+
+      # The default still slots in.
+      assert {:ok, profile} = Profiles.create_default_for_account(account)
+      assert profile.protected
+    end
+  end
+
+  describe "delete/1 — protected guard" do
+    test "refuses to delete a protected profile", %{account: account} do
+      {:ok, default} = Profiles.create_default_for_account(account)
+
+      assert {:error, :protected} = Profiles.delete(default)
+      refute is_nil(Profiles.get_by_name(account, default.name))
     end
   end
 

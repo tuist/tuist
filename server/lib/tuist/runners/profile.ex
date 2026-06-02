@@ -25,6 +25,7 @@ defmodule Tuist.Runners.Profile do
     field :name, :string
     field :vcpus, :integer
     field :memory_gb, :integer
+    field :protected, :boolean, default: false
 
     belongs_to :account, Account
 
@@ -39,7 +40,7 @@ defmodule Tuist.Runners.Profile do
   """
   def changeset(profile, attrs, catalog) when is_list(catalog) do
     profile
-    |> cast(attrs, [:account_id, :name, :vcpus, :memory_gb])
+    |> cast(attrs, [:account_id, :name, :vcpus, :memory_gb, :protected])
     |> validate_required([:account_id, :name, :vcpus, :memory_gb])
     |> update_change(:name, &normalize_name/1)
     |> validate_format(:name, @name_format,

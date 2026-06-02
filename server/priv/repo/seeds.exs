@@ -3308,7 +3308,10 @@ Enum.each(runner_profile_accounts, fn account ->
 end)
 
 runner_profile_seeds = [
-  %{name: "default", vcpus: 4, memory_gb: 16},
+  # `linux` is auto-bootstrapped by `Accounts.create_user` /
+  # `Accounts.create_organization`; only seed the user-created
+  # extras so the table still shows the typical "default + a few
+  # bigger shapes" mix in dev.
   %{name: "large", vcpus: 8, memory_gb: 32},
   %{name: "xlarge", vcpus: 16, memory_gb: 32}
 ]

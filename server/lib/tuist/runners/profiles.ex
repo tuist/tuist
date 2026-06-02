@@ -74,6 +74,49 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
+  The auto-bootstrapped Linux profile name. Surfaced so callers can
+  reason about which row is "the default" without re-encoding the
+  string.
+  """
+  def default_linux_name, do: "linux"
+
+  @doc """
+  Insert the per-account protected `linux` profile (4 vCPU / 16 GB,
+  matching the catalog default shape so `runs-on: <prefix>linux`
+  always lands on the warm pool). Idempotent — a no-op when a row
+  with the same name already exists, since `name` is the unique key
+  per account.
+
+  Called from `Accounts.create_user` / `Accounts.create_organization`
+  inside the same Multi as the Account insert; failing here aborts
+  the whole transaction so no account ever lands without its default
+  profile. The per-account `@max_per_account` cap is intentionally
+  bypassed — the customer didn't create this row.
+  """
+  def create_default_for_account(%{id: account_id}) do
+    catalog = Catalog.list()
+    default = Catalog.default()
+
+    cond do
+      is_nil(default) ->
+        {:error, :no_catalog_default}
+
+      true ->
+        attrs = %{
+          "account_id" => account_id,
+          "name" => default_linux_name(),
+          "vcpus" => default.vcpus,
+          "memory_gb" => default.memory_gb,
+          "protected" => true
+        }
+
+        %Profile{}
+        |> Profile.changeset(attrs, catalog)
+        |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :name])
+    end
+  end
+
+  @doc """
   Update a profile's resources. `name` cannot change post-create
   (see module docs). Passing `name` is silently ignored.
   """
@@ -95,7 +138,12 @@ defmodule Tuist.Runners.Profiles do
   `:no_matching_profile` on their next dispatch; in-flight Pods
   already claimed against the corresponding shape pool finish
   normally (the shape pool isn't going anywhere).
+
+  Protected profiles (the per-account `linux` default) refuse
+  deletion — every account always has a Linux profile so the
+  `<prefix>linux` label always resolves.
   """
+  def delete(%Profile{protected: true}), do: {:error, :protected}
   def delete(%Profile{} = profile), do: Repo.delete(profile)
 
   @doc """

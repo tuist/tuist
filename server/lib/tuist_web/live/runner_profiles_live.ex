@@ -146,19 +146,26 @@ defmodule TuistWeb.RunnerProfilesLive do
         # Raced away (already deleted) — nothing to do.
         {:noreply, socket}
 
-      length(Profiles.list_for_account(account)) <= 1 ->
-        # Authoritative guard mirroring the hidden row action: never let
-        # an account drop to zero profiles, which would break every
-        # workflow resolving through the profile's dispatch label.
-        {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "You can't delete your only profile."))}
-
       true ->
-        {:ok, _} = Profiles.delete(profile)
+        # Authoritative guard mirroring the hidden row action. The
+        # context layer rejects `:protected` profiles (the per-account
+        # auto-bootstrapped Linux default), so the `:protected` arm
+        # surfaces a flash without re-fetching state.
+        case Profiles.delete(profile) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign_profiles()
+             |> put_flash(:info, dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name))}
 
-        {:noreply,
-         socket
-         |> assign_profiles()
-         |> put_flash(:info, dgettext("dashboard_runners", "Profile %{name} deleted.", name: profile.name))}
+          {:error, :protected} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               dgettext("dashboard_runners", "This profile is a default and can't be deleted.")
+             )}
+        end
     end
   end
 
