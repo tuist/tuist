@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* infer DerivedData location for inspect build and tests by [@natanrolnik](https://github.com/natanrolnik) in [#11015](https://github.com/tuist/tuist/pull/11015)
+* stop emitting -Xcc @resp into OTHER_SWIFT_FLAGS (Xcode 26 "expected exactly one compiler job") by [@fortmarek](https://github.com/fortmarek) in [#11023](https://github.com/tuist/tuist/pull/11023)
 * finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
 
 

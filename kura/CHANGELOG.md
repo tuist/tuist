@@ -5,16 +5,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Reduce Kura metrics cardinality
-* track Kura node usage and add Usage dashboard
-* authorize tenant-scoped cache via OAuth introspection
+* Reduce Kura metrics cardinality by [@pepicrft](https://github.com/pepicrft) in [#11025](https://github.com/tuist/tuist/pull/11025)
+* track Kura node usage and add Usage dashboard by [@pepicrft](https://github.com/pepicrft) in [#10979](https://github.com/tuist/tuist/pull/10979)
+* authorize tenant-scoped cache via OAuth introspection by [@pepicrft](https://github.com/pepicrft) in [#10935](https://github.com/tuist/tuist/pull/10935)
 ### 🐛 Bug Fixes
 
-* recover managed cache usage
+* recover managed cache usage by [@pepicrft](https://github.com/pepicrft) in [#11011](https://github.com/tuist/tuist/pull/11011)
 ### ⚡ Performance
 
-* Drop HTTP method request metric label
-* optimize artifact serving read paths
+* Drop HTTP method request metric label by [@pepicrft](https://github.com/pepicrft) in [#11027](https://github.com/tuist/tuist/pull/11027)
+* optimize artifact serving read paths by [@pepicrft](https://github.com/pepicrft) in [#10919](https://github.com/tuist/tuist/pull/10919)
 
 
 
