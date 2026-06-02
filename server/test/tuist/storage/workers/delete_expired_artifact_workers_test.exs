@@ -213,6 +213,52 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       assert expired_attachment_key in object_keys
     end
 
+    test "the test attachment worker deletes legacy attachments without test run ids" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      expired_test_case_run =
+        test_case_run_fixture(
+          project_id: project.id,
+          account_id: account.id,
+          inserted_at: DateTime.utc_now() |> DateTime.add(-31, :day) |> DateTime.to_naive()
+        )
+
+      expired_attachment =
+        test_case_run_attachment_fixture(
+          test_case_run_id: expired_test_case_run.id,
+          test_run_id: nil,
+          file_name: "failure.log",
+          inserted_at: DateTime.utc_now() |> DateTime.add(-31, :day) |> DateTime.to_naive()
+        )
+
+      expired_attachment_key =
+        Tests.attachment_storage_key(%{
+          account_handle: account.name,
+          project_handle: project.name,
+          attachment_id: expired_attachment.id,
+          test_case_run_id: expired_test_case_run.id,
+          test_run_id: nil,
+          file_name: expired_attachment.file_name
+        })
+
+      stub(Storage, :delete_objects, fn object_keys, %{id: account_id} ->
+        assert account_id == account.id
+        send(self(), {:deleted, object_keys})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredTestAttachmentsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 20
+               })
+
+      assert_received {:deleted, object_keys}
+      assert expired_attachment_key in object_keys
+    end
+
     test "the shard bundle worker deletes expired shard bundles according to the account plan" do
       project = project_fixture()
       account = project.account

@@ -2,6 +2,8 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  import SweetXml, only: [sigil_x: 2]
+
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
@@ -304,10 +306,64 @@ defmodule Tuist.Storage do
     end)
   end
 
-  defp handle_delete_objects_response({:ok, %{status_code: status_code}}) when status_code in 200..299, do: :ok
-  defp handle_delete_objects_response({:ok, %{body: %{deleted: _deleted}}}), do: :ok
-  defp handle_delete_objects_response({:ok, response}), do: {:error, {:unexpected_response, response}}
+  defp handle_delete_objects_response({:ok, response}) do
+    case delete_object_errors(response) do
+      [] ->
+        if successful_delete_objects_response?(response) do
+          :ok
+        else
+          {:error, {:unexpected_response, response}}
+        end
+
+      errors ->
+        {:error, {:delete_objects_failed, errors}}
+    end
+  end
+
   defp handle_delete_objects_response({:error, reason}), do: {:error, reason}
+
+  defp successful_delete_objects_response?(%{status_code: status_code}) when status_code in 200..299, do: true
+  defp successful_delete_objects_response?(%{status_code: _status_code}), do: false
+  defp successful_delete_objects_response?(%{body: %{deleted: _deleted}}), do: true
+  defp successful_delete_objects_response?(%{body: %{"Deleted" => _deleted}}), do: true
+  defp successful_delete_objects_response?(_response), do: false
+
+  defp delete_object_errors(%{body: body}), do: delete_object_errors(body)
+  defp delete_object_errors(%{errors: errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{error: error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"Errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"Error" => error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"error" => error}), do: normalize_delete_errors(error)
+
+  defp delete_object_errors(body) when is_binary(body) do
+    SweetXml.xpath(body, ~x"//Error"l,
+      key: ~x"./Key/text()"s,
+      version_id: ~x"./VersionId/text()"s,
+      code: ~x"./Code/text()"s,
+      message: ~x"./Message/text()"s
+    )
+  rescue
+    _error -> []
+  end
+
+  defp delete_object_errors(_body), do: []
+
+  defp normalize_delete_errors(nil), do: []
+  defp normalize_delete_errors([]), do: []
+
+  defp normalize_delete_errors(errors) when is_list(errors) do
+    Enum.reject(errors, &empty_delete_error?/1)
+  end
+
+  defp normalize_delete_errors(error) do
+    if empty_delete_error?(error), do: [], else: [error]
+  end
+
+  defp empty_delete_error?(nil), do: true
+  defp empty_delete_error?(""), do: true
+  defp empty_delete_error?(%{} = error), do: map_size(error) == 0
+  defp empty_delete_error?(_error), do: false
 
   defp maybe_put_continuation_token(opts, nil), do: opts
 

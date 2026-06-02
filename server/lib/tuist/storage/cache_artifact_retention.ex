@@ -128,7 +128,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   defp bucket_name(:gradle), do: Environment.cache_s3_bucket_name()
 
   defp next_continuation_token(body) do
-    if Map.get(body, :is_truncated) == true do
+    if Map.get(body, :is_truncated) in [true, "true"] do
       Map.get(body, :next_continuation_token)
     end
   end

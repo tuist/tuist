@@ -69,6 +69,34 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_module, continuation_token: "cursor") == {:ok, nil}
     end
 
+    test "continues pagination when ExAws reports the truncated flag as a string" do
+      expired_xcode_key = "tuist/app/xcode/AB/CD/ABCD"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_xcode_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+             ],
+             is_truncated: "true",
+             next_continuation_token: "next-page"
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+
+      expect(Storage, :delete_objects_from_bucket, fn [^expired_xcode_key], "xcode-cache-bucket" ->
+        :ok
+      end)
+
+      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, "next-page"}
+    end
+
     test "skips objects whose account handle does not resolve to a known account" do
       orphan_key = "deleted-account/app/xcode/AB/CD/ABCD"
 
