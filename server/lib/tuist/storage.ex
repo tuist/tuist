@@ -205,6 +205,16 @@ defmodule Tuist.Storage do
     upload_id
   end
 
+  def delete_object(object_key, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+
+    bucket_name
+    |> ExAws.S3.delete_object(object_key)
+    |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+
+    :ok
+  end
+
   def delete_all_objects(prefix, actor) do
     {time, _} =
       Performance.measure_time_in_milliseconds(fn ->

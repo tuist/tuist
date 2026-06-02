@@ -340,6 +340,26 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_put_line_count(updates, _), do: updates
 
   @doc """
+  Lists jobs whose log archive has aged past `threshold` and is still
+  referenced from the row. Drives the daily prune that keeps the S3
+  archive at parity with the 90-day TTL on `runner_job_logs`.
+  """
+  def list_expired_archives(%DateTime{} = threshold) do
+    Job
+    |> from(hints: ["FINAL"])
+    |> where(
+      [j],
+      j.log_archive_key != "" and not is_nil(j.completed_at) and j.completed_at < ^threshold
+    )
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      account_id: j.account_id,
+      log_archive_key: j.log_archive_key
+    })
+    |> ClickHouseRepo.all()
+  end
+
+  @doc """
   Records the S3 object key of a job's gzipped log archive as a
   state-transition INSERT, carrying all other columns forward. Called
   by `Tuist.Runners.Workers.ArchiveLogsWorker` after it uploads the

@@ -10,6 +10,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Oban.RuntimeConfig
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
+  alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Slack.Workers.ReportWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
 
@@ -56,6 +57,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert PruneArchivedLogsWorker in workers
 
         refute DailySlackReportWorker in workers
         refute HourlySlackReportWorker in workers
@@ -76,6 +78,7 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert AlertWorker in workers
         assert ReportWorker in workers
         assert ExpireStaleTestRunsWorker in workers
+        assert PruneArchivedLogsWorker in workers
 
         assert DailySlackReportWorker in workers
         assert HourlySlackReportWorker in workers
