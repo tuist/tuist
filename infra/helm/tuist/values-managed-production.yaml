@@ -117,10 +117,13 @@ postgresql:
     instances: 3
     storage:
       size: "100Gi"
+    # Requests sized to fit three instances under hard pod anti-affinity
+    # alongside the rest of the pool tenants; limits left generous so
+    # Postgres runtime peaks aren't capped by the scheduling budget.
     resources:
       requests:
-        cpu: "2000m"
-        memory: "8Gi"
+        cpu: "1500m"
+        memory: "6Gi"
       limits:
         cpu: "4000m"
         memory: "16Gi"
