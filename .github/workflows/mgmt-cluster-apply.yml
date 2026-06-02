@@ -78,31 +78,8 @@ jobs:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          tmp="${KUBECONFIG}.tmp"
-          attempts=6
-          delay=5
-          rm -f "$tmp"
-
-          for attempt in $(seq 1 "$attempts"); do
-            if op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$tmp"; then
-              mv "$tmp" "$KUBECONFIG"
-              chmod 600 "$KUBECONFIG"
-              exit 0
-            fi
-
-            rm -f "$tmp"
-            if [ "$attempt" -eq "$attempts" ]; then
-              echo "Failed to fetch mgmt kubeconfig from 1Password after $attempts attempts."
-              exit 1
-            fi
-
-            echo "1Password document fetch failed on attempt $attempt/$attempts; retrying in ${delay}s..."
-            sleep "$delay"
-            delay=$((delay * 2))
-            if [ "$delay" -gt 60 ]; then
-              delay=60
-            fi
-          done
+          op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
       - name: Diff (visibility into what's about to change)
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
