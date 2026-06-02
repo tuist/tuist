@@ -9,6 +9,26 @@ scale by editing the `buildersFleet.replicas` chart value or running
 `kubectl scale machinedeployment <release>-builders-fleet
 --replicas=N`.
 
+## Which environments run a builder
+
+Production only. The baked Tart images are global GHCR artifacts, so
+a single fleet bakes them for every environment. More to the point,
+every builder registers the same `vm-image-builder` label set to the
+same `tuist` org with no per-env scoping (see the
+[`runs-on:` selector](#workflow-runs-on-selector) section), so a
+builder running in staging or canary would pick up production
+image-release jobs indiscriminately, including pushing production
+image tags from a non-prod host. Staging and canary therefore pin
+`buildersFleet.enabled: false`; only `values-managed-production.yaml`
+runs the fleet, sized at 2 so the release's two parallel bakes (runner
+image + xcresult-processor image) run concurrently instead of
+serializing on one host.
+
+The GitHub App and the setup steps below are still written per-env
+because the App is a single shared identity any env could borrow for a
+throwaway builder in a pinch. In steady state, apply the enablement
+steps to production alone.
+
 ## Architecture
 
 Builder hosts are regular Kubernetes Nodes registered by tart-kubelet,
@@ -71,11 +91,14 @@ bootstrap is what makes the grants stable across re-runs.
    - **Install App** → select tuist → install. The URL becomes
      `…/installations/<installation-id>`. Note the installation ID.
 
-2. **Stash the App credentials in 1Password**, one item per env
-   vault (`tuist-k8s-staging`, `tuist-k8s-canary`,
-   `tuist-k8s-production`). The `ClusterSecretStore "onepassword"`
-   is pre-scoped to the matching vault per env, so the same item
-   name works across envs. Each item has three fields:
+2. **Stash the App credentials in 1Password.** Production is the
+   only env that runs a builder (see
+   [Which environments run a builder](#which-environments-run-a-builder)),
+   so the item only needs to live in the `tuist-k8s-production`
+   vault. The `ClusterSecretStore "onepassword"` is pre-scoped to
+   the matching vault per env, so the same item name works in the
+   `tuist-k8s-staging` / `tuist-k8s-canary` vaults too if you ever
+   stand up a throwaway non-prod builder. Each item has three fields:
 
    ```
    BUILDERS_FLEET_GITHUB_APP
@@ -84,11 +107,11 @@ bootstrap is what makes the grants stable across re-runs.
      private-key      = <contents of the .pem file>
    ```
 
-   Same triple in all three envs — the App is one shared identity.
-   No expiry to track, no rotation on scale-up; the reconciler
-   mints a fresh ~1h runner-registration token from these on every
-   builder-host bootstrap via the GitHub App JWT → installation
-   token → registration token flow.
+   The App is one shared identity, so the same triple works in any
+   env vault that needs it. No expiry to track, no rotation on
+   scale-up; the reconciler mints a fresh ~1h runner-registration
+   token from these on every builder-host bootstrap via the GitHub
+   App JWT -> installation token -> registration token flow.
 
 3. **Pre-order Mac minis on Scaleway** with names prefixed
    `tuist-pool-`. Same pre-ordered pool the macosFleet and
@@ -98,10 +121,12 @@ bootstrap is what makes the grants stable across re-runs.
    speculative auto-ordering expensive, so the operator does this
    ahead of any scale-up.
 
-4. **Enable the fleet** in the env's values file:
+4. **Enable the fleet** in production's values file (staging and
+   canary keep `enabled: false`, per
+   [Which environments run a builder](#which-environments-run-a-builder)):
 
    ```yaml
-   # infra/helm/tuist/values-managed-<env>.yaml
+   # infra/helm/tuist/values-managed-production.yaml
    buildersFleet:
      enabled: true
      replicas: 2

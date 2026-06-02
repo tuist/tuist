@@ -279,24 +279,26 @@ runnersFleet:
       dispatchLabel: "tuist-macos"
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
-# macosFleet and runnersFleet hosts run. Sized at 1 to start so the
-# cluster-managed builder lands alongside the existing hand-
-# bootstrapped `vm-image-builder-01` host (which carries the same
-# `vm-image-builder` runner label, so GitHub's scheduler routes
-# between them). Retire `-01` per the "Migrating from hand-
-# bootstrapped hosts" section of vm-image-builder.md once the
-# cluster-managed builder is comfortably taking jobs; scale up
-# `replicas` here to whatever capacity ends up needed.
+# macosFleet and runnersFleet hosts run. Production is the only env
+# that runs a builder (staging/canary disable theirs to avoid the
+# shared `vm-image-builder` org label routing release jobs cross-env).
+# Sized at 2 so the release's two parallel image bakes (runner image +
+# xcresult processor image) run concurrently instead of serializing on
+# one host. Each builder needs the one-time Local Network access grant
+# (see vm-image-builder.md) before it can reach its Tart guests over
+# SSH. Retire the hand-bootstrapped `vm-image-builder-01` host per the
+# "Migrating from hand-bootstrapped hosts" section of
+# vm-image-builder.md once these cluster-managed builders are
+# comfortably taking jobs.
 #
 # Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (9), so this fleet adds 1 to the pool-demand
+# runnersFleet (9), so this fleet adds 2 to the pool-demand
 # total. The operator's pre-order job for production already
-# tracks the macos + runners side; bump it by 1 ahead of the
-# first `helm upgrade` that flips this fleet's pool-claim path
-# on.
+# tracks the macos + runners side; bump it by 2 ahead of the
+# `helm upgrade` that applies this replica count.
 buildersFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
