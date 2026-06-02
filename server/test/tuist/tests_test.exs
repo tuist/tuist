@@ -8796,4 +8796,63 @@ defmodule Tuist.TestsTest do
       ]
     }
   end
+
+  describe "test_case_ids_with_successful_default_branch_run/3" do
+    test "returns only test cases with a successful, non-flaky run on the default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      validated_id = UUIDv7.generate()
+      pr_only_id = UUIDv7.generate()
+      failing_on_main_id = UUIDv7.generate()
+      flaky_success_on_main_id = UUIDv7.generate()
+
+      run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      row = fn attrs ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            test_run_id: run_id,
+            test_module_run_id: module_run_id,
+            project_id: project.id,
+            module_name: "MyTests",
+            suite_name: "TestSuite",
+            name: "testExample",
+            status: 0,
+            is_flaky: false,
+            duration: 100,
+            inserted_at: ~N[2024-04-30 10:00:00.000000]
+          },
+          attrs
+        )
+      end
+
+      IngestRepo.insert_all(TestCaseRun, [
+        # Passing, non-flaky, on the default branch: validated.
+        row.(%{test_case_id: validated_id, git_branch: "main", status: 0, is_flaky: false}),
+        # Only ever ran (and passed) on a pull-request branch.
+        row.(%{test_case_id: pr_only_id, git_branch: "feature-branch", status: 0, is_flaky: false}),
+        # On the default branch but only fails (merged broken).
+        row.(%{test_case_id: failing_on_main_id, git_branch: "main", status: 1, is_flaky: false}),
+        # On the default branch and passing, but the pass is flaky.
+        row.(%{test_case_id: flaky_success_on_main_id, git_branch: "main", status: 0, is_flaky: true})
+      ])
+
+      ids = [validated_id, pr_only_id, failing_on_main_id, flaky_success_on_main_id]
+
+      # When
+      got = Tests.test_case_ids_with_successful_default_branch_run(project.id, ids, "main")
+
+      # Then
+      assert MapSet.new(got) == MapSet.new([validated_id])
+    end
+
+    test "returns an empty list when given no test case ids" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      assert Tests.test_case_ids_with_successful_default_branch_run(project.id, [], "main") == []
+    end
+  end
 end
