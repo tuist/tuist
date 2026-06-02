@@ -124,6 +124,41 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
+  Same as `create_default_for_account/1`, for macOS. Inserts the
+  protected `macos` profile carrying the catalog default shape +
+  Xcode version so `runs-on: <prefix>macos` always lands on the warm
+  macOS pool. Idempotent — a no-op when a `macos` row already exists
+  for the account.
+
+  Called alongside `create_default_for_account/1` from
+  `Accounts.create_user` / `Accounts.create_organization` inside the
+  same Multi. Failing here aborts the whole account-creation
+  transaction — every account always has both a Linux and a macOS
+  protected profile so the env's default `tuist-…-linux` /
+  `tuist-…-macos` labels always resolve.
+  """
+  def create_default_macos_for_account(%{id: account_id}) do
+    with default_shape when not is_nil(default_shape) <- Catalog.default_shape(:macos),
+         default_xcode when not is_nil(default_xcode) <- Catalog.default_xcode_version(:macos) do
+      attrs = %{
+        "account_id" => account_id,
+        "name" => default_macos_name(),
+        "platform" => "macos",
+        "vcpus" => default_shape.vcpus,
+        "memory_gb" => default_shape.memory_gb,
+        "xcode_version" => default_xcode.xcode_version,
+        "protected" => true
+      }
+
+      %Profile{}
+      |> Profile.changeset(attrs, catalog_opts_for(:macos))
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :name])
+    else
+      _ -> {:error, :no_catalog_default}
+    end
+  end
+
+  @doc """
   Update a profile's resources. `name` and `platform` cannot change
   post-create (see module docs). Passing either is silently ignored.
   """

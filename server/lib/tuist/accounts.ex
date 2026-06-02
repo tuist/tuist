@@ -408,6 +408,9 @@ defmodule Tuist.Accounts do
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
       RunnerProfiles.create_default_for_account(account)
     end)
+    |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_macos_for_account(account)
+    end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
         Role.create_changeset(
@@ -693,6 +696,9 @@ defmodule Tuist.Accounts do
       end)
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_for_account(account)
+      end)
+      |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_macos_for_account(account)
       end)
 
     user_account =
