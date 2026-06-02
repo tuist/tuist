@@ -41,10 +41,15 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
   end
 
   describe "list page" do
-    test "renders the empty state when no profiles exist", %{conn: conn, account: account} do
+    test "renders the protected linux default that ships with every account",
+         %{conn: conn, account: account} do
+      # Every account is auto-bootstrapped with the protected `linux`
+      # profile (see `Accounts.create_user`/`create_organization`), so
+      # the page always shows at least one row — the empty state is
+      # only reachable from a manually-broken DB state.
       {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
 
-      assert html =~ "No profiles yet"
+      assert html =~ "tuist-linux"
     end
 
     test "lists profiles with the tuist-<name> dispatch label", %{conn: conn, account: account} do
@@ -85,17 +90,25 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       assert Profiles.get_by_name(account, "default")
     end
 
-    test "refuses to delete the only remaining profile", %{conn: conn, account: account} do
-      {:ok, only} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+    test "refuses to delete a protected profile", %{conn: conn, account: account} do
+      # `:account` is already auto-bootstrapped with the protected `linux`
+      # profile by `Accounts.create_user`. Add a user-created sibling so
+      # the "only remaining" count-based guard doesn't mask the protected
+      # guard — the row count is fine, the protection itself is what
+      # should reject the delete.
+      default = Profiles.get_by_name(account, "linux")
+      assert default.protected
+      {:ok, _other} = Profiles.create(account, %{"name" => "other", "vcpus" => 4, "memory_gb" => 16})
 
       {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/profiles")
-      # The Delete row action is hidden when one profile remains.
-      refute html =~ "request_delete_profile"
+      # Row action is hidden for protected rows.
+      refute html =~ ~s(phx-value-id="#{default.id}" phx-click="request_delete_profile")
 
-      # Even a crafted request + confirm is rejected server-side.
-      render_hook(lv, "request_delete_profile", %{"id" => to_string(only.id)})
+      # Crafted request still bounces off the server-side guard with
+      # the flash, and the row survives.
+      render_hook(lv, "request_delete_profile", %{"id" => to_string(default.id)})
       render_hook(lv, "confirm_delete_profile", %{})
-      assert Profiles.get_by_name(account, "default")
+      assert Profiles.get_by_name(account, "linux")
     end
   end
 

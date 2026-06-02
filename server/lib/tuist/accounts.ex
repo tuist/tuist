@@ -28,6 +28,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Namespace
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias Tuist.Repo
 
   require Logger
@@ -406,7 +407,7 @@ defmodule Tuist.Accounts do
       )
     end)
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
-      Tuist.Runners.Profiles.create_default_for_account(account)
+      RunnerProfiles.create_default_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -692,7 +693,7 @@ defmodule Tuist.Accounts do
         )
       end)
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
-        Tuist.Runners.Profiles.create_default_for_account(account)
+        RunnerProfiles.create_default_for_account(account)
       end)
 
     user_account =
