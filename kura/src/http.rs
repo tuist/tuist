@@ -506,13 +506,9 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
-    state.metrics.record_http(
-        route,
-        method,
-        response.status(),
-        client_country,
-        start.elapsed(),
-    );
+    state
+        .metrics
+        .record_http(route, response.status(), client_country, start.elapsed());
 
     response
 }

@@ -767,7 +767,6 @@ impl Metrics {
     pub fn record_http(
         &self,
         route: String,
-        method: String,
         status: StatusCode,
         client_country: Option<String>,
         duration: Duration,
@@ -776,7 +775,6 @@ impl Metrics {
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
-                method,
                 status: status.as_u16(),
             })
             .inc();
@@ -1294,7 +1292,6 @@ fn records_public_http_metrics(route: &str) -> bool {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct HttpRequestLabels {
     route: String,
-    method: String,
     status: u16,
 }
 
@@ -1493,14 +1490,12 @@ mod tests {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http(
             "/up".into(),
-            "GET".into(),
             StatusCode::OK,
             Some("US".into()),
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/api/cache/keyvalue".into(),
-            "PUT".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
             None,
             Duration::from_millis(20),
@@ -1576,6 +1571,12 @@ mod tests {
                 .lines()
                 .filter(|line| line.starts_with("kura_http_requests_total"))
                 .all(|line| !line.contains("client_country="))
+        );
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| line.starts_with("kura_http_requests_total"))
+                .all(|line| !line.contains("method="))
         );
         assert!(rendered.contains("client_country=\"unknown\""));
         assert!(
