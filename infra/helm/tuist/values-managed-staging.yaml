@@ -89,9 +89,14 @@ objectStorage:
       default: tuist-stag-storage
 
 # CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
-# replica), 100Gi storage. WAL archive + daily base backups land in the
-# `tuist-stag-pg-backups` Tigris bucket; barman writes a directory
-# per cluster name under `destinationPath`.
+# replica), 10Gi per instance. Each instance is a streaming replica
+# holding the whole DB, so the size is per-replica capacity, not a
+# pool to split across them. The existing staging volumes are already
+# 100Gi on disk — Hetzner CSI doesn't shrink in place — so this value
+# only takes effect on a future re-provision of the cluster. WAL
+# archive + daily base backups land in the `tuist-stag-pg-backups`
+# Tigris bucket; barman writes a directory per cluster name under
+# `destinationPath`.
 #
 # Memory request kept low (1Gi vs the 2Gi default in values.yaml) because
 # the cpx22 staging workers only have ~2.5Gi allocatable each after
@@ -104,7 +109,7 @@ postgresql:
   cnpg:
     instances: 2
     storage:
-      size: "100Gi"
+      size: "10Gi"
     resources:
       requests:
         cpu: "500m"
