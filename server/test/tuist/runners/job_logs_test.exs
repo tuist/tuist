@@ -52,8 +52,8 @@ defmodule Tuist.Runners.JobLogsTest do
     end
   end
 
-  describe "list_for_step/3" do
-    test "returns lines inside the [from, until) window" do
+  describe "lines_grouped_by_step/2" do
+    test "slices a 3-step job on `##[group]Run` markers" do
       job_id = 90_002
 
       :ok =
@@ -63,37 +63,96 @@ defmodule Tuist.Runners.JobLogsTest do
             account_id: 1,
             line_number: 1,
             ts: ~U[2026-05-28 12:00:00.000000Z],
-            message: "setup"
+            message: "Current runner version: '2.334.0'"
           },
           %{
             workflow_job_id: job_id,
             account_id: 1,
             line_number: 2,
-            ts: ~U[2026-05-28 12:00:05.000000Z],
-            message: "build start"
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "##[group]GITHUB_TOKEN Permissions"
           },
           %{
             workflow_job_id: job_id,
             account_id: 1,
             line_number: 3,
-            ts: ~U[2026-05-28 12:00:09.000000Z],
-            message: "build end"
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "Metadata: read"
           },
           %{
             workflow_job_id: job_id,
             account_id: 1,
             line_number: 4,
-            ts: ~U[2026-05-28 12:00:12.000000Z],
-            message: "teardown"
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "##[endgroup]"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 5,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "##[group]Run echo hi"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 6,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "##[endgroup]"
+          },
+          %{workflow_job_id: job_id, account_id: 1, line_number: 7, ts: ~U[2026-05-28 12:00:01.000000Z], message: "hi"},
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 8,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "##[group]Run echo bye"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 9,
+            ts: ~U[2026-05-28 12:00:02.000000Z],
+            message: "##[endgroup]"
+          },
+          %{workflow_job_id: job_id, account_id: 1, line_number: 10, ts: ~U[2026-05-28 12:00:02.000000Z], message: "bye"},
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 11,
+            ts: ~U[2026-05-28 12:00:05.000000Z],
+            message: "Cleaning up orphan processes"
           }
         ])
 
-      slice = JobLogs.list_for_step(job_id, ~U[2026-05-28 12:00:05.000000Z], ~U[2026-05-28 12:00:10.000000Z])
+      steps = [
+        %{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]},
+        %{number: 2, name: "First step", started_at: ~U[2026-05-28 12:00:01.000000Z]},
+        %{number: 3, name: "Second step", started_at: ~U[2026-05-28 12:00:01.000000Z]},
+        %{number: 4, name: "Complete job", started_at: ~U[2026-05-28 12:00:05.000000Z]}
+      ]
 
-      assert Enum.map(slice, & &1.message) == ["build start", "build end"]
+      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+
+      # "Set up job" gets lines 1-4 (everything before the first ##[group]Run)
+      assert Enum.map(grouped[1], & &1.message) == [
+               "Current runner version: '2.334.0'",
+               "##[group]GITHUB_TOKEN Permissions",
+               "Metadata: read",
+               "##[endgroup]"
+             ]
+
+      # First user step: from first ##[group]Run to (second ##[group]Run - 1)
+      assert Enum.map(grouped[2], & &1.message) == ["##[group]Run echo hi", "##[endgroup]", "hi"]
+
+      # Second user step: from second ##[group]Run to (last_user_end derived from teardown timestamp - 1)
+      assert Enum.map(grouped[3], & &1.message) == ["##[group]Run echo bye", "##[endgroup]", "bye"]
+
+      # "Complete job" gets the cleanup tail
+      assert Enum.map(grouped[4], & &1.message) == ["Cleaning up orphan processes"]
     end
 
-    test "with `until = nil`, returns everything from `from` onwards (last step)" do
+    test "two adjacent sub-second steps with identical `started_at` each get their own marker block" do
       job_id = 90_004
 
       :ok =
@@ -103,27 +162,70 @@ defmodule Tuist.Runners.JobLogsTest do
             account_id: 1,
             line_number: 1,
             ts: ~U[2026-05-28 12:00:00.000000Z],
-            message: "before"
+            message: "Set up job line"
           },
           %{
             workflow_job_id: job_id,
             account_id: 1,
             line_number: 2,
-            ts: ~U[2026-05-28 12:00:05.000000Z],
-            message: "final-step"
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "##[group]Run a"
           },
           %{
             workflow_job_id: job_id,
             account_id: 1,
             line_number: 3,
-            ts: ~U[2026-05-28 12:00:09.000000Z],
-            message: "final-tail"
-          }
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "a-out"
+          },
+          %{
+            workflow_job_id: job_id,
+            account_id: 1,
+            line_number: 4,
+            ts: ~U[2026-05-28 12:00:01.000000Z],
+            message: "##[group]Run b"
+          },
+          %{workflow_job_id: job_id, account_id: 1, line_number: 5, ts: ~U[2026-05-28 12:00:01.000000Z], message: "b-out"}
         ])
 
-      slice = JobLogs.list_for_step(job_id, ~U[2026-05-28 12:00:05.000000Z], nil)
+      # `a` and `b` share the same second; the broken timestamp-window
+      # slicing would have given `a` a zero-width window.
+      steps = [
+        %{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]},
+        %{number: 2, name: "a", started_at: ~U[2026-05-28 12:00:01.000000Z]},
+        %{number: 3, name: "b", started_at: ~U[2026-05-28 12:00:01.000000Z]}
+      ]
 
-      assert Enum.map(slice, & &1.message) == ["final-step", "final-tail"]
+      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+
+      assert Enum.map(grouped[1], & &1.message) == ["Set up job line"]
+      assert Enum.map(grouped[2], & &1.message) == ["##[group]Run a", "a-out"]
+      assert Enum.map(grouped[3], & &1.message) == ["##[group]Run b", "b-out"]
+    end
+
+    test "no markers at all -> everything lumped under step 1" do
+      job_id = 90_005
+
+      :ok =
+        JobLogs.append([
+          %{workflow_job_id: job_id, account_id: 1, line_number: 1, ts: ~U[2026-05-28 12:00:00.000000Z], message: "one"},
+          %{workflow_job_id: job_id, account_id: 1, line_number: 2, ts: ~U[2026-05-28 12:00:01.000000Z], message: "two"}
+        ])
+
+      steps = [
+        %{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]},
+        %{number: 2, name: "Complete job", started_at: ~U[2026-05-28 12:00:01.000000Z]}
+      ]
+
+      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+
+      assert Enum.map(grouped[1], & &1.message) == ["one", "two"]
+      assert grouped[2] == []
+    end
+
+    test "empty log -> every step returns an empty list" do
+      steps = [%{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]}]
+      assert JobLogs.lines_grouped_by_step(90_006, steps) == %{1 => []}
     end
   end
 

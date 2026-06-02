@@ -312,46 +312,28 @@ defmodule TuistWeb.RunnerJobLive do
   def log_ts(%DateTime{} = ts), do: Calendar.strftime(ts, "%H:%M:%S")
   def log_ts(_), do: ""
 
-  # Fetches and caches the per-step log slice the first time a step is
-  # expanded. Subsequent toggles reuse the cached lines.
+  # Computes the per-step grouping on first step expand and caches
+  # the full %{step_number => lines} map in the socket. Subsequent
+  # expands are O(1) lookups against the cache.
   defp load_step_logs(socket, number) do
     if Map.has_key?(socket.assigns.step_logs, number) do
       socket
     else
-      lines = fetch_step_logs(socket.assigns.job, socket.assigns.steps, number)
-      assign(socket, :step_logs, Map.put(socket.assigns.step_logs, number, lines))
-    end
-  end
-
-  # A log line belongs to step N when its `ts` falls between step N's
-  # `started_at` and the NEXT step's `started_at`. We don't use the
-  # step's own `completed_at`: GitHub's API returns second-resolution
-  # step timestamps, so sub-second steps come back with
-  # `started_at == completed_at` (a zero-width window that's always
-  # empty), and clock skew between the runner Pod's wall clock and
-  # GitHub's coordinator clock can push legitimate lines outside a
-  # tight window even when the step did run for measurable time.
-  defp fetch_step_logs(job, steps, number) do
-    sorted = Enum.sort_by(steps, & &1.number)
-
-    case Enum.find_index(sorted, fn s -> s.number == number end) do
-      nil ->
-        []
-
-      idx ->
-        case Enum.at(sorted, idx) do
-          %{started_at: %DateTime{} = from} ->
-            until =
-              case Enum.at(sorted, idx + 1) do
-                %{started_at: %DateTime{} = next_started_at} -> next_started_at
-                _ -> nil
-              end
-
-            JobLogs.list_for_step(job.workflow_job_id, from, until)
-
-          _ ->
-            []
+      grouped =
+        if socket.assigns[:step_logs_grouped] do
+          socket.assigns.step_logs_grouped
+        else
+          JobLogs.lines_grouped_by_step(
+            socket.assigns.job.workflow_job_id,
+            socket.assigns.steps
+          )
         end
+
+      lines = Map.get(grouped, number, [])
+
+      socket
+      |> assign(:step_logs_grouped, grouped)
+      |> assign(:step_logs, Map.put(socket.assigns.step_logs, number, lines))
     end
   end
 
