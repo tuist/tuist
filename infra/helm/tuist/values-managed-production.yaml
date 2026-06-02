@@ -117,10 +117,18 @@ postgresql:
     instances: 3
     storage:
       size: "100Gi"
+    # Requests sized to fit three instances across the available worker
+    # nodes (md-0 general pool + md-processor). With 2000m/8Gi requests
+    # only two CNPG pods could land — the third was permanently Pending,
+    # which made `helm --wait --atomic` time out and roll the whole
+    # release back on every deploy. 1500m/6Gi gives the same headroom
+    # for steady-state Postgres without exceeding the per-node budget
+    # the other workloads (server, processor, redis, system DaemonSets)
+    # leave free. Limits stay at 4000m/16Gi so peaks aren't constrained.
     resources:
       requests:
-        cpu: "2000m"
-        memory: "8Gi"
+        cpu: "1500m"
+        memory: "6Gi"
       limits:
         cpu: "4000m"
         memory: "16Gi"
