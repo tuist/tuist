@@ -83,6 +83,22 @@ defmodule TuistWeb.RunnerLogsControllerTest do
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 8_800_004})
     end
 
+    test "treats a null `lines` field as an empty batch so finalize isn't dropped", %{conn: conn} do
+      # Go's `encoding/json` marshals a nil/zero-valued slice as
+      # `"lines": null` rather than `"lines": []`, so the tee's closing
+      # `done: true` batch arrives with `lines = nil`. The endpoint must
+      # accept that as "no new lines" instead of rejecting it 400, or
+      # the finalize signal is lost and the archive worker never runs.
+      account = account_fixture()
+      enqueue(account, 8_800_005)
+      token = RunnerLogToken.sign(8_800_005, account.id)
+
+      conn = post_logs(conn, token, %{"lines" => nil, "done" => true})
+
+      assert response(conn, 202)
+      assert {:ok, %{log_state: "complete"}} = Jobs.get_for_account(account.id, 8_800_005)
+    end
+
     test "attributes lines from the token, ignoring any client-supplied ids", %{conn: conn} do
       account = account_fixture()
       enqueue(account, 8_800_003)

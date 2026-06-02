@@ -64,12 +64,14 @@ defmodule TuistWeb.RunnerLogsController do
   end
 
   defp parse_lines(params, workflow_job_id, account_id) do
-    case Map.get(params, "lines", []) do
-      lines when is_list(lines) ->
-        {:ok, Enum.map(lines, &line_row(&1, workflow_job_id, account_id))}
-
-      _ ->
-        {:error, :invalid_lines}
+    # The closing `done: true` batch carries no new lines; some clients
+    # (notably Go's `encoding/json`) serialise a nil/zero-valued slice
+    # as `"lines": null` rather than `"lines": []`. Treat both as the
+    # empty list so the finalize signal isn't dropped on a 400.
+    case Map.get(params, "lines") do
+      nil -> {:ok, []}
+      lines when is_list(lines) -> {:ok, Enum.map(lines, &line_row(&1, workflow_job_id, account_id))}
+      _ -> {:error, :invalid_lines}
     end
   end
 

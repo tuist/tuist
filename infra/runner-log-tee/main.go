@@ -278,7 +278,11 @@ func (s *tee) loop() {
 func (s *tee) finalize(partial bool) {
 	close(s.in)
 	<-s.closed
-	s.post(batch{Done: true, Partial: partial})
+	// Send an explicit empty list rather than relying on the struct's
+	// zero value. A nil `[]logLine` serialises to `"lines": null`,
+	// which the server's payload validator rejects as a 400; an
+	// initialised empty slice serialises to `"lines": []`.
+	s.post(batch{Lines: []logLine{}, Done: true, Partial: partial})
 }
 
 func (s *tee) post(b batch) {

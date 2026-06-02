@@ -2,11 +2,30 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
 )
+
+func TestFinalizeBatchSerialisesEmptyLines(t *testing.T) {
+	// The finalize batch carries no new lines. A bare `batch{Done:true}`
+	// would serialise as `"lines": null` (Go's zero-valued slice), which
+	// the server's payload validator rejects as a 400 — losing the
+	// finalize signal. The fix is to send an explicit empty list.
+	b := batch{Lines: []logLine{}, Done: true}
+	out, err := json.Marshal(b)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(out), `"lines":[]`) {
+		t.Fatalf("expected lines:[], got %s", out)
+	}
+	if strings.Contains(string(out), `"lines":null`) {
+		t.Fatalf("got lines:null in %s — should be []", out)
+	}
+}
 
 func TestReadBoundedLineTruncatesAndAdvances(t *testing.T) {
 	// A 5 KiB line, then a normal one. With maxBytes = 1 KiB the long
