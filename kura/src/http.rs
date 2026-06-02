@@ -380,7 +380,45 @@ fn request_route(req: &Request) -> String {
     req.extensions()
         .get::<MatchedPath>()
         .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| UNMATCHED_ROUTE.to_owned())
+        .unwrap_or_else(|| route_template_for_path(req.uri().path()).to_owned())
+}
+
+fn route_template_for_path(path: &str) -> &'static str {
+    match path {
+        "/up" => "/up",
+        "/ready" => "/ready",
+        "/status/rollout" => "/status/rollout",
+        "/metrics" => "/metrics",
+        "/api/cache/keyvalue" => "/api/cache/keyvalue",
+        "/api/cache/module/start" => "/api/cache/module/start",
+        "/api/cache/module/part" => "/api/cache/module/part",
+        "/api/cache/module/complete" => "/api/cache/module/complete",
+        "/api/cache/clean" => "/api/cache/clean",
+        "/_internal/status" => "/_internal/status",
+        "/_internal/bootstrap/manifests" => "/_internal/bootstrap/manifests",
+        "/_internal/bootstrap/namespace_tombstones" => "/_internal/bootstrap/namespace_tombstones",
+        "/_internal/replicate/artifact" => "/_internal/replicate/artifact",
+        "/_internal/replicate/namespace" => "/_internal/replicate/namespace",
+        _ if one_segment_after_prefix(path, "/v1/cache/") => "/v1/cache/{hash}",
+        _ if one_segment_after_prefix(path, "/api/metro/cache/") => "/api/metro/cache/{cache_key}",
+        _ if one_segment_after_prefix(path, "/api/cache/keyvalue/") => {
+            "/api/cache/keyvalue/{cas_id}"
+        }
+        _ if one_segment_after_prefix(path, "/api/cache/cas/") => "/api/cache/cas/{id}",
+        _ if one_segment_after_prefix(path, "/api/cache/module/") => "/api/cache/module/{id}",
+        _ if one_segment_after_prefix(path, "/api/cache/gradle/") => {
+            "/api/cache/gradle/{cache_key}"
+        }
+        _ if one_segment_after_prefix(path, "/_internal/bootstrap/artifacts/") => {
+            "/_internal/bootstrap/artifacts/{artifact_id}"
+        }
+        _ => UNMATCHED_ROUTE,
+    }
+}
+
+fn one_segment_after_prefix(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|segment| !segment.is_empty() && !segment.contains('/'))
 }
 
 async fn track_http_metrics(
@@ -2104,6 +2142,59 @@ mod tests {
         assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
+    }
+
+    #[test]
+    fn route_template_for_path_stabilizes_cache_paths() {
+        assert_eq!(route_template_for_path("/up"), "/up");
+        assert_eq!(
+            route_template_for_path("/api/cache/cas/artifact-one"),
+            "/api/cache/cas/{id}"
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/keyvalue/cas-one"),
+            "/api/cache/keyvalue/{cas_id}"
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/gradle/cache-key-one"),
+            "/api/cache/gradle/{cache_key}"
+        );
+        assert_eq!(
+            route_template_for_path("/_internal/bootstrap/artifacts/artifact-one"),
+            "/_internal/bootstrap/artifacts/{artifact_id}"
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/cas/artifact-one/extra"),
+            UNMATCHED_ROUTE
+        );
+        assert_eq!(route_template_for_path("/.docker/.env"), UNMATCHED_ROUTE);
+    }
+
+    #[tokio::test]
+    async fn dynamic_cache_paths_use_template_route_metric_labels() {
+        let context = test_context(|_| {}).await;
+        let app = public_router(context.state.clone());
+
+        for artifact_id in ["artifact-one", "artifact-two"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/cache/cas/{artifact_id}"))
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+
+            assert_ne!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("route=\"/api/cache/cas/{id}\""));
+        assert!(!metrics.contains("artifact-one"));
+        assert!(!metrics.contains("artifact-two"));
+        assert!(!metrics.contains("route=\"/api/cache/cas/artifact-"));
     }
 
     #[tokio::test]
