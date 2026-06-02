@@ -273,6 +273,20 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+  # macOS Profile catalog (M2-L + Xcode versions). The server reads
+  # these as `TUIST_RUNNER_MACOS_SHAPES` / `TUIST_RUNNER_MACOS_XCODE_VERSIONS`,
+  # and the Profiles LiveView surfaces them in the create form. Keep
+  # `xcodeVersions` aligned with the active matrix in
+  # `.github/workflows/release.yml` so every active runner-image tag
+  # has a profile that can pin to it.
+  shapes:
+    - vcpus: 8
+      memoryGb: 14
+      default: true
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"
   pools:
     - name: default
       # 1 warm runner per host. Pool replicas must equal `hostCount`

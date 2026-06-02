@@ -753,6 +753,24 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+  # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
+  # single source of truth for the Profiles dropdown and the server's
+  # `:runner_macos_shapes` validation. Injected into the server as
+  # `TUIST_RUNNER_MACOS_SHAPES` (JSON). M2-L is the only Scaleway Apple
+  # Silicon SKU on the fleet today.
+  shapes:
+    - vcpus: 8
+      memoryGb: 14
+      default: true
+  # macOS Xcode catalog. Profiles pin one of these per row; the
+  # release-runner-image flow publishes a per-Xcode runner image tag
+  # that the corresponding pool uses. Keep this list in sync with the
+  # `runner-image-build.strategy.matrix.xcode` matrix in
+  # `.github/workflows/release.yml`.
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.

@@ -176,6 +176,41 @@ spec:
               value: {{ $serverShapes | toJson | quote }}
             {{- end }}
             {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # macOS analogue of the Linux pool name prefix above. The
+            # chart's macOS RunnerPool CRs are named
+            # `<componentName>-runner-pool-macos-<xcode-dashes>` (per
+            # Xcode profile); injecting the prefix here keeps
+            # `Catalog.pool_name/1` in lockstep with the rendered CRs.
+            - name: TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") | quote }}
+            {{- with .Values.runnersFleet.shapes }}
+            # Same projection as the Linux shapes above, for the macOS
+            # fleet. M2-L is the only shape today; this is wired now so
+            # future shape diversity doesn't need a chart change.
+            {{- $serverMacosShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverMacosShapes = append $serverMacosShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_SHAPES
+              value: {{ $serverMacosShapes | toJson | quote }}
+            {{- end }}
+            {{- with .Values.runnersFleet.xcodeVersions }}
+            # macOS Xcode catalog injection. Mirrors the shape pattern:
+            # one source for the chart pool rendering (planned) and the
+            # server's `:runner_macos_xcode_versions` validation.
+            {{- $serverXcodeVersions := list }}
+            {{- range . }}
+            {{- $entry := dict "xcodeVersion" (.xcodeVersion | toString) }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverXcodeVersions = append $serverXcodeVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
+              value: {{ $serverXcodeVersions | toJson | quote }}
+            {{- end }}
+            {{- end }}
             {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
             # Namespace of the CNPG Cluster + Backup CRs (this release's
             # namespace). The /ops/db Backups tab lists those CRs via the

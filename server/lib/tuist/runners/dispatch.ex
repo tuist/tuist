@@ -288,18 +288,22 @@ defmodule Tuist.Runners.Dispatch do
        label maps to the catalog default shape (the per-env Linux pool
        it used to address is gone). The original label is preserved as
        the dispatch label so GitHub still binds the job.
-    3. **Legacy macOS alias** — same as the Linux alias for
+    3. **Legacy pool match** — `spec.dispatchLabel` matched against a
+       Helm-rendered `RunnerPool`. The chart still renders one direct-
+       label macOS pool today (the per-Xcode pool rendering is staged
+       in follow-up work), so `tuist-<env>-macos` workflows land here
+       via the existing `name: default` pool.
+    4. **Legacy macOS alias** — same as the Linux alias for
        `tuist-<env>-macos` labels, resolving to the default macOS
-       Xcode pool.
-    4. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Backstop for any non-shape /
-       non-Xcode pool the chart might still render.
+       Xcode pool. Forward-looking fallback for once the chart renders
+       per-Xcode pools; today it's a no-op because step 3 catches the
+       legacy macOS label first.
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels),
          {:error, :no_legacy_alias} <- resolve_legacy_linux_alias(requested_labels),
-         {:error, :no_legacy_alias} <- resolve_legacy_macos_alias(requested_labels) do
-      resolve_legacy_pool(requested_labels)
+         {:error, _} <- resolve_legacy_pool(requested_labels) do
+      resolve_legacy_macos_alias(requested_labels)
     end
   end
 

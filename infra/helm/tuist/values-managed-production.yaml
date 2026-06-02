@@ -263,6 +263,18 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+  # macOS Profile catalog (M2-L + Xcode versions). Server-side only
+  # for now — production still renders the single `name: default`
+  # pool below; per-Xcode pool rendering lands once staging proves it
+  # out. Keep `xcodeVersions` aligned with the matrix in `release.yml`.
+  shapes:
+    - vcpus: 8
+      memoryGb: 14
+      default: true
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"
   pools:
     - name: default
       replicas: 9
