@@ -261,6 +261,18 @@ defmodule Tuist.Runners.Dispatch do
     stag: "tuist-staging-linux"
   }
 
+  # macOS analogue of `@legacy_linux_label_by_env`. Pre-profiles macOS
+  # workflows put one of these in `runs-on:` and landed on a single
+  # `name: default` pool via `spec.dispatchLabel` match. Now that the
+  # macOS pool list is per-Xcode-profile, the legacy label resolves to
+  # the default profile's Xcode pool — same retention semantics as the
+  # Linux alias.
+  @legacy_macos_label_by_env %{
+    prod: "tuist-macos",
+    can: "tuist-canary-macos",
+    stag: "tuist-staging-macos"
+  }
+
   @doc """
   Resolve a webhook's `(account, requested_labels)` into the pool
   name to enqueue against and the customer-facing dispatch label
@@ -270,18 +282,23 @@ defmodule Tuist.Runners.Dispatch do
 
     1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
        e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
-       maps to its shape pool. The common path.
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path.
     2. **Legacy Linux alias** — a pre-profiles `tuist-<env>-linux`
        label maps to the catalog default shape (the per-env Linux pool
        it used to address is gone). The original label is preserved as
        the dispatch label so GitHub still binds the job.
-    3. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Still serves macOS pools and any
-       other non-shape fleets.
+    3. **Legacy macOS alias** — same as the Linux alias for
+       `tuist-<env>-macos` labels, resolving to the default macOS
+       Xcode pool.
+    4. **Legacy pool match** — `spec.dispatchLabel` matched against a
+       Helm-rendered `RunnerPool`. Backstop for any non-shape /
+       non-Xcode pool the chart might still render.
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels),
-         {:error, :no_legacy_alias} <- resolve_legacy_linux_alias(requested_labels) do
+         {:error, :no_legacy_alias} <- resolve_legacy_linux_alias(requested_labels),
+         {:error, :no_legacy_alias} <- resolve_legacy_macos_alias(requested_labels) do
       resolve_legacy_pool(requested_labels)
     end
   end
@@ -319,6 +336,34 @@ defmodule Tuist.Runners.Dispatch do
                  platform: :linux,
                  vcpus: shape.vcpus,
                  memory_gb: shape.memory_gb
+               }),
+             requested_dispatch_label: legacy
+           }}
+      end
+    else
+      _ -> {:error, :no_legacy_alias}
+    end
+  end
+
+  defp resolve_legacy_macos_alias(requested_labels) do
+    with own_label when is_binary(own_label) <- Map.get(@legacy_macos_label_by_env, Environment.env()),
+         legacy when is_binary(legacy) <-
+           Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) == own_label)) do
+      case Catalog.default_xcode_version(:macos) do
+        nil ->
+          # Legacy label requested but the catalog has no default Xcode
+          # version (misconfigured chart). Surface as no-pool so the
+          # webhook 200s and ops sees the loud log rather than a phantom
+          # enqueue.
+          {:error, :no_pools}
+
+        xcode ->
+          {:ok,
+           %{
+             pool_name:
+               Catalog.pool_name(%{
+                 platform: :macos,
+                 xcode_version: xcode.xcode_version
                }),
              requested_dispatch_label: legacy
            }}
