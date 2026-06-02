@@ -499,8 +499,7 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_filter_platform(query, ""), do: query
   defp maybe_filter_platform(query, "any"), do: query
 
-  defp maybe_filter_platform(query, "linux"),
-    do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
 
   defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
 

@@ -327,8 +327,7 @@ defmodule Tuist.Runners.Billing do
   defp maybe_platform(query, ""), do: query
   defp maybe_platform(query, "any"), do: query
 
-  defp maybe_platform(query, "linux"),
-    do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
 
   defp maybe_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
 

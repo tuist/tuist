@@ -1143,8 +1143,7 @@ defmodule Tuist.Runners.Analytics do
   defp maybe_platform(query, ""), do: query
   defp maybe_platform(query, "any"), do: query
 
-  defp maybe_platform(query, "linux"),
-    do: filter_by_fleet_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_platform(query, "linux"), do: filter_by_fleet_prefixes(query, Catalog.linux_fleet_name_prefixes())
 
   defp maybe_platform(query, "macos"), do: filter_by_fleet_prefixes(query, ["macos-"])
 
