@@ -317,19 +317,19 @@ defmodule Tuist.Runners.Billing do
 
   defp maybe_eq(query, :workflow_name, value) when is_binary(value), do: where(query, [s], s.workflow_name == ^value)
 
-  # Platform filter narrows on the `fleet_name` prefix. Linux jobs
-  # write fleet names from either the legacy `linux-…` per-env pool
-  # or the shape catalog (`<runners_linux_pool_name_prefix>-…`), so
-  # the filter matches the union from
-  # `Catalog.linux_fleet_name_prefixes/0`; macOS still uses the
-  # legacy `macos-…` prefix today.
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix, so profile-
+  # dispatched and legacy jobs surface together under the right
+  # filter bucket.
   defp maybe_platform(query, nil), do: query
   defp maybe_platform(query, ""), do: query
   defp maybe_platform(query, "any"), do: query
 
-  defp maybe_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:linux))
 
-  defp maybe_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
+  defp maybe_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_platform(query, _), do: query
 

@@ -291,7 +291,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           pool_name: Catalog.pool_name(profile),
            requested_dispatch_label: Profile.dispatch_label(profile)
          }}
 
@@ -304,7 +304,7 @@ defmodule Tuist.Runners.Dispatch do
     with own_label when is_binary(own_label) <- Map.get(@legacy_linux_label_by_env, Environment.env()),
          legacy when is_binary(legacy) <-
            Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) == own_label)) do
-      case Catalog.default() do
+      case Catalog.default_shape(:linux) do
         nil ->
           # Legacy label requested but the catalog has no default shape
           # (misconfigured chart). Surface as no-pool so the webhook 200s
@@ -314,7 +314,12 @@ defmodule Tuist.Runners.Dispatch do
         shape ->
           {:ok,
            %{
-             pool_name: Catalog.pool_name(shape.vcpus, shape.memory_gb),
+             pool_name:
+               Catalog.pool_name(%{
+                 platform: :linux,
+                 vcpus: shape.vcpus,
+                 memory_gb: shape.memory_gb
+               }),
              requested_dispatch_label: legacy
            }}
       end

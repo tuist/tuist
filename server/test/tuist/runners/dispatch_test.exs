@@ -129,8 +129,9 @@ defmodule Tuist.Runners.DispatchTest do
         %{vcpus: 8, memory_gb: 32, key: "8vcpu-32gb", default?: false, pool_dispatch_label: ""}
       ]
 
-      stub(Catalog, :list, fn -> catalog end)
-      stub(Catalog, :default, fn -> Enum.find(catalog, & &1.default?) end)
+      stub(Catalog, :shapes, fn :linux -> catalog end)
+      stub(Catalog, :default_shape, fn :linux -> Enum.find(catalog, & &1.default?) end)
+      stub(Catalog, :xcode_versions, fn :macos -> [] end)
 
       {:ok, profile} =
         Tuist.Runners.Profiles.create(catalog_account, %{

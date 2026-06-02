@@ -56,19 +56,23 @@ defmodule Tuist.Runners.Profiles do
   end
 
   @doc """
-  Create a profile under `account`. Validates `vcpus`/`memory_gb`
-  against the live catalog and the per-account cap.
+  Create a profile under `account`. The catalog data passed into the
+  schema validation is keyed off the profile's `platform`:
+
+    * Linux profiles validate against `Catalog.shapes(:linux)`.
+    * macOS profiles validate against `Catalog.shapes(:macos)` plus
+      `Catalog.xcode_versions(:macos)`.
+
+  Per-account cap applies across platforms.
   """
   def create(%{id: account_id}, attrs) do
-    catalog = Catalog.list()
+    attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
 
     if count_for_account(account_id) >= @max_per_account do
       {:error, :max_profiles_reached}
     else
-      attrs = Map.put(stringify_keys(attrs), "account_id", account_id)
-
       %Profile{}
-      |> Profile.changeset(attrs, catalog)
+      |> Profile.changeset(attrs, catalog_opts_for(parse_platform(attrs)))
       |> Repo.insert()
     end
   end
@@ -81,11 +85,16 @@ defmodule Tuist.Runners.Profiles do
   def default_linux_name, do: "linux"
 
   @doc """
-  Insert the per-account protected `linux` profile (4 vCPU / 16 GB,
-  matching the catalog default shape so `runs-on: <prefix>linux`
-  always lands on the warm pool). Idempotent — a no-op when a row
-  with the same name already exists, since `name` is the unique key
-  per account.
+  The auto-bootstrapped macOS profile name. Parallel to
+  `default_linux_name/0`.
+  """
+  def default_macos_name, do: "macos"
+
+  @doc """
+  Insert the per-account protected `linux` profile, matching the
+  catalog default shape so `runs-on: <prefix>linux` always lands on
+  the warm pool. Idempotent — a no-op when a row with the same name
+  already exists, since `name` is the unique key per account.
 
   Called from `Accounts.create_user` / `Accounts.create_organization`
   inside the same Multi as the Account insert; failing here aborts
@@ -94,7 +103,7 @@ defmodule Tuist.Runners.Profiles do
   bypassed — the customer didn't create this row.
   """
   def create_default_for_account(%{id: account_id}) do
-    case Catalog.default() do
+    case Catalog.default_shape(:linux) do
       nil ->
         {:error, :no_catalog_default}
 
@@ -102,31 +111,30 @@ defmodule Tuist.Runners.Profiles do
         attrs = %{
           "account_id" => account_id,
           "name" => default_linux_name(),
+          "platform" => "linux",
           "vcpus" => default.vcpus,
           "memory_gb" => default.memory_gb,
           "protected" => true
         }
 
         %Profile{}
-        |> Profile.changeset(attrs, Catalog.list())
+        |> Profile.changeset(attrs, catalog_opts_for(:linux))
         |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :name])
     end
   end
 
   @doc """
-  Update a profile's resources. `name` cannot change post-create
-  (see module docs). Passing `name` is silently ignored.
+  Update a profile's resources. `name` and `platform` cannot change
+  post-create (see module docs). Passing either is silently ignored.
   """
-  def update(%Profile{} = profile, attrs) do
-    catalog = Catalog.list()
-
+  def update(%Profile{platform: platform} = profile, attrs) do
     attrs =
       attrs
       |> stringify_keys()
-      |> Map.drop(["name", "account_id"])
+      |> Map.drop(["name", "account_id", "platform"])
 
     profile
-    |> Profile.changeset(attrs, catalog)
+    |> Profile.changeset(attrs, catalog_opts_for(platform))
     |> Repo.update()
   end
 
@@ -179,4 +187,16 @@ defmodule Tuist.Runners.Profiles do
       {k, v} -> {k, v}
     end)
   end
+
+  defp parse_platform(%{"platform" => "linux"}), do: :linux
+  defp parse_platform(%{"platform" => "macos"}), do: :macos
+  defp parse_platform(%{"platform" => :linux}), do: :linux
+  defp parse_platform(%{"platform" => :macos}), do: :macos
+  # Mirror the schema default: an unset platform attr means Linux.
+  defp parse_platform(_), do: :linux
+
+  defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
+
+  defp catalog_opts_for(:macos),
+    do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions(:macos)]
 end

@@ -4,9 +4,21 @@ defmodule Tuist.Runners.Profile do
   GitHub Actions workflows as `runs-on: <prefix><name>` — see
   `prefix/0` — and the dispatch path resolves
   `(account, requested-label)` through the profile to the matching
-  shape pool.
+  pool.
 
-  Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs).
+  Profiles are platform-specific. The dimensions that vary by
+  platform:
+
+    * `:linux` — `(vcpus, memory_gb)`, picked from
+      `Tuist.Runners.Catalog.shapes(:linux)`.
+    * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
+      picked from `Catalog.shapes(:macos)` (M2-L is the only shape
+      today) and `Catalog.xcode_versions(:macos)`. The Xcode
+      version pins the runner image's `:macos-<dashes>-<semver>`
+      tag.
+
+  Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs)
+  and [priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs](priv/repo/migrations/20260602144624_add_platform_and_xcode_to_runner_profiles.exs).
   """
   use Ecto.Schema
 
@@ -21,10 +33,18 @@ defmodule Tuist.Runners.Profile do
   # prefix namespace clean (e.g. `runs-on: tuist-tuist`).
   @reserved_names ~w(runner runners tuist)
 
+  @platforms [:linux, :macos]
+
   schema "runner_profiles" do
     field :name, :string
+    # Default `:linux` matches the migration's column default and
+    # keeps Linux-only callers (the LiveView form, tests, the per-
+    # account bootstrap) working without threading platform through
+    # every attrs map. macOS callers must set it explicitly.
+    field :platform, Ecto.Enum, values: @platforms, default: :linux
     field :vcpus, :integer
     field :memory_gb, :integer
+    field :xcode_version, :string
     field :protected, :boolean, default: false
 
     belongs_to :account, Account
@@ -33,26 +53,65 @@ defmodule Tuist.Runners.Profile do
   end
 
   @doc """
-  Changeset for create / update. `catalog` is the list of
-  `(vcpus, memory_gb)` pairs the shape catalog currently exposes,
-  passed in by the caller (the schema is intentionally unaware of
-  the K8s side).
+  All supported platforms.
   """
-  def changeset(profile, attrs, catalog) when is_list(catalog) do
-    profile
-    |> cast(attrs, [:account_id, :name, :vcpus, :memory_gb, :protected])
-    |> validate_required([:account_id, :name, :vcpus, :memory_gb])
-    |> update_change(:name, &normalize_name/1)
-    |> validate_format(:name, @name_format,
-      message: "must start with a letter and contain only lowercase letters, digits, and hyphens"
-    )
-    |> validate_length(:name, max: 32)
-    |> validate_exclusion(:name, @reserved_names)
-    |> validate_shape(catalog)
-    |> unique_constraint([:account_id, :name],
-      message: "a profile with this name already exists in this account"
-    )
-    |> foreign_key_constraint(:account_id)
+  def platforms, do: @platforms
+
+  @doc """
+  Changeset for create / update.
+
+  `opts` carries the catalog data the schema validates against. The
+  schema doesn't touch `Tuist.Runners.Catalog` directly so tests can
+  drive validation with a fixed catalog without mocking module-level
+  Application config:
+
+    * `:shapes` — the `(vcpus, memory_gb)` list for *this profile's
+      platform*. Required.
+    * `:xcode_versions` — list of supported Xcode versions. Only
+      consulted for macOS profiles; ignored for Linux.
+  """
+  def changeset(profile, attrs, opts \\ []) when is_list(opts) do
+    shapes = Keyword.get(opts, :shapes, [])
+    xcode_versions = Keyword.get(opts, :xcode_versions, [])
+
+    changeset =
+      profile
+      |> cast(attrs, [
+        :account_id,
+        :name,
+        :platform,
+        :vcpus,
+        :memory_gb,
+        :xcode_version,
+        :protected
+      ])
+      |> validate_required([:account_id, :name, :platform, :vcpus, :memory_gb])
+      |> update_change(:name, &normalize_name/1)
+      |> validate_format(:name, @name_format,
+        message: "must start with a letter and contain only lowercase letters, digits, and hyphens"
+      )
+      |> validate_length(:name, max: 32)
+      |> validate_exclusion(:name, @reserved_names)
+      |> unique_constraint([:account_id, :name],
+        message: "a profile with this name already exists in this account"
+      )
+      |> foreign_key_constraint(:account_id)
+
+    case get_field(changeset, :platform) do
+      :linux ->
+        changeset
+        |> put_change(:xcode_version, nil)
+        |> validate_shape(shapes)
+
+      :macos ->
+        changeset
+        |> validate_required([:xcode_version])
+        |> validate_shape(shapes)
+        |> validate_xcode_version(xcode_versions)
+
+      _ ->
+        changeset
+    end
   end
 
   defp normalize_name(nil), do: nil
@@ -71,6 +130,21 @@ defmodule Tuist.Runners.Profile do
 
       true ->
         add_error(changeset, :vcpus, "must match one of the available resource configurations")
+    end
+  end
+
+  defp validate_xcode_version(changeset, catalog) do
+    xcode_version = get_field(changeset, :xcode_version)
+
+    cond do
+      is_nil(xcode_version) ->
+        changeset
+
+      Enum.any?(catalog, fn xcode -> xcode.xcode_version == xcode_version end) ->
+        changeset
+
+      true ->
+        add_error(changeset, :xcode_version, "must match one of the available Xcode versions")
     end
   end
 

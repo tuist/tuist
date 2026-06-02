@@ -33,7 +33,7 @@ defmodule TuistWeb.RunnerProfilesLive do
        :head_title,
        "#{dgettext("dashboard_runners", "Profiles")} · #{selected_account.name} · Tuist"
      )
-     |> assign(:catalog, Catalog.list())
+     |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)

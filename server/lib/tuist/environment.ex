@@ -1090,6 +1090,17 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
+  Helm renders the prefix into the `RunnerPool` CR names and injects it
+  here so the server's enqueue target stays identical to the rendered CR
+  name regardless of helm release. Default mirrors the Linux side, with
+  `-macos` substituted for `-linux`.
+  """
+  def runners_macos_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
   Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
   CRs live — the chart sets it to the release namespace when CNPG is
   enabled. `nil` when unset (dev, or CNPG not provisioned), which makes

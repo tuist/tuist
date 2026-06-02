@@ -45,6 +45,42 @@ case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
     end
 end
 
+case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Tuist.Runners.Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleet.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_macos_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Tuist.Runners.Catalog.parse_xcode_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_XCODE_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.xcodeVersions via toJson). Got: #{inspect(json)}"
+
+      xcodes ->
+        config :tuist, :runner_macos_xcode_versions, xcodes
+    end
+end
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end

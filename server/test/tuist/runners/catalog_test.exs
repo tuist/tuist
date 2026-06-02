@@ -3,21 +3,55 @@ defmodule Tuist.Runners.CatalogTest do
 
   alias Tuist.Runners.Catalog
 
-  describe "linux_fleet_name_prefixes/0" do
-    test "covers both the legacy and the shape-catalog pool naming" do
+  describe "fleet_name_prefixes/1" do
+    test "Linux covers both legacy and shape-catalog pool naming" do
       # Both prefixes are what `runner_jobs.fleet_name` can carry on a
       # Linux row — the platform filter and the analytics grouping
       # rely on this list to recognise profile-dispatched jobs (their
-      # fleet name comes from `Catalog.pool_name/2`).
-      prefixes = Catalog.linux_fleet_name_prefixes()
+      # fleet name comes from `Catalog.pool_name/1`).
+      prefixes = Catalog.fleet_name_prefixes(:linux)
 
       assert "linux-" in prefixes
       assert "#{Tuist.Environment.runners_linux_pool_name_prefix()}-" in prefixes
       # `String.starts_with?/2` accepts a list of prefixes — the
       # filter/grouping callers depend on that calling convention.
-      assert String.starts_with?(Catalog.pool_name(4, 16), prefixes)
+      assert String.starts_with?(
+               Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+               prefixes
+             )
+
       assert String.starts_with?("linux-amd64", prefixes)
       refute String.starts_with?("macos-arm64", prefixes)
+    end
+
+    test "macOS covers both legacy and Xcode-catalog pool naming" do
+      prefixes = Catalog.fleet_name_prefixes(:macos)
+
+      assert "macos-" in prefixes
+      assert "#{Tuist.Environment.runners_macos_pool_name_prefix()}-" in prefixes
+      # A profile-dispatched macOS fleet name should start with one of these.
+      assert String.starts_with?(
+               Catalog.pool_name(%{platform: :macos, xcode_version: "26.5"}),
+               prefixes
+             )
+
+      assert String.starts_with?("macos-26-5", prefixes)
+      refute String.starts_with?("linux-amd64", prefixes)
+    end
+  end
+
+  describe "pool_name/1" do
+    test ":linux profile resolves to `<prefix>-<vcpus>vcpu-<memory_gb>gb`" do
+      assert Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}) ==
+               "#{Tuist.Environment.runners_linux_pool_name_prefix()}-4vcpu-16gb"
+    end
+
+    test ":macos profile resolves to `<prefix>-<xcode-dashes>`" do
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.5"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-5"
+
+      assert Catalog.pool_name(%{platform: :macos, xcode_version: "26.4.1"}) ==
+               "#{Tuist.Environment.runners_macos_pool_name_prefix()}-26-4-1"
     end
   end
 
@@ -45,6 +79,25 @@ defmodule Tuist.Runners.CatalogTest do
       assert :error = Catalog.parse_shapes_json("not json")
       assert :error = Catalog.parse_shapes_json("{}")
       assert :error = Catalog.parse_shapes_json(nil)
+    end
+  end
+
+  describe "parse_xcode_versions_json/1" do
+    test "parses the Helm-injected JSON into the config shape" do
+      json = ~s([{"xcodeVersion":"26.5","default":true},{"xcodeVersion":"26.4.1"}])
+
+      assert [
+               %{xcode_version: "26.5", default: true},
+               %{xcode_version: "26.4.1"} = second
+             ] = Catalog.parse_xcode_versions_json(json)
+
+      refute Map.has_key?(second, :default)
+    end
+
+    test "returns :error on malformed JSON" do
+      assert :error = Catalog.parse_xcode_versions_json("not json")
+      assert :error = Catalog.parse_xcode_versions_json("{}")
+      assert :error = Catalog.parse_xcode_versions_json(nil)
     end
   end
 end
