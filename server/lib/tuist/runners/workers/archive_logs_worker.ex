@@ -38,7 +38,13 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
 
   require Logger
 
+  # Lines read from ClickHouse per batch. Bounds peak memory for the
+  # in-flight chunk being deflated.
   @batch_size 2_000
+
+  # S3 multipart minimum chunk size. ExAws streams the temp file in
+  # parts of this size, so the upload's peak memory is one chunk.
+  @upload_chunk_bytes 5 * 1024 * 1024
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"workflow_job_id" => workflow_job_id, "account_id" => account_id}}) do
@@ -49,21 +55,56 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
     end
   end
 
+  # Stream-gzip the job's log to a temp file and upload it via S3
+  # multipart. A noisy 4-hour build can emit hundreds of MB; the old
+  # in-memory `:zlib.gzip(IO.iodata_to_binary(...))` held the full
+  # plain-text *and* the gzip simultaneously and reran both on every
+  # Oban retry, which would OOM the worker process. With this layout
+  # the peak resident set is one CH batch (~300 KB of lines) plus
+  # zlib's deflate state plus the 5 MiB multipart chunk in flight.
   defp archive(workflow_job_id, account) do
-    log =
-      workflow_job_id
-      |> JobLogs.reduce(@batch_size, [], fn lines, acc -> [acc | JobLogs.encode_lines(lines)] end)
-      |> IO.iodata_to_binary()
+    path = Briefly.create!()
+    file = File.open!(path, [:write, :binary, :raw])
+    z = :zlib.open()
+    # `15 + 16` for windowBits selects gzip framing (header + trailer)
+    # so the produced bytes are a valid `.log.gz` rather than a raw
+    # deflate stream.
+    :ok = :zlib.deflateInit(z, :default, :deflated, 15 + 16, 8, :default)
 
-    if log == "" do
-      # Finalize fired with no captured lines — nothing worth archiving.
+    line_count =
+      try do
+        count = stream_into_deflate(z, file, workflow_job_id)
+        :ok = IO.binwrite(file, :zlib.deflate(z, "", :finish))
+        count
+      after
+        :zlib.deflateEnd(z)
+        :zlib.close(z)
+        File.close(file)
+      end
+
+    if line_count == 0 do
+      # The job's stream closed without ever emitting a line (a runner
+      # that died before its first output, say). The gzip would still
+      # contain a header + trailer; there's nothing worth serving from
+      # an archive, and the chunked CH fallback handles the empty case.
       :ok
     else
       key = archive_key(account.id, workflow_job_id)
-      Storage.put_object(key, :zlib.gzip(log), account)
+
+      path
+      |> File.stream!(@upload_chunk_bytes)
+      |> Storage.upload(key, account)
+
       Jobs.set_log_archive_key(workflow_job_id, key)
       :ok
     end
+  end
+
+  defp stream_into_deflate(z, file, workflow_job_id) do
+    JobLogs.reduce(workflow_job_id, @batch_size, 0, fn lines, count ->
+      :ok = IO.binwrite(file, :zlib.deflate(z, JobLogs.encode_lines(lines)))
+      count + length(lines)
+    end)
   end
 
   @doc """

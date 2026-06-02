@@ -51,8 +51,13 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
 
       expected_key = "runners/#{account.id}/9900001/runner.log.gz"
 
-      expect(Storage, :put_object, fn ^expected_key, gzipped, %{id: account_id} ->
+      expect(Storage, :upload, fn source, ^expected_key, %{id: account_id} ->
         assert account_id == account.id
+
+        gzipped =
+          source
+          |> Enum.to_list()
+          |> IO.iodata_to_binary()
 
         decompressed = :zlib.gunzip(gzipped)
         assert decompressed =~ "first"
@@ -68,11 +73,60 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
       assert {:ok, %{log_archive_key: ^expected_key}} = Jobs.get_for_account(account.id, 9_900_001)
     end
 
+    test "streams a multi-megabyte log without holding the whole thing in memory" do
+      # Smoke-tests the streaming path. The original in-memory design
+      # built the full plain-text *and* the gzip simultaneously; the
+      # streaming path keeps only the in-flight CH batch and one S3
+      # multipart chunk resident. We don't assert RSS, but the test
+      # exercises a payload large enough to fan through several batches
+      # (`@batch_size` is 2_000) and across the 5 MiB multipart cap.
+      account = account_fixture()
+      enqueue(account, 9_900_010)
+
+      # Each line is ~1 KiB; 8_000 lines is ~8 MiB of plain text — far
+      # more than the previous in-memory approach was comfortable with.
+      payload = String.duplicate("payload-", 128)
+
+      lines =
+        Enum.map(1..8_000, fn n ->
+          %{
+            workflow_job_id: 9_900_010,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :millisecond),
+            message: "#{n}-#{payload}"
+          }
+        end)
+
+      :ok = JobLogs.append(lines)
+
+      expect(Storage, :upload, fn source, key, _account ->
+        assert key == "runners/#{account.id}/9900010/runner.log.gz"
+
+        gzipped =
+          source
+          |> Enum.to_list()
+          |> IO.iodata_to_binary()
+
+        # Round-trip the stream to confirm it's a valid gzip and the
+        # last line made it through (i.e. nothing was truncated by an
+        # over-eager buffer cap).
+        decompressed = :zlib.gunzip(gzipped)
+        assert decompressed =~ "8000-#{payload}"
+        :ok
+      end)
+
+      assert :ok =
+               ArchiveLogsWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => 9_900_010, "account_id" => account.id}
+               })
+    end
+
     test "is a no-op when the job has no captured log lines" do
       account = account_fixture()
       enqueue(account, 9_900_002)
 
-      reject(&Storage.put_object/3)
+      reject(&Storage.upload/3)
 
       assert :ok =
                ArchiveLogsWorker.perform(%Oban.Job{
@@ -83,7 +137,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
     end
 
     test "is a no-op when the account no longer exists" do
-      reject(&Storage.put_object/3)
+      reject(&Storage.upload/3)
 
       assert :ok =
                ArchiveLogsWorker.perform(%Oban.Job{
