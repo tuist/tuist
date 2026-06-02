@@ -561,7 +561,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts), nil
+			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts), nil
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
@@ -927,6 +927,16 @@ type bootstrapRecoveryClient interface {
 	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error
 }
 
+// bootstrapSecretCleaner wipes the per-machine bootstrap Secret that
+// holds the previous host's sudo password, SSH username, and TOFU
+// host fingerprint. The production *credentials.Manager satisfies it
+// via DeleteMachineBootstrap. Separating this from the Scaleway
+// surface keeps both interfaces narrow and lets tests stub the
+// concerns independently.
+type bootstrapSecretCleaner interface {
+	DeleteMachineBootstrap(ctx context.Context, machineName string) error
+}
+
 // handleBootstrapFailure records the bootstrap error on the machine
 // and runs tiered host recovery. Returns the ctrl.Result the caller
 // should propagate.
@@ -936,14 +946,30 @@ type bootstrapRecoveryClient interface {
 // production are host-volatile (PAM account lockouts from sudo
 // retries, sshd connection throttling, half-open SSH sessions) and
 // resolve after a clean boot. Gated on Status.BootstrapRebootIssued so
-// a long retry tail doesn't re-reboot the same host.
+// a long retry tail doesn't re-reboot the same host. If RebootServer
+// returns an error the flag stays false and the next reconcile retries
+// the reboot (the condition is `>=` rather than `==`).
 //
 // Tier 2: at `maxAttempts` consecutive failures, return the host to
 // the adopt pool. ReleaseToPool renames + triggers ReinstallServer
 // (full disk wipe + factory image), so the next reconcile claims a
 // different mini via AdoptFromPool. Status.ServerID is cleared so the
 // adoption stage re-runs; counter + reboot flag reset because they
-// describe the now-discarded host.
+// describe the now-discarded host. The per-machine bootstrap Secret is
+// deleted so the next adopt rebuilds it from scratch — without that
+// step the previous host's TOFU fingerprint would survive and
+// SSH-verify against the replacement host's key, locking us into a
+// fingerprint-mismatch bootstrap failure on the new mini.
+// Outwardly-visible state tied to the discarded host (Status.Ready,
+// Status.Phase, Spec.ProviderID, Status.Addresses, ProvisionedCondition)
+// is reset to its pre-adoption shape so CAPI and operators don't
+// momentarily see a stale "Ready" Machine pointing at a server we no
+// longer control.
+//
+// Order matters: at the maxAttempts threshold the release branch must
+// win even if the reboot was never attempted (e.g., rebootAfter > 0
+// but RebootServer kept failing). The switch is evaluated top-down so
+// release is listed first.
 //
 // Either tier failing to call out to Scaleway (transient API error,
 // 5xx) is non-fatal — the machine stays in the BootstrapFailed
@@ -954,6 +980,7 @@ func handleBootstrapFailure(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 	err error,
 	client bootstrapRecoveryClient,
+	secrets bootstrapSecretCleaner,
 	recorder record.EventRecorder,
 	logger logr.Logger,
 	rebootAfter int32,
@@ -969,7 +996,47 @@ func handleBootstrapFailure(
 
 	hostAdoptable := machine.Status.ServerID != "" && machine.Spec.AdoptPoolPrefix != ""
 	switch {
-	case rebootAfter > 0 && attempts == rebootAfter && !machine.Status.BootstrapRebootIssued && machine.Status.ServerID != "":
+	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
+		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); releaseErr != nil {
+			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
+			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",
+				attempts, releaseErr)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}
+		}
+		releasedID := machine.Status.ServerID
+		// Wipe the per-machine bootstrap Secret. The host fingerprint
+		// stored there is TOFU-pinned to the released mini's SSH key
+		// and would silently reject the replacement host's key on
+		// next bootstrap; nothing else in the Secret (sudo password,
+		// SSH username) survives meaningfully across hosts either.
+		if cleanErr := secrets.DeleteMachineBootstrap(ctx, machine.Name); cleanErr != nil {
+			// Non-fatal: surface the error and continue. The next
+			// adopt will overwrite the credentials, and the
+			// fingerprint guard tolerates an empty pin (TOFU
+			// captures fresh on first SSH). Failing the release here
+			// would leave the host already returned to Scaleway with
+			// no way to roll back.
+			logger.Error(cleanErr, "delete per-machine bootstrap Secret on release; next adopt will recreate it")
+			recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapSecretDeleteFailed",
+				"delete per-machine bootstrap Secret after release: %v (next adopt will overwrite)",
+				cleanErr)
+		}
+		recorder.Eventf(machine, corev1.EventTypeNormal, "BootstrapExhausted",
+			"Released Scaleway server %s after %d bootstrap failures; will claim a fresh host from the pool",
+			releasedID, attempts)
+		machine.Status.ServerID = ""
+		machine.Status.BootstrapAttempts = 0
+		machine.Status.BootstrapRebootIssued = false
+		machine.Status.Ready = false
+		machine.Status.Addresses = nil
+		machine.Status.Phase = "Pending"
+		machine.Spec.ProviderID = nil
+		conditions.MarkFalse(machine, ProvisionedCondition, "HostReleased",
+			clusterv1.ConditionSeverityWarning,
+			"released Scaleway server %s after %d bootstrap failures; awaiting fresh adopt",
+			releasedID, attempts)
+	case rebootAfter > 0 && attempts >= rebootAfter && !machine.Status.BootstrapRebootIssued && machine.Status.ServerID != "":
 		if rebootErr := client.RebootServer(ctx, machine.Status.ServerID, machine.Spec.Zone); rebootErr != nil {
 			logger.Error(rebootErr, "reboot for bootstrap recovery failed; will retry on next attempt")
 			recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoveryFailed",
@@ -981,20 +1048,6 @@ func handleBootstrapFailure(
 				"Rebooting %s after %d bootstrap failures to clear volatile host state",
 				machine.Status.ServerID, attempts)
 		}
-	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
-		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); releaseErr != nil {
-			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
-			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
-				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",
-				attempts, releaseErr)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}
-		}
-		recorder.Eventf(machine, corev1.EventTypeNormal, "BootstrapExhausted",
-			"Released Scaleway server %s after %d bootstrap failures; will claim a fresh host from the pool",
-			machine.Status.ServerID, attempts)
-		machine.Status.ServerID = ""
-		machine.Status.BootstrapAttempts = 0
-		machine.Status.BootstrapRebootIssued = false
 	}
 
 	return ctrl.Result{RequeueAfter: 60 * time.Second}
