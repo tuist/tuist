@@ -166,6 +166,59 @@ defmodule Tuist.Storage.Workers.DeleteExpiredArtifactWorkersTest do
       refute older_key in second_keys
     end
 
+    test "a stale worker page does not move the persisted cursor backwards" do
+      project = project_fixture()
+      account = project.account
+      subscription_fixture(account_id: account.id, plan: :air)
+
+      older =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -63, :day)
+        )
+
+      newer =
+        app_build_fixture(
+          preview: preview_fixture(project: project),
+          inserted_at: DateTime.add(DateTime.utc_now(), -62, :day)
+        )
+
+      older_inserted_at = Repo.get(AppBuild, older.id).inserted_at
+      newer_inserted_at = Repo.get(AppBuild, newer.id).inserted_at
+
+      %ArtifactRetentionCursor{}
+      |> ArtifactRetentionCursor.changeset(%{
+        account_id: account.id,
+        artifact_type: :preview_app_build,
+        after_inserted_at: newer_inserted_at,
+        after_id: newer.id
+      })
+      |> Repo.insert!()
+
+      stub(Storage, :delete_objects, fn object_keys, _account ->
+        send(self(), {:deleted, object_keys})
+        :ok
+      end)
+
+      assert :ok =
+               perform_job(DeleteExpiredPreviewArtifactsWorker, %{
+                 "account_id" => account.id,
+                 "batch_size" => 1,
+                 "after_inserted_at" => older_inserted_at |> DateTime.add(-1, :second) |> DateTime.to_iso8601(),
+                 "after_id" => "00000000-0000-0000-0000-000000000000"
+               })
+
+      assert_received {:deleted, _object_keys}
+
+      assert %ArtifactRetentionCursor{
+               after_id: after_id,
+               after_inserted_at: after_inserted_at
+             } = Repo.get_by(ArtifactRetentionCursor, account_id: account.id, artifact_type: :preview_app_build)
+
+      assert after_id == newer.id
+      assert DateTime.compare(after_inserted_at, newer_inserted_at) == :eq
+    end
+
     test "the build archive worker deletes expired build archives according to the account plan" do
       project = project_fixture()
       account = project.account

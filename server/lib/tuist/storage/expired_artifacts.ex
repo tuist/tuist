@@ -284,13 +284,31 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   defp persist_progress_cursor(_account, nil), do: :ok
 
   defp persist_progress_cursor(%Account{id: account_id}, progress_cursor) do
+    after_inserted_at = progress_cursor.after_inserted_at
+    after_id = progress_cursor.after_id
+    updated_at = DateTime.truncate(DateTime.utc_now(), :second)
     attrs = Map.put(progress_cursor, :account_id, account_id)
+
+    on_conflict =
+      from(cursor in ArtifactRetentionCursor,
+        where:
+          ^after_inserted_at > cursor.after_inserted_at or
+            (^after_inserted_at == cursor.after_inserted_at and ^after_id > cursor.after_id),
+        update: [
+          set: [
+            after_inserted_at: ^after_inserted_at,
+            after_id: ^after_id,
+            updated_at: ^updated_at
+          ]
+        ]
+      )
 
     %ArtifactRetentionCursor{}
     |> ArtifactRetentionCursor.changeset(attrs)
     |> Repo.insert(
-      on_conflict: {:replace, [:after_inserted_at, :after_id, :updated_at]},
-      conflict_target: [:account_id, :artifact_type]
+      on_conflict: on_conflict,
+      conflict_target: [:account_id, :artifact_type],
+      allow_stale: true
     )
     |> case do
       {:ok, _cursor} -> :ok
