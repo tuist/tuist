@@ -221,28 +221,37 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, _} = Jobs.complete(31_602, "success")
 
-    # Two steps: a log line belongs to step N if `ts` is between
-    # step N's `started_at` and step N+1's `started_at` (GitHub UI
-    # semantics, robust to sub-second steps with started_at ==
-    # completed_at and to small clock skew between the runner and
-    # GitHub's coordinator).
+    # Three GH-shaped steps: an auto "Set up job" head, a single
+    # user "Build" step delimited by `##[group]Run`, and an auto
+    # "Complete job" tail anchored to its own `started_at`. Slicing
+    # walks the marker, not the timestamps — see Tuist.Runners.JobLogs.
     :ok =
       JobSteps.record([
         %{
           workflow_job_id: 31_602,
           account_id: account.id,
           number: 1,
-          name: "Build",
+          name: "Set up job",
           status: "completed",
           conclusion: "success",
           started_at: ~U[2026-05-28 12:00:00.000000Z],
-          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+          completed_at: ~U[2026-05-28 12:00:00.000000Z]
         },
         %{
           workflow_job_id: 31_602,
           account_id: account.id,
           number: 2,
-          name: "Teardown",
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:30.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
           status: "completed",
           conclusion: "success",
           started_at: ~U[2026-05-28 12:02:00.000000Z],
@@ -256,25 +265,49 @@ defmodule TuistWeb.RunnerJobLiveTest do
           workflow_job_id: 31_602,
           account_id: account.id,
           line_number: 1,
-          ts: ~U[2026-05-28 12:00:30.000000Z],
-          message: "inside the build step"
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "Current runner version"
         },
         %{
           workflow_job_id: 31_602,
           account_id: account.id,
           line_number: 2,
-          ts: ~U[2026-05-28 12:05:00.000000Z],
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[group]Run build.sh"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 3,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[endgroup]"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 4,
+          ts: ~U[2026-05-28 12:00:45.000000Z],
+          message: "inside the build step"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 5,
+          ts: ~U[2026-05-28 12:02:00.000000Z],
           message: "after the build step"
         }
       ])
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
 
-    lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
+    # Expanding the Build step (number 2) shows the in-step lines
+    # but not the teardown content.
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
     panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
 
     assert panel =~ "inside the build step"
     refute panel =~ "after the build step"
+    refute panel =~ "Current runner version"
   end
 
   test "defaults to the Overview tab and selects Logs via ?tab=logs", %{conn: conn, account: account} do

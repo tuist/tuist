@@ -220,10 +220,10 @@
             <div :if={step_lines == []} data-part="log-empty">
               {dgettext("dashboard_runners", "No logs were captured for this step.")}
             </div>
-            <div :for={line <- step_lines} data-part="log-line">
-              <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-              <span data-part="log-message">{line.message}</span>
-            </div>
+            <TuistWeb.RunnerJobLive.log_tree
+              :if={step_lines != []}
+              tree={Tuist.Runners.LogFormatter.group_lines(step_lines)}
+            />
           </div>
         </div>
       </.card_section>
@@ -298,7 +298,9 @@
           </div>
           <div :for={line <- @search_results} data-part="log-line">
             <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-            <span data-part="log-message">{line.message}</span>
+            <span data-part="log-message">
+              {Tuist.Runners.LogFormatter.strip_ansi(line.message)}
+            </span>
           </div>
         </div>
 
@@ -321,7 +323,9 @@
           <div id="runner-logs" data-part="log-stream" phx-update="stream">
             <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
               <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-              <span data-part="log-message">{line.message}</span>
+              <span data-part="log-message">
+                {Tuist.Runners.LogFormatter.strip_ansi(line.message)}
+              </span>
             </div>
           </div>
         </div>

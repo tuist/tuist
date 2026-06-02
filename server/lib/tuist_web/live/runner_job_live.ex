@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.LogFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -311,6 +312,59 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def log_ts(%DateTime{} = ts), do: Calendar.strftime(ts, "%H:%M:%S")
   def log_ts(_), do: ""
+
+  # Renders a list of grouped log nodes (`{:line, line}` /
+  # `{:group, header, children}`) as the Steps tab body. Groups
+  # become collapsible `<details>` elements that match GitHub's
+  # own log UI; lines render with ANSI SGR codes decoded into
+  # `<span>` classes so the user sees colours instead of literal
+  # `[36;1m` artefacts.
+  attr :tree, :list, required: true
+
+  def log_tree(assigns) do
+    ~H"""
+    <.log_node :for={node <- @tree} node={node} />
+    """
+  end
+
+  attr :node, :any, required: true
+
+  def log_node(%{node: {:line, _line}} = assigns) do
+    {:line, line} = assigns.node
+    assigns = assign(assigns, :line, line)
+
+    ~H"""
+    <div data-part="log-line">
+      <span data-part="log-ts">{log_ts(@line.ts)}</span>
+      <span data-part="log-message">
+        <span
+          :for={{text, classes} <- LogFormatter.to_segments(@line.message)}
+          class={Enum.join(classes, " ")}
+        >
+          {text}
+        </span>
+      </span>
+    </div>
+    """
+  end
+
+  def log_node(%{node: {:group, _header, _children}} = assigns) do
+    {:group, header, children} = assigns.node
+    assigns = assigns |> assign(:header, header) |> assign(:children, children)
+
+    ~H"""
+    <details data-part="log-group">
+      <summary data-part="log-group-summary">
+        <span data-part="log-ts">{log_ts(@header.ts)}</span>
+        <span data-part="log-group-chevron"><.chevron_right /></span>
+        <span data-part="log-group-label">{LogFormatter.group_label(@header)}</span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} />
+      </div>
+    </details>
+    """
+  end
 
   # Computes the per-step grouping on first step expand and caches
   # the full %{step_number => lines} map in the socket. Subsequent

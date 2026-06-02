@@ -369,4 +369,74 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
   }
+
+  & [data-part="log-group"] {
+    & > [data-part="log-group-summary"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      cursor: pointer;
+      list-style: none;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      & > [data-part="log-ts"] {
+        flex-shrink: 0;
+        color: var(--noora-surface-label-secondary);
+      }
+
+      & > [data-part="log-group-chevron"] {
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+        color: var(--noora-surface-label-tertiary);
+        transition: transform 0.15s ease;
+      }
+
+      & > [data-part="log-group-label"] {
+        flex: 1;
+        min-width: 0;
+        word-break: break-word;
+      }
+
+      &:hover > [data-part="log-group-chevron"] {
+        color: var(--noora-surface-label-primary);
+      }
+    }
+
+    &[open] > [data-part="log-group-summary"] > [data-part="log-group-chevron"] {
+      transform: rotate(90deg);
+    }
+
+    & > [data-part="log-group-body"] {
+      padding-left: var(--noora-spacing-6);
+    }
+  }
+
+  & [data-part="log-message"] {
+    & .ansi-bold {
+      font-weight: var(--noora-font-weight-bold);
+    }
+    & .ansi-fg-0 { color: var(--noora-neutral-light-1000); }
+    & .ansi-fg-1 { color: var(--noora-red-500); }
+    & .ansi-fg-2 { color: var(--noora-green-500); }
+    & .ansi-fg-3 { color: var(--noora-yellow-500); }
+    & .ansi-fg-4 { color: var(--noora-azure-500); }
+    & .ansi-fg-5 { color: var(--noora-purple-500); }
+    & .ansi-fg-6 { color: var(--noora-azure-400); }
+    & .ansi-fg-7 { color: var(--noora-surface-label-primary); }
+    & .ansi-fg-bright-0 { color: var(--noora-neutral-light-900); }
+    & .ansi-fg-bright-1 { color: var(--noora-red-400); }
+    & .ansi-fg-bright-2 { color: var(--noora-green-400); }
+    & .ansi-fg-bright-3 { color: var(--noora-yellow-400); }
+    & .ansi-fg-bright-4 { color: var(--noora-azure-400); }
+    & .ansi-fg-bright-5 { color: var(--noora-purple-400); }
+    & .ansi-fg-bright-6 { color: var(--noora-azure-300); }
+    & .ansi-fg-bright-7 { color: var(--noora-surface-label-primary); }
+  }
 }
