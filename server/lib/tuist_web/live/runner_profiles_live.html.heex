@@ -5,7 +5,8 @@
       <span data-part="subtitle">
         {dgettext(
           "dashboard_runners",
-          "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: tuist-<name>."
+          "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: %{prefix}<name>.",
+          prefix: Profile.prefix()
         )}
       </span>
     </div>
@@ -50,7 +51,7 @@
             <div data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Name")}</span>
               <div data-part="prefixed-input" data-disabled={match?({:edit, _}, @form_mode)}>
-                <span data-part="prefix">tuist-</span>
+                <span data-part="prefix">{Profile.prefix()}</span>
                 <input
                   id="runner-profile-name"
                   name="name"

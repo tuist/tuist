@@ -268,8 +268,9 @@ defmodule Tuist.Runners.Dispatch do
 
   Resolution order:
 
-    1. **Profile** — an account-scoped `tuist-<name>` profile maps to
-       its shape pool. The common path.
+    1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
+       e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
+       maps to its shape pool. The common path.
     2. **Legacy Linux alias** — a pre-profiles `tuist-<env>-linux`
        label maps to the catalog default shape (the per-env Linux pool
        it used to address is gone). The original label is preserved as

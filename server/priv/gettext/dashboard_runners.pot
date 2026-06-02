@@ -926,7 +926,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:6
 #, elixir-autogen, elixir-format
-msgid "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: tuist-<name>."
+msgid "Named bundles of vCPU and RAM. Reference them from your workflows as runs-on: %{prefix}<name>."
 msgstr ""
 
 #: lib/tuist_web/live/runner_profiles_live.html.heex:59

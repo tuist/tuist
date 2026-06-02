@@ -2,6 +2,7 @@ defmodule Tuist.Runners.ProfilesTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Environment
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
@@ -114,6 +115,47 @@ defmodule Tuist.Runners.ProfilesTest do
     test "returns :no_matching_profile when the account has no profiles", %{account: account} do
       assert {:error, :no_matching_profile} =
                Profiles.match_for_dispatch(account, ["self-hosted", "tuist-default"])
+    end
+
+    test "on staging, matches under the tuist-staging- prefix and ignores plain tuist-",
+         %{account: account} do
+      # The shared GitHub App fans `workflow_job` events out to every
+      # env's server, so each env's profiles must occupy a disjoint
+      # label namespace — otherwise a production `tuist-foo` job
+      # would also match staging's `foo` profile and double-dispatch.
+      stub(Environment, :env, fn -> :stag end)
+      {:ok, profile} = Profiles.create(account, %{"name" => "foo", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-staging-foo"])
+
+      assert {:error, :no_matching_profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-foo"])
+    end
+
+    test "on canary, matches under the tuist-canary- prefix", %{account: account} do
+      stub(Environment, :env, fn -> :can end)
+      {:ok, profile} = Profiles.create(account, %{"name" => "foo", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-canary-foo"])
+    end
+  end
+
+  describe "Profile.prefix/0" do
+    test "is plain tuist- on production" do
+      stub(Environment, :env, fn -> :prod end)
+      assert "tuist-" == Profile.prefix()
+    end
+
+    test "is tuist-staging- on staging" do
+      stub(Environment, :env, fn -> :stag end)
+      assert "tuist-staging-" == Profile.prefix()
+    end
+
+    test "is tuist-canary- on canary" do
+      stub(Environment, :env, fn -> :can end)
+      assert "tuist-canary-" == Profile.prefix()
     end
   end
 

@@ -3,10 +3,11 @@ defmodule Tuist.Runners.Profiles do
   CRUD + dispatch lookup for account-scoped Runner Profiles.
 
   A profile is a per-account alias for one entry in the shape
-  catalog (see `Tuist.Runners.Catalog`). Customers reference it as
-  `runs-on: tuist-<name>`; the dispatch path resolves
-  `(account, requested-label)` through `match_for_dispatch/2` to
-  the profile, then through the catalog to the K8s shape pool.
+  catalog (see `Tuist.Runners.Catalog`). Customers reference it in
+  `runs-on:` as `<Profile.prefix()><name>` (env-specific prefix); the
+  dispatch path resolves `(account, requested-label)` through
+  `match_for_dispatch/2` to the profile, then through the catalog to
+  the K8s shape pool.
 
   All operations are pure Postgres — there is no K8s round-trip
   on profile mutation. The shape pools the profiles point at are

@@ -149,7 +149,7 @@ defmodule TuistWeb.RunnerProfilesLive do
       length(Profiles.list_for_account(account)) <= 1 ->
         # Authoritative guard mirroring the hidden row action: never let
         # an account drop to zero profiles, which would break every
-        # workflow resolving through `tuist-<name>`.
+        # workflow resolving through the profile's dispatch label.
         {:noreply, put_flash(socket, :error, dgettext("dashboard_runners", "You can't delete your only profile."))}
 
       true ->
@@ -245,7 +245,8 @@ defmodule TuistWeb.RunnerProfilesLive do
   defp parse_shape_key(_), do: :error
 
   @doc """
-  The `runs-on:` snippet to show in the table — `tuist-<name>`.
+  The `runs-on:` snippet to show in the table —
+  the profile's full dispatch label.
   """
   def dispatch_snippet(%Profile{} = profile), do: Profile.dispatch_label(profile)
 

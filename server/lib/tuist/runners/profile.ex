@@ -1,9 +1,10 @@
 defmodule Tuist.Runners.Profile do
   @moduledoc """
   Account-scoped Runner Profile. Customers reference the profile in
-  GitHub Actions workflows as `runs-on: tuist-<name>`, and the
-  dispatch path resolves `(account, requested-label)` through the
-  profile to the matching shape pool.
+  GitHub Actions workflows as `runs-on: <prefix><name>` — see
+  `prefix/0` — and the dispatch path resolves
+  `(account, requested-label)` through the profile to the matching
+  shape pool.
 
   Backed by [priv/repo/migrations/20260527130000_create_runner_profiles.exs](priv/repo/migrations/20260527130000_create_runner_profiles.exs).
   """
@@ -12,6 +13,7 @@ defmodule Tuist.Runners.Profile do
   import Ecto.Changeset
 
   alias Tuist.Accounts.Account
+  alias Tuist.Environment
 
   @name_format ~r/^[a-z][a-z0-9-]{0,31}$/
 
@@ -74,11 +76,27 @@ defmodule Tuist.Runners.Profile do
   end
 
   @doc """
+  The `runs-on:` prefix every profile-routed label carries on this
+  deployment. Production stays plain `tuist-` for the simplest
+  customer-visible form; non-production envs add the env name so
+  the shared GitHub App installation cannot cross-route between
+  envs (staging's `tuist-staging-foo` and production's `tuist-foo`
+  occupy disjoint label namespaces).
+  """
+  def prefix do
+    case Environment.env() do
+      :stag -> "tuist-staging-"
+      :can -> "tuist-canary-"
+      _ -> "tuist-"
+    end
+  end
+
+  @doc """
   The customer-facing label this profile resolves from in
   `runs-on:`. Stable for a profile's lifetime since `name` is
   immutable post-create (see `Profiles.update/2`).
   """
   def dispatch_label(%__MODULE__{name: name}) when is_binary(name) and name != "" do
-    "tuist-" <> name
+    prefix() <> name
   end
 end
