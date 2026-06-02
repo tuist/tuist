@@ -20,18 +20,19 @@ public enum DerivedDataLocation: Equatable, Sendable {
     /// `<workspaceName>` without a hash, since the directory lives next to the workspace.
     case relativeToWorkspace(RelativePath)
 
-    /// Classifies the raw value of `IDECustomDerivedDataLocation` (or `IDEDerivedDataPathOverride`)
-    /// into a location, mirroring how Xcode interprets the preference string.
-    public static func classify(rawLocation: String?) -> DerivedDataLocation {
-        guard let rawLocation, !rawLocation.isEmpty else {
-            return .default
+    /// Builds a location from the raw value of `IDECustomDerivedDataLocation` (or
+    /// `IDEDerivedDataPathOverride`), mirroring how Xcode interprets the preference string:
+    /// an empty value means the default, an absolute path a custom location, and a relative
+    /// path a location resolved against the workspace directory.
+    public init(_ location: String) {
+        if location.isEmpty {
+            self = .default
+        } else if let absolute = try? AbsolutePath(validating: location) {
+            self = .custom(absolute)
+        } else if let relative = try? RelativePath(validating: location) {
+            self = .relativeToWorkspace(relative)
+        } else {
+            self = .default
         }
-        if let absolute = try? AbsolutePath(validating: rawLocation) {
-            return .custom(absolute)
-        }
-        if let relative = try? RelativePath(validating: rawLocation) {
-            return .relativeToWorkspace(relative)
-        }
-        return .default
     }
 }

@@ -423,7 +423,7 @@ public struct Environment: Environmenting {
         public func derivedDataLocation() async throws -> DerivedDataLocation {
             let rawLocation = readXcodeDefault("IDEDerivedDataPathOverride")
                 ?? readXcodeDefault("IDECustomDerivedDataLocation")
-            return DerivedDataLocation.classify(rawLocation: rawLocation)
+            return rawLocation.map(DerivedDataLocation.init) ?? .default
         }
 
         private func readXcodeDefault(_ key: String) -> String? {
