@@ -168,7 +168,10 @@ jobs:
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    # This job mutates cluster control-plane charts. Keep it off
+    # `tuist-production-linux`, which is itself managed by the Tuist
+    # Helm release and can be deleted by rollbacks/upgrades.
+    runs-on: namespace-profile-default-with-volume
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -234,7 +237,10 @@ jobs:
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    # This job mutates cluster control-plane charts. Keep it off
+    # `tuist-production-linux`, which is itself managed by the Tuist
+    # Helm release and can be deleted by rollbacks/upgrades.
+    runs-on: namespace-profile-default-with-volume
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -311,7 +317,10 @@ jobs:
     name: Platform chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    # This job mutates cluster control-plane charts. Keep it off
+    # `tuist-production-linux`, which is itself managed by the Tuist
+    # Helm release and can be deleted by rollbacks/upgrades.
+    runs-on: namespace-profile-default-with-volume
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -376,7 +385,10 @@ jobs:
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
-    runs-on: tuist-production-linux
+    # This job deploys the Tuist Helm release, including the RunnerPool
+    # backing `tuist-production-linux`. Running it on that same mutable
+    # pool lets a rollback kill the job's own runner.
+    runs-on: namespace-profile-default-with-volume
     environment:
       name: server-k8s-${{ inputs.environment }}
       url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
