@@ -1,0 +1,105 @@
+name: Linux Runner Image
+
+# PR validation + on-demand build of the Tuist Linux runner OCI image
+# consumed by `runnersFleetLinux.shapeRunnerImage` in the helm chart.
+#
+# PR: builds without pushing — catches Dockerfile / shell-syntax
+#     breakage before merge.
+# workflow_dispatch: builds and pushes a `:sha-<git-sha>` tag so a
+#     branch can be validated against a real cluster before merging.
+#
+# The semver / `:latest` / chart-digest-rewrite flow lives in
+# release.yml's `release-linux-runner-image` job — pushed on main.
+# This workflow deliberately doesn't touch `:latest` or any semver
+# tag; only the release job does.
+#
+# Mirrors the shape of .github/workflows/runner-image.yml (macOS
+# Tart image) minus the PR trigger — Tart builds are expensive
+# enough that PR-on-change validation isn't worth it for macOS;
+# Linux Docker builds are cheap on hosted runners.
+
+on:
+  pull_request:
+    paths:
+      - infra/linux-runner-image/**
+      - .github/workflows/linux-runner-image.yml
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: |
+          Override the `RUNNER_VERSION` build-arg in the Dockerfile
+          to bump-test a new `actions/runner` release before
+          opening the Renovate PR. Leave empty to use the
+          Dockerfile's pinned default (currently 2.334.0).
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist-linux-runner
+
+jobs:
+  build:
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — buildx requires a working docker engine. Note:
+    # this workflow builds that same runner image, so the migration has
+    # to land in two steps: first add docker to the image and rebuild
+    # from a Namespace runner, then flip this job to use the in-house
+    # fleet.
+    runs-on: namespace-profile-default
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check dispatch-poll.sh
+        run: bash -n infra/linux-runner-image/dispatch-poll.sh
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        run: |
+          set -euo pipefail
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PRs build but don't push; tag with the merge SHA for
+            # log clarity. The push: false flag below makes this a
+            # build-only validation.
+            echo "tags=${IMAGE}:pr-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch: push a per-SHA tag for branch
+            # validation / bring-up. The release flow owns `:latest`
+            # and the semver tags, so we deliberately don't touch
+            # `:latest` here.
+            echo "tags=${IMAGE}:sha-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          # Linux runners run on Hetzner Robot bare-metal x86 boxes
+          # at v1. arm64 is a future option (Ampere-based SKUs) and
+          # can land as an additive `platforms:` entry.
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.tags.outputs.tags }}
+          # Only forwarded when explicitly set via workflow_dispatch
+          # input; empty leaves the Dockerfile's `ARG RUNNER_VERSION`
+          # default in place (Renovate-managed).
+          build-args: |
+            ${{ inputs.runner_version && format('RUNNER_VERSION={0}', inputs.runner_version) || '' }}
+          cache-from: type=gha,scope=linux-runner-image
+          cache-to: type=gha,mode=max,scope=linux-runner-image

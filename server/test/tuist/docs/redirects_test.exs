@@ -24,6 +24,21 @@ defmodule Tuist.Docs.RedirectsTest do
                {:ok, "/en/docs/guides/integrations/authentication/sso"}
     end
 
+    test "redirects the old self-host installation route to control plane" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/install") ==
+               {:ok, "/en/docs/guides/server/self-host/control-plane"}
+    end
+
+    test "redirects the old Kura self-hosting route to cache self-hosting" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/kura") ==
+               {:ok, "/en/docs/guides/features/cache/self-hosting"}
+    end
+
+    test "redirects the old translation guide slug to languages" do
+      assert Redirects.resolve("/en/docs/contributors/translate") ==
+               {:ok, "/en/docs/contributors/languages"}
+    end
+
     test "preserves dynamic suffixes for example redirects" do
       assert Redirects.resolve("/en/docs/guides/examples/generated-projects/app_with_airship_sdk") ==
                {:ok, "/en/docs/references/examples/generated-projects/app_with_airship_sdk"}

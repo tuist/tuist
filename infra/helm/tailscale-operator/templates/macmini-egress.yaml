@@ -1,0 +1,79 @@
+{{- if .Values.macminiEgress.enabled }}
+# Egress plumbing that lets in-cluster Pods (alloy-metrics) reach each
+# Mac mini at its tailnet identity.
+#
+# Why this exists on top of the Connector subnet router:
+# subnet-router mode advertises the cluster's reachability to the
+# tailnet's 100.64.0.0/10 range *into the tailnet* — it lets tailnet
+# devices dial cluster Services through the Connector. It does NOT
+# install routes for 100.64.0.0/10 on the cluster CNI: only the
+# Connector Pod's own tailscaled knows how to reach CGNAT
+# addresses. Verified empirically — a generic cluster Pod cannot
+# `curl` a Mac mini's tailnet IPv4, only the Connector Pod can.
+#
+# The egress direction (cluster Pod → tailnet endpoint) is handled by
+# Tailscale's `ProxyGroup` of `type: egress` plus a per-target
+# `ExternalName` Service annotated with `tailscale.com/tailnet-fqdn`
+# and `tailscale.com/proxy-group`. The operator rewrites the
+# Service's `externalName` to point at an in-cluster proxy Pod
+# managed by the ProxyGroup; that proxy Pod holds the tailnet
+# identity and forwards traffic to the requested endpoint.
+#
+# Why FQDN (not IP):
+# bootstrap.go calls `tailscale up --hostname=<NodeName>` so each
+# Mac mini's MagicDNS name is stable across reprovisioning, but its
+# 100.x.y.z IP can change. Pinning the Service to the FQDN avoids
+# needing to roll the chart values every time the CAPI controller
+# replaces a machine.
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: {{ .Values.macminiEgress.proxyGroup.name }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: macmini-egress
+  annotations:
+    # Same hook-ordering reason as the Connector CR: the ProxyGroup
+    # CRD lives in the subchart's templates/ (not crds/), so the CR
+    # would race the CRD on first install. post-install ordering
+    # decouples them.
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  type: egress
+  replicas: {{ .Values.macminiEgress.proxyGroup.replicas }}
+  tags:
+    {{- toYaml .Values.macminiEgress.proxyGroup.tags | nindent 4 }}
+{{- range .Values.macminiEgress.machines }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: macmini-egress
+    # alloy-metrics' Service-role discovery filters on this label to
+    # find the scrape targets — see infra/helm/k8s-monitoring/values.yaml.
+    tuist.dev/macmini-egress: "true"
+  annotations:
+    tailscale.com/tailnet-fqdn: {{ .tailnetFQDN | quote }}
+    tailscale.com/proxy-group: {{ $.Values.macminiEgress.proxyGroup.name | quote }}
+spec:
+  type: ExternalName
+  # The operator rewrites externalName at admission time to point at
+  # the ClusterIP Service that fronts the ProxyGroup; this placeholder
+  # only matters for the brief window before the operator reconciles.
+  externalName: placeholder.tailscale-operator.svc.cluster.local
+  ports:
+    - name: node-exporter
+      port: 9100
+      protocol: TCP
+    - name: tart-kubelet
+      port: 8080
+      protocol: TCP
+{{- end }}
+{{- end }}

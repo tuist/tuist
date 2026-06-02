@@ -34,6 +34,13 @@ bootstrap_clickhouse_database() {
   mix ecto.load -r Tuist.IngestRepo
 }
 
+if [ -n "${CI:-}" ]; then
+  # CI jobs install only the tools they request and bootstrap deps explicitly in
+  # the workflow. Skipping the local postinstall avoids pulling in aube/noora
+  # setup on jobs that only need Mix or ClickHouse.
+  exit 0
+fi
+
 mix deps.get
 aube install
 pushd ../noora >/dev/null
@@ -41,21 +48,19 @@ aube install
 aube run build
 popd >/dev/null
 
-if [ -z "${CI:-}" ]; then
-  # Fresh worktrees use isolated database names, so bootstrap missing repos independently.
-  if ! postgres_database_exists; then
-    bootstrap_postgres_database
-  elif ! postgres_database_bootstrapped; then
-    # A previous install may have created the DB but exited before `ecto.load`
-    # finished. In that state later runs skip bootstrapping and migrations fail
-    # against missing base tables such as `users`, so rebuild the local DB.
-    rebootstrap_postgres_database
-  fi
-
-  if ! clickhouse_database_exists; then
-    bootstrap_clickhouse_database
-  fi
-
-  mise run db:migrate
-  mise run db:seed
+# Fresh worktrees use isolated database names, so bootstrap missing repos independently.
+if ! postgres_database_exists; then
+  bootstrap_postgres_database
+elif ! postgres_database_bootstrapped; then
+  # A previous install may have created the DB but exited before `ecto.load`
+  # finished. In that state later runs skip bootstrapping and migrations fail
+  # against missing base tables such as `users`, so rebuild the local DB.
+  rebootstrap_postgres_database
 fi
+
+if ! clickhouse_database_exists; then
+  bootstrap_clickhouse_database
+fi
+
+mise run db:migrate
+mise run db:seed

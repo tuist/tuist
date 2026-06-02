@@ -44,7 +44,8 @@ const (
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
 
-	sharedSecretsName = "kura-shared-secrets"
+	sharedSecretsName        = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 
 	grpcTLSVolumeName = "grpc-tls"
 	grpcTLSMountPath  = "/etc/kura/grpc-tls"
@@ -68,7 +69,8 @@ type KuraInstanceReconciler struct {
 	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
-	GRPCClusterIssuer string
+	GRPCClusterIssuer  string
+	OTLPTracesEndpoint string
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -296,7 +298,7 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": publicTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.PublicHost},
+			"dnsNames":   dnsNames(instance.Spec.PublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -336,7 +338,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		cert.SetLabels(labels(instance))
 		spec := map[string]any{
 			"secretName": grpcTLSSecretName(instance),
-			"dnsNames":   []any{instance.Spec.GRPCPublicHost},
+			"dnsNames":   dnsNames(instance.Spec.GRPCPublicHost),
 			"issuerRef": map[string]any{
 				"name": r.GRPCClusterIssuer,
 				"kind": "ClusterIssuer",
@@ -350,6 +352,19 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		return unstructured.SetNestedField(cert.Object, spec, "spec")
 	})
 	return err
+}
+
+func dnsNames(names ...string) []any {
+	seen := map[string]bool{}
+	result := make([]any, 0, len(names))
+	for _, name := range names {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		result = append(result, name)
+	}
+	return result
 }
 
 func (r *KuraInstanceReconciler) deleteLegacyIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -392,7 +407,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance)
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint)
 		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
 		// Drop the PVC when the StatefulSet itself is deleted (server
 		// destroy), but keep it around when scaling down so a replica
@@ -465,9 +480,12 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{Labels: labels(instance)},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      labels(instance),
+			Annotations: podAnnotations(),
+		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
 			NodeSelector:                  nodeSelector(instance),
@@ -477,7 +495,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
-				Env:             append(baseEnv(instance), instance.Spec.ExtraEnv...),
+				Env:             append(baseEnv(instance, otlpTracesEndpoint), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
 				Resources:       defaultResources(),
 				VolumeMounts:    volumeMounts(instance),
@@ -488,6 +506,18 @@ func podTemplate(instance *kurav1alpha1.KuraInstance) corev1.PodTemplateSpec {
 			}},
 			Volumes: volumes(instance),
 		},
+	}
+}
+
+// podAnnotations exposes Kura's Prometheus metrics to the managed
+// clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
+// with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
+// publish the same telemetry surface as chart-managed ones.
+func podAnnotations() map[string]string {
+	return map[string]string{
+		"prometheus.io/scrape":    "true",
+		"prometheus.io/port-name": "http",
+		"prometheus.io/path":      "/metrics",
 	}
 }
 
@@ -655,7 +685,7 @@ func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.Top
 // are derived from the pod's cgroup and rlimit at runtime startup, so
 // the controller deliberately doesn't override them. See
 // kura/src/config.rs::DerivedRuntimeDefaults.
-func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
+func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []corev1.EnvVar {
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -671,6 +701,9 @@ func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
 		{Name: "KURA_OTEL_DEPLOYMENT_ENVIRONMENT", Value: "production"},
+	}
+	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
+		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
 	}
 	if instance.Spec.ExtensionScript != "" {
 		env = append(env,
@@ -692,6 +725,15 @@ func baseEnv(instance *kurav1alpha1.KuraInstance) []corev1.EnvVar {
 		)
 	}
 	return env
+}
+
+func hasEnvVar(env []corev1.EnvVar, name string) bool {
+	for _, envVar := range env {
+		if envVar.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // containerPorts always exposes the plain HTTP, gRPC, and peer ports;

@@ -1,0 +1,214 @@
+<div id="account-webhooks">
+  <div data-part="page-header">
+    <h1 data-part="title">{dgettext("dashboard_account", "Webhooks")}</h1>
+    <span data-part="subtitle">
+      {dgettext(
+        "dashboard_account",
+        "Configure HTTPS endpoints that receive events from projects in this account."
+      )}
+    </span>
+  </div>
+
+  <.card_section data-part="endpoints-card">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_account", "Endpoints")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Tuist will POST signed JSON envelopes to each enabled endpoint. The signing secret is shown once when an endpoint is created or rotated."
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <%!-- Noora's modal shell is `phx-update="ignore"`, so the title is --%>
+        <%!-- frozen at first render. We keep it neutral and let the body --%>
+        <%!-- swap between the form and the secret-disclosure step. --%>
+        <.modal
+          id="webhook-endpoint-modal"
+          title={dgettext("dashboard_account", "Webhook endpoint")}
+          on_dismiss="dismiss_disclosure"
+          on_open_change="create_modal_open_change"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_account", "Add endpoint")}
+              variant="secondary"
+              size="medium"
+              {attrs}
+            />
+          </:trigger>
+
+          <div data-part="modal-content-wrapper">
+            <.line_divider />
+
+            <%= if @disclosure do %>
+              <div data-part="modal-body">
+                <div data-part="modal-message">
+                  <span data-part="title">
+                    {dgettext("dashboard_account", "Signing secret")}
+                  </span>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "Copy it now — it will not be shown again after you close this dialog. Use it to verify the Tuist-Signature header on incoming webhooks."
+                    )}
+                  </span>
+                </div>
+                <div data-part="read-only-value">
+                  <code id="new-webhook-signing-secret">
+                    {@disclosure.plaintext_secret}
+                  </code>
+                  <.button
+                    id="copy-webhook-signing-secret-button"
+                    variant="secondary"
+                    size="small"
+                    icon_only
+                    type="button"
+                    phx-hook="Clipboard"
+                    data-clipboard-value={@disclosure.plaintext_secret}
+                    aria-label={dgettext("dashboard_account", "Copy signing secret")}
+                  >
+                    <.copy />
+                  </.button>
+                </div>
+              </div>
+            <% else %>
+              <div data-part="modal-body">
+                <.webhook_endpoint_form
+                  id_prefix="webhook"
+                  event_groups={@event_groups}
+                  name={@create_form_name}
+                  url={@create_form_url}
+                  event_types={@create_form_event_types}
+                  error={@create_form_error}
+                  events_label={dgettext("dashboard_account", "Events to listen for")}
+                  on_name_change="update_create_form_name"
+                  on_url_change="update_create_form_url"
+                  on_toggle_event_type="toggle_create_form_event_type"
+                  on_toggle_event_group="toggle_create_form_event_group"
+                />
+              </div>
+            <% end %>
+
+            <.line_divider />
+          </div>
+
+          <:footer>
+            <.modal_footer>
+              <%!-- Each :action slot lives in its own wrapper div, so the --%>
+              <%!-- spacing-5 gap on `[data-part="actions"]` only kicks in --%>
+              <%!-- when buttons are split across slots. --%>
+              <:action :if={@disclosure}>
+                <.button
+                  label={dgettext("dashboard_account", "Done")}
+                  variant="primary"
+                  phx-click="dismiss_disclosure"
+                />
+              </:action>
+              <:action :if={is_nil(@disclosure)}>
+                <.button
+                  label={dgettext("dashboard_account", "Cancel")}
+                  variant="secondary"
+                  phx-click="dismiss_disclosure"
+                />
+              </:action>
+              <:action :if={is_nil(@disclosure)}>
+                <.button
+                  label={dgettext("dashboard_account", "Create endpoint")}
+                  variant="primary"
+                  phx-click="create_endpoint"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+    </div>
+
+    <.table
+      id="webhook-endpoints-table"
+      rows={@endpoints}
+      row_navigate={fn endpoint -> ~p"/#{@selected_account.name}/webhooks/#{endpoint.id}" end}
+    >
+      <:col :let={endpoint} label={dgettext("dashboard_account", "Name")}>
+        <.text_cell label={endpoint.name} />
+      </:col>
+      <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
+        <.text_cell label={endpoint.url} />
+      </:col>
+      <:col :let={endpoint} label={dgettext("dashboard_account", "Signing secret")}>
+        <%!-- Partial-mask preview (suffix only) so users can match the value --%>
+        <%!-- against a secret they've stored elsewhere without weakening HMAC. --%>
+        <.text_cell
+          data-part="signing-secret-cell"
+          label={masked_signing_secret(endpoint.signing_secret_last_four)}
+        />
+      </:col>
+      <:col :let={endpoint} label={dgettext("dashboard_account", "Listening to")}>
+        <.text_cell label={
+          dngettext(
+            "dashboard_account",
+            "%{count} event",
+            "%{count} events",
+            length(endpoint.event_types)
+          )
+        } />
+      </:col>
+      <:col :let={endpoint} label="">
+        <.button_cell>
+          <:button>
+            <%!-- Noora's table wraps every cell in `<a phx-link="redirect">`, --%>
+            <%!-- so without the StopRowNavigate hook clicking the kebab also --%>
+            <%!-- navigates to the endpoint detail page. The hook stops the --%>
+            <%!-- click from bubbling to LiveView's window-level link handler --%>
+            <%!-- without interfering with Zag's own click on the trigger. --%>
+            <div
+              id={"webhook-endpoint-row-actions-#{endpoint.id}"}
+              phx-hook="StopRowNavigate"
+            >
+              <.dropdown id={"webhook-endpoint-actions-#{endpoint.id}"} icon_only>
+                <:icon><.dots_vertical /></:icon>
+
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Rotate secret")}
+                  value="rotate"
+                  on_click="rotate_endpoint_signing_secret"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Rotating replaces the signing secret. Existing consumers will fail verification until updated."
+                    )
+                  }
+                >
+                  <:left_icon><.reload /></:left_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  label={dgettext("dashboard_account", "Delete endpoint")}
+                  value="delete"
+                  on_click="delete_endpoint"
+                  phx-value-id={endpoint.id}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Delete this endpoint? It will stop receiving events."
+                    )
+                  }
+                >
+                  <:left_icon><.trash /></:left_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </div>
+          </:button>
+        </.button_cell>
+      </:col>
+      <:empty_state>
+        <.table_empty_state
+          title={dgettext("dashboard_account", "No webhook endpoints yet")}
+          subtitle={dgettext("dashboard_account", "Add one to start receiving events.")}
+        />
+      </:empty_state>
+    </.table>
+  </.card_section>
+</div>

@@ -35,4 +35,42 @@ struct XCResultParserTests {
         #expect(destinations[0].platform == "iOS Simulator")
         #expect(destinations[0].osVersion == "26.4")
     }
+
+    @Test
+    func parse_extractsAttachmentsUnderTheAttachmentsDirectory() async throws {
+        let zipPath = try fixtureZipPath("test-with-arguments.xcresult")
+
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
+            try await fileSystem.unzip(zipPath, to: workDir)
+            let xcresult = workDir.appending(component: "test-with-arguments.xcresult")
+            let attachmentsDirectory = workDir.appending(component: "attachments")
+            try await fileSystem.makeDirectory(at: attachmentsDirectory)
+
+            _ = try await parser.parse(path: xcresult, rootDirectory: workDir, attachmentsDirectory: attachmentsDirectory)
+
+            // Exported attachments must live under the caller-owned
+            // attachments dir so its wholesale cleanup reclaims them.
+            #expect(try await fileSystem.exists(attachmentsDirectory.appending(component: "xcresult-attachments")))
+        }
+    }
+
+    @Test
+    func parse_doesNotExportAttachmentsIntoRootDirectoryWhenNoAttachmentsDirectoryGiven() async throws {
+        // rootDirectory is the caller's *source* root (the user's project
+        // for CLI callers) and is read-only. Without an explicit
+        // attachments directory, attachments must NOT be dropped into it —
+        // they go to a temp dir instead.
+        let zipPath = try fixtureZipPath("test-with-arguments.xcresult")
+
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-parser-tests") { workDir in
+            try await fileSystem.unzip(zipPath, to: workDir)
+            let xcresult = workDir.appending(component: "test-with-arguments.xcresult")
+            let projectRoot = workDir.appending(component: "project")
+            try await fileSystem.makeDirectory(at: projectRoot)
+
+            _ = try await parser.parse(path: xcresult, rootDirectory: projectRoot)
+
+            #expect(try await !fileSystem.exists(projectRoot.appending(component: "xcresult-attachments")))
+        }
+    }
 }

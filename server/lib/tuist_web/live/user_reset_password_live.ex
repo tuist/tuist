@@ -6,6 +6,7 @@ defmodule TuistWeb.UserResetPasswordLive do
   import TuistWeb.AppAuthComponents
 
   alias Tuist.Accounts
+  alias TuistWeb.Endpoint
 
   def render(assigns) do
     ~H"""
@@ -91,7 +92,9 @@ defmodule TuistWeb.UserResetPasswordLive do
   # leaked token giving the user access to the account.
   def handle_event("reset_password", %{"user" => user_params}, socket) do
     case Accounts.reset_user_password(socket.assigns.user, user_params) do
-      {:ok, _} ->
+      {:ok, %{revoked_session_live_socket_ids: live_socket_ids}} ->
+        Enum.each(live_socket_ids, &Endpoint.broadcast(&1, "disconnect", %{}))
+
         {:noreply,
          socket
          |> put_flash(:info, dgettext("dashboard_auth", "Password reset successfully."))

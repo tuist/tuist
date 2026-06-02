@@ -63,6 +63,56 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert length(result["test_runs"]) == 1
       assert hd(result["test_runs"])["total_test_count"] == 50
     end
+
+    test "filters test runs with a query expression" do
+      project = %{id: 1, name: "app"}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      stub(Analytics, :test_runs_metrics, fn _project_id, _runs -> [] end)
+
+      expect(Tests, :list_test_runs, fn attrs ->
+        assert %{field: :git_branch, op: :==, value: "main"} in attrs.filters
+        assert %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"} in attrs.filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} =
+               ListTestRuns.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app",
+                 "git_branch" => "main",
+                 "query" => ~s(-git_branch~"gh-readonly-queue")
+               })
+
+      assert JSON.decode!(text)["test_runs"] == []
+    end
+
+    test "returns an error for invalid query expressions" do
+      project = %{id: 1, name: "app"}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :test_read, :subject, ^project -> :ok end)
+
+      conn = %Plug.Conn{assigns: %{current_subject: :subject}}
+
+      assert %{"isError" => true} =
+               ListTestRuns.call(conn, %{
+                 "account_handle" => "acme",
+                 "project_handle" => "app",
+                 "query" => ~s(unknown~"value")
+               })
+    end
   end
 
   describe "list_test_module_runs" do
@@ -615,7 +665,7 @@ defmodule Tuist.MCP.Components.Tools.TestToolsTest do
       assert %{"content" => [%{"text" => json}]} =
                ListTestCaseRunAttachments.call(conn, %{"test_case_run_id" => "run-1"})
 
-      data = Jason.decode!(json)
+      data = JSON.decode!(json)
       assert data["test_case_run_id"] == "run-1"
       assert length(data["attachments"]) == 2
 

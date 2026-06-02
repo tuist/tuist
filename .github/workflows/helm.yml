@@ -1,6 +1,6 @@
 name: Helm
 
-# Validate Helm charts under `infra/helm/` at the PR stage so chart bugs
+# Validate Helm charts at the PR stage so chart bugs
 # are caught before a deploy workflow tries to apply them to a real
 # cluster. Three layers of checks, each progressively stricter:
 #
@@ -27,11 +27,13 @@ on:
       - main
     paths:
       - infra/helm/**
+      - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - infra/helm/**
+      - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
   merge_group: {}
 
@@ -62,25 +64,34 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
+          install: "false"
       - name: Install helm
         run: mise use -g "helm@${HELM_VERSION}"
       - name: helm lint
         run: |
           set -uo pipefail
-          charts=(
-            infra/helm/tuist
-            infra/helm/k8s-monitoring
-            infra/helm/platform
+          configs=(
+            "kura/ops/helm/kura|"
+            "infra/helm/slack|values-ci.yaml"
+            "infra/helm/noora-storybook|values-ci.yaml"
+            "infra/helm/tuist|values-ci.yaml"
+            "infra/helm/k8s-monitoring|"
+            "infra/helm/platform|"
           )
           failed=()
-          for chart in "${charts[@]}"; do
+          for entry in "${configs[@]}"; do
+            IFS='|' read -r chart values <<< "$entry"
             echo "::group::$chart"
             # `helm lint` needs subchart tarballs in charts/ to resolve
             # references. No-op for charts without `dependencies:`.
             if grep -q "^dependencies:" "$chart/Chart.yaml"; then
               helm dependency update "$chart"
             fi
-            if ! helm lint "$chart"; then
+            args=()
+            for v in $values; do
+              args+=("-f" "$chart/$v")
+            done
+            if ! helm lint "$chart" "${args[@]}"; then
               failed+=("$chart")
             fi
             echo "::endgroup::"
@@ -100,8 +111,20 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-      - name: Install helm + kubeconform
-        run: mise use -g "helm@${HELM_VERSION}" "kubeconform@${KUBECONFORM_VERSION}"
+          install: "false"
+      - name: Install helm
+        run: mise use -g "helm@${HELM_VERSION}"
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          archive="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}" \
+            -o "$archive"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$archive" kubeconform
+          install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: helm template + kubeconform
         # Each entry: name|chart|release|values (values is space-separated;
         # the tuist umbrella layers values-managed-common.yaml under the
@@ -113,7 +136,10 @@ jobs:
         run: |
           set -uo pipefail
           configs=(
-            "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml"
+            "kura|kura/ops/helm/kura|kura|"
+            "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
+            "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
+            "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
             "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
             "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
           )
@@ -128,14 +154,6 @@ jobs:
             for v in $values; do
               args+=("-f" "$chart/$v")
             done
-            # CI-only placeholder for required image tags. Real deploys set
-            # them via the per-environment helm upgrade. We need a value here
-            # so templates that `fail` on an empty tag still render, without
-            # changing the production guard.
-            if [ "$name" = "tuist (production)" ]; then
-              args+=("--set" "kuraController.image.tag=validation")
-              args+=("--set" "kuraRuntime.image.tag=validation")
-            fi
             if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
               failed+=("$name (template)")
               echo "::endgroup::"

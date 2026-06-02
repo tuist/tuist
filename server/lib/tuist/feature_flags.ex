@@ -1,6 +1,30 @@
 defmodule Tuist.FeatureFlags do
   @moduledoc false
 
+  alias Tuist.Environment
+
+  @doc """
+  Whether the Runners dashboard (and its sub-pages) should be visible
+  for the given account. Defaults to enabled in any non-prod
+  environment (dev / test / staging / canary) so contributors and
+  internal testers see it without the flag flipped; in production it
+  requires an explicit `:runners` FunWithFlags toggle for the actor.
+  """
+  def runners_enabled?(account) do
+    not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)
+  end
+
+  @doc """
+  Whether the managed Kura deployment surface (the per-account Kura
+  servers and the Usage dashboard) should be visible for the given
+  account. Mirrors the inline check already used in
+  `account_settings_live` so the sidebar entry, the LiveView guard,
+  and the settings page all answer the same question.
+  """
+  def kura_enabled?(account) do
+    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

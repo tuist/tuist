@@ -13,11 +13,26 @@ defmodule Tuist.Kura.Server do
                       ↓
                   destroying → destroyed
 
-  `:failed` → `:provisioning` is the retry path: a first-time deploy
-  that never reached `:active` flips back to `:provisioning` in place
-  when the operator clicks Retry, and the new deployment is appended
-  to the same row so the failure history stays attached. `:destroyed`
-  is reserved for operator-driven teardown.
+  `status` is a **projection of observed cluster state**, not an
+  independently-mutated state machine. Postgres owns intent (which
+  region a server should exist in, the deployment history) and audit;
+  the backing `KuraInstance` owns observed runtime state. Every
+  reconciler tick re-derives `status` for present-intent servers from
+  `(latest deployment intent, observed image, endpoint readiness)` and
+  records the observation in `observed_image_tag` / `last_observed_at`.
+  Nothing pins a sticky `:failed`: a failed
+  deploy is recorded on the `kura_deployments` row (audit) and the
+  server `status` is whatever the next projection derives, so infra
+  recovery is reflected without an out-of-band retry. The deliberate
+  exception is a previously-serving server whose newer rollout failed:
+  it stays `:failed` while its old endpoint keeps serving, so traffic
+  is never trampled, until the cluster converges on the intended image.
+  See `Tuist.Kura.Reconciler`.
+
+  `:failed` → `:provisioning` is the operator Retry path for a
+  first-time deploy that never reached `:active`; the new deployment is
+  appended to the same row so the failure history stays attached.
+  `:destroyed` is reserved for operator-driven teardown.
 
   `url` and `current_image_tag` are populated when the server first
   reaches `:active` and updated on subsequent successful deployments.
@@ -59,6 +74,12 @@ defmodule Tuist.Kura.Server do
     field :url, :string
     field :current_image_tag, :string
     field :provisioner_node_ref, :string
+
+    # Observed-state projection. Written only by the reconciler from the
+    # backing KuraInstance, never by user actions: the image the cluster
+    # reports running and when it was last successfully observed.
+    field :observed_image_tag, :string
+    field :last_observed_at, :utc_datetime
 
     belongs_to :account, Account
 
@@ -102,6 +123,31 @@ defmodule Tuist.Kura.Server do
       :current_image_tag,
       :provisioner_node_ref
     ])
+    |> validate_status_and_image()
+  end
+
+  @doc """
+  Reconciler-only changeset for the observed-state projection. Casts
+  the derived `status` alongside the observation columns and the
+  activation outputs (`url`, `current_image_tag`). User-facing code
+  never builds this changeset.
+  """
+  def observation_changeset(server, attrs) do
+    server
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :observed_image_tag,
+      :last_observed_at
+    ])
+    |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:observed_image_tag, max: 128)
+    |> validate_status_and_image()
+  end
+
+  defp validate_status_and_image(changeset) do
+    changeset
     |> validate_required([:status])
     |> validate_format(:current_image_tag, @image_tag_format, message: @image_tag_message)
     |> validate_length(:current_image_tag, max: 128)

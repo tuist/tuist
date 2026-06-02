@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import OpenAPIRuntime
 import Path
+import TuistAlert
 import TuistCache
 import TuistCore
 import TuistEnvironment
@@ -144,12 +145,15 @@ public class TrackableCommand {
             let durationInSeconds = timer.stop()
             let durationInMs = Int(durationInSeconds * 1000)
             let configuration = type(of: command).configuration
-            let (name, subcommand) = extractCommandName(from: configuration)
+            let commandMetadata = await analyticsCommandMetadata(
+                from: configuration,
+                runMetadataStorage: runMetadataStorage
+            )
             let info = await TrackableCommandInfo(
                 runId: runId,
-                name: name,
-                subcommand: subcommand,
-                commandArguments: commandArguments,
+                name: commandMetadata.name,
+                subcommand: commandMetadata.subcommand,
+                commandArguments: commandMetadata.commandArguments,
                 durationInMs: durationInMs,
                 status: status,
                 graph: runMetadataStorage.graph,
@@ -215,16 +219,42 @@ public class TrackableCommand {
         }
     }
 
-    private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {
-        let name: String
-        let subcommand: String?
-        if let superCommandName = configuration._superCommandName {
-            name = superCommandName
-            subcommand = configuration.commandName!
-        } else {
-            name = configuration.commandName!
-            subcommand = nil
+    private func analyticsCommandMetadata(
+        from configuration: CommandConfiguration,
+        runMetadataStorage: RunMetadataStorage
+    ) async -> AnalyticsCommandMetadata {
+        if let resolvedCommandMetadata = await runMetadataStorage.resolvedCommandMetadata {
+            return resolvedCommandMetadata
         }
-        return (name, subcommand)
+
+        let fallbackName = commandArguments.first ?? String(describing: type(of: command))
+        let fallbackSubcommand = commandArguments.dropFirst().first.flatMap { argument in
+            argument.hasPrefix("-") ? nil : argument
+        }
+
+        if let superCommandName = configuration._superCommandName {
+            return AnalyticsCommandMetadata(
+                name: superCommandName,
+                subcommand: configuration.commandName ?? fallbackSubcommand,
+                commandArguments: commandArguments
+            )
+        }
+
+        if let commandName = configuration.commandName {
+            return AnalyticsCommandMetadata(
+                name: commandName,
+                subcommand: nil,
+                commandArguments: commandArguments
+            )
+        }
+
+        AlertController.current.warning(
+            .alert("Failed to resolve canonical command metadata for analytics. Falling back to command arguments.")
+        )
+        return AnalyticsCommandMetadata(
+            name: fallbackName,
+            subcommand: fallbackSubcommand,
+            commandArguments: commandArguments
+        )
     }
 }

@@ -33,6 +33,58 @@ use crate::{
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
+const RESPONSE_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const ROUTE_UP: &str = "/up";
+const ROUTE_READY: &str = "/ready";
+const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
+const ROUTE_METRICS: &str = "/metrics";
+const ROUTE_V1_CACHE: &str = "/v1/cache/{hash}";
+const ROUTE_API_METRO_CACHE: &str = "/api/metro/cache/{cache_key}";
+const ROUTE_API_CACHE_KEYVALUE_ID: &str = "/api/cache/keyvalue/{cas_id}";
+const ROUTE_API_CACHE_KEYVALUE: &str = "/api/cache/keyvalue";
+const ROUTE_API_CACHE_CAS: &str = "/api/cache/cas/{id}";
+const ROUTE_API_CACHE_MODULE: &str = "/api/cache/module/{id}";
+const ROUTE_API_CACHE_MODULE_START: &str = "/api/cache/module/start";
+const ROUTE_API_CACHE_MODULE_PART: &str = "/api/cache/module/part";
+const ROUTE_API_CACHE_MODULE_COMPLETE: &str = "/api/cache/module/complete";
+const ROUTE_API_CACHE_CLEAN: &str = "/api/cache/clean";
+const ROUTE_API_CACHE_GRADLE: &str = "/api/cache/gradle/{cache_key}";
+const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
+const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS: &str = "/_internal/bootstrap/manifests";
+const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
+    "/_internal/bootstrap/namespace_tombstones";
+const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
+const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
+const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
+const UNMATCHED_ROUTE: &str = "/_unmatched";
+
+const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
+    ROUTE_UP,
+    ROUTE_READY,
+    ROUTE_ROLLOUT_STATUS,
+    ROUTE_METRICS,
+    ROUTE_API_CACHE_KEYVALUE,
+    ROUTE_API_CACHE_MODULE_START,
+    ROUTE_API_CACHE_MODULE_PART,
+    ROUTE_API_CACHE_MODULE_COMPLETE,
+    ROUTE_API_CACHE_CLEAN,
+    ROUTE_INTERNAL_STATUS,
+    ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
+    ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
+    ROUTE_INTERNAL_REPLICATE_ARTIFACT,
+    ROUTE_INTERNAL_REPLICATE_NAMESPACE,
+];
+
+const DYNAMIC_ROUTE_TEMPLATES: [&str; 7] = [
+    ROUTE_V1_CACHE,
+    ROUTE_API_METRO_CACHE,
+    ROUTE_API_CACHE_KEYVALUE_ID,
+    ROUTE_API_CACHE_CAS,
+    ROUTE_API_CACHE_MODULE,
+    ROUTE_API_CACHE_GRADLE,
+    ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
+];
+
 pub fn public_router(state: SharedState) -> Router {
     public_routes()
         .layer(middleware::from_fn_with_state(
@@ -85,69 +137,92 @@ pub(crate) fn router(state: SharedState) -> Router {
 
 fn public_routes() -> Router<SharedState> {
     Router::new()
-        .route("/up", get(up))
-        .route("/ready", get(ready))
-        .route("/status/rollout", get(rollout_status))
-        .route("/metrics", get(metrics_handler))
-        .route("/v1/cache/{hash}", get(get_nx).put(put_nx))
+        .route(ROUTE_UP, get(up))
+        .route(ROUTE_READY, get(ready))
+        .route(ROUTE_ROLLOUT_STATUS, get(rollout_status))
+        .route(ROUTE_METRICS, get(metrics_handler))
+        .route(ROUTE_V1_CACHE, get(get_nx).put(put_nx))
+        .route(ROUTE_API_METRO_CACHE, get(get_metro).put(put_metro))
+        .route(ROUTE_API_CACHE_KEYVALUE_ID, get(get_keyvalue))
+        .route(ROUTE_API_CACHE_KEYVALUE, put(put_keyvalue))
+        .route(ROUTE_API_CACHE_CAS, get(get_xcode).post(put_xcode))
+        .route(ROUTE_API_CACHE_MODULE, head(head_module).get(get_module))
+        .route(ROUTE_API_CACHE_MODULE_START, post(start_module_upload))
+        .route(ROUTE_API_CACHE_MODULE_PART, post(upload_module_part))
         .route(
-            "/api/metro/cache/{cache_key}",
-            get(get_metro).put(put_metro),
+            ROUTE_API_CACHE_MODULE_COMPLETE,
+            post(complete_module_upload),
         )
-        .route("/api/cache/keyvalue/{cas_id}", get(get_keyvalue))
-        .route("/api/cache/keyvalue", put(put_keyvalue))
-        .route("/api/cache/cas/{id}", get(get_xcode).post(put_xcode))
-        .route("/api/cache/module/{id}", head(head_module).get(get_module))
-        .route("/api/cache/module/start", post(start_module_upload))
-        .route("/api/cache/module/part", post(upload_module_part))
-        .route("/api/cache/module/complete", post(complete_module_upload))
-        .route("/api/cache/clean", delete(clean_namespace))
-        .route(
-            "/api/cache/gradle/{cache_key}",
-            get(get_gradle).put(put_gradle),
-        )
+        .route(ROUTE_API_CACHE_CLEAN, delete(clean_namespace))
+        .route(ROUTE_API_CACHE_GRADLE, get(get_gradle).put(put_gradle))
 }
 
 fn internal_routes() -> Router<SharedState> {
     Router::new()
-        .route("/_internal/status", get(internal_status))
+        .route(ROUTE_INTERNAL_STATUS, get(internal_status))
         .route(
-            "/_internal/bootstrap/manifests",
+            ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
             get(internal_bootstrap_manifests),
         )
         .route(
-            "/_internal/bootstrap/namespace_tombstones",
+            ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
             get(internal_bootstrap_namespace_tombstones),
         )
         .route(
-            "/_internal/bootstrap/artifacts/{artifact_id}",
+            ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT,
             get(internal_bootstrap_artifact),
         )
         .route(
-            "/_internal/replicate/artifact",
+            ROUTE_INTERNAL_REPLICATE_ARTIFACT,
             put(internal_replicate_artifact),
         )
         .route(
-            "/_internal/replicate/namespace",
+            ROUTE_INTERNAL_REPLICATE_NAMESPACE,
             delete(internal_delete_namespace),
         )
 }
 
 const NX_NAMESPACE_ID: &str = "nx";
 const METRO_NAMESPACE_ID: &str = "metro";
+const TENANT_SCOPE_NAMESPACE_ID: &str = "";
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum NamespaceScope {
+    Account,
+    Project,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct NamespaceQuery {
     tenant_id: String,
     namespace_id: String,
+    scope: NamespaceScope,
 }
 
 impl NamespaceQuery {
     fn from_params(params: &HashMap<String, String>) -> Result<Self, String> {
+        let namespace_id = param_value(params, "namespace_id")
+            .cloned()
+            .unwrap_or_else(|| TENANT_SCOPE_NAMESPACE_ID.to_owned());
         Ok(Self {
             tenant_id: required_param(params, "tenant_id")?,
-            namespace_id: required_param(params, "namespace_id")?,
+            scope: if namespace_id.is_empty() {
+                NamespaceScope::Account
+            } else {
+                NamespaceScope::Project
+            },
+            namespace_id,
         })
+    }
+
+    fn project_analytics_context(&self) -> Option<ProjectAnalyticsContext<'_>> {
+        match self.scope {
+            NamespaceScope::Account => None,
+            NamespaceScope::Project => Some(ProjectAnalyticsContext {
+                tenant_id: &self.tenant_id,
+                namespace_id: &self.namespace_id,
+            }),
+        }
     }
 }
 
@@ -244,7 +319,7 @@ struct PageQuery {
 }
 
 #[derive(Clone, Copy)]
-struct LegacyAnalyticsContext<'a> {
+struct ProjectAnalyticsContext<'a> {
     tenant_id: &'a str,
     namespace_id: &'a str,
 }
@@ -257,7 +332,7 @@ struct BlobPutSpec<'a> {
     max_bytes: u64,
     success_status: StatusCode,
     existing_status: StatusCode,
-    analytics: Option<LegacyAnalyticsContext<'a>>,
+    analytics: Option<ProjectAnalyticsContext<'a>>,
 }
 
 impl PageQuery {
@@ -298,7 +373,7 @@ impl ReplicateArtifactQuery {
                 })
                 .transpose()?
                 .unwrap_or(false),
-            namespace_id: required_param(params, "namespace_id")?,
+            namespace_id: required_raw_param(params, "namespace_id")?,
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
@@ -314,14 +389,24 @@ fn alias_keys(key: &str) -> &'static [&'static str] {
     }
 }
 
-fn param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
+fn raw_param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
     params
         .get(key)
         .or_else(|| alias_keys(key).iter().find_map(|alias| params.get(*alias)))
 }
 
+fn param_value<'a>(params: &'a HashMap<String, String>, key: &str) -> Option<&'a String> {
+    raw_param_value(params, key).filter(|value| !value.is_empty())
+}
+
 fn required_param(params: &HashMap<String, String>, key: &str) -> Result<String, String> {
     param_value(params, key)
+        .cloned()
+        .ok_or_else(|| format!("Missing {key}"))
+}
+
+fn required_raw_param(params: &HashMap<String, String>, key: &str) -> Result<String, String> {
+    raw_param_value(params, key)
         .cloned()
         .ok_or_else(|| format!("Missing {key}"))
 }
@@ -337,6 +422,40 @@ fn optional_u64_param(params: &HashMap<String, String>, key: &str) -> Result<Opt
         .transpose()
 }
 
+fn request_route(req: &Request) -> String {
+    req.extensions()
+        .get::<MatchedPath>()
+        .map(|path| path.as_str().to_owned())
+        .unwrap_or_else(|| route_template_for_path(req.uri().path()).to_owned())
+}
+
+fn route_template_for_path(path: &str) -> &'static str {
+    if let Some(route) = EXACT_ROUTE_TEMPLATES
+        .iter()
+        .copied()
+        .find(|route| *route == path)
+    {
+        return route;
+    }
+
+    DYNAMIC_ROUTE_TEMPLATES
+        .iter()
+        .copied()
+        .find(|route| one_segment_after_route_prefix(path, route))
+        .unwrap_or(UNMATCHED_ROUTE)
+}
+
+fn one_segment_after_route_prefix(path: &str, route: &str) -> bool {
+    route
+        .find('{')
+        .is_some_and(|parameter_start| one_segment_after_prefix(path, &route[..parameter_start]))
+}
+
+fn one_segment_after_prefix(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|segment| !segment.is_empty() && !segment.contains('/'))
+}
+
 async fn track_http_metrics(
     State(state): State<SharedState>,
     req: Request,
@@ -344,11 +463,7 @@ async fn track_http_metrics(
 ) -> Response {
     let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -391,13 +506,9 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
-    state.metrics.record_http(
-        route,
-        method,
-        response.status(),
-        client_country,
-        start.elapsed(),
-    );
+    state
+        .metrics
+        .record_http(route, response.status(), client_country, start.elapsed());
 
     response
 }
@@ -424,11 +535,7 @@ async fn reject_draining_public_requests(
     req: Request,
     next: Next,
 ) -> Response {
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
     let version = req.version();
 
     if !is_probe_route(&route) && state.runtime.is_draining() {
@@ -451,11 +558,7 @@ async fn reject_overloaded_public_writes(
     next: Next,
 ) -> Response {
     let method = req.method().clone();
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let route = request_route(&req);
 
     if is_write_method(&method) && !is_probe_route(&route) {
         if state.memory.pressure() == MemoryPressure::Critical {
@@ -497,27 +600,48 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
         return next.run(req).await;
     };
 
-    let route = req
-        .extensions()
-        .get::<MatchedPath>()
-        .map(|path| path.as_str().to_owned())
-        .unwrap_or_else(|| req.uri().path().to_owned());
+    let mut req = req;
+    let route = request_route(&req);
     let path = req.uri().path().to_owned();
     if should_skip_extension_route(&route) {
         return next.run(req).await;
     }
 
     let method = req.method().to_string();
-    let query = parse_query_map(req.uri().query());
+    let mut query = parse_query_map(req.uri().query());
     let request_headers = header_map_to_btree(req.headers());
+    let mut request_body = None;
+
+    if route == ROUTE_API_CACHE_KEYVALUE && !query.contains_key("cas_id") {
+        let (parts, body) = req.into_parts();
+        match to_bytes(body, state.config.max_keyvalue_bytes).await {
+            Ok(body_bytes) => {
+                if let Some(cas_id) = keyvalue_cas_id_from_body(&body_bytes) {
+                    query.insert("cas_id".to_owned(), cas_id);
+                }
+                request_body = Some(body_bytes.to_vec());
+                req = Request::from_parts(parts, Body::from(body_bytes));
+            }
+            Err(_) => {
+                return error_response(
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    "Failed to read key-value request body",
+                );
+            }
+        }
+    }
+
     let context = extension_context_from_http(
         &state,
-        &route,
-        &method,
-        &path,
-        &query,
-        &request_headers,
-        None,
+        HttpExtensionRequest {
+            route: &route,
+            method: &method,
+            path: &path,
+            query: &query,
+            headers: &request_headers,
+            body: request_body.as_deref(),
+            status_code: None,
+        },
     )
     .await;
 
@@ -532,12 +656,15 @@ async fn apply_extensions(State(state): State<SharedState>, req: Request, next: 
 
     let response_context = extension_context_from_http(
         &state,
-        &route,
-        &method,
-        &path,
-        &query,
-        &request_headers,
-        Some(response.status().as_u16()),
+        HttpExtensionRequest {
+            route: &route,
+            method: &method,
+            path: &path,
+            query: &query,
+            headers: &request_headers,
+            body: request_body.as_deref(),
+            status_code: Some(response.status().as_u16()),
+        },
     )
     .await;
     let headers = extension
@@ -560,7 +687,10 @@ fn should_skip_extension_route(route: &str) -> bool {
 }
 
 fn is_probe_route(route: &str) -> bool {
-    route == "/up" || route == "/ready" || route == "/status/rollout" || route == "/metrics"
+    matches!(
+        route,
+        ROUTE_UP | ROUTE_READY | ROUTE_ROLLOUT_STATUS | ROUTE_METRICS
+    )
 }
 
 fn is_http1(version: Version) -> bool {
@@ -569,18 +699,21 @@ fn is_http1(version: Version) -> bool {
 
 async fn extension_context_from_http(
     state: &SharedState,
-    route: &str,
-    method: &str,
-    path: &str,
-    query: &HashMap<String, String>,
-    headers: &BTreeMap<String, String>,
-    status_code: Option<u16>,
+    request: HttpExtensionRequest<'_>,
 ) -> ExtensionContext {
-    let metadata = http_extension_metadata(state, route, method, path, query).await;
+    let metadata = http_extension_metadata(
+        state,
+        request.route,
+        request.method,
+        request.path,
+        request.query,
+        request.body,
+    )
+    .await;
     ExtensionContext {
         transport: "http".into(),
-        route: route.to_owned(),
-        method: method.to_owned(),
+        route: request.route.to_owned(),
+        method: request.method.to_owned(),
         operation: metadata.operation,
         server_tenant_id: state.config.tenant_id.clone(),
         tenant_id: metadata.tenant_id,
@@ -588,13 +721,24 @@ async fn extension_context_from_http(
         producer: metadata.producer,
         artifact_key: metadata.artifact_key,
         artifact_hash: metadata.artifact_hash,
-        headers: headers.clone(),
-        query: query
+        headers: request.headers.clone(),
+        query: request
+            .query
             .iter()
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect(),
-        status_code,
+        status_code: request.status_code,
     }
+}
+
+struct HttpExtensionRequest<'a> {
+    route: &'a str,
+    method: &'a str,
+    path: &'a str,
+    query: &'a HashMap<String, String>,
+    headers: &'a BTreeMap<String, String>,
+    body: Option<&'a [u8]>,
+    status_code: Option<u16>,
 }
 
 struct HttpExtensionMetadata {
@@ -612,13 +756,14 @@ async fn http_extension_metadata(
     method: &str,
     path: &str,
     query: &HashMap<String, String>,
+    request_body: Option<&[u8]>,
 ) -> HttpExtensionMetadata {
     let tenant_id = param_value(query, "tenant_id").cloned();
     let mut namespace_id = param_value(query, "namespace_id").cloned();
     let last_path_segment = path.rsplit('/').next().map(str::to_owned);
 
     match route {
-        "/api/cache/keyvalue/{cas_id}" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE_ID => HttpExtensionMetadata {
             operation: "artifact.read".into(),
             tenant_id,
             namespace_id,
@@ -626,15 +771,20 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(action_cache_key),
             artifact_hash: None,
         },
-        "/api/cache/keyvalue" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_KEYVALUE => HttpExtensionMetadata {
             operation: "artifact.write".into(),
             tenant_id,
             namespace_id,
             producer: Some("xcode".into()),
-            artifact_key: query.get("cas_id").map(|cas_id| action_cache_key(cas_id)),
+            artifact_key: query
+                .get("cas_id")
+                .cloned()
+                .or_else(|| request_body.and_then(keyvalue_cas_id_from_body))
+                .as_deref()
+                .map(action_cache_key),
             artifact_hash: None,
         },
-        "/api/cache/cas/{id}" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CAS => HttpExtensionMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -647,7 +797,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.as_deref().map(blob_key),
             artifact_hash: last_path_segment.clone(),
         },
-        "/api/cache/gradle/{cache_key}" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_GRADLE => HttpExtensionMetadata {
             operation: if method.eq_ignore_ascii_case("GET") {
                 "artifact.read"
             } else {
@@ -660,7 +810,7 @@ async fn http_extension_metadata(
             artifact_key: last_path_segment.clone(),
             artifact_hash: last_path_segment.clone(),
         },
-        "/api/cache/module/{id}" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_MODULE => HttpExtensionMetadata {
             operation: if method.eq_ignore_ascii_case("HEAD") || method.eq_ignore_ascii_case("GET")
             {
                 "artifact.read"
@@ -674,14 +824,23 @@ async fn http_extension_metadata(
             artifact_key: Some(module_key_from_query(query)),
             artifact_hash: query.get("hash").cloned(),
         },
-        "/api/cache/module/start" | "/api/cache/module/part" | "/api/cache/module/complete" => {
+        ROUTE_API_CACHE_MODULE_START
+        | ROUTE_API_CACHE_MODULE_PART
+        | ROUTE_API_CACHE_MODULE_COMPLETE => {
             let multipart_upload = query
                 .get("upload_id")
                 .and_then(|upload_id| state.store.multipart_upload(upload_id).ok().flatten());
-            let tenant_id =
-                tenant_id.or_else(|| multipart_upload.as_ref().map(|u| u.tenant_id.clone()));
-            let namespace_id =
-                namespace_id.or_else(|| multipart_upload.as_ref().map(|u| u.namespace_id.clone()));
+            let tenant_id = multipart_upload
+                .as_ref()
+                .map(|upload| upload.tenant_id.clone())
+                .or(tenant_id);
+            if let Some(upload) = multipart_upload.as_ref() {
+                namespace_id = if upload.namespace_id.is_empty() {
+                    None
+                } else {
+                    Some(upload.namespace_id.clone())
+                };
+            }
             let artifact_key = multipart_upload
                 .as_ref()
                 .map(|upload| module_key(&upload.category, &upload.hash, &upload.name))
@@ -700,7 +859,7 @@ async fn http_extension_metadata(
                 artifact_hash,
             }
         }
-        "/api/cache/clean" => HttpExtensionMetadata {
+        ROUTE_API_CACHE_CLEAN => HttpExtensionMetadata {
             operation: "namespace.delete".into(),
             tenant_id,
             namespace_id,
@@ -708,7 +867,7 @@ async fn http_extension_metadata(
             artifact_key: None,
             artifact_hash: None,
         },
-        "/v1/cache/{hash}" => {
+        ROUTE_V1_CACHE => {
             namespace_id = Some(NX_NAMESPACE_ID.into());
             HttpExtensionMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
@@ -724,7 +883,7 @@ async fn http_extension_metadata(
                 artifact_hash: last_path_segment,
             }
         }
-        "/api/metro/cache/{cache_key}" => {
+        ROUTE_API_METRO_CACHE => {
             namespace_id = Some(METRO_NAMESPACE_ID.into());
             HttpExtensionMetadata {
                 operation: if method.eq_ignore_ascii_case("GET") {
@@ -749,6 +908,12 @@ async fn http_extension_metadata(
             artifact_hash: None,
         },
     }
+}
+
+fn keyvalue_cas_id_from_body(body: &[u8]) -> Option<String> {
+    serde_json::from_slice::<KeyValuePutRequest>(body)
+        .ok()
+        .map(|request| request.cas_id)
 }
 
 fn module_key_from_query(query: &HashMap<String, String>) -> String {
@@ -883,15 +1048,41 @@ async fn get_keyvalue(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    get_artifact(
-        state,
+    let key = action_cache_key(&cas_id);
+    match state.store.fetch_inline_artifact_bytes(
         ArtifactProducer::Xcode,
         &namespace.namespace_id,
-        &action_cache_key(&cas_id),
-        None,
-        None,
-    )
-    .await
+        &key,
+    ) {
+        Ok(Some(bytes)) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
+            (
+                [(
+                    axum::http::header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                )],
+                bytes,
+            )
+                .into_response()
+        }
+        Ok(None) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "not_found", 0);
+            StatusCode::NOT_FOUND.into_response()
+        }
+        Err(error) => {
+            state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Xcode, "error", 0);
+            error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Failed to fetch artifact: {error}"),
+            )
+        }
+    }
 }
 
 async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
@@ -1053,16 +1244,15 @@ async fn get_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
+    let analytics = namespace.project_analytics_context();
+
     get_artifact(
         state,
         ArtifactProducer::Xcode,
         &namespace.namespace_id,
         &blob_key(&id),
         Some(&id),
-        Some(LegacyAnalyticsContext {
-            tenant_id: &namespace.tenant_id,
-            namespace_id: &namespace.namespace_id,
-        }),
+        analytics,
     )
     .await
 }
@@ -1078,6 +1268,8 @@ async fn put_xcode(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
+    let analytics = namespace.project_analytics_context();
+
     put_blob_artifact(
         state,
         ArtifactProducer::Xcode,
@@ -1089,10 +1281,7 @@ async fn put_xcode(
             max_bytes: MAX_XCODE_BYTES,
             success_status: StatusCode::NO_CONTENT,
             existing_status: StatusCode::NO_CONTENT,
-            analytics: Some(LegacyAnalyticsContext {
-                tenant_id: &namespace.tenant_id,
-                namespace_id: &namespace.namespace_id,
-            }),
+            analytics,
         },
     )
     .await
@@ -1108,16 +1297,15 @@ async fn get_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
+    let analytics = namespace.project_analytics_context();
+
     get_artifact(
         state,
         ArtifactProducer::Gradle,
         &namespace.namespace_id,
         &cache_key,
         Some(&cache_key),
-        Some(LegacyAnalyticsContext {
-            tenant_id: &namespace.tenant_id,
-            namespace_id: &namespace.namespace_id,
-        }),
+        analytics,
     )
     .await
 }
@@ -1133,6 +1321,8 @@ async fn put_gradle(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
+    let analytics = namespace.project_analytics_context();
+
     put_blob_artifact(
         state,
         ArtifactProducer::Gradle,
@@ -1144,10 +1334,7 @@ async fn put_gradle(
             max_bytes: MAX_GRADLE_BYTES,
             success_status: StatusCode::CREATED,
             existing_status: StatusCode::OK,
-            analytics: Some(LegacyAnalyticsContext {
-                tenant_id: &namespace.tenant_id,
-                namespace_id: &namespace.namespace_id,
-            }),
+            analytics,
         },
     )
     .await
@@ -1427,7 +1614,11 @@ async fn internal_bootstrap_artifact(
     AxumPath(artifact_id): AxumPath<String>,
     State(state): State<SharedState>,
 ) -> Response {
-    match state.store.manifest(&artifact_id) {
+    match state
+        .store
+        .fetch_artifact_by_id_for_serving(&artifact_id)
+        .await
+    {
         Ok(Some(manifest)) => serve_file(&state, StatusCode::OK, &manifest).await,
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
@@ -1587,7 +1778,7 @@ async fn internal_delete_namespace(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<SharedState>,
 ) -> Response {
-    let namespace_id = match required_param(&params, "namespace_id") {
+    let namespace_id = match required_raw_param(&params, "namespace_id") {
         Ok(namespace_id) => namespace_id,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
@@ -1628,20 +1819,21 @@ async fn get_artifact(
     namespace_id: &str,
     key: &str,
     analytics_key: Option<&str>,
-    analytics: Option<LegacyAnalyticsContext<'_>>,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
 ) -> Response {
     match state
         .store
-        .fetch_artifact(producer, namespace_id, key)
+        .fetch_artifact_for_serving(producer, namespace_id, key)
         .await
     {
         Ok(Some(manifest)) => {
-            state
-                .metrics
-                .record_artifact_read(producer, "ok", manifest.size);
             let response = serve_file(&state, StatusCode::OK, &manifest).await;
             if response.status().is_success() {
-                record_legacy_cache_event(
+                state
+                    .metrics
+                    .record_artifact_read(producer, "ok", manifest.size);
+                record_usage_event(&state, producer, "download", analytics, manifest.size);
+                record_project_scoped_cache_event(
                     &state,
                     producer,
                     "download",
@@ -1649,6 +1841,10 @@ async fn get_artifact(
                     analytics_key.unwrap_or(key),
                     manifest.size,
                 );
+            } else if response.status() == StatusCode::NOT_FOUND {
+                state.metrics.record_artifact_read(producer, "not_found", 0);
+            } else {
+                state.metrics.record_artifact_read(producer, "error", 0);
             }
             response
         }
@@ -1729,7 +1925,8 @@ async fn put_blob_artifact(
             state
                 .metrics
                 .record_artifact_write(producer, "ok", manifest.size);
-            record_legacy_cache_event(
+            record_usage_event(&state, producer, "upload", spec.analytics, manifest.size);
+            record_project_scoped_cache_event(
                 &state,
                 producer,
                 "upload",
@@ -1749,11 +1946,51 @@ async fn put_blob_artifact(
     }
 }
 
-fn record_legacy_cache_event(
+fn record_usage_event(
     state: &SharedState,
     producer: ArtifactProducer,
     action: &str,
-    analytics: Option<LegacyAnalyticsContext<'_>>,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
+    size: u64,
+) {
+    let Some(context) = analytics else {
+        return;
+    };
+    let Some(usage) = state.usage.as_ref() else {
+        return;
+    };
+    let artifact_kind = artifact_kind_for_usage(producer);
+
+    match action {
+        "download" => usage.record_public_download(
+            context.tenant_id,
+            context.namespace_id,
+            artifact_kind,
+            size,
+        ),
+        "upload" => {
+            usage.record_public_upload(context.tenant_id, context.namespace_id, artifact_kind, size)
+        }
+        _ => {}
+    }
+}
+
+fn artifact_kind_for_usage(producer: ArtifactProducer) -> &'static str {
+    match producer {
+        ArtifactProducer::Xcode => "xcode",
+        ArtifactProducer::Gradle => "gradle",
+        ArtifactProducer::Nx => "nx",
+        ArtifactProducer::Metro => "metro",
+        ArtifactProducer::Module => "module",
+        ArtifactProducer::Reapi => "reapi",
+    }
+}
+
+fn record_project_scoped_cache_event(
+    state: &SharedState,
+    producer: ArtifactProducer,
+    action: &str,
+    analytics: Option<ProjectAnalyticsContext<'_>>,
     key: &str,
     size: u64,
 ) {
@@ -1788,13 +2025,18 @@ async fn serve_file(
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
-            let stream = ReaderStream::new(reader);
+            let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             response.headers_mut().insert(
                 axum::http::header::CONTENT_TYPE,
                 HeaderValue::from_str(&manifest.content_type)
                     .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+            );
+            response.headers_mut().insert(
+                axum::http::header::CONTENT_LENGTH,
+                HeaderValue::from_str(&manifest.size.to_string())
+                    .unwrap_or_else(|_| HeaderValue::from_static("0")),
             );
             response
         }
@@ -1936,6 +2178,80 @@ mod tests {
         assert_eq!(body["regions"], serde_json::json!(["eu-central"]));
         assert_eq!(body["members"].as_array().expect("members array").len(), 3);
         assert_eq!(body["nodes"].as_array().expect("nodes array").len(), 3);
+    }
+
+    #[test]
+    fn route_template_for_path_stabilizes_cache_paths() {
+        assert_eq!(route_template_for_path(ROUTE_UP), ROUTE_UP);
+        assert_eq!(
+            route_template_for_path("/api/cache/cas/artifact-one"),
+            ROUTE_API_CACHE_CAS
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/keyvalue/cas-one"),
+            ROUTE_API_CACHE_KEYVALUE_ID
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/gradle/cache-key-one"),
+            ROUTE_API_CACHE_GRADLE
+        );
+        assert_eq!(
+            route_template_for_path("/_internal/bootstrap/artifacts/artifact-one"),
+            ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT
+        );
+        assert_eq!(
+            route_template_for_path("/api/cache/cas/artifact-one/extra"),
+            UNMATCHED_ROUTE
+        );
+        assert_eq!(route_template_for_path("/.docker/.env"), UNMATCHED_ROUTE);
+    }
+
+    #[tokio::test]
+    async fn dynamic_cache_paths_use_template_route_metric_labels() {
+        let context = test_context(|_| {}).await;
+        let app = public_router(context.state.clone());
+
+        for artifact_id in ["artifact-one", "artifact-two"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/cache/cas/{artifact_id}"))
+                        .body(Body::empty())
+                        .expect("failed to build request"),
+                )
+                .await
+                .expect("request failed");
+
+            assert_ne!(response.status(), StatusCode::NOT_FOUND);
+        }
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains(&format!("route=\"{ROUTE_API_CACHE_CAS}\"")));
+        assert!(!metrics.contains("artifact-one"));
+        assert!(!metrics.contains("artifact-two"));
+        assert!(!metrics.contains("route=\"/api/cache/cas/artifact-"));
+    }
+
+    #[tokio::test]
+    async fn unknown_paths_use_a_stable_unmatched_route_metric_label() {
+        let context = test_context(|_| {}).await;
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/.docker/.env")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("route=\"/_unmatched\""));
+        assert!(!metrics.contains("route=\"/.docker/.env\""));
     }
 
     #[tokio::test]
@@ -2224,7 +2540,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn legacy_account_and_project_handles_work_through_router() {
+    async fn account_and_project_handle_aliases_work_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
 
@@ -2256,7 +2572,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn xcode_routes_emit_legacy_analytics_events() {
+    async fn tenant_only_xcode_routes_work_through_router() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/account-artifact?account_handle=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?account_handle=acme")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
+    }
+
+    #[tokio::test]
+    async fn xcode_routes_emit_project_scoped_analytics_events() {
         let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
         let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
         let context = test_context(|config| {
@@ -2347,6 +2696,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tenant_only_xcode_routes_skip_project_scoped_analytics_events() {
+        let captured = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
+        let (base_url, _handle) = spawn_capture_server(captured.clone()).await;
+        let context = test_context(|config| {
+            config.analytics = Some(AnalyticsConfig {
+                server_url: base_url,
+                signing_key: "secret-key".into(),
+                batch_size: 1,
+                batch_timeout_ms: 5_000,
+                queue_capacity: 8,
+                request_timeout_ms: 5_000,
+                circuit_breaker_failure_threshold: 2,
+                circuit_breaker_open_ms: 5_000,
+            });
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
+
+        sleep(Duration::from_millis(200)).await;
+        assert!(captured.lock().expect("captured requests lock").is_empty());
+    }
+
+    #[tokio::test]
     async fn multipart_module_round_trip_works_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
@@ -2429,6 +2827,12 @@ mod tests {
             .await
             .expect("get request failed");
         assert_eq!(get.status(), StatusCode::OK);
+        assert_eq!(
+            get.headers()
+                .get(axum::http::header::CONTENT_LENGTH)
+                .and_then(|value| value.to_str().ok()),
+            Some("17")
+        );
         assert_eq!(response_text(get).await, "part-one-part-two");
     }
 
@@ -2445,12 +2849,15 @@ mod tests {
 
         let extension_context = extension_context_from_http(
             &context.state,
-            "/api/cache/module/part",
-            "POST",
-            "/api/cache/module/part",
-            &query,
-            &headers,
-            None,
+            HttpExtensionRequest {
+                route: ROUTE_API_CACHE_MODULE_PART,
+                method: "POST",
+                path: ROUTE_API_CACHE_MODULE_PART,
+                query: &query,
+                headers: &headers,
+                body: None,
+                status_code: None,
+            },
         )
         .await;
 
@@ -2464,22 +2871,72 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extension_context_uses_legacy_handle_aliases() {
+    async fn extension_context_uses_handle_aliases() {
         let context = test_context(|_| {}).await;
         let query = parse_query_map(Some("account_handle=acme&project_handle=ios&hash=hash-1"));
         let extension_context = extension_context_from_http(
             &context.state,
-            "/api/cache/cas/{id}",
-            "GET",
-            "/api/cache/cas/artifact-1",
-            &query,
-            &BTreeMap::new(),
-            None,
+            HttpExtensionRequest {
+                route: ROUTE_API_CACHE_CAS,
+                method: "GET",
+                path: "/api/cache/cas/artifact-1",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: None,
+                status_code: None,
+            },
         )
         .await;
 
         assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
         assert_eq!(extension_context.namespace_id.as_deref(), Some("ios"));
+    }
+
+    #[tokio::test]
+    async fn extension_context_omits_namespace_for_tenant_scoped_requests() {
+        let context = test_context(|_| {}).await;
+        let query = parse_query_map(Some("tenant_id=acme&hash=hash-1"));
+        let extension_context = extension_context_from_http(
+            &context.state,
+            HttpExtensionRequest {
+                route: ROUTE_API_CACHE_CAS,
+                method: "GET",
+                path: "/api/cache/cas/account-artifact",
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: None,
+                status_code: None,
+            },
+        )
+        .await;
+
+        assert_eq!(extension_context.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(extension_context.namespace_id, None);
+    }
+
+    #[tokio::test]
+    async fn extension_context_uses_keyvalue_cas_id_from_request_body() {
+        let context = test_context(|_| {}).await;
+        let query = parse_query_map(Some("tenant_id=acme&namespace_id=ios"));
+        let request_body = br#"{"cas_id":"cas-1","entries":[{"value":"hello"},{"value":"world"}]}"#;
+        let extension_context = extension_context_from_http(
+            &context.state,
+            HttpExtensionRequest {
+                route: ROUTE_API_CACHE_KEYVALUE,
+                method: "PUT",
+                path: ROUTE_API_CACHE_KEYVALUE,
+                query: &query,
+                headers: &BTreeMap::new(),
+                body: Some(request_body),
+                status_code: None,
+            },
+        )
+        .await;
+
+        assert_eq!(
+            extension_context.artifact_key.as_deref(),
+            Some("action_cache/cas-1")
+        );
     }
 
     #[tokio::test]
@@ -2539,6 +2996,49 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn clean_namespace_removes_existing_tenant_scoped_artifacts() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "",
+                &blob_key("account-artifact"),
+                "application/octet-stream",
+                b"account-binary",
+            )
+            .await
+            .expect("failed to seed store");
+
+        let app = router(context.state.clone());
+
+        let delete = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/api/cache/clean?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build delete request"),
+            )
+            .await
+            .expect("delete request failed");
+        assert_eq!(delete.status(), StatusCode::NO_CONTENT);
+
+        let get = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
                     .body(Body::empty())
                     .expect("failed to build get request"),
             )

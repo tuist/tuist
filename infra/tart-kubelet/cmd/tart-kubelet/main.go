@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	cache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -52,7 +54,9 @@ func init() {
 func main() {
 	var (
 		nodeName           string
+		providerID         string
 		nodeIP             string
+		nodeIPSource       string
 		scrapeAllowedCIDRs cidrList
 		nodeLabelsRaw      string
 		hostCPU            int
@@ -63,8 +67,16 @@ func main() {
 		tartBinary         string
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
+	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
+		"Cloud providerID (e.g. scw-applesilicon://<zone>/<id>) to set on Node.spec.providerID. CAPI matches this against Machine.spec.providerID to bind the Machine to this Node; empty leaves it unset.")
 	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
 		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
+	flag.StringVar(&nodeIPSource, "node-ip-source", envOr("TART_KUBELET_NODE_IP_SOURCE", "auto"),
+		"Where to learn this Mac mini's routable IP from. "+
+			"`auto` (default) walks UP interfaces. `tailscale` shells out to `tailscale ip -4` "+
+			"and is fatal on failure — used when the cluster's scraper path is the tailnet and "+
+			"falling back to a public interface would expose the host-side metrics forwarder on "+
+			"the open internet. `--node-ip` overrides this in either mode.")
 	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
 		"CIDR (IPv4 or IPv6) allowed to reach the per-Pod metrics forwarder. May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
 	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
@@ -79,7 +91,14 @@ func main() {
 		"Max concurrent Pods (= concurrent Tart VMs) on this Node. Capped at 2 "+
 			"by Apple's macOS SLA (no more than two simultaneous virtualized macOS "+
 			"instances per host); Tart refuses to start a third VM.")
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
+		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
+			"this is left at the default `:8080`, the bind address is "+
+			"rewritten to `<tailnet-ip>:8080` so the controller-runtime "+
+			"metrics never listen on a public interface. Any explicit "+
+			"override (including an explicit `:8080`) opts out of that "+
+			"rewrite — the operator is then responsible for not exposing "+
+			"the endpoint on the WAN.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
 
@@ -102,16 +121,52 @@ func main() {
 	}
 
 	if nodeIP == "" {
-		ip, err := defaultNodeIP()
-		if err != nil {
-			// Non-fatal: scraping is opt-in per Pod, and the
-			// reconciler's PodIP rewrite is gated on NodeIP being
-			// set. Everything else (Pod ↔ VM management) keeps
-			// working without a known host IP.
-			setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
-		} else {
+		switch nodeIPSource {
+		case "tailscale":
+			// Fatal on failure: the only reason an operator pins
+			// source=tailscale is that the tailnet IP is the
+			// load-bearing boundary for in-cluster scrapers. Silently
+			// falling back to a public interface would expose the
+			// metrics forwarder on the WAN and bypass the source-CIDR
+			// allowlist (which is RFC1918 + CGNAT — public IPs
+			// outside the RFC1918 set would still match a cluster
+			// egress NAT if the operator override loosened it).
+			ip, err := tailscaleNodeIP()
+			if err != nil {
+				setupLog.Error(err, "resolve tailnet node-ip via `tailscale ip -4`")
+				os.Exit(1)
+			}
 			nodeIP = ip
+		case "auto", "":
+			ip, err := defaultNodeIP()
+			if err != nil {
+				// Non-fatal: scraping is opt-in per Pod, and the
+				// reconciler's PodIP rewrite is gated on NodeIP being
+				// set. Everything else (Pod ↔ VM management) keeps
+				// working without a known host IP.
+				setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
+			} else {
+				nodeIP = ip
+			}
+		default:
+			setupLog.Error(fmt.Errorf("unknown --node-ip-source %q (want one of: auto, tailscale)", nodeIPSource), "parse flag")
+			os.Exit(1)
 		}
+	}
+
+	// Bind the controller-runtime metrics endpoint (PromEx-shaped
+	// /metrics on :8080 by default) to the same tailnet interface
+	// when source=tailscale and the operator left --metrics-bind-
+	// address at its default :8080. Without this, the endpoint
+	// listens on 0.0.0.0:8080 and on a Scaleway Mac mini that's a
+	// public address — the kubelet's reconcile-counters, error
+	// rates, and the new `tart_kubelet_vm_boot_duration_seconds`
+	// histogram would be exposed on the WAN. The tailnet bind
+	// inverts that: only `tag:tuist-k8s-operator` can dial 8080,
+	// gated by the Tailscale ACL.
+	if nodeIPSource == "tailscale" && nodeIP != "" && metricsAddr == ":8080" {
+		metricsAddr = fmt.Sprintf("%s:8080", nodeIP)
+		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
 	}
 
 	// controller-runtime's GetConfigOrDie resolves config via (in order):
@@ -210,11 +265,16 @@ func main() {
 	if err := mgr.Add(&nodeagent.Maintainer{
 		Client:     mgr.GetClient(),
 		NodeName:   nodeName,
+		ProviderID: providerID,
+		NodeIP:     nodeIP,
 		NodeLabels: nodeLabels,
 		CPU:        hostCPU,
 		MemoryMB:   hostMemoryMB,
 		MaxPods:    maxPods,
 		Heartbeat:  30 * time.Second,
+		DiskPressure: func(ctx context.Context) (bool, string, error) {
+			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
+		},
 	}); err != nil {
 		setupLog.Error(err, "add node maintainer")
 		os.Exit(1)
@@ -334,6 +394,40 @@ func (*noNodeIPError) Error() string {
 	return "no non-loopback IPv4 address found on any UP interface"
 }
 
+// tailscaleNodeIP shells out to `tailscale ip -4` and returns the
+// first IPv4 address the daemon advertises. macOS's CLI lives at
+// /usr/local/bin/tailscale after macos-host-bootstrap.installTailscale
+// extracts the operator-baked binaries there and `tailscaled
+// install-system-daemon` registers the launchd job.
+// /usr/bin/env-style PATH lookup would work too (the launchd job
+// already exports /usr/local/bin first), but pinning the absolute
+// path keeps the failure mode explicit when the binary is missing.
+//
+// Why not parse the utun interface address ourselves: macOS picks an
+// arbitrary utunN index for Tailscale (varies by boot order with
+// other VPN clients), and the daemon's CGNAT address can be IPv4-
+// only, IPv6-only, or both depending on tailnet config. Asking the
+// daemon is the only stable source of truth.
+func tailscaleNodeIP() (string, error) {
+	const tailscaleCLI = "/usr/local/bin/tailscale"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, tailscaleCLI, "ip", "-4").Output()
+	if err != nil {
+		return "", fmt.Errorf("exec %s ip -4: %w", tailscaleCLI, err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if ip := net.ParseIP(line); ip != nil && ip.To4() != nil {
+			return ip.String(), nil
+		}
+	}
+	return "", fmt.Errorf("tailscale ip -4 returned no IPv4 address")
+}
+
 // cidrList implements flag.Value for repeated --scrape-allowed-cidr.
 // Each invocation appends one CIDR; no value at all means "fall
 // back to DefaultScrapeAllowedCIDRs in the reconciler" rather than
@@ -385,6 +479,57 @@ func pickPodsForNode(nodeName string) fields.Selector {
 // pickThisNode narrows the Node informer to just our Node.
 func pickThisNode(nodeName string) fields.Selector {
 	return fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})
+}
+
+// diskPressureThresholdPercent is the guest root-volume capacity at or
+// above which the host Node reports DiskPressure. Below 100% so the
+// condition fires (stopping new scheduling and triggering alerts) before
+// the guest actually starts failing writes with ENOSPC.
+const diskPressureThresholdPercent = 90
+
+// diskPressureFromGuests reports DiskPressure=True when any running VM's
+// guest root volume is at or above the threshold. Each probe is bounded
+// so an unresponsive guest agent can't stall the node heartbeat, and a
+// per-VM error is logged and skipped rather than failing the whole check
+// — one bad guest shouldn't blind the others. A List error propagates so
+// the maintainer keeps the previous condition instead of flapping.
+func diskPressureFromGuests(ctx context.Context, tartClient *tart.Client, threshold int) (bool, string, error) {
+	vms, err := tartClient.List(ctx)
+	if err != nil {
+		return false, "", err
+	}
+
+	// Drop stale series up front so a VM that's gone since the last
+	// sweep stops reporting its last-known capacity.
+	podagent.ResetGuestDiskUsage()
+
+	var pressured []string
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		running, err := tartClient.IsRunning(ctx, vm.Name)
+		if err != nil || !running {
+			continue
+		}
+
+		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		pct, err := tartClient.GuestDiskUsagePercent(probeCtx, vm.Name)
+		cancel()
+		if err != nil {
+			log.FromContext(ctx).Error(err, "guest disk usage probe", "vm", vm.Name)
+			continue
+		}
+		podagent.RecordGuestDiskUsage(vm.Name, pct)
+		if pct >= threshold {
+			pressured = append(pressured, fmt.Sprintf("%s at %d%%", vm.Name, pct))
+		}
+	}
+
+	if len(pressured) > 0 {
+		return true, "guest root volume(s) near capacity: " + strings.Join(pressured, ", "), nil
+	}
+	return false, "", nil
 }
 
 // recoverState rebuilds the Pod ↔ VM map by intersecting the host's
@@ -450,8 +595,15 @@ func recoverState(
 			startTS = &now
 		}
 		store.Put(pod.Namespace, pod.Name, &podagent.Entry{
-			VMName:  vmName,
-			StartTS: *startTS,
+			VMName: vmName,
+			// Pod.Status.StartTime is when the API server first saw the
+			// Pod, not when we started the clone — observing
+			// `tart_kubelet_vm_boot_duration_seconds` against it would
+			// fold kubelet downtime into the histogram and read as a
+			// boot-time spike across every recovered VM. Suppress the
+			// observation for recovered entries.
+			StartTS:      *startTS,
+			BootObserved: true,
 		})
 		matched++
 	}

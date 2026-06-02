@@ -106,6 +106,11 @@ public struct GraphContentHasher: GraphContentHashing {
             let directDepKeys = graphTraverser
                 .directTargetDependencies(path: target.path, name: target.target.name)
                 .map { GraphHashedTarget(projectPath: $0.graphTarget.path, targetName: $0.graphTarget.target.name) }
+            let embeddedProductReferences = graphTraverser
+                .resourceBundleDependencies(path: target.path, name: target.target.name)
+                .union(graphTraverser.embeddableFrameworks(path: target.path, name: target.target.name))
+                .map(\.hashIdentifier)
+                .sorted()
             let task = Task { () async throws -> TargetContentHash in
                 for depKey in directDepKeys {
                     if let depTask = tasks.value[depKey] {
@@ -117,6 +122,7 @@ public struct GraphContentHasher: GraphContentHashing {
                     hashedTargets: hashedTargets.value,
                     hashedPaths: hashedPaths.value,
                     destination: destination,
+                    embeddedProductReferences: embeddedProductReferences,
                     additionalStrings: additionalStrings
                 )
                 hashedPaths.mutate { $0.merge(hash.hashedPaths, uniquingKeysWith: { _, new in new }) }

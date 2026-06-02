@@ -1,8 +1,9 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Mutex as StdMutex},
+    time::{Duration, Instant},
 };
 
 use bytes::Bytes;
@@ -31,7 +32,7 @@ use crate::{
         MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
         ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
         ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
         SEGMENT_FREE_SPACE_MARGIN,
@@ -45,6 +46,7 @@ use crate::{
         generation::SegmentGeneration, reader::SegmentReader, reference::SegmentReference,
         state::SegmentState,
     },
+    usage::UsageRollup,
     utils::{
         artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
         segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
@@ -52,6 +54,8 @@ use crate::{
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
+const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 
 pub struct Store {
     db: DB,
@@ -67,6 +71,7 @@ pub struct Store {
     segment_refresh_lock: Mutex<()>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
+    existence_cache: StdMutex<ExistenceCache>,
     multipart_locks: [Mutex<()>; MULTIPART_LOCK_STRIPES],
     failpoints: Arc<FailpointSet>,
 }
@@ -240,6 +245,14 @@ impl Store {
                 ),
             ),
             ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_USAGE_OUTBOX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
+            ColumnFamilyDescriptor::new(
                 ROCKSDB_CF_SEGMENT_ARTIFACTS,
                 rocksdb_column_family_options(
                     config,
@@ -291,6 +304,10 @@ impl Store {
             segment_refresh_lock: Mutex::new(()),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
+            existence_cache: StdMutex::new(ExistenceCache::new(
+                EXISTENCE_CACHE_CAPACITY,
+                EXISTENCE_CACHE_TTL,
+            )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
         })
@@ -310,8 +327,17 @@ impl Store {
         key: &str,
     ) -> Result<bool, String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        if self.existence_cache_contains(&artifact_id) {
+            return Ok(true);
+        }
         match self.manifest(&artifact_id)? {
-            Some(manifest) => self.storage_exists(&manifest).await,
+            Some(manifest) => {
+                let exists = self.storage_exists(&manifest).await?;
+                if exists {
+                    self.note_artifact_exists(&artifact_id);
+                }
+                Ok(exists)
+            }
             None => Ok(false),
         }
     }
@@ -344,6 +370,43 @@ impl Store {
             Some(_) => Ok(None),
             None => Ok(None),
         }
+    }
+
+    pub async fn fetch_artifact_for_serving(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        match self.manifest(&artifact_id)? {
+            Some(manifest) => self.prepare_artifact_for_serving(manifest).await,
+            None => Ok(None),
+        }
+    }
+
+    pub async fn fetch_artifact_by_id_for_serving(
+        &self,
+        artifact_id: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        match self.manifest(artifact_id)? {
+            Some(manifest) => self.prepare_artifact_for_serving(manifest).await,
+            None => Ok(None),
+        }
+    }
+
+    pub fn fetch_inline_artifact_bytes(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        let bytes = self.inline_bytes(&artifact_id)?;
+        if bytes.is_some() {
+            self.note_artifact_exists(&artifact_id);
+        }
+        Ok(bytes)
     }
 
     pub async fn persist_artifact_from_path_and_enqueue(
@@ -412,6 +475,7 @@ impl Store {
             && self.storage_exists(existing).await?
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
+            self.note_artifact_exists(&artifact_id);
             self.io.remove_file_if_exists(source_path).await;
             return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
         }
@@ -476,6 +540,7 @@ impl Store {
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
         self.maybe_cache_manifest(manifest.clone());
+        self.note_artifact_exists(&artifact_id);
 
         self.evict_segments(evicted_segments).await?;
 
@@ -488,6 +553,55 @@ impl Store {
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
+    }
+
+    pub async fn read_artifact_bytes(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Vec<u8>, String> {
+        if manifest.inline {
+            let bytes = self
+                .inline_bytes(&manifest.artifact_id)?
+                .ok_or_else(|| "inline artifact bytes are missing".to_string())?;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(bytes);
+        }
+
+        if let Some(segment_id) = &manifest.segment_id {
+            let offset = manifest
+                .segment_offset
+                .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let handle = self.segment_handle(segment_id).await?;
+            let size = manifest.size;
+            let bytes =
+                tokio::task::spawn_blocking(move || read_bytes_at(handle.as_std(), offset, size))
+                    .await
+                    .map_err(|error| format!("failed to join segment read task: {error}"))??;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(bytes);
+        }
+
+        if let Some(blob_path) = &manifest.blob_path {
+            let file = self
+                .io
+                .open_persistent_read_file(Path::new(blob_path))
+                .await
+                .map_err(|error| format!("failed to open blob {blob_path} for read: {error}"))?;
+            let size = manifest.size;
+            let bytes = tokio::task::spawn_blocking(move || read_bytes_at(file.as_std(), 0, size))
+                .await
+                .map_err(|error| format!("failed to join blob read task: {error}"))??;
+            self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
+                .await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(bytes);
+        }
+
+        Err("manifest does not have a readable storage location".to_string())
     }
 
     pub async fn open_artifact_reader_range(
@@ -530,6 +644,7 @@ impl Store {
             let end = start.saturating_add(limit as usize).min(bytes.len());
             let chunk = Bytes::from(bytes).slice(start..end);
             let stream = stream::once(async move { Ok::<Bytes, std::io::Error>(chunk) });
+            self.note_artifact_exists(&manifest.artifact_id);
             return Ok(Box::pin(StreamReader::new(stream)));
         }
 
@@ -538,6 +653,7 @@ impl Store {
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
+            self.note_artifact_exists(&manifest.artifact_id);
             return Ok(Box::pin(SegmentReader::new(
                 handle,
                 offset + read_offset,
@@ -554,10 +670,24 @@ impl Store {
             file.seek(std::io::SeekFrom::Start(read_offset))
                 .await
                 .map_err(|error| format!("failed to seek blob {blob_path}: {error}"))?;
+            self.note_artifact_exists(&manifest.artifact_id);
             return Ok(Box::pin(file.take(limit)));
         }
 
         Err("manifest does not have a readable storage location".to_string())
+    }
+
+    async fn prepare_artifact_for_serving(
+        &self,
+        manifest: ArtifactManifest,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        let Some(segment_id) = manifest.segment_id.as_deref() else {
+            return Ok(Some(manifest));
+        };
+        if self.segment_generation(segment_id)? != Some(SegmentGeneration::Old) {
+            return Ok(Some(manifest));
+        }
+        self.maybe_refresh_manifest(manifest).await
     }
 
     async fn maybe_refresh_manifest(
@@ -664,6 +794,7 @@ impl Store {
             && self.inline_bytes(&artifact_id)?.is_some()
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
+            self.note_artifact_exists(&artifact_id);
             return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
         }
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
@@ -705,6 +836,7 @@ impl Store {
 
         self.write_batch_sync(batch, "keyvalue batch")?;
         self.maybe_cache_manifest(manifest.clone());
+        self.note_artifact_exists(&artifact_id);
 
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
@@ -981,6 +1113,20 @@ impl Store {
     async fn segment_handle_cache_get(&self, cache_key: &str) -> Option<Arc<PersistentFile>> {
         let mut cache = self.segment_handles.lock().await;
         cache.touch(cache_key)
+    }
+
+    pub async fn trim_segment_handle_cache_to(&self, target_entries: usize, reason: &str) -> usize {
+        let mut cache = self.segment_handles.lock().await;
+        let evicted = cache.trim_to(target_entries);
+        let cached = cache.len();
+        drop(cache);
+        self.io.metrics().update_segment_handles_cached(cached);
+        if evicted > 0 {
+            self.io
+                .metrics()
+                .record_segment_handle_evictions(reason, evicted as u64);
+        }
+        evicted
     }
 
     #[cfg(test)]
@@ -1538,6 +1684,60 @@ impl Store {
         self.count_cf_entries(ROCKSDB_CF_OUTBOX)
     }
 
+    pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
+        if rollups.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for rollup in rollups {
+            let value = serde_json::to_vec(rollup)
+                .map_err(|error| format!("failed to encode usage rollup: {error}"))?;
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_USAGE_OUTBOX),
+                rollup.event_id.as_bytes(),
+                value,
+            );
+        }
+        self.write_batch_sync(batch, "usage rollups")
+    }
+
+    pub fn next_usage_rollups(&self, limit: usize) -> Result<Vec<(Vec<u8>, UsageRollup)>, String> {
+        let mut rollups = Vec::new();
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), IteratorMode::Start);
+
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate usage outbox: {error}"))?;
+            let rollup = serde_json::from_slice::<UsageRollup>(&value)
+                .map_err(|error| format!("failed to decode usage rollup: {error}"))?;
+            rollups.push((key.to_vec(), rollup));
+            if rollups.len() >= limit {
+                break;
+            }
+        }
+
+        Ok(rollups)
+    }
+
+    pub fn usage_outbox_message_count(&self) -> Result<usize, String> {
+        self.count_cf_entries(ROCKSDB_CF_USAGE_OUTBOX)
+    }
+
+    pub fn delete_usage_rollups(&self, keys: &[Vec<u8>]) -> Result<(), String> {
+        if keys.is_empty() {
+            return Ok(());
+        }
+
+        let mut batch = WriteBatch::default();
+        for key in keys {
+            batch.delete_cf(self.cf(ROCKSDB_CF_USAGE_OUTBOX), key);
+        }
+        self.write_batch_sync(batch, "usage rollup deletes")
+    }
+
     #[cfg(test)]
     pub fn outbox_messages(&self) -> Result<Vec<(Vec<u8>, OutboxMessage)>, String> {
         let mut messages = Vec::new();
@@ -1850,6 +2050,14 @@ impl Store {
         evicted
     }
 
+    pub fn trim_existence_cache_to(&self, target_entries: usize) -> usize {
+        let mut cache = self
+            .existence_cache
+            .lock()
+            .expect("existence cache lock poisoned");
+        cache.trim_to(target_entries)
+    }
+
     fn manifest_from_db(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
         self.db
             .get_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes())
@@ -1919,6 +2127,13 @@ impl Store {
             .expect("manifest cache lock poisoned");
         cache.remove_many(artifact_ids);
         self.record_manifest_cache_state(&cache);
+        drop(cache);
+
+        let mut existence_cache = self
+            .existence_cache
+            .lock()
+            .expect("existence cache lock poisoned");
+        existence_cache.remove_many(artifact_ids);
     }
 
     fn record_manifest_cache_state(&self, cache: &ManifestCache) {
@@ -1926,6 +2141,22 @@ impl Store {
         self.io
             .metrics()
             .update_manifest_cache_bytes(cache.total_bytes());
+    }
+
+    fn existence_cache_contains(&self, artifact_id: &str) -> bool {
+        let mut cache = self
+            .existence_cache
+            .lock()
+            .expect("existence cache lock poisoned");
+        cache.contains(artifact_id)
+    }
+
+    fn note_artifact_exists(&self, artifact_id: &str) {
+        let mut cache = self
+            .existence_cache
+            .lock()
+            .expect("existence cache lock poisoned");
+        cache.insert(artifact_id.to_owned());
     }
 }
 
@@ -1944,10 +2175,22 @@ fn validate_total_size(next_total: u64, max_total: u64) -> Result<(), MultipartE
 }
 
 struct ManifestCache {
-    entries: BTreeMap<String, CachedManifest>,
+    entries: HashMap<String, CachedManifest>,
     total_bytes: usize,
     next_access_order: u64,
     max_bytes: usize,
+}
+
+struct ExistenceCache {
+    entries: HashMap<String, CachedExistence>,
+    next_access_order: u64,
+    capacity: usize,
+    ttl: Duration,
+}
+
+struct CachedExistence {
+    inserted_at: Instant,
+    access_order: u64,
 }
 
 struct CachedManifest {
@@ -1965,7 +2208,7 @@ enum ManifestCacheInsertResult {
 impl ManifestCache {
     fn new(max_bytes: usize) -> Self {
         Self {
-            entries: BTreeMap::new(),
+            entries: HashMap::new(),
             total_bytes: 0,
             next_access_order: 0,
             max_bytes,
@@ -1992,13 +2235,16 @@ impl ManifestCache {
         let artifact_id = manifest.artifact_id.clone();
         let size_bytes = estimated_manifest_bytes(&manifest);
         if size_bytes > self.max_bytes {
-            self.entries.remove(&artifact_id);
-            self.recompute_total_bytes();
+            if let Some(removed) = self.entries.remove(&artifact_id) {
+                self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
+            }
             return ManifestCacheInsertResult::Oversized;
         }
 
-        let existed = self.entries.remove(&artifact_id).is_some();
-        self.recompute_total_bytes();
+        let existed = self.entries.remove(&artifact_id);
+        if let Some(removed) = &existed {
+            self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
+        }
         let access_order = self.next_access_order();
         self.entries.insert(
             artifact_id,
@@ -2011,7 +2257,7 @@ impl ManifestCache {
         self.total_bytes = self.total_bytes.saturating_add(size_bytes);
         let evicted = self.trim_to(self.max_bytes);
 
-        if existed {
+        if existed.is_some() {
             ManifestCacheInsertResult::Updated { evicted }
         } else {
             ManifestCacheInsertResult::Admitted { evicted }
@@ -2020,9 +2266,10 @@ impl ManifestCache {
 
     fn remove_many(&mut self, artifact_ids: &[String]) {
         for artifact_id in artifact_ids {
-            self.entries.remove(artifact_id);
+            if let Some(removed) = self.entries.remove(artifact_id) {
+                self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
+            }
         }
-        self.recompute_total_bytes();
     }
 
     fn trim_to(&mut self, target_bytes: usize) -> usize {
@@ -2036,16 +2283,96 @@ impl ManifestCache {
             else {
                 break;
             };
-            if self.entries.remove(&oldest_key).is_some() {
+            if let Some(removed) = self.entries.remove(&oldest_key) {
+                self.total_bytes = self.total_bytes.saturating_sub(removed.size_bytes);
                 evicted += 1;
-                self.recompute_total_bytes();
             }
         }
         evicted
     }
 
-    fn recompute_total_bytes(&mut self) {
-        self.total_bytes = self.entries.values().map(|cached| cached.size_bytes).sum();
+    fn next_access_order(&mut self) -> u64 {
+        self.next_access_order = self.next_access_order.wrapping_add(1);
+        self.next_access_order
+    }
+}
+
+impl ExistenceCache {
+    fn new(capacity: usize, ttl: Duration) -> Self {
+        Self {
+            entries: HashMap::new(),
+            next_access_order: 0,
+            capacity,
+            ttl,
+        }
+    }
+
+    fn contains(&mut self, artifact_id: &str) -> bool {
+        let now = Instant::now();
+        if self
+            .entries
+            .get(artifact_id)
+            .is_some_and(|entry| now.duration_since(entry.inserted_at) > self.ttl)
+        {
+            self.entries.remove(artifact_id);
+            return false;
+        }
+        let access_order = self.next_access_order();
+        self.entries
+            .get_mut(artifact_id)
+            .map(|entry| {
+                entry.access_order = access_order;
+            })
+            .is_some()
+    }
+
+    fn insert(&mut self, artifact_id: String) {
+        let access_order = self.next_access_order();
+        self.entries.insert(
+            artifact_id,
+            CachedExistence {
+                inserted_at: Instant::now(),
+                access_order,
+            },
+        );
+        self.evict_over_capacity();
+    }
+
+    fn remove_many(&mut self, artifact_ids: &[String]) {
+        for artifact_id in artifact_ids {
+            self.entries.remove(artifact_id);
+        }
+    }
+
+    fn trim_to(&mut self, target_entries: usize) -> usize {
+        let mut evicted = 0_usize;
+        while self.entries.len() > target_entries {
+            let Some(oldest_key) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.access_order)
+                .map(|(artifact_id, _)| artifact_id.clone())
+            else {
+                break;
+            };
+            self.entries.remove(&oldest_key);
+            evicted += 1;
+        }
+        evicted
+    }
+
+    fn evict_over_capacity(&mut self) {
+        while self.entries.len() > self.capacity {
+            let Some(oldest_key) = self
+                .entries
+                .iter()
+                .min_by_key(|(_, entry)| entry.access_order)
+                .map(|(artifact_id, _)| artifact_id.clone())
+            else {
+                break;
+            };
+            self.entries.remove(&oldest_key);
+        }
     }
 
     fn next_access_order(&mut self) -> u64 {
@@ -2124,7 +2451,7 @@ struct SegmentLocation {
 }
 
 struct SegmentHandleCache {
-    entries: BTreeMap<String, CachedSegmentHandle>,
+    entries: HashMap<String, CachedSegmentHandle>,
     next_access_order: u64,
     capacity: usize,
 }
@@ -2137,7 +2464,7 @@ struct CachedSegmentHandle {
 impl SegmentHandleCache {
     fn new(capacity: usize) -> Self {
         Self {
-            entries: BTreeMap::new(),
+            entries: HashMap::new(),
             next_access_order: 0,
             capacity,
         }
@@ -2169,6 +2496,14 @@ impl SegmentHandleCache {
 
     fn remove(&mut self, cache_key: &str) -> bool {
         self.entries.remove(cache_key).is_some()
+    }
+
+    fn trim_to(&mut self, target_entries: usize) -> usize {
+        let original_capacity = self.capacity;
+        self.capacity = target_entries;
+        let evicted = self.evict_over_capacity();
+        self.capacity = original_capacity;
+        evicted
     }
 
     fn evict_over_capacity(&mut self) -> usize {
@@ -2206,6 +2541,41 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     }
 }
 
+fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
+    let size = usize::try_from(size)
+        .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
+    let mut bytes = vec![0; size];
+    let mut read_offset = 0_usize;
+    while read_offset < bytes.len() {
+        let bytes_read = read_at(file, &mut bytes[read_offset..], offset + read_offset as u64)
+            .map_err(|error| {
+                format!("failed to read artifact bytes at offset {offset}: {error}")
+            })?;
+        if bytes_read == 0 {
+            return Err(format!(
+                "unexpected EOF while reading {} bytes at offset {offset}",
+                bytes.len()
+            ));
+        }
+        read_offset += bytes_read;
+    }
+    Ok(bytes)
+}
+
+#[cfg(unix)]
+fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    use std::os::unix::fs::FileExt;
+
+    file.read_at(bytes, offset)
+}
+
+#[cfg(windows)]
+fn read_at(file: &std::fs::File, bytes: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    use std::os::windows::fs::FileExt;
+
+    file.seek_read(bytes, offset)
+}
+
 fn persisted_version_ms(version_ms: u64) -> u64 {
     if version_ms == 0 {
         now_ms()
@@ -2237,7 +2607,6 @@ fn decode_manifest_record(artifact_id: &str, bytes: &[u8]) -> Result<ArtifactMan
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    use tokio::io::AsyncReadExt;
 
     use crate::{
         config::Config,
@@ -2293,6 +2662,7 @@ mod tests {
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             analytics: None,
+            usage: None,
             otlp_traces_endpoint: Some("http://127.0.0.1:4318/v1/traces".into()),
             otel_service_name: "kura-test".into(),
             otel_deployment_environment: "test".into(),
@@ -2328,16 +2698,10 @@ mod tests {
     }
 
     async fn read_manifest_bytes(store: &Store, manifest: &ArtifactManifest) -> Vec<u8> {
-        let mut reader = store
-            .open_artifact_reader(manifest)
+        store
+            .read_artifact_bytes(manifest)
             .await
-            .expect("artifact reader should open");
-        let mut bytes = Vec::new();
-        reader
-            .read_to_end(&mut bytes)
-            .await
-            .expect("artifact bytes should read");
-        bytes
+            .expect("artifact bytes should read")
     }
 
     #[tokio::test]
@@ -2387,6 +2751,89 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn artifact_exists_cache_is_invalidated_by_namespace_delete() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        assert!(
+            store
+                .artifact_exists(ArtifactProducer::Xcode, "ios", "artifact-1")
+                .await
+                .expect("failed to check artifact existence")
+        );
+
+        store
+            .delete_namespace("ios")
+            .await
+            .expect("failed to delete namespace");
+
+        assert!(
+            !store
+                .artifact_exists(ArtifactProducer::Xcode, "ios", "artifact-1")
+                .await
+                .expect("failed to re-check artifact existence")
+        );
+    }
+
+    #[tokio::test]
+    async fn artifact_exists_cache_is_invalidated_by_replicated_namespace_delete() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+                100,
+            )
+            .await
+            .expect("failed to apply replicated artifact");
+
+        assert!(
+            store
+                .artifact_exists(ArtifactProducer::Xcode, "ios", "artifact-1")
+                .await
+                .expect("failed to check artifact existence")
+        );
+
+        assert!(
+            store
+                .apply_replicated_namespace_delete("ios", 200)
+                .await
+                .expect("failed to apply replicated namespace delete")
+                .applied()
+        );
+
+        assert!(
+            !store
+                .artifact_exists(ArtifactProducer::Xcode, "ios", "artifact-1")
+                .await
+                .expect("failed to re-check artifact existence")
+        );
+    }
+
+    #[test]
+    fn existence_cache_expires_entries_after_ttl() {
+        let mut cache = ExistenceCache::new(8, Duration::from_millis(10));
+        cache.insert("artifact-1".into());
+        assert!(cache.contains("artifact-1"));
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(!cache.contains("artifact-1"));
+    }
+
+    #[tokio::test]
     async fn persist_and_fetch_rocksdb_backed_keyvalue_round_trip() {
         let (_temp_dir, _config, store) = temp_store();
 
@@ -2409,6 +2856,13 @@ mod tests {
                 .inline_bytes(&manifest.artifact_id)
                 .expect("failed to read inline bytes")
                 .expect("inline bytes should exist"),
+            br#"{"hello":"world"}"#
+        );
+        assert_eq!(
+            store
+                .fetch_inline_artifact_bytes(ArtifactProducer::Xcode, "ios", "artifact-1")
+                .expect("failed to fetch inline artifact bytes")
+                .expect("inline artifact bytes should exist"),
             br#"{"hello":"world"}"#
         );
         assert_eq!(

@@ -85,7 +85,11 @@ public struct SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        for try await event in commandRunner.run(arguments: arguments, environment: Environment.current.variables) {
+        for try await event in commandRunner.run(
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: path
+        ) {
             switch event {
             case let .standardOutput(bytes):
                 let output = String(decoding: bytes, as: Unicode.UTF8.self)

@@ -236,6 +236,26 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Counts active claims per fleet **across all accounts**. Returns
+  `%{fleet_name => count}`. Powers the autoscaler's view of "how
+  many Pods are currently busy" for a given pool — combined with
+  the queued count from ClickHouse and the rolling p95 of
+  concurrent load, the controller decides the desired replica
+  count.
+
+  Counts `claimed` + `running` together — both occupy a Pod and
+  must be reflected as busy capacity when sizing the warm pool.
+  """
+  def counts_per_fleet do
+    from(c in Claim,
+      group_by: c.fleet_name,
+      select: {c.fleet_name, count(c.workflow_job_id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Counts active claims per account **across all fleets**. Returns
   `%{account_id => count}`. Powers the cap_lookup the dispatch
   path builds before each claim attempt.

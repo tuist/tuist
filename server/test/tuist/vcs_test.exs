@@ -3658,4 +3658,160 @@ defmodule Tuist.VCSTest do
       assert changeset.valid?
     end
   end
+
+  describe "list_github_app_installations_for_webhook/2 caching" do
+    setup do
+      cache = :"vcs_webhook_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, name: cache})
+      %{cache: cache}
+    end
+
+    test "memoises the lookup so a repeated webhook does not re-query Postgres",
+         %{cache: cache} do
+      # Given a real row to hit on the first call.
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "111",
+          app_id: "999"
+        })
+
+      first = VCS.list_github_app_installations_for_webhook("111", "999", cache: cache)
+      assert [%GitHubAppInstallation{id: id}] = first
+      assert id == installation.id
+
+      # Repo.all/1 must not be called on the second invocation — the
+      # mimic reject fails the test if it is.
+      reject(&Tuist.Repo.all/1)
+
+      second = VCS.list_github_app_installations_for_webhook("111", "999", cache: cache)
+      assert second == first
+    end
+
+    test "honours nil filters separately from supplied ones", %{cache: cache} do
+      account = AccountsFixtures.organization_fixture().account
+
+      {:ok, installation} =
+        VCS.create_github_app_installation(%{
+          account_id: account.id,
+          installation_id: "222",
+          app_id: "1000"
+        })
+
+      # Lookup by installation_id alone uses a distinct cache slot
+      # from the (installation_id, app_id) lookup, so they don't
+      # collide in the cache key.
+      by_installation = VCS.list_github_app_installations_for_webhook("222", nil, cache: cache)
+      by_both = VCS.list_github_app_installations_for_webhook("222", "1000", cache: cache)
+
+      assert [%GitHubAppInstallation{id: id1}] = by_installation
+      assert [%GitHubAppInstallation{id: id2}] = by_both
+      assert id1 == installation.id
+      assert id2 == installation.id
+    end
+
+    test "returns [] without touching Postgres when both filters are nil", %{cache: cache} do
+      reject(&Tuist.Repo.all/1)
+      assert VCS.list_github_app_installations_for_webhook(nil, nil, cache: cache) == []
+    end
+  end
+
+  describe "list_github_apps/0" do
+    test "returns the global env-configured App as the first entry when configured" do
+      # Defaults from the test setup configure the global App via
+      # Environment stubs (configured? == true).
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :github_app_name, fn -> "tuist" end)
+      stub(Environment, :github_app_client_secret, fn -> "secret" end)
+      stub(Environment, :github_app_private_key, fn -> "pk" end)
+      stub(Environment, :github_app_webhook_secret, fn -> "ws" end)
+
+      [global | _] = VCS.list_github_apps()
+
+      assert global.api_url == "https://api.github.com"
+      assert global.credentials.app_id == "client_id"
+      assert global.credentials.private_key == "pk"
+    end
+
+    test "returns an empty list when the global App is not configured and there are no manifest-flow installs" do
+      stub(Environment, :github_app_configured?, fn -> false end)
+
+      assert VCS.list_github_apps() == []
+    end
+
+    test "includes distinct per-installation manifest-flow Apps alongside the global App" do
+      stub(Environment, :github_app_configured?, fn -> true end)
+      stub(Environment, :github_app_name, fn -> "tuist" end)
+      stub(Environment, :github_app_client_secret, fn -> "secret" end)
+      stub(Environment, :github_app_private_key, fn -> "pk" end)
+      stub(Environment, :github_app_webhook_secret, fn -> "ws" end)
+
+      account_one = AccountsFixtures.user_fixture().account
+      account_two = AccountsFixtures.user_fixture().account
+
+      {:ok, _} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account_one.id,
+          installation_id: "1001",
+          client_url: "https://ghes.example.com",
+          app_id: "ghes-app-1",
+          client_id: "cid-1",
+          client_secret: "cs-1",
+          private_key: "pk-1",
+          webhook_secret: "ws-1",
+          app_slug: "tuist-ghes-1"
+        })
+        |> Repo.insert()
+
+      {:ok, _} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account_two.id,
+          installation_id: "2002",
+          client_url: "https://other-ghes.example.com",
+          app_id: "ghes-app-2",
+          client_id: "cid-2",
+          client_secret: "cs-2",
+          private_key: "pk-2",
+          webhook_secret: "ws-2",
+          app_slug: "tuist-ghes-2"
+        })
+        |> Repo.insert()
+
+      apps = VCS.list_github_apps()
+
+      app_ids = Enum.map(apps, & &1.credentials.app_id)
+      assert "client_id" in app_ids
+      assert "ghes-app-1" in app_ids
+      assert "ghes-app-2" in app_ids
+
+      api_urls = Enum.map(apps, & &1.api_url)
+      assert "https://api.github.com" in api_urls
+      assert "https://ghes.example.com/api/v3" in api_urls
+      assert "https://other-ghes.example.com/api/v3" in api_urls
+    end
+
+    test "skips installation rows that don't carry per-installation manifest-flow credentials" do
+      # github.com rows have nil app_id / private_key and use the
+      # global env-var App — they're not separate Apps from this
+      # function's perspective.
+      stub(Environment, :github_app_configured?, fn -> false end)
+
+      account = AccountsFixtures.user_fixture().account
+
+      {:ok, _} =
+        %GitHubAppInstallation{}
+        |> GitHubAppInstallation.changeset(%{
+          account_id: account.id,
+          installation_id: "9999"
+          # no app_id, no private_key — github.com-style row
+        })
+        |> Repo.insert()
+
+      assert VCS.list_github_apps() == []
+    end
+  end
 end

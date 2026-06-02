@@ -23,7 +23,7 @@ defmodule TuistWeb.APIControllerTest do
       [{"script", attrs, _}] = Floki.find(document, "#api-reference")
       attrs = Map.new(attrs)
       assert attrs["data-url"] == "/api/spec"
-      data_configuration = Jason.decode!(attrs["data-configuration"])
+      data_configuration = JSON.decode!(attrs["data-configuration"])
       assert data_configuration["spec"] == %{"url" => "/api/spec"}
       assert data_configuration["theme"] == "purple"
       assert data_configuration["authentication"]["http"]["basic"] == %{}
@@ -44,7 +44,7 @@ defmodule TuistWeb.APIControllerTest do
       [{"script", attrs, _}] = Floki.find(document, "#api-reference")
       attrs = Map.new(attrs)
       assert attrs["data-url"] == "/api/spec"
-      data_configuration = Jason.decode!(attrs["data-configuration"])
+      data_configuration = JSON.decode!(attrs["data-configuration"])
       assert data_configuration["spec"] == %{"url" => "/api/spec"}
       assert data_configuration["theme"] == "purple"
       assert data_configuration["authentication"]["http"]["basic"] == %{}

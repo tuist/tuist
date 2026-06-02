@@ -13,6 +13,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "renders a KuraInstance without a per-account compute spec" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
       manifest =
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
@@ -43,18 +47,53 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "podAnnotations")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
-      # Tuist platform secrets (JWT verifier, license signer) live in the
+      assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
+
+      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
+               "00000000-0000-0000-0000-000000000001"
+
+      # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
       # them into the pod. They must NEVER appear in the spec, since
       # anyone with list/watch on KuraInstance would otherwise read the
       # global JWT signing secret.
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
-      refute Map.has_key?(env, "KURA_EXTENSION_SIGNER_TUIST_SECRET")
+    end
+
+    test "normalizes account handles for DNS-label KuraInstance fields" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-bumble-eu-central-1",
+          "0.5.2",
+          %{name: "Bumble"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      assert manifest["metadata"]["labels"]["tuist.dev/account"] == "bumble"
+
+      spec = manifest["spec"]
+      assert spec["accountHandle"] == "bumble"
+      assert spec["tenantID"] == "bumble"
+      assert spec["publicHost"] == "bumble-eu-central-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "grpc.bumble-eu-central-1.kura.tuist.dev"
     end
 
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
 
       manifest =
         KubernetesController.manifest(
@@ -75,7 +114,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "grpcPublicHost")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_CONTROL_PLANE_URL"] == "http://host.docker.internal:8080"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "http://host.docker.internal:8080"
+      assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
+
+      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
+               "00000000-0000-0000-0000-000000000001"
+
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
   end

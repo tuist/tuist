@@ -1,0 +1,823 @@
+defmodule TuistWeb.RunnerJobsLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import Noora.Filter
+  import TuistWeb.Components.ChartTypeToggle
+  import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ScatterChart
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Widget
+
+  alias Noora.Filter
+  alias Phoenix.LiveView.AsyncResult
+  alias Tuist.Authorization
+  alias Tuist.FeatureFlags
+  alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Billing
+  alias Tuist.Runners.Jobs
+  alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Utilities.Query
+
+  @page_size 20
+
+  @impl true
+  def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
+    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
+      raise TuistWeb.Errors.NotFoundError,
+            dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
+    end
+
+    if connected?(socket) do
+      Tuist.PubSub.subscribe(Jobs.topic(selected_account.id))
+    end
+
+    {:ok,
+     socket
+     |> assign(
+       :head_title,
+       "#{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
+     )
+     |> assign(:available_filters, available_filters())
+     |> assign(:repositories, Jobs.distinct_repositories_for_account(selected_account.id))
+     |> assign(:analytics_selected_widget, "jobs")
+     |> assign(:jobs_breakdown_type, "total")
+     |> assign(:queue_time_percentile, "avg")
+     |> assign(:job_duration_percentile, "avg")}
+  end
+
+  @impl true
+  def handle_params(params, uri, socket) do
+    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
+    repository = params["repository"] || "any"
+    platform = platform_param(params["platform"])
+    page = parse_page(params["page"])
+    search = params["search"] || ""
+    sort_by = sort_by_param(params["sort_by"])
+    sort_order = sort_order_param(params["sort_order"], sort_by)
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    job_duration_chart_type = chart_type_param(params["job-duration-chart-type"])
+    job_duration_group_by = scatter_group_by_param(params["job-duration-group-by"])
+    queue_time_chart_type = chart_type_param(params["queue-time-chart-type"])
+    queue_time_group_by = scatter_group_by_param(params["queue-time-group-by"])
+
+    {:noreply,
+     socket
+     |> assign(:uri, URI.parse(uri))
+     |> assign(:active_filters, filters)
+     |> assign(:repository, repository)
+     |> assign(:platform, platform)
+     |> assign(:search, search)
+     |> assign(:page, page)
+     |> assign(:sort_by, sort_by)
+     |> assign(:sort_order, sort_order)
+     |> assign(:analytics_preset, preset)
+     |> assign(:analytics_period, period)
+     |> assign(:analytics_trend_label, trend_label(preset))
+     |> assign(:job_duration_chart_type, job_duration_chart_type)
+     |> assign(:job_duration_group_by, job_duration_group_by)
+     |> assign(:queue_time_chart_type, queue_time_chart_type)
+     |> assign(:queue_time_group_by, queue_time_group_by)
+     |> assign_analytics(repository, platform, start_datetime, end_datetime)
+     |> assign_duration_scatter(
+       repository,
+       platform,
+       start_datetime,
+       end_datetime,
+       job_duration_chart_type,
+       job_duration_group_by
+     )
+     |> assign_queue_time_scatter(
+       repository,
+       platform,
+       start_datetime,
+       end_datetime,
+       queue_time_chart_type,
+       queue_time_group_by
+     )
+     |> assign_jobs(repository, platform)}
+  end
+
+  defp platform_param(value) when value in ["macos", "linux"], do: value
+  defp platform_param(_), do: "any"
+
+  # Bound the sort_by URL param so a typo doesn't reach the backend
+  # and produce an unstable order. Mirrors the Workflows page
+  # pattern.
+  defp sort_by_param(value) when value in ["enqueued", "job", "workflow", "duration"], do: value
+  defp sort_by_param(_), do: "enqueued"
+
+  defp sort_order_param(value, _sort_by) when value in ["asc", "desc"], do: value
+  defp sort_order_param(_, "job"), do: "asc"
+  defp sort_order_param(_, "workflow"), do: "asc"
+  defp sort_order_param(_, _numerical), do: "desc"
+
+  defp chart_type_param("scatter"), do: "scatter"
+  defp chart_type_param(_), do: "line"
+
+  # Bound the scatter group_by URL param so a typo doesn't surface
+  # as a missing series. We offer Status (default) and Platform.
+  defp scatter_group_by_param("platform"), do: "platform"
+  defp scatter_group_by_param(_), do: "status"
+
+  # Scatter assigns: a no-op {:ok, :line} when the toggle is on
+  # "line" (so the template's `:if={scatter?(...)}` resolves to false
+  # without firing a query), and the actual scatter payload when
+  # "scatter".
+  defp assign_duration_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line", _group_by) do
+    assign_async(socket, :job_duration_scatter, fn ->
+      {:ok, %{job_duration_scatter: :line}}
+    end)
+  end
+
+  defp assign_duration_scatter(
+         %{assigns: %{selected_account: account}} = socket,
+         repository,
+         platform,
+         start_dt,
+         end_dt,
+         "scatter",
+         group_by
+       ) do
+    scope_opts =
+      []
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:group_by, String.to_existing_atom(group_by))
+
+    assign_async(socket, :job_duration_scatter, fn ->
+      {:ok,
+       %{
+         job_duration_scatter: {:scatter, Analytics.job_duration_scatter(account.id, scope_opts)}
+       }}
+    end)
+  end
+
+  defp assign_queue_time_scatter(socket, _repository, _platform, _start_dt, _end_dt, "line", _group_by) do
+    assign_async(socket, :queue_time_scatter, fn ->
+      {:ok, %{queue_time_scatter: :line}}
+    end)
+  end
+
+  defp assign_queue_time_scatter(
+         %{assigns: %{selected_account: account}} = socket,
+         repository,
+         platform,
+         start_dt,
+         end_dt,
+         "scatter",
+         group_by
+       ) do
+    scope_opts =
+      []
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:group_by, String.to_existing_atom(group_by))
+
+    assign_async(socket, :queue_time_scatter, fn ->
+      {:ok,
+       %{
+         queue_time_scatter: {:scatter, Analytics.queue_time_scatter(account.id, scope_opts)}
+       }}
+    end)
+  end
+
+  defp assign_analytics(%{assigns: %{selected_account: account}} = socket, repository, platform, start_dt, end_dt) do
+    bucket = Analytics.bucket_for_window(start_dt, end_dt)
+
+    scope_opts =
+      []
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+      |> Keyword.put(:start_datetime, start_dt)
+      |> Keyword.put(:end_datetime, end_dt)
+      |> Keyword.put(:bucket, bucket)
+
+    socket
+    |> assign(:analytics_bucket, bucket)
+    |> assign_async(
+      [:jobs_breakdown, :cumulative_minutes, :queue_time, :jobs_duration, :live_status_counts],
+      fn ->
+        {:ok,
+         %{
+           jobs_breakdown: jobs_breakdown(account.id, scope_opts),
+           cumulative_minutes: Billing.compute_minutes(account.id, scope_opts),
+           queue_time: Analytics.queue_time(account.id, scope_opts),
+           jobs_duration: Analytics.jobs_duration(account.id, scope_opts),
+           live_status_counts: Jobs.status_counts(account.id)
+         }}
+      end
+    )
+  end
+
+  # Three independent ClickHouse round trips — total / successful /
+  # failed counts each carry their own daily series and trend. Fan out
+  # over Task.async so the widget loads in the time of the slowest
+  # query rather than the sum of all three.
+  defp jobs_breakdown(account_id, scope_opts) do
+    [total, successful, failed] =
+      Task.await_many(
+        [
+          Task.async(fn -> Analytics.jobs_count(account_id, scope_opts) end),
+          Task.async(fn -> Analytics.successful_jobs_count(account_id, scope_opts) end),
+          Task.async(fn -> Analytics.failed_jobs_count(account_id, scope_opts) end)
+        ],
+        30_000
+      )
+
+    %{total: total, successful: successful, failed: failed}
+  end
+
+  defp maybe_repository(opts, "any"), do: opts
+  defp maybe_repository(opts, nil), do: opts
+  defp maybe_repository(opts, ""), do: opts
+  defp maybe_repository(opts, repository) when is_binary(repository), do: Keyword.put(opts, :repository, repository)
+
+  defp maybe_platform(opts, "any"), do: opts
+  defp maybe_platform(opts, nil), do: opts
+  defp maybe_platform(opts, ""), do: opts
+  defp maybe_platform(opts, platform) when platform in ["macos", "linux"], do: Keyword.put(opts, :platform, platform)
+  defp maybe_platform(opts, _), do: opts
+
+  defp trend_label("last-24-hours"), do: dgettext("dashboard_runners", "since yesterday")
+  defp trend_label("last-7-days"), do: dgettext("dashboard_runners", "since last week")
+  defp trend_label("last-12-months"), do: dgettext("dashboard_runners", "since last year")
+  defp trend_label("custom"), do: dgettext("dashboard_runners", "since last period")
+  defp trend_label(_), do: dgettext("dashboard_runners", "since last month")
+
+  defp parse_page(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp parse_page(_), do: 1
+
+  @impl true
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
+  def handle_event("select_queue_time_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :queue_time_percentile, type)}
+  end
+
+  def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
+    {:noreply, assign(socket, :job_duration_percentile, type)}
+  end
+
+  def handle_event("select_jobs_breakdown", %{"type" => type}, socket) when type in ["total", "passed", "failed"] do
+    {:noreply, assign(socket, :jobs_breakdown_type, type)}
+  end
+
+  def handle_event(
+        "select_job_duration_chart_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      )
+      when type in ["line", "scatter"] do
+    # `~p` re-encodes its query interpolation, so threading an
+    # already-encoded query string makes `=` and `&` get re-escaped
+    # on every click — the URL grows by another encoding layer each
+    # time. Pass the decoded map instead so the sigil encodes once.
+    params = uri.query |> Query.put("job-duration-chart-type", type) |> URI.decode_query()
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
+  end
+
+  def handle_event(
+        "select_queue_time_chart_type",
+        %{"type" => type},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      )
+      when type in ["line", "scatter"] do
+    params = uri.query |> Query.put("queue-time-chart-type", type) |> URI.decode_query()
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
+  end
+
+  def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket, decoded_query(socket))
+
+    {:noreply,
+     socket
+     |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/jobs?#{updated_params}")
+     |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
+     |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
+  end
+
+  def handle_event("update_filter", params, socket) do
+    updated_params = Filter.Operations.update_filters_in_query(params, socket, decoded_query(socket))
+
+    {:noreply,
+     socket
+     |> push_patch(to: ~p"/#{socket.assigns.selected_account.name}/runners/jobs?#{updated_params}")
+     |> push_event("close-dropdown", %{id: "all", all: true})
+     |> push_event("close-popover", %{id: "all", all: true})}
+  end
+
+  def handle_event("search-jobs", %{"search" => search}, %{assigns: %{selected_account: account, uri: uri}} = socket) do
+    params =
+      uri.query
+      |> Query.put("search", search)
+      |> Query.drop("page")
+      |> URI.decode_query()
+
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{params}")}
+  end
+
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: account, uri: uri}} = socket
+      ) do
+    if_result =
+      if preset == "custom" do
+        uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        uri.query
+        |> Query.put("analytics-date-range", preset)
+        |> Query.drop("analytics-start-date")
+        |> Query.drop("analytics-end-date")
+      end
+
+    query = URI.decode_query(if_result)
+
+    {:noreply, push_patch(socket, to: ~p"/#{account.name}/runners/jobs?#{query}")}
+  end
+
+  # `Noora.Filter.Operations` defaults to `URI.decode_query(uri.query)`,
+  # which raises when `uri.query` is `nil` (the case on a fresh URL
+  # with no `?`). Pass a decoded params map so the very first filter
+  # click can't take down the LiveView.
+  defp decoded_query(%{assigns: %{uri: %URI{query: nil}}}), do: %{}
+  defp decoded_query(%{assigns: %{uri: %URI{query: query}}}), do: URI.decode_query(query)
+
+  @impl true
+  def handle_info({:runner_jobs_status_changed, _payload}, socket) do
+    # Refresh the live Running / Queued counts plus the jobs table on
+    # every state transition for the account. Filters and pagination
+    # state are preserved via `assign_jobs/1`. Wraps the result in
+    # AsyncResult so the template can keep reading `.ok?` / `.result`
+    # the same way it did right after the initial `assign_async`.
+    counts = Jobs.status_counts(socket.assigns.selected_account.id)
+
+    {:noreply,
+     socket
+     |> assign(:live_status_counts, AsyncResult.ok(counts))
+     |> assign_jobs(socket.assigns.repository, socket.assigns.platform)}
+  end
+
+  defp assign_jobs(
+         %{
+           assigns: %{
+             selected_account: account,
+             active_filters: filters,
+             page: page,
+             search: search,
+             sort_by: sort_by,
+             sort_order: sort_order
+           }
+         } = socket,
+         repository,
+         platform
+       ) do
+    base_opts =
+      []
+      |> maybe_repository(repository)
+      |> maybe_platform(platform)
+      |> maybe_put_search(search)
+      |> Keyword.put(:sort_by, sort_by)
+      |> Keyword.put(:sort_order, sort_order)
+      |> add_filter_opt(filters, "workflow", :workflow_name)
+      |> add_filter_opt(filters, "branch", :head_branch)
+      |> add_status_filter_opt(filters)
+
+    total = Jobs.count_for_account(account.id, base_opts)
+    total_pages = max(1, ceil_div(total, @page_size))
+    page = min(page, total_pages)
+    offset = (page - 1) * @page_size
+
+    paged_opts =
+      base_opts
+      |> Keyword.put(:limit, @page_size)
+      |> Keyword.put(:offset, offset)
+
+    jobs = Jobs.list_for_account(account.id, paged_opts)
+    counts = Jobs.status_counts(account.id)
+
+    socket
+    |> assign(:jobs, jobs)
+    |> assign(:status_counts, counts)
+    |> assign(:page, page)
+    |> assign(:total_jobs, total)
+    |> assign(:total_pages, total_pages)
+  end
+
+  defp ceil_div(0, _divisor), do: 0
+  defp ceil_div(numerator, divisor), do: div(numerator + divisor - 1, divisor)
+
+  defp add_filter_opt(opts, filters, filter_id, opt_key) do
+    case Enum.find(filters, &(&1.id == filter_id)) do
+      %{value: value} when is_binary(value) and value != "" -> Keyword.put(opts, opt_key, value)
+      _ -> opts
+    end
+  end
+
+  defp maybe_put_search(opts, ""), do: opts
+  defp maybe_put_search(opts, nil), do: opts
+  defp maybe_put_search(opts, value) when is_binary(value), do: Keyword.put(opts, :search, value)
+
+  # The unified Status filter exposes both lifecycle (queued/claimed/
+  # running) and conclusion (success/failure/cancelled/skipped)
+  # values. Translate to the right SQL column so the picked value
+  # actually narrows the table.
+  defp add_status_filter_opt(opts, filters) do
+    case Enum.find(filters, &(&1.id == "status")) do
+      %{value: value} when not is_nil(value) ->
+        value = to_string(value)
+
+        cond do
+          value in ~w(success failure cancelled skipped) ->
+            opts |> Keyword.put(:conclusion, value) |> Keyword.put(:status, "completed")
+
+          value in ~w(queued claimed running completed) ->
+            Keyword.put(opts, :status, value)
+
+          true ->
+            opts
+        end
+
+      _ ->
+        opts
+    end
+  end
+
+  defp available_filters do
+    [
+      %Filter.Filter{
+        id: "workflow",
+        field: :workflow_name,
+        display_name: dgettext("dashboard_runners", "Workflow"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      },
+      # Single "Status" filter mirroring the unified status column.
+      # The lifecycle states (queued/claimed/running) and the
+      # terminal conclusions (success/failure/cancelled/skipped) are
+      # both visually rendered as the same "Status" badge in the
+      # table, so the filter exposes the union and `assign_jobs/3`
+      # routes the chosen value to either the `:status` or
+      # `:conclusion` column.
+      %Filter.Filter{
+        id: "status",
+        field: :status,
+        display_name: dgettext("dashboard_runners", "Status"),
+        type: :option,
+        options: [:queued, :claimed, :running, :success, :failure, :cancelled, :skipped],
+        options_display_names: %{
+          queued: dgettext("dashboard_runners", "Queued"),
+          claimed: dgettext("dashboard_runners", "Claimed"),
+          running: dgettext("dashboard_runners", "Running"),
+          success: dgettext("dashboard_runners", "Success"),
+          failure: dgettext("dashboard_runners", "Failure"),
+          cancelled: dgettext("dashboard_runners", "Cancelled"),
+          skipped: dgettext("dashboard_runners", "Skipped")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "branch",
+        field: :head_branch,
+        display_name: dgettext("dashboard_runners", "Branch"),
+        type: :text,
+        operator: :=~,
+        value: ""
+      }
+    ]
+  end
+
+  def status_badge_props("queued"), do: %{label: dgettext("dashboard_runners", "Queued"), status: "warning"}
+  def status_badge_props("claimed"), do: %{label: dgettext("dashboard_runners", "Claimed"), status: "in_progress"}
+  def status_badge_props("running"), do: %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
+  def status_badge_props("completed"), do: %{label: dgettext("dashboard_runners", "Completed"), status: "success"}
+  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
+
+  def conclusion_badge_props("success"), do: %{label: dgettext("dashboard_runners", "Success"), status: "success"}
+  def conclusion_badge_props("failure"), do: %{label: dgettext("dashboard_runners", "Failure"), status: "error"}
+  def conclusion_badge_props("cancelled"), do: %{label: dgettext("dashboard_runners", "Cancelled"), status: "warning"}
+  def conclusion_badge_props("skipped"), do: %{label: dgettext("dashboard_runners", "Skipped"), status: "warning"}
+
+  def conclusion_badge_props(other) when is_binary(other) and other != "",
+    do: %{label: String.capitalize(other), status: "warning"}
+
+  def conclusion_badge_props(_), do: nil
+
+  @doc """
+  Picks the most informative duration for a row depending on its
+  status:
+    * queued — time spent waiting in the queue
+    * claimed — time since claimed (waiting for the runner to mint)
+    * running — time the runner has been executing
+    * completed — total run duration (started → completed)
+  """
+  def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
+  def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)
+  def duration_ms(%{status: "running", started_at: started}), do: DateFormatter.ms_since(started)
+
+  def duration_ms(%{status: "completed", started_at: started, completed_at: completed}) do
+    cond do
+      is_nil(started) -> 0
+      is_nil(completed) -> 0
+      true -> DateTime.diff(completed, started, :millisecond)
+    end
+  end
+
+  def duration_ms(_), do: 0
+
+  def trend_to_int(trend) when is_number(trend), do: round(trend)
+  def trend_to_int(_), do: 0
+
+  @doc """
+  Patches the URL to swap the repository scope while preserving page
+  and filter state — same shape used on the Workflows page so both
+  pages stay in lockstep when a viewer hops between them with the
+  same scope active.
+  """
+  def repository_patch(%URI{} = uri, repository) do
+    "?" <> Query.put(uri.query, "repository", repository)
+  end
+
+  def repository_label("any"), do: dgettext("dashboard_runners", "Any")
+  def repository_label(repo) when is_binary(repo), do: repo
+
+  @doc """
+  Patches the URL to swap the Platform scope while preserving every
+  other state. Same shape as repository_patch — both pages stay in
+  lockstep when a viewer hops between them with the same scopes.
+  """
+  def platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "platform", platform)
+  end
+
+  def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
+  def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(_any), do: dgettext("dashboard_runners", "Any")
+
+  def sort_by_label("job"), do: dgettext("dashboard_runners", "Job")
+  def sort_by_label("workflow"), do: dgettext("dashboard_runners", "Workflow")
+  def sort_by_label("duration"), do: dgettext("dashboard_runners", "Duration")
+  def sort_by_label(_enqueued_default), do: dgettext("dashboard_runners", "Enqueued at")
+
+  def sort_icon("asc"), do: "square_rounded_arrow_up"
+  def sort_icon(_desc), do: "square_rounded_arrow_down"
+
+  @doc """
+  Builds the patch URL for a sortable column header. Clicking the
+  already-active column toggles asc/desc; clicking a different
+  column switches to it with its default direction (asc for the
+  alphabetical sorts, desc otherwise). Always drops `page` so a
+  fresh sort starts on page 1.
+  """
+  def column_sort_patch(assigns, column) do
+    new_order =
+      cond do
+        assigns.sort_by == column -> toggle_sort_order(assigns.sort_order)
+        column in ["job", "workflow"] -> "asc"
+        true -> "desc"
+      end
+
+    "?" <>
+      (assigns.uri.query
+       |> Query.put("sort_by", column)
+       |> Query.put("sort_order", new_order)
+       |> Query.drop("page"))
+  end
+
+  defp toggle_sort_order("asc"), do: "desc"
+  defp toggle_sort_order(_desc), do: "asc"
+
+  @doc """
+  Resolves the localized platform label for a job's `fleet_name` so
+  the Platform column can replace the raw `macos-large-arm64`-style
+  fleet identifier with "macOS" / "Linux".
+  """
+  def platform_label_from_fleet(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> dgettext("dashboard_runners", "macOS")
+      String.starts_with?(fleet_name, "linux-") -> dgettext("dashboard_runners", "Linux")
+      true -> dgettext("dashboard_runners", "Unknown")
+    end
+  end
+
+  def platform_label_from_fleet(_), do: dgettext("dashboard_runners", "Unknown")
+
+  @doc """
+  Noora badge color for the Platform column. macOS leans on
+  `information` (cool blue) while Linux uses `attention` (warm
+  yellow) so the two read at a glance without either pulling
+  status-style weight.
+  """
+  def platform_badge_color(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, "macos-") -> "information"
+      String.starts_with?(fleet_name, "linux-") -> "attention"
+      true -> "neutral"
+    end
+  end
+
+  def platform_badge_color(_), do: "neutral"
+
+  def platforms, do: ["macos", "linux"]
+
+  @doc """
+  Builds the three-series array (Total / Passed / Failed) for the
+  Job runs widget chart. Passed uses the tertiary chart slot — the
+  same green Noora uses for the live Running widget legend so the
+  two pass/healthy signals on this page read with one colour.
+  """
+  def jobs_breakdown_chart_series(stats) do
+    [
+      breakdown_series(stats.total, "Total", "secondary"),
+      breakdown_series(stats.successful, dgettext("dashboard_runners", "Passed"), "tertiary"),
+      breakdown_series(stats.failed, dgettext("dashboard_runners", "Failed"), "destructive")
+    ]
+  end
+
+  @doc """
+  Title shown above the Job runs widget. The dropdown lets viewers
+  switch between the absolute count of Total runs, Passed runs, or
+  Failed runs — the title rotates with the selection so the widget
+  reads as a single number with context.
+  """
+  def jobs_breakdown_title("passed"), do: dgettext("dashboard_runners", "Passed job runs")
+  def jobs_breakdown_title("failed"), do: dgettext("dashboard_runners", "Failed job runs")
+  def jobs_breakdown_title(_total), do: dgettext("dashboard_runners", "All job runs")
+
+  def jobs_breakdown_value(stats, "passed"), do: stats.successful.count
+  def jobs_breakdown_value(stats, "failed"), do: stats.failed.count
+  def jobs_breakdown_value(stats, _total), do: stats.total.count
+
+  def jobs_breakdown_trend(stats, "passed"), do: stats.successful.trend
+  def jobs_breakdown_trend(stats, "failed"), do: stats.failed.trend
+  def jobs_breakdown_trend(stats, _total), do: stats.total.trend
+
+  # `:inverse` for Failed so the trend badge reads "good" when the
+  # count drops and "bad" when it climbs; `:regular` for Passed so
+  # rising passes are green; `:neutral` for the raw run count where
+  # neither direction has an obvious health signal.
+  def jobs_breakdown_trend_type("failed"), do: :inverse
+  def jobs_breakdown_trend_type("passed"), do: :regular
+  def jobs_breakdown_trend_type(_), do: :neutral
+
+  # Legend dot colour rotates with the dropdown selection so the
+  # widget header colour matches the value being shown.
+  def jobs_breakdown_legend_color("passed"), do: "tertiary"
+  def jobs_breakdown_legend_color("failed"), do: "destructive"
+  def jobs_breakdown_legend_color(_total), do: "secondary"
+
+  defp breakdown_series(%{dates: dates, values: values}, name, color_key) do
+    %{
+      color: "var:noora-chart-#{color_key}",
+      data:
+        dates
+        |> Enum.zip(values)
+        |> Enum.map(&Tuple.to_list/1),
+      name: name,
+      type: "line",
+      smooth: 0.1,
+      symbol: "none"
+    }
+  end
+
+  @doc """
+  echarts `extra_options` for the three-series Jobs breakdown chart.
+  Adds a legend below the plot mirroring the duration chart on the
+  runners overview so all multi-series charts read the same way.
+  """
+  def breakdown_chart_options(dates, bucket \\ :day) do
+    %{
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        icon:
+          "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+        itemWidth: 8,
+        itemHeight: 4
+      },
+      grid: %{width: "97%", left: "0.4%", height: "60%", top: "10%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: axis_formatter(bucket),
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      tooltip: tooltip_options(bucket)
+    }
+  end
+
+  def count_chart_options(dates, bucket \\ :day) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: axis_formatter(bucket),
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip: tooltip_options(bucket)
+    }
+  end
+
+  # X-axis only ever surfaces the leftmost / rightmost label, so a
+  # short date ("May 26") is enough — the hour-level detail lives in
+  # the tooltip. Keeping a single formatter avoids the date+hour
+  # combo overflowing the available label space on narrow viewports.
+  defp axis_formatter(_), do: "fn:toLocaleDate"
+
+  # Tooltip title is rendered by the Noora chart from the data
+  # point's x value. `dateFormat: "hour"` flips the format to
+  # "May 26, 14:00" for hourly mode so the tooltip granularity
+  # matches the bucket the query produced.
+  defp tooltip_options(:hour), do: %{dateFormat: "hour"}
+  defp tooltip_options(_), do: %{}
+
+  @doc """
+  Returns the query string for a given page number, preserving the
+  current filter state in `uri`.
+  """
+  def page_link(uri, page) do
+    query =
+      (uri.query || "")
+      |> URI.decode_query()
+      |> Map.put("page", Integer.to_string(page))
+      |> URI.encode_query()
+
+    "?" <> query
+  end
+
+  def minutes_chart_options(dates, bucket \\ :day) do
+    %{
+      grid: %{width: "97%", left: "0.4%", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: axis_formatter(bucket),
+          customValues: [List.first(dates), List.last(dates)],
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      legend: %{show: false},
+      tooltip: tooltip_options(bucket)
+    }
+  end
+end

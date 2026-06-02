@@ -112,4 +112,25 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
             XCTAssertEqual(file.opaqueParentDirectory(), file.parentDirectory)
         }
     }
+
+    func test_recursiveGlobRoot_forRecursiveSuffixes() throws {
+        XCTAssertEqual(
+            try AbsolutePath(validating: "/test/path/**").recursiveGlobRoot,
+            try AbsolutePath(validating: "/test/path")
+        )
+        XCTAssertEqual(
+            try AbsolutePath(validating: "/test/path/**/*").recursiveGlobRoot,
+            try AbsolutePath(validating: "/test/path")
+        )
+        XCTAssertEqual(
+            try AbsolutePath(validating: "/test/path/**/**").recursiveGlobRoot,
+            try AbsolutePath(validating: "/test/path")
+        )
+    }
+
+    func test_recursiveGlobRoot_isNilWhenPatternStillConstrainsFilenames() throws {
+        XCTAssertNil(try AbsolutePath(validating: "/test/path/**/*.swift").recursiveGlobRoot)
+        XCTAssertNil(try AbsolutePath(validating: "/test/path/*").recursiveGlobRoot)
+        XCTAssertNil(try AbsolutePath(validating: "/test/path/*/*.swift").recursiveGlobRoot)
+    }
 }

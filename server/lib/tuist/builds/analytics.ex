@@ -1057,50 +1057,214 @@ defmodule Tuist.Builds.Analytics do
   end
 
   @doc """
-  Gets CAS upload analytics for a project over a time period.
-
-  ## Options
-    * `:start_date` - Start date for the analytics period
-    * `:end_date` - End date for the analytics period
-    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  Gets CAS upload analytics for a project over a time period sourced from the
+  per-task `cas_outputs` data already collected by the CAS plugin.
   """
   def cas_uploads_analytics(project_id, opts \\ []) do
-    cas_action_analytics(project_id, "upload", opts)
+    project_id |> cas_action_metrics("upload", opts) |> to_transfer_summary()
   end
 
   @doc """
-  Gets CAS download analytics for a project over a time period.
-
-  ## Options
-    * `:start_date` - Start date for the analytics period
-    * `:end_date` - End date for the analytics period
-    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  Gets CAS download analytics for a project over a time period sourced from
+  the per-task `cas_outputs` data already collected by the CAS plugin.
   """
   def cas_downloads_analytics(project_id, opts \\ []) do
-    cas_action_analytics(project_id, "download", opts)
+    project_id |> cas_action_metrics("download", opts) |> to_transfer_summary()
   end
 
-  defp cas_action_analytics(project_id, action, opts) do
-    start_datetime =
-      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+  @doc """
+  Gets combined CAS transfer (upload + download) analytics with the per-action
+  split preserved. The combined total/series are sums of downloads and uploads.
+  """
+  def cas_transfer_analytics(project_id, opts \\ []) do
+    downloads = cas_action_metrics(project_id, "download", opts)
+    uploads = cas_action_metrics(project_id, "upload", opts)
 
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    combined_values =
+      downloads.size_values
+      |> Enum.zip(uploads.size_values)
+      |> Enum.map(fn {d, u} -> d + u end)
 
-    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    interval_str = clickhouse_interval_for_date_period(date_period)
+    combined_total = downloads.total_size + uploads.total_size
+    combined_previous = downloads.previous_size + uploads.previous_size
 
-    current_data =
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_total,
+      trend: trend(previous_value: combined_previous, current_value: combined_total),
+      downloads: %{values: downloads.size_values, total: downloads.total_size},
+      uploads: %{values: uploads.size_values, total: uploads.total_size}
+    }
+  end
+
+  @doc """
+  Gets average CAS latency analytics (in milliseconds) per action, plus a
+  combined average. Combined latency weights downloads and uploads by event
+  count.
+  """
+  def cas_latency_analytics(project_id, opts \\ []) do
+    downloads = cas_action_metrics(project_id, "download", opts)
+    uploads = cas_action_metrics(project_id, "upload", opts)
+
+    combined_values =
+      [
+        downloads.duration_values,
+        uploads.duration_values,
+        downloads.count_values,
+        uploads.count_values
+      ]
+      |> Enum.zip()
+      |> Enum.map(fn {d_dur, u_dur, d_count, u_count} ->
+        safe_div(d_dur + u_dur, d_count + u_count)
+      end)
+
+    combined_avg =
+      safe_div(
+        downloads.total_duration_ms + uploads.total_duration_ms,
+        downloads.event_count + uploads.event_count
+      )
+
+    combined_previous =
+      safe_div(
+        downloads.previous_duration_ms + uploads.previous_duration_ms,
+        downloads.previous_event_count + uploads.previous_event_count
+      )
+
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_avg,
+      trend: trend(previous_value: combined_previous, current_value: combined_avg),
+      downloads: %{values: downloads.avg_latency_values, total: downloads.avg_latency_ms},
+      uploads: %{values: uploads.avg_latency_values, total: uploads.avg_latency_ms}
+    }
+  end
+
+  @doc """
+  Gets CAS throughput analytics (bytes/second) per action, plus a combined
+  throughput. The combined throughput divides the sum of transferred bytes by
+  the sum of recorded durations across both actions.
+  """
+  def cas_throughput_analytics(project_id, opts \\ []) do
+    downloads = cas_action_metrics(project_id, "download", opts)
+    uploads = cas_action_metrics(project_id, "upload", opts)
+
+    combined_values =
+      [
+        downloads.size_values,
+        uploads.size_values,
+        downloads.duration_values,
+        uploads.duration_values
+      ]
+      |> Enum.zip()
+      |> Enum.map(fn {d_size, u_size, d_dur, u_dur} ->
+        bytes_per_second(d_size + u_size, d_dur + u_dur)
+      end)
+
+    combined_throughput =
+      bytes_per_second(
+        downloads.total_size + uploads.total_size,
+        downloads.total_duration_ms + uploads.total_duration_ms
+      )
+
+    combined_previous =
+      bytes_per_second(
+        downloads.previous_size + uploads.previous_size,
+        downloads.previous_duration_ms + uploads.previous_duration_ms
+      )
+
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_throughput,
+      trend: trend(previous_value: combined_previous, current_value: combined_throughput),
+      downloads: %{values: downloads.throughput_values, total: downloads.throughput_bytes_per_second},
+      uploads: %{values: uploads.throughput_values, total: uploads.throughput_bytes_per_second}
+    }
+  end
+
+  defp to_transfer_summary(metrics) do
+    %{
+      trend: trend(previous_value: metrics.previous_size, current_value: metrics.total_size),
+      total_size: metrics.total_size,
+      previous_value: metrics.previous_size,
+      dates: metrics.dates,
+      values: metrics.size_values
+    }
+  end
+
+  defp cas_action_metrics(project_id, action, opts) do
+    {start_datetime, end_datetime, days_delta, date_period, interval_str} =
+      cas_analytics_period(opts)
+
+    current_rows =
+      cas_action_metrics_rows(project_id, action, start_datetime, end_datetime, interval_str)
+
+    current_totals = cas_action_totals(project_id, action, start_datetime, end_datetime)
+
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_totals =
+      cas_action_totals(project_id, action, previous_start_datetime, start_datetime)
+
+    parsed_rows =
+      Enum.map(current_rows, fn [date, total_size, total_duration_ms, event_count] ->
+        %{
+          date: date,
+          size: total_size || 0,
+          duration: total_duration_ms || 0,
+          count: event_count || 0
+        }
+      end)
+
+    size_series = fill_cas_series(parsed_rows, :size, start_datetime, end_datetime, date_period)
+    duration_series = fill_cas_series(parsed_rows, :duration, start_datetime, end_datetime, date_period)
+    count_series = fill_cas_series(parsed_rows, :count, start_datetime, end_datetime, date_period)
+
+    avg_latency_values =
+      duration_series
+      |> Enum.zip(count_series)
+      |> Enum.map(fn {dur, count} -> safe_div(dur, count) end)
+
+    throughput_values =
+      size_series
+      |> Enum.zip(duration_series)
+      |> Enum.map(fn {size, dur} -> bytes_per_second(size, dur) end)
+
+    %{
+      dates: cas_series_dates(start_datetime, end_datetime, date_period),
+      size_values: size_series,
+      duration_values: duration_series,
+      count_values: count_series,
+      avg_latency_values: avg_latency_values,
+      throughput_values: throughput_values,
+      total_size: current_totals.total_size,
+      total_duration_ms: current_totals.total_duration_ms,
+      event_count: current_totals.event_count,
+      avg_latency_ms: safe_div(current_totals.total_duration_ms, current_totals.event_count),
+      throughput_bytes_per_second: bytes_per_second(current_totals.total_size, current_totals.total_duration_ms),
+      previous_size: previous_totals.total_size,
+      previous_duration_ms: previous_totals.total_duration_ms,
+      previous_event_count: previous_totals.event_count
+    }
+  end
+
+  defp cas_action_metrics_rows(project_id, action, start_datetime, end_datetime, interval_str) do
+    %{rows: rows} =
       ClickHouseRepo.query!(
         """
         SELECT
-          toStartOfInterval(toDateTime(date), INTERVAL #{interval_str}, 'UTC') as period,
-          SUM(total_size) as total_size
-        FROM cas_events_daily_stats
-        WHERE project_id = {project_id:Int64}
-          AND action = {action:String}
-          AND date >= toDate({start_dt:DateTime})
-          AND date <= toDate({end_dt:DateTime})
+          toStartOfInterval(toDateTime(co.inserted_at), INTERVAL #{interval_str}, 'UTC') as period,
+          SUM(co.size) as total_size,
+          SUM(co.duration) as total_duration_ms,
+          COUNT() as event_count
+        FROM cas_outputs AS co
+        INNER JOIN build_runs AS br ON br.id = co.build_run_id
+        WHERE br.project_id = {project_id:Int64}
+          AND co.operation = {action:String}
+          AND co.inserted_at >= {start_dt:DateTime}
+          AND co.inserted_at <= {end_dt:DateTime}
         GROUP BY period
         ORDER BY period
         """,
@@ -1112,34 +1276,23 @@ defmodule Tuist.Builds.Analytics do
         }
       )
 
-    current_total = total_cas_size(project_id, action, start_datetime, end_datetime)
-
-    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
-    previous_total = total_cas_size(project_id, action, previous_start_datetime, start_datetime)
-
-    processed_data =
-      current_data.rows
-      |> Enum.map(fn [date, size] -> %{date: date, size: size} end)
-      |> process_cas_data(start_datetime, end_datetime, date_period)
-
-    %{
-      trend: trend(previous_value: previous_total, current_value: current_total),
-      total_size: current_total,
-      dates: Enum.map(processed_data, & &1.date),
-      values: Enum.map(processed_data, & &1.size)
-    }
+    rows
   end
 
-  defp total_cas_size(project_id, action, start_datetime, end_datetime) do
-    result =
+  defp cas_action_totals(project_id, action, start_datetime, end_datetime) do
+    %{rows: rows} =
       ClickHouseRepo.query!(
         """
-        SELECT SUM(total_size) as total_size
-        FROM cas_events_daily_stats
-        WHERE project_id = {project_id:Int64}
-          AND action = {action:String}
-          AND date >= toDate({start_dt:DateTime})
-          AND date <= toDate({end_dt:DateTime})
+        SELECT
+          SUM(co.size) as total_size,
+          SUM(co.duration) as total_duration_ms,
+          COUNT() as event_count
+        FROM cas_outputs AS co
+        INNER JOIN build_runs AS br ON br.id = co.build_run_id
+        WHERE br.project_id = {project_id:Int64}
+          AND co.operation = {action:String}
+          AND co.inserted_at >= {start_dt:DateTime}
+          AND co.inserted_at <= {end_dt:DateTime}
         """,
         %{
           project_id: project_id,
@@ -1149,11 +1302,30 @@ defmodule Tuist.Builds.Analytics do
         }
       )
 
-    case result.rows do
-      [[nil]] -> 0
-      [[size]] -> size
-      _ -> 0
+    case rows do
+      [[total_size, total_duration_ms, event_count]] ->
+        %{
+          total_size: total_size || 0,
+          total_duration_ms: total_duration_ms || 0,
+          event_count: event_count || 0
+        }
+
+      _ ->
+        %{total_size: 0, total_duration_ms: 0, event_count: 0}
     end
+  end
+
+  defp fill_cas_series(parsed_rows, key, start_datetime, end_datetime, date_period) do
+    parsed_rows
+    |> Enum.map(fn row -> %{date: row.date, size: Map.get(row, key, 0)} end)
+    |> process_cas_data(start_datetime, end_datetime, date_period)
+    |> Enum.map(& &1.size)
+  end
+
+  defp cas_series_dates(start_datetime, end_datetime, date_period) do
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(& &1)
   end
 
   defp process_cas_data(cas_data, start_datetime, end_datetime, date_period) do
@@ -1174,6 +1346,25 @@ defmodule Tuist.Builds.Analytics do
       %{date: date, size: size}
     end)
   end
+
+  defp cas_analytics_period(opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    interval_str = clickhouse_interval_for_date_period(date_period)
+    {start_datetime, end_datetime, days_delta, date_period, interval_str}
+  end
+
+  defp bytes_per_second(_total_size, total_duration_ms) when total_duration_ms in [nil, 0], do: 0
+  defp bytes_per_second(nil, _total_duration_ms), do: 0
+  defp bytes_per_second(total_size, total_duration_ms), do: total_size * 1000 / total_duration_ms
+
+  defp safe_div(_numerator, denominator) when denominator in [nil, 0], do: 0
+  defp safe_div(nil, _denominator), do: 0
+  defp safe_div(numerator, denominator), do: numerator / denominator
 
   def build_cache_hit_rate_scatter_data(project_id, opts \\ []) do
     start_datetime =

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "noora-storybook.fullname" . }}
+  labels:
+    {{- include "noora-storybook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storybook
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "noora-storybook.componentLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}

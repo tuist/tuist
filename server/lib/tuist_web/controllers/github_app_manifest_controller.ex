@@ -199,7 +199,7 @@ defmodule TuistWeb.GitHubAppManifestController do
   end
 
   defp render_auto_submit(client_url, github_app_owner, manifest, state_token, nonce) do
-    manifest_json = Jason.encode!(manifest)
+    manifest_json = JSON.encode!(manifest)
 
     action =
       "#{manifest_registration_url(client_url, github_app_owner)}?state=#{URI.encode_www_form(state_token)}"

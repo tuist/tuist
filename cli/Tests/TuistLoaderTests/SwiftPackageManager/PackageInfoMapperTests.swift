@@ -4557,7 +4557,19 @@ struct PackageInfoMapperTests {
                 .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
-                        .test("RxSwift", basePath: basePath, product: .framework),
+                        .test(
+                            "RxSwift",
+                            basePath: basePath,
+                            product: .framework,
+                            customSettings: [
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=RxSwift"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                            ],
+                            moduleMap: "$(SRCROOT)/Derived/RxSwift.modulemap"
+                        ),
                     ] + testTargets.map {
                         var customSettings: ProjectDescription.SettingsDictionary
                         var customProductName: String?
@@ -6863,6 +6875,77 @@ struct PackageInfoMapperTests {
 
         let mappedTarget = try #require(project?.targets.first(where: { $0.name == "Singular" }))
         #expect(mappedTarget.productName == "SingularWrapper")
+        #expect(mappedTarget.settings?.base["PRODUCT_MODULE_NAME"] == .string("Singular"))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenWrapperTargetSharesProductNameWithBinaryXcframework_keepsOriginalModuleNameInModuleMap() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let headersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Singular/include"))
+        let headerPath = headersPath.appending(component: "Singular.h")
+
+        try await fileSystem.makeDirectory(at: headersPath)
+        try await fileSystem.writeText("", at: headerPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Singular",
+                    products: [
+                        .init(name: "Singular", type: .library(.automatic), targets: ["Singular"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Singular",
+                            dependencies: [
+                                .target(name: "SingularBinary", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "SingularBinary",
+                            type: .binary,
+                            path: "Singular.xcframework"
+                        ),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Singular",
+                    targets: [
+                        .test(
+                            "Singular",
+                            basePath: basePath,
+                            customProductName: "SingularWrapper",
+                            dependencies: [.xcframework(path: .path(
+                                basePath
+                                    .appending(try RelativePath(validating: "Singular.xcframework"))
+                                    .pathString
+                            ))],
+                            customSettings: [
+                                "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/Sources/Singular/include"],
+                                "DEFINES_MODULE": "NO",
+                                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-name=Singular"]),
+                                "OTHER_SWIFT_FLAGS": [
+                                    "$(inherited)",
+                                ],
+                                "PRODUCT_MODULE_NAME": "Singular",
+                            ],
+                            moduleMap: "$(SRCROOT)/Derived/Singular.modulemap"
+                        ),
+                    ]
+                )
+        )
     }
 
     @Test(

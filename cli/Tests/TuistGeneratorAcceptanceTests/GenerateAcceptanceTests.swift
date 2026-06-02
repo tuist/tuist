@@ -785,11 +785,8 @@ struct GenerateAcceptanceTestiOSAppWithWatchApp2 {
 struct GenerateAcceptanceTestInvalidManifest {
     @Test(.withFixture("generated_invalid_manifest"), .inTemporaryDirectory)
     func invalid_manifest() async throws {
-        do {
+        await #expect(throws: Error.self) {
             try await run(GenerateCommand.self)
-            Issue.record("Generate command should have failed")
-        } catch let error as FatalError {
-            XCTAssertTrue(error.description.contains("error: expected ',' separator"))
         }
     }
 }

@@ -44,6 +44,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunByCommit
+  alias Tuist.Tests.TestCaseRunByProject
   alias Tuist.Tests.TestCaseRunByShardId
   alias Tuist.Tests.TestCaseRunByTestRun
   alias Tuist.Tests.TestCaseRunDashboardCount
@@ -51,6 +52,7 @@ defmodule Tuist.Tests do
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Tests.TestSuiteRun
+  alias Tuist.Webhooks.Dispatcher
 
   require OpenTelemetry.Tracer
 
@@ -766,7 +768,7 @@ defmodule Tuist.Tests do
         {{tc.name, tc.module_name, tc.suite_name}, tc.id}
       end)
 
-    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids}
+    {test_case_id_map, test_cases_with_flaky_run, new_test_case_ids, test_cases}
   end
 
   defp collect_test_case_ids(project_id, test_modules) do
@@ -783,11 +785,12 @@ defmodule Tuist.Tests do
     |> Enum.uniq()
   end
 
-  # Batch size for `id IN (...)` lookups. Each UUID is ~38 bytes encoded in the
-  # SQL, so 5_000 IDs is ~190 KB, well below ClickHouse's default
-  # `max_query_size` of 256 KB even with surrounding query text. Larger batches
-  # would risk a `TOO_LARGE_QUERY` rejection on big test reports.
-  @existing_test_cases_batch_size 5_000
+  # Batch size for the existing-test-case lookup. The IDs travel as a single
+  # ClickHouse array parameter (see existing_test_cases_chunk_query/2), so the
+  # multipart request always carries one form field for them regardless of batch
+  # size. We still chunk to keep that parameter's encoded value below
+  # ClickHouse's per-field value-length limit on large reports.
+  @existing_test_cases_batch_size 2_000
 
   defp get_existing_test_cases(_project_id, []), do: %{}
 
@@ -800,24 +803,34 @@ defmodule Tuist.Tests do
     |> Enum.chunk_every(@existing_test_cases_batch_size)
     |> Enum.reduce(%{}, fn ids_chunk, acc ->
       project_id
-      |> existing_test_cases_chunk_query(ids_chunk)
-      |> ClickHouseRepo.all()
+      |> fetch_existing_test_cases_chunk(ids_chunk)
       |> Enum.reduce(acc, &merge_latest_test_case/2)
     end)
   end
 
+  defp fetch_existing_test_cases_chunk(project_id, ids_chunk) do
+    project_id
+    |> existing_test_cases_chunk_query(ids_chunk)
+    |> ClickHouseRepo.all(multipart: true)
+  end
+
+  # Binds the IDs as a single `Array(UUID)` parameter via a fragment instead of
+  # `tc.id in ^ids_chunk`. `in` expands to one bound parameter per ID, and in
+  # multipart mode each parameter becomes its own form field, which overflows
+  # ClickHouse's form-field limit on large reports.
   defp existing_test_cases_chunk_query(project_id, ids_chunk) do
-    from(test_case in TestCase,
-      where: test_case.project_id == ^project_id,
-      where: test_case.id in ^ids_chunk,
+    from(tc in TestCase,
+      where:
+        tc.project_id == ^project_id and
+          fragment("? IN (?)", tc.id, type(^ids_chunk, {:array, Ecto.UUID})),
       select: %{
-        id: test_case.id,
-        recent_durations: test_case.recent_durations,
-        is_flaky: test_case.is_flaky,
-        state: test_case.state,
-        last_ran_at_ci: test_case.last_ran_at_ci,
-        last_ran_at_local: test_case.last_ran_at_local,
-        inserted_at: test_case.inserted_at
+        id: tc.id,
+        recent_durations: tc.recent_durations,
+        is_flaky: tc.is_flaky,
+        state: tc.state,
+        last_ran_at_ci: tc.last_ran_at_ci,
+        last_ran_at_local: tc.last_ran_at_local,
+        inserted_at: tc.inserted_at
       }
     )
   end
@@ -906,9 +919,24 @@ defmodule Tuist.Tests do
       # automation-applied state, not our pre-automation snapshot.
       broadcast_test_case_update(updated_test_case, event_types)
       dispatch_event_driven_automations(test_case, event_types)
+      dispatch_webhooks(updated_test_case, event_types, actor_id, alert_id)
 
       {:ok, updated_test_case}
     end
+  end
+
+  # Webhooks subscribe at the account-account level and fire on every state
+  # transition — both user-initiated and automation-driven — so receivers
+  # (e.g. a Jira ingest) see the full audit trail. Failures are swallowed
+  # inside the dispatcher; we don't want a webhook problem to abort the
+  # write that produced the event.
+  defp dispatch_webhooks(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  defp dispatch_webhooks(test_case, event_types, actor_id, alert_id) do
+    Dispatcher.dispatch_test_case_event(test_case, event_types,
+      actor_id: actor_id,
+      alert_id: alert_id
+    )
   end
 
   @doc """
@@ -1026,6 +1054,12 @@ defmodule Tuist.Tests do
       {:test_run_id, _test_run_id} ->
         list_test_case_runs_via_test_run_mv(attrs, preloads)
 
+      {:test_case_id, _test_case_id} ->
+        list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
+
+      {:project_id, _project_id} ->
+        list_test_case_runs_via_project_mv(attrs, preloads)
+
       nil ->
         list_test_case_runs_from(from(tcr in TestCaseRun), attrs, preloads)
     end
@@ -1084,6 +1118,27 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  defp list_test_case_runs_via_project_mv(attrs, preloads) do
+    base_query = from(mv in TestCaseRunByProject, hints: ["FINAL"])
+
+    {slim_results, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCaseRunByProject)
+
+    ids = Enum.map(slim_results, & &1.id)
+
+    full_results = fetch_full_test_case_runs(slim_results)
+
+    ordered_by_id = Map.new(full_results, &{&1.id, &1})
+    ordered = ids |> Enum.map(&Map.get(ordered_by_id, &1)) |> Enum.reject(&is_nil/1)
+
+    results =
+      ordered
+      |> ClickHouseRepo.preload(preloads)
+      |> Repo.preload(:ran_by_account)
+
+    {results, meta}
+  end
+
   defp fetch_full_test_case_runs([]), do: []
 
   defp fetch_full_test_case_runs(slim_results) do
@@ -1092,16 +1147,21 @@ defmodule Tuist.Tests do
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    ClickHouseRepo.all(
-      from(tcr in TestCaseRun,
-        hints: ["FINAL"],
-        where: tcr.project_id in ^project_ids,
-        where: tcr.test_case_id in ^test_case_ids,
-        where: tcr.ran_at >= ^min_ran_at,
-        where: tcr.ran_at <= ^max_ran_at,
-        where: tcr.id in ^ids
-      )
+    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
+    # updates) leave multiple versions per id until background merges
+    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
+    # paying FINAL's full-part scan and in-memory merge for the page-sized
+    # set of ids that the slim MV already narrowed us to.
+    from(tcr in TestCaseRun,
+      where: tcr.project_id in ^project_ids,
+      where: tcr.test_case_id in ^test_case_ids,
+      where: tcr.ran_at >= ^min_ran_at,
+      where: tcr.ran_at <= ^max_ran_at,
+      where: tcr.id in ^ids,
+      order_by: [desc: tcr.inserted_at]
     )
+    |> ClickHouseRepo.all()
+    |> Enum.uniq_by(& &1.id)
   end
 
   defp ran_at_bounds([first | rest]) do
@@ -1124,25 +1184,38 @@ defmodule Tuist.Tests do
     end)
   end
 
+  # Filter precedence for routing: a narrower scope wins so we use the
+  # most-selective MV available. `test_case_id` keeps the main table because
+  # its primary key `(project_id, test_case_id, ran_at, id)` already serves
+  # those queries cheaply. `project_id` falls through to the project MV when
+  # no narrower scope is present — without it, the listing query scans every
+  # row for the project.
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
-    Enum.find_value(filters, fn
-      %{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    filters
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(%Flop{} = flop) do
     flop.filters
     |> List.wrap()
-    |> Enum.find_value(fn
-      %Flop.Filter{field: :test_run_id, op: :==, value: value} -> {:test_run_id, value}
-      %Flop.Filter{field: :shard_id, op: :==, value: value} -> {:shard_id, value}
-      _ -> nil
-    end)
+    |> Enum.map(&filter_scope/1)
+    |> pick_mv_scope()
   end
 
   defp extract_mv_scope_filter(_), do: nil
+
+  defp filter_scope(%{field: :test_run_id, op: :==, value: value}), do: {:test_run_id, value}
+  defp filter_scope(%{field: :shard_id, op: :==, value: value}), do: {:shard_id, value}
+  defp filter_scope(%{field: :test_case_id, op: :==, value: value}), do: {:test_case_id, value}
+  defp filter_scope(%{field: :project_id, op: :==, value: value}), do: {:project_id, value}
+  defp filter_scope(_), do: nil
+
+  defp pick_mv_scope(scopes) do
+    Enum.find_value([:test_run_id, :shard_id, :test_case_id, :project_id], fn key ->
+      Enum.find(scopes, &match?({^key, _}, &1))
+    end)
+  end
 
   @doc """
   Gets a test case run by its UUID.
@@ -1417,6 +1490,48 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
+  # Chunk size for the default-branch validation lookup. An alert's triggered
+  # set can be large (a `flakiness_rate < threshold` cleanup rule matches most
+  # of a project's test cases, which can run into tens of thousands). The ids
+  # travel as a single ClickHouse array parameter, so chunking keeps that
+  # parameter's encoded value below ClickHouse's per-request limits.
+  @default_branch_validation_batch_size 2_000
+
+  @doc """
+  Given a list of test case ids, returns the subset that has at least one
+  successful, non-flaky run on the project's default branch. A test case with
+  no such run has never been validated on the trusted branch (for example, a
+  brand-new test that has only ever run on a pull-request branch) and should
+  not be eligible for automated quarantine.
+  """
+  def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
+
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    test_case_ids
+    |> Enum.chunk_every(@default_branch_validation_batch_size)
+    |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
+  end
+
+  # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
+  # `tcr.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per
+  # id, which overflows ClickHouse's request limits when the triggered set is
+  # large. Chunks are disjoint, so the per-chunk `distinct` already yields a
+  # distinct union.
+  defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+        where: tcr.git_branch == ^default_branch,
+        where: fragment("? = 'success'", tcr.status),
+        where: tcr.is_flaky == false,
+        distinct: true,
+        select: tcr.test_case_id
+      ),
+      multipart: true
+    )
+  end
+
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
@@ -1501,7 +1616,7 @@ defmodule Tuist.Tests do
       end)
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
-    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids} =
+    {test_case_id_map, test_case_ids_with_flaky_run, new_test_case_ids, test_cases_created} =
       create_test_cases(test.project_id, test_case_data_list, existing_test_cases,
         test_run_id: test.id,
         is_ci: test.is_ci
@@ -1582,7 +1697,15 @@ defmodule Tuist.Tests do
       end
     end)
 
-    create_first_run_events(test_case_runs, new_test_case_ids)
+    # The audit-log row and the outbound webhook fire on the same set:
+    # a test case whose row didn't exist before *and* whose run is the
+    # first one on the default branch. `test_case.updated` derives both
+    # signals from the same `event_types` list (see `update_test_case/3`);
+    # `test_case.created` mirrors that by deriving both from a single
+    # filtered run list here.
+    first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
+    create_first_run_events(first_run_test_case_runs)
+    dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
 
     {test_case_ids_with_flaky_run, test_case_runs}
   end
@@ -1704,29 +1827,47 @@ defmodule Tuist.Tests do
     end)
   end
 
-  defp create_first_run_events(test_case_runs, new_test_case_ids) do
-    new_test_case_runs =
-      Enum.filter(test_case_runs, fn run ->
-        run.is_new and run.test_case_id in new_test_case_ids
+  # The intersection of "this test case row is brand-new" and "the run
+  # is the first one observed on the default branch (in the last 90
+  # days)". Both signals must agree before we call it a first run.
+  defp filter_first_run_test_case_runs(test_case_runs, new_test_case_ids) do
+    Enum.filter(test_case_runs, fn run ->
+      run.is_new and run.test_case_id in new_test_case_ids
+    end)
+  end
+
+  defp create_first_run_events([]), do: :ok
+
+  defp create_first_run_events(first_run_test_case_runs) do
+    now = NaiveDateTime.utc_now()
+
+    events =
+      Enum.map(first_run_test_case_runs, fn run ->
+        %{
+          id: TestCaseEvent.first_run_id(run.test_case_id),
+          test_case_id: run.test_case_id,
+          event_type: "first_run",
+          actor_id: nil,
+          alert_id: nil,
+          inserted_at: now
+        }
       end)
 
-    if Enum.any?(new_test_case_runs) do
-      now = NaiveDateTime.utc_now()
+    TestCaseEvent.Buffer.insert_all(events)
+  end
 
-      events =
-        Enum.map(new_test_case_runs, fn run ->
-          %{
-            id: TestCaseEvent.first_run_id(run.test_case_id),
-            test_case_id: run.test_case_id,
-            event_type: "first_run",
-            actor_id: nil,
-            alert_id: nil,
-            inserted_at: now
-          }
-        end)
+  # Webhook fan-out for the same set of test cases that get a `first_run`
+  # audit-log row. The dispatcher swallows resolver / no-subscriber paths
+  # and wraps the `Oban.insert_all/1` call in its own try/rescue, so this
+  # function doesn't need an outer rescue — surfacing a real failure here
+  # is more useful than silently logging it.
+  defp dispatch_test_case_created_webhooks(_project_id, _test_cases, []), do: :ok
 
-      TestCaseEvent.Buffer.insert_all(events)
-    end
+  defp dispatch_test_case_created_webhooks(project_id, test_cases, first_run_test_case_runs) do
+    first_run_ids = MapSet.new(first_run_test_case_runs, & &1.test_case_id)
+    new_test_cases = Enum.filter(test_cases, &MapSet.member?(first_run_ids, &1.id))
+    Dispatcher.dispatch_test_case_created(project_id, new_test_cases)
+    :ok
   end
 
   defp calculate_avg_test_case_duration(test_cases) do
@@ -2848,14 +2989,35 @@ defmodule Tuist.Tests do
     six_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -6, :hour)
     now = NaiveDateTime.utc_now()
 
-    stale_runs =
+    # `test_runs` is ReplacingMergeTree, and FINAL re-expands granule
+    # selection across parts so duplicates can be merged. That defeats the
+    # `idx_status` skip index, which is the only thing that makes finding
+    # `in_progress` rows cheap. Find candidate ids without FINAL (the skip
+    # index then prunes granules), then re-resolve their latest version via
+    # the `proj_by_id` projection — FINAL over a small id set stays cheap.
+    candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
-          hints: ["FINAL"],
           where: t.status == "in_progress",
-          where: t.inserted_at < ^six_hours_ago
+          where: t.inserted_at < ^six_hours_ago,
+          select: t.id,
+          distinct: true
         )
       )
+
+    stale_runs =
+      if candidate_ids == [] do
+        []
+      else
+        ClickHouseRepo.all(
+          from(t in Test,
+            hints: ["FINAL"],
+            where: t.id in ^candidate_ids,
+            where: t.status == "in_progress",
+            where: t.inserted_at < ^six_hours_ago
+          )
+        )
+      end
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

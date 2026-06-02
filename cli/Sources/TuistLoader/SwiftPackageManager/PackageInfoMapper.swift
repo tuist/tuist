@@ -440,7 +440,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             .joined(separator: ".")
     }
 
-    private static func effectiveModuleName(
+    private static func effectiveProductName(
         targetName: String,
         products: Set<PackageInfo.Product>,
         packageTargets: [PackageInfo.Target]
@@ -459,9 +459,38 @@ public struct PackageInfoMapper: PackageInfoMapping {
         if targetName == productName {
             // Wrapper target already shares its name with the product (e.g. Singular 12.10.1's `Singular` target
             // wrapping `SingularBinary` at `Singular.xcframework`). Suffix the product name so Xcode doesn't emit
-            // the same `.framework` from both the wrapper target and `ProcessXCFramework`. Users importing the
-            // product name still resolve to the xcframework's module.
+            // the same `.framework` from both the wrapper target and `ProcessXCFramework`.
             return wrapsProductFramework ? "\(targetName)Wrapper" : targetName
+        }
+
+        // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
+        // name has the product as a prefix (e.g. `FirebaseCrashlyticsTarget` becomes `FirebaseCrashlytics`). Skip
+        // the hoist when the rename would collide with a sibling target or the framework a wrapped binary already
+        // emits.
+        guard targetName.hasPrefix(productName) else { return targetName }
+        return wrapsProductFramework ? targetName : productName
+    }
+
+    private static func effectiveModuleName(
+        targetName: String,
+        products: Set<PackageInfo.Product>,
+        packageTargets: [PackageInfo.Target]
+    ) -> String {
+        guard products.count == 1,
+              let singleProduct = products.first,
+              singleProduct.targets.count == 1,
+              singleProduct.targets.first == targetName
+        else { return targetName }
+
+        let productName = singleProduct.name
+        let wrapsProductFramework = wrapsProductNamedFramework(
+            targetName: targetName, productName: productName, packageTargets: packageTargets
+        )
+
+        if targetName == productName {
+            // Keep the original import name even when the built artifact has to be suffixed to avoid colliding with
+            // the wrapped xcframework emitted by ProcessXCFramework.
+            return targetName
         }
 
         // Target name differs from the product. SwiftPM hoists the product name onto single-target wrappers whose
@@ -613,7 +642,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
-            let effectiveName = PackageInfoMapper.effectiveModuleName(
+            let moduleName = PackageInfoMapper.effectiveModuleName(
                 targetName: target.name, products: products, packageTargets: packageInfo.targets
             )
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
@@ -623,9 +652,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
-                moduleName: effectiveName,
+                moduleName: moduleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
-                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory,
+                generateModuleMapForSwiftOnlyTargets: product == .framework
             )
         default:
             moduleMap = nil
@@ -759,16 +789,23 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
-        let effectiveName = PackageInfoMapper.effectiveModuleName(
+        let effectiveModuleName = PackageInfoMapper.effectiveModuleName(
             targetName: target.name, products: products, packageTargets: packageInfo.targets
         )
-        let aliasedEffectiveName = packageModuleAliases[packageInfo.name]?[effectiveName] ?? effectiveName
-        let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveName)
+        let aliasedEffectiveModuleName = packageModuleAliases[packageInfo.name]?[effectiveModuleName] ?? effectiveModuleName
+        let moduleName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveModuleName)
+            .replacingOccurrences(of: "-", with: "_")
+        let effectiveProductName = PackageInfoMapper.effectiveProductName(
+            targetName: target.name, products: products, packageTargets: packageInfo.targets
+        )
+        let aliasedEffectiveProductName = packageModuleAliases[packageInfo.name]?[effectiveProductName] ?? effectiveProductName
+        let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
             .replacingOccurrences(of: "-", with: "_")
 
         let settings = try await Settings.from(
             target: target,
             productName: productName,
+            moduleName: moduleName,
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
@@ -1303,7 +1340,7 @@ extension ProjectDescription.Headers {
                     ]
                 )
             )
-        case .none, .header, .custom:
+        case .none, .swiftOnly, .header, .custom:
             return nil
         }
     }
@@ -1314,6 +1351,7 @@ extension ProjectDescription.Settings {
     fileprivate static func from(
         target: PackageInfo.Target,
         productName: String,
+        moduleName: String,
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
@@ -1328,7 +1366,13 @@ extension ProjectDescription.Settings {
 
         var dependencyHeaderSearchPaths: [String] = []
         if let moduleMap {
-            if moduleMap != .none, target.type != .system {
+            let needsHeaderSearchPath = switch moduleMap {
+            case .directory, .header, .custom:
+                true
+            case .none, .swiftOnly:
+                false
+            }
+            if needsHeaderSearchPath, target.type != .system {
                 let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
                 dependencyHeaderSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -1383,6 +1427,10 @@ extension ProjectDescription.Settings {
         let resolvedSettings = try mapper.mapSettings()
         settingsDictionary.merge(resolvedSettings) { $1 }
 
+        if moduleName != productName {
+            settingsDictionary["PRODUCT_MODULE_NAME"] = .string(moduleName)
+        }
+
         if forceEnabledTestingSearchPath.contains(target.name) {
             if settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] == nil {
                 settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
@@ -1395,14 +1443,14 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory, .header, .custom:
+            case .directory, .header, .custom, .swiftOnly:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):
-                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(productName)"])
+                    settingsDictionary["OTHER_CFLAGS"] = .array(values + ["-fmodule-name=\(moduleName)"])
                 case let .string(value):
                     settingsDictionary["OTHER_CFLAGS"] = .array(
-                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(productName)"]
+                        value.split(separator: " ").map(String.init) + ["-fmodule-name=\(moduleName)"]
                     )
                 }
             case .none:

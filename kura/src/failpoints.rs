@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 pub(crate) enum FailpointName {
     AfterArtifactBytesDurableBeforeMetadata,
     AfterMetadataCommitBeforeReturn,
+    AfterReadArtifactBytesBeforeReturn,
     AfterBootstrapManifestPageFetchBeforeApply,
     AfterBootstrapArtifactFetchBeforePersist,
     BeforeDeleteOutboxMessageAfterSuccess,
@@ -18,6 +19,7 @@ impl FailpointName {
                 "after_artifact_bytes_durable_before_metadata"
             }
             Self::AfterMetadataCommitBeforeReturn => "after_metadata_commit_before_return",
+            Self::AfterReadArtifactBytesBeforeReturn => "after_read_artifact_bytes_before_return",
             Self::AfterBootstrapManifestPageFetchBeforeApply => {
                 "after_bootstrap_manifest_page_fetch_before_apply"
             }

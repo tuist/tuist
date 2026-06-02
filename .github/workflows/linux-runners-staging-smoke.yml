@@ -1,0 +1,83 @@
+name: Linux Runners Staging Smoke Test
+
+# Manual smoke test for the staging Runner Profile dispatch path.
+# Requires a profile on the staging account whose rendered label is
+# `tuist-staging-linux` — the canonical setup is a profile named
+# `staging-linux` (4 vCPU / 16 GB, Linux). Create it at
+# `staging.tuist.dev/<account>/runners/profiles` before running.
+#
+# Validates, end-to-end:
+#   1. workflow_job: queued webhook reaches the staging server.
+#   2. `Tuist.Runners.Dispatch.resolve_dispatch_target` matches the
+#      `staging-linux` profile, resolves to its shape's RunnerPool
+#      (`tuist-tuist-runner-pool-linux-4vcpu-16gb`), and enqueues with
+#      `requested_dispatch_label = "tuist-staging-linux"`.
+#   3. A polling Pod in that pool claims the JIT (stamped with the
+#      original label so GitHub binds), registers, runs the job inside
+#      a kata microVM on the bare-metal node.
+#   4. After completion the Pod terminates, kubelet observes the exit,
+#      the RunnerPoolReconciler reaps the Pod + sibling SA, and the
+#      autoscaler's next tick re-evaluates desired replicas.
+#
+# Manual-trigger only — we don't want every push to burn elastic
+# capacity.
+
+on:
+  workflow_dispatch:
+
+# Smoke runs a public curl + a few uname-style assertions; never
+# reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
+permissions: {}
+
+jobs:
+  smoke:
+    # Single-label form. `tuist-staging-linux` is the pool's unique
+    # dispatch label and is sufficient to pick a runner — no need
+    # to also list `self-hosted` (which is advertised on the runner
+    # but isn't an authorization boundary).
+    runs-on: tuist-staging-linux
+    timeout-minutes: 10
+    steps:
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          echo "Hostname:    $(hostname)"
+          echo "Kernel:      $(uname -a)"
+          echo "Distro:      $(lsb_release -ds 2>/dev/null || cat /etc/os-release | head -3)"
+          echo "Architecture: $(uname -m)"
+          echo "CPU info:    $(grep -m1 'model name' /proc/cpuinfo | sed 's/^[^:]*: //')"
+          echo "Memory:      $(grep MemTotal /proc/meminfo)"
+          echo "Container?  : $(grep -E 'docker|containerd|kubepods' /proc/1/cgroup 2>/dev/null | head -1 || echo unknown)"
+
+      - name: Public reachability check
+        run: |
+          set -euo pipefail
+          # Public GH should be reachable (the runner already
+          # registered, so this had better work). The Pod-side
+          # NetworkPolicy in the runners namespace gates Pod
+          # egress to "HTTPS to public internet + DNS"; this
+          # check exercises that path. Cluster-internal endpoints
+          # (apiserver, in-cluster services) are deliberately
+          # NOT reachable from the runner — same posture as the
+          # macOS Tart VM, just enforced by NetworkPolicy
+          # instead of vmnet isolation.
+          curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
+
+      - name: Cluster-internal egress should be denied
+        run: |
+          set -euo pipefail
+          # NetworkPolicy in templates/runners-namespace.yaml lists
+          # cluster Pod/Service CIDRs under `exceptCIDRs`. From a
+          # runner Pod, dialing those CIDRs MUST fail (DNS or
+          # connection). This is the negative gate the macOS smoke
+          # couldn't enforce (Tart VMs bypass CNI); Linux Pods
+          # honor it.
+          # 10.128.0.10 = staging kube-dns Service ClusterIP (per
+          # cluster-staging.yaml's serviceCIDR + standard
+          # kube-system/kube-dns assignment). Connection attempt
+          # should time out, not return data.
+          if curl --max-time 5 -fsSL -o /dev/null "http://10.128.0.10:53"; then
+            echo "ERROR: kube-dns Service was reachable from the runner Pod — NetworkPolicy egress block is wrong"
+            exit 1
+          fi
+          echo "Cluster-internal egress correctly denied."

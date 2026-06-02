@@ -2782,16 +2782,34 @@ defmodule Tuist.Builds.AnalyticsTest do
       stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
       project = ProjectsFixtures.project_fixture()
 
+      build_one = UUIDv7.generate()
+      build_two = UUIDv7.generate()
+      build_three = UUIDv7.generate()
+      build_four = UUIDv7.generate()
+
       IngestRepo.query!(
         """
-        INSERT INTO cas_events_daily_stats (project_id, action, date, total_size, event_count)
+        INSERT INTO build_runs (id, project_id, inserted_at, status)
         VALUES
-          ({pid:Int64}, 'upload', toDate('2024-04-15'), 1024, 2),
-          ({pid:Int64}, 'upload', toDate('2024-05-15'), 2048, 3),
-          ({pid:Int64}, 'upload', toDate('2024-06-15'), 4096, 4),
-          ({pid:Int64}, 'download', toDate('2024-05-15'), 9999, 1)
+          ({b1:UUID}, {pid:Int64}, toDateTime('2024-04-15 12:00:00'), 'success'),
+          ({b2:UUID}, {pid:Int64}, toDateTime('2024-05-15 12:00:00'), 'success'),
+          ({b3:UUID}, {pid:Int64}, toDateTime('2024-06-15 12:00:00'), 'success'),
+          ({b4:UUID}, {pid:Int64}, toDateTime('2024-05-15 12:00:00'), 'success')
         """,
-        %{pid: project.id}
+        %{pid: project.id, b1: build_one, b2: build_two, b3: build_three, b4: build_four}
+      )
+
+      IngestRepo.query!(
+        """
+        INSERT INTO cas_outputs
+          (node_id, checksum, size, duration, compressed_size, operation, build_run_id, inserted_at)
+        VALUES
+          ('n1', 'c1', 1024, 100, 1024, 'upload',   {b1:UUID}, toDateTime('2024-04-15 12:00:00')),
+          ('n2', 'c2', 2048, 200, 2048, 'upload',   {b2:UUID}, toDateTime('2024-05-15 12:00:00')),
+          ('n3', 'c3', 4096, 400, 4096, 'upload',   {b3:UUID}, toDateTime('2024-06-15 12:00:00')),
+          ('n4', 'c4', 9999, 999, 9999, 'download', {b4:UUID}, toDateTime('2024-05-15 12:00:00'))
+        """,
+        %{b1: build_one, b2: build_two, b3: build_three, b4: build_four}
       )
 
       # When

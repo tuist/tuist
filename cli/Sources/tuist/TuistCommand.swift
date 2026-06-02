@@ -21,6 +21,7 @@ import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
 import TuistShareCommand
+import TuistSupport
 import TuistTestCommand
 import TuistVersionCommand
 
@@ -31,7 +32,6 @@ import TuistVersionCommand
     import TuistKit
     import TuistLoader
     import TuistServer
-    import TuistSupport
 #endif
 
 public struct TuistCommand: AsyncParsableCommand {
@@ -220,12 +220,14 @@ public struct TuistCommand: AsyncParsableCommand {
 
             do {
                 try await executeCommand()
-                try await withLoggerForNoora(logFilePath: logFilePath) {
-                    Noora.$current.withValue(initNoora()) {
-                        outputCompletion(
-                            logFilePath: logFilePath,
-                            shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
-                        )
+                if !MachineReadableOutput.isEnabled(arguments: Environment.current.arguments) {
+                    try await withLoggerForNoora(logFilePath: logFilePath) {
+                        Noora.$current.withValue(initNoora()) {
+                            outputCompletion(
+                                logFilePath: logFilePath,
+                                shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
+                            )
+                        }
                     }
                 }
             } catch {

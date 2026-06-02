@@ -3,11 +3,12 @@ name: Server Production Deployment
 # Promotion cascade: build → canary → acceptance tests → production.
 #
 # Triggers:
-#   push to main     - standard promotion. Commits whose subject contains
-#                      "(hotfix)" fast-path to production without waiting
-#                      for canary + tests.
+#   push to main      - standard promotion. Commits whose subject contains
+#                       "(hotfix)" fast-path to production without waiting
+#                       for canary + tests.
 #   workflow_dispatch - run the cascade against a pinned SHA (useful to
-#                      re-promote a past commit).
+#                       re-promote a past commit or to re-roll the same
+#                       server image against a freshly released Kura tag).
 #
 # Image architecture: the Docker image is env-agnostic (built once with
 # MIX_ENV=prod) so the same `sha-<SHA>` tag is promoted from canary to
@@ -18,6 +19,12 @@ name: Server Production Deployment
 # Each deploy leg is delegated to server-deployment.yml via workflow_call
 # so the helm logic stays in one place. The first leg builds and
 # publishes the image; subsequent legs pass image_tag to skip rebuilding.
+# Kura regional controller/platform rollouts are handled by
+# server-kura-regional-deployment.yml after production succeeds so
+# regional capacity incidents do not mark the main production deploy as
+# failed. Kura runtime rollouts are release-driven via
+# kura-release-deployment.yml after the `kura@...` tag exists, so the
+# server promotion path never races ahead of the published runtime tag.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -39,7 +46,6 @@ on:
       - main
     paths:
       - server/**
-      - kura/**
       - tuist_common/**
       - noora/**
       - infra/kura-controller/**
@@ -52,6 +58,9 @@ on:
     inputs:
       commit_sha:
         description: Commit SHA to deploy (defaults to the event's SHA)
+        required: false
+      kura_runtime_image_tag:
+        description: Pre-built Kura runtime image tag to deploy
         required: false
 
 permissions:
@@ -71,6 +80,8 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build server image
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40
     outputs:
@@ -84,7 +95,7 @@ jobs:
         env:
           DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: namespacelabs/nscloud-setup-buildx-action@v0
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -112,24 +123,29 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   # --------------------------------------------------------------------------
-  # Canary leg - deploys the pre-built image. Runs for every push (hotfix
-  # or not) and for manual dispatch. On hotfix pushes it still runs as a
-  # safety net; the hotfix fast-path below deploys production in parallel
-  # without waiting for tests.
+  # Canary leg - deploys the pre-built image. Runs on standard pushes and
+  # manual dispatch. Skipped on hotfix pushes: the whole point of the
+  # hotfix fast-path is to ship straight to production without waiting on
+  # the canary cascade, and running canary in parallel just doubles the
+  # rollout surface (and noise) for a push that explicitly opted out.
   # --------------------------------------------------------------------------
   canary:
     needs: build
+    if: >-
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   acceptance-tests:
     name: Acceptance Tests
     needs: canary
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:
@@ -176,13 +192,15 @@ jobs:
       environment: production
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
   # Hotfix fast-path: push-to-main with "(hotfix)" in the commit subject
   # ships production without waiting for canary + acceptance tests. Kept
   # independent of the cascade so a flaky acceptance test can't block an
-  # urgent fix. Canary still runs above as a safety net.
+  # urgent fix; canary is skipped above on hotfix pushes so the fast-path
+  # is the only deploy in flight.
   # --------------------------------------------------------------------------
   production-hotfix:
     needs: build
@@ -192,4 +210,5 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit

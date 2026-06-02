@@ -30,6 +30,8 @@ defmodule Tuist.Accounts.AccountToken do
     "ci",
     "mcp",
     @scim_scope,
+    "account:cache:read",
+    "account:cache:write",
     "account:members:read",
     "account:members:write",
     "account:registry:read",

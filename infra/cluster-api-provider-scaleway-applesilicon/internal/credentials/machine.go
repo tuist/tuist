@@ -39,8 +39,8 @@ const (
 	// operator's RBAC grant on Secrets covers both.
 	machineBootstrapSecretSuffix = "-bootstrap"
 
-	machineSudoPasswordKey   = "sudo-password"
-	machineSSHUsernameKey    = "ssh-username"
+	machineSudoPasswordKey    = "sudo-password"
+	machineSSHUsernameKey     = "ssh-username"
 	machineHostFingerprintKey = "host-fingerprint"
 )
 
@@ -54,7 +54,7 @@ type MachineBootstrap struct {
 }
 
 // GetMachineBootstrap reads the Secret. Returns (nil, nil) if it doesn't
-// exist yet — the Stage 1 reconcile call writes it after CreateServer.
+// exist yet — the Stage 1 reconcile call writes it after AdoptFromPool.
 func (m *Manager) GetMachineBootstrap(ctx context.Context, machineName string) (*MachineBootstrap, error) {
 	secret := &corev1.Secret{}
 	err := m.Client.Get(ctx, types.NamespacedName{Namespace: m.Namespace, Name: machineName + machineBootstrapSecretSuffix}, secret)

@@ -1,0 +1,15 @@
+image:
+  tag: validation
+
+# CI validation needs a host so the template can satisfy PHX_HOST without
+# depending on the production overlay.
+host: validation.slack.example.com
+
+runtimeSecrets:
+  inline:
+    adminUsername: validation-admin
+    adminPassword: validation-password
+    turnstileSiteKey: validation-turnstile-site-key
+    turnstileSecretKey: validation-turnstile-secret-key
+    mailgunApiKey: validation-mailgun-api-key
+    slackInviteUrl: https://slack.example.com/invite

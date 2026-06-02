@@ -159,6 +159,7 @@ struct ExtensionConfig {
     signers: Arc<HashMap<String, Signer>>,
     jwt_verifiers: Arc<HashMap<String, JwtVerifier>>,
     http_clients: Arc<HashMap<String, ExtensionHttpClient>>,
+    env: Arc<HashMap<String, String>>,
 }
 
 #[derive(Clone)]
@@ -410,6 +411,19 @@ impl ExtensionEngine {
                 }
             }
         }
+    }
+
+    pub async fn clear_caches(&self) -> usize {
+        let mut principal_cache = self.principal_cache.write().await;
+        let principal_evicted = principal_cache.len();
+        principal_cache.clear();
+        drop(principal_cache);
+
+        let mut decision_cache = self.decision_cache.write().await;
+        let decision_evicted = decision_cache.len();
+        decision_cache.clear();
+
+        principal_evicted + decision_evicted
     }
 
     async fn run_authenticate(
@@ -694,6 +708,16 @@ async fn install_host_api(lua: &Lua, config: &ExtensionConfig) -> Result<(), Str
     kura.set("http_json", http_json)
         .map_err(|error| format!("failed to export http_json: {error}"))?;
 
+    let extension_env = config.env.clone();
+    let env = lua
+        .create_function(move |lua, key: String| match extension_env.get(&key) {
+            Some(value) => Ok(mlua::Value::String(lua.create_string(value)?)),
+            None => Ok(mlua::Value::Nil),
+        })
+        .map_err(|error| format!("failed to install env host function: {error}"))?;
+    kura.set("env", env)
+        .map_err(|error| format!("failed to export env: {error}"))?;
+
     lua.globals()
         .set("kura", kura)
         .map_err(|error| format!("failed to export extension API: {error}"))?;
@@ -848,6 +872,7 @@ impl ExtensionConfig {
             signers: Arc::new(parse_signers()?),
             jwt_verifiers: Arc::new(parse_jwt_verifiers()?),
             http_clients: Arc::new(parse_http_clients()?),
+            env: Arc::new(std::env::vars().collect()),
         }))
     }
 }
@@ -1198,6 +1223,45 @@ end
     }
 
     #[tokio::test]
+    async fn scripts_can_read_environment_variables() {
+        let engine = test_engine(
+            r#"
+function authorize(ctx, principal)
+  if kura.env("TUIST_EXTENSION_TEST_VALUE") == "available" then
+    return { allow = true, ttl_seconds = 60 }
+  end
+
+  return { deny = { status = 403, message = "missing env" }, ttl_seconds = 3 }
+end
+"#,
+            |_| unsafe {
+                std::env::set_var("TUIST_EXTENSION_TEST_VALUE", "available");
+            },
+        )
+        .await;
+
+        let decision = engine
+            .evaluate_access(&ExtensionContext {
+                transport: "http".into(),
+                route: "/api/cache/module/{id}".into(),
+                method: "GET".into(),
+                operation: "artifact.read".into(),
+                server_tenant_id: "acme".into(),
+                tenant_id: Some("acme".into()),
+                namespace_id: Some("ios".into()),
+                producer: Some("module".into()),
+                artifact_key: Some("artifact-1".into()),
+                artifact_hash: None,
+                headers: BTreeMap::new(),
+                query: BTreeMap::new(),
+                status_code: None,
+            })
+            .await;
+
+        assert!(matches!(decision, AccessDecision::Allow(None)));
+    }
+
+    #[tokio::test]
     async fn authenticate_results_are_cached_across_identity_lookups() {
         let calls = Arc::new(AtomicUsize::new(0));
         let calls_for_server = calls.clone();
@@ -1367,30 +1431,25 @@ end
 
     /// Exercises `kura/ops/helm/kura/hooks/tuist.lua` end-to-end through
     /// the real mlua engine. The hook lives in the chart so adopters
-    /// can read it; these tests are how we keep its three contracts
-    /// honest:
+    /// can read it; these tests are how we keep its contracts honest:
     ///
-    ///   * `authenticate` — mirror the existing cache service: first try
-    ///     the Tuist Guardian JWT fast path using `claims.projects`, then
-    ///     fall back to `/api/projects` when the bearer token is opaque or
-    ///     when the JWT claim set does not prove access to the requested
-    ///     project.
-    ///   * `authorize` — resolve the request's project from
-    ///     `ctx.tenant_id` + `ctx.namespace_id`, or the legacy query
-    ///     params, require the tenant to match
-    ///     `ctx.server_tenant_id`, and then check it against the
-    ///     principal's `projects`.
-    ///   * `response_headers` — for module-cache GETs, sign
-    ///     `ctx.query.hash` with HMAC-SHA256 so the CLI's existing
-    ///     `x-tuist-signature` verification works against Kura.
+    ///   * `authenticate` — first try Tuist Guardian JWTs locally, then
+    ///     fall back to `/oauth2/introspect` when the token is opaque or
+    ///     the JWT claim set does not prove the requested cache action.
+    ///     Project-scoped requests can still use `/api/cache/access`
+    ///     while the introspection client rolls out.
+    ///   * `authorize` — resolve the request's target scope from
+    ///     `ctx.tenant_id` and `ctx.namespace_id`, require the tenant to
+    ///     match `ctx.server_tenant_id`, and then check it against
+    ///     action-specific cache grants.
     mod tuist_hook {
         use super::*;
         use axum::{
             Json, Router,
             http::{HeaderMap, StatusCode},
-            routing::get,
+            routing::{get, post},
         };
-        use serde_json::{Value, json};
+        use serde_json::{Map, Value, json};
         use std::sync::Mutex;
 
         const HOOK: &str = include_str!("../../ops/helm/kura/hooks/tuist.lua");
@@ -1399,38 +1458,51 @@ end
             HOOK.to_owned()
         }
 
-        /// Spawns a mock for the Tuist server's `/api/projects`
-        /// endpoint. The handler receives the forwarded request
-        /// headers and returns `(status, body)`.
-        async fn spawn_projects_mock<F>(handler: F) -> String
+        async fn spawn_tuist_auth_mock<FIntrospect, FCache>(
+            introspect_handler: FIntrospect,
+            cache_access_handler: FCache,
+        ) -> String
         where
-            F: Fn(HeaderMap) -> (StatusCode, Value) + Send + Sync + 'static,
+            FIntrospect: Fn(HeaderMap, Value) -> (StatusCode, Value) + Send + Sync + 'static,
+            FCache: Fn(HeaderMap) -> (StatusCode, Value) + Send + Sync + 'static,
         {
-            let handler = Arc::new(handler);
-            let app = Router::new().route(
-                "/api/projects",
-                get(move |headers: HeaderMap| {
-                    let handler = handler.clone();
-                    async move {
-                        let (status, payload) = handler(headers);
-                        (status, Json(payload))
-                    }
-                }),
-            );
+            let introspect_handler = Arc::new(introspect_handler);
+            let cache_access_handler = Arc::new(cache_access_handler);
+            let app = Router::new()
+                .route(
+                    "/oauth2/introspect",
+                    post(move |headers: HeaderMap, Json(payload): Json<Value>| {
+                        let introspect_handler = introspect_handler.clone();
+                        async move {
+                            let (status, payload) = introspect_handler(headers, payload);
+                            (status, Json(payload))
+                        }
+                    }),
+                )
+                .route(
+                    "/api/cache/access",
+                    get(move |headers: HeaderMap| {
+                        let cache_access_handler = cache_access_handler.clone();
+                        async move {
+                            let (status, payload) = cache_access_handler(headers);
+                            (status, Json(payload))
+                        }
+                    }),
+                );
 
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
                 .await
-                .expect("bind projects mock");
-            let address = listener.local_addr().expect("projects mock addr");
+                .expect("bind tuist auth mock");
+            let address = listener.local_addr().expect("tuist auth mock addr");
             tokio::spawn(async move {
                 axum::serve(listener, app)
                     .await
-                    .expect("projects mock serve");
+                    .expect("tuist auth mock serve");
             });
             format!("http://{address}")
         }
 
-        async fn engine_pointing_at(base_url: &str) -> SharedExtension {
+        async fn engine_pointing_at(base_url: &str, introspection_client: bool) -> SharedExtension {
             let url = base_url.to_owned();
             test_engine(&script(), move |_| unsafe {
                 std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", &url);
@@ -1445,6 +1517,17 @@ end
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS",
                     "4000",
                 );
+
+                if introspection_client {
+                    std::env::set_var(
+                        "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
+                        "00000000-0000-0000-0000-000000000001",
+                    );
+                    std::env::set_var(
+                        "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET",
+                        "kura-secret",
+                    );
+                }
             })
             .await
         }
@@ -1467,37 +1550,60 @@ end
             }
         }
 
-        fn projects_payload(projects: &[&str]) -> Value {
+        fn cache_access_payload(accounts: &[&str], projects: &[&str]) -> Value {
             json!({
-                "projects": projects
-                    .iter()
-                    .map(|project| json!({ "full_name": project }))
-                    .collect::<Vec<_>>(),
+                "accounts": accounts,
+                "projects": projects,
             })
         }
 
-        fn guardian_jwt(projects: &[&str]) -> String {
+        fn cache_grants_payload(
+            account_read: &[&str],
+            account_write: &[&str],
+            project_read: &[&str],
+            project_write: &[&str],
+        ) -> Value {
+            json!({
+                "account": {
+                    "read": account_read,
+                    "write": account_write,
+                },
+                "project": {
+                    "read": project_read,
+                    "write": project_write,
+                },
+            })
+        }
+
+        fn introspection_payload(grants: Value) -> Value {
+            json!({
+                "active": true,
+                "sub": "subject-1",
+                "principal_kind": "account",
+                "cache_grants": grants,
+            })
+        }
+
+        fn guardian_jwt(claims: Value) -> String {
+            let mut claims = match claims {
+                Value::Object(map) => map,
+                _ => Map::new(),
+            };
+            claims.insert("sub".into(), json!("user-1"));
+            claims.insert("iss".into(), json!("tuist"));
+            claims.insert("exp".into(), json!(4_000_000_000u64));
+
             jsonwebtoken::encode(
                 &jsonwebtoken::Header::new(Algorithm::HS512),
-                &serde_json::json!({
-                    "sub": "user-1",
-                    "type": "user",
-                    "iss": "tuist",
-                    "projects": projects,
-                    "exp": 4_000_000_000u64,
-                }),
+                &Value::Object(claims),
                 &jsonwebtoken::EncodingKey::from_secret("tuist-guardian-secret".as_bytes()),
             )
             .expect("failed to sign guardian test token")
         }
 
-        // --- authenticate -----------------------------------------------
-
         #[tokio::test]
         async fn denies_when_authorization_header_is_missing() {
-            // No bearer → hook short-circuits before touching the network,
-            // so the base URL doesn't matter.
-            let engine = engine_pointing_at("http://127.0.0.1:1").await;
+            let engine = engine_pointing_at("http://127.0.0.1:1", true).await;
 
             let decision = engine.evaluate_access(&ctx()).await;
 
@@ -1507,15 +1613,29 @@ end
         }
 
         #[tokio::test]
-        async fn allows_when_projects_endpoint_returns_accessible_projects() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
-            let engine = engine_pointing_at(&base).await;
+        async fn allows_when_introspection_returns_project_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
-                .insert("authorization".into(), "Bearer user-token".into());
+                .insert("authorization".into(), "Bearer opaque-token".into());
             context.tenant_id = Some("acme".into());
             context.namespace_id = Some("ios".into());
 
@@ -1524,11 +1644,159 @@ end
         }
 
         #[tokio::test]
-        async fn authorizes_from_local_jwt_projects_without_projects_endpoint() {
-            let engine = engine_pointing_at("http://127.0.0.1:1").await;
-            let token = guardian_jwt(&["acme/ios"]);
+        async fn allows_namespace_only_grpc_requests_for_bazel() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/bazel"],
+                            &["acme/bazel"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.transport = "grpc".into();
+            context.route =
+                "build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs".into();
+            context.method = "RPC".into();
+            context.tenant_id = None;
+            context.namespace_id = Some("bazel".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn denies_namespace_only_http_project_requests() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &["acme/ios"])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = None;
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 400);
+            assert!(deny.message.contains("Missing tenant_id"));
+        }
+
+        #[tokio::test]
+        async fn allows_when_introspection_returns_account_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn allows_account_writes_when_introspection_returns_write_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &["acme"], &[], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.method = "POST".into();
+            context.operation = "artifact.write".into();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+
+        #[tokio::test]
+        async fn denies_project_writes_when_introspection_only_returns_read_grants() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &["acme/ios"], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.method = "POST".into();
+            context.operation = "artifact.write".into();
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 403);
+            assert!(deny.message.contains("project 'acme/ios'"));
+        }
+
+        #[tokio::test]
+        async fn authorizes_from_local_jwt_cache_grants_without_introspection() {
+            let engine = engine_pointing_at("http://127.0.0.1:1", false).await;
+            let token = guardian_jwt(json!({
+                "type": "account",
+                "cache_grants": cache_grants_payload(&[], &[], &["acme/ios"], &["acme/ios"]),
+                "scopes": ["project:cache:read"],
+            }));
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
@@ -1539,18 +1807,35 @@ end
         }
 
         #[tokio::test]
-        async fn falls_back_to_projects_endpoint_when_jwt_claims_do_not_cover_requested_project() {
+        async fn falls_back_to_introspection_when_jwt_cache_grants_do_not_cover_requested_project()
+        {
             let calls = Arc::new(Mutex::new(0usize));
             let calls_for_handler = calls.clone();
-            let base = spawn_projects_mock(move |_| {
-                *calls_for_handler.lock().unwrap() += 1;
-                (StatusCode::OK, projects_payload(&["acme/ios"]))
-            })
+            let base = spawn_tuist_auth_mock(
+                move |_headers, _payload| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
             .await;
-            let engine = engine_pointing_at(&base).await;
-            let token = guardian_jwt(&["acme/android"]);
+            let engine = engine_pointing_at(&base, true).await;
+            let token = guardian_jwt(json!({
+                "type": "account",
+                "cache_grants": cache_grants_payload(&[], &[], &["acme/android"], &["acme/android"]),
+                "scopes": ["project:cache:read"],
+            }));
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), format!("Bearer {token}"));
@@ -1562,130 +1847,208 @@ end
         }
 
         #[tokio::test]
-        async fn forwards_bearer_to_projects_endpoint() {
-            let captured = Arc::new(Mutex::new(None::<String>));
-            let captured_for_handler = captured.clone();
-            let app = Router::new().route(
-                "/api/projects",
-                get(move |headers: HeaderMap| {
-                    let captured = captured_for_handler.clone();
-                    async move {
-                        let auth = headers
-                            .get("authorization")
-                            .and_then(|v| v.to_str().ok())
-                            .map(str::to_owned);
-                        *captured.lock().unwrap() = auth;
-                        Json(projects_payload(&["acme/ios"]))
-                    }
-                }),
-            );
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap();
-            tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        async fn falls_back_to_legacy_cache_access_for_project_requests_when_introspection_client_is_missing()
+         {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+                    )
+                },
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (StatusCode::OK, cache_access_payload(&[], &["acme/ios"]))
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, false).await;
 
-            let engine = engine_pointing_at(&format!("http://{address}")).await;
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
                 .insert("authorization".into(), "Bearer opaque-token".into());
-            context.query.insert("account_handle".into(), "acme".into());
-            context.query.insert("project_handle".into(), "ios".into());
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
+        async fn does_not_reuse_legacy_project_fallback_for_account_requests() {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&[], &[], &[], &[])),
+                    )
+                },
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (
+                        StatusCode::OK,
+                        cache_access_payload(&["acme"], &["acme/ios"]),
+                    )
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, false).await;
+
+            let mut project_context = ctx();
+            project_context.tenant_id = Some("acme".into());
+            project_context.namespace_id = Some("ios".into());
+            project_context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let project_decision = engine.evaluate_access(&project_context).await;
+            assert!(matches!(project_decision, AccessDecision::Allow(Some(_))));
+
+            let mut account_context = ctx();
+            account_context.tenant_id = Some("acme".into());
+            account_context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&account_context).await);
+            assert_eq!(deny.status, 403);
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
+        async fn denies_account_scoped_requests_when_introspection_client_is_missing() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(&["acme"], &["acme"], &[], &[])),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&["acme"], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, false).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let deny = expect_deny(engine.evaluate_access(&context).await);
+            assert_eq!(deny.status, 503);
+        }
+
+        #[tokio::test]
+        async fn forwards_introspection_credentials_and_token() {
+            let captured = Arc::new(Mutex::new(None::<Value>));
+            let captured_for_handler = captured.clone();
+            let base = spawn_tuist_auth_mock(
+                move |_headers, payload| {
+                    *captured_for_handler.lock().unwrap() = Some(payload);
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+            context.namespace_id = Some("ios".into());
 
             let _ = engine.evaluate_access(&context).await;
 
             assert_eq!(
-                captured.lock().unwrap().as_deref(),
-                Some("Bearer opaque-token")
+                *captured.lock().unwrap(),
+                Some(json!({
+                    "client_id": "00000000-0000-0000-0000-000000000001",
+                    "client_secret": "kura-secret",
+                    "token": "opaque-token",
+                }))
             );
         }
 
         #[tokio::test]
-        async fn denies_when_projects_endpoint_returns_unauthorized() {
-            let base = spawn_projects_mock(|_| (StatusCode::UNAUTHORIZED, json!({}))).await;
-            let engine = engine_pointing_at(&base).await;
+        async fn denies_when_introspection_returns_inactive() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
-                .insert("authorization".into(), "Bearer bad".into());
-            context.tenant_id = Some("acme".into());
+                .insert("authorization".into(), "Bearer bad-token".into());
             context.namespace_id = Some("ios".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 401);
-            assert!(deny.message.contains("Invalid"));
         }
 
         #[tokio::test]
-        async fn denies_when_projects_endpoint_is_unavailable() {
-            // 5xx and other non-{200,401} outcomes get a transient deny
-            // with a short TTL.
-            let base =
-                spawn_projects_mock(|_| (StatusCode::INTERNAL_SERVER_ERROR, json!({}))).await;
-            let engine = engine_pointing_at(&base).await;
+        async fn denies_when_introspection_backend_is_unavailable() {
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
+            context.tenant_id = Some("acme".into());
             context
                 .headers
-                .insert("authorization".into(), "Bearer anything".into());
-            context.tenant_id = Some("acme".into());
+                .insert("authorization".into(), "Bearer bad-token".into());
             context.namespace_id = Some("ios".into());
 
             let deny = expect_deny(engine.evaluate_access(&context).await);
             assert_eq!(deny.status, 503);
         }
 
-        // --- authorize --------------------------------------------------
-
-        #[tokio::test]
-        async fn authorizes_legacy_account_and_project_handle_query_params() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-            context.query.insert("account_handle".into(), "acme".into());
-            context.query.insert("project_handle".into(), "ios".into());
-
-            let decision = engine.evaluate_access(&context).await;
-            assert!(
-                matches!(decision, AccessDecision::Allow(Some(_))),
-                "expected Allow(Some), got {decision:?}"
-            );
-        }
-
-        #[tokio::test]
-        async fn authorizes_generic_tenant_and_namespace_context() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-            context.namespace_id = Some("ios".into());
-
-            let decision = engine.evaluate_access(&context).await;
-            assert!(
-                matches!(decision, AccessDecision::Allow(Some(_))),
-                "expected Allow(Some), got {decision:?}"
-            );
-        }
-
         #[tokio::test]
         async fn authorizes_case_insensitively_like_current_cache_nodes() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["Acme/iOS"]))).await;
-            let engine = engine_pointing_at(&base).await;
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["Acme/iOS"],
+                            &["Acme/iOS"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
             context
                 .headers
-                .insert("authorization".into(), "Bearer t".into());
+                .insert("authorization".into(), "Bearer opaque-token".into());
             context.query.insert("account_handle".into(), "ACME".into());
             context.query.insert("project_handle".into(), "IOS".into());
 
@@ -1694,33 +2057,33 @@ end
         }
 
         #[tokio::test]
-        async fn denies_when_project_is_not_in_principal_projects() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-            context.tenant_id = Some("acme".into());
-            context.namespace_id = Some("android".into());
-
-            let deny = expect_deny(engine.evaluate_access(&context).await);
-            assert_eq!(deny.status, 403);
-        }
-
-        #[tokio::test]
         async fn denies_when_request_tenant_does_not_match_server_tenant() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["someone-else/ios"])))
-                    .await;
-            let engine = engine_pointing_at(&base).await;
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &["someone-else"],
+                            &["someone-else"],
+                            &["someone-else/ios"],
+                            &["someone-else/ios"],
+                        )),
+                    )
+                },
+                |_| {
+                    (
+                        StatusCode::OK,
+                        cache_access_payload(&["someone-else"], &["someone-else/ios"]),
+                    )
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
 
             let mut context = ctx();
             context
                 .headers
-                .insert("authorization".into(), "Bearer t".into());
+                .insert("authorization".into(), "Bearer opaque-token".into());
             context
                 .query
                 .insert("account_handle".into(), "someone-else".into());
@@ -1730,113 +2093,6 @@ end
             assert_eq!(deny.status, 403);
             assert!(deny.message.contains("server for"));
         }
-
-        #[tokio::test]
-        async fn denies_when_request_carries_no_project() {
-            let base =
-                spawn_projects_mock(|_| (StatusCode::OK, projects_payload(&["acme/ios"]))).await;
-            let engine = engine_pointing_at(&base).await;
-
-            let mut context = ctx();
-            context
-                .headers
-                .insert("authorization".into(), "Bearer t".into());
-
-            let deny = expect_deny(engine.evaluate_access(&context).await);
-            assert_eq!(deny.status, 403);
-            assert!(deny.message.to_lowercase().contains("namespace"));
-        }
-
-        // --- response_headers -------------------------------------------
-
-        #[tokio::test]
-        async fn signs_module_cache_get_responses() {
-            let engine = test_engine(&script(), |_| unsafe {
-                // BASE_URL is required for the http client to build, even
-                // though the response_headers hook never calls it.
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/module/{id}".into();
-            context.status_code = Some(200);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-
-            let expected = sign_payload(
-                &HashMap::from([(
-                    "TUIST".into(),
-                    Signer {
-                        algorithm: SignerAlgorithm::HmacSha256,
-                        secret: b"shared-key".to_vec(),
-                    },
-                )]),
-                "tuist",
-                "deadbeef",
-            )
-            .expect("compute expected signature");
-            assert_eq!(headers.headers.get("x-tuist-signature"), Some(&expected));
-        }
-
-        #[tokio::test]
-        async fn skips_signature_for_non_module_routes() {
-            let engine = test_engine(&script(), |_| unsafe {
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/gradle/{cache_key}".into();
-            context.status_code = Some(200);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-            assert!(!headers.headers.contains_key("x-tuist-signature"));
-        }
-
-        #[tokio::test]
-        async fn skips_signature_for_error_status_codes() {
-            let engine = test_engine(&script(), |_| unsafe {
-                std::env::set_var(
-                    "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL",
-                    "http://127.0.0.1:1",
-                );
-                std::env::set_var("KURA_EXTENSION_SIGNER_TUIST_ALGORITHM", "hmac-sha256");
-                std::env::set_var(
-                    "KURA_EXTENSION_SIGNER_TUIST_SECRET",
-                    BASE64.encode(b"shared-key"),
-                );
-            })
-            .await;
-
-            let mut context = ctx();
-            context.route = "/api/cache/module/{id}".into();
-            context.status_code = Some(404);
-            context.query.insert("hash".into(), "deadbeef".into());
-
-            let headers = engine.response_headers(&context, None).await;
-            assert!(!headers.headers.contains_key("x-tuist-signature"));
-        }
-
-        // --- helpers ----------------------------------------------------
 
         fn expect_deny(decision: AccessDecision) -> DenyDecision {
             match decision {

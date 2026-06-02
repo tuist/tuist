@@ -23,8 +23,7 @@ defmodule TuistWeb.WarningsHeaderPlug do
     warnings = conn.assigns[@assign_key] || []
     cli_version = Headers.get_cli_version(conn)
 
-    latest_cli_version = get_latest_cli_version()
-    warnings = maybe_add_cli_deprecation_warning(warnings, cli_version, latest_cli_version)
+    warnings = maybe_add_cli_deprecation_warning(warnings, cli_version)
 
     cond do
       is_nil(cli_version) ->
@@ -37,11 +36,11 @@ defmodule TuistWeb.WarningsHeaderPlug do
         conn
         |> put_resp_header(
           "x-tuist-cloud-warnings",
-          Base.encode64(Jason.encode!(warnings))
+          Base.encode64(JSON.encode!(warnings))
         )
         |> put_resp_header(
           "x-tuist-warnings",
-          Base.encode64(Jason.encode!(warnings))
+          Base.encode64(JSON.encode!(warnings))
         )
 
       true ->
@@ -56,8 +55,10 @@ defmodule TuistWeb.WarningsHeaderPlug do
     end
   end
 
-  defp maybe_add_cli_deprecation_warning(warnings, cli_version, latest_cli_version) do
+  defp maybe_add_cli_deprecation_warning(warnings, cli_version) do
     if should_show_cli_deprecation_warning?(cli_version) do
+      latest_cli_version = get_latest_cli_version()
+
       message =
         if latest_cli_version do
           "Your Tuist version #{cli_version} is deprecated. Please upgrade to version #{latest_cli_version} for server-side features to continue working."

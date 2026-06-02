@@ -252,7 +252,7 @@ defmodule Tuist.GitHub.Client do
   end
 
   defp handle_github_response({:ok, %Req.Response{status: status, body: body}}, _action, _attrs) do
-    {:error, "Unexpected status code: #{status}. Body: #{Jason.encode!(body)}"}
+    {:error, "Unexpected status code: #{status}. Body: #{JSON.encode!(body)}"}
   end
 
   defp handle_github_response({:error, reason}, _action, _attrs) do
@@ -430,6 +430,140 @@ defmodule Tuist.GitHub.Client do
       end
     end
   end
+
+  @doc """
+  Lists the App's recent webhook deliveries (the App's central
+  delivery log — App-wide, not per-installation). Used by
+  `Tuist.Runners.Workers.WebhookRedeliveryWorker` to discover
+  `workflow_job` deliveries we never processed.
+
+  Options:
+    * `:credentials` — App credentials map (defaults to global
+      env-configured github.com App). Pass per-installation creds
+      from `Tuist.VCS.list_github_apps/0` to query a GHES App's log.
+    * `:api_url` — host root (defaults to api.github.com). Goes
+      with `:credentials` for GHES Apps.
+    * `:next_url` — opaque cursor from a previous call's `meta.next_url`
+      for paginating to the next page.
+
+  No status filter is applied. GitHub does support `?status=failure`
+  server-side, but a successful redelivery from a previous cycle
+  carries the same `guid` as the original failure with `status="OK"`
+  — filtering to failures hides that and breaks GUID-based dedup.
+  The documented recovery pattern lists ALL deliveries and groups
+  locally.
+
+  Returns `{:ok, %{meta: %{next_url}, deliveries: [...]}}`. Each
+  delivery carries only metadata (no payload).
+
+  Auth: App JWT (NOT installation token).
+
+  See: https://docs.github.com/en/rest/apps/webhooks#list-deliveries-for-an-app-webhook
+  """
+  def list_app_hook_deliveries(opts \\ []) do
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
+
+    url =
+      Keyword.get(
+        opts,
+        :next_url,
+        "#{api_url}/app/hook/deliveries?per_page=100"
+      )
+
+    with {:ok, jwt} <- App.get_jwt(opts) do
+      req_opts =
+        [
+          url: url,
+          headers: app_jwt_headers(jwt),
+          finch: Tuist.Finch
+        ] ++ Retry.retry_options()
+
+      case Req.get(req_opts) do
+        {:ok, %{status: 200, body: deliveries, headers: headers}} when is_list(deliveries) ->
+          {:ok, %{meta: %{next_url: extract_next_url(headers)}, deliveries: Enum.map(deliveries, &format_delivery/1)}}
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  Asks GitHub to redeliver a previous webhook delivery to the App's
+  configured webhook URL. GitHub re-fires through the normal
+  delivery path — same signature, same handler, same idempotency
+  guarantees. Used by the recovery worker after a failed delivery is
+  discovered.
+
+  Options `:credentials` and `:api_url` work the same as in
+  `list_app_hook_deliveries/1` — pass the App that owns the
+  `delivery_id` you're redelivering.
+
+  Returns `:ok` on the documented 202 Accepted response.
+
+  See: https://docs.github.com/en/rest/apps/webhooks#redeliver-a-delivery-for-an-app-webhook
+  """
+  def redeliver_app_hook_delivery(delivery_id, opts \\ []) when is_integer(delivery_id) do
+    api_url = Keyword.get(opts, :api_url, VCS.api_url(:github, nil))
+    url = "#{api_url}/app/hook/deliveries/#{delivery_id}/attempts"
+
+    with {:ok, jwt} <- App.get_jwt(opts) do
+      req_opts =
+        [
+          url: url,
+          headers: app_jwt_headers(jwt),
+          finch: Tuist.Finch
+        ] ++ Retry.retry_options()
+
+      case Req.post(req_opts) do
+        {:ok, %{status: 202}} ->
+          :ok
+
+        {:ok, %{status: status, body: body}} ->
+          {:error, {:http, status, body}}
+
+        {:error, reason} ->
+          {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  defp format_delivery(d) do
+    %{
+      id: d["id"],
+      guid: d["guid"],
+      delivered_at: parse_iso8601(d["delivered_at"]),
+      redelivery: d["redelivery"] || false,
+      status: d["status"] || "",
+      status_code: d["status_code"],
+      event: d["event"] || "",
+      action: d["action"] || "",
+      installation_id: d["installation_id"],
+      repository_id: d["repository_id"]
+    }
+  end
+
+  defp app_jwt_headers(jwt) do
+    [
+      {"Accept", "application/vnd.github+json"},
+      {"Authorization", "Bearer #{jwt}"},
+      {"X-GitHub-Api-Version", "2022-11-28"}
+    ]
+  end
+
+  defp parse_iso8601(nil), do: nil
+
+  defp parse_iso8601(ts) when is_binary(ts) do
+    case DateTime.from_iso8601(ts) do
+      {:ok, dt, _} -> dt
+      _ -> nil
+    end
+  end
+
+  defp parse_iso8601(_), do: nil
 
   defp installation_api_url(%{client_url: client_url}), do: VCS.api_url(:github, client_url)
   defp installation_api_url(_), do: VCS.api_url(:github, nil)

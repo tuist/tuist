@@ -14,6 +14,20 @@ defmodule Tuist.GitHub.App do
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
 
+  @doc """
+  Returns a short-lived (default 10 min) signed App JWT for calling
+  `/app/*` REST endpoints (installation token issuance, App-wide
+  webhook delivery introspection, etc.). Use this — not an
+  installation token — for endpoints that operate on the App
+  itself rather than on a specific installation.
+  """
+  def get_jwt(opts \\ []) do
+    case Keyword.get(opts, :credentials, VCS.github_app_credentials()) do
+      nil -> {:error, "GitHub App is not configured"}
+      creds -> {:ok, generate_app_jwt(creds, opts)}
+    end
+  end
+
   def get_installation_token(installation, opts \\ [])
 
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do

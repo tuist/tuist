@@ -12,6 +12,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     statics: TuistWeb.static_paths()
 
   alias Tuist.Marketing.Blog
+  alias Tuist.Marketing.Customers
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.StructuredMarkup
 
@@ -69,7 +70,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
 
     case structured_data do
       nil -> []
-      data -> Enum.map(data, &Jason.encode!/1)
+      data -> Enum.map(data, &JSON.encode!/1)
     end
   end
 
@@ -257,14 +258,19 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
 
   def get_case_study_article_structured_data(case_study, locale \\ "en") do
     date_time = DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC")
-    case_study_path = Localization.localized_href(case_study.slug, locale)
+
+    case_study_url =
+      case_study
+      |> Customers.case_study_href()
+      |> Localization.localized_href(locale)
+      |> absolute_url()
 
     %{
       "@context" => "https://schema.org",
       "@type" => "Article",
       "mainEntityOfPage" => %{
         "@type" => "WebPage",
-        "@id" => Tuist.Environment.app_url(path: case_study_path)
+        "@id" => case_study_url
       },
       "headline" => case_study.title,
       "description" => case_study.excerpt,
@@ -300,5 +306,15 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
+  end
+
+  defp absolute_url(href) do
+    uri = URI.parse(href)
+
+    if is_nil(uri.scheme) and is_nil(uri.host) do
+      Tuist.Environment.app_url(path: href)
+    else
+      href
+    end
   end
 end

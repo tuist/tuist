@@ -183,13 +183,13 @@ defmodule Tuist.Kubernetes.ClientTest do
 
           :put ->
             assert {"content-type", "application/json"} in request_opts[:headers]
-            assert Jason.decode!(request_opts[:body]) == %{"spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}}
+            assert JSON.decode!(request_opts[:body]) == %{"spec" => %{"image" => "ghcr.io/tuist/kura:0.5.2"}}
             {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"name" => "one"}}}}
 
           :patch ->
             assert {"content-type", "application/json-patch+json"} in request_opts[:headers]
 
-            assert Jason.decode!(request_opts[:body]) == [
+            assert JSON.decode!(request_opts[:body]) == [
                      %{"op" => "replace", "path" => "/spec/image", "value" => "ghcr.io/tuist/kura:0.5.3"}
                    ]
 

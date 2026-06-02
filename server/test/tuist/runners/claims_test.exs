@@ -141,6 +141,25 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "counts_per_fleet/0" do
+    test "returns per-fleet inflight counts across ALL accounts" do
+      a = enabled_account_fixture()
+      b = enabled_account_fixture()
+
+      {:ok, _} = Claims.attempt(6001, a.id, "fleet-macos", "pod-m-1")
+      {:ok, _} = Claims.attempt(6002, a.id, "fleet-macos", "pod-m-2")
+      {:ok, _} = Claims.attempt(6003, b.id, "fleet-linux", "pod-l-1")
+
+      counts = Claims.counts_per_fleet()
+      assert Map.get(counts, "fleet-macos") == 2
+      assert Map.get(counts, "fleet-linux") == 1
+    end
+
+    test "returns empty map when nothing is in flight" do
+      assert Claims.counts_per_fleet() == %{}
+    end
+  end
+
   describe "complete/1" do
     test "deletes the claim regardless of handle" do
       account = enabled_account_fixture()

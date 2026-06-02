@@ -18,7 +18,7 @@ use crate::{
     geoip::GeoIp,
     http,
     io::IoController,
-    memory::MemoryController,
+    memory::{MemoryController, MemoryPressure},
     metrics::Metrics,
     node_location::resolve_node_location,
     peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
@@ -28,6 +28,7 @@ use crate::{
     state::{AppState, ReadinessState},
     store::Store,
     telemetry::{init_tracing, log_context_span},
+    usage::Usage,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -92,6 +93,8 @@ async fn run_with_config(
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
+        .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,
@@ -118,6 +121,7 @@ async fn run_with_config(
         runtime: RuntimeState::new(),
         extension,
         analytics,
+        usage,
         geoip,
         client,
         notify,
@@ -129,6 +133,7 @@ async fn run_with_config(
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
+    Usage::spawn_tasks(state.clone());
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
@@ -390,6 +395,36 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                                 state.store.trim_manifest_cache_to(target_bytes, "pressure");
                             if evicted > 0 {
                                 state.metrics.record_memory_action("manifest_cache_trim");
+                            }
+                            let existence_evicted = state.store.trim_existence_cache_to(
+                                state.memory.bounded_cache_target_entries(
+                                    crate::store::EXISTENCE_CACHE_CAPACITY,
+                                ),
+                            );
+                            if existence_evicted > 0 {
+                                state.metrics.record_memory_action("existence_cache_trim");
+                            }
+                            let segment_handle_evicted = state
+                                .store
+                                .trim_segment_handle_cache_to(
+                                    state.memory.bounded_cache_target_entries(
+                                        state.config.segment_handle_cache_size,
+                                    ),
+                                    "pressure",
+                                )
+                                .await;
+                            if segment_handle_evicted > 0 {
+                                state
+                                    .metrics
+                                    .record_memory_action("segment_handle_cache_trim");
+                            }
+                            if pressure == MemoryPressure::Critical
+                                && let Some(extension) = &state.extension
+                            {
+                                let evicted = extension.clear_caches().await;
+                                if evicted > 0 {
+                                    state.metrics.record_memory_action("extension_cache_trim");
+                                }
                             }
                             state.metrics.update_background_work_paused(
                                 "outbox",

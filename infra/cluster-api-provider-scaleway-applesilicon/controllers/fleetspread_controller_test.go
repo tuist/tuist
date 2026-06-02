@@ -243,6 +243,49 @@ func TestReconcile_DoesNotRollOnPhaseReadyBeforeNodeReady(t *testing.T) {
 	}
 }
 
+// TestReconcile_IgnoresSiblingFleetNodes is the regression for the
+// P2 cross-fleet rollout bug: scaling the vm-image-builder fleet
+// must not roll xcresult-processor. Both fleets share the base
+// labels (`kubernetes.io/os=darwin`, `tuist.dev/runtime=tart`) but
+// pin a different `tuist.dev/fleet` value, and the Deployment's
+// own nodeSelector narrows to its fleet. Folding that selector
+// into the Node-list filter keeps sibling-fleet membership out
+// of the hash.
+func TestReconcile_IgnoresSiblingFleetNodes(t *testing.T) {
+	processorNode := readyNode("fleet-0")
+	processorNode.Labels["tuist.dev/fleet"] = "xcresult"
+	builderNode := readyNode("builder-0")
+	builderNode.Labels["tuist.dev/fleet"] = "builders"
+
+	dep := emptyDeployment("xcresult-processor", "tuist")
+	dep.Spec.Template.Spec.NodeSelector = map[string]string{
+		"tuist.dev/fleet": "xcresult",
+	}
+	dep.Spec.Template.Annotations = map[string]string{
+		FleetHashAnnotation: readyNodeHash([]corev1.Node{processorNode}),
+	}
+
+	r, ctx := newFleetSpreadReconciler(t, "tuist", "xcresult-processor", &processorNode, &builderNode, &dep)
+
+	var before appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "xcresult-processor"}, &before); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := r.Reconcile(ctx, ctrl.Request{}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	var after appsv1.Deployment
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "tuist", Name: "xcresult-processor"}, &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.ResourceVersion != before.ResourceVersion {
+		t.Fatalf("sibling-fleet Node tripped a rollout, RV %q -> %q",
+			before.ResourceVersion, after.ResourceVersion)
+	}
+}
+
 // TestReconcile_NoOpWhenDeploymentMissing covers the chart-bring-up
 // race: the operator can win leadership and reconcile before helm
 // has installed the workload Deployment. The reconciler must not
@@ -264,7 +307,7 @@ func readyNode(name string) corev1.Node {
 }
 
 // nodeWithReady builds a Node carrying the same labels the chart's
-// xcresult-processor selects on, so it matches FleetNodeSelector.
+// xcresult-processor selects on, so it matches baseFleetNodeSelector.
 func nodeWithReady(name string, ready corev1.ConditionStatus) corev1.Node {
 	return corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{

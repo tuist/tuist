@@ -1,5 +1,10 @@
 <div id="integrations">
-  <h1 data-part="title">{dgettext("dashboard_integrations", "Integrations")}</h1>
+  <h1 data-part="title">{dgettext("dashboard_account", "Settings")}</h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
   <.card_section :if={@github_card_visible?} data-part="github-card-section">
     <div data-part="header">
       <span data-part="title">
@@ -213,7 +218,7 @@
               phx-click="delete-connection"
               phx-value-connection_id={vcs_connection.id}
             >
-              <:left_icon><.trash_x /></:left_icon>
+              <:left_icon><.trash /></:left_icon>
             </.dropdown_item>
           </.inline_dropdown>
         </div>

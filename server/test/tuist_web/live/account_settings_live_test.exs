@@ -1,5 +1,5 @@
 defmodule TuistWeb.AccountSettingsLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
@@ -8,6 +8,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   alias Tuist.Accounts
   alias Tuist.Environment
   alias Tuist.Kura
+  alias Tuist.Kura.Server
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -144,6 +145,32 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ server.url
     assert html =~ "0.5.2"
     refute html =~ "kura@0.5.2"
+  end
+
+  test "shows the Kura server endpoint in the table" do
+    assigns = kura_section_assigns(%{})
+
+    html = render_component(&TuistWeb.AccountSettingsLive.kura_servers_section/1, assigns)
+
+    assert html =~ "https://test-org-us-east-1.kura.tuist.dev"
+  end
+
+  defp kura_section_assigns(overrides) do
+    server = %Server{
+      id: 1,
+      region: "us-east",
+      status: :active,
+      url: "https://test-org-us-east-1.kura.tuist.dev",
+      current_image_tag: "0.5.2",
+      observed_image_tag: "0.5.2"
+    }
+
+    Enum.into(overrides, %{
+      kura_servers: [server],
+      available_kura_regions: [],
+      add_kura_server_form: Phoenix.Component.to_form(%{}, as: :server),
+      latest_kura_version: nil
+    })
   end
 
   test "allows adding another managed Kura region when one is already deployed", %{

@@ -22,12 +22,20 @@
 //  4. Set the macOS hostname to NodeName.
 //  5. Install Tart by extracting the operator-pinned tart.app tarball
 //     to /usr/local/lib/tart.app + wrapper at /usr/local/bin/tart.
-//  6. Drop the kubeconfig the controller built for this host.
-//  7. Upload the tart-kubelet binary.
-//  8. Write the launchd plist with this host's flags + load it.
+//  6. Install Tailscale's open-source tailscaled (extracted from the
+//     operator-baked binaries tarball), register it as a system
+//     daemon via `tailscaled install-system-daemon`, and `tailscale
+//     up` with the per-fleet auth key — host joins the tailnet
+//     before kubelet so the tailnet IP is the only routable address
+//     kubelet ever advertises.
+//  7. Install node_exporter for host-level (CPU, mem, disk, network,
+//     thermal) metrics, scraped over the tailnet on :9100.
+//  8. Drop the kubeconfig the controller built for this host.
+//  9. Upload the tart-kubelet binary.
+//  10. Write the launchd plist with this host's flags + load it.
 //
-// After step 8 the agent on the host registers a Node and starts
-// reconciling Pods. The provider's MachineReconciler flips
+// After the last step the agent on the host registers a Node and
+// starts reconciling Pods. The provider's MachineReconciler flips
 // Machine.Status.Ready when this returns nil.
 package bootstrap
 
@@ -63,6 +71,13 @@ type Config struct {
 	// nodes` reflects the inventory.
 	NodeName string
 
+	// ProviderID is the CAPI machine ID (scw-applesilicon://<zone>/<id>)
+	// rendered into tart-kubelet's --provider-id flag so it sets
+	// Node.spec.providerID — the field CAPI core matches to bind the
+	// Machine to its Node. Empty omits the flag (Node left unbound until
+	// patched by hand).
+	ProviderID string
+
 	// Kubeconfig is the YAML kubeconfig the controller built for this
 	// host (contains a long-lived ServiceAccount token + the API
 	// server's external URL + CA bundle). Dropped at
@@ -85,6 +100,45 @@ type Config struct {
 	// reproducible across reboots and re-provisions; bumping it is a
 	// deliberate Dockerfile change.
 	TartTarball []byte
+
+	// TailscaleBinaries is the gzipped tar of the `tailscale` and
+	// `tailscaled` darwin/arm64 binaries cross-compiled from the
+	// upstream Go source at the operator-image-pinned version. The
+	// open-source "tailscaled" variant (per Tailscale's own docs at
+	// https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS)
+	// is the canonical headless-server install path on macOS — no GUI
+	// app, no .pkg postinstall scripts, just two static binaries plus
+	// a launchd plist that `tailscaled install-system-daemon` writes
+	// itself. Empty disables the Tailscale step entirely — kubelet
+	// then falls back to the public interface as NodeIP, which is fine
+	// for clusters where the in-cluster scrapers can reach the Mac
+	// mini directly (rare). Production deployments always set this.
+	TailscaleBinaries []byte
+
+	// TailscaleAuthKey is a per-fleet Tailscale pre-auth key (from
+	// 1Password via ESO). Reusable + ephemeral-tagged so each Mac
+	// mini in the fleet authenticates without a separate key, and
+	// stale node records age out automatically. Empty disables the
+	// Tailscale step even when TailscaleBinaries is present — covers
+	// chart bring-up where the key hasn't been provisioned yet.
+	TailscaleAuthKey string
+
+	// TailscaleTags are the Tailscale ACL tags advertised on this
+	// node at `tailscale up` time. Drives which ACL groups can dial
+	// it — e.g. `tag:tuist-macmini-xcresult` is reachable from the
+	// cluster's `tag:cluster-scraper` group on :9091 + :9100. Empty
+	// uses the auth key's default tag.
+	TailscaleTags []string
+
+	// NodeExporterBinary is the darwin/arm64 node_exporter binary
+	// (cross-compiled in the operator image from
+	// github.com/prometheus/node_exporter at build time). Installed
+	// at /usr/local/bin/node_exporter under a launchd plist that
+	// binds it to the tailnet interface on :9100. Empty disables
+	// the host-metrics step — paired with TailscaleBinaries so that a
+	// chart without tailnet plumbing doesn't ship node_exporter
+	// listening on a public IP.
+	NodeExporterBinary []byte
 
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
@@ -115,6 +169,23 @@ type Config struct {
 	// `ssh.InsecureIgnoreHostKey()` that left every bootstrap open
 	// to a network MITM (kubeconfig + tart-kubelet binary injection).
 	KnownHostFingerprint string
+
+	// GHActionsRunner, when non-nil, installs a GitHub Actions
+	// self-hosted runner agent on the host as the final step of
+	// bootstrap, after tart-kubelet is up. Used for the bare-metal
+	// vm-image-builder fleet; pure Node hosts leave this nil.
+	//
+	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
+	// picks up image-bake workflow jobs from GitHub. It coexists
+	// peacefully with tart-kubelet on the same host because no Pods
+	// are ever scheduled to builder Nodes (the per-fleet
+	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
+	// the builder fleet name).
+	//
+	// The reconciler is responsible for resolving the registration
+	// token from a Secret before populating
+	// GHActionsRunner.GHRunnerRegistrationToken.
+	GHActionsRunner *GHActionsRunnerConfig
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -131,61 +202,88 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
 
-	hk := newHostKeyState(cfg.KnownHostFingerprint)
+	hk := NewHostKeyState(cfg.KnownHostFingerprint)
 
-	if err := waitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
+	if err := WaitForSSH(ctx, cfg.IP, cfg.SSHUser, signer, hk); err != nil {
 		return "", err
 	}
 
-	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
+	client, err := Dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
 		return "", err
 	}
 	defer client.Close()
 
-	if err := enablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
-		return hk.observed(), fmt.Errorf("passwordless sudo: %w", err)
+	if err := EnablePasswordlessSudo(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
+		return hk.Observed(), fmt.Errorf("passwordless sudo: %w", err)
 	}
-	if err := enableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
-		return hk.observed(), fmt.Errorf("auto-login: %w", err)
+	if err := EnableAutoLogin(ctx, client, cfg.SSHUser, cfg.UserPassword); err != nil {
+		return hk.Observed(), fmt.Errorf("auto-login: %w", err)
 	}
-	if err := disableIdleSleep(ctx, client); err != nil {
-		return hk.observed(), fmt.Errorf("disable idle sleep: %w", err)
+	if err := DisableIdleSleep(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
 	if cfg.NodeName != "" {
-		if err := setHostname(ctx, client, cfg.NodeName); err != nil {
-			return hk.observed(), fmt.Errorf("set hostname: %w", err)
+		if err := SetHostname(ctx, client, cfg.NodeName); err != nil {
+			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
 		}
 	}
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
-		return hk.observed(), fmt.Errorf("install tart: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
 	if err := installVMEgressFirewall(ctx, client); err != nil {
-		return hk.observed(), fmt.Errorf("install vm egress firewall: %w", err)
+		return hk.Observed(), fmt.Errorf("install vm egress firewall: %w", err)
+	}
+	if err := installTailscale(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
+	}
+	if err := installNodeExporter(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return hk.observed(), fmt.Errorf("write kubeconfig: %w", err)
+		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("load launchd job: %w", err)
+		return hk.Observed(), fmt.Errorf("load launchd job: %w", err)
 	}
-	return hk.observed(), nil
+	// Optional builder-fleet tail: install brew tooling, verify
+	// Xcode, set the build-cache env, install + start the GitHub
+	// Actions runner agent. Skipped entirely for pure Node hosts
+	// (the default fleet).
+	if cfg.GHActionsRunner != nil {
+		if err := runActionsRunnerInstall(ctx, client, cfg.SSHUser, cfg.NodeName, *cfg.GHActionsRunner); err != nil {
+			return hk.Observed(), fmt.Errorf("install gh actions runner: %w", err)
+		}
+	}
+	return hk.Observed(), nil
 }
 
 // UpdateTartKubelet rolls a new tart-kubelet binary onto an
-// already-bootstrapped Mac mini. Refreshes the kubeconfig (token
-// rotation, server-URL changes, or hosts that were bootstrapped before
-// tart-kubelet existed at all), uploads the latest binary, and reloads
-// the launchd job.
+// already-bootstrapped Mac mini, plus any operator-managed host
+// artifacts whose drift-tracked SHA changed since the last reconcile.
+// Today that's tart-kubelet itself and Tailscale; future host-side
+// installs hook in here by adding their step + their SHA tracking on
+// the Machine status.
 //
-// Skips the one-shot host prep (sudo, auto-login, hostname, Tart) —
-// those don't change between updates. The launchd `bootout`+`bootstrap`
-// cycle runs unconditionally — it's a ~1-second agent restart and Tart
-// VMs survive `nohup`-detached, so workloads are unaffected. The
-// kubelet's startup state-recovery pass re-binds them on the new agent.
+// Refreshes the kubeconfig (token rotation, server-URL changes, or
+// hosts bootstrapped before tart-kubelet existed at all), uploads the
+// latest binary, re-runs installTailscale when the host has the
+// Tailscale binaries + auth key wired (the install step is itself
+// idempotent — it bootouts the running daemon, swaps binaries, and
+// re-registers — so re-running is safe; also handles future version
+// bumps via the same operator-image-bump → drift-reconcile path),
+// and reloads the launchd job.
+//
+// Skips one-shot host prep (sudo, auto-login, hostname, Tart, pf
+// firewall) — those don't change between updates and re-running them
+// would either be wasted SSH work or risk disrupting the running VMs
+// (Tart). The launchd `bootout`+`bootstrap` cycle runs unconditionally
+// — it's a ~1-second agent restart and Tart VMs survive
+// `nohup`-detached, so workloads are unaffected. The kubelet's startup
+// state-recovery pass re-binds them on the new agent.
 //
 // Returns the observed host fingerprint for the same reason Run does.
 // On the update path KnownHostFingerprint is normally already set (the
@@ -196,36 +294,42 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("parse ssh key: %w", err)
 	}
-	hk := newHostKeyState(cfg.KnownHostFingerprint)
-	client, err := dial(cfg.IP, cfg.SSHUser, signer, hk)
+	hk := NewHostKeyState(cfg.KnownHostFingerprint)
+	client, err := Dial(cfg.IP, cfg.SSHUser, signer, hk)
 	if err != nil {
 		return "", err
 	}
 	defer client.Close()
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
-		return hk.observed(), fmt.Errorf("refresh kubeconfig: %w", err)
+		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
-		return hk.observed(), fmt.Errorf("install tart-kubelet: %w", err)
+		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := installTailscale(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
+	}
+	if err := installNodeExporter(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
-		return hk.observed(), fmt.Errorf("reload launchd job: %w", err)
+		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
 	}
-	return hk.observed(), nil
+	return hk.Observed(), nil
 }
 
-// setHostname makes the macOS hostname match the CR name, so
+// SetHostname makes the macOS hostname match the CR name, so
 // `os.Hostname()` inside tart-kubelet (the default --node-name) lines
 // up with the inventory. The operator passes --node-name explicitly
 // regardless; this is belt-and-braces.
-func setHostname(ctx context.Context, client *ssh.Client, name string) error {
+func SetHostname(ctx context.Context, client *ssh.Client, name string) error {
 	script := fmt.Sprintf(`set -euo pipefail
 sudo scutil --set HostName %[1]s
 sudo scutil --set LocalHostName %[1]s
 sudo scutil --set ComputerName %[1]s
 `, shellQuote(name))
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
 // writeKubeconfig drops the controller-built kubeconfig at the
@@ -239,7 +343,7 @@ sudo mkdir -p /etc/tart-kubelet
 sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
-	return runCommandWithStdin(ctx, client, script, kubeconfig)
+	return RunCommandWithStdin(ctx, client, script, kubeconfig)
 }
 
 // installTartKubelet uploads the operator-baked tart-kubelet binary
@@ -260,22 +364,54 @@ func installTartKubelet(ctx context.Context, client *ssh.Client, binary []byte) 
 sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tart-kubelet >/dev/null
 sudo chmod 0755 /usr/local/bin/tart-kubelet
+# Re-sign in place. The binary already carries a valid Go linker ad-hoc
+# signature, but overwriting /usr/local/bin/tart-kubelet at the same inode
+# leaves macOS's AMFI validating the new pages against the previous
+# binary's cached cdhash — a mismatch the kernel kills as
+# OS_REASON_CODESIGNING on the next launch, stranding the Node NotReady.
+# A forced ad-hoc re-sign refreshes the signature and invalidates that
+# stale cache so the rolled binary actually runs.
+sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
-	return runCommandWithStdin(ctx, client, script, string(binary))
+	return RunCommandWithStdin(ctx, client, script, string(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
 // with this host's flags substituted in, fixes ownership on the
 // kubelet's writable paths so the SSH user owns them (the launchd job
 // runs as that user — see the comment in renderLaunchdPlist), then
-// `launchctl bootstrap`s it. Idempotent across reruns.
+// reloads the launchd job and verifies it actually came up. Idempotent
+// across reruns.
+//
+// The reload is the fragile part on a headless Mac, and getting it
+// wrong is what strands a fleet Node NotReady:
+//
+//   - Re-registration churn: every `bootout`+`bootstrap` re-registers
+//     the plist with macOS Background Task Management. BTM caps "legacy
+//     daemon" notifications and, once exceeded, stops honouring the
+//     job's KeepAlive automatic respawn — so a later clean exit never
+//     restarts and the Node goes NotReady. We avoid this by only
+//     rewriting + bootout/bootstrapping when the plist content actually
+//     changed; a binary-only roll (the common drift case) leaves the
+//     launchd args identical, so we restart in place with `kickstart -k`
+//     instead, which re-execs the new binary without touching BTM.
+//
+//   - Silent reload failure: `bootout` immediately followed by
+//     `bootstrap` can race (or be BTM-throttled) and leave the job
+//     booted-out, which KeepAlive cannot recover. The old code returned
+//     success regardless, so the reconciler recorded the SHA roll as
+//     done and never retried, leaving the Node NotReady indefinitely.
+//     We now poll for a live PID, force a `kickstart` if it didn't come
+//     up, and exit non-zero if it still won't run — so the caller keeps
+//     the drift set and retries instead of recording a roll that never
+//     took.
 func loadTartKubeletLaunchd(ctx context.Context, client *ssh.Client, cfg Config) error {
 	plist := renderLaunchdPlist(cfg)
 	script := fmt.Sprintf(`set -euo pipefail
 PLIST=/Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
-sudo tee "$PLIST" >/dev/null
-sudo chown root:wheel "$PLIST"
-sudo chmod 0644 "$PLIST"
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+cat >"$NEW"
 # Apple's Virtualization.framework requires the calling process to be
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
@@ -285,12 +421,52 @@ sudo touch /var/log/tart-kubelet.log
 sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
-# launchctl bootstrap is the modern API; bootout first to make this
-# idempotent across reruns with new args.
-sudo launchctl bootout system "$PLIST" 2>/dev/null || true
-sudo launchctl bootstrap system "$PLIST"
+
+# pid prints the launchd-tracked PID (empty when not running). settled
+# waits for a NEW pid (different from the pre-reload one) and confirms it
+# is still the same a few seconds later. That rules out two false
+# positives: a no-op kickstart that leaves the old process running, and a
+# crash-looping launch (e.g. an OS_REASON_CODESIGNING kill) that briefly
+# shows a transient pid on each respawn — neither must be mistaken for a
+# successful roll into the freshly-uploaded binary.
+pid() { sudo launchctl print system/dev.tuist.tart-kubelet 2>/dev/null | awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}' || true; }
+OLD="$(pid)"
+settled() {
+  for _ in $(seq 1 20); do
+    p="$(pid)"
+    if [ -n "$p" ] && [ "$p" != "$OLD" ]; then
+      sleep 5
+      [ "$(pid)" = "$p" ] && return 0 || return 1
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Restart in place when the plist is unchanged and a process is running
+# (avoids BTM re-registration churn); otherwise rewrite it and
+# bootout+bootstrap to pick up the new args / start it fresh.
+if cmp -s "$NEW" "$PLIST" && [ -n "$OLD" ]; then
+  sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+else
+  sudo cp "$NEW" "$PLIST"
+  sudo chown root:wheel "$PLIST"
+  sudo chmod 0644 "$PLIST"
+  sudo launchctl bootout system "$PLIST" 2>/dev/null || true
+  sudo launchctl bootstrap system "$PLIST" 2>/dev/null || true
+fi
+
+# Require a fresh, stable process — then force a kickstart and re-check if
+# the reload didn't restart it. Exit non-zero if it never settles so the
+# reconciler keeps the drift set and retries instead of recording a roll
+# that never took.
+settled && exit 0
+sudo launchctl kickstart -k system/dev.tuist.tart-kubelet 2>/dev/null || true
+settled && exit 0
+echo "tart-kubelet did not reach a running state after launchd reload" >&2
+exit 1
 `, shellQuote(cfg.SSHUser))
-	return runCommandWithStdin(ctx, client, script, plist)
+	return RunCommandWithStdin(ctx, client, script, plist)
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -340,11 +516,33 @@ func renderLaunchdPlist(cfg Config) string {
 		}
 		nodeLabelsArg = fmt.Sprintf("\n    <string>--node-labels=%s</string>", strings.Join(pairs, ","))
 	}
+	// Switch tart-kubelet's NodeIP resolution to the Tailscale CLI
+	// whenever the operator wired Tailscale into this host. Without
+	// the flag kubelet would pick the first non-loopback interface,
+	// which on a Scaleway Mac mini is the public IP — Pods' PodIP
+	// rewrite would then advertise an unauthenticated host:port to
+	// the cluster scrapers, defeating the tailnet boundary. We gate
+	// on the auth key (not just the pkg) so a chart bring-up where
+	// the key hasn't been provisioned yet falls back cleanly rather
+	// than wedging kubelet on a missing `tailscale ip` lookup.
+	nodeIPSourceArg := ""
+	if len(cfg.TailscaleBinaries) > 0 && cfg.TailscaleAuthKey != "" {
+		nodeIPSourceArg = "\n    <string>--node-ip-source=tailscale</string>"
+	}
+	// providerID binds the Node to its CAPI Machine. Rendered as a flag so
+	// freshly-provisioned and re-rolled nodes self-bind without a manual
+	// `kubectl patch node ... providerID`. Empty (e.g. before the server
+	// is ordered) omits it; tart-kubelet then leaves spec.providerID unset
+	// and a later reconcile re-renders the plist once it's known.
+	providerIDArg := ""
+	if cfg.ProviderID != "" {
+		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
 	// "Failed to get current host key" otherwise. The auto-login we
-	// configured in `enableAutoLogin` puts m1 on the console at boot;
+	// configured in `EnableAutoLogin` puts m1 on the console at boot;
 	// matching the launchd job's UserName lines tart up with that
 	// session.
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -362,7 +560,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -376,33 +574,33 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg)
 }
 
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// hostKeyState wires SSH dials to the persisted-fingerprint TOFU
-// flow. The same instance is shared across waitForSSH retries and the
+// HostKeyState wires SSH dials to the persisted-fingerprint TOFU
+// flow. The same instance is shared across WaitForSSH retries and the
 // real dial: when we capture a fingerprint on a probe dial the real
 // dial verifies against it, so an attacker can't inject a different
 // host key between the two.
-type hostKeyState struct {
+type HostKeyState struct {
 	mu       sync.Mutex
 	expected string // empty until first observation; persisted by caller
 	captured string // SHA256 of the key the host actually presented
 }
 
-func newHostKeyState(known string) *hostKeyState {
-	return &hostKeyState{expected: known}
+func NewHostKeyState(known string) *HostKeyState {
+	return &HostKeyState{expected: known}
 }
 
-// observed returns the fingerprint the host actually presented during
+// Observed returns the fingerprint the host actually presented during
 // the dial, or the expected value if the dial never happened. The
 // controller persists this so the next reconcile starts with a known
 // host.
-func (h *hostKeyState) observed() string {
+func (h *HostKeyState) Observed() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.captured != "" {
@@ -411,7 +609,7 @@ func (h *hostKeyState) observed() string {
 	return h.expected
 }
 
-func (h *hostKeyState) callback() ssh.HostKeyCallback {
+func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
 		got := ssh.FingerprintSHA256(key)
 		h.mu.Lock()
@@ -436,23 +634,38 @@ func (h *hostKeyState) callback() ssh.HostKeyCallback {
 	}
 }
 
-func dial(ip, user string, signer ssh.Signer, hk *hostKeyState) (*ssh.Client, error) {
+func Dial(ip, user string, signer ssh.Signer, hk *HostKeyState) (*ssh.Client, error) {
+	return DialAuth(ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// DialAuth is Dial parameterised over the auth method list. Use it
+// when the caller wants something other than a single in-process
+// signer, e.g. SSH agent auth where the keys live in 1Password and
+// the agent socket signs on demand. Same host-key TOFU semantics as
+// Dial.
+func DialAuth(ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) (*ssh.Client, error) {
 	cfg := &ssh.ClientConfig{
 		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: hk.callback(),
+		Auth:            auth,
+		HostKeyCallback: hk.Callback(),
 		Timeout:         15 * time.Second,
 	}
 	return ssh.Dial("tcp", ip+":22", cfg)
 }
 
-func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hostKeyState) error {
+func WaitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *HostKeyState) error {
+	return WaitForSSHAuth(ctx, ip, user, []ssh.AuthMethod{ssh.PublicKeys(signer)}, hk)
+}
+
+// WaitForSSHAuth is WaitForSSH parameterised over the auth method
+// list. Same semantics as DialAuth.
+func WaitForSSHAuth(ctx context.Context, ip, user string, auth []ssh.AuthMethod, hk *HostKeyState) error {
 	deadline := time.Now().Add(5 * time.Minute)
 	for {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("SSH not available after 5m at %s", ip)
 		}
-		client, err := dial(ip, user, signer, hk)
+		client, err := DialAuth(ip, user, auth, hk)
 		if err == nil {
 			client.Close()
 			return nil
@@ -465,7 +678,7 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 	}
 }
 
-// enablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
+// EnablePasswordlessSudo writes a sudoers.d entry for the SSH user. We
 // authenticate the initial sudo with the SSH user's password supplied
 // by the caller; subsequent sudo calls don't need it.
 //
@@ -482,13 +695,13 @@ func waitForSSH(ctx context.Context, ip, user string, signer ssh.Signer, hk *hos
 //
 // File-existence check still short-circuits the common case where
 // the operator already staged the sudoers entry before adoption.
-func enablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
+func EnablePasswordlessSudo(ctx context.Context, client *ssh.Client, user, password string) error {
 	if password == "" {
 		// Idempotency-only path: if the sudoers file is there, fine;
 		// if not, return without touching PAM so we don't ramp the
 		// lockout counter on every reconcile.
 		check := fmt.Sprintf(`test -f /etc/sudoers.d/%[1]s-nopasswd`, user)
-		return runCommand(ctx, client, check)
+		return RunCommand(ctx, client, check)
 	}
 	script := fmt.Sprintf(`set -euo pipefail
 if [ -f /etc/sudoers.d/%[1]s-nopasswd ]; then exit 0; fi
@@ -497,10 +710,10 @@ echo '%[2]s' | sudo -S tee /etc/sudoers.d/%[1]s-nopasswd > /dev/null <<EOF
 EOF
 sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 `, user, password)
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
-// enableAutoLogin sets the macOS auto-login flag so a desktop session
+// EnableAutoLogin sets the macOS auto-login flag so a desktop session
 // exists at boot. Tart's Virtualization.framework requires a live
 // console session — without this, every `tart run` returns
 // "Virtualization is not available because no graphic console is
@@ -509,7 +722,7 @@ sudo chmod 440 /etc/sudoers.d/%[1]s-nopasswd
 // macOS implements auto-login via:
 //   - /etc/kcpassword (XOR-encoded password with Apple's well-known key)
 //   - com.apple.loginwindow.autoLoginUser preference
-func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
+func EnableAutoLogin(ctx context.Context, client *ssh.Client, user, password string) error {
 	// No password to XOR into /etc/kcpassword means we'd write a
 	// broken kcpassword (just the cipher key with no plaintext under
 	// it) and macOS would silently fail to auto-login the user. That
@@ -534,33 +747,69 @@ func enableAutoLogin(ctx context.Context, client *ssh.Client, user, password str
 	// which means tart-kubelet's `tart run` fails on every pod even
 	// after Tart and the kubelet are correctly installed.
 	//
-	// Killing loginwindow with SIGHUP forces it to respawn, and the
-	// respawned process — unlike the boot-time process — does honor
-	// the auto-login preference, brings up the Aqua session, and the
-	// bridge100 vmnet interface starts working. Idempotent: if the
-	// Aqua session already exists, the kick still works (loginwindow
-	// re-establishes it cleanly) and we accept that small cost over
-	// branching on session state.
+	// `launchctl kickstart -k system/com.apple.loginwindow` is the
+	// modern way to do this and handles both cases uniformly:
+	//   * loginwindow IS running: SIGTERM the existing instance and
+	//     respawn it.
+	//   * loginwindow is NOT running: just spawn it.
+	// `killall -HUP loginwindow` (the previous approach) exits 1 with
+	// "No matching processes were found" when loginwindow is missing,
+	// which is the state we land in if the host had loginwindow exit
+	// via SIGHUP earlier (launchd's policy is to not auto-respawn
+	// after SIGHUP for a console-bound daemon). kickstart talks to
+	// launchd's service registry directly so the missing-process case
+	// is a clean start, not an error.
 	script := fmt.Sprintf(`set -euo pipefail
 echo '%[2]s' | base64 -d | sudo tee /etc/kcpassword > /dev/null
 sudo chmod 600 /etc/kcpassword
 sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser '%[1]s'
-sudo killall -HUP loginwindow 2>/dev/null || true
+sudo launchctl kickstart -k system/com.apple.loginwindow 2>/dev/null || true
 # Wait for the Aqua session to come up. loginwindow respawn typically
-# takes <2s; 30s is generous. If it still doesn't appear we let
-# bootstrap continue — Stage 2 of reconcileNormal will retry on the
-# next reconcile if VZ subsequently rejects the VM start.
+# takes <2s; 30s is generous. If it still doesn't appear we still
+# proceed to the kcpassword verification below before failing — the
+# Aqua check is best-effort because launchctl's session inspection
+# semantics vary between macOS releases.
+session_up=0
 for i in $(seq 1 30); do
   if sudo launchctl print "gui/$(id -u '%[1]s')" 2>/dev/null | grep -q 'session = Aqua'; then
-    exit 0
+    session_up=1
+    break
   fi
   sleep 1
 done
+
+# Verify /etc/kcpassword wasn't replaced by macOS Tahoe's "<sealed>"
+# marker. When the password we wrote doesn't actually match the
+# user's, loginwindow rejects the auto-login attempt and overwrites
+# /etc/kcpassword with the XOR-encoded literal string "<sealed>"
+# (8 bytes + 3 NUL padding = 11 bytes total). Bootstrap silently
+# completes but every subsequent reboot fails to bring up an Aqua
+# session — Tart can't start guests, all runner pods hit
+# TartCreateFailed indefinitely.
+#
+# Read kcpassword as root and XOR-decode it; the first 8 bytes are
+# the signal. Python exit 1 here propagates via 'set -e' and fails
+# the bootstrap loudly, so the operator fixes the bootstrap-Secret-
+# vs-host password drift before the host ships.
+sudo /usr/bin/python3 - <<'CHECK'
+import sys
+key = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])
+with open('/etc/kcpassword', 'rb') as f:
+    enc = f.read()
+dec = bytes(b ^ key[i %% len(key)] for i, b in enumerate(enc))
+if dec.startswith(b'<sealed>'):
+    sys.stderr.write("kcpassword replaced by macOS with <sealed> marker — bootstrap-stored password does not match m1's actual password on this host\n")
+    sys.exit(1)
+CHECK
+
+if [ "$session_up" = "0" ]; then
+  echo "WARN: Aqua session for %[1]s did not appear after loginwindow kick; bootstrap continues — VM-start preflight will retry"
+fi
 `, user, encoded)
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
-// disableIdleSleep stops macOS from tearing the user's Aqua session
+// DisableIdleSleep stops macOS from tearing the user's Aqua session
 // down out from under tart-kubelet. Apple's Virtualization framework
 // needs the auto-login user to hold a live console session at the
 // moment of `tart run`; if the host idle-sleeps, the screensaver
@@ -593,14 +842,14 @@ done
 // Idempotent: every call writes the same values regardless of prior
 // state. Failures here are fatal because there's no point shipping
 // a host that will silently fall over an hour after bootstrap.
-func disableIdleSleep(ctx context.Context, client *ssh.Client) error {
+func DisableIdleSleep(ctx context.Context, client *ssh.Client) error {
 	script := `set -euo pipefail
 sudo pmset -a sleep 0 displaysleep 0 disksleep 0
 sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0
 sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0
 sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0
 `
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
 }
 
 // kcpasswordKey is Apple's well-known XOR cipher used to obfuscate
@@ -649,7 +898,7 @@ EOF
 sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
-	return runCommandWithStdin(ctx, client, script, string(tarball))
+	return RunCommandWithStdin(ctx, client, script, string(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -708,8 +957,8 @@ sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
 # IMPORTANT: rules are evaluated last-match-wins; the explicit
 # block lines run AFTER the default pass via the 'quick' keyword.
 
-table <vm_sources> persist { 192.168.64.0/22 }
-table <blocked_dst> persist { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
+table <vm_sources> { 192.168.64.0/22 }
+table <blocked_dst> { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
 
 # Drop VM→private destinations at the host edge.
 block drop out quick from <vm_sources> to <blocked_dst>
@@ -721,28 +970,48 @@ block drop out quick from <vm_sources> to <blocked_dst>
 block drop out quick from <vm_sources> to 169.254.169.254
 PFCONF
 
-# Splice the anchor into /etc/pf.conf if it isn't already there.
-# /etc/pf.conf is editable per-host (vs. /System/Library which is
-# SIP-protected); macOS's default pf.conf carries a marker line
-# we anchor our insert against.
-if ! sudo grep -q "anchor \"tuist.runners\"" /etc/pf.conf; then
-  sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
-
+# Manage the anchor block in /etc/pf.conf via begin/end markers.
+# Strip-and-append between markers is idempotent and convergent:
+# any number of pre-existing marker-delimited blocks (duplicates
+# from a stuttering reconcile, partial writes from a prior crashed
+# run) get removed before the canonical block is written.
+sudo sed -i.bak '/^# BEGIN tuist.runners$/,/^# END tuist.runners$/d' /etc/pf.conf
+sudo rm -f /etc/pf.conf.bak
+sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+# BEGIN tuist.runners
 # Tuist runner VM egress filter — see /etc/pf.anchors/tuist.runners
 anchor "tuist.runners"
 load anchor "tuist.runners" from "/etc/pf.anchors/tuist.runners"
+# END tuist.runners
 PFCONFENTRY
-fi
 
-# Flush any state already loaded under our anchor before validating.
-# The 'persist' tables defined in the anchor file (vm_sources,
-# blocked_dst) survive across 'pfctl -f' invocations once loaded;
-# without flushing, a re-run on an already-bootstrapped host fails
-# the validation step below with 'cannot define table vm_sources:
-# Resource busy'. Flushing only our own anchor leaves the system's
-# main ruleset untouched. Tolerate failure here — on a first-run
-# host the anchor doesn't exist yet, and pfctl returns non-zero.
-sudo pfctl -a tuist.runners -F all 2>/dev/null || true
+# Reset the anchor's kernel-resident ruleset before the validate.
+# Hosts that previously ran an older version of this script left
+# persist-flagged 'vm_sources' / 'blocked_dst' tables in the
+# kernel, and 'pfctl -nf' on a config that redefines them dies on
+# EBUSY ("cannot define table vm_sources: Resource busy") — the
+# validate doesn't tolerate redefinition while a prior persist
+# table is still in kernel state.
+#
+# pfctl(8) defines '-T kill' as "Kill a table" — i.e. destroy it
+# from kernel state — and that's the only command that removes a
+# persist'd table. '-F all' / '-F Tables' explicitly preserve
+# persist tables (they only flush addresses), so they can't repair
+# this on their own. We do '-T kill' at both anchor scope AND
+# top-level scope: in practice older versions of this script have
+# at various times placed these tables in either location, and the
+# 2>/dev/null swallows the "no such table" error for the location
+# that doesn't apply on a given host.
+#
+# Belt-and-suspenders: after the kills, load an empty ruleset into
+# the anchor so any leftover anchor-level rules referencing the
+# old tables get cleared too, before pf(4) sees the redefinition
+# attempt in the validate below.
+sudo pfctl -a tuist.runners -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -a tuist.runners -t blocked_dst -T kill 2>/dev/null || true
+sudo pfctl -t vm_sources -T kill 2>/dev/null || true
+sudo pfctl -t blocked_dst -T kill 2>/dev/null || true
+echo "" | sudo pfctl -a tuist.runners -f - 2>/dev/null || true
 
 # Validate the ruleset before activating. -nf parses without
 # loading; if this fails we want a clear bootstrap error rather
@@ -784,16 +1053,287 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
-	return runCommand(ctx, client, script)
+	return RunCommand(ctx, client, script)
+}
+
+// installTailscale joins the Mac mini to the cluster's tailnet using
+// Tailscale's open-source `tailscaled` variant — the canonical
+// headless-server install path per
+// https://github.com/tailscale/tailscale/wiki/Tailscaled-on-macOS.
+// Three stages, each idempotent:
+//
+//  1. Write the auth key to a chmod-0600 file on the host via a
+//     dedicated SSH session whose script body doesn't reference the
+//     key. The key flows via stdin; the install script reads it back
+//     with `$(sudo cat …)` so the formatted script (and any error
+//     wrapping it) never contains the literal key.
+//  2. Extract the operator-baked `tailscale`+`tailscaled` darwin/arm64
+//     binaries to /usr/local/bin and call `tailscaled
+//     install-system-daemon`, which writes its own
+//     /Library/LaunchDaemons/com.tailscale.tailscaled.plist and starts
+//     the daemon. Direct equivalent of `systemctl enable --now
+//     tailscaled` on Linux. Idempotent on re-runs (we bootout the old
+//     job first so new binaries aren't held open).
+//  3. `tailscale up` with the per-fleet pre-auth key. Reusable+
+//     ephemeral keys mean every Mac mini in the fleet uses the same
+//     key and stale node records age out automatically — the right
+//     shape for a CAPI-managed fleet where machines come and go.
+//
+// No-op when TailscaleBinaries or TailscaleAuthKey is empty: the
+// chart's per-env values gate the tailnet end-to-end, and a partial
+// config shouldn't half-bring-up a node.
+func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.TailscaleBinaries) == 0 || cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+
+	// Stage 1: write the auth key. See function-level comment for the
+	// security rationale.
+	keyScript := `set -euo pipefail
+sudo mkdir -p /etc/tuist
+sudo tee /etc/tuist/tailscale-auth-key >/dev/null
+sudo chmod 0600 /etc/tuist/tailscale-auth-key`
+	if err := RunCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
+		return fmt.Errorf("stage tailscale auth key: %w", err)
+	}
+
+	tagsArg := ""
+	if len(cfg.TailscaleTags) > 0 {
+		// Tailscale accepts a comma-separated list — auth-key-bound
+		// tags must already be allowed by the tailnet's tagOwners
+		// ACL, which lives in infra/tailscale/acls.json.
+		tagsArg = fmt.Sprintf(" --advertise-tags=%s", shellQuote(strings.Join(cfg.TailscaleTags, ",")))
+	}
+	hostnameArg := ""
+	if cfg.NodeName != "" {
+		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
+	}
+
+	// Stage 2: extract binaries, register daemon, bring up.
+	//
+	// NB: explicitly NOT using `set -x` here. `set -x` prints commands
+	// after variable expansion, which would echo the `$(sudo cat
+	// /etc/tuist/tailscale-auth-key)` substitution as the literal key
+	// in the trace — and that trace ends up in the SSH stderr buffer
+	// that gets wrapped into the controller's error message, which is
+	// in turn written to Machine.status.failureMessage (visible via
+	// kubectl) and the controller log stream (which ships to Loki).
+	// Per-step diagnostics come from explicit log-file capture on the
+	// failure branches below.
+	script := fmt.Sprintf(`set -euo pipefail
+# Always remove the auth key file when this script exits — success
+# or failure. Set the trap first thing so a later abort still cleans
+# up.
+trap 'sudo rm -f /etc/tuist/tailscale-auth-key' EXIT
+
+# Stop any running tailscaled before swapping binaries — a running
+# daemon holds file handles on the old executable and replacing it
+# while loaded is undefined behaviour. bootout is idempotent; the
+# job may not be loaded yet on a fresh host.
+sudo launchctl bootout system/com.tailscale.tailscaled 2>/dev/null || true
+
+# Extract tailscale + tailscaled into /usr/local/bin. The operator
+# image's tarball contains exactly these two files at the top
+# level. Same shape as how installTartKubelet ships its binary.
+sudo tar -xzf - -C /usr/local/bin tailscale tailscaled
+sudo chmod 0755 /usr/local/bin/tailscale /usr/local/bin/tailscaled
+
+# Make sure the state + socket directories exist before launchd
+# tries to spawn tailscaled. Without /var/lib/tailscale the daemon
+# exits with EX_CONFIG (78) before it can even write to its log.
+sudo mkdir -p /var/lib/tailscale /var/run
+
+# Write our own launchd plist instead of calling
+# 'tailscaled install-system-daemon'. The subcommand writes a
+# minimal plist with just the binary path — no flags, no
+# StandardErrorPath — so when tailscaled crashes early there's
+# nowhere to read what went wrong (we hit this in staging: the
+# subcommand-written plist exited with EX_CONFIG and the diagnostic
+# block found no log file). Our plist:
+#   - explicit --state / --socket / --port flags so the daemon
+#     never has to guess defaults
+#   - StandardErrorPath + StandardOutPath aimed at
+#     /var/log/tailscaled.log so the diagnostic block can always
+#     read crash logs on the next reconcile
+#   - KeepAlive=true + ThrottleInterval=10 so launchd restarts the
+#     daemon if it dies (same shape as our other launchd plists)
+# Direct equivalent of writing a systemd unit on Linux: we own the
+# unit, we know what it says, idempotent on bootout+bootstrap.
+sudo tee /Library/LaunchDaemons/com.tailscale.tailscaled.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tailscale.tailscaled</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tailscaled</string>
+    <string>--state=/var/lib/tailscale/tailscaled.state</string>
+    <string>--socket=/var/run/tailscaled.socket</string>
+    <string>--port=41641</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tailscaled.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tailscaled.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+sudo chmod 0644 /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+# Reload via bootout+bootstrap so the new plist is picked up.
+sudo launchctl bootout system /Library/LaunchDaemons/com.tailscale.tailscaled.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.tailscale.tailscaled.plist
+
+# Wait for tailscaled to accept IPC before sending it 'up'.
+# install-system-daemon returns before the daemon finishes
+# initializing — without this wait, 'up' would fail immediately
+# with "Tailscale is not running" and set -e would abort the
+# script. 30s is generous; in practice the daemon is ready in <2s.
+DAEMON_READY=false
+for i in $(seq 1 30); do
+  if sudo /usr/local/bin/tailscale status --self --json >/dev/null 2>&1; then
+    DAEMON_READY=true
+    break
+  fi
+  sleep 1
+done
+if [ "$DAEMON_READY" != true ]; then
+  # tailscaled exists at /usr/local/bin/tailscaled and
+  # install-system-daemon returned 0 above, but the daemon never
+  # came up enough to answer IPC. Dump the launchd job state and
+  # the daemon's own log — the most likely failure modes are
+  # binary signature / quarantine rejection by macOS, or a runtime
+  # error inside tailscaled that crashes it on start.
+  echo "tailscaled never accepted IPC within 30s; diagnostics below:" >&2
+  echo "--- launchctl list | grep tailscale ---" >&2
+  sudo launchctl list 2>&1 | grep -i tailscale >&2 || echo "(no matching jobs)" >&2
+  echo "--- launchctl print system/com.tailscale.tailscaled ---" >&2
+  sudo launchctl print system/com.tailscale.tailscaled 2>&1 | head -n 40 >&2 || true
+  echo "--- tail -n 80 /var/log/tailscaled.log ---" >&2
+  sudo tail -n 80 /var/log/tailscaled.log 2>&1 >&2 || echo "(log file unreadable)" >&2
+  echo "--- ls -l /usr/local/bin/tailscaled /Library/LaunchDaemons/com.tailscale.tailscaled.plist ---" >&2
+  sudo ls -l /usr/local/bin/tailscaled /Library/LaunchDaemons/com.tailscale.tailscaled.plist 2>&1 >&2 || true
+  exit 1
+fi
+
+# Capture up's combined stdout+stderr so a failure surfaces
+# actionable diagnostics. The auth key is expanded by the remote
+# shell from the file Stage 1 wrote; the formatted script body
+# sent over SSH never contains the literal key.
+TS_UP_LOG=$(mktemp)
+trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
+if ! sudo /usr/local/bin/tailscale up \
+    --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
+    --reset \
+    --ssh=false%[1]s%[2]s >"$TS_UP_LOG" 2>&1; then
+  echo "tailscale up failed (output below):" >&2
+  sudo cat "$TS_UP_LOG" >&2
+  exit 1
+fi
+
+# Block until the daemon advertises a tailnet IPv4 — the kubelet
+# launchd job that boots next reads 'tailscale ip -4' to populate
+# its --node-ip. A 'tailscale up' that returned 0 but hasn't
+# announced an IP yet would race the kubelet startup.
+for i in $(seq 1 30); do
+  if sudo /usr/local/bin/tailscale ip -4 2>/dev/null | grep -qE '^100\.'; then
+    exit 0
+  fi
+  sleep 1
+done
+echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
+sudo /usr/local/bin/tailscale status >&2 || true
+exit 1
+`, hostnameArg, tagsArg)
+	return RunCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
+}
+
+// installNodeExporter drops the cross-compiled darwin/arm64 binary,
+// binds it to the tailnet IP on :9100, and supervises it via launchd.
+//
+// Bind interface (not 0.0.0.0): the public interface on a Scaleway
+// Mac mini is internet-reachable, and `:9100` is the kind of port
+// scanners actively probe. The launchd plist resolves the tailnet
+// IP at job-start time via `tailscale ip -4`, identical to how
+// tart-kubelet resolves its NodeIP — same fail mode, same recovery.
+//
+// No-op when either Tailscale isn't wired (NodeExporterBinary empty
+// implies the operator didn't ship one) or the auth key is missing
+// (no tailnet to bind to). Either case falls through cleanly.
+func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.NodeExporterBinary) == 0 || cfg.TailscaleAuthKey == "" {
+		return nil
+	}
+	script := `set -euo pipefail
+sudo mkdir -p /usr/local/bin
+sudo tee /usr/local/bin/node_exporter >/dev/null
+sudo chmod 0755 /usr/local/bin/node_exporter
+sudo tee /usr/local/bin/tuist-node-exporter-wrapper >/dev/null <<'WRAPPER'
+#!/bin/sh
+# Resolve the Mac mini's tailnet IPv4 fresh on every (re)start so
+# Tailscale daemon restarts that re-allocate the address still leave
+# node_exporter bound somewhere useful. Block briefly for the daemon
+# to settle if launchd raced us during boot.
+for i in 1 2 3 4 5; do
+  TAILSCALE_IP="$(/usr/local/bin/tailscale ip -4 2>/dev/null | head -1)"
+  if [ -n "$TAILSCALE_IP" ]; then break; fi
+  sleep 2
+done
+if [ -z "$TAILSCALE_IP" ]; then
+  echo "tailscale ip -4 returned empty; node_exporter cannot bind safely" >&2
+  exit 1
+fi
+exec /usr/local/bin/node_exporter \
+  --web.listen-address="${TAILSCALE_IP}:9100" \
+  --collector.disable-defaults \
+  --collector.cpu \
+  --collector.diskstats \
+  --collector.filesystem \
+  --collector.loadavg \
+  --collector.meminfo \
+  --collector.netdev \
+  --collector.os \
+  --collector.time \
+  --collector.uname
+WRAPPER
+sudo chmod 0755 /usr/local/bin/tuist-node-exporter-wrapper
+sudo tee /Library/LaunchDaemons/dev.tuist.node-exporter.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.node-exporter</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-node-exporter-wrapper</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tuist-node-exporter.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tuist-node-exporter.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
+`
+	return RunCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================
 
-func runCommand(ctx context.Context, client *ssh.Client, cmd string) error {
-	return runCommandWithStdin(ctx, client, cmd, "")
+func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
+	return RunCommandWithStdin(ctx, client, cmd, "")
 }
 
-func runCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
+func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err

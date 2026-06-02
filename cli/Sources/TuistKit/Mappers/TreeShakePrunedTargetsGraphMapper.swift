@@ -78,7 +78,8 @@ public struct TreeShakePrunedTargetsGraphMapper: GraphMapping {
         sourceTargets: Set<TargetReference>,
         prunedTargets: Set<TargetReference>
     ) -> Workspace {
-        let projects = workspace.projects.filter { projects.map(\.path).contains($0) }
+        let projectPaths = Set(projects.map(\.path))
+        let projects = workspace.projects.filter { projectPaths.contains($0) }
         let schemes = treeShake(
             schemes: workspace.schemes,
             sourceTargets: sourceTargets,

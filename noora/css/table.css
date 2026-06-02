@@ -103,16 +103,12 @@
       }
 
       & tr:not(:first-child):not([data-part="expanded-row"]) td {
-        box-shadow:
-          0 1px 0 0
-            light-dark(var(--noora-neutral-light-400), oklch(0% 0 0 / 80%))
-            inset,
-          0px 2px 0px 0px
-            light-dark(
-              oklch(from var(--noora-neutral-light-500) l c h / 30%),
-              oklch(from var(--noora-neutral-dark-900) l c h / 35%)
-            )
-            inset;
+        box-shadow: 0 1px 0 0
+          light-dark(
+            var(--noora-neutral-light-400),
+            var(--noora-neutral-dark-900)
+          )
+          inset;
       }
 
       & tr:not(:last-child) td {

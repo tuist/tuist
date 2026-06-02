@@ -96,6 +96,31 @@ green-field cluster.
 {{- .Values.runnersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "runners-fleet")) -}}
 {{- end -}}
 
+{{- define "tuist.buildersFleetName" -}}
+{{- .Values.buildersFleet.name | default (include "tuist.componentName" (dict "root" . "component" "builders-fleet")) -}}
+{{- end -}}
+
+{{/*
+Linux runner fleet name — the value of the
+`node.cluster.x-k8s.io/pool=` label CAPI's label-sync propagates from
+the runner MachineDeployment to each runner Node. The chart's Linux
+RunnerPool CRs render this as `spec.fleetSelector`; the
+runners-controller's podtemplate uses it as the Pod's nodeSelector
+on the `node.cluster.x-k8s.io/pool=` key.
+
+Cluster team-managed: the matching entry must exist in
+`infra/k8s/clusters/cluster-<env>.yaml` under
+`spec.topology.workers.machineDeployments[]` with
+`metadata.labels.node.cluster.x-k8s.io/pool: <this value>`.
+
+Defaults to `runners-linux` to match the convention in
+`cluster-staging.yaml`. Override via `runnersFleetLinux.name` only
+if the cluster topology uses a different pool name.
+*/}}
+{{- define "tuist.runnersFleetLinuxName" -}}
+{{- .Values.runnersFleetLinux.name | default "runners-linux" -}}
+{{- end -}}
+
 {{- define "tuist.objectStorageEndpoint" -}}
 {{- if eq .Values.objectStorage.mode "embedded" -}}
 http://{{ include "tuist.componentName" (dict "root" . "component" "object-storage") }}:9000
@@ -186,17 +211,44 @@ ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded
 {{- end -}}
 {{- end -}}
 
+{{/*
+CNPG generates one Secret per role: `<cluster-name>-app` (the owner role
+from `bootstrap.initdb.owner`) and one per managed role under the name
+declared in `managed.roles[].passwordSecret.name`. The owner Secret
+carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
+`dbname`. We mount `uri` straight into DATABASE_URL.
+*/}}
+{{- define "tuist.cnpgClusterName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "pg") -}}
+{{- end -}}
+
+{{- define "tuist.cnpgAppSecretName" -}}
+{{- printf "%s-app" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgServiceRW" -}}
+{{- printf "%s-rw" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgServiceRO" -}}
+{{- printf "%s-ro" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
-{{- else -}}
+{{- else if eq .Values.postgresql.mode "external" -}}
 ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external.password }}@{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- fail "tuist.databaseUrl is not literal under postgresql.mode=cnpg — wire DATABASE_URL from the CNPG-generated Secret via envFrom or secretKeyRef instead." -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "tuist.databaseHost" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{ include "tuist.cnpgServiceRW" . }}
 {{- else -}}
 {{- .Values.postgresql.external.host -}}
 {{- end -}}
@@ -204,6 +256,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 
 {{- define "tuist.databasePort" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
+5432
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
 5432
 {{- else -}}
 {{- .Values.postgresql.external.port -}}
@@ -213,6 +267,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- define "tuist.databaseName" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{- .Values.postgresql.embedded.database -}}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- .Values.postgresql.cnpg.database -}}
 {{- else -}}
 {{- .Values.postgresql.external.database -}}
 {{- end -}}
@@ -221,6 +277,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- define "tuist.databaseUsername" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{- .Values.postgresql.embedded.username -}}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- .Values.postgresql.cnpg.owner -}}
 {{- else -}}
 {{- .Values.postgresql.external.username -}}
 {{- end -}}
@@ -255,6 +313,27 @@ redis://{{ include "tuist.componentName" (dict "root" . "component" "redis") }}:
 http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collector") }}:4317
 {{- end -}}
 {{- end -}}
+
+{{/*
+Kura OAuth introspection client env vars. The values are synced from
+1Password into the server-external-secrets Secret when
+server.externalSecrets.kuraIntrospection.item is set.
+*/}}
+{{- define "tuist.kuraIntrospectionEnv" -}}
+{{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
+{{- if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
+- name: TUIST_KURA_INTROSPECTION_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: TUIST_KURA_INTROSPECTION_CLIENT_ID
+- name: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+{{- end }}
+{{- end }}
 
 {{/*
 License env vars. Resolves to (in order):

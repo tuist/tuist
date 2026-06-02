@@ -1,7 +1,60 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.194.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.12<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.195.12
+
+## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* hash the resolved embedded product closure into the cache content hash by [@fortmarek](https://github.com/fortmarek) in [#10984](https://github.com/tuist/tuist/pull/10984)
+* pass explicit working directory to manifest evaluation by [@fortmarek](https://github.com/fortmarek) in [#10996](https://github.com/tuist/tuist/pull/10996)
+* isolate acceptance fixtures from feature flags by [@pepicrft](https://github.com/pepicrft) in [#10993](https://github.com/tuist/tuist/pull/10993)
+* Fix Swift-only package framework modulemaps by [@pepicrft](https://github.com/pepicrft) in [#10971](https://github.com/tuist/tuist/pull/10971)
+* avoid checkout cwd for SwiftPM package dumps by [@pepicrft](https://github.com/pepicrft) in [#10966](https://github.com/tuist/tuist/pull/10966)
+* avoid expanding recursive exclusion globs by [@pepicrft](https://github.com/pepicrft) in [#10957](https://github.com/tuist/tuist/pull/10957)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.7...4.195.11
+
+## What's Changed in 4.195.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek) in [#10228](https://github.com/tuist/tuist/pull/10228)
+* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
+* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
+* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
+* respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
+* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft) in [#10920](https://github.com/tuist/tuist/pull/10920)
+* ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew) in [#10771](https://github.com/tuist/tuist/pull/10771)
+* preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft) in [#10911](https://github.com/tuist/tuist/pull/10911)
+* emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek) in [#10885](https://github.com/tuist/tuist/pull/10885)
+* pass explicit workingDirectory to swift package commands by [@fortmarek](https://github.com/fortmarek) in [#10891](https://github.com/tuist/tuist/pull/10891)
+* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft) in [#10874](https://github.com/tuist/tuist/pull/10874)
+* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek) in [#10872](https://github.com/tuist/tuist/pull/10872)
+* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek) in [#10870](https://github.com/tuist/tuist/pull/10870)
+* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek) in [#10864](https://github.com/tuist/tuist/pull/10864)
+* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh) in [#10853](https://github.com/tuist/tuist/pull/10853)
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+### ⚡ Performance
+
+* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403) in [#10033](https://github.com/tuist/tuist/pull/10033)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.7
+
+## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -18,7 +71,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.194.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.193.3...4.195.0
 
 ## What's Changed in 4.193.3<!-- RELEASE NOTES START -->
 

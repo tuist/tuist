@@ -12,6 +12,7 @@ defmodule TuistWeb.TestRunsLiveTest do
   describe "lists latest test runs" do
     setup do
       copy(RunsAnalytics)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
 
       stub(RunsAnalytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
@@ -29,7 +30,7 @@ defmodule TuistWeb.TestRunsLiveTest do
       organization: organization,
       project: project
     } do
-      ran_at = NaiveDateTime.add(NaiveDateTime.utc_now(), -60)
+      ran_at = ~N[2024-04-30 10:19:30]
 
       {:ok, _test_run1} =
         RunsFixtures.test_fixture(
@@ -60,12 +61,15 @@ defmodule TuistWeb.TestRunsLiveTest do
       organization: organization,
       project: project
     } do
+      ran_at = ~N[2024-04-30 10:20:00]
+
       for i <- 1..25 do
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: organization.account.id,
           scheme: "App-#{i}",
-          duration: i * 1000
+          duration: i * 1000,
+          ran_at: ran_at
         )
       end
 
@@ -91,6 +95,49 @@ defmodule TuistWeb.TestRunsLiveTest do
 
       # The cursor is cleared on initial load, so the page should load without error
       assert has_element?(lv, "[data-part='test-runs-table']")
+    end
+
+    test "filters runs whose branch does not contain a substring", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      ran_at = ~N[2024-04-30 10:19:30]
+
+      {:ok, _queue_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "Queued",
+          git_branch: "feature/gh-readonly-queue/main",
+          ran_at: ran_at
+        )
+
+      {:ok, _regular_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "Regular",
+          git_branch: "feature/main",
+          ran_at: ran_at
+        )
+
+      query =
+        URI.encode_query(%{
+          "filter_git_branch_op" => "!=~",
+          "filter_git_branch_val" => "gh-readonly-queue"
+        })
+
+      {:ok, lv, html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/tests/test-runs?#{query}"
+        )
+
+      assert has_element?(lv, "[data-part='test-runs-table']")
+      assert html =~ "does not contain"
+      assert html =~ "Regular"
+      refute html =~ "Queued"
     end
   end
 end

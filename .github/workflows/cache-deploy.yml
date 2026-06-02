@@ -27,6 +27,8 @@ env:
 
 jobs:
   deploy-canary:
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — `kamal deploy` builds the image locally.
     runs-on: namespace-profile-default
     timeout-minutes: 30
     environment: cache-canary
@@ -36,7 +38,6 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
@@ -49,6 +50,8 @@ jobs:
         run: |
           mise run deploy canary
   deploy-production:
+    # TODO: migrate to tuist-production-linux once the runner image ships
+    # a docker daemon — `kamal deploy` builds the image locally.
     runs-on: namespace-profile-default
     timeout-minutes: 30
     needs: deploy-canary
@@ -60,7 +63,6 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: cache
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1

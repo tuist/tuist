@@ -1,0 +1,20 @@
+{{- if .Values.certificate.enabled }}
+{{- $host := required "ingress.host is required when certificate.enabled is true" .Values.ingress.host -}}
+{{- $secretName := required "ingress.tlsSecretName is required when certificate.enabled is true" .Values.ingress.tlsSecretName -}}
+{{- $issuerName := required "certificate.issuerRef.name is required when certificate.enabled is true" .Values.certificate.issuerRef.name -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "noora-storybook.fullname" . }}-tls
+  labels:
+    {{- include "noora-storybook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: storybook
+spec:
+  secretName: {{ $secretName | quote }}
+  dnsNames:
+    - {{ $host | quote }}
+  issuerRef:
+    group: {{ .Values.certificate.issuerRef.group | quote }}
+    kind: {{ .Values.certificate.issuerRef.kind | quote }}
+    name: {{ $issuerName | quote }}
+{{- end }}
