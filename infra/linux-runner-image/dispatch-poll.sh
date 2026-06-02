@@ -75,11 +75,6 @@ while true; do
         sleep "${interval}"
         continue
       fi
-      # Per-job log token (see the macOS image for the rationale).
-      # When present we tail the runner's Worker diag log through
-      # tuist-log-tee to the server's log ingest endpoint.
-      log_token=$(jq -r '.log_token // empty' /tmp/dispatch.json)
-      logs_url="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/logs"
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # `--jitconfig` makes the runner ephemeral (one job + exit).
       # `--disableupdate` pins to whatever runner version is baked
@@ -88,49 +83,16 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
-      if [ -n "${log_token}" ] && command -v tuist-log-tee >/dev/null 2>&1; then
-        # Tail the Worker diag log instead of piping run.sh's stdout.
-        # See AGENTS.md for the rationale. Diagnostic `>>>` markers
-        # are streamed through the same pipeline to give us visibility
-        # into the diag-dir state from the staging Logs tab when the
-        # capture path looks wrong — they're harmless noise once the
-        # path is validated and can be ripped out in a follow-up.
-        {
-          printf '>>> dispatch-poll: pwd=%s\n' "$(pwd)"
-          printf '>>> dispatch-poll: ls _diag (pre-poll):\n'
-          ls -la "$(pwd)/_diag/" 2>&1 | sed 's/^/>>> _diag: /'
-
-          wlog=""
-          for _ in $(seq 1 60); do
-            wlog=$(ls -t "$(pwd)/_diag"/Worker_*.log 2>/dev/null | head -1)
-            [ -n "${wlog}" ] && break
-            sleep 1
-          done
-
-          printf '>>> dispatch-poll: wlog=%s\n' "${wlog}"
-          printf '>>> dispatch-poll: ls _diag (post-poll):\n'
-          ls -la "$(pwd)/_diag/" 2>&1 | sed 's/^/>>> _diag: /'
-
-          if [ -n "${wlog}" ]; then
-            printf '>>> dispatch-poll: tailing %s\n' "${wlog}"
-            exec tail -F -n +1 "${wlog}" 2>/dev/null
-          else
-            printf '>>> dispatch-poll: no Worker file matched after 60s; nothing to tail\n'
-          fi
-        } | tuist-log-tee --url "${logs_url}" --token "${log_token}" &
-        tee_pid=$!
-
-        ./run.sh --jitconfig "${jit}" --disableupdate
-        rc=$?
-
-        # Close the pipeline so tuist-log-tee sees EOF and flushes
-        # the `done:true` batch before the container exits.
-        kill -TERM "${tee_pid}" 2>/dev/null || true
-        wait "${tee_pid}" 2>/dev/null || true
-        exit "${rc}"
-      else
-        exec ./run.sh --jitconfig "${jit}" --disableupdate
-      fi
+      #
+      # Log capture happens server-side via GitHub's Logs API once
+      # the `workflow_job: completed` webhook arrives (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`). The runner Pod no
+      # longer ships log lines itself — earlier dispatch-poll
+      # iterations tried piping the Listener's stdout or tailing
+      # `_diag/Worker_<utc>.log`, but neither contains the user's
+      # step output (it's streamed directly to GitHub's
+      # `ResultsLog` service from inside the .NET Worker process).
+      exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)
       # No work yet. Quiet log every 30th attempt (~once per

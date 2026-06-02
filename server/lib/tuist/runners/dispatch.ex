@@ -43,6 +43,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.FetchLogsWorker
 
   require Logger
 
@@ -70,7 +71,7 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_completed(payload)
+    result = handle_completed(payload, installation_id)
     emit_webhook_telemetry("completed", result)
     result
   end
@@ -189,19 +190,20 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp handle_completed(payload) do
+  defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion, raw_steps(job))
+      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, raw_steps) do
+  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -218,6 +220,15 @@ defmodule Tuist.Runners.Dispatch do
         # safe no-op. Webhook retries collapse on the RMT key.
         :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
 
+        # Fetch the full job log from GitHub's Actions Logs API and
+        # ingest it into `runner_job_logs`. The Logs API is the only
+        # stable source of step output — the runner Pod's stdout
+        # carries only Listener lifecycle, the Worker diag log only
+        # framework noise, and step content streams directly from the
+        # .NET Worker to GitHub's `ResultsLog`. See
+        # `Tuist.Runners.Workers.FetchLogsWorker`.
+        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+
         Logger.info("runners: completed",
           workflow_job_id: workflow_job_id,
           conclusion: conclusion
@@ -230,6 +241,34 @@ defmodule Tuist.Runners.Dispatch do
         # (a different provider's job, or a delivery race).
         # Nothing to mark complete; not our concern.
         :ignored
+    end
+  end
+
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+    # Cancelled / synthetic workflow_jobs sometimes ship without a
+    # repository field. Without it we can't address the Logs API.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+    %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      installation_id: installation_id,
+      repository: repository
+    }
+    |> FetchLogsWorker.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue log fetch: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
     end
   end
 
