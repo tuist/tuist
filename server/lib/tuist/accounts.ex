@@ -28,6 +28,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.Namespace
   alias Tuist.Repo
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 
@@ -353,7 +354,7 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account] ->
+      {:error, part, changeset, _changes} when part in [:organization, :account, :default_runner_profile] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -403,6 +404,9 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -687,6 +691,9 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_for_account(account)
+      end)
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -722,6 +729,10 @@ defmodule Tuist.Accounts do
         else
           {:error, changeset}
         end
+
+      {:error, :default_runner_profile, reason, _} ->
+        Logger.error("create_user: default runner profile insert failed: #{inspect(reason)}")
+        {:error, :internal_server_error}
     end
   end
 

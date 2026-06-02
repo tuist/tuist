@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -275,5 +277,105 @@ func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
 	}
 	if got.Spec.Replicas != 5 {
 		t.Errorf("Replicas = %d, want 5 (server error must not change replicas)", got.Spec.Replicas)
+	}
+}
+
+func linuxFleetPool(name string, replicas int32, podMemMB int32, floor, maxRepl int32) *tuistv1.RunnerPool {
+	return &tuistv1.RunnerPool{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "tuist-runners"},
+		Spec: tuistv1.RunnerPoolSpec{
+			Replicas:      replicas,
+			Image:         "ghcr.io/tuist/tuist-linux-runner:test",
+			OS:            "linux",
+			FleetSelector: "runners-linux",
+			DispatchLabel: name + "-label",
+			PodMemoryMB:   podMemMB,
+			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
+				Enabled:                  true,
+				MinWarmPoolFloor:         floor,
+				MaxReplicas:              maxRepl,
+				ScaleDownCooldownSeconds: 0,
+			},
+		},
+	}
+}
+
+func linuxNode(name string, allocatableGiB int64) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: map[string]string{"node.cluster.x-k8s.io/pool": "runners-linux"},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceMemory: *resource.NewQuantity(allocatableGiB*1024*1024*1024, resource.BinarySI),
+			},
+		},
+	}
+}
+
+// TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad is the
+// cross-pool reclaim case: two Linux shapes share one bare-metal node
+// pool sized so real load + floors fit, but an idle shape's speculative
+// p95 warm buffer does not. The busy shape keeps its real load; the
+// idle shape is held at its floor instead of scaling up to its
+// per-pool target.
+func TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad(t *testing.T) {
+	// 8 GiB pods, 64 GiB node = 8 schedulable slots.
+	busy := linuxFleetPool("busy", 1, 8192, 1, 30)
+	idle := linuxFleetPool("idle", 1, 8192, 1, 30)
+	node := linuxNode("bm-1", 64)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(busy, idle, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	// Per-fleet signals: busy has real load (6), idle only a p95 buffer.
+	signalsByFleet := map[string]scaling.Signals{
+		"busy": {Fleet: "busy", Claimed: 5, Queued: 1, P95ConcurrentLastHour: 6},
+		"idle": {Fleet: "idle", Claimed: 0, Queued: 0, P95ConcurrentLastHour: 5},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(signalsByFleet[r.URL.Query().Get("fleet")])
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	_ = os.WriteFile(tokenPath, []byte("test-token"), 0o600)
+	sc := scaling.NewClient(server.URL)
+	sc.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:             fakeClient,
+		Scheme:             scheme,
+		SignalsClient:      sc,
+		PollInterval:       time.Millisecond,
+		MemReserveFraction: 1.0, // full allocatable in the test for clean math
+	}
+
+	reconcileOnce(t, r, "busy")
+	reconcileOnce(t, r, "idle")
+
+	gotBusy := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "busy", Namespace: "tuist-runners"}, gotBusy)
+	gotIdle := &tuistv1.RunnerPool{}
+	_ = fakeClient.Get(context.Background(), client.ObjectKey{Name: "idle", Namespace: "tuist-runners"}, gotIdle)
+
+	// busy keeps its real load (6). Its per-pool target would be 7
+	// (load 6 + floor 1) — the +1 speculative slot is squeezed because
+	// the fleet is tight, but real work is intact.
+	if gotBusy.Spec.Replicas != 6 {
+		t.Errorf("busy Replicas = %d, want 6 (real load protected)", gotBusy.Spec.Replicas)
+	}
+	// idle is held at floor 1. Per-pool it would scale to 6 (p95 5 +
+	// floor 1); the fleet allocator denies the speculative warm buffer.
+	if gotIdle.Spec.Replicas != 1 {
+		t.Errorf("idle Replicas = %d, want 1 (speculative headroom reclaimed)", gotIdle.Spec.Replicas)
 	}
 }

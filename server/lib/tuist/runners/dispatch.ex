@@ -36,8 +36,11 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -111,12 +114,13 @@ defmodule Tuist.Runners.Dispatch do
     requested = Map.get(job, "labels", [])
 
     with {:ok, account} <- fetch_enabled_account(owner),
-         {:ok, %{name: fleet_name}} <- match_pool(requested),
-         :ok <- Jobs.enqueue(enqueue_attrs(account, fleet_name, full_name, job)) do
+         {:ok, target} <- resolve_dispatch_target(account, requested),
+         :ok <- Jobs.enqueue(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
         account: account.name,
         repo: full_name,
-        fleet: fleet_name,
+        fleet: target.pool_name,
+        dispatch_label: target.requested_dispatch_label,
         workflow_job_id: Map.get(job, "id")
       )
 
@@ -139,11 +143,24 @@ defmodule Tuist.Runners.Dispatch do
 
         {:ignored, :runners_disabled}
 
+      {:error, :no_matching_profile} ->
+        # No customer profile matches the `runs-on:` label, and the
+        # legacy pool fallback didn't match either. Either the
+        # customer hasn't created a matching profile yet, or this
+        # workflow_job is targeting a different runner provider.
+        Logger.info(
+          "runners: workflow_job has no matching profile; ignoring (labels=#{inspect(requested)})",
+          owner: owner,
+          repo: full_name
+        )
+
+        {:ignored, :no_matching_profile}
+
       {:error, :no_matching_pool} ->
-        # The workflow_job's labels don't match any pool's
-        # `spec.dispatchLabel`. Could be a different runner
-        # provider in the same org, or a typo in `runs-on` —
-        # either way, not ours to handle.
+        # Legacy pool fallback path: nothing matched the requested
+        # label. Same outcome as :no_matching_profile but kept as a
+        # distinct telemetry tag so we can see how often workflows
+        # still rely on direct-pool labels vs profiles.
         Logger.info(
           "runners: workflow_job has no matching pool; ignoring (labels=#{inspect(requested)})",
           owner: owner,
@@ -159,8 +176,8 @@ defmodule Tuist.Runners.Dispatch do
       {:error, :ambiguous_pool} ->
         # The chart's render-time check failed and two pools claim
         # the same dispatchLabel. Surface as ignored so the webhook
-        # handler still returns 200 (GitHub won't retry for us —
-        # fixing the chart is the operator action), but the loud
+        # handler still returns 200 (GitHub won't retry for us, so
+        # fixing the chart is the operator action). The loud
         # Logger.error inside `match_pool/1` gives ops something
         # to alert on.
         {:ignored, :ambiguous_pool}
@@ -209,11 +226,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp enqueue_attrs(account, fleet_name, full_name, job) do
+  defp enqueue_attrs(account, target, full_name, job) do
     %{
       workflow_job_id: get_integer(job, "id"),
       account_id: account.id,
-      fleet_name: fleet_name,
+      fleet_name: target.pool_name,
+      requested_dispatch_label: target.requested_dispatch_label,
       repository: full_name,
       workflow_run_id: get_integer(job, "run_id"),
       workflow_name: get_string(job, "workflow_name"),
@@ -222,6 +240,97 @@ defmodule Tuist.Runners.Dispatch do
       head_branch: get_string(job, "head_branch"),
       head_sha: get_string(job, "head_sha")
     }
+  end
+
+  # The pre-profiles Linux dispatch labels. The shape catalog replaced
+  # the single per-env Linux pool these addressed, but existing
+  # workflows still write them in `runs-on:`. We alias them to the
+  # account's default shape (4 vCPU / 16 GB) so they keep dispatching
+  # without a workflow edit; the original label is still stamped on the
+  # runner so GitHub binds the job. Remove once no workflow references
+  # them.
+  #
+  # Scoped per-env on purpose: the GitHub App installation delivers
+  # `workflow_job` events for every org workflow to every env's
+  # server, so staging would enqueue `tuist-production-linux` jobs
+  # (and vice versa) if any env aliased a label that used to address
+  # a different env's pool. Each label is owned by exactly one env.
+  @legacy_linux_label_by_env %{
+    prod: "tuist-production-linux",
+    can: "tuist-canary-linux",
+    stag: "tuist-staging-linux"
+  }
+
+  @doc """
+  Resolve a webhook's `(account, requested_labels)` into the pool
+  name to enqueue against and the customer-facing dispatch label
+  to stamp on the runner at JIT-mint time.
+
+  Resolution order:
+
+    1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
+       e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
+       maps to its shape pool. The common path.
+    2. **Legacy Linux alias** — a pre-profiles `tuist-<env>-linux`
+       label maps to the catalog default shape (the per-env Linux pool
+       it used to address is gone). The original label is preserved as
+       the dispatch label so GitHub still binds the job.
+    3. **Legacy pool match** — `spec.dispatchLabel` matched against a
+       Helm-rendered `RunnerPool`. Still serves macOS pools and any
+       other non-shape fleets.
+  """
+  def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
+    with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels),
+         {:error, :no_legacy_alias} <- resolve_legacy_linux_alias(requested_labels) do
+      resolve_legacy_pool(requested_labels)
+    end
+  end
+
+  defp resolve_profile(account, requested_labels) do
+    case Profiles.match_for_dispatch(account, requested_labels) do
+      {:ok, %Profile{} = profile} ->
+        {:ok,
+         %{
+           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           requested_dispatch_label: Profile.dispatch_label(profile)
+         }}
+
+      {:error, :no_matching_profile} = err ->
+        err
+    end
+  end
+
+  defp resolve_legacy_linux_alias(requested_labels) do
+    with own_label when is_binary(own_label) <- Map.get(@legacy_linux_label_by_env, Environment.env()),
+         legacy when is_binary(legacy) <-
+           Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) == own_label)) do
+      case Catalog.default() do
+        nil ->
+          # Legacy label requested but the catalog has no default shape
+          # (misconfigured chart). Surface as no-pool so the webhook 200s
+          # and ops sees the loud log rather than a phantom enqueue.
+          {:error, :no_pools}
+
+        shape ->
+          {:ok,
+           %{
+             pool_name: Catalog.pool_name(shape.vcpus, shape.memory_gb),
+             requested_dispatch_label: legacy
+           }}
+      end
+    else
+      _ -> {:error, :no_legacy_alias}
+    end
+  end
+
+  defp resolve_legacy_pool(requested_labels) do
+    case match_pool(requested_labels) do
+      {:ok, %{name: name, dispatch_label: label}} ->
+        {:ok, %{pool_name: name, requested_dispatch_label: label}}
+
+      {:error, _} = err ->
+        err
+    end
   end
 
   @doc """

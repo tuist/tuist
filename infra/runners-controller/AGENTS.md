@@ -14,10 +14,29 @@ independent workqueues:
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
-  patches `RunnerPool.spec.replicas`. The policy math lives in
+  patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
   `maxReplicas`, `scaleDownCooldownSeconds`) live in the
   `RunnerPool` spec, so a tuning change is helm-only.
+
+  **Fleet-capacity awareness (Linux).** Linux shape pools share one
+  bare-metal node pool, so their speculative warm headroom competes for
+  the same memory. For `os: linux` pools the reconciler runs the
+  per-pool target through `internal/scaling/allocate.go`'s
+  `AllocateFleet`, a three-tier waterfall over the pools sharing a
+  `FleetSelector`: (1) every pool's `minWarmPoolFloor`, (2) real load
+  (`claimed + queued`), then (3) the speculative p95 buffer from
+  whatever memory is left. Tiers 1+2 are always honored (excess goes
+  Pending — the "add a host" signal); tier 3 is squeezed under
+  contention, so an idle shape's warm Pods fall back toward its floor to
+  admit another shape's real queued work. Memory is the only dimension
+  (kata pins it per microVM; CPU is oversubscribed). Fleet allocatable
+  is summed from nodes labeled `node.cluster.x-k8s.io/pool=<FleetSelector>`
+  (cluster-scoped `nodes` read in the ClusterRole), scaled by
+  `MemReserveFraction` (default 0.9). Any failure gathering the fleet
+  view falls back to the per-pool target — a node-read blip must never
+  trigger a mass scale-down. macOS pools (one VM per host, no
+  bin-packing) keep the plain per-pool path.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
@@ -202,3 +221,99 @@ ssh -i /tmp/hbm root@<host-ip>
 The key remains valid through reinstalls because caph configures it
 into `/root/.ssh/authorized_keys` as part of the cloud-init
 bootstrap.
+
+## dockerd sidecar (Linux pools)
+
+Every Linux runner Pod gets a `dind` native sidecar (k8s ≥ 1.29:
+initContainer with `restartPolicy: Always`) running the upstream
+`docker:dind` image. The runner container stays unprivileged;
+only the sidecar is `privileged: true`, bounded by the Pod's
+`kata-qemu` microVM. **Linux pools must set `spec.runtimeClass:
+kata-qemu`** — `podtemplate.Build` fails closed (returns an
+error, controller logs it and creates no Pod) for a Linux pool
+that would get the dind sidecar without it, so the privileged
+container can't fall back to the host runc runtime and escape
+the microVM boundary. The sidecar image (`runnersController.
+dindImage`) is digest-pinned for the same reason: a privileged
+container's exact bytes shouldn't move outside review.
+
+Mirrors the ARC `gha-runner-scale-set` sidecar pattern. The
+sidecar's `startupProbe` (`exec: docker info`) blocks the runner
+container from starting until dockerd is reachable, replacing
+what would otherwise be a polling loop on the runner side.
+kubelet supervises dockerd — if it crashes, k8s restarts it.
+
+Shape:
+
+- `dind-sock` emptyDir at `/var/run` (both containers) exposes
+  `/var/run/docker.sock`.
+- `work` emptyDir at `/home/runner/actions-runner/_work` (both
+  containers) so `docker run -v $PWD:/x` paths resolve the same
+  on either side.
+- `dind-storage` emptyDir at `/mnt/dind-disk` (sidecar only).
+  Plain node-disk emptyDir — holds a sparse `disk.img` the
+  sidecar entrypoint loop-mounts as ext4 onto `/var/lib/docker`
+  before exec'ing dockerd. See "Why loop-mount" below.
+- `DOCKER_HOST=unix:///var/run/docker.sock` injected into the
+  runner so the docker CLI hits the sidecar.
+- `--group=123` passed to dockerd so the socket GID matches the
+  `docker` group baked into the runner image at build time.
+- `--default-ulimit nofile=1048576:1048576` passed to dockerd
+  so containers it spawns (incl. the buildkit container the
+  `docker-container` buildx driver creates) inherit the high
+  rlimit. Pair it with `ulimit -n 1048576` in the shell that
+  starts dockerd to cover dockerd's own fd budget. Kata's
+  microVM kernel defaults nofile=1024; without both, a docker
+  build that walks a non-trivial `node_modules` tree EMFILEs.
+
+### Why loop-mount? (the virtio-fs / overlay2 gotcha)
+
+Per upstream kata docs (`docs/how-to/how-to-run-docker-with-
+kata.md`), **virtio-fs cannot serve as an overlayfs upper
+layer**. overlayfs requires `trusted.overlay.*` xattrs on the
+upper, and the host kernel CAP-gates `trusted.*` writes on
+virtiofsd's effective uid no matter how virtiofsd is
+configured (`--xattr` alone enables the xattr methods but
+still hits EPERM on the trusted.* probe; `--xattrmap` is a C-
+virtiofsd flag that Rust virtiofsd-rs doesn't accept and
+breaks kata sandbox creation if passed). Dockerd silently
+detects the failure and falls back to vfs; on vfs, BuildKit's
+docker-container driver refuses overlayfs snapshotter and
+uses runc-native, which fd-bombs heavy npm trees past any
+sane rlimit.
+
+Kata's two recommended workarounds are tmpfs `medium: Memory`
+(eats pod RAM proportional to the image cache, and inode-
+capped) or a loop-mounted disk image. We pick the loop-mount:
+the sidecar entrypoint `truncate`s a sparse 100 GiB file on
+the virtio-fs-backed `dind-storage` volume, `mkfs.ext4`s it,
+mounts it `-o loop` onto `/var/lib/docker`. Dockerd then sees
+a real kernel-native ext4 filesystem inside the kata VM, with
+full `trusted.*` xattr support — overlay2 initializes
+normally and BuildKit picks the overlayfs snapshotter. The
+sparse file only consumes node-disk bytes as written (no pod-
+memory tax), and the loop mount is bounded by the
+`truncate -s` cap.
+
+The entrypoint installs `e2fsprogs` via apk on each boot
+because `docker:*-dind` doesn't ship `mkfs.ext4` by default;
+worth baking into a custom dind image once the shape settles.
+StartupProbe failureThreshold bumped from 30 → 60 to absorb
+the ~8 s of pre-dockerd setup time.
+
+The sidecar image is pinned via the chart's
+`runnersController.dindImage` value and threaded into the
+controller as `--dind-image`. Renovate keeps the pin bumped.
+
+## Pool variants
+
+Linux per-tenant slot sizes are now shape-keyed via Runner
+Profiles. `runnersFleetLinux.shapes` in the chart values lists
+the `(vcpus, memoryGb)` tuples the fleet exposes; the server
+resolves a customer's `runs-on: tuist-<name>` to the matching
+shape-keyed `RunnerPool` CR. Keep that list in sync with
+`:runner_linux_shapes` in `server/config/config.exs` — same
+catalog from two sides.
+
+Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
+the `apk add` on every Pod startup goes away.

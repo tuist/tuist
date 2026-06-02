@@ -828,7 +828,10 @@ runnersFleetLinux:
   namespace: ""
   # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
   # One entry per image variant. Required when
-  # `runnersFleetLinux.enabled` is true.
+  # `runnersFleetLinux.enabled` is true and `shapes` is empty.
+  # Operator-defined pools sit alongside shape-keyed pools (below)
+  # for image variants that don't fit the shape catalog (e.g.,
+  # bespoke ops or builder workloads).
   pools: []
     # Example entry:
     # - name: ubuntu-22-04
@@ -842,11 +845,47 @@ runnersFleetLinux:
     #   pod:
     #     cpuMilli: 4000
     #     memoryMB: 16384
+    #   # Required on Linux pools. The controller injects a
+    #   # docker:dind native sidecar that runs `privileged: true`;
+    #   # the kata-qemu microVM is the safety boundary that keeps
+    #   # the privileged sidecar off the bare-metal host kernel.
+    #   runtimeClass: kata-qemu
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3
     #     maxReplicas: 30
     #     scaleDownCooldownSeconds: 300
+
+  # Shape-keyed pools backing the Runner Profiles feature. Each entry
+  # renders one RunnerPool CR with a deterministic name and an
+  # internal dispatch label (`shape-linux-<vcpus>vcpu-<gb>gb`).
+  # Customers never reference these labels directly; they create
+  # account-scoped Profiles in the Tuist UI, and the server resolves
+  # `(account, requested-label)` through the profile to a shape pool.
+  #
+  # All shapes share `shapeRunnerImage` + `shapeRuntimeClass`. Each
+  # shape can override autoscaling via its own `autoscaling:` block;
+  # otherwise `shapeAutoscaling` defaults apply.
+  shapeRunnerImage: ""
+  shapeRuntimeClass: "kata-qemu"
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 1
+    maxReplicas: 0
+    scaleDownCooldownSeconds: 300
+  shapes: []
+    # Example catalog:
+    # - { vcpus: 1, memoryGb: 2 }
+    # - { vcpus: 2, memoryGb: 4 }
+    # - { vcpus: 2, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 16, default: true }
+    # - { vcpus: 8, memoryGb: 16 }
+    # - { vcpus: 8, memoryGb: 32 }
+    # - { vcpus: 16, memoryGb: 32 }
+    # Exactly one entry should carry `default: true`. The server's
+    # profile backfill seeds new accounts with a `default` profile
+    # whose vcpus/memoryGb match the entry tagged default.
 
 # Bare-metal vm-image-builder fleet — sibling of macosFleet and
 # runnersFleet, provisioned by the same CAPI operator from the same
@@ -972,6 +1011,25 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""
     pullPolicy: IfNotPresent
+  # OCI ref of the dockerd sidecar stamped on every Linux runner
+  # Pod (`docker:dind` upstream image). Required for any
+  # `runnersFleetLinux` pool; empty disables the sidecar so Pods
+  # come up with no `DOCKER_HOST`. Renovate keeps this pinned.
+  # Digest-pinned: the controller stamps this into a privileged
+  # container, so the exact image must not move outside review.
+  # renovate: datasource=docker depName=docker versioning=docker
+  dindImage: "docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # Feature gates the controller manager binary's `--dind-image`
+  # flag. The flag was added by the docker-in-runner change; older
+  # controller binaries (<= the release before that change) don't
+  # register the flag and `flag.Parse` exits with code 2 if it's
+  # passed. Each env overlay flips this to `true` only once its
+  # `runnersController.image.tag` points at a binary that recognises
+  # the flag, so a chart upgrade in an env still on the old binary
+  # stays a no-op for runner pools instead of crashing the
+  # controller.
+  features:
+    dindImage: false
   resources:
     requests:
       cpu: 50m

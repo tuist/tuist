@@ -152,6 +152,29 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # Prefix the dispatch path prepends to a shape key to address
+            # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+            # Injected from the same helper that names the CRs in
+            # runner-pool.yaml so the server always resolves to a pool a
+            # Pod actually polls, regardless of the helm release name.
+            - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.shapes }}
+            # Single source of truth for the shape catalog: inject the
+            # same `runnersFleetLinux.shapes` list that renders the
+            # RunnerPool CRs so the server's catalog (dashboard dropdown,
+            # profile validation, dispatch) can't drift from the pools
+            # that exist. Projected to the fields the server reads;
+            # config/runtime.exs parses it into `:runner_linux_shapes`.
+            {{- $serverShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverShapes = append $serverShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_SHAPES
+              value: {{ $serverShapes | toJson | quote }}
+            {{- end }}
             {{- end }}
             {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
             # Namespace of the CNPG Cluster + Backup CRs (this release's

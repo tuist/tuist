@@ -261,6 +261,11 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
+#: lib/tuist_web/components/app_layout_components.ex:415
+#, elixir-autogen, elixir-format
+msgid "Profiles"
+msgstr ""
+
 #: lib/tuist_web/components/app_layout_components.ex:382
 #, elixir-autogen, elixir-format
 msgid "Projects"
