@@ -66,13 +66,13 @@ defmodule Tuist.Runners do
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
 
-  # The owner label is no longer cosmetic: the runners-namespace
-  # NetworkPolicy gates dispatch egress on its ABSENCE (idle Pods
-  # poll; a claimed Pod drops out of the churning dispatch policy so
-  # a server rollout can't perturb its egress mid-job). A claimed Pod
-  # that never gets the label stays in the idle policy and is exposed
-  # to that perturbation, so the stamp is retried a few times to ride
-  # out a transient apiserver blip before falling back to best-effort.
+  # The owner label gates dispatch egress: the runners-namespace
+  # NetworkPolicy admits only label-less (idle, polling) Pods to the
+  # churning dispatch policy, so a claimed Pod's egress isn't perturbed
+  # by a server rollout mid-job. A claimed Pod that never gets the
+  # label stays in the idle policy and loses that protection, so the
+  # stamp is retried to ride out a transient apiserver blip before
+  # falling back to best-effort.
   @owner_label_stamp_attempts 3
   @owner_label_stamp_retry_backoff_ms 100
 
