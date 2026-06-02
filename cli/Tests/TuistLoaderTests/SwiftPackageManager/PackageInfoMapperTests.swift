@@ -4611,7 +4611,7 @@ struct PackageInfoMapperTests {
         try await fileSystem.makeDirectory(at: objcTargetPath)
         try await fileSystem.makeDirectory(at: pureSwiftTargetPath)
         try await fileSystem.writeText(
-            "import Foundation\n@objc public class Exposed: NSObject {}\n",
+            "import Foundation\npublic class Exposed: NSObject {}\n",
             at: objcTargetPath.appending(component: "ObjCTarget.swift")
         )
         try await fileSystem.writeText(

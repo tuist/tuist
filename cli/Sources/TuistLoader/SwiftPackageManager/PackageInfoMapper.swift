@@ -972,14 +972,21 @@ public struct PackageInfoMapper: PackageInfoMapping {
 }
 
 extension PackageInfoMapper {
-    /// Whether any of the target's Swift sources expose `@objc` declarations, which Objective-C consumers reach through
-    /// the generated `-Swift.h`.
+    /// Whether any of the target's Swift sources expose declarations to Objective-C through the generated `-Swift.h`.
+    /// Pure-Swift targets with no Objective-C interop keep the headerless modulemap (issue #10967); targets that expose
+    /// `@objc` declarations or subclass an Objective-C type need Xcode's synthesized modulemap so consumers see
+    /// `-Swift.h` (issue #11007). A false positive only reverts a target to the synthesized modulemap, so the detection
+    /// errs towards reporting interop.
     private func targetExposesObjCInterface(at targetPath: AbsolutePath) async throws -> Bool {
         guard try await fileSystem.exists(targetPath) else { return false }
         let swiftFiles = try await fileSystem.glob(directory: targetPath, include: ["**/*.swift", "*.swift"]).collect()
+        let interopAttributes = ["@objc", "@IBOutlet", "@IBAction", "@IBInspectable", "@NSManaged", "@GKInspectable"]
         for swiftFile in swiftFiles {
             guard let contents = try? await fileSystem.readTextFile(at: swiftFile) else { continue }
-            if contents.contains("@objc") {
+            if interopAttributes.contains(where: contents.contains) {
+                return true
+            }
+            if contents.range(of: #":\s*NSObject\b"#, options: .regularExpression) != nil {
                 return true
             }
         }
