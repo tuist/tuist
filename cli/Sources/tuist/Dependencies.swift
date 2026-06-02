@@ -35,11 +35,11 @@ private enum DependenciesError: LocalizedError {
     }
 }
 
-// Raise the soft open-file limit toward the hard limit. Generating the graph for large
-// projects launches many concurrent subprocesses (manifest and Swift Package Manager
-// evaluation), and CI machines often ship a low default soft limit (256 on macOS) that the
-// process can exhaust, surfacing as "Bad file descriptor" errors. Best-effort: failures are
-// ignored, leaving the inherited limit untouched.
+/// Raises the soft open-file limit toward the hard limit. Generating the graph for large
+/// projects launches many concurrent subprocesses (manifest and Swift Package Manager
+/// evaluation), and CI machines often ship a low default soft limit (256 on macOS) that the
+/// process can exhaust, surfacing as "Bad file descriptor" errors. Best-effort: failures are
+/// ignored, leaving the inherited limit untouched.
 private func raiseOpenFileLimit() {
     var limit = rlimit()
     guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else { return }
