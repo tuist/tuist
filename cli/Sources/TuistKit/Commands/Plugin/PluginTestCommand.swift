@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-public struct PluginTestCommand: ParsableCommand {
+public struct PluginTestCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {
