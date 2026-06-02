@@ -17,11 +17,9 @@ defmodule Tuist.Runners.Profile do
 
   @name_format ~r/^[a-z][a-z0-9-]{0,31}$/
 
-  # `linux` and `macos` are reserved so we can introduce a
-  # cross-account "default per platform" preset later without a
-  # migration. `runner` / `runners` / `tuist` keep the prefix
-  # namespace clean.
-  @reserved_names ~w(linux macos runner runners tuist)
+  # `runner` / `runners` / `tuist` keep the dispatch-label
+  # prefix namespace clean (e.g. `runs-on: tuist-tuist`).
+  @reserved_names ~w(runner runners tuist)
 
   schema "runner_profiles" do
     field :name, :string
