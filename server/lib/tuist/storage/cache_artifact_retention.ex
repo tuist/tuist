@@ -83,6 +83,8 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     |> where([account], account.name in ^account_handles)
     |> Repo.all()
     |> then(fn accounts ->
+      # `current_plans/1` batch-loads subscriptions for all fetched accounts,
+      # keeping this at two queries per S3 page instead of one query per account.
       plans_by_account_id = RetentionPolicy.current_plans(accounts)
 
       Map.new(accounts, fn account -> {account.name, Map.fetch!(plans_by_account_id, account.id)} end)
