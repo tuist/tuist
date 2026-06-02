@@ -401,10 +401,10 @@ msgstr ""
 msgid "Unauthorized"
 msgstr ""
 
-#: lib/tuist/utilities/date_formatter.ex:120
-#: lib/tuist/utilities/date_formatter.ex:129
-#: lib/tuist/utilities/date_formatter.ex:177
-#: lib/tuist/utilities/date_formatter.ex:211
+#: lib/tuist/utilities/date_formatter.ex:128
+#: lib/tuist/utilities/date_formatter.ex:137
+#: lib/tuist/utilities/date_formatter.ex:185
+#: lib/tuist/utilities/date_formatter.ex:219
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
 #: lib/tuist_web/components/runs/ran_by_badge.ex:104
@@ -1008,7 +1008,7 @@ msgid "No active subscription to cancel."
 msgstr ""
 
 #: lib/tuist/utilities/date_formatter.ex:5
-#: lib/tuist/utilities/date_formatter.ex:68
+#: lib/tuist/utilities/date_formatter.ex:76
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
 #: lib/tuist_web/live/ops_account_live.html.heex:23
 #: lib/tuist_web/live/ops_account_live.html.heex:27
