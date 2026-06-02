@@ -102,13 +102,13 @@ spec:
                 runtimeClass:
                   type: string
                   description: |
-                    Optional `Pod.spec.runtimeClassName`. When set, Pods route
-                    through the named RuntimeClass instead of the cluster
-                    default. The chart's `kata-qemu` RuntimeClass runs each
-                    Pod as a Kata Containers + QEMU microVM (per-tenant
-                    kernel, real isolation). Empty keeps the default runtime
-                    (runc on containerd), which is fine for macOS pools and
-                    single-tenant bare-metal Linux pools during bring-up.
+                    Optional `Pod.spec.runtimeClassName`. The chart's
+                    `kata-qemu` RuntimeClass wraps each Pod in a microVM
+                    with its own kernel — required on Linux pools because
+                    the controller attaches a privileged docker:dind
+                    sidecar to every Linux runner Pod. The microVM keeps
+                    the sidecar's privileged surface off the bare-metal
+                    host.
                 autoscaling:
                   type: object
                   description: |

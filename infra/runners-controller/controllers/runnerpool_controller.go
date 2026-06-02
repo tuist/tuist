@@ -46,6 +46,12 @@ type RunnerPoolReconciler struct {
 	// when empty, Linux pools fall back to DispatchURL — which
 	// will silently fail to reach the server in the hairpin case.
 	DispatchInternalURL string
+
+	// DindImage is the OCI ref for the dockerd sidecar stamped on
+	// Linux runner Pods. The chart pins it; Renovate keeps it
+	// bumped. Empty means Linux pods skip the sidecar — fine for
+	// macOS-only installs.
+	DindImage string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -224,7 +230,10 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage)
+	if err != nil {
+		return fmt.Errorf("build pod: %w", err)
+	}
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
 		return fmt.Errorf("pod owner ref: %w", err)
 	}

@@ -311,6 +311,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
 # Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,
