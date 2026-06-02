@@ -185,19 +185,18 @@ runnersFleet:
       runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
       dispatchLabel: "tuist-canary-macos"
 
-# Bare-metal vm-image-builder fleet — bakes the Tart VM images
-# the macosFleet and runnersFleet hosts run. Sized at 1 in canary
-# to mirror staging; canary is a pre-prod gate, not a capacity
-# tier. Shares the `tuist-pool-` host pool with the other two
-# fleets, so adding this fleet costs one more pre-ordered host on
-# top of macosFleet (1) + runnersFleet (1) = 3 hosts of pool
-# demand in canary.
+# Bare-metal vm-image-builder fleet. Disabled in canary: the baked
+# Tart images are global GHCR artifacts, so only the production fleet
+# bakes them. A builder here registers the shared `vm-image-builder`
+# org runner label (the fleets advertise identical labels to the same
+# org, with no per-env scoping), so it would pick up production release
+# jobs, exactly the cross-env bleed we want to avoid.
 buildersFleet:
-  enabled: true
-  replicas: 1
+  enabled: false
+  replicas: 0
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
-    enabled: true
+    enabled: false
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
