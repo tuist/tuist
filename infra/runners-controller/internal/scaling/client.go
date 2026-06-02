@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,22 @@ type Client struct {
 	// HTTPClient defaults to a 5-second-timeout client. Tests can
 	// override to inject a mock RoundTripper.
 	HTTPClient *http.Client
+
+	// CacheTTL, when > 0, memoises successful per-fleet responses for
+	// this long. The fleet-aware autoscaler fetches every sibling
+	// pool's signals on each reconcile, so without a cache an N-shape
+	// fleet costs N² requests per poll cycle; a TTL just under the
+	// poll interval collapses that to ~N. Default 0 (no cache) keeps
+	// single-pool callers and tests on a fetch-per-call path.
+	CacheTTL time.Duration
+
+	mu    sync.Mutex
+	cache map[string]cachedSignals
+}
+
+type cachedSignals struct {
+	signals Signals
+	expires time.Time
 }
 
 // NewClient returns a Client with sensible defaults.
@@ -55,6 +72,10 @@ func (c *Client) Signals(ctx context.Context, fleet string) (*Signals, error) {
 	}
 	if fleet == "" {
 		return nil, fmt.Errorf("scaling: fleet name required")
+	}
+
+	if s, ok := c.cached(fleet); ok {
+		return s, nil
 	}
 
 	token, err := c.readToken()
@@ -100,7 +121,38 @@ func (c *Client) Signals(ctx context.Context, fleet string) (*Signals, error) {
 	if err := json.Unmarshal(body, &signals); err != nil {
 		return nil, fmt.Errorf("scaling: decode response: %w", err)
 	}
+
+	c.store(fleet, signals)
 	return &signals, nil
+}
+
+// cached returns a memoised response for `fleet` when caching is on and
+// the entry is still fresh.
+func (c *Client) cached(fleet string) (*Signals, bool) {
+	if c.CacheTTL <= 0 {
+		return nil, false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.cache[fleet]
+	if !ok || time.Now().After(entry.expires) {
+		return nil, false
+	}
+	s := entry.signals
+	return &s, true
+}
+
+// store memoises a successful response when caching is on.
+func (c *Client) store(fleet string, s Signals) {
+	if c.CacheTTL <= 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cache == nil {
+		c.cache = make(map[string]cachedSignals)
+	}
+	c.cache[fleet] = cachedSignals{signals: s, expires: time.Now().Add(c.CacheTTL)}
 }
 
 func (c *Client) readToken() (string, error) {

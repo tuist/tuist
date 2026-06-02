@@ -23,6 +23,7 @@ alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
 alias Tuist.Runners.JobSteps
+alias Tuist.Runners.Profile
 alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
@@ -265,6 +266,15 @@ _account =
   end
 
 {:ok, user} = Accounts.get_user_by_email(email)
+
+# Re-stamp the seeded password on every run. Bcrypt hashing depends on
+# `Tuist.Environment.secret_key_password()`; if that secret has rotated
+# since the user was first created, the original hash no longer matches
+# the documented credentials and the "Log in as test user" button fails.
+# Always overwriting on seed makes the dev flow self-healing.
+user
+|> Tuist.Accounts.User.password_changeset(%{password: password, password_confirmation: password})
+|> Repo.update!()
 
 organization =
   if Accounts.get_organization_by_handle("tuist") do
@@ -3277,6 +3287,54 @@ SeedHelpers.insert_bulk_ch(gradle_machine_metrics, BuildMachineMetric, IngestRep
 
 IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points")
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
+
+# =============================================================================
+# Runner Profiles (customer-facing vCPU/RAM bundles)
+# =============================================================================
+
+# Enable runners (cap > 0) and seed a few profiles per dev account so
+# the sidebar Profiles tab is non-empty for both the personal account
+# (where the seed login lands) and the `tuist` organization (the
+# context most demo flows switch into).
+#
+# `runner_max_concurrent` gates dispatch, not the UI — the UI uses
+# `FeatureFlags.runners_enabled?` which is always true outside prod.
+# But setting a cap here keeps the seed data internally consistent.
+runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
+
+Enum.each(runner_profile_accounts, fn account ->
+  account
+  |> Ecto.Changeset.change(runner_max_concurrent: 10)
+  |> Repo.update!()
+end)
+
+runner_profile_seeds = [
+  # `linux` is auto-bootstrapped by `Accounts.create_user` /
+  # `Accounts.create_organization`; only seed the user-created
+  # extras so the table still shows the typical "default + a few
+  # bigger shapes" mix in dev.
+  %{name: "large", vcpus: 8, memory_gb: 32},
+  %{name: "xlarge", vcpus: 16, memory_gb: 32}
+]
+
+now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+for account <- runner_profile_accounts, shape <- runner_profile_seeds do
+  case Repo.get_by(Profile, account_id: account.id, name: shape.name) do
+    nil ->
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: shape.name,
+        vcpus: shape.vcpus,
+        memory_gb: shape.memory_gb,
+        inserted_at: now_seconds,
+        updated_at: now_seconds
+      })
+
+    _existing ->
+      :ok
+  end
+end
 
 # =============================================================================
 # Runner Jobs (GitHub Actions on Tuist-hosted runners)

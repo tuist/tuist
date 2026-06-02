@@ -124,6 +124,7 @@ defmodule Tuist.Docs.Redirects do
     {:exact, "/guides/features/mcp", "/guides/features/agentic-coding/mcp"},
     {:exact, "/guides/features/agentic-building/mcp", "/guides/features/agentic-coding/mcp"},
     {:exact, "/guides/server/self-host/install", "/guides/server/self-host/control-plane"},
+    {:exact, "/guides/server/self-host/kura", "/guides/features/cache/self-hosting"},
     {:exact, "/guides/environments/continuous-integration", "/guides/integrations/continuous-integration"},
     {:exact, "/guides/environments/automate/continuous-integration", "/guides/integrations/continuous-integration"},
     {:prefix, "/guides/automate/", "/guides/environments/"},

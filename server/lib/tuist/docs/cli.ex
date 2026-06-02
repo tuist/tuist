@@ -38,9 +38,11 @@ defmodule Tuist.Docs.CLI do
     cache = Keyword.get(opts, :cache, :tuist)
 
     case Cachex.get(cache, @cache_key) do
+      nil -> fetch_and_cache(cache)
       {:ok, nil} -> fetch_and_cache(cache)
       {:ok, data} -> data
-      _ -> nil
+      {:error, _reason} -> nil
+      data -> data
     end
   end
 

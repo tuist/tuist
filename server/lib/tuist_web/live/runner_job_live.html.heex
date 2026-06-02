@@ -173,7 +173,7 @@
       </:actions>
       <.card_section data-part="steps-section" data-show-timestamps={to_string(@show_timestamps)}>
         <div :if={@steps == []} data-part="steps-empty">
-          {dgettext("dashboard_runners", "No steps have been recorded for this job yet.")}
+          {dgettext("dashboard_runners", "Steps will appear here once the job finishes.")}
         </div>
         <div
           :for={step <- @steps}

@@ -10,10 +10,15 @@
     }
 
     & > [data-part="image"] {
-      height: 122px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 150px;
 
       & > img {
         border-radius: 10px;
+        max-width: 100%;
+        max-height: 100%;
         html[data-theme="light"] &[data-theme="dark"] {
           display: none;
         }

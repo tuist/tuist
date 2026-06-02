@@ -181,24 +181,6 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
-  @doc """
-  Whether managed Kura servers must wait for the global Cloudflare-
-  fronted endpoint before being projected active.
-
-  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
-  degrade gracefully while the global load-balancer layer is
-  unavailable or quota-limited.
-  """
-  def kura_require_global_endpoints? do
-    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
-    |> System.get_env()
-    |> case do
-      nil -> true
-      "" -> true
-      value -> not falsey?(value)
-    end
-  end
-
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -1094,6 +1076,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
   Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
   CRs live — the chart sets it to the release namespace when CNPG is
   enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
@@ -1162,10 +1158,6 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
-
-  defp falsey?(value) when is_binary(value) do
-    String.downcase(value) in ["0", "false", "no", "off"]
-  end
 
   defp split_endpoints(endpoints) do
     endpoints

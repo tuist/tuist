@@ -157,7 +157,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
 
-    assert html =~ "No steps have been recorded"
+    assert html =~ "Steps will appear here once the job finishes."
   end
 
   test "renders captured logs and live-appends streamed lines", %{conn: conn, account: account} do

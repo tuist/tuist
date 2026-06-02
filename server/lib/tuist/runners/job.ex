@@ -50,6 +50,16 @@ defmodule Tuist.Runners.Job do
     # window. See `Tuist.Runners.Jobs.set_log_archive_key/2`.
     field :log_archive_key, Ch, type: "String", default: ""
 
+    # The label the customer wrote in `runs-on:` (e.g.
+    # `tuist-default`). Carried from webhook enqueue so JIT-mint
+    # can stamp it on the runner — without this, the runner would
+    # register under the pool's internal `dispatchLabel`
+    # (`shape-linux-<vcpus>vcpu-<gb>gb`) which never matches the
+    # workflow_job's `runs-on:`. Empty for legacy `runner_jobs`
+    # rows pre-profiles; the dispatch path falls back to the
+    # pool's dispatchLabel in that case.
+    field :requested_dispatch_label, Ch, type: "String", default: ""
+
     # RMT version column. Every state-transition INSERT advances
     # this; merge keeps the row with the latest `updated_at` for
     # each `workflow_job_id`.

@@ -10,7 +10,7 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
-    Jobs.enqueue(%{
+    attrs = %{
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
@@ -20,8 +20,19 @@ defmodule Tuist.Runners.JobsTest do
       workflow_name: Keyword.get(opts, :workflow_name, ""),
       job_name: Keyword.get(opts, :job_name, "build"),
       head_branch: Keyword.get(opts, :head_branch, "main"),
-      head_sha: Keyword.get(opts, :head_sha, "deadbeef")
-    })
+      head_sha: Keyword.get(opts, :head_sha, "deadbeef"),
+      requested_dispatch_label: Keyword.get(opts, :requested_dispatch_label, "")
+    }
+
+    # Only set :enqueued_at when a test pins it — otherwise let
+    # `Jobs.enqueue/1` stamp `now()` via its `put_new`.
+    attrs =
+      case Keyword.get(opts, :enqueued_at) do
+        %DateTime{} = ts -> Map.put(attrs, :enqueued_at, ts)
+        nil -> attrs
+      end
+
+    Jobs.enqueue(attrs)
   end
 
   describe "enqueue/1" do
@@ -40,6 +51,50 @@ defmodule Tuist.Runners.JobsTest do
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
+    end
+  end
+
+  describe "last_used_at_by_dispatch_label/1" do
+    test "returns the latest enqueued_at per requested_dispatch_label" do
+      account = account_fixture()
+      older = ~U[2026-05-01 10:00:00.000000Z]
+      newer = ~U[2026-05-20 10:00:00.000000Z]
+
+      # Two jobs share a label so `max(enqueued_at)` must win.
+      :ok = enqueue_fixture(account, 70_001, requested_dispatch_label: "tuist-default", enqueued_at: older)
+      :ok = enqueue_fixture(account, 70_002, requested_dispatch_label: "tuist-default", enqueued_at: newer)
+      :ok = enqueue_fixture(account, 70_003, requested_dispatch_label: "tuist-gpu", enqueued_at: older)
+
+      result = Jobs.last_used_at_by_dispatch_label(account.id)
+
+      assert map_size(result) == 2
+      assert DateTime.compare(result["tuist-default"], newer) == :eq
+      assert DateTime.compare(result["tuist-gpu"], older) == :eq
+    end
+
+    test "omits jobs with an empty requested_dispatch_label (legacy rows)" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 70_101, requested_dispatch_label: "tuist-default")
+      :ok = enqueue_fixture(account, 70_102)
+
+      assert Map.keys(Jobs.last_used_at_by_dispatch_label(account.id)) == ["tuist-default"]
+    end
+
+    test "scopes results to the given account" do
+      account = account_fixture()
+      other = account_fixture()
+
+      :ok = enqueue_fixture(account, 70_201, requested_dispatch_label: "tuist-default")
+      :ok = enqueue_fixture(other, 70_202, requested_dispatch_label: "tuist-other")
+
+      assert Map.keys(Jobs.last_used_at_by_dispatch_label(account.id)) == ["tuist-default"]
+    end
+
+    test "returns an empty map for an account with no labelled jobs" do
+      account = account_fixture()
+
+      assert Jobs.last_used_at_by_dispatch_label(account.id) == %{}
     end
   end
 

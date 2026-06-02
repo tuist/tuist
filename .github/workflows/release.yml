@@ -1822,26 +1822,24 @@ jobs:
       - name: Bump linux runner image digest pin in chart values
         run: |
           # The linux runner image digest pin lives in each managed
-          # env's values file under runnersFleetLinux.pools[].runnerImage.
-          # Anchor the substitution to `tuist-linux-runner` so we
-          # don't touch the macOS `tuist-runner` pin on the same line
-          # shape under `runnersFleet`. The digest comes from the
-          # build-push-action's own output — no second registry round
-          # trip via crane needed.
+          # env's values file under runnersFleetLinux.shapeRunnerImage
+          # (the shape catalog is the whole Linux fleet; the legacy
+          # `pools[].runnerImage` was retired). Anchor the substitution
+          # to `shapeRunnerImage` + `tuist-linux-runner` so we don't
+          # touch the macOS `tuist-runner` pin under `runnersFleet`. The
+          # digest comes from the build-push-action's own output — no
+          # second registry round trip via crane needed.
           DIGEST="${{ steps.build.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
             # Only rewrite if the file already has a non-empty pin to
-            # the Linux runner image. canary/production ship with
-            # `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release
-            # flow. The match accepts both pin styles the chart has
-            # used: a digest (`@sha256:...`) and a tag (`:<short-sha>`
-            # or `:<semver>`).
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
-              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
+            # the Linux runner image. The match accepts both pin styles
+            # the chart has used: a digest (`@sha256:...`) and a tag
+            # (`:<short-sha>` or `:<semver>`).
+            if grep -qE '^\s*shapeRunnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
+              sed -i -E "s|^([[:space:]]*shapeRunnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
             fi
           done
 
