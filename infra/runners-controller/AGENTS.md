@@ -11,6 +11,9 @@ independent workqueues:
   `spec.replicas`. Idle Pods (those without the
   `tuist.dev/runner-pool-owner` label) are the only ones eligible for
   scale-down deletion; runners mid-job are never killed.
+  RunnerPool deletion follows the same rule: the finalizer deletes
+  idle/terminal Pods and waits for claimed Pods to finish before letting
+  Kubernetes garbage-collect the pool-owned resources.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and

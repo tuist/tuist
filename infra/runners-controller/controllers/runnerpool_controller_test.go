@@ -6,11 +6,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
@@ -235,6 +237,131 @@ func TestReconcile_NoDeletionWhenImageMatches(t *testing.T) {
 	}
 	if len(pods.Items) != 1 || pods.Items[0].Name != "p-runner-current" {
 		t.Fatalf("expected current-image pod to survive reconcile untouched, got %v", podNames(pods.Items))
+	}
+}
+
+func TestReconcile_AddsFinalizer(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:current", 1)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(updated, runnerPoolFinalizer) {
+		t.Fatalf("expected finalizer %q to be present, got %v", runnerPoolFinalizer, updated.Finalizers)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected first reconcile to continue managing runners, got pods %v", podNames(pods.Items))
+	}
+}
+
+func TestReconcile_DeleteWaitsForActiveRunnerAndReapsIdleRunners(t *testing.T) {
+	scheme := mustScheme(t)
+	deletion := metav1.Now()
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:current", 0)
+	pool.Finalizers = []string{runnerPoolFinalizer}
+	pool.DeletionTimestamp = &deletion
+
+	activePod := newRunnerPod("p-runner-active", pool.Spec.Image, corev1.PodRunning, "p")
+	activePod.Labels["tuist.dev/runner-pool-owner"] = "tuist"
+	idlePod := newRunnerPod("p-runner-idle", pool.Spec.Image, corev1.PodRunning, "p")
+	terminalPod := newRunnerPod("p-runner-terminal", pool.Spec.Image, corev1.PodSucceeded, "p")
+	activeSA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: activePod.Name, Namespace: "tuist-runners"}}
+	idleSA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: idlePod.Name, Namespace: "tuist-runners"}}
+	terminalSA := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: terminalPod.Name, Namespace: "tuist-runners"}}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, activePod, idlePod, terminalPod, activeSA, idleSA, terminalSA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	result, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter == 0 {
+		t.Fatalf("expected requeue while active runner remains")
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(updated, runnerPoolFinalizer) {
+		t.Fatalf("expected finalizer to remain while active runner exists")
+	}
+
+	for _, name := range []string{idlePod.Name, terminalPod.Name} {
+		pod := &corev1.Pod{}
+		if err := c.Get(context.Background(), nn("tuist-runners", name), pod); !apierrors.IsNotFound(err) {
+			t.Fatalf("expected pod %s to be deleted, got err %v", name, err)
+		}
+		sa := &corev1.ServiceAccount{}
+		if err := c.Get(context.Background(), nn("tuist-runners", name), sa); !apierrors.IsNotFound(err) {
+			t.Fatalf("expected service account %s to be deleted, got err %v", name, err)
+		}
+	}
+
+	pod := &corev1.Pod{}
+	if err := c.Get(context.Background(), nn("tuist-runners", activePod.Name), pod); err != nil {
+		t.Fatalf("expected active pod to remain: %v", err)
+	}
+	sa := &corev1.ServiceAccount{}
+	if err := c.Get(context.Background(), nn("tuist-runners", activeSA.Name), sa); err != nil {
+		t.Fatalf("expected active service account to remain: %v", err)
+	}
+}
+
+func TestReconcile_DeleteRemovesFinalizerWhenNoActiveRunnersRemain(t *testing.T) {
+	scheme := mustScheme(t)
+	deletion := metav1.Now()
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:current", 0)
+	pool.Finalizers = []string{runnerPoolFinalizer}
+	pool.DeletionTimestamp = &deletion
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated)
+	if err == nil && controllerutil.ContainsFinalizer(updated, runnerPoolFinalizer) {
+		t.Fatalf("expected finalizer to be removed, got %v", updated.Finalizers)
+	}
+	if err != nil && !apierrors.IsNotFound(err) {
+		t.Fatalf("get pool: %v", err)
 	}
 }
 

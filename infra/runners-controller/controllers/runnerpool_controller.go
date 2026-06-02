@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,6 +24,8 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
 )
+
+const runnerPoolFinalizer = "tuist.dev/runner-pool-protection"
 
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
@@ -62,6 +65,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	if !pool.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, pool, logger)
+	}
+
+	if !controllerutil.ContainsFinalizer(pool, runnerPoolFinalizer) {
+		controllerutil.AddFinalizer(pool, runnerPoolFinalizer)
+		if err := r.Update(ctx, pool); err != nil {
+			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
+		}
 	}
 
 	// Track image rolls. The server-side drain endpoint reads
@@ -203,6 +217,45 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// missed events. Pod-event-driven reconcile via Owns() is the
 	// primary trigger; this is the catch-all.
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+}
+
+func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv1.RunnerPool, logger logr.Logger) (ctrl.Result, error) {
+	if !controllerutil.ContainsFinalizer(pool, runnerPoolFinalizer) {
+		return ctrl.Result{}, nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(pool.Namespace),
+		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list pods during delete: %w", err)
+	}
+
+	active := 0
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if isAlive(p) && !isIdle(p) {
+			active++
+			continue
+		}
+
+		if err := r.reapRunner(ctx, p); err != nil {
+			logger.Error(err, "delete runner during pool deletion; will retry", "pod", p.Name)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
+	if active > 0 {
+		logger.Info("waiting for active runners before deleting pool", "active", active)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	controllerutil.RemoveFinalizer(pool, runnerPoolFinalizer)
+	if err := r.Update(ctx, pool); err != nil {
+		return ctrl.Result{}, fmt.Errorf("remove finalizer: %w", err)
+	}
+	return ctrl.Result{}, nil
 }
 
 // createRunner provisions one Pod + per-Pod ServiceAccount pair,
