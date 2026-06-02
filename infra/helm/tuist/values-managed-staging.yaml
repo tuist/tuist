@@ -348,7 +348,7 @@ runnersFleetLinux:
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
   # renders the pools; the server validates + addresses them).
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:2ae6066cc3ecdca5666c2df6e69a217bb4126260ba922439984858d5d8defba3"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:a47e7322dd8c9434556d932e5b6d34b14d4b23683b7aa8b7c810b296e36ac891"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true
