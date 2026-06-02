@@ -6,13 +6,6 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-# The production workload cluster serves Kura HTTPS and gRPC traffic
-# directly via Hetzner LoadBalancer Services. Keep Cloudflare load
-# balancing disabled until the pool quota is raised and the global
-# endpoint design is revisited.
-kuraGlobalEndpointsEnabled: false
-kuraGlobalEndpointsRequired: false
-
 server:
   replicaCount: 2
 
@@ -107,12 +100,6 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
-  cloudflareLoadBalancing:
-    enabled: false
-    zoneName: tuist.dev
-    apiTokenSecret:
-      managed: true
-      item: cloudflare-tuist-dns
   sharedSecrets:
     externalSecret:
       enabled: true
