@@ -1,22 +1,23 @@
 ---
 {
-  "title": "Kura",
-  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Deploy Kura and connect it to a self-hosted Tuist server."
+  "title": "Self-hosted cache",
+  "titleTemplate": ":title | Cache | Guides | Tuist",
+  "description": "Deploy self-hosted cache nodes and connect them to Tuist."
 }
 ---
 
-# Kura {#kura}
+# Self-hosted cache {#self-hosted-cache}
 
-Kura is Tuist's decentralized cache mesh for build artifacts and cache metadata. It lets you place cache nodes close to the machines that produce and consume build outputs, whether those machines run in CI, developer offices, remote workstations, or regional compute clusters.
+Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters, while keeping endpoint discovery centralized through Tuist.
 
-The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each Kura node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
+The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each cache node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
 
-## How Kura fits with Tuist {#how-kura-fits-with-tuist}
+> [!NOTE]
+> Tuist's self-hosted cache nodes are powered by [Kura](https://github.com/tuist/tuist/tree/main/kura), Tuist's decentralized cache mesh. Kura is the data plane for cache nodes: it serves cache reads and writes, stores local state on disk, and replicates artifacts and metadata to peer nodes.
 
-The Tuist server tells clients which Kura endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
+## How self-hosted cache fits with Tuist {#how-self-hosted-cache-fits-with-tuist}
 
-Kura is the data plane. It serves cache reads and writes, stores local state on disk, and replicates artifacts and metadata to peer nodes.
+The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
 
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 

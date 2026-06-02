@@ -26,9 +26,9 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.Kura
   alias Tuist.Namespace
   alias Tuist.Repo
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 
@@ -354,7 +354,7 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account] ->
+      {:error, part, changeset, _changes} when part in [:organization, :account, :default_runner_profile] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -404,6 +404,9 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -688,6 +691,9 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_for_account(account)
+      end)
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -723,6 +729,10 @@ defmodule Tuist.Accounts do
         else
           {:error, changeset}
         end
+
+      {:error, :default_runner_profile, reason, _} ->
+        Logger.error("create_user: default runner profile insert failed: #{inspect(reason)}")
+        {:error, :internal_server_error}
     end
   end
 
@@ -2011,19 +2021,9 @@ defmodule Tuist.Accounts do
   end
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
-    endpoints = kura_cache_endpoints(account)
-    global_candidate_url = Kura.global_cache_endpoint_candidate_url(account)
-
-    case {endpoints, Kura.global_cache_endpoint_url(account)} do
-      {[], _global_url} ->
-        []
-
-      {_endpoints, global_url} when is_binary(global_url) ->
-        [global_url]
-
-      {endpoints, _global_url} ->
-        endpoints |> Enum.map(& &1.url) |> Enum.reject(&(&1 == global_candidate_url))
-    end
+    account
+    |> kura_cache_endpoints()
+    |> Enum.map(& &1.url)
   end
 
   @doc """

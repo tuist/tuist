@@ -6,13 +6,6 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-# The production workload cluster serves Kura HTTPS and gRPC traffic
-# directly via Hetzner LoadBalancer Services. Keep Cloudflare load
-# balancing disabled until the pool quota is raised and the global
-# endpoint design is revisited.
-kuraGlobalEndpointsEnabled: false
-kuraGlobalEndpointsRequired: false
-
 server:
   replicaCount: 2
 
@@ -107,25 +100,23 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
-  cloudflareLoadBalancing:
-    enabled: false
-    zoneName: tuist.dev
-    apiTokenSecret:
-      managed: true
-      item: cloudflare-tuist-dns
   sharedSecrets:
     externalSecret:
       enabled: true
       item: kura-introspection-oauth-client
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
-# sync replicas), 250Gi storage. Backups land in the
+# sync replicas), 100Gi per instance. Each instance is a streaming
+# replica holding the whole DB, so the size is per-replica capacity,
+# not a pool to split across them. The Hetzner CSI storage class has
+# `allowVolumeExpansion: true`, so we grow in place if the footprint
+# climbs faster than expected. Backups land in the
 # `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
   cnpg:
     instances: 3
     storage:
-      size: "250Gi"
+      size: "100Gi"
     resources:
       requests:
         cpu: "2000m"
@@ -279,24 +270,26 @@ runnersFleet:
       dispatchLabel: "tuist-macos"
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
-# macosFleet and runnersFleet hosts run. Sized at 1 to start so the
-# cluster-managed builder lands alongside the existing hand-
-# bootstrapped `vm-image-builder-01` host (which carries the same
-# `vm-image-builder` runner label, so GitHub's scheduler routes
-# between them). Retire `-01` per the "Migrating from hand-
-# bootstrapped hosts" section of vm-image-builder.md once the
-# cluster-managed builder is comfortably taking jobs; scale up
-# `replicas` here to whatever capacity ends up needed.
+# macosFleet and runnersFleet hosts run. Production is the only env
+# that runs a builder (staging/canary disable theirs to avoid the
+# shared `vm-image-builder` org label routing release jobs cross-env).
+# Sized at 2 so the release's two parallel image bakes (runner image +
+# xcresult processor image) run concurrently instead of serializing on
+# one host. Each builder needs the one-time Local Network access grant
+# (see vm-image-builder.md) before it can reach its Tart guests over
+# SSH. Retire the hand-bootstrapped `vm-image-builder-01` host per the
+# "Migrating from hand-bootstrapped hosts" section of
+# vm-image-builder.md once these cluster-managed builders are
+# comfortably taking jobs.
 #
 # Shares the `tuist-pool-` host pool with macosFleet (2) and
-# runnersFleet (9), so this fleet adds 1 to the pool-demand
+# runnersFleet (9), so this fleet adds 2 to the pool-demand
 # total. The operator's pre-order job for production already
-# tracks the macos + runners side; bump it by 1 ahead of the
-# first `helm upgrade` that flips this fleet's pool-claim path
-# on.
+# tracks the macos + runners side; bump it by 2 ahead of the
+# `helm upgrade` that applies this replica count.
 buildersFleet:
   enabled: true
-  replicas: 1
+  replicas: 2
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
     enabled: true
@@ -322,31 +315,35 @@ kataContainers:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  pools:
-    - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
-      dispatchLabel: "tuist-production-linux"
-      runnerLabels:
-        - self-hosted
-        - Linux
-        - X64
-      runtimeClass: kata-qemu
-      pod:
-        cpuMilli: 1000
-        memoryMB: 4096
-      # Pod-level autoscaling only. Bare-metal host count is operator-
-      # managed via the cluster topology — see staging values for the
-      # rationale.
+  pools: []
+  # Shape-keyed pools backing Runner Profiles. Keep in sync with
+  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
+  # default shape keeps the warm floor the legacy pool used to carry,
+  # since it absorbs both new `tuist-default` traffic and the aliased
+  # legacy `tuist-production-linux` jobs.
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
+  shapeRuntimeClass: kata-qemu
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 0
+    maxReplicas: 120
+    scaleDownCooldownSeconds: 300
+  shapes:
+    - { vcpus: 1, memoryGb: 2 }
+    - { vcpus: 2, memoryGb: 4 }
+    - { vcpus: 2, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 8 }
+    # Default shape: ~50% of P95 warm floor (the legacy pool's value),
+    # since all `tuist-default` + aliased legacy traffic lands here.
+    - vcpus: 4
+      memoryGb: 16
+      default: true
       autoscaling:
-        enabled: true
-        # ~50% of P95: keeps warm runners pre-thawed without paying
-        # for steady-state idle capacity equal to peak.
         minWarmPoolFloor: 30
-        # 2 hosts × 64 raw slots = 128, minus ~4 slots per host
-        # reserved for system DaemonSets (Cilium agent, kube-proxy
-        # replacement, node-exporter) and per-Pod kata overhead.
-        maxReplicas: 120
-        scaleDownCooldownSeconds: 300
+    - { vcpus: 8, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 32 }
+    - { vcpus: 16, memoryGb: 32 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

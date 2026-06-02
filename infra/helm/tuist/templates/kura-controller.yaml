@@ -160,33 +160,11 @@ spec:
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
-            {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
-            {{- if .Values.kuraController.cloudflareLoadBalancing.zoneName }}
-            - --cloudflare-zone-name={{ .Values.kuraController.cloudflareLoadBalancing.zoneName }}
-            {{- end }}
-            {{- if .Values.kuraController.cloudflareLoadBalancing.accountID }}
-            - --cloudflare-account-id={{ .Values.kuraController.cloudflareLoadBalancing.accountID }}
-            {{- end }}
-            {{- if .Values.kuraController.cloudflareLoadBalancing.zoneID }}
-            - --cloudflare-zone-id={{ .Values.kuraController.cloudflareLoadBalancing.zoneID }}
-            {{- end }}
-            - --cloudflare-api-token=$(CLOUDFLARE_API_TOKEN)
-            {{- end }}
-            - --reconcile-global-endpoints={{ ternary "true" "false" .Values.kuraGlobalEndpointsEnabled }}
-            - --require-global-endpoints={{ ternary "true" "false" .Values.kuraGlobalEndpointsRequired }}
           ports:
             - name: metrics
               containerPort: 8080
             - name: probe
               containerPort: 8081
-          {{- if .Values.kuraController.cloudflareLoadBalancing.enabled }}
-          env:
-            - name: CLOUDFLARE_API_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.kuraController.cloudflareLoadBalancing.apiTokenSecret.name }}
-                  key: {{ .Values.kuraController.cloudflareLoadBalancing.apiTokenSecret.key }}
-          {{- end }}
           livenessProbe:
             httpGet: { path: /healthz, port: probe }
             initialDelaySeconds: 15

@@ -85,7 +85,9 @@ commit_parsers = [
 ]
 protect_breaking_commits = false
 filter_commits = true
-tag_pattern = "runner-image@[0-9].*"
+# Anchored with `^` so it doesn't also match `linux-runner-image@`
+# tags, whose names contain `runner-image@` as a substring.
+tag_pattern = "^runner-image@[0-9].*"
 skip_tags = "beta|alpha"
 ignore_tags = "rc"
 topo_order = false

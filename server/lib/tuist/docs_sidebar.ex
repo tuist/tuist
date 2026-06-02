@@ -379,7 +379,7 @@ defmodule Tuist.Docs.Sidebar do
             label: "Self-hosting",
             items: [
               %Item{label: "Control plane", slug: "/en/guides/server/self-host/control-plane"},
-              %Item{label: "Kura", slug: "/en/guides/server/self-host/kura"},
+              %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]
           }

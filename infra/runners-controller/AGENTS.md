@@ -14,10 +14,29 @@ independent workqueues:
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
-  patches `RunnerPool.spec.replicas`. The policy math lives in
+  patches `RunnerPool.spec.replicas`. The per-pool policy math lives in
   `internal/scaling/desired.go`; tuning knobs (`minWarmPoolFloor`,
   `maxReplicas`, `scaleDownCooldownSeconds`) live in the
   `RunnerPool` spec, so a tuning change is helm-only.
+
+  **Fleet-capacity awareness (Linux).** Linux shape pools share one
+  bare-metal node pool, so their speculative warm headroom competes for
+  the same memory. For `os: linux` pools the reconciler runs the
+  per-pool target through `internal/scaling/allocate.go`'s
+  `AllocateFleet`, a three-tier waterfall over the pools sharing a
+  `FleetSelector`: (1) every pool's `minWarmPoolFloor`, (2) real load
+  (`claimed + queued`), then (3) the speculative p95 buffer from
+  whatever memory is left. Tiers 1+2 are always honored (excess goes
+  Pending — the "add a host" signal); tier 3 is squeezed under
+  contention, so an idle shape's warm Pods fall back toward its floor to
+  admit another shape's real queued work. Memory is the only dimension
+  (kata pins it per microVM; CPU is oversubscribed). Fleet allocatable
+  is summed from nodes labeled `node.cluster.x-k8s.io/pool=<FleetSelector>`
+  (cluster-scoped `nodes` read in the ClusterRole), scaled by
+  `MemReserveFraction` (default 0.9). Any failure gathering the fleet
+  view falls back to the per-pool target — a node-read blip must never
+  trigger a mass scale-down. macOS pools (one VM per host, no
+  bin-packing) keep the plain per-pool path.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
@@ -286,48 +305,15 @@ The sidecar image is pinned via the chart's
 `runnersController.dindImage` value and threaded into the
 controller as `--dind-image`. Renovate keeps the pin bumped.
 
-## Pool variants (convention-based dispatch)
+## Pool variants
 
-The chart can stamp multiple pools onto the same Linux fleet,
-each with its own per-tenant slot size and `dispatchLabel`.
-Workflows opt in to a variant via `runs-on:` matching the
-label — same idea as Namespace's
-`namespace-profile-default-with-volume` / `-large`. Today on
-staging:
+Linux per-tenant slot sizes are now shape-keyed via Runner
+Profiles. `runnersFleetLinux.shapes` in the chart values lists
+the `(vcpus, memoryGb)` tuples the fleet exposes; the server
+resolves a customer's `runs-on: tuist-<name>` to the matching
+shape-keyed `RunnerPool` CR. Keep that list in sync with
+`:runner_linux_shapes` in `server/config/config.exs` — same
+catalog from two sides.
 
-| Pool name             | runs-on label                  | Slot           | Notes                              |
-|-----------------------|--------------------------------|----------------|------------------------------------|
-| `ubuntu-22-04`        | `tuist-staging-linux`          | 1 vCPU / 4 GiB  | Standard tenant slot               |
-| `ubuntu-22-04-large`  | `tuist-staging-linux-large`    | 4 vCPU / 32 GiB | Heavy docker builds (server image) |
-
-Kata sizes the microVM from the sum of container memory
-limits, so the runner container's `pod.memoryMB` IS the VM
-memory budget the dind sidecar + dockerd + buildkit share
-(the dind sidecar has no explicit limit). For workloads that
-pull a multi-stage image with swift / Erlang / Elixir / node,
-4 GiB OOMs the VM mid-build; the `-large` slot is the
-escape valve.
-
-Add a new variant by appending another entry to
-`runnersFleetLinux.pools` with its own `dispatchLabel`,
-`pod.cpuMilli`, `pod.memoryMB`, and `autoscaling` block.
-Density and chart bookkeeping:
-
-- Each `pod.memoryMB` slot must fit on the AX42-U host
-  alongside whatever else the fleet is running. The AX42-U
-  ceiling is ~64 GiB; reduce other pools' `maxReplicas`
-  accordingly when adding a large slot.
-- Each pool gets its own `RunnerPool` CR (the chart's
-  `runnerpool.yaml` template iterates `pools[]`); the
-  controller's two reconcilers fan out per pool.
-
-Follow-ups worth doing before this surface settles:
-
-- Production `-large` variant in `values-managed-production.yaml`
-  once AX162-R hosts land (256 GiB → much wider pool variety
-  possible without per-pool density tradeoffs).
-- Bake `e2fsprogs` into a custom `tuist-dind` image so the
-  `apk add` on every Pod startup goes away.
-- Promote the convention to documentation users can read: a
-  table of per-environment dispatch labels + slot sizes,
-  mirroring Namespace's profile catalogue page.
+Follow-up: bake `e2fsprogs` into a custom `tuist-dind` image so
+the `apk add` on every Pod startup goes away.

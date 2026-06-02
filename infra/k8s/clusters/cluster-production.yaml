@@ -48,10 +48,15 @@ spec:
         value: production
     workers:
       machineDeployments:
-        # General-purpose pool: Phoenix server, redis, system DaemonSets.
+        # General-purpose pool: Phoenix server, redis, system DaemonSets,
+        # plus the 3-instance CloudNativePG cluster — its hard pod
+        # anti-affinity (`topologyKey: kubernetes.io/hostname,
+        # podAntiAffinityType: required`) needs one CNPG instance per
+        # host, so the pool size has to match the configured instance
+        # count to avoid leaving a CNPG pod permanently Pending.
         - class: hcloud-worker
           name: md-0
-          replicas: 2
+          replicas: 3
           failureDomain: fsn1
           metadata:
             labels:

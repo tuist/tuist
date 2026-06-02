@@ -648,9 +648,13 @@ final class LinkGeneratorTests: XCTestCase {
         let otherCFlags = config.buildSettings["OTHER_CFLAGS"]?.arrayValue ?? []
         XCTAssertTrue(otherCFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
 
-        // OTHER_SWIFT_FLAGS should reference the response file
+        // OTHER_SWIFT_FLAGS should reference the response file directly (no -Xcc), so
+        // swift-driver expands it into native -F flags rather than forwarding @file to
+        // the ClangImporter, which under Xcode 26 would treat it as a second compiler
+        // input ("expected exactly one compiler job").
         let otherSwiftFlags = config.buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue ?? []
         XCTAssertTrue(otherSwiftFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
+        XCTAssertFalse(otherSwiftFlags.contains("-Xcc"))
 
         // OTHER_LDFLAGS should reference the response file
         let otherLDFlags = config.buildSettings["OTHER_LDFLAGS"]?.arrayValue ?? []
