@@ -23,6 +23,24 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
   end
 
   describe "call/2" do
+    test "doesn't fetch the latest CLI release when the request has no CLI version" do
+      # Given
+      Mimic.reject(&Releases.get_latest_cli_release/1)
+
+      conn =
+        :get
+        |> conn("/")
+        |> WarningsHeaderPlug.put_warning("warning")
+
+      # When
+      got = WarningsHeaderPlug.call(conn, %{})
+      [before_send_hook] = got.private.before_send
+      got = before_send_hook.(got)
+
+      # Then
+      assert Plug.Conn.get_resp_header(got, "x-tuist-cloud-warnings") == []
+    end
+
     test "it doesn't return the warnings if the version is lower than 4.11.0" do
       # Given
       Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.118.1"} end)
