@@ -12,6 +12,7 @@ public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
     // swiftlint:disable:next large_tuple
     private var _captureStubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var _calls: [String] = []
+    private var _workingDirectories: [Path.AbsolutePath?] = []
     public var whichStub: ((String) throws -> String?)?
 
     // swiftlint:disable:next large_tuple
@@ -32,6 +33,12 @@ public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _calls
+    }
+
+    public var workingDirectories: [Path.AbsolutePath?] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _workingDirectories
     }
 
     public init() {}
@@ -58,12 +65,13 @@ public final class MockCommandRunner: CommandRunning, @unchecked Sendable {
     public func run(
         arguments: [String],
         environment _: [String: String],
-        workingDirectory _: Path.AbsolutePath?
+        workingDirectory: Path.AbsolutePath?
     ) -> AsyncThrowingStream<CommandEvent, any Error> {
         AsyncThrowingStream { continuation in
             let command = arguments.joined(separator: " ")
             lock.lock()
             _calls.append(command)
+            _workingDirectories.append(workingDirectory)
             let stub = _captureStubs[command] ?? _defaultCaptureStubs
             lock.unlock()
 

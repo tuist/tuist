@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Installation",
+  "title": "Control plane",
   "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Learn how to install Tuist on your infrastructure."
+  "description": "Learn how to deploy the Tuist control plane on your infrastructure."
 }
 ---
-# Self-host installation {#self-host-installation}
+# Control plane {#control-plane}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
@@ -14,6 +14,12 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 >
 > Self-hosting Tuist requires a legally valid paid license. The on-premise version of Tuist is available only for organizations on the Enterprise plan. If you are interested in this version, please reach out to [contact@tuist.dev](mailto:contact@tuist.dev).
 
+> [!WARNING]
+> **Legacy cache service**
+>
+> The old self-hosted cache-node technology is deprecated for new installations. Use the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link> for current self-hosted cache infrastructure.
+>
+> Existing deployments can still reference the legacy source documentation in GitHub's markdown viewer: [cache nodes](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/self-host.md) and [cache architecture](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/architecture.md).
 
 ## Release cadence {#release-cadence}
 
@@ -91,17 +97,17 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 > [!TIP]
 > **Optimized Caching**
 >
-> If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
+> If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted cache nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
+> See the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
 
 
 ### Self-hosted cache nodes {#self-hosted-cache-nodes}
 
 To use self-hosted cache nodes with a self-hosted Tuist server:
 
-1. Deploy your cache nodes following the <.localized_link href="/guides/cache/self-host">cache self-hosting guide</.localized_link>.
-2. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
+1. Deploy cache nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
+2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
 
 ## Configuration {#configuration}
 

@@ -1,5 +1,5 @@
 defmodule Tuist.AccountsTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
@@ -8,16 +8,21 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentRegistration
+  alias Tuist.Accounts.AgentRegistrationEvent
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -1237,6 +1242,20 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_admin?(user, organization) == true
     end
 
+    test "auto-bootstraps the protected linux runner profile" do
+      # Every new organization account lands with the default `linux`
+      # profile so `runs-on: <prefix>linux` resolves the moment the
+      # account exists — without it the customer's first workflow
+      # would error out before they ever see the Profiles UI.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+               RunnerProfiles.list_for_account(organization.account)
+    end
+
     test "creates an organization when new pricing model is enabled" do
       # Given
       Billing
@@ -1681,6 +1700,19 @@ defmodule Tuist.AccountsTest do
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
+    end
+
+    test "auto-bootstraps the protected linux runner profile" do
+      # Same default-profile invariant the organization path enforces:
+      # personal accounts land with the `linux` profile so the
+      # `<prefix>linux` label resolves from the first workflow run.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+
+      {:ok, user} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+
+      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+               RunnerProfiles.list_for_account(user.account)
     end
 
     test "creates the user infering the handle from the email when no handle is provided" do
@@ -4102,6 +4134,7 @@ defmodule Tuist.AccountsTest do
     test "returns Kura endpoints when account has them configured" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4125,11 +4158,48 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns regional Kura endpoints until the global endpoint has been reconciled" do
+    test "returns environment Kura endpoints over account-specific endpoints" do
+      # Given
+      environment_endpoints = [
+        "https://kura-cluster-1.example.com",
+        "https://kura-cluster-2.example.com"
+      ]
+
+      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache-1.example.com",
+          technology: :kura
+        })
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == environment_endpoints
+    end
+
+    test "returns environment Kura endpoints when the account handle is missing" do
+      # Given
+      environment_endpoints = ["https://kura-cluster.example.com"]
+      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil, :kura)
+
+      # Then
+      assert endpoints == environment_endpoints
+    end
+
+    test "returns configured Kura endpoints for the account" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_endpoints, fn -> nil end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4153,35 +4223,11 @@ defmodule Tuist.AccountsTest do
                Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
     end
 
-    test "returns the global Kura endpoint over regional Kura endpoints once reconciled" do
+    test "returns default endpoints when account has no Kura endpoints configured" do
       # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == ["https://#{account.name}.kura.tuist.dev"]
-    end
-
-    test "returns no Kura endpoints when account has none configured" do
-      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :kura_endpoints, fn -> nil end)
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4189,28 +4235,7 @@ defmodule Tuist.AccountsTest do
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert endpoints == []
-    end
-
-    test "does not return a stale global Kura endpoint without regional endpoints" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == []
+      assert endpoints == default_endpoints
     end
   end
 
@@ -4268,5 +4293,601 @@ defmodule Tuist.AccountsTest do
       # Then
       assert accounts |> Enum.map(& &1.name) |> Enum.sort() == ["acme", "acmetools"]
     end
+  end
+
+  describe "agent registration" do
+    setup do
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [] end)
+      :ok
+    end
+
+    test "creates an email-required registration and emails a claim link" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: String.upcase(email),
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.claim_token =~ "clm_"
+
+      assert %AgentRegistration{
+               email: ^email,
+               status: :pending,
+               registration_ip: "127.0.0.1",
+               claim_requested_ip: "127.0.0.1"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [%AgentRegistrationEvent{event_type: :created, actor_ip: "127.0.0.1", metadata: metadata}] =
+               Repo.all(
+                 from(e in AgentRegistrationEvent,
+                   where: e.agent_registration_id == ^result.registration.id,
+                   order_by: e.occurred_at
+                 )
+               )
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "credential_type" => "access_token",
+               "registration_type" => "email_verification"
+             }
+
+      assert result.email_delivery.subject == "Your Tuist agent sign-in code"
+      assert result.email_delivery.html_body =~ "/agent/auth/claim/view?token="
+      refute result.email_delivery.html_body =~ result.claim_token
+      refute result.email_delivery.html_body =~ "<div class=\"otp\">"
+    end
+
+    test "claims the registration for an existing unconfirmed user" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email, confirmed_at: nil)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.4"
+        })
+
+      assert %AgentRegistration{
+               status: :claimed,
+               claim_completed_ip: "192.0.2.4",
+               claimed_by_user_id: claimed_by_user_id
+             } = Repo.get!(AgentRegistration, claimed.registration.id)
+
+      assert claimed_by_user_id == user.id
+      assert %User{confirmed_at: confirmed_at} = Repo.get!(User, user.id)
+      assert confirmed_at
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^claimed_by_user_id},
+               scopes: ["mcp"],
+               all_projects: true,
+               issued_by: %{id: ^claimed_by_user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+
+      assert [:created, :claimed] =
+               claimed.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "provisions and claims a new user when none exists" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.5"
+        })
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+      user_id = user.id
+
+      assert user.confirmed_at
+      assert claimed.registration.claimed_by_user_id == user_id
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^user_id},
+               issued_by: %{id: ^user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+    end
+
+    test "resends claim instructions and records an audit event" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.10"
+        })
+
+      assert resent.registration.claim_requested_ip == "192.0.2.10"
+
+      assert [
+               %AgentRegistrationEvent{event_type: :created},
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => resent.registration.claim_attempt_id,
+               "email" => email
+             }
+    end
+
+    test "persists failed OTP attempts and records audit events" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :otp_invalid} =
+               Accounts.complete_agent_registration_claim(%{
+                 claim_token: result.claim_token,
+                 otp: "000000",
+                 claim_completed_ip: "192.0.2.11"
+               })
+
+      assert %AgentRegistration{otp_attempt_count: 1} = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [
+               %AgentRegistrationEvent{event_type: :created},
+               %AgentRegistrationEvent{event_type: :otp_failed, actor_ip: "192.0.2.11", metadata: metadata}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "otp_attempt_count" => 1
+             }
+    end
+
+    test "creates an anonymous API key and later claims it for a real user" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+      assert result.credential =~ "tuist_"
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{account: %{user_id: anonymous_user_id}} =
+               Authentication.authenticated_subject(result.credential)
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.20"
+        })
+
+      claim_view_token = extract_claim_view_token(resent.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.21"
+        })
+
+      {:ok, claimed_user} = Accounts.get_user_by_email(email)
+      assert claimed.registration.claimed_by_user_id == claimed_user.id
+
+      assert %AuthenticatedAccount{account: %{user_id: claimed_user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert claimed_user_id == claimed_user.id
+      refute claimed_user_id == anonymous_user_id
+
+      assert [:created, :claim_resent, :claimed] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider access token and revokes it from a logout token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-to-revoke")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :access_token,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :access_token
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{issued_by: %{email: ^email}} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert %AgentRegistration{
+               registration_type: :agent_provider,
+               status: :claimed,
+               email: ^email,
+               issuer: "https://agent-provider.example.com",
+               subject: "provider-user-1",
+               client_id: "test-agent-client",
+               assertion_jti: "id-jag-to-revoke"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [:created, :claimed] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+
+      logout_token = logout_token(jwk, "logout-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Authentication.authenticated_subject(result.credential) == nil
+
+      assert %AgentRegistration{status: :revoked, revoked_at: revoked_at} =
+               Repo.get!(AgentRegistration, result.registration.id)
+
+      assert revoked_at
+
+      assert [:created, :claimed, :revoked] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider API key and revokes the backing account token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-api-key")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :api_key,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+
+      assert %AuthenticatedAccount{account: %{user_id: user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert user_id == user.id
+
+      assert %AgentRegistration{account_token_id: account_token_id} = result.registration
+      assert Repo.get!(AccountToken, account_token_id)
+
+      logout_token = logout_token(jwk, "logout-api-key-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Repo.get(AccountToken, account_token_id) == nil
+      assert Authentication.authenticated_subject(result.credential) == nil
+    end
+
+    test "rejects an agent-provider assertion from an untrusted issuer" do
+      email = AccountsFixtures.unique_user_email()
+      {_provider, assertion, _jwk} = id_jag_with_jwk(email, "untrusted-id-jag")
+
+      assert {:error, :invalid_issuer} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects replayed agent-provider assertions" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "replayed-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      attrs = %{
+        registration_type: :agent_provider,
+        assertion: assertion,
+        requested_credential_type: :access_token,
+        audience: "https://tuist.dev"
+      }
+
+      assert {:ok, _result} = Accounts.create_agent_registration(attrs)
+      assert {:error, :replay_detected} = Accounts.create_agent_registration(attrs)
+    end
+
+    test "rejects agent-provider assertions without a verified email" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "unverified-email-jti", %{
+            "email_verified" => false
+          })
+        )
+
+      assert {:error, :missing_verified_email} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects agent-provider assertions for the wrong client" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "wrong-client-jti", %{
+            "client_id" => "other-client"
+          })
+        )
+
+      assert {:error, :invalid_client_id} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "refuses email-verification registration for SSO-enforced existing users" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses email-verification registration when the email domain maps to an SSO-enforced org" do
+      org = sso_enforced_organization_fixture(sso_organization_id: "acme.com")
+      assert org.sso_organization_id == "acme.com"
+      email = "new-user-#{TuistTestSupport.Utilities.unique_integer(6)}@acme.com"
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "refuses agent-provider registration when the asserted email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "sso-enforced-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses anonymous claim when the supplied email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {:ok, anonymous} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :sso_required} =
+               Accounts.resend_agent_registration_claim(%{
+                 claim_token: anonymous.claim_token,
+                 email: email,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 claim_requested_ip: "192.0.2.30"
+               })
+    end
+  end
+
+  defp sso_enforced_organization_fixture(opts \\ []) do
+    sso_organization_id =
+      Keyword.get(opts, :sso_organization_id, "sso-org-#{TuistTestSupport.Utilities.unique_integer(6)}.com")
+
+    org =
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: sso_organization_id,
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+    {:ok, org} =
+      org
+      |> Ecto.Changeset.change(sso_enforced: true)
+      |> Repo.update()
+
+    org
+  end
+
+  describe "sso_enforced_for_email?/1" do
+    test "returns true when the existing user belongs to an SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false when the existing user has no SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      _user = AccountsFixtures.user_fixture(email: email)
+
+      refute Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns true for an unknown email whose domain maps to an SSO-enforced org" do
+      _org = sso_enforced_organization_fixture(sso_organization_id: "example-sso.com")
+      email = "unknown-#{TuistTestSupport.Utilities.unique_integer(6)}@example-sso.com"
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false for malformed input" do
+      refute Accounts.sso_enforced_for_email?(nil)
+      refute Accounts.sso_enforced_for_email?("not-an-email")
+    end
+  end
+
+  defp extract_claim_view_token(html_body) do
+    [_, encoded_token] = Regex.run(~r{/agent/auth/claim/view\?token=([^"&]+)}, html_body)
+    URI.decode_www_form(encoded_token)
+  end
+
+  defp agent_registration_events(agent_registration_id) do
+    Repo.all(
+      from(e in AgentRegistrationEvent,
+        where: e.agent_registration_id == ^agent_registration_id,
+        order_by: e.occurred_at
+      )
+    )
+  end
+
+  defp id_jag_with_jwk(email, jti) do
+    jwk = JOSE.JWK.generate_key({:rsa, 2048})
+    provider = agent_auth_provider(jwk)
+
+    {provider, sign_agent_auth_jwt(jwk, "oauth-id-jag+jwt", claims(email, jti)), jwk}
+  end
+
+  defp agent_auth_provider(jwk) do
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    public_jwk = Map.put(public_jwk, "kid", "agent-auth-test-key")
+
+    %{
+      "issuer" => "https://agent-provider.example.com",
+      "jwks" => %{"keys" => [public_jwk]},
+      "client_ids" => ["test-agent-client"]
+    }
+  end
+
+  defp logout_token(jwk, jti) do
+    sign_agent_auth_jwt(jwk, "logout+jwt", %{
+      "iss" => "https://agent-provider.example.com",
+      "sub" => "provider-user-1",
+      "aud" => "https://tuist.dev",
+      "client_id" => "test-agent-client",
+      "jti" => jti,
+      "iat" => DateTime.to_unix(DateTime.utc_now()),
+      "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+      "events" => %{
+        "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked" => %{}
+      }
+    })
+  end
+
+  defp claims(email, jti, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "iss" => "https://agent-provider.example.com",
+        "sub" => "provider-user-1",
+        "aud" => "https://tuist.dev",
+        "client_id" => "test-agent-client",
+        "jti" => jti,
+        "iat" => DateTime.to_unix(DateTime.utc_now()),
+        "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+        "email" => email,
+        "email_verified" => true
+      },
+      overrides
+    )
+  end
+
+  defp sign_agent_auth_jwt(jwk, typ, claims) do
+    jwt = JOSE.JWT.from_map(claims)
+    jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
+    {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
+    token
   end
 end

@@ -38,7 +38,6 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
-			GlobalPublicHost: "tuist.kura.tuist.dev",
 			StorageClassName: "hcloud-volumes",
 			ExtensionScript:  "return true",
 		},
@@ -96,8 +95,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got, _, _ := unstructured.NestedString(publicCert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
 		t.Fatalf("expected public Certificate ClusterIssuer ref, got %q", got)
 	}
-	if got, _, _ := unstructured.NestedStringSlice(publicCert.Object, "spec", "dnsNames"); len(got) != 2 || got[0] != "tuist-eu-1.kura.tuist.dev" || got[1] != "tuist.kura.tuist.dev" {
-		t.Fatalf("expected public Certificate dnsNames to include the regional and global public hosts, got %v", got)
+	if got, _, _ := unstructured.NestedStringSlice(publicCert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected public Certificate dnsNames to include the regional public host, got %v", got)
 	}
 
 	ingress := &networkingv1.Ingress{}
@@ -296,14 +295,13 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	instance := &kurav1alpha1.KuraInstance{
 		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
 		Spec: kurav1alpha1.KuraInstanceSpec{
-			AccountHandle:        "tuist",
-			TenantID:             "tuist",
-			Region:               "eu",
-			Image:                "ghcr.io/tuist/kura:0.5.2",
-			PublicHost:           "tuist-eu-1.kura.tuist.dev",
-			GRPCPublicHost:       "grpc.tuist-eu-1.kura.tuist.dev",
-			GlobalGRPCPublicHost: "grpc.tuist.kura.tuist.dev",
-			StorageClassName:     "hcloud-volumes",
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			StorageClassName: "hcloud-volumes",
 		},
 	}
 
@@ -348,8 +346,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	if got, _, _ := unstructured.NestedString(cert.Object, "spec", "issuerRef", "name"); got != "letsencrypt-prod" {
 		t.Fatalf("expected ClusterIssuer ref, got %q", got)
 	}
-	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 2 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" || got[1] != "grpc.tuist.kura.tuist.dev" {
-		t.Fatalf("expected gRPC Certificate dnsNames to include the regional and global hosts, got %v", got)
+	if got, _, _ := unstructured.NestedStringSlice(cert.Object, "spec", "dnsNames"); len(got) != 1 || got[0] != "grpc.tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC Certificate dnsNames to include the regional host, got %v", got)
 	}
 
 	sts := &appsv1.StatefulSet{}

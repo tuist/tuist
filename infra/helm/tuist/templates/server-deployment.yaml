@@ -78,11 +78,28 @@ spec:
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            # CNPG creates a `<cluster>-app` Secret carrying the owner
+            # role's URI. Override DATABASE_URL from the priv/secrets
+            # bundle so it points at the in-cluster cluster. The
+            # service hostname (`<cluster>-rw`) only ever resolves to the
+            # current primary; CNPG fails the Service over during a
+            # promotion.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE
@@ -127,8 +144,47 @@ spec:
             # chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            # Identity gate for `POST /api/internal/runners/pods/stopped`:
+            # only the rendered runners-controller SA can close billing
+            # sessions. Mirrors the deployment-time identity defined in
+            # `runners-controller-deployment.yaml`.
+            - name: TUIST_RUNNERS_CONTROLLER_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # Prefix the dispatch path prepends to a shape key to address
+            # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+            # Injected from the same helper that names the CRs in
+            # runner-pool.yaml so the server always resolves to a pool a
+            # Pod actually polls, regardless of the helm release name.
+            - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.shapes }}
+            # Single source of truth for the shape catalog: inject the
+            # same `runnersFleetLinux.shapes` list that renders the
+            # RunnerPool CRs so the server's catalog (dashboard dropdown,
+            # profile validation, dispatch) can't drift from the pools
+            # that exist. Projected to the fields the server reads;
+            # config/runtime.exs parses it into `:runner_linux_shapes`.
+            {{- $serverShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverShapes = append $serverShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_SHAPES
+              value: {{ $serverShapes | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+            # Namespace of the CNPG Cluster + Backup CRs (this release's
+            # namespace). The /ops/db Backups tab lists those CRs via the
+            # K8s API; the server SA's read grant is in postgresql-cnpg.yaml.
+            - name: TUIST_CNPG_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
@@ -188,12 +244,14 @@ spec:
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
+            {{- with .Values.server.kuraEndpointUrls }}
+            - name: TUIST_KURA_ENDPOINTS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- if .Values.kuraRuntime.image.tag }}
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
-            - name: TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS
-              value: {{ ternary "true" "false" .Values.kuraGlobalEndpointsRequired | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL

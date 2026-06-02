@@ -399,6 +399,22 @@ defmodule TuistWeb.Router do
 
     get "/ready", PageController, :ready
     get "/api/docs", APIController, :docs
+    get "/agent/auth/claim/view", AgentAuthController, :claim_view
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api]
+
+    get "/auth.md", AgentAuthController, :auth_md
+    post "/agent/auth/revoke", AgentAuthController, :revoke
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :non_authenticated_api]
+
+    post "/agent/auth", AgentAuthController, :register
+    post "/agent/auth/claim", AgentAuthController, :claim
+    post "/agent/auth/claim/complete", AgentAuthController, :complete_claim
   end
 
   scope "/integrations", TuistWeb do
@@ -637,6 +653,7 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      get "/access", CacheController, :access
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
@@ -698,6 +715,13 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    post "/runners/pods/stopped", RunnerPodsController, :stopped
+  end
+
+  scope "/_internal", TuistWeb.Internal do
+    pipe_through [:non_authenticated_api]
+
+    post "/kura/usage", KuraUsageController, :create
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -712,6 +736,7 @@ defmodule TuistWeb.Router do
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through :non_authenticated_api
 
+    post "/introspect", IntrospectController, :introspect
     post "/token", TokenController, :token
     post "/register", RegistrationController, :register
   end
@@ -770,6 +795,8 @@ defmodule TuistWeb.Router do
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/db", TuistWeb.OpsDatabaseLive
+      live "/db/tables/:schema/:name", TuistWeb.OpsDatabaseTableLive
     end
   end
 
@@ -952,23 +979,21 @@ defmodule TuistWeb.Router do
       ] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
+      live "/runners", RunnersLive
+      live "/runners/workflows", RunnerWorkflowsLive
+      live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
+      live "/runners/jobs", RunnerJobsLive
+      live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
-      live "/billing", BillingLive
-      live "/integrations", IntegrationsLive
-      live "/authentication", AuthenticationSettingsLive
       live "/webhooks", WebhooksLive
-      live "/settings", AccountSettingsLive
-    end
-
-    live_session :webhook_detail,
-      layout: {TuistWeb.Layouts, :headerbar},
-      on_mount: [
-        {TuistWeb.Authentication, :ensure_authenticated},
-        {TuistWeb.Locale, :assign_locale},
-        {TuistWeb.LayoutLive, :account}
-      ] do
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/billing", BillingLive
+      live "/usage", UsageLive
+      live "/settings", AccountSettingsLive
+      live "/settings/integrations", IntegrationsLive
+      live "/settings/authentication", AuthenticationSettingsLive
     end
   end
 

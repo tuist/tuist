@@ -1,10 +1,37 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.195.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.12<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.195.12
+
+## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* hash the resolved embedded product closure into the cache content hash by [@fortmarek](https://github.com/fortmarek) in [#10984](https://github.com/tuist/tuist/pull/10984)
+* pass explicit working directory to manifest evaluation by [@fortmarek](https://github.com/fortmarek) in [#10996](https://github.com/tuist/tuist/pull/10996)
+* isolate acceptance fixtures from feature flags by [@pepicrft](https://github.com/pepicrft) in [#10993](https://github.com/tuist/tuist/pull/10993)
+* Fix Swift-only package framework modulemaps by [@pepicrft](https://github.com/pepicrft) in [#10971](https://github.com/tuist/tuist/pull/10971)
+* avoid checkout cwd for SwiftPM package dumps by [@pepicrft](https://github.com/pepicrft) in [#10966](https://github.com/tuist/tuist/pull/10966)
+* avoid expanding recursive exclusion globs by [@pepicrft](https://github.com/pepicrft) in [#10957](https://github.com/tuist/tuist/pull/10957)
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.7...4.195.11
+
+## What's Changed in 4.195.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek) in [#10228](https://github.com/tuist/tuist/pull/10228)
+* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
 * preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
 * stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
 * respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
@@ -25,7 +52,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.0...4.195.7
 
 ## What's Changed in 4.195.0<!-- RELEASE NOTES START -->
 

@@ -22,7 +22,7 @@ defmodule Noora.Filter do
 
   ### Filter Types and Operators
 
-  - **Text filters** (`:text`) - Support operators: `:==` (is), `:=~` (contains)
+  - **Text filters** (`:text`) - Support operators: `:==` (is), `:=~` (contains), `:"!=~"` (does not contain)
   - **Number filters** (`:number`) - Support operators: `:==`, `:<`, `:>`, `:<=`, `:>=`
   - **Option filters** (`:option`) - Support operators: `:==` (is), `:!=` (is not)
   - **List filters** (`:list`) - Support operators: `:=~` (contains), `:"!=~"` (does not contain) — for array/list fields
@@ -567,7 +567,7 @@ defmodule Noora.Filter do
   end
 
   defp operators(:option), do: [:==, :!=]
-  defp operators(:text), do: [:==, :=~]
+  defp operators(:text), do: [:==, :=~, :"!=~"]
   defp operators(:number), do: [:==, :<, :>, :<=, :>=]
   defp operators(:percentage), do: [:==, :<, :>, :<=, :>=]
   defp operators(:list), do: [:=~, :"!=~"]

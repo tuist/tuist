@@ -87,4 +87,47 @@ struct DerivedDataLocatorTests {
         #expect(result.parentDirectory == defaultDerivedDataDirectory)
         #expect(result.basename.hasPrefix("App-"))
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_uses_workspace_name_without_hash_for_relative_location() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Capivara.xcworkspace")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.derivedDataLocationStub = try .relativeToWorkspace(RelativePath(validating: ".derived-data"))
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result == temporaryDirectory.appending(components: ".derived-data", "Capivara"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_uses_hash_based_path_for_custom_absolute_location() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Capivara.xcworkspace")
+        let customDerivedDataDirectory = temporaryDirectory.appending(component: "CustomDerivedData")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.derivedDataLocationStub = .custom(customDerivedDataDirectory)
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result.parentDirectory == customDerivedDataDirectory)
+        #expect(result.basename.hasPrefix("Capivara-"))
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func locate_prefers_DERIVED_DATA_DIR_over_relative_location() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "Capivara.xcworkspace")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.derivedDataLocationStub = try .relativeToWorkspace(RelativePath(validating: ".derived-data"))
+        let buildDerivedDataPath = temporaryDirectory.appending(component: "build-derived-data")
+        mockedEnvironment.variables["DERIVED_DATA_DIR"] = buildDerivedDataPath.pathString
+
+        let result = try await subject.locate(for: projectPath)
+
+        #expect(result == buildDerivedDataPath)
+    }
 }

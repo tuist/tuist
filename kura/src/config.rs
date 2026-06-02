@@ -5,7 +5,9 @@ use tokio::fs;
 use crate::constants::{
     DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+    DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+    DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -52,6 +54,19 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
+const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
+const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
+    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
+const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
+const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
+const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
+const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
+const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
+const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
@@ -110,6 +125,7 @@ pub struct Config {
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
+    pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
@@ -157,6 +173,19 @@ pub struct AnalyticsConfig {
     pub request_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UsageConfig {
+    pub control_plane_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub window_secs: u64,
+    pub flush_interval_ms: u64,
+    pub delivery_interval_ms: u64,
+    pub batch_size: usize,
+    pub max_buckets: usize,
+    pub outbox_max_depth: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -848,6 +877,130 @@ impl Config {
                 None
             }
         };
+        let usage_window_secs =
+            optional_parsed_value(&mut lookup, KURA_USAGE_WINDOW_SECS, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_WINDOW_SECS} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_USAGE_WINDOW_SECS);
+        if usage_window_secs == 0 {
+            invalid.push(format!("{KURA_USAGE_WINDOW_SECS} must be greater than 0"));
+        }
+        let usage_flush_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_FLUSH_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_FLUSH_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_FLUSH_INTERVAL_MS);
+        if usage_flush_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_FLUSH_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_delivery_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_DELIVERY_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_DELIVERY_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_DELIVERY_INTERVAL_MS);
+        if usage_delivery_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_DELIVERY_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_batch_size =
+            optional_parsed_value(&mut lookup, KURA_USAGE_BATCH_SIZE, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_BATCH_SIZE} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_BATCH_SIZE);
+        if usage_batch_size == 0 {
+            invalid.push(format!("{KURA_USAGE_BATCH_SIZE} must be greater than 0"));
+        }
+        let usage_max_buckets =
+            optional_parsed_value(&mut lookup, KURA_USAGE_MAX_BUCKETS, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_MAX_BUCKETS} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_MAX_BUCKETS);
+        if usage_max_buckets == 0 {
+            invalid.push(format!("{KURA_USAGE_MAX_BUCKETS} must be greater than 0"));
+        }
+        let usage_outbox_max_depth = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_OUTBOX_MAX_DEPTH,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_OUTBOX_MAX_DEPTH} must be a valid usize"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_OUTBOX_MAX_DEPTH);
+        if usage_outbox_max_depth == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
+            ));
+        }
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let usage = match (
+            control_plane_url,
+            control_plane_client_id,
+            control_plane_client_secret,
+        ) {
+            (None, None, None) => None,
+            (Some(control_plane_url), Some(client_id), Some(client_secret)) => {
+                match reqwest::Url::parse(&control_plane_url) {
+                    Ok(_) => Some(UsageConfig {
+                        control_plane_url,
+                        client_id,
+                        client_secret,
+                        window_secs: usage_window_secs,
+                        flush_interval_ms: usage_flush_interval_ms,
+                        delivery_interval_ms: usage_delivery_interval_ms,
+                        batch_size: usage_batch_size,
+                        max_buckets: usage_max_buckets,
+                        outbox_max_depth: usage_outbox_max_depth,
+                    }),
+                    Err(error) => {
+                        invalid.push(format!(
+                            "{KURA_CONTROL_PLANE_URL} must be a valid URL: {error}"
+                        ));
+                        None
+                    }
+                }
+            }
+            _ => {
+                invalid.push(format!(
+                    "{KURA_CONTROL_PLANE_URL}, {KURA_CONTROL_PLANE_CLIENT_ID}, and {KURA_CONTROL_PLANE_CLIENT_SECRET} must either all be set or all be unset"
+                ));
+                None
+            }
+        };
         let geoip_refresh_interval_secs = optional_parsed_value(
             &mut lookup,
             KURA_GEOIP_REFRESH_INTERVAL_SECS,
@@ -996,6 +1149,7 @@ impl Config {
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             analytics,
+            usage,
             otlp_traces_endpoint,
             otel_service_name: otel_service_name
                 .expect("otel_service_name should be present when configuration is valid"),

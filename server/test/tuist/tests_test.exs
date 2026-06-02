@@ -550,6 +550,34 @@ defmodule Tuist.TestsTest do
       assert hd(tests).id == failure_test.id
     end
 
+    test "filters by git branch not containing a substring" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/GH-READONLY-QUEUE/main"
+        )
+
+      {:ok, non_queue_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          git_branch: "feature/main"
+        )
+
+      {tests, _meta} =
+        Tests.list_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :git_branch, op: :not_ilike, value: "gh-readonly-queue"}
+          ]
+        })
+
+      assert length(tests) == 1
+      assert hd(tests).id == non_queue_test.id
+      refute Enum.any?(tests, &(&1.id == queue_test.id))
+    end
+
     test "returns empty list when no tests exist for project" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -751,6 +779,70 @@ defmodule Tuist.TestsTest do
       # Then
       assert test_cases == []
       assert meta.total_count == 0
+    end
+
+    test "lists test case runs scoped to a project across multiple test runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleA",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testAlpha", status: "success", duration: 100},
+                %{name: "testBeta", status: "failure", duration: 200}
+              ]
+            }
+          ]
+        )
+
+      {:ok, _second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "ModuleB",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testGamma", status: "success", duration: 50}
+              ]
+            }
+          ]
+        )
+
+      # Different project — must not show up.
+      {:ok, _other_project_test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "ModuleC",
+              status: "success",
+              duration: 100,
+              test_cases: [
+                %{name: "testDelta", status: "success", duration: 25}
+              ]
+            }
+          ]
+        )
+
+      # When
+      {runs, meta} =
+        Tests.list_test_case_runs(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:ran_at],
+          order_directions: [:desc]
+        })
+
+      # Then
+      assert meta.total_count == 3
+      names = runs |> Enum.map(& &1.name) |> Enum.sort()
+      assert names == ["testAlpha", "testBeta", "testGamma"]
     end
   end
 
@@ -1170,6 +1262,54 @@ defmodule Tuist.TestsTest do
       assert test.git_branch == "main"
       assert test.git_commit_sha == "abc123def456"
       assert test.is_ci == true
+    end
+
+    test "looks up existing test cases by binding the IDs as a single array parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..3 do
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
+        end
+
+      parent = self()
+
+      # Only the existing-test-case lookup passes `multipart: true`, so capturing
+      # it at the repo boundary targets that query precisely.
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        if Keyword.get(opts, :multipart), do: send(parent, {:lookup, query})
+        []
+      end)
+
+      # When
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
+
+      # Then: the IDs are bound as one Array(UUID) parameter (alongside
+      # project_id), so the parameter count stays constant. An `id in ^ids`
+      # clause binds one parameter per ID, and in multipart mode each parameter
+      # becomes its own form field, overflowing ClickHouse's form-field limit on
+      # large reports (`HTML Form Exception: Too many form fields`).
+      assert_received {:lookup, query}
+      {sql, params} = Ecto.Adapters.ClickHouse.to_sql(:all, query)
+      assert sql =~ "Array(UUID)"
+      assert length(params) == 2
+    end
+
+    test "ingests a large test report end to end without exceeding ClickHouse multipart limits" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      test_cases =
+        for index <- 1..5_001 do
+          %{name: "test_#{index}", status: "success", duration: 10, test_suite_name: "Suite"}
+        end
+
+      # When/Then: the existing-test-case lookup runs against the real
+      # ClickHouse here (not a mock), so this fails if the IDs are sent in a way
+      # that trips either the form-field count or the per-field value-length
+      # limit (e.g. batching too aggressively).
+      assert {:ok, _test} = Tests.create_test(test_report(project, test_cases))
     end
 
     test "persists run_destinations as separate rows linked to the test run" do
@@ -8633,6 +8773,86 @@ defmodule Tuist.TestsTest do
         ClickHouseRepo.all(from(t in Tests.Test, hints: ["FINAL"], where: t.id == ^completed_id))
 
       assert run.status == "success"
+    end
+  end
+
+  defp test_report(project, test_cases) do
+    %{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      account_id: project.account_id,
+      duration: 1500,
+      status: "success",
+      ran_at: NaiveDateTime.utc_now(),
+      is_ci: false,
+      test_modules: [
+        %{
+          name: "Module",
+          status: "success",
+          duration: 1500,
+          test_suites: [%{name: "Suite", status: "success", duration: 1500}],
+          test_cases: test_cases
+        }
+      ]
+    }
+  end
+
+  describe "test_case_ids_with_successful_default_branch_run/3" do
+    test "returns only test cases with a successful, non-flaky run on the default branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      validated_id = UUIDv7.generate()
+      pr_only_id = UUIDv7.generate()
+      failing_on_main_id = UUIDv7.generate()
+      flaky_success_on_main_id = UUIDv7.generate()
+
+      run_id = UUIDv7.generate()
+      module_run_id = UUIDv7.generate()
+
+      row = fn attrs ->
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            test_run_id: run_id,
+            test_module_run_id: module_run_id,
+            project_id: project.id,
+            module_name: "MyTests",
+            suite_name: "TestSuite",
+            name: "testExample",
+            status: 0,
+            is_flaky: false,
+            duration: 100,
+            inserted_at: ~N[2024-04-30 10:00:00.000000]
+          },
+          attrs
+        )
+      end
+
+      IngestRepo.insert_all(TestCaseRun, [
+        # Passing, non-flaky, on the default branch: validated.
+        row.(%{test_case_id: validated_id, git_branch: "main", status: 0, is_flaky: false}),
+        # Only ever ran (and passed) on a pull-request branch.
+        row.(%{test_case_id: pr_only_id, git_branch: "feature-branch", status: 0, is_flaky: false}),
+        # On the default branch but only fails (merged broken).
+        row.(%{test_case_id: failing_on_main_id, git_branch: "main", status: 1, is_flaky: false}),
+        # On the default branch and passing, but the pass is flaky.
+        row.(%{test_case_id: flaky_success_on_main_id, git_branch: "main", status: 0, is_flaky: true})
+      ])
+
+      ids = [validated_id, pr_only_id, failing_on_main_id, flaky_success_on_main_id]
+
+      # When
+      got = Tests.test_case_ids_with_successful_default_branch_run(project.id, ids, "main")
+
+      # Then
+      assert MapSet.new(got) == MapSet.new([validated_id])
+    end
+
+    test "returns an empty list when given no test case ids" do
+      project = ProjectsFixtures.project_fixture(default_branch: "main")
+
+      assert Tests.test_case_ids_with_successful_default_branch_run(project.id, [], "main") == []
     end
   end
 end

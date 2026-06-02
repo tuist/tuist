@@ -127,6 +127,8 @@ config :logger, :console,
     :pools,
     :runner_name,
     :repo,
+    :principal_namespace,
+    :principal_name,
     :action,
     :labels,
     :installation_id,
@@ -162,7 +164,8 @@ config :logger, :console,
     :client_url,
     :status,
     :body,
-    :url
+    :url,
+    :dispatch_label
   ]
 
 config :mime, :types, %{
@@ -327,6 +330,25 @@ config :tuist, :blocked_handles, [
 ]
 
 config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+
+# Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
+# pick when creating a profile. This is the **dev/test/CI default**;
+# managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
+# which Helm injects from the same `runnersFleetLinux.shapes` list it
+# renders the RunnerPool CRs from (see config/runtime.exs). So the
+# cluster's pools and the server's catalog share one source of truth in
+# prod and can't drift. Exactly one entry should carry `default: true`
+# (preselected in the "new profile" form).
+config :tuist, :runner_linux_shapes, [
+  %{vcpus: 1, memory_gb: 2},
+  %{vcpus: 2, memory_gb: 4},
+  %{vcpus: 2, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 16, default: true},
+  %{vcpus: 8, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 32}
+]
 
 config :tuist, :urls,
   production: "https://tuist.dev",

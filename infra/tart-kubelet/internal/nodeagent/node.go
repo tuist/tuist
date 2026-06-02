@@ -28,6 +28,12 @@ import (
 type Maintainer struct {
 	Client   client.Client
 	NodeName string
+	// ProviderID is the cloud machine ID (scw-applesilicon://<zone>/<id>)
+	// the CAPI provider passes at bootstrap. CAPI core binds a Machine to
+	// its Node by matching Node.spec.providerID == Machine.spec.providerID;
+	// without it the fleet MachineDeployment never reports available.
+	// Empty leaves spec.providerID untouched.
+	ProviderID string
 	// NodeIP is the address advertised as the Node's InternalIP so
 	// in-cluster scrapers (alloy-metrics) targeting the Node role
 	// (host-level node_exporter at :9100, or any future host-bound
@@ -53,7 +59,20 @@ type Maintainer struct {
 	MemoryMB   int
 	MaxPods    int
 	Heartbeat  time.Duration
+	// DiskPressure, when non-nil, is evaluated each heartbeat to set
+	// the Node's DiskPressure condition. A real kubelet always reports
+	// this condition; leaving it unset surfaces as Unknown, which hides
+	// a full guest disk from the scheduler and from alerting. nil keeps
+	// the condition at its False default.
+	DiskPressure DiskPressureProbe
 }
+
+// DiskPressureProbe reports whether the node is under disk pressure plus
+// a human-readable detail for the condition message. A non-nil error
+// means the probe itself failed (e.g. a guest agent was unreachable);
+// the maintainer then leaves the existing condition untouched rather
+// than flapping it to False on a transient failure.
+type DiskPressureProbe func(ctx context.Context) (pressured bool, detail string, err error)
 
 // operatorOwnedLabelPrefix is the prefix tart-kubelet treats as
 // "I own this label." Labels with this prefix that aren't in the
@@ -86,13 +105,26 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
 		node.Name = m.NodeName
+		if m.ProviderID != "" {
+			node.Spec.ProviderID = m.ProviderID
+		}
 		m.configureNode(node)
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
-	// Node already exists (kubelet restart): just refresh status.
+	// Node already exists (kubelet restart). spec.providerID is immutable
+	// once set, so only fill it when empty — this binds nodes that
+	// registered before tart-kubelet learned to set it. refresh() below
+	// writes only the status subresource, so the spec patch has to happen
+	// here.
+	if m.ProviderID != "" && node.Spec.ProviderID == "" {
+		node.Spec.ProviderID = m.ProviderID
+		if err := m.Client.Update(ctx, node); err != nil {
+			return err
+		}
+	}
 	return m.refresh(ctx)
 }
 
@@ -102,12 +134,33 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 		return err
 	}
 	m.configureNode(node)
+	m.applyDiskPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
 			node.Status.Conditions[i].LastHeartbeatTime = metav1.Now()
 		}
 	}
 	return m.Client.Status().Update(ctx, node)
+}
+
+// applyDiskPressure refreshes the DiskPressure condition from the probe.
+// configureNode has already seeded the condition at False, so a nil
+// probe leaves it False and a probe error leaves the prior value in
+// place (logged, not flapped).
+func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
+	if m.DiskPressure == nil {
+		return
+	}
+	pressured, detail, err := m.DiskPressure(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "disk pressure probe")
+		return
+	}
+	if pressured {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionTrue, "TartKubeletHasDiskPressure", detail)
+	} else {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", detail)
+	}
 }
 
 // configureNode sets labels, taints, capacity, and Node info. Mirrors
@@ -192,7 +245,14 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 			LastTransitionTime: now,
 		})
 	} else {
-		setCondition(&node.Status.Conditions, corev1.NodeReady, corev1.ConditionTrue, "TartKubeletReady")
+		setCondition(&node.Status.Conditions, corev1.NodeReady, corev1.ConditionTrue, "TartKubeletReady", "")
+	}
+
+	// Seed DiskPressure at False so the node never sits at Unknown (which
+	// hides a full guest disk). The heartbeat's probe — see
+	// applyDiskPressure — flips it to True when a guest volume fills.
+	if !hasCondition(node.Status.Conditions, corev1.NodeDiskPressure) {
+		setCondition(&node.Status.Conditions, corev1.NodeDiskPressure, corev1.ConditionFalse, "TartKubeletHasSufficientDisk", "")
 	}
 
 	node.Status.NodeInfo.OperatingSystem = "darwin"
@@ -231,7 +291,7 @@ func hasCondition(conds []corev1.NodeCondition, t corev1.NodeConditionType) bool
 	return false
 }
 
-func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s corev1.ConditionStatus, reason string) {
+func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s corev1.ConditionStatus, reason, message string) {
 	now := metav1.Now()
 	for i, c := range *conds {
 		if c.Type == t {
@@ -240,6 +300,7 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 			}
 			(*conds)[i].Status = s
 			(*conds)[i].Reason = reason
+			(*conds)[i].Message = message
 			(*conds)[i].LastHeartbeatTime = now
 			return
 		}
@@ -248,6 +309,7 @@ func setCondition(conds *[]corev1.NodeCondition, t corev1.NodeConditionType, s c
 		Type:               t,
 		Status:             s,
 		Reason:             reason,
+		Message:            message,
 		LastHeartbeatTime:  now,
 		LastTransitionTime: now,
 	})

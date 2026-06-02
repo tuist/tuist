@@ -42,7 +42,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
   end
 
   test "renders integrations page with GitHub section", %{conn: conn, organization: organization} do
-    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     assert html =~ "Integrations"
     assert html =~ "GitHub"
@@ -58,7 +58,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     assert has_element?(lv, "a", "Install GitHub App")
   end
@@ -68,7 +68,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     refute html =~ "Server URL"
     assert html =~ "github.com"
@@ -83,7 +83,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.example.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     html = render_click(lv, "select-github-enterprise")
     assert html =~ "Server URL"
@@ -98,7 +98,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -120,7 +120,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -142,7 +142,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://tuist.dev/integrations/github/manifest/start?state=test"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -167,7 +167,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       end
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -190,7 +190,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://tuist.dev/integrations/github/manifest/start?state=test"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -213,7 +213,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       "https://github.com/apps/test-app/installations/new"
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     render_click(lv, "select-github-enterprise")
 
@@ -238,7 +238,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
     # app name to interpolate.
     stub(Tuist.Environment, :github_app_configured?, fn -> false end)
 
-    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     # Server URL input renders (Enterprise tab is the default).
     assert html =~ "Server URL"
@@ -276,7 +276,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
           github_app_installation_id: other_installation.id
         })
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
       # When: the user sends a delete event with the other account's connection ID
       render_hook(lv, "delete-connection", %{"connection_id" => other_connection.id})
@@ -297,7 +297,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
       {:ok, [%{id: 123, full_name: "test-org/test-repo"}]}
     end)
 
-    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
     assert has_element?(lv, "button", "Add new project connection")
 
@@ -315,7 +315,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
          %{conn: conn, organization: organization, account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
 
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
       refute html =~ "Enterprise server"
     end
@@ -324,7 +324,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
          %{conn: conn, organization: organization, account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
 
-      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/integrations")
+      {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
       assert html =~ "Enterprise server"
     end
@@ -333,7 +333,7 @@ defmodule TuistWeb.IntegrationsLiveTest do
          %{conn: conn, organization: organization, account: account} do
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
 
       html = render_click(lv, "select-github-enterprise")
 

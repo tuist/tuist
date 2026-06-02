@@ -1,0 +1,137 @@
+<div id="runner-job">
+  <.button
+    navigate={~p"/#{@selected_account.name}/runners/jobs"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_runners", "All jobs")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
+  <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
+  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={status_kind == :success} data-part="badge-success">
+          <div data-part="icon"><.circle_check /></div>
+        </div>
+        <div :if={status_kind == :failure} data-part="badge-failure">
+          <div data-part="icon"><.alert_circle /></div>
+        </div>
+        <div :if={status_kind == :warning} data-part="badge-warning">
+          <div data-part="icon"><.alert_hexagon /></div>
+        </div>
+        <div :if={status_kind == :processing} data-part="badge-processing">
+          <div data-part="icon"><.circle_dashed /></div>
+        </div>
+        <h1 data-part="label">{TuistWeb.RunnerJobLive.header_title(@job)}</h1>
+      </div>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={github_url}
+        href={github_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "GitHub")}
+      >
+        <:icon_left><.brand_github /></:icon_left>
+      </.button>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_runners", "CI Details")}
+    icon="git_merge"
+    data-part="ci-details"
+  >
+    <.card_section data-part="ci-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
+            <.badge
+              label={status_props.label}
+              color={status_props.color}
+              style="fill"
+              size="large"
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "CI duration")}</div>
+            <span data-part="label">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                TuistWeb.RunnerJobLive.run_duration_ms(@job)
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Queue time")}</div>
+            <span data-part="label">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                TuistWeb.RunnerJobLive.queued_duration_ms(@job)
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Ran at")}</div>
+            <span data-part="label">
+              <.tooltip
+                id="ran-at-tooltip"
+                title={Tuist.Utilities.DateFormatter.format_iso(@job.started_at)}
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    {Tuist.Utilities.DateFormatter.from_now(@job.started_at)}
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div>
+            <.badge
+              label={platform_label}
+              color={TuistWeb.RunnerJobLive.platform_badge_color(@job.fleet_name)}
+              style="light-fill"
+              size="large"
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Branch")}</div>
+            <span data-part="label">
+              <.git_branch />
+              {if(@job.head_branch == "",
+                do: dgettext("dashboard_runners", "None"),
+                else: @job.head_branch
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Commit SHA")}</div>
+            <span data-part="command-label">
+              {TuistWeb.Utilities.SHA.format_commit_sha(@job.head_sha)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
+            <span data-part="label">
+              {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+</div>

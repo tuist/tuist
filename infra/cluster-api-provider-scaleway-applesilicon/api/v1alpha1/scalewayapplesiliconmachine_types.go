@@ -217,6 +217,27 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// every 60s indefinitely with no terminal-failure signal.
 	// +optional
 	TartKubeletUpdateAttempts int32 `json:"tartKubeletUpdateAttempts,omitempty"`
+
+	// BootstrapAttempts counts consecutive bootstrap (Stage 2)
+	// failures on the currently-adopted host. Reset to zero on a
+	// successful bootstrap or whenever the underlying ServerID
+	// changes (mini swapped out). Drives the tiered recovery
+	// escalation in the BootstrapFailed path: at the reboot threshold
+	// the controller asks Scaleway to reboot the host to clear
+	// volatile state (PAM lockouts, sshd throttling, half-open
+	// connections); at the release threshold it returns the host to
+	// the adopt pool so the next reconcile claims a different mini.
+	// +optional
+	BootstrapAttempts int32 `json:"bootstrapAttempts,omitempty"`
+
+	// BootstrapRebootIssued records that a recovery reboot has
+	// already been triggered for the current host. Prevents
+	// re-rebooting the same host on every retry after the threshold
+	// crossing. Cleared when the underlying ServerID changes (mini
+	// swapped out, e.g., via release-to-pool) or on successful
+	// bootstrap.
+	// +optional
+	BootstrapRebootIssued bool `json:"bootstrapRebootIssued,omitempty"`
 }
 
 // +kubebuilder:object:root=true

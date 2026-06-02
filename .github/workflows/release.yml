@@ -16,8 +16,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
 
@@ -1035,9 +1036,9 @@ jobs:
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
@@ -1045,6 +1046,8 @@ jobs:
         run: |
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
           sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
+          sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
@@ -1053,9 +1056,9 @@ jobs:
           LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
 
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
           else
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
       - name: Install Helm
@@ -1064,11 +1067,15 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package Helm chart
-        run: helm package infra/helm/tuist
+      - name: Package Helm charts
+        run: |
+          helm package infra/helm/tuist
+          helm package kura/ops/helm/kura
 
-      - name: Push Helm chart
-        run: helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+      - name: Push Helm charts
+        run: |
+          helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+          helm push kura-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
 
       - name: Upload Helm artifacts
         id: upload
@@ -1078,6 +1085,7 @@ jobs:
           path: |
             infra/helm/CHANGELOG.md
             infra/helm/tuist/Chart.yaml
+            kura/ops/helm/kura/Chart.yaml
           retention-days: 1
 
   release-capi-scaleway:
@@ -1523,7 +1531,7 @@ jobs:
     #
     # The active-profile list is declared inline below. Adding a
     # profile = adding a matrix entry; if you move the first entry,
-    # update the adjacent `Resolve default profile + digest` step in
+    # update the adjacent `Resolve default profile image` step in
     # release-runner-image to match (it produces the chart pin).
     #
     # To refresh an out-of-rotation profile (one not in the matrix),
@@ -1797,26 +1805,24 @@ jobs:
       - name: Bump linux runner image digest pin in chart values
         run: |
           # The linux runner image digest pin lives in each managed
-          # env's values file under runnersFleetLinux.pools[].runnerImage.
-          # Anchor the substitution to `tuist-linux-runner` so we
-          # don't touch the macOS `tuist-runner` pin on the same line
-          # shape under `runnersFleet`. The digest comes from the
-          # build-push-action's own output — no second registry round
-          # trip via crane needed.
+          # env's values file under runnersFleetLinux.shapeRunnerImage
+          # (the shape catalog is the whole Linux fleet; the legacy
+          # `pools[].runnerImage` was retired). Anchor the substitution
+          # to `shapeRunnerImage` + `tuist-linux-runner` so we don't
+          # touch the macOS `tuist-runner` pin under `runnersFleet`. The
+          # digest comes from the build-push-action's own output — no
+          # second registry round trip via crane needed.
           DIGEST="${{ steps.build.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
             # Only rewrite if the file already has a non-empty pin to
-            # the Linux runner image. canary/production ship with
-            # `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release
-            # flow. The match accepts both pin styles the chart has
-            # used: a digest (`@sha256:...`) and a tag (`:<short-sha>`
-            # or `:<semver>`).
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
-              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
+            # the Linux runner image. The match accepts both pin styles
+            # the chart has used: a digest (`@sha256:...`) and a tag
+            # (`:<short-sha>` or `:<semver>`).
+            if grep -qE '^\s*shapeRunnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
+              sed -i -E "s|^([[:space:]]*shapeRunnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
             fi
           done
 
@@ -2249,7 +2255,9 @@ jobs:
           name: Helm Chart ${{ needs.check-releases.outputs.helm-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.helm-next-version }}
           body: |
-            OCI registry: `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            OCI registries:
+            - `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            - `oci://ghcr.io/tuist/charts/kura:${{ needs.check-releases.outputs.helm-next-version-number }}`
 
             ${{ needs.release-helm.outputs.release-notes }}
 
@@ -2399,7 +2407,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.helm-should-release }}" == "true" ] && [ "${{ needs.release-helm.result }}" == "success" ]; then
-            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml
+            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml kura/ops/helm/kura/Chart.yaml
             FILES_ADDED=true
           fi
 

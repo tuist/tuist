@@ -56,6 +56,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.VCS
 
@@ -195,12 +196,32 @@ defmodule Tuist.Runners do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, %{dispatch_label: dispatch_label, runner_labels: runner_labels}} <-
+        with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
+             dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
+          # Open the per-Pod billing session only after dispatch
+          # commits — JIT minted, PG marked running, CH state
+          # transitioned. Opening earlier (e.g. at claim-win in
+          # `Jobs.record_claimed/3`) leaks a session on every
+          # mid-dispatch failure since `release_safely/3` only
+          # re-queues the CH row and releases the PG claim — the
+          # session row would sit open and Billing would clamp it
+          # to the 6h max-lifetime.
+          RunnerSessions.open(%{
+            workflow_job_id: candidate.workflow_job_id,
+            account_id: candidate.account_id,
+            fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            pod_name: pod_name,
+            runner_name: runner_name,
+            repository: Map.get(candidate, :repository, ""),
+            workflow_name: Map.get(candidate, :workflow_name, ""),
+            started_at: claim.claimed_at
+          })
+
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -422,6 +443,21 @@ defmodule Tuist.Runners do
   end
 
   defp pool_label(_), do: {:error, :no_pool_label}
+
+  # Profile-aware dispatch labelling: prefer the customer-facing
+  # label the workflow_job carried in `runs-on:` (e.g.
+  # `tuist-default`), which the webhook stored on the candidate's
+  # CH row. Fall back to the pool's internal `dispatchLabel`
+  # (e.g. `shape-linux-4vcpu-16gb`) only when the candidate's
+  # `requested_dispatch_label` is missing — that path only fires
+  # for legacy rows enqueued before the requested-label column
+  # existed.
+  defp pick_dispatch_label(candidate, pool_dispatch_label) do
+    case Map.get(candidate, :requested_dispatch_label, "") do
+      label when is_binary(label) and label != "" -> label
+      _ -> pool_dispatch_label
+    end
+  end
 
   # The polling Pod's name. The controller's podtemplate stamps
   # Pods + SAs with the same name, so the SA name IS the Pod name.

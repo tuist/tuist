@@ -38,7 +38,6 @@ defmodule TuistWeb.AccountSettingsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "settings")
       |> assign(rename_account_form: rename_account_form)
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
@@ -322,7 +321,6 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, [])
     |> assign(:available_kura_regions, [])
     |> assign(:latest_kura_version, nil)
-    |> assign(:kura_global_endpoint_url, nil)
     |> assign(:add_kura_server_form, default_kura_server_form([]))
   end
 
@@ -338,7 +336,6 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:kura_regions, regions)
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
-    |> assign(:kura_global_endpoint_url, Kura.global_cache_endpoint_url(account))
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
   end
 
@@ -429,7 +426,6 @@ defmodule TuistWeb.AccountSettingsLive do
   attr(:available_kura_regions, :list, required: true)
   attr(:add_kura_server_form, Form, required: true)
   attr(:latest_kura_version, :map, default: nil)
-  attr(:global_endpoint_url, :string, default: nil)
 
   def kura_servers_section(assigns) do
     ~H"""
@@ -567,7 +563,7 @@ defmodule TuistWeb.AccountSettingsLive do
             />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
-            <.text_cell label={kura_row_domain_label(row, @global_endpoint_url)} />
+            <.text_cell label={kura_row_domain_label(row)} />
           </:col>
           <:col :let={row} label={dgettext("dashboard_account", "Version")}>
             <.text_cell label={kura_row_version_label(row)} />
@@ -651,17 +647,11 @@ defmodule TuistWeb.AccountSettingsLive do
   defp kura_row_status_color(%{type: :server, server: server}), do: kura_display_status_color(server)
   defp kura_row_status_color(%{type: :available_region}), do: "neutral"
 
-  defp kura_row_domain_label(%{type: :server}, global_endpoint_url)
-       when is_binary(global_endpoint_url) and global_endpoint_url != "" do
-    global_endpoint_url
-  end
-
-  defp kura_row_domain_label(%{type: :server, server: server}, _global_endpoint_url) do
+  defp kura_row_domain_label(%{type: :server, server: server}) do
     server.url || dgettext("dashboard_account", "Pending")
   end
 
-  defp kura_row_domain_label(%{type: :available_region}, _global_endpoint_url),
-    do: dgettext("dashboard_account", "Pending")
+  defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
   # Prefer the image the cluster actually reports running
   # (`observed_image_tag`) over the last activated image, so a rollout

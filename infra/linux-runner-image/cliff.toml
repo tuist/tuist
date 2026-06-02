@@ -80,7 +80,7 @@ commit_parsers = [
 ]
 protect_breaking_commits = false
 filter_commits = true
-tag_pattern = "linux-runner-image@[0-9].*"
+tag_pattern = "^linux-runner-image@[0-9].*"
 skip_tags = "beta|alpha"
 ignore_tags = "rc"
 topo_order = false

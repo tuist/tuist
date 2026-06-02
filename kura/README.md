@@ -101,6 +101,8 @@ Kura exposes multiple cache protocols behind one service. The actively supported
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
 - 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
+For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests still carry their namespace explicitly.
+
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
 - 🧱 `Nx`: `PUT/GET /v1/cache/{hash}`
@@ -134,6 +136,18 @@ curl -X PUT \
 
 curl \
   "http://localhost:4103/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios"
+```
+
+Example tenant-scoped Xcode artifact round trip without a namespace:
+
+```bash
+curl -X POST \
+  "http://localhost:4101/api/cache/cas/account-artifact?tenant_id=acme" \
+  -H "content-type: application/octet-stream" \
+  --data-binary "account-binary"
+
+curl \
+  "http://localhost:4102/api/cache/cas/account-artifact?tenant_id=acme"
 ```
 
 ## 🗄️ Storage And Replication
@@ -209,6 +223,15 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
 | `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
+| `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
+| `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
+| `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
+| `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
+| `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
+| `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |
+| `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
+| `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
+| `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
@@ -287,16 +310,18 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
+HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels, and client country counts live on the separate `kura_http_client_requests_total` counter. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
+
 ### GeoIP enrichment
 
 The Kura container image vendors a [DB-IP IP-to-City Lite](https://db-ip.com/db/download/ip-to-city-lite) MMDB at `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution is on by default. Location is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) at two granularities:
 
-- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
+- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_client_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
 - subdivision (ISO 3166-2, e.g. `US-CA`): the `geo.region.iso_code` OTel span attribute on `http.request` spans
 
 Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names).
 
-Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × method × status would inflate the active series on the busiest counter. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on metrics because it is bounded (~250 codes).
+Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × status would inflate active series. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on a dedicated low-cardinality metric because it is bounded (~250 codes).
 
 Lookups that miss (no header, private IP, or DB missing) fall back to `client_country="unknown"` and an unset `geo.region.iso_code`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without geographic attribution.
 
@@ -322,7 +347,9 @@ OTLP tracing is optional. Leaving `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` unse
 
 ## 📣 Runtime Analytics
 
-Analytics webhooks are a separate optional subsystem that mirrors the legacy cache analytics contract for Xcode and Gradle traffic.
+Analytics webhooks are a separate optional subsystem for Tuist's current project-scoped cache analytics contract for Xcode and Gradle traffic.
+
+Kura emits those webhook events only for namespace-scoped Xcode and Gradle HTTP requests, using the request's `tenant_id` and `namespace_id` as `account_handle` and `project_handle` in the payload. Tenant-scoped requests skip analytics until Tuist grows account-scoped binary analytics.
 
 When enabled:
 
@@ -349,6 +376,18 @@ It also exposes analytics-specific runtime metrics for:
 - 📣 queue depth and drops
 - 📦 batch sizes and flush outcomes
 - 🧯 circuit-breaker state and open events
+
+## Usage Metering
+
+When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL_PLANE_CLIENT_SECRET` are set, Kura records first-party usage rollups for public cache traffic and pushes them to:
+
+```text
+POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
+```
+
+The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
+
+The usage pipeline follows Kura's resource discipline: bucket count, durable outbox depth, and delivery batch size are capped; delivery pauses under critical memory pressure; and a full usage outbox causes new closed windows to remain in memory until the in-memory bucket cap is reached, after which new buckets are rejected and counted through memory-action metrics.
 
 ## ☸️ Deployment Options
 
@@ -483,10 +522,19 @@ The script may define these hooks:
 - `authorize(ctx, principal)`
 - `response_headers(ctx, principal)`
 
-For tenant-aware deployments, `ctx` carries both the request target
+The runtime exports these host helpers to the script:
+
+- `kura.sign_hmac_base64(id, payload)`
+- `kura.jwt_verify(id, token)`
+- `kura.http_json(id, request)`
+- `kura.env(key)`
+
+For tenant-aware deployments, `ctx` carries the request target
 (`tenant_id`, `namespace_id`) and the node's configured tenant as
-`server_tenant_id` (derived from `KURA_TENANT_ID`). Concrete auth and
-policy decisions are hook-specific and should be documented with the
-hook implementation rather than in the generic runtime contract.
+`server_tenant_id` (derived from `KURA_TENANT_ID`). Namespace-scoped
+requests set `namespace_id`; tenant-scoped requests leave it unset.
+Concrete auth and policy decisions are hook-specific and should be
+documented with the hook implementation rather than in the generic
+runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.

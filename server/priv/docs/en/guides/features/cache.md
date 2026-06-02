@@ -9,7 +9,7 @@
 
 Build artifacts are not shared across environments, forcing you to rebuild the same code over and over. Tuist's caching feature shares artifacts remotely so your team and CI get faster builds without rebuilding what has already been built.
 
-Pick the caching solution that matches your build system:
+Learn the cache workflow that matches your project or deployment model:
 
 <HomeCards>
     <HomeCard
@@ -30,4 +30,10 @@ Pick the caching solution that matches your build system:
         details="Share Gradle build cache artifacts remotely. Includes build insights for performance visibility."
         linkText="Set up Gradle cache"
         link="/guides/features/cache/gradle-cache"/>
+    <HomeCard
+        icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"
+        title="Self-hosting"
+        details="Run cache nodes close to CI, offices, or regional compute and connect them to hosted or self-hosted Tuist."
+        linkText="Deploy self-hosted cache"
+        link="/guides/features/cache/self-hosting"/>
 </HomeCards>

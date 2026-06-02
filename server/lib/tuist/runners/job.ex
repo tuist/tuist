@@ -15,9 +15,10 @@ defmodule Tuist.Runners.Job do
     field :workflow_job_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
     field :fleet_name, Ch, type: "LowCardinality(String)"
-    field :repo, Ch, type: "String"
+    field :repository, Ch, type: "String"
 
     field :workflow_run_id, Ch, type: "Int64", default: 0
+    field :workflow_name, Ch, type: "String", default: ""
     field :run_attempt, Ch, type: "Int32", default: 1
     field :job_name, Ch, type: "String", default: ""
     field :head_branch, Ch, type: "String", default: ""
@@ -28,12 +29,22 @@ defmodule Tuist.Runners.Job do
     field :conclusion, Ch, type: "LowCardinality(String)", default: ""
 
     field :enqueued_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :claimed_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :started_at, Ch, type: "DateTime64(6, 'UTC')"
-    field :completed_at, Ch, type: "DateTime64(6, 'UTC')"
+    field :claimed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+    field :started_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+    field :completed_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
 
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""
+
+    # The label the customer wrote in `runs-on:` (e.g.
+    # `tuist-default`). Carried from webhook enqueue so JIT-mint
+    # can stamp it on the runner — without this, the runner would
+    # register under the pool's internal `dispatchLabel`
+    # (`shape-linux-<vcpus>vcpu-<gb>gb`) which never matches the
+    # workflow_job's `runs-on:`. Empty for legacy `runner_jobs`
+    # rows pre-profiles; the dispatch path falls back to the
+    # pool's dispatchLabel in that case.
+    field :requested_dispatch_label, Ch, type: "String", default: ""
 
     # RMT version column. Every state-transition INSERT advances
     # this; merge keeps the row with the latest `updated_at` for

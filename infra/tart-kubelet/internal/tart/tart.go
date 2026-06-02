@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -298,6 +299,48 @@ func (c *Client) IP(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// GuestDiskUsagePercent runs `df` inside the guest VM and returns the
+// percent-used (0-100) of its root filesystem. Requires the Tart guest
+// agent, which the Cirrus Labs base images ship — the same agent
+// `tart exec` relies on. The root volume is the one a workload's scratch
+// data fills (e.g. the xcresult processor's attachment exports), so its
+// capacity is the DiskPressure signal that matters; the host's own disk
+// stays near-empty even when a guest is full.
+func (c *Client) GuestDiskUsagePercent(ctx context.Context, name string) (int, error) {
+	out, err := c.run(ctx, c.Binary, "exec", name, "/bin/df", "-k", "/")
+	if err != nil {
+		return 0, err
+	}
+	return parseDFCapacityPercent(out)
+}
+
+// parseDFCapacityPercent reads the block Capacity column from a
+// single-filesystem `df` report. macOS df columns are:
+//
+//	Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted-on
+//
+// The first field ending in '%' on the data line is the block Capacity
+// (the later '%iused' is inode usage, which we don't want), so we return
+// on the first match.
+func parseDFCapacityPercent(out []byte) (int, error) {
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(lines) < 2 {
+		return 0, fmt.Errorf("unexpected df output: %q", string(out))
+	}
+	fields := strings.Fields(lines[len(lines)-1])
+	for _, f := range fields {
+		if !strings.HasSuffix(f, "%") {
+			continue
+		}
+		n, err := strconv.Atoi(strings.TrimSuffix(f, "%"))
+		if err != nil {
+			return 0, fmt.Errorf("parse df capacity %q: %w", f, err)
+		}
+		return n, nil
+	}
+	return 0, fmt.Errorf("no capacity column in df output: %q", string(out))
 }
 
 // IsRunning checks whether a `tart run <name>` process is currently

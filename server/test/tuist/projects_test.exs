@@ -452,6 +452,37 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == project
+      assert Ecto.assoc_loaded?(got.account)
+      assert got.account.id == account.id
+    end
+
+    test "preloads extra associations" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        name: "tuist",
+        vcs_connection: [
+          provider: :github,
+          repository_full_handle: "tuist/tuist"
+        ]
+      )
+
+      # When
+      got =
+        Projects.get_project_by_account_and_project_handles(
+          account.name,
+          "tuist",
+          preload: [:account, :vcs_connection]
+        )
+
+      # Then
+      assert Ecto.assoc_loaded?(got.account)
+      assert Ecto.assoc_loaded?(got.vcs_connection)
+      assert got.account.id == account.id
+      assert got.vcs_connection.repository_full_handle == "tuist/tuist"
     end
   end
 

@@ -1,0 +1,702 @@
+<div id="runner-jobs">
+  <div data-part="page-filter-bar">
+    <.dropdown
+      id="jobs-platform-dropdown"
+      label={TuistWeb.RunnerJobsLive.platform_label(@platform)}
+      secondary_text={dgettext("dashboard_runners", "Platform:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_runners", "Any")}
+        patch={TuistWeb.RunnerJobsLive.platform_patch(@uri, "any")}
+        data-selected={@platform == "any"}
+      >
+        <:right_icon :if={@platform == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={p <- TuistWeb.RunnerJobsLive.platforms()}
+        value={p}
+        label={TuistWeb.RunnerJobsLive.platform_label(p)}
+        patch={TuistWeb.RunnerJobsLive.platform_patch(@uri, p)}
+        data-selected={@platform == p}
+      >
+        <:right_icon :if={@platform == p}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="jobs-repository-dropdown"
+      label={TuistWeb.RunnerJobsLive.repository_label(@repository)}
+      secondary_text={dgettext("dashboard_runners", "Repository:")}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_runners", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_runners", "Any")}
+        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, "any")}
+        data-selected={@repository == "any"}
+      >
+        <:right_icon :if={@repository == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={repository <- @repositories}
+        value={repository}
+        label={repository}
+        patch={TuistWeb.RunnerJobsLive.repository_patch(@uri, repository)}
+        data-selected={@repository == repository}
+      >
+        <:right_icon :if={@repository == repository}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="jobs-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_runners", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_runners", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_runners", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_runners", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_runners", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_runners", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "jobs-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_runners", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "jobs-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_runners", "Analytics")}
+    icon="chart_arcs"
+    data-part="jobs-analytics"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-jobs"
+        title={TuistWeb.RunnerJobsLive.jobs_breakdown_title(@jobs_breakdown_type)}
+        legend_color={TuistWeb.RunnerJobsLive.jobs_breakdown_legend_color(@jobs_breakdown_type)}
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Workflow jobs received in the window, broken down by outcome."
+          )
+        }
+        value={
+          if @jobs_breakdown.ok?,
+            do:
+              Integer.to_string(
+                TuistWeb.RunnerJobsLive.jobs_breakdown_value(
+                  @jobs_breakdown.result,
+                  @jobs_breakdown_type
+                )
+              )
+        }
+        loading={!@jobs_breakdown.ok?}
+        selected={@analytics_selected_widget == "jobs"}
+        phx_click="select_widget"
+        phx_value_widget="jobs"
+        trend_value={
+          if @jobs_breakdown.ok?,
+            do:
+              TuistWeb.RunnerJobsLive.jobs_breakdown_trend(
+                @jobs_breakdown.result,
+                @jobs_breakdown_type
+              )
+        }
+        trend_type={TuistWeb.RunnerJobsLive.jobs_breakdown_trend_type(@jobs_breakdown_type)}
+        trend_label={@analytics_trend_label}
+      >
+        <:select>
+          <.dropdown_item
+            value="total"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="total"
+            data-selected={@jobs_breakdown_type == "total"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="secondary"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "All")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.total.count),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="passed"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="passed"
+            data-selected={@jobs_breakdown_type == "passed"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="tertiary"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "Passed")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.successful.count),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="failed"
+            phx-click="select_jobs_breakdown"
+            phx-value-type="failed"
+            data-selected={@jobs_breakdown_type == "failed"}
+          >
+            <div data-part="breakdown-item">
+              <div data-part="dot" data-color="destructive"></div>
+              <span data-part="label">{dgettext("dashboard_runners", "Failed")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if @jobs_breakdown.ok?,
+                  do: Integer.to_string(@jobs_breakdown.result.failed.count),
+                  else: dgettext("dashboard_runners", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
+      <.percentile_dropdown_widget
+        id="widget-jobs-job-duration"
+        title={
+          case @job_duration_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 job duration")
+            "p90" -> dgettext("dashboard_runners", "p90 job duration")
+            "p50" -> dgettext("dashboard_runners", "p50 job duration")
+            _ -> dgettext("dashboard_runners", "Avg. job duration")
+          end
+        }
+        description={
+          dgettext("dashboard_runners", "Time each job takes from start to completion.")
+        }
+        value={
+          if @jobs_duration.ok? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(
+                @jobs_duration.result,
+                @job_duration_percentile
+              )
+            )
+          end
+        }
+        metrics={
+          if @jobs_duration.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@jobs_duration.result)
+        }
+        selected_type={@job_duration_percentile}
+        event_name="select_job_duration_percentile"
+        loading={!@jobs_duration.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@job_duration_percentile)}
+        selected={@analytics_selected_widget == "job_duration"}
+        phx_click="select_widget"
+        phx_value_widget="job_duration"
+        trend_value={
+          if @jobs_duration.ok? do
+            TuistWeb.RunnersLive.percentile_trend(@jobs_duration.result, @job_duration_percentile)
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+      />
+      <.percentile_dropdown_widget
+        id="widget-jobs-queue-time"
+        title={
+          case @queue_time_percentile do
+            "p99" -> dgettext("dashboard_runners", "p99 queue time")
+            "p90" -> dgettext("dashboard_runners", "p90 queue time")
+            "p50" -> dgettext("dashboard_runners", "p50 queue time")
+            _ -> dgettext("dashboard_runners", "Avg. queue time")
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Time each job spends waiting before a runner picks it up."
+          )
+        }
+        value={
+          if @queue_time.ok? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              TuistWeb.RunnersLive.percentile_value(@queue_time.result, @queue_time_percentile)
+            )
+          end
+        }
+        metrics={
+          if @queue_time.ok?,
+            do: TuistWeb.RunnersLive.percentile_metrics_for(@queue_time.result)
+        }
+        selected_type={@queue_time_percentile}
+        event_name="select_queue_time_percentile"
+        loading={!@queue_time.ok?}
+        legend_color={TuistWeb.RunnersLive.legend_color_for_percentile(@queue_time_percentile)}
+        selected={@analytics_selected_widget == "queue_time"}
+        phx_click="select_widget"
+        phx_value_widget="queue_time"
+        trend_value={
+          if @queue_time.ok? do
+            TuistWeb.RunnersLive.percentile_trend(@queue_time.result, @queue_time_percentile)
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+      />
+      <.widget
+        id="widget-jobs-minutes"
+        title={dgettext("dashboard_runners", "Compute minutes")}
+        legend_color="p90"
+        description={
+          dgettext(
+            "dashboard_runners",
+            "Total compute time consumed by completed jobs in the window."
+          )
+        }
+        value={
+          if @cumulative_minutes.ok? do
+            Integer.to_string(div(@cumulative_minutes.result.total_ms, 60_000)) <> "m"
+          end
+        }
+        loading={!@cumulative_minutes.ok?}
+        selected={@analytics_selected_widget == "cumulative_minutes"}
+        phx_click="select_widget"
+        phx_value_widget="cumulative_minutes"
+        trend_value={if @cumulative_minutes.ok?, do: @cumulative_minutes.result.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+      />
+    </div>
+    <.card_section data-part="analytics-card-chart-section">
+      <%= cond do %>
+        <% @analytics_selected_widget == "jobs" and !@jobs_breakdown.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "jobs" -> %>
+          <.chart
+            id="jobs-breakdown-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnerJobsLive.breakdown_chart_options(
+                @jobs_breakdown.result.total.dates,
+                @analytics_bucket
+              )
+            }
+            series={TuistWeb.RunnerJobsLive.jobs_breakdown_chart_series(@jobs_breakdown.result)}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "cumulative_minutes" and !@cumulative_minutes.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "cumulative_minutes" -> %>
+          <.chart
+            id="jobs-cumulative-minutes-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnerJobsLive.minutes_chart_options(
+                @cumulative_minutes.result.dates,
+                @analytics_bucket
+              )
+            }
+            series={[
+              %{
+                color: "var:noora-chart-p90",
+                data:
+                  @cumulative_minutes.result.dates
+                  |> Enum.zip(@cumulative_minutes.result.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_runners", "Minutes"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        <% @analytics_selected_widget == "queue_time" and !@queue_time.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "queue_time" -> %>
+          <.chart_type_toggle
+            id="jobs-queue-time"
+            chart_type={@queue_time_chart_type}
+            chart_type_event="select_queue_time_chart_type"
+            group_by_options={[
+              %{value: "status", label: dgettext("dashboard_runners", "Status")},
+              %{value: "platform", label: dgettext("dashboard_runners", "Platform")}
+            ]}
+            selected_group_by={@queue_time_group_by}
+            group_by_query_param="queue-time-group-by"
+            uri={@uri}
+          />
+          <.chart
+            :if={@queue_time_chart_type == "line"}
+            id="jobs-queue-time-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @queue_time.result.dates,
+                @analytics_preset,
+                @analytics_bucket
+              )
+            }
+            series={TuistWeb.RunnersLive.duration_chart_series(@queue_time.result)}
+            y_axis_min={0}
+          />
+          <.scatter_chart
+            :if={@queue_time_chart_type == "scatter"}
+            id="jobs-queue-time-scatter-chart"
+            chart={@queue_time_scatter}
+            period={@analytics_period}
+            value_format="fn:formatSeconds"
+            url_fn={
+              fn point ->
+                TuistWeb.RunnerJobLive.path(@selected_account.name, %{
+                  workflow_run_id: point.workflow_run_id,
+                  workflow_job_id: point.id
+                })
+              end
+            }
+            truncation_title={
+              dgettext(
+                "dashboard_runners",
+                "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform.",
+                date: scatter_oldest_entry_formatted(@queue_time_scatter.result)
+              )
+            }
+          />
+        <% @analytics_selected_widget == "job_duration" and !@jobs_duration.ok? -> %>
+          <.skeleton_chart />
+        <% @analytics_selected_widget == "job_duration" -> %>
+          <.chart_type_toggle
+            id="jobs-job-duration"
+            chart_type={@job_duration_chart_type}
+            chart_type_event="select_job_duration_chart_type"
+            group_by_options={[
+              %{value: "status", label: dgettext("dashboard_runners", "Status")},
+              %{value: "platform", label: dgettext("dashboard_runners", "Platform")}
+            ]}
+            selected_group_by={@job_duration_group_by}
+            group_by_query_param="job-duration-group-by"
+            uri={@uri}
+          />
+          <.chart
+            :if={@job_duration_chart_type == "line"}
+            id="jobs-job-duration-chart"
+            type="line"
+            extra_options={
+              TuistWeb.RunnersLive.duration_chart_options(
+                @jobs_duration.result.dates,
+                @analytics_preset,
+                @analytics_bucket
+              )
+            }
+            series={TuistWeb.RunnersLive.duration_chart_series(@jobs_duration.result)}
+            y_axis_min={0}
+          />
+          <.scatter_chart
+            :if={@job_duration_chart_type == "scatter"}
+            id="jobs-job-duration-scatter-chart"
+            chart={@job_duration_scatter}
+            period={@analytics_period}
+            value_format="fn:formatSeconds"
+            url_fn={
+              fn point ->
+                TuistWeb.RunnerJobLive.path(@selected_account.name, %{
+                  workflow_run_id: point.workflow_run_id,
+                  workflow_job_id: point.id
+                })
+              end
+            }
+            truncation_title={
+              dgettext(
+                "dashboard_runners",
+                "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range, repository, or platform.",
+                date: scatter_oldest_entry_formatted(@job_duration_scatter.result)
+              )
+            }
+          />
+        <% true -> %>
+          <.skeleton_chart />
+      <% end %>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_runners", "Jobs")}
+    icon="stack_2"
+    data-part="runner-jobs-card"
+  >
+    <div data-part="widgets">
+      <.widget
+        id="widget-jobs-running"
+        title={dgettext("dashboard_runners", "Running")}
+        legend_color="tertiary"
+        description={
+          dgettext("dashboard_runners", "Jobs the runner pool is currently executing.")
+        }
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(
+              Map.get(@live_status_counts.result, "running", 0) +
+                Map.get(@live_status_counts.result, "claimed", 0)
+            )
+          end
+        }
+        loading={!@live_status_counts.ok?}
+      />
+      <.widget
+        id="widget-jobs-queued"
+        title={dgettext("dashboard_runners", "Queued")}
+        legend_color="secondary"
+        description={dgettext("dashboard_runners", "Jobs waiting for a runner to pick them up.")}
+        value={
+          if @live_status_counts.ok? do
+            Integer.to_string(Map.get(@live_status_counts.result, "queued", 0))
+          end
+        }
+        loading={!@live_status_counts.ok?}
+      />
+    </div>
+    <.card_section data-part="runner-jobs-card-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-jobs">
+          <.text_input
+            type="search"
+            id="search-jobs"
+            name="search"
+            placeholder={dgettext("dashboard_runners", "Search by job name...")}
+            show_suffix={false}
+            data-part="search"
+            value={@search}
+            phx-debounce="200"
+          />
+        </.form>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_runners", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+        <.dropdown
+          id="jobs-sort-by-dropdown"
+          label={TuistWeb.RunnerJobsLive.sort_by_label(@sort_by)}
+          secondary_text={dgettext("dashboard_runners", "Sort by:")}
+        >
+          <.dropdown_item
+            value="enqueued"
+            label={dgettext("dashboard_runners", "Enqueued at")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "enqueued")}
+            data-selected={@sort_by == "enqueued"}
+          >
+            <:right_icon :if={@sort_by == "enqueued"}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="job"
+            label={dgettext("dashboard_runners", "Job")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "job")}
+            data-selected={@sort_by == "job"}
+          >
+            <:right_icon :if={@sort_by == "job"}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="workflow"
+            label={dgettext("dashboard_runners", "Workflow")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "workflow")}
+            data-selected={@sort_by == "workflow"}
+          >
+            <:right_icon :if={@sort_by == "workflow"}><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="duration"
+            label={dgettext("dashboard_runners", "Duration")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "duration")}
+            data-selected={@sort_by == "duration"}
+          >
+            <:right_icon :if={@sort_by == "duration"}><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@jobs)} data-part="runner-jobs-table">
+        <.table
+          id="runner-jobs-table"
+          rows={@jobs}
+          row_key={fn job -> "runner-jobs-row-#{job.workflow_job_id}" end}
+          row_navigate={
+            fn job ->
+              case TuistWeb.RunnerJobLive.path(@selected_account.name, job) do
+                nil -> nil
+                path -> unverified_url(@socket, path)
+              end
+            end
+          }
+        >
+          <:col
+            :let={job}
+            label={dgettext("dashboard_runners", "Job")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "job")}
+            icon={@sort_by == "job" && TuistWeb.RunnerJobsLive.sort_icon(@sort_order)}
+          >
+            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
+          </:col>
+          <:col
+            :let={job}
+            label={dgettext("dashboard_runners", "Workflow")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "workflow")}
+            icon={@sort_by == "workflow" && TuistWeb.RunnerJobsLive.sort_icon(@sort_order)}
+          >
+            <.text_cell label={
+              if(job.workflow_name == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: job.workflow_name
+              )
+            } />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Repository")}>
+            <.text_cell label={
+              if(job.repository == "",
+                do: dgettext("dashboard_runners", "Unknown"),
+                else: job.repository
+              )
+            } />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
+            <% props =
+              cond do
+                job.status == "completed" and (job.conclusion || "") != "" ->
+                  TuistWeb.RunnerJobsLive.conclusion_badge_props(job.conclusion)
+
+                true ->
+                  TuistWeb.RunnerJobsLive.status_badge_props(job.status)
+              end %>
+            <.status_badge_cell label={props.label} status={props.status} />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if(job.head_branch == "",
+                  do: dgettext("dashboard_runners", "Unknown"),
+                  else: job.head_branch
+                )
+              }
+            />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Commit")}>
+            <.text_cell label={TuistWeb.Utilities.SHA.format_commit_sha(job.head_sha)} />
+          </:col>
+          <:col :let={job} label={dgettext("dashboard_runners", "Platform")}>
+            <.badge_cell
+              label={TuistWeb.RunnerJobsLive.platform_label_from_fleet(job.fleet_name)}
+              color={TuistWeb.RunnerJobsLive.platform_badge_color(job.fleet_name)}
+              style="light-fill"
+            />
+          </:col>
+          <:col
+            :let={job}
+            label={dgettext("dashboard_runners", "Duration")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "duration")}
+            icon={@sort_by == "duration" && TuistWeb.RunnerJobsLive.sort_icon(@sort_order)}
+          >
+            <.text_cell
+              icon="history"
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  TuistWeb.RunnerJobsLive.duration_ms(job)
+                )
+              }
+            />
+          </:col>
+          <:col
+            :let={job}
+            label={dgettext("dashboard_runners", "Enqueued at")}
+            patch={TuistWeb.RunnerJobsLive.column_sort_patch(assigns, "enqueued")}
+            icon={@sort_by == "enqueued" && TuistWeb.RunnerJobsLive.sort_icon(@sort_order)}
+          >
+            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(job.enqueued_at)} />
+          </:col>
+        </.table>
+        <div :if={@total_pages > 1} data-part="pagination">
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Prev")}
+            disabled={@page <= 1}
+            patch={TuistWeb.RunnerJobsLive.page_link(@uri, max(1, @page - 1))}
+          >
+            <:icon_left><.chevron_left /></:icon_left>
+          </.button>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_runners", "Next")}
+            disabled={@page >= @total_pages}
+            patch={TuistWeb.RunnerJobsLive.page_link(@uri, min(@total_pages, @page + 1))}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </div>
+      </div>
+      <div :if={Enum.empty?(@jobs)} data-part="empty-runner-jobs">
+        <.empty_card_section
+          title={
+            if Enum.empty?(@active_filters) do
+              dgettext("dashboard_runners", "No jobs yet")
+            else
+              dgettext("dashboard_runners", "No jobs match the current filters")
+            end
+          }
+          get_started_href={
+            TuistWeb.Marketing.Localization.localized_href("https://tuist.dev/en/docs")
+          }
+          data-part="empty-runner-jobs-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>
