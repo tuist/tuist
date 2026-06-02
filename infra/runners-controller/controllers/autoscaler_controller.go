@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -15,6 +17,18 @@ import (
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
+
+// fleetNodePoolLabel is the node label Linux runner Pods select on
+// (`node.cluster.x-k8s.io/pool=<FleetSelector>`). Summing allocatable
+// memory across nodes carrying this label for a pool's FleetSelector
+// gives the memory budget the pool's shapes compete for.
+const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
+
+// defaultMemReserveFraction is the share of a node pool's allocatable
+// memory kept usable for runner Pods. The remainder is slack for
+// system DaemonSets (Cilium, kube-proxy replacement, node-exporter)
+// and kata per-sandbox overhead that doesn't show up in Pod requests.
+const defaultMemReserveFraction = 0.90
 
 // AutoscalerReconciler reconciles autoscaling-enabled RunnerPools.
 // On a 5-second cadence (RequeueAfter), it:
@@ -55,10 +69,17 @@ type AutoscalerReconciler struct {
 	// Now defaults to time.Now; overridable for deterministic
 	// cooldown tests.
 	Now func() time.Time
+
+	// MemReserveFraction is the share of a Linux node pool's
+	// allocatable memory the fleet allocator may hand to runner Pods.
+	// Defaults to defaultMemReserveFraction. 0 (unset) uses the
+	// default; set explicitly in tests.
+	MemReserveFraction float64
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("autoscaler", req.NamespacedName)
@@ -93,7 +114,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloor,
 		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
 	}
-	desired := scaling.DesiredReplicas(*signals, knobs)
+	desired := r.desiredForPool(ctx, pool, *signals, knobs, logger)
 
 	current := pool.Spec.Replicas
 	now := r.now()
@@ -149,6 +170,124 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	return ctrl.Result{RequeueAfter: r.pollInterval()}, nil
+}
+
+// desiredForPool computes the target replica count for `pool`.
+//
+// macOS pools (one VM per host, no bin-packing) and pools with
+// autoscaling-disabled `maxReplicas` keep the simple per-pool policy.
+// Linux pools share a bare-metal node pool, so their speculative warm
+// headroom competes for memory: those run through the fleet allocator,
+// which squeezes idle shapes' warm buffers before another shape's real
+// queued work. Any failure gathering the fleet view falls back to the
+// per-pool target — a node-read blip must never trigger a mass
+// scale-down.
+func (r *AutoscalerReconciler) desiredForPool(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	signals scaling.Signals,
+	knobs scaling.PolicyKnobs,
+	logger logr.Logger,
+) int32 {
+	perPool := scaling.DesiredReplicas(signals, knobs)
+
+	if pool.Spec.OS != "linux" || knobs.MaxReplicas <= 0 {
+		return perPool
+	}
+
+	demands, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
+	if err != nil {
+		logger.Error(err, "gather fleet demands; falling back to per-pool target",
+			"fleetSelector", pool.Spec.FleetSelector)
+		return perPool
+	}
+
+	fleetMem, err := r.fleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
+	if err != nil || fleetMem <= 0 {
+		logger.Error(err, "read fleet allocatable memory; falling back to per-pool target",
+			"fleetSelector", pool.Spec.FleetSelector)
+		return perPool
+	}
+
+	alloc := scaling.AllocateFleet(demands, fleetMem)
+	if v, ok := alloc[pool.Name]; ok {
+		return v
+	}
+	return perPool
+}
+
+// gatherFleetDemands builds the allocator input for every
+// autoscaling-enabled Linux pool sharing `pool`'s FleetSelector (the
+// set of shapes contending for the same node pool). The reconciled
+// pool reuses the signals already fetched this tick; siblings get a
+// fresh fetch.
+func (r *AutoscalerReconciler) gatherFleetDemands(
+	ctx context.Context,
+	pool *tuistv1.RunnerPool,
+	signals scaling.Signals,
+	knobs scaling.PolicyKnobs,
+) ([]scaling.PoolDemand, error) {
+	var pools tuistv1.RunnerPoolList
+	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
+		return nil, fmt.Errorf("list runner pools: %w", err)
+	}
+
+	var demands []scaling.PoolDemand
+	for i := range pools.Items {
+		p := &pools.Items[i]
+		if p.Spec.OS != "linux" || p.Spec.FleetSelector != pool.Spec.FleetSelector {
+			continue
+		}
+		if p.Spec.Autoscaling == nil || !p.Spec.Autoscaling.Enabled || p.Spec.Autoscaling.MaxReplicas <= 0 {
+			continue
+		}
+
+		sig := signals
+		k := knobs
+		if p.Name != pool.Name {
+			fetched, err := r.SignalsClient.Signals(ctx, p.Name)
+			if err != nil {
+				return nil, fmt.Errorf("signals for sibling %q: %w", p.Name, err)
+			}
+			sig = *fetched
+			k = scaling.PolicyKnobs{
+				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloor,
+				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
+			}
+		}
+
+		demands = append(demands, scaling.PoolDemand{
+			Name:        p.Name,
+			PodMemBytes: int64(p.Spec.PodMemoryMB) * 1024 * 1024,
+			Floor:       k.MinWarmPoolFloor,
+			Load:        sig.Claimed + sig.Queued,
+			Target:      scaling.DesiredReplicas(sig, k),
+		})
+	}
+
+	return demands, nil
+}
+
+// fleetAllocatableMemory sums allocatable memory across nodes in the
+// `fleetSelector` bare-metal pool, scaled by the reserve fraction.
+func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleetSelector string) (int64, error) {
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, client.MatchingLabels{fleetNodePoolLabel: fleetSelector}); err != nil {
+		return 0, fmt.Errorf("list fleet nodes: %w", err)
+	}
+
+	var total int64
+	for i := range nodes.Items {
+		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
+			total += mem.Value()
+		}
+	}
+
+	reserve := r.MemReserveFraction
+	if reserve <= 0 {
+		reserve = defaultMemReserveFraction
+	}
+	return int64(float64(total) * reserve), nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {

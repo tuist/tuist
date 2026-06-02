@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -1241,6 +1242,20 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_admin?(user, organization) == true
     end
 
+    test "auto-bootstraps the protected linux runner profile" do
+      # Every new organization account lands with the default `linux`
+      # profile so `runs-on: <prefix>linux` resolves the moment the
+      # account exists — without it the customer's first workflow
+      # would error out before they ever see the Profiles UI.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+               RunnerProfiles.list_for_account(organization.account)
+    end
+
     test "creates an organization when new pricing model is enabled" do
       # Given
       Billing
@@ -1685,6 +1700,19 @@ defmodule Tuist.AccountsTest do
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
+    end
+
+    test "auto-bootstraps the protected linux runner profile" do
+      # Same default-profile invariant the organization path enforces:
+      # personal accounts land with the `linux` profile so the
+      # `<prefix>linux` label resolves from the first workflow run.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+
+      {:ok, user} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+
+      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+               RunnerProfiles.list_for_account(user.account)
     end
 
     test "creates the user infering the handle from the email when no handle is provided" do

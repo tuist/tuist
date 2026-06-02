@@ -10,6 +10,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -106,10 +107,15 @@ func main() {
 	// shape) we skip wiring it up — autoscaling pools fail open
 	// (no scaling-driven changes), static pools work as before.
 	if scalingSignalsURL != "" {
+		signalsClient := scaling.NewClient(scalingSignalsURL)
+		// Cache just under the poll interval so the fleet-aware pass
+		// (which fetches every sibling shape's signals each reconcile)
+		// collapses an N-shape fleet's N² requests down to ~N per cycle.
+		signalsClient.CacheTTL = 4 * time.Second
 		if err := (&controllers.AutoscalerReconciler{
 			Client:        mgr.GetClient(),
 			Scheme:        mgr.GetScheme(),
-			SignalsClient: scaling.NewClient(scalingSignalsURL),
+			SignalsClient: signalsClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)

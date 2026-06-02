@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestClientSignals_Success(t *testing.T) {
@@ -79,6 +81,84 @@ func TestClientSignals_NoFleet(t *testing.T) {
 	_, err := c.Signals(context.Background(), "")
 	if err == nil {
 		t.Fatal("Signals: expected error on empty fleet, got nil")
+	}
+}
+
+// countingSignalsServer returns an httptest server that counts how
+// many times it was hit, echoing the requested fleet in the response.
+func countingSignalsServer(t *testing.T, calls *int32) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(calls, 1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(Signals{Fleet: r.URL.Query().Get("fleet"), Claimed: 1})
+	}))
+}
+
+func TestClientSignals_CachesWithinTTL(t *testing.T) {
+	tokenPath := writeTempToken(t, "test-sa-token")
+
+	var calls int32
+	server := countingSignalsServer(t, &calls)
+	defer server.Close()
+
+	c := NewClient(server.URL)
+	c.TokenPath = tokenPath
+	c.CacheTTL = time.Minute
+
+	for i := 0; i < 3; i++ {
+		if _, err := c.Signals(context.Background(), "linux-pool"); err != nil {
+			t.Fatalf("Signals call %d: %v", i, err)
+		}
+	}
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Errorf("server hit %d times, want 1 (TTL should serve repeats from cache)", got)
+	}
+}
+
+func TestClientSignals_CachesPerFleet(t *testing.T) {
+	tokenPath := writeTempToken(t, "test-sa-token")
+
+	var calls int32
+	server := countingSignalsServer(t, &calls)
+	defer server.Close()
+
+	c := NewClient(server.URL)
+	c.TokenPath = tokenPath
+	c.CacheTTL = time.Minute
+
+	for _, fleet := range []string{"linux-a", "linux-a", "linux-b", "linux-b"} {
+		if _, err := c.Signals(context.Background(), fleet); err != nil {
+			t.Fatalf("Signals(%s): %v", fleet, err)
+		}
+	}
+
+	// One miss per distinct fleet; the repeats hit the cache.
+	if got := atomic.LoadInt32(&calls); got != 2 {
+		t.Errorf("server hit %d times, want 2 (one per distinct fleet)", got)
+	}
+}
+
+func TestClientSignals_NoCacheByDefault(t *testing.T) {
+	tokenPath := writeTempToken(t, "test-sa-token")
+
+	var calls int32
+	server := countingSignalsServer(t, &calls)
+	defer server.Close()
+
+	// CacheTTL left at its 0 default — every call fetches.
+	c := NewClient(server.URL)
+	c.TokenPath = tokenPath
+
+	for i := 0; i < 3; i++ {
+		if _, err := c.Signals(context.Background(), "linux-pool"); err != nil {
+			t.Fatalf("Signals call %d: %v", i, err)
+		}
+	}
+
+	if got := atomic.LoadInt32(&calls); got != 3 {
+		t.Errorf("server hit %d times, want 3 (caching disabled at TTL=0)", got)
 	}
 }
 
