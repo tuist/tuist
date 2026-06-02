@@ -123,13 +123,17 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   # --------------------------------------------------------------------------
-  # Canary leg - deploys the pre-built image. Runs for every push (hotfix
-  # or not) and for manual dispatch. On hotfix pushes it still runs as a
-  # safety net; the hotfix fast-path below deploys production in parallel
-  # without waiting for tests.
+  # Canary leg - deploys the pre-built image. Runs on standard pushes and
+  # manual dispatch. Skipped on hotfix pushes: the whole point of the
+  # hotfix fast-path is to ship straight to production without waiting on
+  # the canary cascade, and running canary in parallel just doubles the
+  # rollout surface (and noise) for a push that explicitly opted out.
   # --------------------------------------------------------------------------
   canary:
     needs: build
+    if: >-
+      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -195,7 +199,8 @@ jobs:
   # Hotfix fast-path: push-to-main with "(hotfix)" in the commit subject
   # ships production without waiting for canary + acceptance tests. Kept
   # independent of the cascade so a flaky acceptance test can't block an
-  # urgent fix. Canary still runs above as a safety net.
+  # urgent fix; canary is skipped above on hotfix pushes so the fast-path
+  # is the only deploy in flight.
   # --------------------------------------------------------------------------
   production-hotfix:
     needs: build

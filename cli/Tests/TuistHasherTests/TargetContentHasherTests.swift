@@ -326,6 +326,82 @@ struct TargetContentHasherTests {
         #expect(gotWithDSStore.subhashes == gotWithoutDSStore.subhashes)
     }
 
+    @Test func hash_changes_when_embedded_product_references_differ() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+
+        // When
+        let withoutEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: []
+        )
+        let withEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:Resources:Resources.bundle"]
+        )
+
+        // Then
+        #expect(withoutEmbedded.hash != withEmbedded.hash)
+        #expect(withoutEmbedded.subhashes.embeddedProductReferences == nil)
+        #expect(withEmbedded.subhashes.embeddedProductReferences != nil)
+    }
+
+    @Test func hash_is_stable_regardless_of_embedded_product_references_order() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+
+        // When
+        let ordered = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:A:A.bundle", "product:B:B.bundle"]
+        )
+        let reordered = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:B:B.bundle", "product:A:A.bundle"]
+        )
+
+        // Then
+        #expect(ordered.hash == reordered.hash)
+    }
+
+    @Test func hash_for_external_target_changes_when_embedded_product_references_differ() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
+
+        // When
+        let withoutEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: []
+        )
+        let withEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:Resources:Resources.bundle"]
+        )
+
+        // Then
+        #expect(withoutEmbedded.hash != withEmbedded.hash)
+        #expect(withoutEmbedded.subhashes.embeddedProductReferences == nil)
+        #expect(withEmbedded.subhashes.embeddedProductReferences != nil)
+    }
+
     @Test func hash_with_destination() async throws {
         // Given
         let target = GraphTarget.test(

@@ -1014,18 +1014,31 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def kura_introspection_client_id(secrets \\ secrets()) do
-    get([:kura, :introspection_client_id], secrets)
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The server still falls back to the legacy
+  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
+  # so existing deployments and dev secrets keep working through the
+  # rename.
+  def kura_control_plane_client_id(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
   end
 
-  def kura_introspection_client_secret(secrets \\ secrets()) do
-    get([:kura, :introspection_client_secret], secrets)
+  def kura_control_plane_client_secret(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
   end
 
-  def kura_introspection_configured?(secrets \\ secrets()) do
-    kura_introspection_client_id(secrets) != nil and
-      kura_introspection_client_secret(secrets) != nil
+  def kura_control_plane_configured?(secrets \\ secrets()) do
+    kura_control_plane_client_id(secrets) != nil and
+      kura_control_plane_client_secret(secrets) != nil
   end
+
+  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
+  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
@@ -1078,6 +1091,16 @@ defmodule Tuist.Environment do
   """
   def runners_namespace do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
+  @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
   end
 
   @doc """

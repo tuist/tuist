@@ -63,17 +63,45 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central
 
 objectStorage:
   external:
     buckets:
       default: tuist-can-storage
 
+# CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
+# replica), 10Gi per instance. Matches the cluster's general-purpose
+# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
+# requires one CNPG instance per host, so a 3-instance cluster would
+# leave the third pod permanently Pending until md-0 was scaled up.
+# Canary is a soak environment, not an HA-shape one; production keeps
+# the 3-instance design on its 3-worker pool. Each instance is a
+# streaming replica holding the whole DB, so the size is per-replica
+# capacity, not a pool to split across them. The Hetzner CSI storage
+# class has `allowVolumeExpansion: true` for in-place growth if the
+# footprint climbs. Backups land in the `tuist-can-pg-backups` Tigris
+# bucket.
+postgresql:
+  cnpg:
+    instances: 2
+    storage:
+      size: "10Gi"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        cpu: "2000m"
+        memory: "8Gi"
+    backup:
+      destinationPath: s3://tuist-can-pg-backups/
+
 processor:
-  # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1

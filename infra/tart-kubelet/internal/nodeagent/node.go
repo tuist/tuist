@@ -28,6 +28,12 @@ import (
 type Maintainer struct {
 	Client   client.Client
 	NodeName string
+	// ProviderID is the cloud machine ID (scw-applesilicon://<zone>/<id>)
+	// the CAPI provider passes at bootstrap. CAPI core binds a Machine to
+	// its Node by matching Node.spec.providerID == Machine.spec.providerID;
+	// without it the fleet MachineDeployment never reports available.
+	// Empty leaves spec.providerID untouched.
+	ProviderID string
 	// NodeIP is the address advertised as the Node's InternalIP so
 	// in-cluster scrapers (alloy-metrics) targeting the Node role
 	// (host-level node_exporter at :9100, or any future host-bound
@@ -99,13 +105,26 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 	err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node)
 	if apierrors.IsNotFound(err) {
 		node.Name = m.NodeName
+		if m.ProviderID != "" {
+			node.Spec.ProviderID = m.ProviderID
+		}
 		m.configureNode(node)
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
 		return err
 	}
-	// Node already exists (kubelet restart): just refresh status.
+	// Node already exists (kubelet restart). spec.providerID is immutable
+	// once set, so only fill it when empty — this binds nodes that
+	// registered before tart-kubelet learned to set it. refresh() below
+	// writes only the status subresource, so the spec patch has to happen
+	// here.
+	if m.ProviderID != "" && node.Spec.ProviderID == "" {
+		node.Spec.ProviderID = m.ProviderID
+		if err := m.Client.Update(ctx, node); err != nil {
+			return err
+		}
+	}
 	return m.refresh(ctx)
 }
 

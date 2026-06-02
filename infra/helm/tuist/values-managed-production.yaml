@@ -6,10 +6,10 @@
 #     -f infra/helm/tuist/values-managed-production.yaml \
 #     --set server.image.tag=$GIT_SHA
 
-# The production workload cluster still serves per-region Kura HTTPS and
-# gRPC traffic directly via Hetzner LoadBalancer Services. Disable the
-# Cloudflare-fronted global endpoint layer here too until the Cloudflare
-# pool quota is raised.
+# The production workload cluster serves Kura HTTPS and gRPC traffic
+# directly via Hetzner LoadBalancer Services. Keep Cloudflare load
+# balancing disabled until the pool quota is raised and the global
+# endpoint design is revisited.
 kuraGlobalEndpointsEnabled: false
 kuraGlobalEndpointsRequired: false
 
@@ -108,10 +108,7 @@ server:
 
 kuraController:
   cloudflareLoadBalancing:
-    # Keep Cloudflare credentials wired so destroy flows can still clean
-    # up any previously provisioned global endpoints after reconciliation
-    # is re-enabled.
-    enabled: true
+    enabled: false
     zoneName: tuist.dev
     apiTokenSecret:
       managed: true
@@ -120,9 +117,28 @@ kuraController:
     externalSecret:
       enabled: true
       item: kura-introspection-oauth-client
+
+# CloudNativePG cluster — production shape. 3 instances (primary + 2
+# sync replicas), 100Gi per instance. Each instance is a streaming
+# replica holding the whole DB, so the size is per-replica capacity,
+# not a pool to split across them. The Hetzner CSI storage class has
+# `allowVolumeExpansion: true`, so we grow in place if the footprint
+# climbs faster than expected. Backups land in the
+# `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
-  external:
-    host: db.tuist.dev  # Supabase pooler endpoint for production.
+  cnpg:
+    instances: 3
+    storage:
+      size: "100Gi"
+    resources:
+      requests:
+        cpu: "2000m"
+        memory: "8Gi"
+      limits:
+        cpu: "4000m"
+        memory: "16Gi"
+    backup:
+      destinationPath: s3://tuist-prod-pg-backups/
 
 clickhouse:
   external:
@@ -134,10 +150,9 @@ objectStorage:
       default: tuist-prod-storage
 
 processor:
-  # Supabase production project (yltsvvtmlktxdgpcbylg) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:

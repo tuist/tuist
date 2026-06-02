@@ -502,6 +502,25 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  # Workload kubeconfig CAPI core's cluster cache uses to reach this
+  # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
+  # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
+  # Off by default — self-hosters without the 1Password item leave it
+  # off; the in-cluster CAPI then can't bind Machines, but the fleet
+  # still works at the Kubernetes level (tart-kubelet registers the
+  # nodes directly). Managed envs enable it.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: false
+      refreshInterval: "1h"
+      # 1Password item holding the assembled kubeconfig (server =
+      # in-cluster API, cluster CA, the capi-remote SA token). Populated
+      # once per cluster — see infra/k8s/onboarding.md.
+      item: "capi-workload-kubeconfig"
+      field: "kubeconfig"
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
@@ -1066,6 +1085,12 @@ cache:
     registryBucket: tuist-registry
 
 postgresql:
+  # `embedded` runs a single-replica Postgres StatefulSet (templates/postgresql.yaml).
+  # `external` points DATABASE_URL at a managed Postgres (Supabase, RDS, etc.).
+  # `cnpg` provisions a CloudNativePG-managed in-cluster Postgres cluster
+  # (templates/postgresql-cnpg.yaml) — used by managed envs after the
+  # Supabase→CNPG migration. Requires the cloudnative-pg operator to
+  # be installed cluster-wide first.
   mode: embedded
   external:
     host: ""
@@ -1088,6 +1113,102 @@ postgresql:
         - ReadWriteOnce
       size: 20Gi
     resources: {}
+  # CloudNativePG settings. Two toggles to support the Supabase→CNPG
+  # migration as a phased rollout:
+  #
+  #   * `cnpg.enabled` — when true, the chart renders the Cluster +
+  #     ScheduledBackup + ESO secrets. The cloudnative-pg operator
+  #     provisions the cluster; server pods stay on whatever
+  #     `postgresql.mode` points at. Use this during the soak window
+  #     to bring CNPG up in parallel with Supabase.
+  #
+  #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
+  #     processor, and migration-job pods all read DATABASE_URL from
+  #     the cluster's `<name>-app` Secret (CNPG-generated). Implies
+  #     `cnpg.enabled = true`.
+  cnpg:
+    enabled: false
+    # Image tag tracks the CNPG operator's compatibility table. Bump
+    # together with the operator chart version installed on the platform.
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "16.6"
+    # Number of cluster members. The primary plus (instances - 1)
+    # replicas. We run sync replication (1 sync + N-2 async); see the
+    # `synchronous` block in templates/postgresql-cnpg.yaml.
+    instances: 2
+    # Owner role created by `bootstrap.initdb` and the user the
+    # application connects as. Owns every object created by Ecto
+    # migrations.
+    owner: tuist_app
+    # Initial database created on bootstrap.
+    database: tuist
+    storage:
+      # Bumped per env. 100Gi at staging, 250Gi at canary + production.
+      size: "20Gi"
+      # The Hetzner CSI default (`hcloud-volumes`) is fine for staging
+      # and canary; production may want a topology-aware class if we
+      # ever add multi-AZ awareness.
+      storageClass: ""
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+    # PodMonitor stays off: managed clusters scrape via Alloy with
+    # annotation autodiscovery, not the prometheus-operator
+    # `monitoring.coreos.com/v1` CRD set. Re-enable once we either
+    # install prometheus-operator CRDs or the CNPG operator grows
+    # annotation-emit support on the instance Pods (it doesn't today).
+    monitoring:
+      enablePodMonitor: false
+    roles:
+      # Least-privilege Oban-queue consumer. CNPG creates the role;
+      # per-table GRANTs run via the bootstrap SQL in
+      # infra/cnpg/tuist-processor-grants.sql (see README in that dir).
+      processor:
+        name: tuist_processor
+      # Read-only role for the /ops/db inspection UI. Granted
+      # `pg_read_all_data` declaratively via `inRoles` so it can SELECT
+      # against every table without per-object GRANTs to maintain.
+      opsRo:
+        name: tuist_ops_ro
+    backup:
+      # Daily base backup at 03:00 UTC; the continuous WAL archive keeps
+      # PITR alive between snapshots. CNPG's ScheduledBackup cron is
+      # 6-field (leading seconds), unlike the 5-field Kubernetes CronJob
+      # format — `0 3 * * *` there parses as "second 0, minute 3, every
+      # hour" and fires hourly. `0 0 3 * * *` is the correct daily-03:00.
+      schedule: "0 0 3 * * *"
+      # Barman retention. Older base backups (and the WALs they pin)
+      # are pruned automatically once outside this window.
+      retention: "30d"
+      # Tigris bucket the backups live in. Per-env overlay sets the
+      # bucket name in the path; the endpoint is shared.
+      destinationPath: ""
+      endpointURL: "https://t3.storage.dev"
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Tigris access credentials scoped to the backup bucket. Separate
+      # 1P item from the workload's `S3_CREDENTIALS` so the backup key
+      # can be rotated independently and granted bucket-scoped
+      # permissions only.
+      backupCredentials:
+        item: S3_BACKUP_CREDENTIALS
+        accessKeyField: access_key_id
+        secretKeyField: secret_access_key
+      # Passwords for the managed roles. Per-env 1Password vault.
+      processorPassword:
+        item: PROCESSOR_DATABASE_PASSWORD
+        field: password
+      opsRoPassword:
+        item: OPS_DATABASE_PASSWORD
+        field: password
 
 clickhouse:
   mode: embedded

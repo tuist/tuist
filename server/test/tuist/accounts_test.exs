@@ -4223,9 +4223,11 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://#{account.name}.kura.tuist.dev"]
     end
 
-    test "returns no Kura endpoints when account has none configured" do
+    test "returns default endpoints when account has no Kura endpoints configured" do
       # Given
+      default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :kura_endpoints, fn -> nil end)
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4233,15 +4235,17 @@ defmodule Tuist.AccountsTest do
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert endpoints == []
+      assert endpoints == default_endpoints
     end
 
-    test "does not return a stale global Kura endpoint without regional endpoints" do
+    test "returns default endpoints instead of a stale global Kura endpoint without regional endpoints" do
       # Given
+      default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :dev?, fn -> false end)
       stub(Environment, :test?, fn -> false end)
       stub(Environment, :kura_endpoints, fn -> nil end)
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -4255,7 +4259,7 @@ defmodule Tuist.AccountsTest do
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
-      assert endpoints == []
+      assert endpoints == default_endpoints
     end
   end
 

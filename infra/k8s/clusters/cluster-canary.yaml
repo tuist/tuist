@@ -1,5 +1,6 @@
 # Canary workload Cluster, topology mode against tuist-hcloud.
-# Mirrors staging shape.
+# Mirrors staging shape, plus a small Kura pool so the canary-only
+# managed Kura region exposed in account settings can actually schedule.
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
@@ -44,6 +45,20 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Dedicated Kura pool. Kura StatefulSets default to this node
+        # selector and use hard hostname spread, so keep three workers
+        # for the default three replicas.
+        - class: hcloud-worker
+          name: kura
+          replicas: 3
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: kura
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: ccx13
         # Linux runner pool on Hetzner Robot bare metal. The
         # `hetzner-robot-controller` reflects `tuist-bm-canary-*`
         # Robot servers into HBM CRs stamped
