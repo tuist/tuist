@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* pass precompiled framework search paths to Swift inline, not via @resp by [@fortmarek](https://github.com/fortmarek) in [#11033](https://github.com/tuist/tuist/pull/11033)
+* keep test target buildable when only a test-case-level skip matches by [@fortmarek](https://github.com/fortmarek) in [#11032](https://github.com/tuist/tuist/pull/11032)
+* use AsyncParsableCommand for plugin run and test commands by [@rwjc](https://github.com/rwjc) in [#10603](https://github.com/tuist/tuist/pull/10603)
 * infer DerivedData location for inspect build and tests by [@natanrolnik](https://github.com/natanrolnik) in [#11015](https://github.com/tuist/tuist/pull/11015)
 * stop emitting -Xcc @resp into OTHER_SWIFT_FLAGS (Xcode 26 "expected exactly one compiler job") by [@fortmarek](https://github.com/fortmarek) in [#11023](https://github.com/tuist/tuist/pull/11023)
 * finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
