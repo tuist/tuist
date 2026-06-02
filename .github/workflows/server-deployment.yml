@@ -174,7 +174,7 @@ jobs:
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -240,7 +240,7 @@ jobs:
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -317,7 +317,7 @@ jobs:
     name: Platform chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: tuist-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -382,7 +382,7 @@ jobs:
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
-    runs-on: tuist-production-linux
+    runs-on: tuist-default
     environment:
       name: server-k8s-${{ inputs.environment }}
       url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
@@ -392,10 +392,10 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
-    # leaves a healthy buffer around that stack and keeps a
-    # SIGTERM-stuck helm from holding the slot indefinitely.
-    timeout-minutes: 50
+    # helm-upgrade can run for 70m and setup/diagnostics add ~10m. 80m
+    # keeps the job from killing helm before its own timeout/rollback path
+    # finishes, while still bounding a SIGTERM-stuck deploy.
+    timeout-minutes: 80
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -535,7 +535,14 @@ jobs:
             exit 0
           fi
 
-          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
+          if ! refs="$(
+            GIT_TERMINAL_PROMPT=0 timeout 30s \
+              git ls-remote --tags --refs origin 'refs/tags/kura@*'
+          )"; then
+            echo "::error::Failed to resolve the Kura runtime image tag from Git tags within 30 seconds."
+            echo "::error::Pass kura_runtime_image_tag to skip remote tag discovery when the runtime release is known."
+            exit 1
+          fi
           tag="$(
             printf '%s\n' "$refs" |
               awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
