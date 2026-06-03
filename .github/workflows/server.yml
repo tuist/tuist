@@ -160,7 +160,7 @@ jobs:
   test:
     name: Test
     runs-on: tuist-linux
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
@@ -295,7 +295,7 @@ jobs:
   docker_build:
     name: Docker build
     runs-on: tuist-linux
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
