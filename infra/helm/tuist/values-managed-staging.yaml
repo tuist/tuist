@@ -368,7 +368,8 @@ runnersFleetLinux:
     - { vcpus: 2, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 8 }
     # Default shape: keeps a warm floor (the legacy pool's value) since
-    # it absorbs `tuist-default` + aliased legacy `tuist-staging-linux`.
+    # it absorbs `tuist-default` + the `linux` default-profile
+    # (`tuist-staging-linux`) traffic.
     - vcpus: 4
       memoryGb: 16
       default: true
