@@ -202,6 +202,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline
 # catches regressions on a production-shape cluster before they hit

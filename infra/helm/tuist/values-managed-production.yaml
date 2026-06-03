@@ -301,6 +301,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
 # Each AX162-R (48c/96t EPYC Genoa, 256 GB ECC, 2x1.92 TB NVMe DC
