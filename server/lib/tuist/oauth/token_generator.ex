@@ -12,6 +12,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Cache
   alias Tuist.OAuth.Clients
@@ -19,16 +20,53 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   @impl TokenGenerator
   def generate(token_type, %Boruta.Ecto.Token{sub: sub, client_id: client_id, scope: scope}) do
-    user_id = String.to_integer(sub)
+    case parse_user_id(sub) do
+      {:ok, user_id} -> generate_user_token(token_type, user_id, client_id, scope)
+      :service -> generate_service_token(token_type, client_id, scope)
+    end
+  end
 
+  @default_user_scopes [
+    "account:cache:read",
+    "account:cache:write",
+    "project:admin:read",
+    "project:cache:read",
+    "project:cache:write",
+    "project:previews:read",
+    "project:previews:write",
+    "project:bundles:read",
+    "project:bundles:write",
+    "project:tests:read",
+    "project:tests:write",
+    "project:builds:read",
+    "project:builds:write",
+    "project:runs:read",
+    "project:runs:write"
+  ]
+
+  defp parse_scopes(nil), do: @default_user_scopes
+  defp parse_scopes(""), do: @default_user_scopes
+  defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
+
+  defp parse_service_scopes(nil), do: []
+  defp parse_service_scopes(""), do: []
+  defp parse_service_scopes(scope), do: String.split(scope, " ", trim: true)
+
+  defp parse_user_id(sub) when is_binary(sub) do
+    case Integer.parse(sub) do
+      {user_id, ""} -> {:ok, user_id}
+      _ -> :service
+    end
+  end
+
+  defp parse_user_id(_sub), do: :service
+
+  defp ttl_for(:access_token, client), do: client.access_token_ttl
+  defp ttl_for(:refresh_token, client), do: client.refresh_token_ttl
+
+  defp generate_user_token(token_type, user_id, client_id, scope) do
     with user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
-      ttl =
-        case token_type do
-          :access_token -> client.access_token_ttl
-          :refresh_token -> client.refresh_token_ttl
-        end
-
       scopes = parse_scopes(scope)
 
       claims = %{
@@ -56,34 +94,36 @@ defmodule Tuist.OAuth.TokenGenerator do
       {:ok, jwt_token, _claims} =
         Tuist.Guardian.encode_and_sign(user.account, claims,
           token_type: Atom.to_string(token_type),
-          ttl: {ttl, :second}
+          ttl: {ttl_for(token_type, client), :second}
         )
 
       jwt_token
     end
   end
 
-  @default_user_scopes [
-    "account:cache:read",
-    "account:cache:write",
-    "project:admin:read",
-    "project:cache:read",
-    "project:cache:write",
-    "project:previews:read",
-    "project:previews:write",
-    "project:bundles:read",
-    "project:bundles:write",
-    "project:tests:read",
-    "project:tests:write",
-    "project:builds:read",
-    "project:builds:write",
-    "project:runs:read",
-    "project:runs:write"
-  ]
+  defp generate_service_token(token_type, client_id, scope) do
+    with true <- Clients.service_client?(client_id),
+         client when not is_nil(client) <- Clients.get_client(client_id) do
+      scopes = parse_service_scopes(scope)
+      service = %AuthenticatedService{client_id: client_id, scopes: scopes}
 
-  defp parse_scopes(nil), do: @default_user_scopes
-  defp parse_scopes(""), do: @default_user_scopes
-  defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
+      claims = %{
+        "type" => "service",
+        "client_id" => client_id,
+        "scopes" => scopes
+      }
+
+      {:ok, jwt_token, _claims} =
+        Tuist.Guardian.encode_and_sign(service, claims,
+          token_type: Atom.to_string(token_type),
+          ttl: {ttl_for(token_type, client), :second}
+        )
+
+      jwt_token
+    else
+      _ -> nil
+    end
+  end
 
   @impl TokenGenerator
   def secret(client) do

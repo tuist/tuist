@@ -996,6 +996,22 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  def oauth_service_clients(secrets \\ secrets()) do
+    case get([:oauth, :service_clients], secrets, default_value: []) do
+      clients when is_list(clients) ->
+        clients
+
+      clients when is_binary(clients) ->
+        case JSON.decode(clients) do
+          {:ok, decoded_clients} when is_list(decoded_clients) -> decoded_clients
+          _ -> []
+        end
+
+      _ ->
+        []
+    end
+  end
+
   # Kura-side env vars stay unprefixed so the implementation in Kura
   # remains Tuist-agnostic. The server still falls back to the legacy
   # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets

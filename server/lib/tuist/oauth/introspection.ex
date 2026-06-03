@@ -3,6 +3,7 @@ defmodule Tuist.OAuth.Introspection do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Authentication
   alias Tuist.Cache
@@ -29,22 +30,33 @@ defmodule Tuist.OAuth.Introspection do
 
   defp subject_id(%User{id: id}), do: to_string(id)
   defp subject_id(%AuthenticatedAccount{account: %Account{id: id}}), do: to_string(id)
+  defp subject_id(%AuthenticatedService{client_id: client_id}), do: client_id
   defp subject_id(%Account{id: id}), do: to_string(id)
   defp subject_id(%Project{id: id}), do: to_string(id)
 
   defp principal_kind(%User{}), do: "user"
   defp principal_kind(%AuthenticatedAccount{}), do: "account"
+  defp principal_kind(%AuthenticatedService{}), do: "service"
   defp principal_kind(%Account{}), do: "account"
   defp principal_kind(%Project{}), do: "project"
 
   defp username(%User{email: email}), do: email
   defp username(%AuthenticatedAccount{account: %Account{name: name}}), do: name
+  defp username(%AuthenticatedService{client_id: client_id}), do: client_id
   defp username(%Account{name: name}), do: name
 
   defp username(%Project{account: %Account{name: account_name}, name: project_name}),
     do: "#{account_name}/#{project_name}"
 
   defp scope_string(%AuthenticatedAccount{scopes: scopes}) when is_list(scopes) do
+    scope_string(scopes)
+  end
+
+  defp scope_string(%AuthenticatedService{scopes: scopes}) when is_list(scopes) do
+    scope_string(scopes)
+  end
+
+  defp scope_string(scopes) when is_list(scopes) do
     scopes
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" ")

@@ -3,6 +3,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
   use Mimic
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias TuistWeb.Authentication
@@ -54,6 +55,23 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
       expect(InMemory, :hit, fn "mcp:auth:account:789", ^timeout, ^bucket_size ->
+        {:allow, 1}
+      end)
+
+      # When / Then
+      assert MCP.hit(conn) == {:allow, 1}
+    end
+
+    test "uses the service key when authenticated as service", %{conn: conn} do
+      # Given
+      authenticated_service = %AuthenticatedService{client_id: "service-client", scopes: []}
+      timeout = to_timeout(minute: 1)
+      bucket_size = 120
+
+      stub(Authentication, :authenticated_subject, fn ^conn -> authenticated_service end)
+      stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
+
+      expect(InMemory, :hit, fn "mcp:auth:service:service-client", ^timeout, ^bucket_size ->
         {:allow, 1}
       end)
 

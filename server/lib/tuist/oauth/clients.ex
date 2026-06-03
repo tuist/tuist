@@ -22,6 +22,12 @@ defmodule Tuist.OAuth.Clients do
     end
   end
 
+  def service_client?(client_id) when is_binary(client_id) do
+    match?(%Client{}, oauth_service_client(client_id))
+  end
+
+  def service_client?(_client_id), do: false
+
   @impl Clients
   def public! do
     case tuist_oauth_client() do
@@ -74,10 +80,49 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp static_client(client_id) when is_binary(client_id) do
-    Enum.find([kura_introspection_client(), tuist_oauth_client()], &match?(%Client{id: ^client_id}, &1))
+    Enum.find(
+      [kura_introspection_client(), tuist_oauth_client()] ++ oauth_service_clients(),
+      &match?(%Client{id: ^client_id}, &1)
+    )
   end
 
   defp static_client(_client_id), do: nil
+
+  defp oauth_service_client(client_id) do
+    Enum.find(oauth_service_clients(), &match?(%Client{id: ^client_id}, &1))
+  end
+
+  defp oauth_service_clients do
+    Environment.oauth_service_clients()
+    |> Enum.map(&oauth_service_client_from_config/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp oauth_service_client_from_config(config) when is_map(config) do
+    id = Map.get(config, "id") || Map.get(config, :id)
+    secret = Map.get(config, "secret") || Map.get(config, :secret)
+    name = Map.get(config, "name") || Map.get(config, :name) || id
+    access_token_ttl = Map.get(config, "access_token_ttl") || Map.get(config, :access_token_ttl) || 300
+
+    if is_binary(id) and is_binary(secret) do
+      %Client{
+        id: id,
+        secret: secret,
+        name: name,
+        access_token_ttl: access_token_ttl,
+        refresh_token_ttl: access_token_ttl,
+        supported_grant_types: ["client_credentials"],
+        authorize_scope: false,
+        confidential: true,
+        token_endpoint_auth_methods: [
+          "client_secret_basic",
+          "client_secret_post"
+        ]
+      }
+    end
+  end
+
+  defp oauth_service_client_from_config(_config), do: nil
 
   defp android_emulator_redirect_uris do
     base_url = Environment.app_url(path: "/oauth/callback/android")

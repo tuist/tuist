@@ -4,6 +4,7 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
 
   alias Boruta.Ecto.Token
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -228,6 +229,50 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       project_ids = Enum.map(projects, & &1.id)
       assert project.id in project_ids
       assert org_project.id in project_ids
+    end
+
+    test "generates a service token when the OAuth token has no user subject" do
+      stub(Clients, :service_client?, fn "service-client" -> true end)
+
+      token = %Token{
+        sub: nil,
+        client_id: "service-client",
+        scope: "account:service:read:any"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      assert claims["type"] == "service"
+      assert claims["client_id"] == "service-client"
+      assert claims["scopes"] == ["account:service:read:any"]
+    end
+
+    test "resolves service tokens to an AuthenticatedService" do
+      stub(Clients, :service_client?, fn "service-client" -> true end)
+
+      token = %Token{
+        sub: nil,
+        client_id: "service-client",
+        scope: "account:service:read:any"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, resource, _claims} = Tuist.Guardian.resource_from_token(jwt_token)
+      assert %AuthenticatedService{client_id: "service-client", scopes: ["account:service:read:any"]} = resource
+    end
+
+    test "does not generate a service token for non-service clients" do
+      stub(Clients, :service_client?, fn "test-client-id" -> false end)
+
+      token = %Token{
+        sub: nil,
+        client_id: "test-client-id",
+        scope: "account:service:read:any"
+      }
+
+      assert TokenGenerator.generate(:access_token, token) == nil
     end
   end
 end

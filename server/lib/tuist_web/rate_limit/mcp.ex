@@ -4,6 +4,7 @@ defmodule TuistWeb.RateLimit.MCP do
   """
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias TuistWeb.Authentication
@@ -27,6 +28,9 @@ defmodule TuistWeb.RateLimit.MCP do
 
       %AuthenticatedAccount{account: %{id: id}} ->
         {"mcp:auth:account:#{id}", Tuist.Environment.mcp_rate_limit_bucket_size()}
+
+      %AuthenticatedService{client_id: client_id} ->
+        {"mcp:auth:service:#{client_id}", Tuist.Environment.mcp_rate_limit_bucket_size()}
     end
   end
 end

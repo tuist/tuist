@@ -5,6 +5,7 @@ defmodule TuistWeb.Plugs.SentryContextPlug do
   """
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
@@ -50,6 +51,9 @@ defmodule TuistWeb.Plugs.SentryContextPlug do
 
       %AuthenticatedAccount{account: %{id: account_id, name: account_handle}} ->
         %{auth_account_id: account_id, auth_account_handle: account_handle}
+
+      %AuthenticatedService{client_id: client_id} ->
+        %{auth_client_id: client_id}
 
       nil ->
         %{}

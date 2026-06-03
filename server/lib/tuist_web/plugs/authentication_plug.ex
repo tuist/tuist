@@ -7,6 +7,7 @@ defmodule TuistWeb.AuthenticationPlug do
   import Plug.Conn
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -102,6 +103,9 @@ defmodule TuistWeb.AuthenticationPlug do
 
       %AuthenticatedAccount{} = authenticated_account ->
         assign(conn, :current_subject, authenticated_account)
+
+      %AuthenticatedService{} = authenticated_service ->
+        assign(conn, :current_subject, authenticated_service)
 
       nil ->
         conn
