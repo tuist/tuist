@@ -134,14 +134,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws -> [SideEffectDescriptor] {
-        try setupFrameworkSearchPath(
-            target: target,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
         try setupHeadersSearchPath(
             target: target,
             pbxTarget: pbxTarget,
@@ -296,68 +288,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
 
         pbxproj.add(object: embedPhase)
         pbxTarget.buildPhases.append(embedPhase)
-    }
-
-    func setupFrameworkSearchPath(
-        target: Target,
-        pbxTarget: PBXTarget,
-        sourceRootPath: AbsolutePath,
-        path: AbsolutePath,
-        graphTraverser: GraphTraversing
-    ) throws {
-        let consolidation = try FrameworkSearchPathConsolidation.compute(
-            targetName: target.name,
-            projectPath: path,
-            sourceRootPath: sourceRootPath,
-            graphTraverser: graphTraverser
-        )
-
-        guard consolidation.isConsolidated else {
-            try setup(
-                setting: "FRAMEWORK_SEARCH_PATHS",
-                paths: consolidation.allUniquePaths,
-                pbxTarget: pbxTarget,
-                sourceRootPath: sourceRootPath
-            )
-            return
-        }
-
-        // The precompiled framework search paths are consolidated into a response file
-        // (Derived/FrameworkSearchPaths/<Target>.resp, written by
-        // FrameworkSearchPathConsolidationGraphMapper). Clang and ld read it via @file to stay under
-        // ARG_MAX, so FRAMEWORK_SEARCH_PATHS keeps only the short SDK paths.
-        try setup(
-            setting: "FRAMEWORK_SEARCH_PATHS",
-            paths: consolidation.uniqueSdkPaths,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
-        )
-
-        // OTHER_CFLAGS: add @response_file so clang reads -F flags from file
-        try setup(
-            setting: "OTHER_CFLAGS",
-            values: [consolidation.responseFileReference],
-            pbxTarget: pbxTarget
-        )
-
-        // OTHER_SWIFT_FLAGS: pass the precompiled framework search paths inline as native -F flags
-        // rather than through the response file. Unlike C/ObjC compilation, Swift does not hit
-        // ARG_MAX here, and routing it through @file is broken under Xcode 26: `-Xcc @file` makes the
-        // ClangImporter treat the response file as a second input ("expected exactly one compiler
-        // job"), while a bare `@file` is left unexpanded by Xcode's integrated SwiftDriver and
-        // resolved as a literal input ("Unexpected input file"). Inline -F sidesteps both.
-        try setup(
-            setting: "OTHER_SWIFT_FLAGS",
-            values: consolidation.precompiledXcodeValues.flatMap { ["-F", $0] },
-            pbxTarget: pbxTarget
-        )
-
-        // OTHER_LDFLAGS: add @response_file so the linker finds the frameworks
-        try setup(
-            setting: "OTHER_LDFLAGS",
-            values: [consolidation.responseFileReference],
-            pbxTarget: pbxTarget
-        )
     }
 
     func setupHeadersSearchPath(

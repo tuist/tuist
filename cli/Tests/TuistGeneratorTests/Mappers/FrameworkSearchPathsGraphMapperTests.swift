@@ -38,10 +38,27 @@ final class FrameworkSearchPathConsolidationTests: XCTestCase {
         XCTAssertTrue(
             consolidation.responseFilePath.pathString.hasSuffix("Derived/FrameworkSearchPaths/MyTarget.resp")
         )
+        XCTAssertEqual(consolidation.responseFileReference, "@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp")
+
+        // FRAMEWORK_SEARCH_PATHS keeps only the SDK paths; precompiled paths move to the response file.
+        XCTAssertTrue(consolidation.frameworkSearchPathValues.contains("$(PLATFORM_DIR)/Developer/Library/Frameworks"))
+        for i in 0 ..< 25 {
+            XCTAssertFalse(
+                consolidation.frameworkSearchPathValues.contains { $0.contains("hash\(i)") },
+                "FRAMEWORK_SEARCH_PATHS should not contain precompiled path hash\(i)"
+            )
+        }
+
+        // OTHER_SWIFT_FLAGS carries the precompiled paths inline as native -F flags.
+        XCTAssertTrue(consolidation.swiftFrameworkSearchPathFlags.contains("-F"))
         for i in 0 ..< 25 {
             XCTAssertTrue(
+                consolidation.swiftFrameworkSearchPathFlags.contains("$(SRCROOT)/cache/hash\(i)"),
+                "OTHER_SWIFT_FLAGS should contain inline framework search path for hash\(i)"
+            )
+            XCTAssertTrue(
                 consolidation.responseFileContents.contains("-F/path/cache/hash\(i)"),
-                "Response file contents should contain -F flag for hash\(i)"
+                "Response file should contain -F flag for hash\(i)"
             )
         }
     }
@@ -66,5 +83,7 @@ final class FrameworkSearchPathConsolidationTests: XCTestCase {
 
         // Then
         XCTAssertFalse(consolidation.isConsolidated)
+        // Below the threshold every path stays in FRAMEWORK_SEARCH_PATHS.
+        XCTAssertTrue(consolidation.frameworkSearchPathValues.contains("$(SRCROOT)/cache/hash0"))
     }
 }
