@@ -2,7 +2,15 @@ package controllers
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
+	"math/big"
 	"strconv"
 	"time"
 
@@ -56,6 +64,12 @@ const (
 	publicTLSMountPath  = "/etc/kura/public-tls"
 	publicTLSCertFile   = "tls.crt"
 	publicTLSKeyFile    = "tls.key"
+
+	peerTLSVolumeName = "peer-tls"
+	peerTLSMountPath  = "/etc/kura/peer-tls"
+	peerTLSCAFile     = "ca.pem"
+	peerTLSCertFile   = "tls.crt"
+	peerTLSKeyFile    = "tls.key"
 )
 
 type KuraInstanceReconciler struct {
@@ -85,6 +99,10 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-public-tls"
 }
 
+func peerTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-peer-tls"
+}
+
 func grpcServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-grpc"
 }
@@ -98,6 +116,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=kura.tuist.dev,resources=kurainstances/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -141,6 +160,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGRPCCertificate(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerTLSSecret(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.deleteLegacyIngress(ctx, instance); err != nil {
@@ -352,6 +374,141 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 		return unstructured.SetNestedField(cert.Object, spec, "spec")
 	})
 	return err
+}
+
+func (r *KuraInstanceReconciler) reconcilePeerTLSSecret(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
+			return err
+		}
+		secret.Labels = labels(instance)
+		secret.Type = corev1.SecretTypeOpaque
+		if peerTLSSecretDataValid(secret.Data, instance) {
+			return nil
+		}
+		data, err := generatePeerTLSSecretData(instance)
+		if err != nil {
+			return err
+		}
+		secret.Data = data
+		return nil
+	})
+	return err
+}
+
+func peerTLSSecretDataValid(data map[string][]byte, instance *kurav1alpha1.KuraInstance) bool {
+	if len(data[peerTLSCAFile]) == 0 || len(data[peerTLSCertFile]) == 0 || len(data[peerTLSKeyFile]) == 0 {
+		return false
+	}
+
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(data[peerTLSCAFile]) {
+		return false
+	}
+	if _, err := tls.X509KeyPair(data[peerTLSCertFile], data[peerTLSKeyFile]); err != nil {
+		return false
+	}
+	block, _ := pem.Decode(data[peerTLSCertFile])
+	if block == nil || block.Type != "CERTIFICATE" {
+		return false
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return false
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		DNSName:   firstPodDNSName(instance),
+		Roots:     roots,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	})
+	return err == nil && hasExtKeyUsage(cert, x509.ExtKeyUsageClientAuth)
+}
+
+func generatePeerTLSSecretData(instance *kurav1alpha1.KuraInstance) (map[string][]byte, error) {
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer CA key: %w", err)
+	}
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer certificate key: %w", err)
+	}
+
+	now := time.Now().UTC()
+	caTemplate := &x509.Certificate{
+		SerialNumber:          randomSerialNumber(),
+		Subject:               pkix.Name{CommonName: instance.Name + " peer CA"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.AddDate(10, 0, 0),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer CA certificate: %w", err)
+	}
+
+	leafTemplate := &x509.Certificate{
+		SerialNumber: randomSerialNumber(),
+		Subject:      pkix.Name{CommonName: instance.Name + " peer"},
+		DNSNames:     peerTLSDNSNames(instance),
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.AddDate(2, 0, 0),
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caTemplate, &leafKey.PublicKey, caKey)
+	if err != nil {
+		return nil, fmt.Errorf("generate peer certificate: %w", err)
+	}
+
+	leafPKCS8, err := x509.MarshalPKCS8PrivateKey(leafKey)
+	if err != nil {
+		return nil, fmt.Errorf("marshal peer private key: %w", err)
+	}
+
+	return map[string][]byte{
+		peerTLSCAFile:   pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}),
+		peerTLSCertFile: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER}),
+		peerTLSKeyFile:  pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: leafPKCS8}),
+	}, nil
+}
+
+func randomSerialNumber() *big.Int {
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return big.NewInt(time.Now().UnixNano())
+	}
+	return serial
+}
+
+func hasExtKeyUsage(cert *x509.Certificate, usage x509.ExtKeyUsage) bool {
+	for _, certUsage := range cert.ExtKeyUsage {
+		if certUsage == usage {
+			return true
+		}
+	}
+	return false
+}
+
+func peerTLSDNSNames(instance *kurav1alpha1.KuraInstance) []string {
+	headless := headlessServiceName(instance)
+	namespace := instance.Namespace
+	return []string{
+		fmt.Sprintf("*.%s.%s.svc.cluster.local", headless, namespace),
+		fmt.Sprintf("*.%s.%s.svc", headless, namespace),
+		fmt.Sprintf("*.%s.%s", headless, namespace),
+		headless,
+		fmt.Sprintf("%s.%s", headless, namespace),
+		fmt.Sprintf("%s.%s.svc", headless, namespace),
+		fmt.Sprintf("%s.%s.svc.cluster.local", headless, namespace),
+	}
+}
+
+func firstPodDNSName(instance *kurav1alpha1.KuraInstance) string {
+	return fmt.Sprintf("%s-0.%s.%s.svc.cluster.local", instance.Name, headlessServiceName(instance), instance.Namespace)
 }
 
 func dnsNames(names ...string) []any {
@@ -695,9 +852,12 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []c
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/tmp/kura"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
-		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("http://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
+		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
+		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},
+		{Name: "KURA_INTERNAL_TLS_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCertFile},
+		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
 		{Name: "KURA_OTEL_DEPLOYMENT_ENVIRONMENT", Value: "production"},
@@ -753,7 +913,11 @@ func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort 
 }
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
-	mounts := []corev1.VolumeMount{{Name: "tmp", MountPath: "/tmp/kura"}, {Name: "data", MountPath: "/var/cache/kura"}}
+	mounts := []corev1.VolumeMount{
+		{Name: "tmp", MountPath: "/tmp/kura"},
+		{Name: "data", MountPath: "/var/cache/kura"},
+		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
+	}
 	if instance.Spec.ExtensionScript != "" {
 		mounts = append(mounts, corev1.VolumeMount{Name: "extension-script", MountPath: "/etc/kura/extensions", ReadOnly: true})
 	}
@@ -773,6 +937,11 @@ func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: &tmpSize},
 		},
+	}, {
+		Name: peerTLSVolumeName,
+		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+			SecretName: peerTLSSecretName(instance),
+		}},
 	}}
 	if instance.Spec.ExtensionScript != "" {
 		volumes = append(volumes, corev1.Volume{
@@ -898,6 +1067,7 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).

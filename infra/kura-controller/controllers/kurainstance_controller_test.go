@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -144,18 +146,50 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env["KURA_HTTPS_PORT"]; got == "" {
 		t.Fatal("expected KURA_HTTPS_PORT to be set when publicHost is set")
 	}
+	if got := env["KURA_NODE_URL"]; got != "https://$(POD_NAME).kura-tuist-eu-1-headless.$(POD_NAMESPACE).svc.cluster.local:7443" {
+		t.Fatalf("expected peer node URL to use mTLS, got %q", got)
+	}
+	if env["KURA_INTERNAL_TLS_CA_CERT_PATH"] == "" ||
+		env["KURA_INTERNAL_TLS_CERT_PATH"] == "" ||
+		env["KURA_INTERNAL_TLS_KEY_PATH"] == "" {
+		t.Fatal("expected internal peer mTLS env paths to be configured")
+	}
 	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
 		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
 	publicMountFound := false
+	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
 		if mount.Name == publicTLSVolumeName {
 			publicMountFound = true
-			break
+		}
+		if mount.Name == peerTLSVolumeName && mount.ReadOnly {
+			peerMountFound = true
 		}
 	}
 	if !publicMountFound {
 		t.Fatal("expected public TLS secret to be mounted into the kura container")
+	}
+	if !peerMountFound {
+		t.Fatal("expected peer mTLS secret to be mounted into the kura container")
+	}
+	peerSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, peerSecret); err != nil {
+		t.Fatalf("expected per-instance peer mTLS Secret to be created: %v", err)
+	}
+	if !peerTLSSecretDataValid(peerSecret.Data, instance) {
+		t.Fatal("expected generated peer mTLS Secret to contain a valid CA, certificate, and key")
+	}
+	block, _ := pem.Decode(peerSecret.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected peer certificate PEM")
+	}
+	peerCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("expected peer certificate to parse: %v", err)
+	}
+	if got := peerCert.DNSNames[0]; got != "*.kura-tuist-eu-1-headless.kura.svc.cluster.local" {
+		t.Fatalf("expected peer certificate to cover StatefulSet pod DNS names, got %q", got)
 	}
 	publicPortFound := false
 	for _, port := range container.Ports {
