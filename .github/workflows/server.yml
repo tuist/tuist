@@ -348,12 +348,9 @@ jobs:
   #         --health-retries 5
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - uses: namespacelabs/nscloud-cache-action@v1
-  #       with:
-  #         cache: mise
   #     - uses: jdx/mise-action@v4.0.1
   #       with:
-  #         cache: "false"
+  #         cache: "true"
   #     - run: mise run install
   #     - run: mise run clickhouse:start
   #     - run: mise run db:reset
