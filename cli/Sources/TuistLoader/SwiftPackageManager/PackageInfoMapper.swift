@@ -650,19 +650,11 @@ public struct PackageInfoMapper: PackageInfoMapping {
             } else {
                 nil
             }
-            // The headerless modulemap (issue #10967) hides the generated `-Swift.h`, so restrict it to Swift-only
-            // framework targets that don't expose `@objc` declarations to Objective-C consumers (issue #11007).
-            let generateModuleMapForSwiftOnlyTargets = if product == .framework {
-                try await !targetExposesObjCInterface(at: targetPath)
-            } else {
-                false
-            }
             moduleMap = try await moduleMapGenerator.generate(
                 packageDirectory: path,
                 moduleName: moduleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
-                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory,
-                generateModuleMapForSwiftOnlyTargets: generateModuleMapForSwiftOnlyTargets
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
             moduleMap = nil
@@ -968,29 +960,6 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 return []
             }
         }
-    }
-}
-
-extension PackageInfoMapper {
-    /// Whether any of the target's Swift sources expose declarations to Objective-C through the generated `-Swift.h`.
-    /// Pure-Swift targets with no Objective-C interop keep the headerless modulemap (issue #10967); targets that expose
-    /// `@objc` declarations or subclass an Objective-C type need Xcode's synthesized modulemap so consumers see
-    /// `-Swift.h` (issue #11007). A false positive only reverts a target to the synthesized modulemap, so the detection
-    /// errs towards reporting interop.
-    private func targetExposesObjCInterface(at targetPath: AbsolutePath) async throws -> Bool {
-        guard try await fileSystem.exists(targetPath) else { return false }
-        let swiftFiles = try await fileSystem.glob(directory: targetPath, include: ["**/*.swift", "*.swift"]).collect()
-        let interopAttributes = ["@objc", "@IBOutlet", "@IBAction", "@IBInspectable", "@NSManaged", "@GKInspectable"]
-        for swiftFile in swiftFiles {
-            guard let contents = try? await fileSystem.readTextFile(at: swiftFile) else { continue }
-            if interopAttributes.contains(where: contents.contains) {
-                return true
-            }
-            if contents.range(of: #":\s*NSObject\b"#, options: .regularExpression) != nil {
-                return true
-            }
-        }
-        return false
     }
 }
 
@@ -1370,7 +1339,7 @@ extension ProjectDescription.Headers {
                     ]
                 )
             )
-        case .none, .swiftOnly, .header, .custom:
+        case .none, .header, .custom:
             return nil
         }
     }
@@ -1396,13 +1365,7 @@ extension ProjectDescription.Settings {
 
         var dependencyHeaderSearchPaths: [String] = []
         if let moduleMap {
-            let needsHeaderSearchPath = switch moduleMap {
-            case .directory, .header, .custom:
-                true
-            case .none, .swiftOnly:
-                false
-            }
-            if needsHeaderSearchPath, target.type != .system {
+            if moduleMap != .none, target.type != .system {
                 let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
                 dependencyHeaderSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -1473,7 +1436,7 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory, .header, .custom, .swiftOnly:
+            case .directory, .header, .custom:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):
