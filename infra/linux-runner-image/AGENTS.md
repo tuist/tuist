@@ -1,9 +1,10 @@
 # Linux Runner Image
 
 OCI image hosted on the **Linux runner fleet** (Hetzner Cloud
-nodes selected via `tuist.dev/fleet=<runnersFleetLinuxName>`).
-One container per Pod, one ephemeral GitHub Actions runner per
-container, one job per runner.
+nodes selected via `tuist.dev/fleet=<runnersFleetLinuxName>`). One
+ephemeral GitHub Actions runner per Pod, one job per runner. The
+same image runs in two roles within a Pod (see "Credential split"
+below): a `poller` init container and a `runner` main container.
 
 This is the Linux analog of `infra/runner-image/` (the Tart-based
 macOS image). Same single-shot lifecycle, much simpler substrate.
@@ -13,9 +14,17 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 - `/home/runner/actions-runner/` — GitHub Actions runner binary
   (no registration baked in; we register at runtime via the JIT
   config minted by `Tuist.Runners.dispatch_for_sa/2`).
-- `/usr/local/bin/dispatch-poll.sh` — polls the dispatch
-  endpoint with the projected SA token as Bearer. On 204 it
-  sleeps; on 200 it `exec`s `./run.sh --jitconfig <jit>`.
+- `/usr/local/bin/dispatch-poll.sh` — the poll loop. POSTs to the
+  dispatch endpoint with the projected SA token as Bearer; on 204
+  it sleeps. With `TUIST_RUNNER_JIT_OUTPUT_PATH` set (the Linux
+  poller container) it writes the claimed JIT there and exits 0;
+  without it (legacy single-container shape) it `exec`s
+  `./run.sh --jitconfig <jit>` itself.
+- `/usr/local/bin/run-job.sh` — the `runner` container's
+  entrypoint in the split shape. Reads the JIT the poller staged
+  (`TUIST_RUNNER_JIT_PATH`) and `exec`s
+  `./run.sh --jitconfig <jit> --disableupdate`, or exits 0 if no
+  JIT was staged (410 drain / poller abort). Holds no SA token.
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)
@@ -26,6 +35,31 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 No `inject-env.sh`, no launchd plist, no VM-halt trap — kubelet
 projects env + SA token natively, container exit IS the
 substrate's terminal signal.
+
+## Credential split (token isolation)
+
+A Linux runner Pod runs untrusted workflow code (incl. fork PRs),
+so the container that runs it must never see the dispatch SA
+token — that token is pool-scoped and could claim other tenants'
+queued jobs. The controller's `podtemplate.Build` splits the Pod:
+
+- **`poller` init container** — the only container that mounts the
+  token. Runs `dispatch-poll.sh` in poller mode; on a claim it
+  writes the minted, job-scoped JIT to a shared `tuist-runner-jit`
+  emptyDir and exits 0. Runs as root so it can write that
+  root-owned emptyDir (it executes only our poll script, never
+  customer code).
+- **`runner` main container** — no token. kubelet starts it only
+  after the poller init container exits, so by then the JIT (if
+  any) is already staged. Runs `run-job.sh`, which reads the JIT
+  and `exec`s the runner. A leaked JIT post-claim grants nothing
+  the runner isn't already running under.
+
+A warm-standby Pod therefore sits in `Pending` (poller polling in
+Init) until a job is claimed, not `Running`. macOS keeps the
+single-container shape — the Tart VM is the isolation boundary and
+tart-kubelet projects the token into it. See
+`infra/runners-controller/AGENTS.md` for the full Pod shape.
 
 ## docker
 
@@ -72,13 +106,16 @@ flow).
 2. The runners-controller's `RunnerPoolReconciler` creates a Pod
    with this image; kubelet on the Hetzner Cloud node pulls the
    OCI image (cached on subsequent Pods scheduled to the same
-   host) and starts the container.
-3. The container's PID 1 is `dispatch-poll.sh`. It exchanges the
-   projected SA token for a JIT config (200 with the JIT when a
-   queue row is claimed, 204 while idle), runs the GitHub Actions
-   runner single-shot, exits when the runner exits. The container
-   exit is what kubelet observes; the rest is identical to the
-   macOS path.
+   host) and starts the containers.
+3. The `poller` init container runs `dispatch-poll.sh`, exchanging
+   the projected SA token for a JIT config (200 with the JIT when
+   a queue row is claimed, 204 while idle), then stages the JIT
+   and exits. The `runner` main container starts, runs the GitHub
+   Actions runner single-shot under that JIT (no token), and
+   exits. The runner-container exit is what kubelet observes for
+   billing + reaping; the rest is identical to the macOS path
+   (which keeps the single-container shape — see "Credential
+   split" above).
 
 For the customer-facing dispatch label, autoscaling, and capacity
 model see `server/lib/tuist/runners.ex` and

@@ -54,8 +54,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax-check dispatch-poll.sh
-        run: bash -n infra/linux-runner-image/dispatch-poll.sh
+      - name: Syntax-check runner scripts
+        run: |
+          bash -n infra/linux-runner-image/dispatch-poll.sh
+          bash -n infra/linux-runner-image/run-job.sh
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

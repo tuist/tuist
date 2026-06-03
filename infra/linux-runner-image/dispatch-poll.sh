@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # POSTs to the Tuist server's runner dispatch endpoint with the
-# Pod's projected ServiceAccount token as Bearer, and execs the
-# actions/runner binary with the returned JIT config.
+# Pod's projected ServiceAccount token as Bearer to claim a job and
+# obtain its JIT runner config.
 #
 # This is the Linux analog of `infra/runner-image/dispatch-poll.sh`
 # (the macOS Tart VM version). The Linux side is shorter for a few
@@ -17,18 +17,39 @@
 #   * No SA token copy — the projected token lives at the standard
 #     in-cluster path the moment the container starts.
 #
+# Two modes, selected by TUIST_RUNNER_JIT_OUTPUT_PATH:
+#
+#   * Poller mode (env set) — token-isolation Pod shape. This script
+#     runs in the `poller` init container, which is the only
+#     container holding the SA token. On a claim it writes the JIT
+#     to TUIST_RUNNER_JIT_OUTPUT_PATH and exits 0; the sibling
+#     `runner` main container (no token) then reads it via
+#     run-job.sh and runs the one job. Untrusted workflow code never
+#     shares a container with the token.
+#   * Exec mode (env unset, legacy single-container shape) — execs
+#     ./run.sh directly in this same container.
+#
 # Server contract (matches the macOS image):
 #   POST <url>
 #     200 with { encoded_jit_config, pool, owner }
-#       → exec ./run.sh --jitconfig <jit> --disableupdate (single
-#         job, ephemeral, no auto-upgrade)
+#       → poller mode: stage the JIT for the runner container, exit 0
+#       → exec mode:   exec ./run.sh --jitconfig <jit> --disableupdate
+#         (single job, ephemeral, no auto-upgrade)
 #     204 → no work; sleep + retry
 #     401/403 → auth failed; abort (the SA is GC'd or invalid)
+#     410 → stale image; exit 0 without staging a JIT so the Pod
+#           completes and the reconciler replaces it on the current
+#           image
 #     5xx / transport error → transient; sleep + retry
 
 set -uo pipefail
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
+
+# When set, the minted JIT config is written here (poller mode) and
+# this script never execs the runner — that's the sibling runner
+# container's job. Unset falls back to the legacy in-container exec.
+JIT_OUTPUT_PATH=${TUIST_RUNNER_JIT_OUTPUT_PATH:-}
 
 # Audience-scoped projected token (the controller wires this in via
 # a projected volume with audience=tuist-runners-dispatch). Default
@@ -74,6 +95,20 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
         sleep "${interval}"
         continue
+      fi
+      if [ -n "${JIT_OUTPUT_PATH}" ]; then
+        # Poller mode: stage the JIT for the sibling runner container
+        # and exit. Write to a temp file + atomic rename so a partial
+        # write can never be observed, and chmod 0644 so the non-root
+        # runner user can read it regardless of this container's umask
+        # (the JIT is the runner's own job credential, so in-Pod
+        # readability is intended).
+        tmp="${JIT_OUTPUT_PATH}.tmp"
+        printf '%s' "${jit}" >"${tmp}"
+        chmod 0644 "${tmp}"
+        mv -f "${tmp}" "${JIT_OUTPUT_PATH}"
+        echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
+        exit 0
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # `--jitconfig` makes the runner ephemeral (one job + exit).
