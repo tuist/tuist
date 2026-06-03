@@ -106,6 +106,13 @@ objectStorage:
 # the migration-job ends up Pending. The 4Gi limit stays so runtime
 # memory isn't constrained.
 postgresql:
+  # Cutover to the in-cluster CNPG cluster. The chart's server-deployment,
+  # processor-external-secrets, and server-migration-job templates resolve
+  # DATABASE_URL from the CNPG `<cluster>-app` Secret instead of the
+  # Supabase pooler. Initial COPY from Supabase finished at 0 lag; the
+  # subscription is dropped at cutover so the now-active CNPG isn't
+  # rewinding Supabase replays into itself.
+  mode: cnpg
   cnpg:
     instances: 2
     storage:
