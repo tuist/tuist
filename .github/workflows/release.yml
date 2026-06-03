@@ -1531,14 +1531,16 @@ jobs:
     # in parallel; adding more hosts scales linearly without any
     # workflow change.
     #
-    # The active-profile list is declared inline below. Adding a
-    # profile = adding a matrix entry; if you move the first entry,
-    # update the adjacent `Resolve default profile image` step in
-    # release-runner-image to match (it produces the chart pin).
+    # The active-profile list is declared inline below. Keep it
+    # aligned with the `runnersFleet.xcodeVersions` lists in the
+    # managed-env values files — every Xcode that ships a pool needs
+    # a runner image published for it, and the post-job reads the
+    # values file to build the Release notes image list.
     #
     # To refresh an out-of-rotation profile (one not in the matrix),
     # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
-    # that path keeps publishing tags but doesn't move the chart pin.
+    # that path keeps publishing tags without going through the full
+    # release flow.
     name: Build runner image (Xcode ${{ matrix.xcode }})
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
@@ -1549,9 +1551,6 @@ jobs:
       # pin doesn't move to a partially-published set.
       fail-fast: true
       matrix:
-        # First entry is the default profile (its digest goes into
-        # the chart pin). Keep release-runner-image.outputs.profile
-        # in sync.
         xcode: ["26.5", "26.4.1"]
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -1616,9 +1615,13 @@ jobs:
         run: tart delete tuist-runner 2>/dev/null || true
 
   release-runner-image:
-    # Post-job: every profile is now in GHCR. Pin the chart to the
-    # default profile's immutable per-release tag, generate release
-    # notes + CHANGELOG, upload artifacts. Lightweight, runs on
+    # Post-job: every active profile is now in GHCR with a fresh
+    # `:macos-<dashes>-<semver>` tag. Bump
+    # `runnersFleet.runnerImageSemver` in the managed-env values
+    # files so `runner-pool.yaml` re-renders every macOS pool's
+    # image in lockstep (one field, all pools refresh). Generate
+    # release notes + CHANGELOG, render the image list for the
+    # GitHub Release body, upload artifacts. Lightweight, runs on
     # ubuntu. Downstream `release-*` jobs key off this job's
     # outputs + result.
     name: Release runner image
@@ -1630,8 +1633,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-      profile: ${{ steps.image.outputs.profile }}
-      image: ${{ steps.image.outputs.image }}
+      images: ${{ steps.images.outputs.images }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1642,32 +1644,28 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      - name: Resolve default profile image
-        # TRANSITIONAL: the chart's runnersFleet has a single pool
-        # (`name: default`), so the release pins that one pool to one
-        # profile's image — the first matrix entry in
-        # runner-image-build above (keep this `macos-26-5` in sync).
-        # The chart is designed for one pool per profile (see
-        # runner-pool.yaml), and once #10970 lands the pool-per-profile
-        # values structure, this step goes away: the release will
-        # instead bump every pool's image to its matching
-        # `:macos-<that-pool's-profile>-<semver>` tag and there'll be
-        # no "default".
-        #
-        # We pin the immutable per-release tag (`:macos-<profile>-<semver>`)
-        # the matrix job already pushed — no registry lookup, since the
-        # release knows both halves. The tag is immutable in practice
-        # because the semver is monotonic (check-releases never reissues
-        # one).
-        id: image
+      - name: Render active profile image refs
+        # Read the active xcode list straight from
+        # `runnersFleet.xcodeVersions` in a managed-env values file —
+        # the same source of truth `runner-pool.yaml` iterates over,
+        # so the Release body lists exactly the tags the chart will
+        # render pools for. Staging is the canonical source since the
+        # xcodeVersions list is kept identical across managed envs.
+        # `yq` is preinstalled on ubuntu-latest.
+        id: images
         run: |
           set -euo pipefail
-          PROFILE="macos-26-5"
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          IMAGE="ghcr.io/tuist/tuist-runner:${PROFILE}-${VERSION}"
-          echo "Default profile image: ${IMAGE}"
-          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
-          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "images<<EOF"
+            yq -r '.runnersFleet.xcodeVersions[].xcodeVersion' \
+              infra/helm/tuist/values-managed-staging.yaml |
+              while IFS= read -r v; do
+                tag=$(echo "$v" | tr '.' '-')
+                echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
+              done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get release notes
         id: release-notes
@@ -2327,7 +2325,8 @@ jobs:
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
-            Tart image: `${{ needs.release-runner-image.outputs.image }}`
+            Active runner image tags:
+            ${{ needs.release-runner-image.outputs.images }}
 
             ${{ needs.release-runner-image.outputs.release-notes }}
 
