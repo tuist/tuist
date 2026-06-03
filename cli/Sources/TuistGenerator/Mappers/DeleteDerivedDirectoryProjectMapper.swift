@@ -31,7 +31,13 @@ public struct DeleteDerivedDirectoryProjectMapper: ProjectMapping {
 
         let contents = try await fileSystem.glob(directory: derivedDirectoryPath, include: ["*"]).collect()
         var sideEffects: [SideEffectDescriptor] = []
-        for item in contents where item.extension != "modulemap" {
+        // FrameworkSearchPaths holds the .resp files written by LinkGenerator as project side
+        // effects, which run before these cleanup side effects. Deleting the directory here would
+        // wipe the just-written response files (leaving the build referencing a missing @file),
+        // so it is preserved; LinkGenerator overwrites its contents on every generation.
+        for item in contents
+            where item.extension != "modulemap" && item.basename != Constants.DerivedDirectory.frameworkSearchPaths
+        {
             if try await fileSystem.exists(item, isDirectory: true) {
                 sideEffects.append(.directory(DirectoryDescriptor(path: item, state: .absent)))
             } else {
