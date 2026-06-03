@@ -5,11 +5,13 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* move framework search path setup into a graph mapper by [@fortmarek](https://github.com/fortmarek) in [#11054](https://github.com/tuist/tuist/pull/11054)
+* generate foreign build aggregates as scripts by [@pepicrft](https://github.com/pepicrft) in [#11030](https://github.com/tuist/tuist/pull/11030)
 * inherit canary fixture feature flags by [@pepicrft](https://github.com/pepicrft) in [#11050](https://github.com/tuist/tuist/pull/11050)
 * always expose -Swift.h for Swift-only SPM frameworks (#11007) by [@fortmarek](https://github.com/fortmarek) in [#11012](https://github.com/tuist/tuist/pull/11012)
 * pass precompiled framework search paths to Swift inline, not via @resp by [@fortmarek](https://github.com/fortmarek) in [#11033](https://github.com/tuist/tuist/pull/11033)
 * keep test target buildable when only a test-case-level skip matches by [@fortmarek](https://github.com/fortmarek) in [#11032](https://github.com/tuist/tuist/pull/11032)
-* use AsyncParsableCommand for plugin run and test commands by [@rwjc](https://github.com/rwjc) in [#10603](https://github.com/tuist/tuist/pull/10603)
+* use AsyncParsableCommand for plugin run and test commands by [@rwjc](https://github.com/rwjc)
 * infer DerivedData location for inspect build and tests by [@natanrolnik](https://github.com/natanrolnik) in [#11015](https://github.com/tuist/tuist/pull/11015)
 * stop emitting -Xcc @resp into OTHER_SWIFT_FLAGS (Xcode 26 "expected exactly one compiler job") by [@fortmarek](https://github.com/fortmarek) in [#11023](https://github.com/tuist/tuist/pull/11023)
 * finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
@@ -37,25 +39,25 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek) in [#10228](https://github.com/tuist/tuist/pull/10228)
-* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
-* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
-* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
+* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek)
+* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek)
+* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft)
+* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew)
 * respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim)
-* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft) in [#10920](https://github.com/tuist/tuist/pull/10920)
-* ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew) in [#10771](https://github.com/tuist/tuist/pull/10771)
-* preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft) in [#10911](https://github.com/tuist/tuist/pull/10911)
-* emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek) in [#10885](https://github.com/tuist/tuist/pull/10885)
-* pass explicit workingDirectory to swift package commands by [@fortmarek](https://github.com/fortmarek) in [#10891](https://github.com/tuist/tuist/pull/10891)
-* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft) in [#10874](https://github.com/tuist/tuist/pull/10874)
-* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek) in [#10872](https://github.com/tuist/tuist/pull/10872)
-* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek) in [#10870](https://github.com/tuist/tuist/pull/10870)
-* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek) in [#10864](https://github.com/tuist/tuist/pull/10864)
-* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh) in [#10853](https://github.com/tuist/tuist/pull/10853)
-* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft)
+* ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew)
+* preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft)
+* emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek)
+* pass explicit workingDirectory to swift package commands by [@fortmarek](https://github.com/fortmarek)
+* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft)
+* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek)
+* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek)
+* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek)
+* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh)
+* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek)
 ### ⚡ Performance
 
-* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403) in [#10033](https://github.com/tuist/tuist/pull/10033)
+* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403)
 
 
 
@@ -65,16 +67,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
-* add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
+* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns)
+* add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc)
 ### 🐛 Bug Fixes
 
-* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek) in [#10813](https://github.com/tuist/tuist/pull/10813)
-* bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek) in [#10805](https://github.com/tuist/tuist/pull/10805)
-* avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek) in [#10795](https://github.com/tuist/tuist/pull/10795)
-* map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek) in [#10779](https://github.com/tuist/tuist/pull/10779)
-* synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10746](https://github.com/tuist/tuist/pull/10746)
-* release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
+* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek)
+* bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek)
+* avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek)
+* map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek)
+* synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft)
+* release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -84,17 +86,17 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft) in [#10705](https://github.com/tuist/tuist/pull/10705)
+* allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* coordinate SwiftPM graph reads by [@pepicrft](https://github.com/pepicrft) in [#10729](https://github.com/tuist/tuist/pull/10729)
-* propagate selective testing and module cache analytics across --build-only / --without-building by [@fortmarek](https://github.com/fortmarek) in [#10672](https://github.com/tuist/tuist/pull/10672)
-* avoid invalidating shared URLSession on no-op HTTPSettings writes by [@fortmarek](https://github.com/fortmarek) in [#10727](https://github.com/tuist/tuist/pull/10727)
-* handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft) in [#10721](https://github.com/tuist/tuist/pull/10721)
-* make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft) in [#10696](https://github.com/tuist/tuist/pull/10696)
-* rewrite dangling pre/post-action targets at prune time by [@fortmarek](https://github.com/fortmarek) in [#10654](https://github.com/tuist/tuist/pull/10654)
-* allow folder resources to overlap sources by [@pepicrft](https://github.com/pepicrft) in [#10692](https://github.com/tuist/tuist/pull/10692)
-* route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft) in [#10704](https://github.com/tuist/tuist/pull/10704)
+* coordinate SwiftPM graph reads by [@pepicrft](https://github.com/pepicrft)
+* propagate selective testing and module cache analytics across --build-only / --without-building by [@fortmarek](https://github.com/fortmarek)
+* avoid invalidating shared URLSession on no-op HTTPSettings writes by [@fortmarek](https://github.com/fortmarek)
+* handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft)
+* make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft)
+* rewrite dangling pre/post-action targets at prune time by [@fortmarek](https://github.com/fortmarek)
+* allow folder resources to overlap sources by [@pepicrft](https://github.com/pepicrft)
+* route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -104,25 +106,25 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* rename Tuist `cache` to `xcodeCache` by [@fortmarek](https://github.com/fortmarek) in [#10663](https://github.com/tuist/tuist/pull/10663)
-* add tuist test case update command by [@justine-acorns](https://github.com/justine-acorns) in [#10450](https://github.com/tuist/tuist/pull/10450)
+* rename Tuist `cache` to `xcodeCache` by [@fortmarek](https://github.com/fortmarek)
+* add tuist test case update command by [@justine-acorns](https://github.com/justine-acorns)
 ### 🐛 Bug Fixes
 
-* remove noisy transport-level HTTP error logging by [@fortmarek](https://github.com/fortmarek) in [#10699](https://github.com/tuist/tuist/pull/10699)
-* limit implicit import source scans by [@pepicrft](https://github.com/pepicrft) in [#10693](https://github.com/tuist/tuist/pull/10693)
-* CLI hangs running processes concurrently by [@pepicrft](https://github.com/pepicrft) in [#10682](https://github.com/tuist/tuist/pull/10682)
-* resolve race condition in CachedManifestLoader parallel writes by [@ze-diaz](https://github.com/ze-diaz) in [#10662](https://github.com/tuist/tuist/pull/10662)
-* duplicate selective testing log messages and improve skip reason clarity by [@irena327](https://github.com/irena327) in [#10637](https://github.com/tuist/tuist/pull/10637)
-* skip run metadata upload when no auth is available by [@pepicrft](https://github.com/pepicrft) in [#10649](https://github.com/tuist/tuist/pull/10649)
-* make multi-process token refresh resilient to slow peers and rotation races by [@fortmarek](https://github.com/fortmarek) in [#10650](https://github.com/tuist/tuist/pull/10650)
-* support PackageDescription context by [@Kyle-Ye](https://github.com/Kyle-Ye) in [#10622](https://github.com/tuist/tuist/pull/10622)
-* respect disabled autogenerated workspace schemes by [@pepicrft](https://github.com/pepicrft) in [#10631](https://github.com/tuist/tuist/pull/10631)
-* treat non-source files in buildable folders as resources by [@fortmarek](https://github.com/fortmarek) in [#10645](https://github.com/tuist/tuist/pull/10645)
-* preserve whitespace in plist template for Array-root scalars by [@winston-riley-zocdoc](https://github.com/winston-riley-zocdoc) in [#10614](https://github.com/tuist/tuist/pull/10614)
-* preserve pruned test plan metadata by [@pepicrft](https://github.com/pepicrft) in [#10611](https://github.com/tuist/tuist/pull/10611)
-* include macOS SDK version in ProjectDescriptionHelpers cache key by [@pepicrft](https://github.com/pepicrft) in [#10598](https://github.com/tuist/tuist/pull/10598)
-* skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft) in [#10582](https://github.com/tuist/tuist/pull/10582)
-* disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#10589](https://github.com/tuist/tuist/pull/10589)
+* remove noisy transport-level HTTP error logging by [@fortmarek](https://github.com/fortmarek)
+* limit implicit import source scans by [@pepicrft](https://github.com/pepicrft)
+* CLI hangs running processes concurrently by [@pepicrft](https://github.com/pepicrft)
+* resolve race condition in CachedManifestLoader parallel writes by [@ze-diaz](https://github.com/ze-diaz)
+* duplicate selective testing log messages and improve skip reason clarity by [@irena327](https://github.com/irena327)
+* skip run metadata upload when no auth is available by [@pepicrft](https://github.com/pepicrft)
+* make multi-process token refresh resilient to slow peers and rotation races by [@fortmarek](https://github.com/fortmarek)
+* support PackageDescription context by [@Kyle-Ye](https://github.com/Kyle-Ye)
+* respect disabled autogenerated workspace schemes by [@pepicrft](https://github.com/pepicrft)
+* treat non-source files in buildable folders as resources by [@fortmarek](https://github.com/fortmarek)
+* preserve whitespace in plist template for Array-root scalars by [@winston-riley-zocdoc](https://github.com/winston-riley-zocdoc)
+* preserve pruned test plan metadata by [@pepicrft](https://github.com/pepicrft)
+* include macOS SDK version in ProjectDescriptionHelpers cache key by [@pepicrft](https://github.com/pepicrft)
+* skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft)
+* disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -132,11 +134,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use stamp file for macro copy phase to keep incremental rebuilds by [@fortmarek](https://github.com/fortmarek) in [#10576](https://github.com/tuist/tuist/pull/10576)
-* fix macro copy phase output collision on macOS consumer targets by [@freak4pc](https://github.com/freak4pc) in [#10566](https://github.com/tuist/tuist/pull/10566)
-* intersect linkable dep destinations for orphan local SPM tests by [@mqzkim](https://github.com/mqzkim) in [#10554](https://github.com/tuist/tuist/pull/10554)
-* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft) in [#10504](https://github.com/tuist/tuist/pull/10504)
-* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft) in [#10562](https://github.com/tuist/tuist/pull/10562)
+* use stamp file for macro copy phase to keep incremental rebuilds by [@fortmarek](https://github.com/fortmarek)
+* fix macro copy phase output collision on macOS consumer targets by [@freak4pc](https://github.com/freak4pc)
+* intersect linkable dep destinations for orphan local SPM tests by [@mqzkim](https://github.com/mqzkim)
+* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft)
+* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -146,7 +148,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek) in [#10549](https://github.com/tuist/tuist/pull/10549)
+* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -156,15 +158,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add --skip-macro-support-targets flag to tuist graph by [@natanrolnik](https://github.com/natanrolnik) in [#10300](https://github.com/tuist/tuist/pull/10300)
-* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
-* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
+* add --skip-macro-support-targets flag to tuist graph by [@natanrolnik](https://github.com/natanrolnik)
+* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft)
+* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* keep static framework xcstrings on main target Resources phase by [@pepicrft](https://github.com/pepicrft) in [#10532](https://github.com/tuist/tuist/pull/10532)
-* refresh expired tokens under optionalAuthentication by [@fortmarek](https://github.com/fortmarek) in [#10537](https://github.com/tuist/tuist/pull/10537)
-* add TuistHTTP to TuistConfigLoader cross-platform deps by [@fortmarek](https://github.com/fortmarek) in [#10531](https://github.com/tuist/tuist/pull/10531)
-* bump tuist.Command to 0.14.1 to surface xcodebuild stderr by [@fortmarek](https://github.com/fortmarek) in [#10508](https://github.com/tuist/tuist/pull/10508)
+* keep static framework xcstrings on main target Resources phase by [@pepicrft](https://github.com/pepicrft)
+* refresh expired tokens under optionalAuthentication by [@fortmarek](https://github.com/fortmarek)
+* add TuistHTTP to TuistConfigLoader cross-platform deps by [@fortmarek](https://github.com/fortmarek)
+* bump tuist.Command to 0.14.1 to surface xcodebuild stderr by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -174,13 +176,13 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek) in [#10507](https://github.com/tuist/tuist/pull/10507)
-* honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek) in [#10474](https://github.com/tuist/tuist/pull/10474)
-* restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
-* sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek)
+* honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek)
+* restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek)
+* sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft)
 ### ⚡ Performance
 
-* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek) in [#10503](https://github.com/tuist/tuist/pull/10503)
+* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -190,16 +192,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc) in [#10467](https://github.com/tuist/tuist/pull/10467)
-* generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek) in [#10426](https://github.com/tuist/tuist/pull/10426)
-* add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek) in [#10421](https://github.com/tuist/tuist/pull/10421)
-* add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
+* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc)
+* generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek)
+* add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek)
+* add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* upload build run when -derivedDataPath is passed via passthrough by [@fortmarek](https://github.com/fortmarek) in [#10478](https://github.com/tuist/tuist/pull/10478)
-* include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek) in [#10475](https://github.com/tuist/tuist/pull/10475)
-* preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek) in [#10460](https://github.com/tuist/tuist/pull/10460)
-* handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft) in [#10445](https://github.com/tuist/tuist/pull/10445)
+* upload build run when -derivedDataPath is passed via passthrough by [@fortmarek](https://github.com/fortmarek)
+* include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek)
+* preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek)
+* handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -209,16 +211,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek) in [#10416](https://github.com/tuist/tuist/pull/10416)
+* AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* skip xcodebuild when -skip-testing clears selective tests by [@fortmarek](https://github.com/fortmarek) in [#10433](https://github.com/tuist/tuist/pull/10433)
-* respect repo optional auth in command tracking by [@pepicrft](https://github.com/pepicrft) in [#10387](https://github.com/tuist/tuist/pull/10387)
-* scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft) in [#10398](https://github.com/tuist/tuist/pull/10398)
-* make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft) in [#10418](https://github.com/tuist/tuist/pull/10418)
-* restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft) in [#10423](https://github.com/tuist/tuist/pull/10423)
-* propagate default-enabled Swift package traits by [@pepicrft](https://github.com/pepicrft) in [#10403](https://github.com/tuist/tuist/pull/10403)
-* add muted/unmuted test case event types by [@justine-acorns](https://github.com/justine-acorns) in [#10417](https://github.com/tuist/tuist/pull/10417)
+* skip xcodebuild when -skip-testing clears selective tests by [@fortmarek](https://github.com/fortmarek)
+* respect repo optional auth in command tracking by [@pepicrft](https://github.com/pepicrft)
+* scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft)
+* make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft)
+* restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft)
+* propagate default-enabled Swift package traits by [@pepicrft](https://github.com/pepicrft)
+* add muted/unmuted test case event types by [@justine-acorns](https://github.com/justine-acorns)
 
 
 
@@ -228,10 +230,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10334](https://github.com/tuist/tuist/pull/10334)
+* support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* skip result bundle upload when --inspect-mode local by [@fortmarek](https://github.com/fortmarek) in [#10401](https://github.com/tuist/tuist/pull/10401)
+* skip result bundle upload when --inspect-mode local by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -241,8 +243,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Support  optional Buildable Folders by [@PaulTaykalo](https://github.com/PaulTaykalo) in [#9974](https://github.com/tuist/tuist/pull/9974)
-* error instead of silently ignoring mismatched test shard flags by [@fortmarek](https://github.com/fortmarek) in [#10392](https://github.com/tuist/tuist/pull/10392)
+* Support  optional Buildable Folders by [@PaulTaykalo](https://github.com/PaulTaykalo)
+* error instead of silently ignoring mismatched test shard flags by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -252,15 +254,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add feature flag headers by [@pepicrft](https://github.com/pepicrft) in [#10382](https://github.com/tuist/tuist/pull/10382)
+* add feature flag headers by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
-* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft) in [#10370](https://github.com/tuist/tuist/pull/10370)
-* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek) in [#10367](https://github.com/tuist/tuist/pull/10367)
+* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft)
+* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft)
+* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek)
 ### 🚜 Refactor
 
-* deprecate unused `swiftVersion` on `TuistProject.tuist(...)` by [@fortmarek](https://github.com/fortmarek) in [#10381](https://github.com/tuist/tuist/pull/10381)
+* deprecate unused `swiftVersion` on `TuistProject.tuist(...)` by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -270,12 +272,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add paginated test case events endpoint by [@justine-acorns](https://github.com/justine-acorns) in [#10117](https://github.com/tuist/tuist/pull/10117)
+* add paginated test case events endpoint by [@justine-acorns](https://github.com/justine-acorns)
 ### 🐛 Bug Fixes
 
-* scope `tuist test <scheme>` to the scheme's test plan targets by [@fortmarek](https://github.com/fortmarek) in [#10339](https://github.com/tuist/tuist/pull/10339)
-* Fix xcstrings handling in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10332](https://github.com/tuist/tuist/pull/10332)
-* handle strictMemorySafety with empty dump-package JSON by [@alpaka99](https://github.com/alpaka99) in [#10308](https://github.com/tuist/tuist/pull/10308)
+* scope `tuist test <scheme>` to the scheme's test plan targets by [@fortmarek](https://github.com/fortmarek)
+* Fix xcstrings handling in buildable folders by [@pepicrft](https://github.com/pepicrft)
+* handle strictMemorySafety with empty dump-package JSON by [@alpaka99](https://github.com/alpaka99)
 
 
 
@@ -285,13 +287,13 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* preserve test targets for local SPM packages by [@sabade-omkar](https://github.com/sabade-omkar) in [#10268](https://github.com/tuist/tuist/pull/10268)
+* preserve test targets for local SPM packages by [@sabade-omkar](https://github.com/sabade-omkar)
 * resolve inspect bundle app names like share by [@pepicrft](https://github.com/pepicrft)
-* drop fd-limit caps when swift-file-system backend is enabled by [@pepicrft](https://github.com/pepicrft) in [#10314](https://github.com/tuist/tuist/pull/10314)
+* drop fd-limit caps when swift-file-system backend is enabled by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* clear pruned expandVariableFromTarget instead of dropping the scheme by [@fortmarek](https://github.com/fortmarek) in [#10310](https://github.com/tuist/tuist/pull/10310)
-* use literal string matching in ManifestLoader to fix hang on large output by [@sabade-omkar](https://github.com/sabade-omkar) in [#10288](https://github.com/tuist/tuist/pull/10288)
+* clear pruned expandVariableFromTarget instead of dropping the scheme by [@fortmarek](https://github.com/fortmarek)
+* use literal string matching in ManifestLoader to fix hang on large output by [@sabade-omkar](https://github.com/sabade-omkar)
 
 
 
@@ -301,9 +303,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* reject xcodebuild action verbs in passthrough arguments by [@fortmarek](https://github.com/fortmarek) in [#10303](https://github.com/tuist/tuist/pull/10303)
-* use proxy-aware URLSession for cache endpoint latency checks by [@changusmc](https://github.com/changusmc) in [#10307](https://github.com/tuist/tuist/pull/10307)
-* handle binary wrapper xcframework name collisions for Singular and Firebase patterns by [@fortmarek](https://github.com/fortmarek) in [#10309](https://github.com/tuist/tuist/pull/10309)
+* reject xcodebuild action verbs in passthrough arguments by [@fortmarek](https://github.com/fortmarek)
+* use proxy-aware URLSession for cache endpoint latency checks by [@changusmc](https://github.com/changusmc)
+* handle binary wrapper xcframework name collisions for Singular and Firebase patterns by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -313,19 +315,19 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* auto-detect HTTP proxy from HTTPS_PROXY/HTTP_PROXY by [@pepicrft](https://github.com/pepicrft) in [#10261](https://github.com/tuist/tuist/pull/10261)
+* auto-detect HTTP proxy from HTTPS_PROXY/HTTP_PROXY by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* stop excluding transitive deps from cache hashing for positional targets by [@fortmarek](https://github.com/fortmarek) in [#10301](https://github.com/tuist/tuist/pull/10301)
-* Catalyst should use macosx sdk by [@wojmangh](https://github.com/wojmangh) in [#10298](https://github.com/tuist/tuist/pull/10298)
-* Make StringProtocol.range(of:) scan UTF-8 bytes by [@pepicrft](https://github.com/pepicrft) in [#10295](https://github.com/tuist/tuist/pull/10295)
-* resolve bare "container:" xctestplan target references by [@fortmarek](https://github.com/fortmarek) in [#10290](https://github.com/tuist/tuist/pull/10290)
-* Add warning for missing xctestplan files by [@yhkaplan](https://github.com/yhkaplan) in [#10282](https://github.com/tuist/tuist/pull/10282)
-* bump FileSystem to 0.16.1 for Musl support by [@fortmarek](https://github.com/fortmarek) in [#10277](https://github.com/tuist/tuist/pull/10277)
-* preserve original error when test result parsing fails by [@fortmarek](https://github.com/fortmarek) in [#10275](https://github.com/tuist/tuist/pull/10275)
-* fix synthesized resource interface generation for numeric target names by [@pepicrft](https://github.com/pepicrft) in [#10266](https://github.com/tuist/tuist/pull/10266)
-* skip token refresh when optionalAuthentication is enabled by [@pepicrft](https://github.com/pepicrft) in [#10260](https://github.com/tuist/tuist/pull/10260)
-* keep xcstrings in Resources phase for static framework stale detection by [@pepicrft](https://github.com/pepicrft) in [#10247](https://github.com/tuist/tuist/pull/10247)
+* stop excluding transitive deps from cache hashing for positional targets by [@fortmarek](https://github.com/fortmarek)
+* Catalyst should use macosx sdk by [@wojmangh](https://github.com/wojmangh)
+* Make StringProtocol.range(of:) scan UTF-8 bytes by [@pepicrft](https://github.com/pepicrft)
+* resolve bare "container:" xctestplan target references by [@fortmarek](https://github.com/fortmarek)
+* Add warning for missing xctestplan files by [@yhkaplan](https://github.com/yhkaplan)
+* bump FileSystem to 0.16.1 for Musl support by [@fortmarek](https://github.com/fortmarek)
+* preserve original error when test result parsing fails by [@fortmarek](https://github.com/fortmarek)
+* fix synthesized resource interface generation for numeric target names by [@pepicrft](https://github.com/pepicrft)
+* skip token refresh when optionalAuthentication is enabled by [@pepicrft](https://github.com/pepicrft)
+* keep xcstrings in Resources phase for static framework stale detection by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -335,10 +337,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* process test insights remotely by [@fortmarek](https://github.com/fortmarek) in [#10243](https://github.com/tuist/tuist/pull/10243)
+* process test insights remotely by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* ignore .DS_Store files when hashing buildable folders by [@heoblitz](https://github.com/heoblitz) in [#10240](https://github.com/tuist/tuist/pull/10240)
+* ignore .DS_Store files when hashing buildable folders by [@heoblitz](https://github.com/heoblitz)
 
 
 
@@ -348,7 +350,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* skip embedding extensions in unit test targets by [@danieleformichelli](https://github.com/danieleformichelli) in [#10224](https://github.com/tuist/tuist/pull/10224)
+* skip embedding extensions in unit test targets by [@danieleformichelli](https://github.com/danieleformichelli)
 
 
 
@@ -358,7 +360,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add retry middleware for OpenAPI requests by [@fortmarek](https://github.com/fortmarek) in [#10233](https://github.com/tuist/tuist/pull/10233)
+* add retry middleware for OpenAPI requests by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -368,9 +370,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resolve StoreKit configuration paths relative to the xcworkspace bundle by [@jsj](https://github.com/jsj) in [#10179](https://github.com/tuist/tuist/pull/10179)
-* use Modules include path for source-built ProjectDescription by [@jsj](https://github.com/jsj) in [#10181](https://github.com/tuist/tuist/pull/10181)
-* resolve relative -testProductsPath when writing selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#10239](https://github.com/tuist/tuist/pull/10239)
+* resolve StoreKit configuration paths relative to the xcworkspace bundle by [@jsj](https://github.com/jsj)
+* use Modules include path for source-built ProjectDescription by [@jsj](https://github.com/jsj)
+* resolve relative -testProductsPath when writing selective testing graph by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -380,10 +382,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add parameterized test argument support by [@fortmarek](https://github.com/fortmarek) in [#10127](https://github.com/tuist/tuist/pull/10127)
+* add parameterized test argument support by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* mark generated bundle accessors as nonisolated by [@DimaMishchenko](https://github.com/DimaMishchenko) in [#10065](https://github.com/tuist/tuist/pull/10065)
+* mark generated bundle accessors as nonisolated by [@DimaMishchenko](https://github.com/DimaMishchenko)
 
 
 
@@ -393,12 +395,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support self-managed shard archives by [@pepicrft](https://github.com/pepicrft) in [#10169](https://github.com/tuist/tuist/pull/10169)
+* support self-managed shard archives by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* avoid duplicate App Intents dependency file list outputs by [@pepicrft](https://github.com/pepicrft) in [#10235](https://github.com/tuist/tuist/pull/10235)
-* link test runs to builds and fix command event metadata by [@fortmarek](https://github.com/fortmarek) in [#10234](https://github.com/tuist/tuist/pull/10234)
-* declare symlink target in macro copy script input paths for sandbox compatibility by [@zippi-MD](https://github.com/zippi-MD) in [#10116](https://github.com/tuist/tuist/pull/10116)
+* avoid duplicate App Intents dependency file list outputs by [@pepicrft](https://github.com/pepicrft)
+* link test runs to builds and fix command event metadata by [@fortmarek](https://github.com/fortmarek)
+* declare symlink target in macro copy script input paths for sandbox compatibility by [@zippi-MD](https://github.com/zippi-MD)
 
 
 
@@ -418,7 +420,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek) in [#10220](https://github.com/tuist/tuist/pull/10220)
+* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -428,8 +430,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek) in [#10218](https://github.com/tuist/tuist/pull/10218)
-* update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek) in [#10216](https://github.com/tuist/tuist/pull/10216)
+* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek)
+* update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -439,9 +441,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix xcstrings stale-string detection for multiplatform static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10155](https://github.com/tuist/tuist/pull/10155)
-* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
-* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+* fix xcstrings stale-string detection for multiplatform static frameworks by [@pepicrft](https://github.com/pepicrft)
+* mkdir data race by [@fortmarek](https://github.com/fortmarek)
+* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -454,8 +456,8 @@ All notable changes to this project will be documented in this file.
 * add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor)
 ### 🐛 Bug Fixes
 
-* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
-* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek)
+* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -465,11 +467,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
-* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft)
+* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -479,11 +481,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
-* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft)
+* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft)
 ### 🚜 Refactor
 
-* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+* remove local MCP command by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -493,7 +495,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj)
 
 
 
@@ -503,7 +505,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -513,7 +515,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -523,8 +525,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
-* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek)
+* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -534,7 +536,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -544,7 +546,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino)
 
 
 
@@ -554,11 +556,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
-* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
+* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek)
+* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
+* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -568,10 +570,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek) in [#10094](https://github.com/tuist/tuist/pull/10094)
+* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek) in [#10131](https://github.com/tuist/tuist/pull/10131)
+* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -581,9 +583,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek) in [#10126](https://github.com/tuist/tuist/pull/10126)
-* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
-* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
+* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek)
+* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek)
+* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -593,7 +595,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek) in [#10121](https://github.com/tuist/tuist/pull/10121)
+* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -603,7 +605,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -613,7 +615,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -623,7 +625,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add retries for OIDC token failures in [#10085](https://github.com/tuist/tuist/pull/10085)
+* add retries for OIDC token failures
 
 
 
@@ -633,10 +635,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft)
 ### 🐛 Bug Fixes
 
-* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
+* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -646,7 +648,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft) in [#10054](https://github.com/tuist/tuist/pull/10054)
+* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -656,11 +658,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* honor explicit run executable for extension schemes by [@pepicrft](https://github.com/pepicrft) in [#10057](https://github.com/tuist/tuist/pull/10057)
-* preserve input order in bounded concurrentMap by [@fortmarek](https://github.com/fortmarek) in [#10041](https://github.com/tuist/tuist/pull/10041)
+* honor explicit run executable for extension schemes by [@pepicrft](https://github.com/pepicrft)
+* preserve input order in bounded concurrentMap by [@fortmarek](https://github.com/fortmarek)
 ### 🚜 Refactor
 
-* replace FileHandler with FileSystem by [@fortmarek](https://github.com/fortmarek) in [#10040](https://github.com/tuist/tuist/pull/10040)
+* replace FileHandler with FileSystem by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -670,15 +672,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* link build runs to shard plans by [@fortmarek](https://github.com/fortmarek) in [#10032](https://github.com/tuist/tuist/pull/10032)
+* link build runs to shard plans by [@fortmarek](https://github.com/fortmarek)
 * resolving SPM Targets with automatic product type using baseProductType by [@Loupehope](https://github.com/Loupehope)
 ### 🐛 Bug Fixes
 
-* support .tbd stub files in xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9992](https://github.com/tuist/tuist/pull/9992)
-* add missing macOS platforms to mise.lock by [@fortmarek](https://github.com/fortmarek) in [#10030](https://github.com/tuist/tuist/pull/10030)
+* support .tbd stub files in xcframeworks by [@pepicrft](https://github.com/pepicrft)
+* add missing macOS platforms to mise.lock by [@fortmarek](https://github.com/fortmarek)
 ### ⚡ Performance
 
-* use dictionary lookup for target resolution in PackageInfoMapper by [@inju2403](https://github.com/inju2403) in [#10021](https://github.com/tuist/tuist/pull/10021)
+* use dictionary lookup for target resolution in PackageInfoMapper by [@inju2403](https://github.com/inju2403)
 
 
 
@@ -688,7 +690,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek) in [#10009](https://github.com/tuist/tuist/pull/10009)
+* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -698,8 +700,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek) in [#10008](https://github.com/tuist/tuist/pull/10008)
-* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
+* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek)
+* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -719,12 +721,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* run quarantined tests instead of skipping them by [@fortmarek](https://github.com/fortmarek) in [#9978](https://github.com/tuist/tuist/pull/9978)
+* run quarantined tests instead of skipping them by [@fortmarek](https://github.com/fortmarek)
 ### 🐛 Bug Fixes
 
-* remove containsResources special-casing for static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10003](https://github.com/tuist/tuist/pull/10003)
-* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek) in [#9998](https://github.com/tuist/tuist/pull/9998)
-* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek) in [#9997](https://github.com/tuist/tuist/pull/9997)
+* remove containsResources special-casing for static frameworks by [@pepicrft](https://github.com/pepicrft)
+* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek)
+* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -734,8 +736,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* pass destination to test enumeration for suite sharding by [@fortmarek](https://github.com/fortmarek) in [#9986](https://github.com/tuist/tuist/pull/9986)
-* fix macro copy script failing on clean builds by [@pepicrft](https://github.com/pepicrft) in [#9995](https://github.com/tuist/tuist/pull/9995)
+* pass destination to test enumeration for suite sharding by [@fortmarek](https://github.com/fortmarek)
+* fix macro copy script failing on clean builds by [@pepicrft](https://github.com/pepicrft)
 
 
 
@@ -745,7 +747,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* skip project generation for --without-building with embedded selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#9987](https://github.com/tuist/tuist/pull/9987)
+* skip project generation for --without-building with embedded selective testing graph by [@fortmarek](https://github.com/fortmarek)
 
 
 
@@ -759,7 +761,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * support macOS app bundle layout by [@lechuckcaptain](https://github.com/lechuckcaptain)
-* always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen) in [#9962](https://github.com/tuist/tuist/pull/9962)
+* always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen)
 * fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft)
 
 
