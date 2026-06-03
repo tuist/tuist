@@ -309,7 +309,7 @@ runnersFleet:
   # publish `:macos-26-5-<sha>` and `:macos-26-4-1-<sha>` so the
   # chart is deployable before the post-merge release pipeline runs.
   # The first auto-release rewrites this to a proper `X.Y.Z` semver.
-  runnerImageSemver: "8841fc7b"
+  runnerImageSemver: "22a38ddf"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
