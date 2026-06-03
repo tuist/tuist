@@ -122,17 +122,24 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
     end
   end
 
-  # GitHub's job log is one line per row, each prefixed with an
-  # ISO-8601 microsecond timestamp:
-  #
-  #     2026-06-02T15:31:03.1234567Z ##[group]Run echo "Hostname: $(hostname)"
-  #     2026-06-02T15:31:03.1234567Z Hostname: tuist-tuist-runner-pool-...
-  #
-  # We split on lines, peel off the timestamp, and stash the rest as
-  # the message. Lines without a parseable timestamp keep the full
-  # text and stamp `ts` with the previous line's value (or now() on
-  # the very first line) so per-step slicing stays monotonic.
-  defp parse_lines(text, workflow_job_id, account_id) do
+  @doc """
+  Parses a GitHub Actions Logs-API response (plain text, ISO-stamped
+  per line) into the row shape `JobLogs.append/1` consumes.
+
+  Public so the dev seed can reuse the same parsing path as the
+  webhook-driven worker — re-implementing it inline drifts.
+
+  ## Format
+
+      2026-06-02T15:31:03.1234567Z ##[group]Run echo "Hostname: $(hostname)"
+      2026-06-02T15:31:03.1234567Z Hostname: tuist-tuist-runner-pool-...
+
+  We split on lines, peel off the timestamp, and stash the rest as
+  the message. Lines without a parseable timestamp keep the full
+  text and stamp `ts` with the previous line's value (or now() on
+  the very first line) so per-step slicing stays monotonic.
+  """
+  def parse_lines(text, workflow_job_id, account_id) do
     text
     |> String.split("\n", trim: false)
     |> Enum.reject(&(&1 == ""))

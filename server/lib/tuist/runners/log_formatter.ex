@@ -184,4 +184,34 @@ defmodule Tuist.Runners.LogFormatter do
   """
   def group_label(%{message: "##[group]" <> label}), do: label
   def group_label(%{message: message}), do: message
+
+  @doc """
+  Renders a log message as a single iodata `Phoenix.HTML.safe` value
+  with one `<span>` per ANSI run. We compose the spans by hand
+  (rather than via `~H` / `:for`) so HEEx doesn't insert literal
+  newline whitespace between adjacent `<span>` elements — that
+  whitespace gets honoured by `white-space: pre-wrap` on the
+  surrounding container and shows up as visible blank rows between
+  every segment.
+  """
+  def render_message(message) when is_binary(message) do
+    message
+    |> to_segments()
+    |> Enum.map(&segment_to_iodata/1)
+    |> Phoenix.HTML.raw()
+  end
+
+  defp segment_to_iodata({text, []}) do
+    Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string()
+  end
+
+  defp segment_to_iodata({text, classes}) do
+    [
+      "<span class=\"",
+      Enum.intersperse(classes, " "),
+      "\">",
+      Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string(),
+      "</span>"
+    ]
+  end
 end

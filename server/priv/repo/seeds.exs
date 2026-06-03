@@ -3823,6 +3823,105 @@ IO.puts(
   "  - runner jobs: #{length(completed_jobs)} completed, #{length(running_jobs)} running, #{length(claimed_jobs)} claimed, #{length(queued_jobs)} queued"
 )
 
+# A "smoke" job whose runner_job_logs rows mirror a real GitHub log
+# fetched via the Actions Logs API. Lets us iterate on the Logs +
+# Steps rendering without paying the round-trip to staging for every
+# CSS / HEEx tweak. The fixture is captured verbatim — ANSI escapes,
+# `##[group]Run …` markers, microsecond timestamps and all.
+runner_smoke_log_path = Path.join([__DIR__, "fixtures", "runner_smoke.log"])
+
+if File.exists?(runner_smoke_log_path) do
+  smoke_workflow_job_id = 4_900_001
+  smoke_workflow_run_id = 4_900_010
+  smoke_started_at = DateTime.add(now, -60, :second)
+  smoke_completed_at = DateTime.add(now, -45, :second)
+
+  :ok =
+    Tuist.Runners.Jobs.enqueue(%{
+      workflow_job_id: smoke_workflow_job_id,
+      account_id: runner_jobs_account_id,
+      fleet_name: "linux-amd64",
+      repository: "tuist/tuist",
+      workflow_run_id: smoke_workflow_run_id,
+      workflow_name: "Linux Runners Staging Smoke Test",
+      run_attempt: 1,
+      job_name: "smoke",
+      head_branch: "main",
+      head_sha: random_sha.(),
+      enqueued_at: DateTime.add(smoke_started_at, -10, :second)
+    })
+
+  {:ok, smoke_candidate} = Tuist.Runners.Jobs.pick_queued("linux-amd64", [])
+  :ok = Tuist.Runners.Jobs.record_claimed(smoke_candidate, "runner-pod-smoke", smoke_started_at)
+  :ok = Tuist.Runners.Jobs.record_running(smoke_workflow_job_id, "tuist-runner-smoke")
+  {:ok, _} = Tuist.Runners.Jobs.complete(smoke_workflow_job_id, "success")
+
+  smoke_lines =
+    runner_smoke_log_path
+    |> File.read!()
+    |> Tuist.Runners.Workers.FetchLogsWorker.parse_lines(smoke_workflow_job_id, runner_jobs_account_id)
+
+  :ok = Tuist.Runners.JobLogs.append(smoke_lines)
+
+  :ok =
+    JobSteps.record([
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 1,
+        name: "Set up job",
+        status: "completed",
+        conclusion: "success",
+        started_at: smoke_started_at,
+        completed_at: smoke_started_at
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 2,
+        name: "Show environment",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 1, :second),
+        completed_at: DateTime.add(smoke_started_at, 1, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 3,
+        name: "Public reachability check",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 2, :second),
+        completed_at: DateTime.add(smoke_started_at, 2, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 4,
+        name: "Cluster-internal egress should be denied",
+        status: "completed",
+        conclusion: "success",
+        started_at: DateTime.add(smoke_started_at, 3, :second),
+        completed_at: DateTime.add(smoke_started_at, 6, :second)
+      },
+      %{
+        workflow_job_id: smoke_workflow_job_id,
+        account_id: runner_jobs_account_id,
+        number: 5,
+        name: "Complete job",
+        status: "completed",
+        conclusion: "success",
+        started_at: smoke_completed_at,
+        completed_at: smoke_completed_at
+      }
+    ])
+
+  IO.puts(
+    "  - runner smoke job seeded: /#{organization.account.name}/runners/runs/#{smoke_workflow_run_id}/jobs/#{smoke_workflow_job_id}"
+  )
+end
+
 # =============================================================================
 # Webhook endpoints and deliveries
 # =============================================================================

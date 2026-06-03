@@ -336,14 +336,7 @@ defmodule TuistWeb.RunnerJobLive do
     ~H"""
     <div data-part="log-line">
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
-      <span data-part="log-message">
-        <span
-          :for={{text, classes} <- LogFormatter.to_segments(@line.message)}
-          class={Enum.join(classes, " ")}
-        >
-          {text}
-        </span>
-      </span>
+      <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
     </div>
     """
   end
