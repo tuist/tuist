@@ -48,6 +48,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # vm-image-builder hosts are bare-metal Mac minis we provision
+      # manually; a fresh host (or one whose Homebrew tree got reset)
+      # may not have `crane` yet. Install it idempotently so the
+      # workflow doesn't depend on host state — same step lives in
+      # `release.yml`'s `runner-image-build` job.
+      - name: Ensure crane is installed
+        run: command -v crane >/dev/null || brew install crane
+
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
       # authenticates. crane writes creds to ~/.docker/config.json,
