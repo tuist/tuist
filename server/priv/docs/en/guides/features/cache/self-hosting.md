@@ -81,7 +81,8 @@ A cache mesh lets you place cache capacity next to the compute that needs it. A 
 
 The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, bootstrap newly joined nodes, and replicate artifacts after local writes are accepted.
 
-In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery. The headless service gives each pod a stable DNS name, and Kura uses those names to find the other pods in the mesh. Outside Kubernetes, give each node a stable DNS name or IP address and seed the mesh with the internal URLs of the other nodes.
+> [!TIP]
+> In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery. Outside Kubernetes, give each node a stable DNS name or IP address and seed the mesh with the internal URLs of the other nodes.
 
 Secure the peer plane with mTLS when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
 
