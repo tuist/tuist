@@ -32,6 +32,8 @@
 @import "css/layouts/components/prose-banner.css";
 
 :root {
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
+  scrollbar-width: thin;
   color-scheme: light;
 }
 
