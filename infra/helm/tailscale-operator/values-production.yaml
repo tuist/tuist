@@ -9,6 +9,21 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-production"
 
+  # Front the production apiserver over the tailnet in auth mode.
+  # Default tier is view-only for everyone (including founders);
+  # writes go through the JIT bot per the design in values.yaml.
+  apiServerProxyConfig:
+    mode: "true"
+    allowImpersonation: "true"
+
+accessBindings:
+  - group: tuist-admins
+    clusterRole: view
+  - group: tuist-eng
+    clusterRole: view
+  - group: tuist-prod-write
+    clusterRole: edit
+
 connector:
   hostname: tuist-cluster-router-production
   tags:

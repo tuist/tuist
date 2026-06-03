@@ -42,12 +42,26 @@
 	// login identity (the SSO email Tailscale shows in the admin
 	// console).
 	"groups": {
-		// Founders: cluster-admin on every cluster they're granted.
+		// Founders. Bound to `view` on every cluster via accessBindings
+		// (see infra/helm/tailscale-operator/values.yaml). Writes go
+		// through the per-env break-glass groups below.
 		"group:tuist-admins": ["pedro@tuist.dev", "marek@tuist.dev"],
-		// Engineers: write on staging/canary, read-only on
-		// production. The tier is enforced by per-cluster RBAC
-		// (accessBindings in the tailscale-operator chart), not here.
+		// Engineers. Bound to `view` on every cluster, same as
+		// founders by default. Writes via break-glass groups below.
 		"group:tuist-eng": ["eduardo.ext@tuist.dev"],
+
+		// Per-env break-glass groups. Empty by default; membership is
+		// managed by the JIT-elevation Slack bot which adds the
+		// requester for the session (TTL ~60 min) after a second
+		// human approves in Slack. Each group is bound to `edit` on
+		// its cluster via accessBindings, so a member can write to
+		// the app namespaces for the session but cannot mutate RBAC
+		// or escalate to cluster-admin. Staging carries the same
+		// shape as canary/prod so the elevation workflow can be
+		// exercised end-to-end on staging.
+		"group:tuist-staging-write": [],
+		"group:tuist-canary-write":  [],
+		"group:tuist-prod-write":    [],
 	},
 
 	"tagOwners": {
@@ -149,6 +163,34 @@
 			],
 			"ip":  ["tcp:443"],
 			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-eng"]}}]},
+		},
+
+		// Per-env break-glass impersonation. Each grant lets a member
+		// of the env's break-glass group reach the matching cluster's
+		// API server proxy and impersonate the matching Kubernetes
+		// group, which is bound to `edit` via accessBindings. The
+		// proxy sets Impersonate-Group: <env>-write alongside the
+		// caller's existing tuist-eng / tuist-admins membership, so
+		// RBAC takes the union and the caller's effective tier is
+		// `edit` for the session. Membership is empty by default and
+		// is managed by the JIT-elevation Slack bot.
+		{
+			"src": ["group:tuist-staging-write"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-staging-write"]}}]},
+		},
+		{
+			"src": ["group:tuist-canary-write"],
+			"dst": ["tag:tuist-k8s-canary"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-canary-write"]}}]},
+		},
+		{
+			"src": ["group:tuist-prod-write"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-prod-write"]}}]},
 		},
 	],
 

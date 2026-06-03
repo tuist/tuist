@@ -72,23 +72,24 @@ tailscale-operator:
 # Human kubectl access tiers, rendered into ClusterRoleBindings by
 # templates/rbac.yaml. Each entry binds a Kubernetes group (the name
 # the API server proxy impersonates, set in the matching tailnet ACL
-# grant) to a built-in ClusterRole. Default is empty: every env opts in
-# explicitly so a new cluster never inherits standing access.
+# grant) to a built-in ClusterRole. Default is empty: every env opts
+# in explicitly so a new cluster never inherits standing access.
 #
-# Per-env intent for the rollout. Only staging has default writes;
-# canary and production are read-only for EVERYONE through the proxy,
+# The default tier across every env is read-only for everyone,
 # including founders, so an agent acting on anyone's behalf cannot
-# wreck a prod-adjacent cluster silently. Writes to canary/prod go
-# through an approval chain (Slack-driven break-glass group membership
-# or a ClawPatrol-style per-request gate; decided in the rollout
-# follow-up). Canary is treated like prod because it serves real
-# traffic during canary deploys.
+# wreck a cluster silently through the proxy. Writes go through an
+# explicit Slack-approval chain that promotes the requester into the
+# env's break-glass group for the session; the chain is enforced by
+# the JIT bot shipped in this PR. Staging mirrors canary and prod so
+# the same elevation workflow can be tested end-to-end on staging.
 #
-#   staging         tuist-admins -> cluster-admin
-#                   tuist-eng    -> edit  (no RBAC/cluster-admin
-#                                          escalation; can read Secrets)
-#   canary / prod   tuist-admins -> view
-#                   tuist-eng    -> view  (excludes Secrets)
+#   any env  tuist-admins        -> view
+#            tuist-eng           -> view  (excludes Secrets)
+#            tuist-<env>-write   -> edit  (break-glass group with
+#                                          empty default membership,
+#                                          managed by the JIT bot;
+#                                          no RBAC/cluster-admin
+#                                          escalation)
 accessBindings: []
 
 # Connector CR — the operator-managed `tailscaled` subnet router
