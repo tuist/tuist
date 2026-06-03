@@ -392,13 +392,15 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # This job ceiling MUST stay above helm's `--timeout` plus its
-    # `--atomic` rollback, or GitHub SIGKILLs helm mid-wait and the
-    # release is left wedged in pending-upgrade. helm waits up to 25m
-    # and its rollback up to ~10m; with ~5m setup, 50m leaves helm room
-    # to reach its own timeout (clean rollback + diagnostics) before
-    # this ceiling fires.
-    timeout-minutes: 50
+    # This ceiling MUST stay above the helm step's own timeout (70m =
+    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
+    # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
+    # before its rollback can run, and the release is left wedged in
+    # pending-upgrade (the bug that drove the long pending-upgrade ->
+    # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
+    # when helm was bumped from 30m). 80m keeps helm < step < job so a
+    # stuck deploy fails via helm's own clean path, not this ceiling.
+    timeout-minutes: 80
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -563,17 +565,18 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm `--timeout 25m` is deliberately well under this job's 50m
-        # `timeout-minutes` ceiling. On a stuck rollout helm reaches its
-        # own timeout first and runs the `--atomic` rollback, which
-        # restores a clean deployed release and lets the failure-path
-        # diagnostics below run. If the job ceiling fired first it would
-        # SIGKILL helm mid-wait, before the rollback, leaving the release
-        # wedged in pending-upgrade (the failure mode that produced the
-        # long pending-upgrade/rollback churn). Steady-state deploys
-        # finish in 5-15m, so 25m is ample headroom; the 40m step timeout
-        # covers helm's 25m wait plus its rollback.
-        timeout-minutes: 40
+        # `--timeout 60m` is generous on purpose: a complex migration
+        # (the pre-upgrade hook runs inside this budget) plus the
+        # `--wait` rollout can genuinely take a while, and undershooting
+        # would kill a legitimately-slow deploy mid-migration. The 70m
+        # step timeout is helm's 60m plus a ~10m cushion for the
+        # in-process `--atomic` rollback. The job's `timeout-minutes`
+        # ceiling sits above this (helm < step < job): that ordering is
+        # what makes a stuck deploy hit helm's own timeout first (clean
+        # rollback + failure diagnostics) instead of the job ceiling
+        # SIGKILLing helm mid-wait and wedging the release in
+        # pending-upgrade.
+        timeout-minutes: 70
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
@@ -599,7 +602,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
-            --atomic --timeout 25m --wait
+            --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
