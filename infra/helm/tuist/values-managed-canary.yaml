@@ -84,6 +84,7 @@ objectStorage:
 # footprint climbs. Backups land in the `tuist-can-pg-backups` Tigris
 # bucket.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 2
     storage:
