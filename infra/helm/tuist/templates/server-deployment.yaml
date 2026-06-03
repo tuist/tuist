@@ -137,7 +137,7 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}
-            {{- if .Values.runnersFleet.enabled }}
+            {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
             # dispatch time to discover the fleet name; per-customer
             # config is `accounts.runner_max_concurrent` and has no
@@ -152,6 +152,8 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            {{- end }}
+            {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
             # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
             # Injected from the same helper that names the CRs in

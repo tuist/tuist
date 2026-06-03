@@ -301,6 +301,10 @@ runnersFleet:
         cpuMilli: 8000
         memoryMB: 14336
     - xcodeVersion: "26.4.1"
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
       pod:
         cpuMilli: 8000
         memoryMB: 14336
