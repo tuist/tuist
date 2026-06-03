@@ -20,9 +20,7 @@ env:
 
 jobs:
   deploy:
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — `kamal deploy` builds the image locally.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 30
     environment: cache-staging
     steps:

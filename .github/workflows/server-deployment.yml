@@ -114,9 +114,7 @@ jobs:
   build:
     name: Build + push
     if: inputs.image_tag == ''
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:

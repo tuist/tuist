@@ -159,9 +159,7 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
@@ -296,9 +294,7 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # TODO: migrate to tuist-linux once the runner image ships a
-    # docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
@@ -377,9 +373,7 @@ jobs:
   #         fi
   seed:
     name: Seed
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:

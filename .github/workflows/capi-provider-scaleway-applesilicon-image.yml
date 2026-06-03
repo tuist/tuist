@@ -97,9 +97,7 @@ jobs:
   build:
     needs: [test, test-macos-host-bootstrap, test-tart-kubelet]
     if: github.event_name != 'pull_request'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

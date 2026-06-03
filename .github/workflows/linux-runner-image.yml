@@ -44,13 +44,7 @@ env:
 
 jobs:
   build:
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine. Note:
-    # this workflow builds that same runner image, so the migration has
-    # to land in two steps: first add docker to the image and rebuild
-    # from a Namespace runner, then flip this job to use the in-house
-    # fleet.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
 
