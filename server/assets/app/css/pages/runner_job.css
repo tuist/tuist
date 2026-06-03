@@ -348,6 +348,15 @@
     flex-direction: row;
     gap: var(--noora-spacing-5);
 
+    & > [data-part="log-ln"] {
+      flex-shrink: 0;
+      min-width: 3ch;
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      text-align: right;
+      user-select: none;
+    }
+
     & > [data-part="log-ts"] {
       flex-shrink: 0;
       color: var(--noora-surface-label-secondary);
@@ -385,6 +394,14 @@
         display: none;
       }
 
+      & > [data-part="log-ln"] {
+        flex-shrink: 0;
+        min-width: 3ch;
+        color: var(--noora-surface-label-tertiary);
+        text-align: right;
+        user-select: none;
+      }
+
       & > [data-part="log-ts"] {
         flex-shrink: 0;
         color: var(--noora-surface-label-secondary);
@@ -413,9 +430,11 @@
       transform: rotate(90deg);
     }
 
-    & > [data-part="log-group-body"] {
-      padding-left: var(--noora-spacing-6);
-    }
+    /* GitHub's own log UI doesn't indent group bodies — the
+       line-number gutter does the visual nesting for free
+       (collapsing a group makes those line numbers disappear; the
+       next visible line jumps ahead). Matching that here keeps
+       lines aligned regardless of nesting depth. */
   }
 
   & [data-part="log-message"] {

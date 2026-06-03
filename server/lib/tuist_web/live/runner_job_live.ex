@@ -335,6 +335,7 @@ defmodule TuistWeb.RunnerJobLive do
 
     ~H"""
     <div data-part="log-line">
+      <span data-part="log-ln">{@line.line_number}</span>
       <span data-part="log-ts">{log_ts(@line.ts)}</span>
       <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
     </div>
@@ -348,6 +349,7 @@ defmodule TuistWeb.RunnerJobLive do
     ~H"""
     <details data-part="log-group">
       <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line_number}</span>
         <span data-part="log-ts">{log_ts(@header.ts)}</span>
         <span data-part="log-group-chevron"><.chevron_right /></span>
         <span data-part="log-group-label">{LogFormatter.group_label(@header)}</span>
