@@ -179,8 +179,11 @@ func normalizePubKey(pub string) string {
 
 // Server is the subset of fields the CAPI controller cares about.
 type Server struct {
-	ID           string
-	IP           string
+	ID   string
+	Name string
+	IP   string
+	// Status is the Scaleway lifecycle phase (`ready`, `reinstalling`,
+	// `rebooting`, …) as a raw string.
 	Status       string
 	SudoPassword string
 	SSHUsername  string
@@ -213,6 +216,49 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 		}
 		page++
 	}
+}
+
+// ListServers returns every Apple Silicon server the configured
+// credentials can see in `zone`, reduced to the Server view. The
+// Scaleway API has no server-side name filter, so it paginates the
+// full list and the caller filters client-side — the project holds at
+// most a few dozen hosts, so a full scan is cheap. Used by the
+// orphan-reclaim sweep to diff live hosts against the CRs that own
+// them.
+func (c *Client) ListServers(ctx context.Context, zone string) ([]Server, error) {
+	var out []Server
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.API.ListServers(&applesilicon.ListServersRequest{
+			Zone:     scw.Zone(zone),
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list servers in %s: %w", zone, err)
+		}
+		for _, s := range resp.Servers {
+			out = append(out, *scalewayServerToServer(s))
+		}
+		if len(resp.Servers) < int(pageSize) {
+			return out, nil
+		}
+		page++
+	}
+}
+
+// IsPoolOrAdopting reports whether a Scaleway server name marks a host
+// that is parked in the adopt pool (carries poolPrefix) or mid-adoption
+// (carries the internal claim-pending marker). Either is
+// controller-managed and must never be treated as stranded by the
+// orphan-reclaim sweep — the claim-pending case especially, since that
+// host is in the middle of being adopted by a live reconcile.
+func IsPoolOrAdopting(name, poolPrefix string) bool {
+	if poolPrefix != "" && strings.HasPrefix(name, poolPrefix) {
+		return true
+	}
+	return strings.HasPrefix(name, claimPendingPrefix)
 }
 
 // ErrNoAvailableHost is returned by AdoptFromPool when no
@@ -557,6 +603,7 @@ const SealedSecretMarker = "<sealed>"
 func scalewayServerToServer(s *applesilicon.Server) *Server {
 	out := &Server{
 		ID:           s.ID,
+		Name:         s.Name,
 		Status:       string(s.Status),
 		SudoPassword: s.SudoPassword,
 		SSHUsername:  s.SSHUsername,

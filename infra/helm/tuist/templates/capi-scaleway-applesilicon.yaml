@@ -294,6 +294,21 @@ spec:
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
             {{- end }}
+            {{- with .Values.macosFleet.orphanReclaim }}
+            {{- if .poolPrefix }}
+            # Orphan-reclaim sweep + delete-path pool-prefix fallback.
+            # poolPrefix enables both the sweep and the per-Machine
+            # delete fallback (which actively prevents new strands);
+            # claimNamePrefix, when set, flips the sweep from report-only
+            # to active reclaim. See controllers/orphan_reclaimer.go.
+            - --default-adopt-pool-prefix={{ .poolPrefix }}
+            - --orphan-reclaim-zones={{ .zones | default "fr-par-1" }}
+            - --orphan-reclaim-interval={{ .interval | default "15m" }}
+            {{- with .claimNamePrefix }}
+            - --orphan-reclaim-claim-name-prefix={{ . }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
           env:
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
