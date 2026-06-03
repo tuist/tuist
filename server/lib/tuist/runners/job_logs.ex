@@ -256,7 +256,29 @@ defmodule Tuist.Runners.JobLogs do
       |> Map.merge(user_ranges(user_steps, run_indices, last_user_end, setup_steps != []))
       |> Map.merge(teardown_ranges(teardown_steps, last_user_end, total))
 
-    materialise(steps_sorted, ranges, lines)
+    steps_sorted
+    |> materialise(ranges, lines)
+    |> renumber_per_step()
+  end
+
+  # Each step's slice gets its own 1-indexed sequence: the first
+  # visible line of a step is line 1, the next is 2, etc. This
+  # matches GitHub's own Steps UI, where every step starts at 1
+  # (collapsing a `##[group]` body makes those numbers disappear so
+  # the next visible line jumps ahead, exactly as in GitHub).
+  # The Logs tab still uses the underlying job-wide `line_number`
+  # because that view shows a single flat log — but per-step the
+  # global counter creates large, distracting offsets between
+  # adjacent steps.
+  defp renumber_per_step(grouped) do
+    Map.new(grouped, fn {step_number, lines} ->
+      renumbered =
+        lines
+        |> Enum.with_index(1)
+        |> Enum.map(fn {line, idx} -> %{line | line_number: idx} end)
+
+      {step_number, renumbered}
+    end)
   end
 
   # Split the ordered step list into (setup, user, teardown) buckets

@@ -413,6 +413,14 @@
         flex-shrink: 0;
         color: var(--noora-surface-label-tertiary);
         transition: transform 0.15s ease;
+
+        /* Noora's chevron renders as a 24×24 SVG by default; in
+           dense terminal text it dwarfs the surrounding glyphs.
+           Snap it down to the line's cap height. */
+        & svg {
+          width: 1em;
+          height: 1em;
+        }
       }
 
       & > [data-part="log-group-label"] {
