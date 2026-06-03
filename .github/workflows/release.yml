@@ -696,18 +696,32 @@ jobs:
 
   release-kura-docker:
     name: Release Kura Docker Image
-    needs: [check-releases, release-kura-prepare]
+    needs: [check-releases, release-kura-prepare, release-kura-binaries]
     if: needs.check-releases.outputs.kura-should-release == 'true'
     runs-on: tuist-linux
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Kura release metadata
+      - name: Download Kura amd64 binary
         uses: actions/download-artifact@v4
         with:
-          name: kura-release-metadata
-          path: kura
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -726,7 +740,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./kura
-          file: ./kura/Dockerfile
+          file: ./kura/Dockerfile.release
           push: true
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=kura-runtime
