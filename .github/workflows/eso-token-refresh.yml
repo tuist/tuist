@@ -43,7 +43,7 @@ permissions:
 jobs:
   refresh:
     name: Refresh ESO 1Password token (${{ inputs.environment }})
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
     timeout-minutes: 10
