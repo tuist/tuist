@@ -161,7 +161,8 @@ jobs:
     name: Test
     runs-on: tuist-linux
     timeout-minutes: 30
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # TEMP: draft-only while iterating on runner perf; revert before ready.
+    if: github.event.pull_request.draft == true
     services:
       postgres:
         image: postgres:16
@@ -195,6 +196,8 @@ jobs:
     name: Credo
     runs-on: tuist-linux
     timeout-minutes: 15
+    # TEMP: skip while iterating on runner perf; revert before ready.
+    if: github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-server-mix
@@ -296,7 +299,8 @@ jobs:
     name: Docker build
     runs-on: tuist-linux
     timeout-minutes: 30
-    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # TEMP: draft-only while iterating on runner perf; revert before ready.
+    if: github.event.pull_request.draft == true
     steps:
       - uses: actions/checkout@v4
         with:
