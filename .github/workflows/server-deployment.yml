@@ -600,12 +600,15 @@ jobs:
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
             --atomic --timeout 60m --wait
-      - name: Diagnostics on failure
-        # `--atomic` rolls back the release on timeout, so `helm history` and
-        # most cluster state reflect the rolled-back revision rather than the
-        # failure. Migration-job pods linger long enough for logs to be useful;
-        # everything else is best-effort.
-        if: failure()
+      - name: Diagnostics on failure or cancellation
+        # Runs on cancellation as well as failure. Cancelling a deploy while
+        # `helm upgrade --wait` is still converging is the common interruption
+        # (someone kills a deploy that looks stuck), and that is exactly when
+        # we most need to capture which workload never went Ready, which a
+        # cancel would otherwise discard. On a clean `--atomic` timeout the
+        # release is already rolled back, so `helm history` reflects that;
+        # everything here is best-effort.
+        if: ${{ failure() || cancelled() }}
         run: |
           set +e
           echo "::group::helm history"
@@ -693,3 +696,39 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
+      - name: Recover release if the deploy was interrupted
+        # A cancelled deploy SIGKILLs `helm upgrade --atomic` mid-flight, so it
+        # neither finishes nor completes its own rollback and the release is
+        # left in pending-upgrade. That wedges the next deploy until its
+        # start-of-run recovery rolls it back, and leaves the cluster sitting
+        # in a half-applied upgrade in the meantime. Roll back to the last
+        # deployed revision here so an interrupted deploy self-heals. No-op on
+        # a clean `--atomic` timeout, where the status is already deployed.
+        # Best-effort: if the cancellation grace window cuts this short, the
+        # next deploy's "Recover interrupted Helm release" step still covers it.
+        if: ${{ failure() || cancelled() }}
+        run: |
+          set +e
+          status="$(
+            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
+              awk '/^STATUS:/ { print $2 }'
+          )"
+          case "$status" in
+            pending-install|pending-upgrade|pending-rollback)
+              echo "Release $HELM_RELEASE_NAME is $status after interruption; rolling back to the last deployed revision."
+              deployed_revision="$(
+                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+              )"
+              if [ -n "$deployed_revision" ]; then
+                helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
+                  --namespace "$NAMESPACE" --timeout 3m
+                helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" | awk '/^STATUS:/ { print }'
+              else
+                echo "No deployed revision found; leaving recovery to the next deploy."
+              fi
+              ;;
+            *)
+              echo "Release $HELM_RELEASE_NAME status is ${status:-unknown}; no recovery needed."
+              ;;
+          esac
