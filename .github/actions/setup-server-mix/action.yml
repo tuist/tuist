@@ -39,7 +39,13 @@ runs:
       with:
         version: ${{ inputs.mise-version }}
         install_args: ${{ inputs.mise-install-args }}
-        cache: "true"
+        # The server toolchain (precompiled erlang/elixir, ClickHouse)
+        # installs in ~25s, but its mise cache is 500MB+. Restoring that
+        # costs about as long as a fresh install while consuming the
+        # repo's 10GB cache budget, which evicts the deps/_build cache
+        # below — the one that turns a cold 6-minute compile into a ~30s
+        # incremental one. Skip it so the high-value cache survives.
+        cache: "false"
         working_directory: server
         github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Restore Mix Cache
