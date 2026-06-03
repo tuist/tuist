@@ -19,18 +19,6 @@ The goal is low-latency caching everywhere, not only in the one environment wher
 
 The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
 
-## Build a cache mesh {#build-a-cache-mesh}
-
-A self-hosted cache works best as a small mesh of nodes that can reach each other on Kura's internal peer port. Each node needs a stable internal URL in `KURA_NODE_URL`, and the other nodes need a way to discover or seed that URL through `KURA_PEERS` or `KURA_DISCOVERY_DNS_NAME`.
-
-In Kubernetes, use a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery. The headless service gives each pod a stable DNS name, and Kura uses those names to exchange membership, bootstrap state, and replicated artifacts over the internal peer port.
-
-Outside Kubernetes, give each node a stable DNS name or IP address and set `KURA_PEERS` to the internal URLs of the nodes that should form the mesh. Every peer must be able to reach the internal endpoints used for status checks, bootstrap, and artifact replication.
-
-Secure the peer plane with mTLS when nodes communicate over any shared or untrusted network. Configure `KURA_INTERNAL_TLS_CA_CERT_PATH`, `KURA_INTERNAL_TLS_CERT_PATH`, and `KURA_INTERNAL_TLS_KEY_PATH` together, make `KURA_NODE_URL` and every `KURA_PEERS` entry use `https://` on `KURA_INTERNAL_PORT`, and issue certificates whose SANs cover the DNS names peers use to call each other. With mTLS enabled, Kura serves `/_internal/*` through a listener that requires a client certificate signed by the configured CA.
-
-Use network-level restrictions in addition to mTLS. In Kubernetes, allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, use firewall rules or security groups so the peer port is reachable only by other cache nodes. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer port.
-
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
 Kura is distributed as a Helm chart through GitHub Container Registry. It deploys Kura as a `StatefulSet` with persistent volumes, a headless service for peer discovery, and a regular service for HTTP and gRPC traffic.
@@ -86,6 +74,18 @@ Then configure the Tuist server with the URLs that clients can reach:
 ```bash
 TUIST_KURA_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
+
+## Build a cache mesh {#build-a-cache-mesh}
+
+A cache mesh lets you place cache capacity next to the compute that needs it. A company might run one node near its main CI runners, another close to developers in Europe, and another near a US office or regional build cluster. Each location reads and writes against the closest node, while Kura replicates artifacts and metadata in the background so later builds in other locations can reuse the same outputs.
+
+The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, bootstrap newly joined nodes, and replicate artifacts after local writes are accepted.
+
+In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery. The headless service gives each pod a stable DNS name, and Kura uses those names to find the other pods in the mesh. Outside Kubernetes, give each node a stable DNS name or IP address and seed the mesh with the internal URLs of the other nodes.
+
+Secure the peer plane with mTLS when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
+
+Use network-level restrictions in addition to mTLS. In Kubernetes, allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
 
 ## Configuration {#configuration}
 
