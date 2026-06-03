@@ -32,6 +32,7 @@ env:
 
 jobs:
   format:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +50,7 @@ jobs:
           fi
 
   test:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
