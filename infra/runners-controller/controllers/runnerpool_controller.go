@@ -137,10 +137,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// container, so a warm-standby Pod sits in Pending (not
 		// Running) for its whole pre-claim life, and a just-claimed
 		// Pod is also briefly Pending while the poller init exits and
-		// the runner main container starts. The server stamps
-		// `runner-pool-owner` at claim time, so skipping non-idle
-		// Pending Pods here keeps an image roll that races a claim
-		// from reaping a Pod mid-job. macOS warm Pods are Running
+		// the runner main container starts. `isIdle` treats both the
+		// `runner-pool-owner` label and a terminated poller as
+		// "claimed" (see its doc), so an image roll that races a
+		// claim won't reap a Pod mid-job even if the best-effort
+		// label stamp hasn't landed. macOS warm Pods are Running
 		// (tart-kubelet), so this path only ever matched idle Pods
 		// for them anyway.
 		//
@@ -384,14 +385,47 @@ func isAlive(pod *corev1.Pod) bool {
 }
 
 // isIdle returns true for alive Pods that have NOT yet claimed a
-// customer's workflow_job. The Tuist server stamps
-// `tuist.dev/runner-pool-owner=<account>` on the Pod at the
-// moment it claims a queue entry; absent label means the Pod is
-// warm-polling. Scale-down deletes idle Pods first so we never
-// kill a runner mid-job.
+// customer's workflow_job. Two independent signals say "claimed",
+// and either one is enough to treat the Pod as busy:
+//
+//   - The Tuist server stamps `tuist.dev/runner-pool-owner=<account>`
+//     on the Pod when it claims a queue entry. This is the primary
+//     signal, but it's best-effort: the server degrades to "running
+//     without the label" rather than dropping a job if the apiserver
+//     patch keeps failing (Tuist.Runners.patch_pod_labels), so the
+//     label can be absent on a genuinely-claimed Pod.
+//   - On Linux (split shape) the `poller` init container exits as
+//     soon as it stages the JIT for a claim, so a terminated poller
+//     means the Pod has claimed (or is draining on a 410) and the
+//     runner is about to run — independent of whether the label
+//     stamp landed. This closes the window where a just-claimed Pod
+//     is briefly Pending while the runner container starts and an
+//     unlucky reconcile would otherwise see it as idle and reap it.
+//
+// macOS Pods have no poller init container, so they fall back to the
+// label signal alone (their single Tart-VM container never produces
+// this transition). Scale-down, drain, and the stale-Pending reap
+// all key off this so we never kill a runner mid-job.
 func isIdle(pod *corev1.Pod) bool {
-	v, ok := pod.Labels["tuist.dev/runner-pool-owner"]
-	return !ok || v == ""
+	if v, ok := pod.Labels["tuist.dev/runner-pool-owner"]; ok && v != "" {
+		return false
+	}
+	return !pollerTerminated(pod)
+}
+
+// pollerTerminated reports whether the Linux `poller` init container
+// has exited. The poller exits 0 the instant it stages a claimed
+// JIT (or drains on a 410), so its termination is a label-independent
+// "this Pod is no longer warm-polling" signal. Returns false when
+// there is no poller container status yet (still Waiting/Running) or
+// at all (macOS single-container Pods).
+func pollerTerminated(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Terminated != nil
+		}
+	}
+	return false
 }
 
 // isStaleImage returns true when the Pod's runner container image
