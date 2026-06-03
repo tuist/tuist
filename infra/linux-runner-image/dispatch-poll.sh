@@ -106,10 +106,19 @@ while true; do
         # user can read it regardless of this container's umask (the
         # JIT is the runner's own job credential, so in-Pod
         # readability is intended).
+        #
+        # Fail closed: the job is already claimed server-side at this
+        # point, so a silent staging failure would strand it until
+        # orphan recovery (~5 min). This script runs without errexit,
+        # so check the write chain explicitly — on any failure, drop
+        # the temp file and exit non-zero so the Pod fails visibly
+        # instead of starting a runner with no JIT.
         tmp="${JIT_OUTPUT_PATH}.tmp"
-        printf '%s' "${jit}" >"${tmp}"
-        chmod 0644 "${tmp}"
-        mv -f "${tmp}" "${JIT_OUTPUT_PATH}"
+        if ! { printf '%s' "${jit}" >"${tmp}" && chmod 0644 "${tmp}" && mv -f "${tmp}" "${JIT_OUTPUT_PATH}"; }; then
+          rm -f "${tmp}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage JIT to ${JIT_OUTPUT_PATH}; aborting"
+          exit 1
+        fi
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0
       fi

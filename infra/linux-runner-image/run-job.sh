@@ -28,5 +28,13 @@ if [ ! -s "${JIT_PATH}" ]; then
 fi
 
 jit="$(cat "${JIT_PATH}")"
+# Fail closed: -s above proved the file is non-empty, but a failed
+# read (I/O error, racing truncation) must not feed an empty
+# --jitconfig into the runner, which would fail to register and
+# silently burn the already-claimed job. Abort visibly instead.
+if [ -z "${jit}" ]; then
+  echo "$(date -u +%FT%TZ) run-job: JIT at ${JIT_PATH} unreadable/empty; aborting"
+  exit 1
+fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
 exec ./run.sh --jitconfig "${jit}" --disableupdate
