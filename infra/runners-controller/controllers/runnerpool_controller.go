@@ -125,27 +125,35 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := range pods.Items {
 		p := &pods.Items[i]
 
-		// Drop stale Pending Pods immediately so the gap-fill below
-		// can create replacements on the current spec.image. Stale
-		// here means the Pod's image differs from the RunnerPool's,
-		// which happens whenever `runnerImage` in the chart rolls
-		// to a new digest. Pending is the safe phase to delete: the
-		// VM isn't running a customer job yet (and may never get
-		// scheduled, since the controller's gap math fills replicas
-		// based on alive count). Running stale Pods are left alone —
-		// they may be mid-job, and single-shot lifecycle will turn
-		// them over to Succeeded on exit, where the reap path below
-		// replaces them with a current-image Pod.
+		// Drop stale, idle Pending Pods immediately so the gap-fill
+		// below can create replacements on the current spec.image.
+		// Stale here means the Pod's image differs from the
+		// RunnerPool's, which happens whenever `runnerImage` in the
+		// chart rolls to a new digest. Pending is the safe phase to
+		// delete: the runner isn't running a customer job yet.
 		//
-		// Idle Running stale Pods are picked up by the server-side
-		// drain signal in Tuist.Runners.dispatch_for_sa: on the next
-		// idle poll, the server compares the Pod's image to the
-		// RunnerPool's and returns HTTP 410, which the in-VM
-		// dispatch-poll script treats as a clean-exit. The reap
-		// path then replaces the Pod with a current-image one.
-		// In-flight customer jobs aren't disrupted because the 410
-		// check fires only on idle polls (before claim).
-		if isAlive(p) && p.Status.Phase == corev1.PodPending && isStaleImage(p, pool) {
+		// The `isIdle` guard matters because of the Linux
+		// token-isolation Pod shape: the poller runs as an init
+		// container, so a warm-standby Pod sits in Pending (not
+		// Running) for its whole pre-claim life, and a just-claimed
+		// Pod is also briefly Pending while the poller init exits and
+		// the runner main container starts. The server stamps
+		// `runner-pool-owner` at claim time, so skipping non-idle
+		// Pending Pods here keeps an image roll that races a claim
+		// from reaping a Pod mid-job. macOS warm Pods are Running
+		// (tart-kubelet), so this path only ever matched idle Pods
+		// for them anyway.
+		//
+		// Idle Running stale Pods (macOS) are instead picked up by
+		// the server-side drain signal in
+		// Tuist.Runners.dispatch_for_sa: on the next idle poll, the
+		// server compares the Pod's image to the RunnerPool's and
+		// returns HTTP 410, which the dispatch-poll script treats as
+		// a clean exit. The reap path then replaces the Pod with a
+		// current-image one. In-flight customer jobs aren't disrupted
+		// because the 410 check fires only on idle polls (before
+		// claim).
+		if isAlive(p) && p.Status.Phase == corev1.PodPending && isIdle(p) && isStaleImage(p, pool) {
 			// Reuse the reap path so the sibling SA goes with the
 			// Pod. Pod and SA are owned by the RunnerPool as
 			// siblings (not parent/child), so deleting the Pod

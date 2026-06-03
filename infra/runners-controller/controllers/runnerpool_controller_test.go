@@ -165,6 +165,51 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	}
 }
 
+// TestReconcile_LeavesStalePendingClaimedPodAlone covers the
+// isIdle guard on the stale-Pending reap. With the Linux
+// token-isolation Pod shape the poller runs as an init container, so
+// a Pod that has just claimed a job is briefly Pending (poller init
+// exiting, runner main starting). The server stamps
+// `runner-pool-owner` at claim time; the reap must skip such Pods or
+// an image roll racing a claim would kill the job mid-flight.
+func TestReconcile_LeavesStalePendingClaimedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claimed := newRunnerPod("p-runner-claimed", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claimed" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("claimed stale pending pod was reaped; the isIdle guard should protect a just-claimed Pod")
+	}
+	// alive=1 (the claimed pod counts), gap=0 — no replacement.
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while claimed pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+}
+
 // TestReconcile_LeavesStaleRunningPodAlone documents the deliberate
 // asymmetry between Pending and Running stale Pods. A Running stale
 // Pod may be mid-customer-job; deleting it would kill the workload
