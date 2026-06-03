@@ -28,8 +28,7 @@ defmodule Tuist.TailscaleJIT.ACLMutation do
   `group_name` is the full key as it appears in the document, e.g.
   `"group:tuist-prod-write"`.
   """
-  def add_member(doc, group_name, member)
-      when is_binary(doc) and is_binary(group_name) and is_binary(member) do
+  def add_member(doc, group_name, member) when is_binary(doc) and is_binary(group_name) and is_binary(member) do
     with {:ok, current} <- list_members(doc, group_name) do
       new_members =
         if member in current do
@@ -47,8 +46,7 @@ defmodule Tuist.TailscaleJIT.ACLMutation do
   array; no-op success if the member wasn't there. `{:error, ...}`
   only when the group key itself is absent.
   """
-  def remove_member(doc, group_name, member)
-      when is_binary(doc) and is_binary(group_name) and is_binary(member) do
+  def remove_member(doc, group_name, member) when is_binary(doc) and is_binary(group_name) and is_binary(member) do
     with {:ok, current} <- list_members(doc, group_name) do
       replace_group(doc, group_name, List.delete(current, member))
     end
@@ -136,7 +134,7 @@ defmodule Tuist.TailscaleJIT.ACLMutation do
   defp render_array([]), do: "[]"
 
   defp render_array(members) when is_list(members) do
-    body = members |> Enum.map(&"\"#{&1}\"") |> Enum.join(", ")
+    body = Enum.map_join(members, ", ", &"\"#{&1}\"")
     "[" <> body <> "]"
   end
 end

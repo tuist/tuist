@@ -129,7 +129,7 @@ defmodule TuistWeb.Plugs.SlackWebhookPlug do
       |> IO.iodata_to_binary()
 
     payload = "#{@signature_version}:#{timestamp}:#{raw_body}"
-    expected_hex = :crypto.mac(:hmac, :sha256, secret, payload) |> Base.encode16(case: :lower)
+    expected_hex = :hmac |> :crypto.mac(:sha256, secret, payload) |> Base.encode16(case: :lower)
     expected = "#{@signature_version}=#{expected_hex}"
 
     Plug.Crypto.secure_compare(signature, expected)

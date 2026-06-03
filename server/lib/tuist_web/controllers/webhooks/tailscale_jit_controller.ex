@@ -51,7 +51,7 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
          channel_id = approvals_channel(),
          {:ok, _request} <-
            Approvals.request_elevation(%{
-             requester_email: params["user_id"] |> slack_user_to_email(),
+             requester_email: slack_user_to_email(params["user_id"]),
              requester_slack_id: params["user_id"],
              target_group: Map.fetch!(@env_to_group, env),
              intent: intent,
@@ -60,7 +60,8 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
            }) do
       json(conn, %{
         response_type: "ephemeral",
-        text: "Request posted to <##{channel_id}>. A second human needs to approve within #{div(Approvals.approval_window_seconds(), 60)} min."
+        text:
+          "Request posted to <##{channel_id}>. A second human needs to approve within #{div(Approvals.approval_window_seconds(), 60)} min."
       })
     else
       {:error, reason} ->
@@ -178,23 +179,25 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   #   "<env> <duration> <intent...>"          -> explicit TTL
   # Duration: "15m", "30m", "1h", or bare integer seconds.
   defp parse_slash(text) when is_binary(text) do
-    case text |> String.trim() |> String.split(~r/\s+/, parts: 3) do
-      [env | _] when env not in @valid_envs ->
-        {:error, {:invalid_env, env}}
+    case_result =
+      case text |> String.trim() |> String.split(~r/\s+/, parts: 3) do
+        [env | _] when env not in @valid_envs ->
+          {:error, {:invalid_env, env}}
 
-      [env, maybe_duration, rest] ->
-        case parse_duration(maybe_duration) do
-          {:ok, seconds} -> {:ok, env, seconds, String.trim(rest)}
-          :error -> {:ok, env, Approvals.default_ttl_seconds(), String.trim("#{maybe_duration} #{rest}")}
-        end
+        [env, maybe_duration, rest] ->
+          case parse_duration(maybe_duration) do
+            {:ok, seconds} -> {:ok, env, seconds, String.trim(rest)}
+            :error -> {:ok, env, Approvals.default_ttl_seconds(), String.trim("#{maybe_duration} #{rest}")}
+          end
 
-      [env, rest] ->
-        {:ok, env, Approvals.default_ttl_seconds(), String.trim(rest)}
+        [env, rest] ->
+          {:ok, env, Approvals.default_ttl_seconds(), String.trim(rest)}
 
-      _ ->
-        {:error, :missing_intent}
-    end
-    |> validate_intent()
+        _ ->
+          {:error, :missing_intent}
+      end
+
+    validate_intent(case_result)
   end
 
   defp parse_slash(_), do: {:error, :missing_text}
@@ -241,7 +244,9 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   # ACL for a phantom identity.
   defp slack_user_to_email(slack_user_id) when is_binary(slack_user_id) do
     case SlackClient.user_email(slack_user_id) do
-      {:ok, email} -> email
+      {:ok, email} ->
+        email
+
       {:error, reason} ->
         Logger.warning("tailscale_jit: failed to resolve Slack user #{slack_user_id} email: #{inspect(reason)}")
         nil

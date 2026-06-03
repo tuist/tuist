@@ -9,8 +9,8 @@ defmodule Tuist.TailscaleJIT.SlackBlocks do
   any state transition.
   """
 
-  alias Tuist.TailscaleJIT.Request
   alias Tuist.TailscaleJIT.Elevation
+  alias Tuist.TailscaleJIT.Request
 
   @doc """
   Pending-approval card. Visible at request time.
@@ -87,8 +87,7 @@ defmodule Tuist.TailscaleJIT.SlackBlocks do
         elements: [
           %{
             type: "mrkdwn",
-            text:
-              "Active until <!date^#{DateTime.to_unix(elev.expires_at)}^{date_short_pretty} at {time}|soon>."
+            text: "Active until <!date^#{DateTime.to_unix(elev.expires_at)}^{date_short_pretty} at {time}|soon>."
           }
         ]
       },

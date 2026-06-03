@@ -76,28 +76,26 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   defp do_update_acl(mutate, opts, backoffs) do
     with {:ok, current, etag} <- get_acl(opts),
          {:ok, next} <- mutate.(current) do
-      cond do
-        next == current ->
-          {:ok, :unchanged}
+      if next == current do
+        {:ok, :unchanged}
+      else
+        case post_acl(next, etag, opts) do
+          {:ok, _new_etag} ->
+            {:ok, :updated}
 
-        true ->
-          case post_acl(next, etag, opts) do
-            {:ok, _new_etag} ->
-              {:ok, :updated}
+          {:error, :etag_mismatch} ->
+            case backoffs do
+              [delay | rest] ->
+                Process.sleep(delay + :rand.uniform(div(delay, 4)))
+                do_update_acl(mutate, opts, rest)
 
-            {:error, :etag_mismatch} ->
-              case backoffs do
-                [delay | rest] ->
-                  Process.sleep(delay + :rand.uniform(div(delay, 4)))
-                  do_update_acl(mutate, opts, rest)
+              [] ->
+                {:error, :etag_mismatch_exhausted}
+            end
 
-                [] ->
-                  {:error, :etag_mismatch_exhausted}
-              end
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+          {:error, reason} ->
+            {:error, reason}
+        end
       end
     end
   end
@@ -105,7 +103,7 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   defp token do
     case :persistent_term.get(@token_cache_key, nil) do
       {token, expires_at} ->
-        if DateTime.compare(DateTime.utc_now(), expires_at) == :lt do
+        if DateTime.before?(DateTime.utc_now(), expires_at) do
           {:ok, token}
         else
           fetch_and_cache_token()
@@ -140,7 +138,7 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
     expires_in = body["expires_in"] || 3600
     # Refresh 60s before actual expiry so an in-flight request
     # cannot use a token that expires mid-call.
-    expires_at = DateTime.utc_now() |> DateTime.add(expires_in - 60, :second)
+    expires_at = DateTime.add(DateTime.utc_now(), expires_in - 60, :second)
     :persistent_term.put(@token_cache_key, {access_token, expires_at})
     {:ok, access_token}
   end

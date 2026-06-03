@@ -111,8 +111,7 @@ defmodule Tuist.TailscaleJIT.SlackClient do
     ]
   end
 
-  defp handle_post({:ok, %Req.Response{status: status, body: body}}, return)
-       when status in 200..299 do
+  defp handle_post({:ok, %Req.Response{status: status, body: body}}, return) when status in 200..299 do
     case body do
       %{"ok" => true} = parsed ->
         case return do

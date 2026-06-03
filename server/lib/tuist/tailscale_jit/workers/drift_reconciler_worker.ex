@@ -70,8 +70,7 @@ defmodule Tuist.TailscaleJIT.Workers.DriftReconcilerWorker do
   end
 
   defp compute_drift(doc, active_by_group) do
-    @managed_groups
-    |> Enum.flat_map(fn group ->
+    Enum.flat_map(@managed_groups, fn group ->
       case ACLMutation.list_members(doc, group) do
         {:ok, members} ->
           allowed = Map.get(active_by_group, group, [])

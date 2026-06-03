@@ -196,6 +196,19 @@ defmodule Tuist do
       Runners.RunnerSessions,
       Runners.PromExPlugin,
       Runners.Telemetry,
-      Kubernetes.Client
+      Kubernetes.Client,
+      # Tailscale JIT elevation Slack bot. Production-only; the
+      # controller and supervisor wire-up live in TuistWeb /
+      # Application respectively.
+      TailscaleJIT.Approvals,
+      TailscaleJIT.Elevation,
+      TailscaleJIT.Reconciler,
+      TailscaleJIT.Request,
+      TailscaleJIT.SlackBlocks,
+      TailscaleJIT.SlackClient,
+      TailscaleJIT.Supervisor,
+      TailscaleJIT.TailscaleClient,
+      TailscaleJIT.Workers.DriftReconcilerWorker,
+      TailscaleJIT.Workers.RevertWorker
     ]
 end

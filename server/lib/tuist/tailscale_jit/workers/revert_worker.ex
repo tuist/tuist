@@ -12,7 +12,12 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
 
   use Oban.Worker,
     queue: :tailscale_jit,
-    unique: [period: :infinity, fields: [:args], keys: [:elevation_id], states: [:available, :scheduled, :executing, :retryable]],
+    unique: [
+      period: :infinity,
+      fields: [:args],
+      keys: [:elevation_id],
+      states: [:available, :scheduled, :executing, :retryable]
+    ],
     max_attempts: 5
 
   alias Tuist.Repo
@@ -54,7 +59,7 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
         elev
         |> Elevation.transition_changeset(%{
           status: "reverted",
-          reverted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          reverted_at: DateTime.truncate(DateTime.utc_now(), :second)
         })
         |> Repo.update()
 

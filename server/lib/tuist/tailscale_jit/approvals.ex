@@ -45,7 +45,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
   """
   def request_elevation(attrs) when is_map(attrs) do
     ttl = attrs |> Map.get(:ttl_seconds, @default_ttl_seconds) |> clamp_ttl()
-    expires_at = DateTime.utc_now() |> DateTime.add(@approval_window_seconds, :second)
+    expires_at = DateTime.add(DateTime.utc_now(), @approval_window_seconds, :second)
 
     changeset =
       attrs
@@ -74,7 +74,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
   existing Elevation is returned.
   """
   def approve(request_id, %{slack_id: actor_slack_id, email: actor_email}) do
-    Repo.transaction(fn ->
+    fn ->
       case Repo.get(Request, request_id) do
         nil ->
           Repo.rollback(:not_found)
@@ -100,7 +100,8 @@ defmodule Tuist.TailscaleJIT.Approvals do
         %Request{} = req ->
           do_approve(req, actor_slack_id, actor_email)
       end
-    end)
+    end
+    |> Repo.transaction()
     |> case do
       {:ok, {:already_approved, req, elev}} ->
         {:ok, req, elev}
@@ -114,7 +115,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
   end
 
   defp do_approve(req, approver_slack_id, approver_email) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
     elev_expires_at = DateTime.add(now, req.ttl_seconds, :second)
 
     case mutate_acl_add(req.requester_email, req.target_group) do
@@ -172,7 +173,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
               status: "denied",
               approver_slack_id: actor_slack_id,
               approver_email: actor_email,
-              denied_at: DateTime.utc_now() |> DateTime.truncate(:second)
+              denied_at: DateTime.truncate(DateTime.utc_now(), :second)
             })
             |> Repo.update()
 

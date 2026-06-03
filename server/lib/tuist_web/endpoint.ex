@@ -6,9 +6,11 @@ defmodule TuistWeb.Endpoint do
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
+  alias TuistWeb.Plugs.SlackWebhookPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
+  alias TuistWeb.Webhooks.TailscaleJITController
 
   @session_options [
     store: :cookie,
@@ -96,15 +98,15 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
-  plug TuistWeb.Plugs.SlackWebhookPlug,
+  plug SlackWebhookPlug,
     at: "/webhooks/tailscale-jit/slash",
-    handler: TuistWeb.Webhooks.TailscaleJITController,
+    handler: TailscaleJITController,
     action: :slash,
     secret: {Tuist.Environment, :tailscale_jit_slack_signing_secret, []}
 
-  plug TuistWeb.Plugs.SlackWebhookPlug,
+  plug SlackWebhookPlug,
     at: "/webhooks/tailscale-jit/interactive",
-    handler: TuistWeb.Webhooks.TailscaleJITController,
+    handler: TailscaleJITController,
     action: :interactive,
     secret: {Tuist.Environment, :tailscale_jit_slack_signing_secret, []}
 
