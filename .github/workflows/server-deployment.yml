@@ -114,7 +114,7 @@ jobs:
   build:
     name: Build + push
     if: inputs.image_tag == ''
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
     # 60m absorbs a fully cold build (no buildcache hits).
@@ -174,7 +174,7 @@ jobs:
     needs: build
     # `build` is skipped when image_tag is supplied - keep running.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -240,7 +240,7 @@ jobs:
     name: Tailscale operator chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -317,7 +317,7 @@ jobs:
     name: Platform chart (${{ inputs.environment }})
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: tuist-production-linux
+    runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}
     concurrency:
@@ -382,7 +382,7 @@ jobs:
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
-    runs-on: tuist-production-linux
+    runs-on: namespace-profile-default
     environment:
       name: server-k8s-${{ inputs.environment }}
       url: https://${{ inputs.environment == 'production' && 'tuist.dev' || format('{0}.tuist.dev', inputs.environment) }}
@@ -392,10 +392,15 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
-    # leaves a healthy buffer around that stack and keeps a
-    # SIGTERM-stuck helm from holding the slot indefinitely.
-    timeout-minutes: 50
+    # This ceiling MUST stay above the helm step's own timeout (70m =
+    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
+    # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
+    # before its rollback can run, and the release is left wedged in
+    # pending-upgrade (the bug that drove the long pending-upgrade ->
+    # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
+    # when helm was bumped from 30m). 80m keeps helm < step < job so a
+    # stuck deploy fails via helm's own clean path, not this ceiling.
+    timeout-minutes: 80
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -560,19 +565,17 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm --timeout 60m is sized for the adoption path: Mac minis
-        # are pre-ordered by the operator under the `tuist-pool-` prefix
-        # and the CAPI controller claims them on demand. Adoption is
-        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
-        # vs Scaleway CreateServer (~50 min). Steady-state deploys
-        # finish in 5-15 min once the Mac mini is already in the cluster.
-        # If we ever flip back to auto-order in an env, bump this back
-        # to ~90m to absorb a fresh Scaleway provisioning.
-        #
-        # 70 min = helm's `--timeout 60m` plus a 10-min cushion for the
-        # in-process `--atomic` rollback. A workflow-side timeout under
-        # 70 min risks killing helm after it has moved the release into
-        # pending-rollback, leaving the cluster wedged for the next run.
+        # `--timeout 60m` is generous on purpose: a complex migration
+        # (the pre-upgrade hook runs inside this budget) plus the
+        # `--wait` rollout can genuinely take a while, and undershooting
+        # would kill a legitimately-slow deploy mid-migration. The 70m
+        # step timeout is helm's 60m plus a ~10m cushion for the
+        # in-process `--atomic` rollback. The job's `timeout-minutes`
+        # ceiling sits above this (helm < step < job): that ordering is
+        # what makes a stuck deploy hit helm's own timeout first (clean
+        # rollback + failure diagnostics) instead of the job ceiling
+        # SIGKILLing helm mid-wait and wedging the release in
+        # pending-upgrade.
         timeout-minutes: 70
         run: |
           # Stream cluster state every 30s while helm waits. helm

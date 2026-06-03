@@ -27,7 +27,7 @@ env:
 
 jobs:
   deploy-canary:
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — `kamal deploy` builds the image locally.
     runs-on: namespace-profile-default
     timeout-minutes: 30
@@ -50,7 +50,7 @@ jobs:
         run: |
           mise run deploy canary
   deploy-production:
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — `kamal deploy` builds the image locally.
     runs-on: namespace-profile-default
     timeout-minutes: 30

@@ -583,12 +583,45 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
 		}
+		// tart-kubelet runs the Pod as a single VM with no per-container
+		// CRI, so the API server receives no containerStatuses on its own
+		// and `kubectl get pods` reads 0/N READY for a healthy VM. Mirror
+		// the Ready condition above into synthesized statuses so the READY
+		// column reflects the running workload.
+		status.ContainerStatuses = runningContainerStatuses(pod, entry.VMName, entry.StartTS)
 	} else {
 		// VM process is alive but IP isn't yet available — the
 		// guest is still booting. Pending is the right read.
 		status.Phase = corev1.PodPending
 	}
 	return status, nil
+}
+
+// runningContainerStatuses synthesizes the per-container statuses for a
+// Pod whose Tart VM is up and serving. tart-kubelet has no per-container
+// runtime to source them from, so without this a healthy VM reports 0/N
+// READY in `kubectl get pods` even though its Pod Ready condition is
+// true. The statuses mirror that condition: VM running with an IP means
+// the workload is serving, so each container reads Ready + Running. Pod
+// ↔ VM is 1:1 (multi-container Pods are rejected at admission), so this
+// is effectively a single status.
+func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time) []corev1.ContainerStatus {
+	started := true
+	statuses := make([]corev1.ContainerStatus, 0, len(pod.Spec.Containers))
+	for _, c := range pod.Spec.Containers {
+		statuses = append(statuses, corev1.ContainerStatus{
+			Name:         c.Name,
+			Image:        c.Image,
+			ContainerID:  "tart://" + vmName,
+			Ready:        true,
+			Started:      &started,
+			RestartCount: 0,
+			State: corev1.ContainerState{
+				Running: &corev1.ContainerStateRunning{StartedAt: startedAt},
+			},
+		})
+	}
+	return statuses
 }
 
 func (r *Reconciler) publishStatus(ctx context.Context, pod *corev1.Pod, status *corev1.PodStatus) error {
