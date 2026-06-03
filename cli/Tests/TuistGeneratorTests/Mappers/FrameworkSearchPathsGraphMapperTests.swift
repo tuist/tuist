@@ -1,89 +1,106 @@
 import Foundation
-import Mockable
 import Path
 import TuistCore
+import TuistSupport
+import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistGenerator
 
-final class FrameworkSearchPathConsolidationTests: XCTestCase {
-    func test_compute_consolidates_whenManyPrecompiledPaths() throws {
+final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
+    private var subject: FrameworkSearchPathsGraphMapper!
+
+    override func setUp() {
+        super.setUp()
+        subject = FrameworkSearchPathsGraphMapper()
+    }
+
+    override func tearDown() {
+        subject = nil
+        super.tearDown()
+    }
+
+    func test_map_consolidatesIntoResponseFile_whenManyPrecompiledFrameworks() throws {
         // Given
-        var dependencies: [GraphDependencyReference] = []
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = []
         for i in 0 ..< 25 {
-            dependencies.append(
-                GraphDependencyReference.testXCFramework(
-                    path: try AbsolutePath(validating: "/path/cache/hash\(i)/Module\(i).xcframework")
+            xcframeworks.append(
+                .testXCFramework(
+                    path: try AbsolutePath(validating: "/xcframeworks/hash\(i)/Module\(i).xcframework"),
+                    linking: .dynamic
                 )
             )
         }
-        dependencies.append(
-            GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer)
-        )
-        let graphTraverser = MockGraphTraversing()
-        given(graphTraverser)
-            .searchablePathDependencies(path: .any, name: .any)
-            .willReturn(Set(dependencies))
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "App", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
 
         // When
-        let consolidation = try FrameworkSearchPathConsolidation.compute(
-            targetName: "MyTarget",
-            projectPath: try AbsolutePath(validating: "/path"),
-            sourceRootPath: try AbsolutePath(validating: "/path"),
-            graphTraverser: graphTraverser
-        )
+        let (mappedGraph, sideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertTrue(consolidation.isConsolidated)
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
         XCTAssertTrue(
-            consolidation.responseFilePath.pathString.hasSuffix("Derived/FrameworkSearchPaths/MyTarget.resp")
+            arrayValue(settings.base["OTHER_CFLAGS"]).contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp")
         )
-        XCTAssertEqual(consolidation.responseFileReference, "@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp")
+        XCTAssertTrue(
+            arrayValue(settings.base["OTHER_LDFLAGS"]).contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/App.resp")
+        )
+        let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
+        XCTAssertTrue(otherSwiftFlags.contains("-F"))
+        XCTAssertTrue(otherSwiftFlags.contains("/xcframeworks/hash0"))
+        // The precompiled paths live in the response file, not in FRAMEWORK_SEARCH_PATHS.
+        XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/xcframeworks/") })
 
-        // FRAMEWORK_SEARCH_PATHS keeps only the SDK paths; precompiled paths move to the response file.
-        XCTAssertTrue(consolidation.frameworkSearchPathValues.contains("$(PLATFORM_DIR)/Developer/Library/Frameworks"))
-        for i in 0 ..< 25 {
-            XCTAssertFalse(
-                consolidation.frameworkSearchPathValues.contains { $0.contains("hash\(i)") },
-                "FRAMEWORK_SEARCH_PATHS should not contain precompiled path hash\(i)"
-            )
-        }
-
-        // OTHER_SWIFT_FLAGS carries the precompiled paths inline as native -F flags.
-        XCTAssertTrue(consolidation.swiftFrameworkSearchPathFlags.contains("-F"))
-        for i in 0 ..< 25 {
-            XCTAssertTrue(
-                consolidation.swiftFrameworkSearchPathFlags.contains("$(SRCROOT)/cache/hash\(i)"),
-                "OTHER_SWIFT_FLAGS should contain inline framework search path for hash\(i)"
-            )
-            XCTAssertTrue(
-                consolidation.responseFileContents.contains("-F/path/cache/hash\(i)"),
-                "Response file should contain -F flag for hash\(i)"
-            )
-        }
+        let responseFile = try XCTUnwrap(sideEffects.compactMap { sideEffect -> FileDescriptor? in
+            guard case let .file(file) = sideEffect,
+                  file.path.pathString.hasSuffix("Derived/FrameworkSearchPaths/App.resp")
+            else { return nil }
+            return file
+        }.first)
+        let contents = try XCTUnwrap(String(data: try XCTUnwrap(responseFile.contents), encoding: .utf8))
+        XCTAssertTrue(contents.contains("-F/xcframeworks/hash0"))
     }
 
-    func test_compute_doesNotConsolidate_whenFewPrecompiledPaths() throws {
+    func test_map_keepsFrameworkSearchPaths_whenFewPrecompiledFrameworks() throws {
         // Given
-        let dependencies: [GraphDependencyReference] = [
-            .testXCFramework(path: try AbsolutePath(validating: "/path/cache/hash0/Module0.xcframework")),
-        ]
-        let graphTraverser = MockGraphTraversing()
-        given(graphTraverser)
-            .searchablePathDependencies(path: .any, name: .any)
-            .willReturn(Set(dependencies))
-
-        // When
-        let consolidation = try FrameworkSearchPathConsolidation.compute(
-            targetName: "MyTarget",
-            projectPath: try AbsolutePath(validating: "/path"),
-            sourceRootPath: try AbsolutePath(validating: "/path"),
-            graphTraverser: graphTraverser
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        let xcframework: GraphDependency = .testXCFramework(
+            path: try AbsolutePath(validating: "/xcframeworks/hash0/Module0.xcframework"),
+            linking: .dynamic
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): Set([xcframework]),
+                xcframework: Set(),
+            ]
         )
 
+        // When
+        let (mappedGraph, sideEffects, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
         // Then
-        XCTAssertFalse(consolidation.isConsolidated)
-        // Below the threshold every path stays in FRAMEWORK_SEARCH_PATHS.
-        XCTAssertTrue(consolidation.frameworkSearchPathValues.contains("$(SRCROOT)/cache/hash0"))
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
+        XCTAssertTrue(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains("/xcframeworks/hash0"))
+        XCTAssertNil(settings.base["OTHER_CFLAGS"])
+        XCTAssertTrue(sideEffects.isEmpty)
+    }
+
+    private func arrayValue(_ value: SettingValue?) -> [String] {
+        switch value {
+        case let .array(values): return values
+        case let .string(value): return [value]
+        case nil: return []
+        }
     }
 }
