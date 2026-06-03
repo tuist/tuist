@@ -181,6 +181,10 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
+  def kura_tuist_base_url do
+    System.get_env("TUIST_KURA_TUIST_BASE_URL")
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -216,7 +220,8 @@ defmodule Tuist.Environment do
   def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
 
   def agent_auth_trusted_providers(secrets \\ secrets()) do
-    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") ||
+           get([:agent_auth, :trusted_providers], secrets) do
       providers when is_list(providers) ->
         providers
 
@@ -1031,9 +1036,14 @@ defmodule Tuist.Environment do
       kura_control_plane_client_secret(secrets) != nil
   end
 
-  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
-  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
-  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
+  def kura_introspection_client_id(secrets \\ secrets()),
+    do: kura_control_plane_client_id(secrets)
+
+  def kura_introspection_client_secret(secrets \\ secrets()),
+    do: kura_control_plane_client_secret(secrets)
+
+  def kura_introspection_configured?(secrets \\ secrets()),
+    do: kura_control_plane_configured?(secrets)
 
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
@@ -1135,7 +1145,9 @@ defmodule Tuist.Environment do
   end
 
   def typesense_search_api_key do
-    get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
+    get([:typesense, :search_api_key], secrets(),
+      default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6"
+    )
   end
 
   def get(keys, secrets \\ secrets(), opts \\ []) do
