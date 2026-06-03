@@ -123,6 +123,11 @@ defmodule Tuist.Authorization.Checks do
     Enum.member?(expanded_scopes, scope)
   end
 
+  # Service subjects are not tied to an account, so this check intentionally has
+  # no per-tenant binding: holding the scope grants it across every account and
+  # project. Only wire this into policies with explicitly cross-tenant scopes
+  # (e.g. "account:service:*:any"), never with tenant-scoped project/account
+  # scopes that are meant to be bound to the subject's own account.
   def scopes_permit(%AuthenticatedService{scopes: scopes}, _, scope) when is_binary(scope) do
     expanded_scopes = expand_scopes(scopes)
     Enum.member?(expanded_scopes, scope)

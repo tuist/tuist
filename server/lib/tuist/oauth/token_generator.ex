@@ -20,9 +20,10 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   @impl TokenGenerator
   def generate(token_type, %Boruta.Ecto.Token{sub: sub, client_id: client_id, scope: scope}) do
-    case parse_user_id(sub) do
-      {:ok, user_id} -> generate_user_token(token_type, user_id, client_id, scope)
-      :service -> generate_service_token(token_type, client_id, scope)
+    if Clients.service_client?(client_id) do
+      generate_service_token(token_type, client_id, scope)
+    else
+      generate_user_token(token_type, sub, client_id, scope)
     end
   end
 
@@ -52,20 +53,15 @@ defmodule Tuist.OAuth.TokenGenerator do
   defp parse_service_scopes(""), do: []
   defp parse_service_scopes(scope), do: String.split(scope, " ", trim: true)
 
-  defp parse_user_id(sub) when is_binary(sub) do
-    case Integer.parse(sub) do
-      {user_id, ""} -> {:ok, user_id}
-      _ -> :service
-    end
-  end
-
-  defp parse_user_id(_sub), do: :service
+  defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
+  defp parse_user_id(_sub), do: :error
 
   defp ttl_for(:access_token, client), do: client.access_token_ttl
   defp ttl_for(:refresh_token, client), do: client.refresh_token_ttl
 
-  defp generate_user_token(token_type, user_id, client_id, scope) do
-    with user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
+  defp generate_user_token(token_type, sub, client_id, scope) do
+    with {user_id, ""} <- parse_user_id(sub),
+         user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
          client when not is_nil(client) <- Clients.get_client(client_id) do
       scopes = parse_scopes(scope)
 
@@ -98,6 +94,8 @@ defmodule Tuist.OAuth.TokenGenerator do
         )
 
       jwt_token
+    else
+      _ -> nil
     end
   end
 

@@ -12,7 +12,10 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Ecto.Clients, as: EctoClients
   alias Boruta.Oauth.Client
   alias Boruta.Oauth.Clients
+  alias Boruta.Oauth.Scope
   alias Tuist.Environment
+
+  @max_service_access_token_ttl 3600
 
   @impl Clients
   def get_client(client_id) do
@@ -38,9 +41,15 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Clients
   def authorized_scopes(%Client{id: client_id} = client) do
-    case static_client(client_id) do
-      %Client{} -> []
-      nil -> EctoClients.authorized_scopes(client)
+    case oauth_service_client(client_id) do
+      %Client{authorized_scopes: scopes} ->
+        scopes
+
+      nil ->
+        case static_client(client_id) do
+          %Client{} -> []
+          nil -> EctoClients.authorized_scopes(client)
+        end
     end
   end
 
@@ -102,7 +111,9 @@ defmodule Tuist.OAuth.Clients do
     id = Map.get(config, "id") || Map.get(config, :id)
     secret = Map.get(config, "secret") || Map.get(config, :secret)
     name = Map.get(config, "name") || Map.get(config, :name) || id
-    access_token_ttl = Map.get(config, "access_token_ttl") || Map.get(config, :access_token_ttl) || 300
+    configured_ttl = Map.get(config, "access_token_ttl") || Map.get(config, :access_token_ttl) || 300
+    access_token_ttl = min(configured_ttl, @max_service_access_token_ttl)
+    scopes = service_client_scopes(config)
 
     if is_binary(id) and is_binary(secret) do
       %Client{
@@ -112,7 +123,8 @@ defmodule Tuist.OAuth.Clients do
         access_token_ttl: access_token_ttl,
         refresh_token_ttl: access_token_ttl,
         supported_grant_types: ["client_credentials"],
-        authorize_scope: false,
+        authorize_scope: true,
+        authorized_scopes: Enum.map(scopes, &%Scope{name: &1}),
         confidential: true,
         token_endpoint_auth_methods: [
           "client_secret_basic",
@@ -123,6 +135,13 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp oauth_service_client_from_config(_config), do: nil
+
+  defp service_client_scopes(config) do
+    case Map.get(config, "scopes") || Map.get(config, :scopes) do
+      scopes when is_list(scopes) -> Enum.filter(scopes, &is_binary/1)
+      _ -> []
+    end
+  end
 
   defp android_emulator_redirect_uris do
     base_url = Environment.app_url(path: "/oauth/callback/android")
