@@ -1,9 +1,13 @@
 // Filled-path icon morphing, ported from the flubber-style sampling approach.
-// Each icon outline is sampled into point rings, the rings are matched, and the
-// points are tweened with a critically-damped spring. The animation only runs
-// while a transition is in flight and then stops, so idle cost is zero.
+// Each icon outline is sampled into point rings and the rings are matched. For
+// every matched pair we measure how well a pure rotation explains the change:
+// rotation-related pairs (chevron/arrow directions) rotate cleanly instead of
+// flattening into a blob, genuinely different shapes fall back to point
+// morphing, and in-between pairs blend the two. Points are then tweened with a
+// critically-damped spring. The animation only runs while a transition is in
+// flight and then stops, so idle cost is zero.
 
-const N = 64;
+const N = 96;
 const SVGNS = "http://www.w3.org/2000/svg";
 const ringCache = new Map();
 
@@ -114,19 +118,26 @@ function matchRings(A, B) {
   return order;
 }
 
-function bestAlign(avecs, bvecs, allowReverse) {
-  let best = { off: 0, rev: false, cost: Infinity };
+// Find the alignment (cyclic offset + optional reversed traversal) whose
+// correspondence is best explained by a pure rotation — i.e. maximizes the
+// rotational correlation |Σ a·b , Σ a×b|. Reversal is allowed only for a
+// single hole-free loop (winding is free under nonzero fill) and lets a shape
+// align with its mirror. Returns the offset, whether reversed, and W,Z so the
+// caller can read off the angle and how well rotation explains the pair.
+function alignByRotation(avecs, bvecs, allowReverse) {
+  let best = { off: 0, rev: false, mag: -1, w: 1, z: 0 };
   const search = (bv, rev) => {
     for (let off = 0; off < N; off++) {
-      let cost = 0;
+      let w = 0;
+      let z = 0;
       for (let k = 0; k < N; k++) {
         const a = avecs[k];
         const b = bv[(k + off) % N];
-        const dx = a[0] - b[0];
-        const dy = a[1] - b[1];
-        cost += dx * dx + dy * dy;
+        w += a[0] * b[0] + a[1] * b[1];
+        z += a[0] * b[1] - a[1] * b[0];
       }
-      if (cost < best.cost) best = { off, rev, cost };
+      const mag = w * w + z * z;
+      if (mag > best.mag) best = { off, rev, mag, w, z };
     }
   };
   search(bvecs, false);
@@ -134,11 +145,20 @@ function bestAlign(avecs, bvecs, allowReverse) {
   return best;
 }
 
+// TAU: residual-as-fraction-of-size above which we stop rotating and just
+// morph the points. Lower = rotate only very-close pairs; higher = rotate
+// more eagerly. ~0.3 means "if a rotation leaves <30% mismatch, rotate."
+const TAU = 0.3;
+
+// Adaptive hybrid: for each matched ring pair, measure how well a rotation
+// explains the transform. Rotation-related pairs (chevron/arrow directions)
+// rotate cleanly — no flatten; genuinely different shapes fall back to point
+// morphing; in-between pairs blend (rotate partially, morph the rest).
 function buildMorph(A0, B0) {
   const R = Math.max(A0.length, B0.length);
   const A = pad(A0, R, iconCentroid(A0));
   const B = matchRings(A, pad(B0, R, iconCentroid(B0)));
-  const allowReverse = R === 1;
+  const allowReverse = R === 1; // single hole-free loop — winding is free
   const rings = [];
   for (let i = 0; i < R; i++) {
     const a = A[i];
@@ -148,36 +168,59 @@ function buildMorph(A0, B0) {
     const avecs = new Array(N);
     const bvecs = new Array(N);
     let aa = 0;
+    let bb = 0;
     for (let k = 0; k < N; k++) {
       avecs[k] = [a[k][0] - cA[0], a[k][1] - cA[1]];
       bvecs[k] = [braw[k][0] - cB[0], braw[k][1] - cB[1]];
       aa += avecs[k][0] * avecs[k][0] + avecs[k][1] * avecs[k][1];
+      bb += bvecs[k][0] * bvecs[k][0] + bvecs[k][1] * bvecs[k][1];
     }
-    const al =
-      aa > 1e-6
-        ? bestAlign(avecs, bvecs, allowReverse)
-        : { off: 0, rev: false };
-    const bv = al.rev ? bvecs.slice().reverse() : bvecs;
+    let theta = 0;
+    let bopt = bvecs;
+    if (aa > 1e-6 && bb > 1e-6) {
+      const al = alignByRotation(avecs, bvecs, allowReverse);
+      const src = al.rev ? bvecs.slice().reverse() : bvecs;
+      bopt = new Array(N);
+      for (let k = 0; k < N; k++) bopt[k] = src[(k + al.off) % N];
+      const fullTheta = Math.atan2(al.z, al.w);
+      const resAfterRot = Math.max(0, aa + bb - 2 * Math.sqrt(al.mag));
+      const norm = resAfterRot / (aa + bb); // 0 = pure rotation
+      const rigid = Math.max(0, Math.min(1, 1 - norm / TAU));
+      theta = fullTheta * rigid; // full rotation when rigid→1
+    } else {
+      // one side is essentially a point (grow/shrink): no rotation
+      bopt = bvecs;
+    }
+    const co = Math.cos(theta);
+    const si = Math.sin(theta);
     const res = new Array(N);
     for (let k = 0; k < N; k++) {
-      const bk = bv[(k + al.off) % N];
-      res[k] = [bk[0] - avecs[k][0], bk[1] - avecs[k][1]];
+      const ax = avecs[k][0];
+      const ay = avecs[k][1];
+      const rx = co * ax - si * ay;
+      const ry = si * ax + co * ay;
+      res[k] = [bopt[k][0] - rx, bopt[k][1] - ry]; // leftover after rotation
     }
-    rings.push({ a: avecs, cA, cB, res });
+    rings.push({ a: avecs, cA, cB, theta, res });
   }
   return rings;
 }
 
+// point positions at progress t: size-preserving rotation + point residual
 function ringsAt(descs, t) {
   return descs.map((r) => {
+    const ang = r.theta * t;
+    const co = Math.cos(ang);
+    const si = Math.sin(ang);
     const cx = r.cA[0] + (r.cB[0] - r.cA[0]) * t;
     const cy = r.cA[1] + (r.cB[1] - r.cA[1]) * t;
     const out = new Array(N);
     for (let i = 0; i < N; i++) {
-      out[i] = [
-        cx + r.a[i][0] + t * r.res[i][0],
-        cy + r.a[i][1] + t * r.res[i][1],
-      ];
+      const ax = r.a[i][0];
+      const ay = r.a[i][1];
+      const rx = co * ax - si * ay;
+      const ry = si * ax + co * ay;
+      out[i] = [cx + rx + t * r.res[i][0], cy + ry + t * r.res[i][1]];
     }
     return out;
   });
