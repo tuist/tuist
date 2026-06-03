@@ -1093,7 +1093,7 @@ async fn get_keyvalue(
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Key-value entry not found")
         }
         Err(error) => {
             state
@@ -1931,7 +1931,7 @@ async fn get_artifact(
         }
         Ok(None) => {
             state.metrics.record_artifact_read(producer, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Artifact not found")
         }
         Err(error) => {
             state.metrics.record_artifact_read(producer, "error", 0);
@@ -2193,6 +2193,18 @@ mod tests {
             max_buckets: 100,
             outbox_max_depth: 100,
         }
+    }
+
+    async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/json"))
+        );
+
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode error response");
+        assert_eq!(body["message"], message);
     }
 
     #[tokio::test]
@@ -2644,6 +2656,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_json_error_response(response, StatusCode::NOT_FOUND, "Key-value entry not found")
+            .await;
+    }
+
+    #[tokio::test]
     async fn keyvalue_routes_emit_usage_events() {
         let context = test_context(|config| {
             config.usage = Some(test_usage_config());
@@ -2737,6 +2767,49 @@ mod tests {
             .expect("get request failed");
         assert_eq!(get_response.status(), StatusCode::OK);
         assert_eq!(response_text(get_response).await, "xcode-binary");
+    }
+
+    #[tokio::test]
+    async fn artifact_get_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let cas_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build CAS request"),
+            )
+            .await
+            .expect("CAS request failed");
+        assert_json_error_response(cas_response, StatusCode::NOT_FOUND, "Artifact not found").await;
+
+        let module_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/module/missing-module?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build module request"),
+            )
+            .await
+            .expect("module request failed");
+        assert_json_error_response(module_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
+
+        let gradle_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/gradle/missing-gradle?tenant_id=acme&namespace_id=android")
+                    .body(Body::empty())
+                    .expect("failed to build Gradle request"),
+            )
+            .await
+            .expect("Gradle request failed");
+        assert_json_error_response(gradle_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
     }
 
     #[tokio::test]
