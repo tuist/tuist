@@ -160,6 +160,7 @@ spec:
             {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
+            - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -227,6 +228,33 @@ spec:
     - secretKey: kura_introspection_client_secret
       remoteRef:
         key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ .Values.kuraController.sharedSecrets.externalSecret.fields.introspectionClientSecret | default "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}"
+{{- end }}
+{{- if .Values.kuraController.sentry.externalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-sentry-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.sentry.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.sentry.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.sentry.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_SENTRY_DSN: "{{ `{{ .kura_sentry_dsn | trim }}` }}"
+  data:
+    - secretKey: kura_sentry_dsn
+      remoteRef:
+        key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
 {{- end }}
 {{- end }}
 

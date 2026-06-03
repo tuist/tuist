@@ -46,12 +46,16 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		},
 	}
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "12345"},
+	}
 
 	reconciler := &KuraInstanceReconciler{
-		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
+		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress, sharedSecret).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
 		GRPCClusterIssuer:  "letsencrypt-prod",
 		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		Environment:        "canary",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
@@ -158,6 +162,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
 		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
+	if got := env[environmentEnvVar]; got != "canary" {
+		t.Fatalf("expected deployment environment, got %q", got)
+	}
 	publicMountFound := false
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
@@ -243,6 +250,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := sts.Spec.Template.Annotations["prometheus.io/path"]; got != "/metrics" {
 		t.Fatalf("expected Prometheus path annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations[sharedSecretsRVAnnotation]; got != "12345" {
+		t.Fatalf("expected shared secrets resource version annotation, got %q", got)
 	}
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
@@ -680,7 +690,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "")
+	stsTemplate := podTemplate(instance, "", "production", "")
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}

@@ -76,6 +76,12 @@ objectStorage:
       default: tuist-can-storage
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: canary
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true

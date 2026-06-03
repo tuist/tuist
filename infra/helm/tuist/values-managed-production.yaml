@@ -100,6 +100,12 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: production
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true

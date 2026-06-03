@@ -36,6 +36,9 @@ kuraController:
     # Leave empty to disable controller-injected tracing, or override
     # per KuraInstance through spec.extraEnv.
     otlpTracesEndpoint: ""
+    # Environment label injected into controller-managed Kura pods. Kura
+    # uses this for both OpenTelemetry and Sentry.
+    deploymentEnvironment: production
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
@@ -57,6 +60,15 @@ kuraController:
       item: ""
       fields:
         introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+  sentry:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_SENTRY_DSN
     # Example shape — never commit real values here:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
