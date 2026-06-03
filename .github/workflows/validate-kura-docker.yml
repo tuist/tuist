@@ -1,0 +1,119 @@
+name: Validate Kura Docker Image
+
+# TEMPORARY workflow to validate the runtime-only Kura Docker image on the
+# branch before merging. Build-only: it never pushes an image or cuts a
+# release. Remove before merge.
+
+on:
+  push:
+    branches:
+      - claude/distracted-chatelet-84e937
+
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  build-binaries:
+    name: Build Kura Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust"
+          cache: "false"
+          working_directory: kura
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Build Kura binary
+        working-directory: kura
+        run: |
+          TARGET="${{ matrix.target }}"
+          ARTIFACT_DIR="$GITHUB_WORKSPACE/build-kura"
+          mkdir -p "$ARTIFACT_DIR"
+          env -u RUSTUP_TOOLCHAIN rustup target add "$TARGET"
+          env -u RUSTUP_TOOLCHAIN cargo build --release --locked --target "$TARGET"
+          tar -C "target/$TARGET/release" -czf "$ARTIFACT_DIR/kura-$TARGET.tar.gz" kura
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kura-binary-${{ matrix.target }}-artifacts
+          path: build-kura/kura-${{ matrix.target }}.tar.gz
+          retention-days: 1
+
+  build-image:
+    name: Build Kura Docker Image (no push)
+    needs: build-binaries
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Kura amd64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build multi-arch image (no push), timed
+        run: |
+          start=$(date +%s)
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file kura/Dockerfile.release \
+            kura
+          end=$(date +%s)
+          echo "::notice title=Kura multi-arch image build::$((end - start))s"
+
+      - name: Smoke test (loader resolves on ubuntu:24.04)
+        run: |
+          for platform in linux/amd64 linux/arm64; do
+            tag="kura:validate-${platform##*/}"
+            docker buildx build \
+              --platform "$platform" \
+              --file kura/Dockerfile.release \
+              --load -t "$tag" \
+              kura
+            echo "=== ldd ($platform) ==="
+            if docker run --rm --platform "$platform" --entrypoint ldd "$tag" /usr/local/bin/kura | tee /tmp/ldd.txt; then :; fi
+            if grep -qi "not found" /tmp/ldd.txt; then
+              echo "::error title=Loader check failed ($platform)::missing shared library / symbol version"
+              exit 1
+            fi
+            echo "loader OK for $platform"
+          done
