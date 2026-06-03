@@ -11,6 +11,7 @@ defmodule TuistWeb.Authentication do
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Analytics
   alias Tuist.Authorization
@@ -65,6 +66,8 @@ defmodule TuistWeb.Authentication do
       %User{account: account} -> account
       %Project{account: account} -> account
       %AuthenticatedAccount{account: account} -> account
+      %AuthenticatedService{} -> nil
+      nil -> nil
     end
   end
 

@@ -48,5 +48,35 @@ defmodule Tuist.OAuth.ClientsTest do
       assert client.id == "tuist-cli"
       refute "introspect" in client.supported_grant_types
     end
+
+    test "returns configured static service clients" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [
+          %{
+            "id" => "service-client",
+            "secret" => "service-secret",
+            "name" => "Service client",
+            "access_token_ttl" => 120
+          }
+        ]
+      end)
+
+      assert %Client{} = client = Clients.get_client("service-client")
+      assert client.id == "service-client"
+      assert client.secret == "service-secret"
+      assert client.name == "Service client"
+      assert client.access_token_ttl == 120
+      assert client.refresh_token_ttl == 120
+      assert client.confidential == true
+      assert client.supported_grant_types == ["client_credentials"]
+      assert client.token_endpoint_auth_methods == ["client_secret_basic", "client_secret_post"]
+      assert Clients.service_client?("service-client")
+      refute Clients.service_client?("tuist-cli")
+    end
   end
 end
