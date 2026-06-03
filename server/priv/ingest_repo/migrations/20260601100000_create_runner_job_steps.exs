@@ -3,11 +3,11 @@ defmodule Tuist.IngestRepo.Migrations.CreateRunnerJobSteps do
 
   # One row per workflow_job step, captured from the
   # `workflow_job.completed` webhook (GitHub only populates the steps
-  # array at completion). Replaces the JSON `steps` column previously
-  # carried on `runner_jobs` so step-level analytics — failure rate per
-  # step name, p95 of `Build` duration, slowest steps in a workflow —
-  # become first-class ClickHouse queries instead of JSON parses in
-  # application code.
+  # array at completion). A row-per-step layout — rather than a JSON
+  # column on `runner_jobs` — keeps step-level analytics (failure
+  # rate per step name, p95 of `Build` duration, slowest steps in a
+  # workflow) as first-class ClickHouse queries instead of
+  # application-side JSON parses.
   #
   # `account_id` is denormalized so dashboards can scope by tenant
   # without joining `runner_jobs`. `started_at` / `completed_at` are

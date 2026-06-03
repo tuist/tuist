@@ -84,14 +84,10 @@ while true; do
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
       #
-      # Log capture happens server-side via GitHub's Logs API once
-      # the `workflow_job: completed` webhook arrives (see
-      # `Tuist.Runners.Workers.FetchLogsWorker`). The runner Pod no
-      # longer ships log lines itself — earlier dispatch-poll
-      # iterations tried piping the Listener's stdout or tailing
-      # `_diag/Worker_<utc>.log`, but neither contains the user's
-      # step output (it's streamed directly to GitHub's
-      # `ResultsLog` service from inside the .NET Worker process).
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner Pod
+      # writes nothing to the ingest path.
       exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)

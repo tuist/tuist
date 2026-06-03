@@ -113,14 +113,10 @@ while true; do
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
       #
-      # Log capture happens server-side via GitHub's Logs API once
-      # the `workflow_job: completed` webhook arrives (see
-      # `Tuist.Runners.Workers.FetchLogsWorker`). The runner VM no
-      # longer ships log lines itself — earlier dispatch-poll
-      # iterations tried piping the Listener's stdout or tailing
-      # `_diag/Worker_<utc>.log`, but neither contains the user's
-      # step output (it's streamed directly to GitHub's
-      # `ResultsLog` service from inside the .NET Worker process).
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
+      # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;
