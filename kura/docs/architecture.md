@@ -99,6 +99,22 @@ Newly joined nodes catch up by **bootstrapping from a peer**: paginated manifest
 
 See `src/replication/mod.rs` for the membership/outbox/bootstrap loops, and `src/replication/operation.rs` + `outbox_message.rs` for the message types.
 
+## Building A Mesh
+
+A Kura mesh is built by giving each node a stable internal address and enough network reachability to call every other node's internal plane. In Kubernetes this is usually a `StatefulSet` behind a headless service: each pod gets a stable DNS name, and `KURA_NODE_URL` points at the current pod's name on `KURA_INTERNAL_PORT`. `KURA_PEERS` can provide static seed nodes, while `KURA_DISCOVERY_DNS_NAME` lets the runtime discover the rest of the pods through the headless service.
+
+Peer nodes must be able to reach these internal endpoints:
+
+- `GET /_internal/status` for membership and readiness topology.
+- Bootstrap endpoints for manifests, tombstones, and artifact bodies.
+- `PUT /_internal/replicate/artifact` for live outbox replication.
+
+That reachability should stay scoped to the mesh. Managed Kura deployments use a `NetworkPolicy` per `KuraInstance` so peer traffic is admitted only from pods belonging to the same instance, while public cache traffic enters through the public HTTP or gRPC surfaces. This network boundary reduces accidental cross-tenant reachability, but it is not the cryptographic identity boundary.
+
+For cryptographic protection, the internal plane can run with peer mTLS. When `KURA_INTERNAL_TLS_CA_CERT_PATH`, `KURA_INTERNAL_TLS_CERT_PATH`, and `KURA_INTERNAL_TLS_KEY_PATH` are set, Kura serves `/_internal/*` through a TLS listener that requires client certificates signed by the configured CA. The same certificate is also used by the peer HTTP client, so both sides of a replication connection prove membership in the same mesh. In that mode `KURA_NODE_URL` and every `KURA_PEERS` entry must use `https://...:<KURA_INTERNAL_PORT>`, and the certificate SANs must cover the DNS names peers use to call the node.
+
+Controller-managed `KuraInstance` deployments create this trust boundary per account-region instance. The controller owns a `<instance>-peer-tls` Secret containing a private per-instance CA, a peer certificate valid for the StatefulSet pod DNS names, and the matching private key. Reconciliation mounts that Secret into each pod, points `KURA_INTERNAL_TLS_*` at it, and switches the advertised peer URL to `https://...:7443`. Existing nodes converge through the same StatefulSet reconciliation path as new deployments.
+
 ## Discovery And Membership
 
 A node finds peers in two ways:
