@@ -535,6 +535,25 @@ macosFleet:
   # split-horizon DNS, ad-hoc override).
   apiServerURL: ""
 
+  # Orphan-reclaim sweep — a leader-gated periodic sweep that returns
+  # Scaleway hosts which were claimed by the controller but whose CR is
+  # gone (a legacy CR that skipped release, a force-delete that bypassed
+  # the finalizer, a crash mid-claim) back to the adopt pool. The sweep's
+  # pool prefix and zones are derived from the fleet config
+  # (adoptPoolPrefix + each fleet's machine.zone) and the claimed-name
+  # prefix from the chart name, so the only knob here is whether the
+  # sweep may mutate. See controllers/orphan_reclaimer.go.
+  orphanReclaim:
+    # false (default): report-only. The sweep exports the
+    # scaleway_orphan_servers gauge and logs strays but never touches a
+    # host; the per-Machine delete path still falls back to the fleet
+    # pool prefix, which prevents new strands. true: the sweep also
+    # returns stranded hosts to the pool (rename + reinstall). Enable per
+    # env only after confirming this cluster has its own Scaleway project
+    # — a shared project could let the sweep reclaim another env's live
+    # host, whose CR isn't visible to this cluster's API server.
+    activeReclaim: false
+
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Each Mac mini joins the cluster as a real Node and
   # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
