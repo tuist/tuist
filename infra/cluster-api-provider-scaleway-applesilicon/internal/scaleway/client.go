@@ -60,8 +60,14 @@ type Client struct {
 	// org-wide list and Scaleway returns "insufficient permissions".
 	DefaultProjectID string
 
-	// adoptMu serializes AdoptFromPool across all goroutines in this
-	// process. Scaleway's UpdateServer is not conditional — two
+	// adoptMu serializes AdoptFromPool and ReleaseToPool against each
+	// other across all goroutines in this process. ReleaseToPool renames
+	// a host into the pool prefix and only then requests the reinstall,
+	// so between those two calls the host carries the pool prefix and is
+	// still Status==ready; without holding this lock a concurrent
+	// adoption scan could claim it in that window and then the reinstall
+	// would wipe the freshly-claimed host. Scaleway's UpdateServer is not
+	// conditional — two
 	// concurrent rename calls against the same server both succeed,
 	// last-write-wins — so per-call optimistic read-after-write
 	// verification can't establish a "we own this server" invariant.
@@ -531,6 +537,13 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	if poolPrefix == "" {
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
 	}
+
+	// Hold the adoption lock across the rename + reinstall request so an
+	// AdoptFromPool scan can't claim the host in the window where it
+	// already carries the pool prefix but the wipe hasn't been requested
+	// yet. See the adoptMu field comment.
+	c.adoptMu.Lock()
+	defer c.adoptMu.Unlock()
 
 	newName := poolPrefix + uuid.NewString()
 	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{

@@ -8,6 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
@@ -42,7 +43,7 @@ func machineCR(name, zone, serverID string) *infrav1.ScalewayAppleSiliconMachine
 	}
 }
 
-func newReclaimerTest(t *testing.T, pool scalewayPool, claimPrefix string, crs ...*infrav1.ScalewayAppleSiliconMachine) *OrphanReclaimer {
+func buildCRClient(t *testing.T, crs ...*infrav1.ScalewayAppleSiliconMachine) client.Client {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := infrav1.AddToScheme(scheme); err != nil {
@@ -52,9 +53,13 @@ func newReclaimerTest(t *testing.T, pool scalewayPool, claimPrefix string, crs .
 	for _, c := range crs {
 		objs = append(objs, c)
 	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+	return fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
+}
+
+func newReclaimerTest(t *testing.T, pool scalewayPool, claimPrefix string, crs ...*infrav1.ScalewayAppleSiliconMachine) *OrphanReclaimer {
+	t.Helper()
 	return &OrphanReclaimer{
-		Client:          c,
+		Client:          buildCRClient(t, crs...),
 		Scaleway:        pool,
 		Zones:           []string{"fr-par-1"},
 		PoolPrefix:      "tuist-pool-",
@@ -120,5 +125,26 @@ func TestOrphanReclaimer_ReportOnlyDoesNotMutate(t *testing.T) {
 	// the gauge reports 2 regardless of the claim-name gate.
 	if got := testutil.ToFloat64(orphanServersGauge); got != 2 {
 		t.Fatalf("expected gauge=2 stranded hosts, got %v", got)
+	}
+}
+
+// A CR created and adopted after the cycle's initial snapshot must not
+// be reclaimed. The detection snapshot (Client) predates the CR, so the
+// host is flagged, but the pre-mutation re-check reads the live API
+// (APIReader) and sees the new owner by name, so the release is skipped.
+func TestOrphanReclaimer_SkipsHostAdoptedSinceScan(t *testing.T) {
+	pool := &fakePool{byZone: map[string][]scaleway.Server{
+		"fr-par-1": {{ID: "stray-1", Name: "tuist-tuist-builders-fleet-rg4h9-c295c"}},
+	}}
+	// Detection client has no CRs, so stray-1 is flagged as a candidate.
+	r := newReclaimerTest(t, pool, "tuist-tuist-")
+	// The live re-check reader sees a CR that now owns the host by name.
+	r.APIReader = buildCRClient(t, machineCR("tuist-tuist-builders-fleet-rg4h9-c295c", "fr-par-1", ""))
+
+	if err := r.reclaimOnce(context.Background()); err != nil {
+		t.Fatalf("reclaimOnce: %v", err)
+	}
+	if len(pool.releasedIDs) != 0 {
+		t.Fatalf("must not reclaim a host adopted since the scan, got %v", pool.releasedIDs)
 	}
 }

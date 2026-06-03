@@ -68,6 +68,13 @@ type scalewayPool interface {
 type OrphanReclaimer struct {
 	client.Client
 
+	// APIReader is an uncached reader used to re-check ownership in the
+	// instant before a host is reclaimed. The cached Client can lag a
+	// just-created CR, and reclaim is destructive, so the final check
+	// reads straight from the API server. Falls back to the cached
+	// Client when nil (tests).
+	APIReader client.Reader
+
 	Scaleway scalewayPool
 
 	// Interval between sweeps.
@@ -118,40 +125,23 @@ func (r *OrphanReclaimer) mode() string {
 	return "reclaim"
 }
 
-// reclaimOnce performs a single sweep: build the owned set from live
-// CRs, list Scaleway hosts per zone, and reclaim (or report) every
+// reclaimOnce performs a single sweep: snapshot the owned set from live
+// CRs, list Scaleway hosts per zone, then reclaim (or report) every
 // stranded host. Returns the first error encountered so Start can log
 // it; partial progress within the cycle is kept.
 func (r *OrphanReclaimer) reclaimOnce(ctx context.Context) error {
-	machines := &infrav1.ScalewayAppleSiliconMachineList{}
-	if err := r.List(ctx, machines); err != nil {
-		return fmt.Errorf("list ScalewayAppleSiliconMachines: %w", err)
+	owned, zones, err := r.ownedSnapshot(ctx, r.Client)
+	if err != nil {
+		return err
 	}
 
-	ownedNames := make(map[string]struct{}, len(machines.Items))
-	ownedServerIDs := make(map[string]struct{}, len(machines.Items))
-	zoneSet := make(map[string]struct{}, len(r.Zones))
-	for _, z := range r.Zones {
-		if z != "" {
-			zoneSet[z] = struct{}{}
-		}
-	}
-	for i := range machines.Items {
-		m := &machines.Items[i]
-		ownedNames[m.Name] = struct{}{}
-		if m.Status.ServerID != "" {
-			ownedServerIDs[m.Status.ServerID] = struct{}{}
-		}
-		if m.Spec.Zone != "" {
-			zoneSet[m.Spec.Zone] = struct{}{}
-		}
-	}
-
+	type strand struct{ id, name, zone string }
 	var (
+		candidates  []strand
 		orphanCount int
 		firstErr    error
 	)
-	for zone := range zoneSet {
+	for zone := range zones {
 		servers, err := r.Scaleway.ListServers(ctx, zone)
 		if err != nil {
 			r.Log.Error(err, "list Scaleway servers; skipping zone this cycle", "zone", zone)
@@ -164,10 +154,7 @@ func (r *OrphanReclaimer) reclaimOnce(ctx context.Context) error {
 			if scaleway.IsPoolOrAdopting(s.Name, r.PoolPrefix) {
 				continue
 			}
-			if _, ok := ownedNames[s.Name]; ok {
-				continue
-			}
-			if _, ok := ownedServerIDs[s.ID]; ok {
+			if owned.has(s.Name, s.ID) {
 				continue
 			}
 
@@ -180,21 +167,100 @@ func (r *OrphanReclaimer) reclaimOnce(ctx context.Context) error {
 					"claimNamePrefix", r.ClaimNamePrefix)
 				continue
 			}
-
-			r.Log.Info("reclaiming stranded Scaleway host to pool",
-				"server", s.ID, "name", s.Name, "zone", zone)
-			if err := r.Scaleway.ReleaseToPool(ctx, s.ID, zone, r.PoolPrefix); err != nil {
-				r.Log.Error(err, "reclaim stranded host failed; retrying next cycle",
-					"server", s.ID, "name", s.Name, "zone", zone)
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			orphansReclaimedTotal.Inc()
+			candidates = append(candidates, strand{id: s.ID, name: s.Name, zone: zone})
 		}
 	}
-
 	orphanServersGauge.Set(float64(orphanCount))
+
+	if len(candidates) == 0 {
+		return firstErr
+	}
+
+	// Re-check ownership against the live API right before mutating. The
+	// snapshot above was taken before the per-zone Scaleway scans (and
+	// off a possibly cache-lagged client); a CR created and adopted in
+	// the meantime now owns its host under the CR's name (the claim
+	// renames the pool host to it), so releasing from the stale snapshot
+	// would wipe a live, freshly-adopted host. A failed re-check aborts
+	// reclaim this cycle rather than act on stale data.
+	fresh, _, err := r.ownedSnapshot(ctx, r.reader())
+	if err != nil {
+		return fmt.Errorf("re-check ownership before reclaim: %w", err)
+	}
+	for _, c := range candidates {
+		if fresh.has(c.name, c.id) {
+			r.Log.Info("skipping reclaim; host adopted since scan",
+				"server", c.id, "name", c.name, "zone", c.zone)
+			continue
+		}
+		r.Log.Info("reclaiming stranded Scaleway host to pool",
+			"server", c.id, "name", c.name, "zone", c.zone)
+		if err := r.Scaleway.ReleaseToPool(ctx, c.id, c.zone, r.PoolPrefix); err != nil {
+			r.Log.Error(err, "reclaim stranded host failed; retrying next cycle",
+				"server", c.id, "name", c.name, "zone", c.zone)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		orphansReclaimedTotal.Inc()
+	}
 	return firstErr
+}
+
+func (r *OrphanReclaimer) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
+}
+
+// ownership is the set of host names and serverIDs claimed by live CRs.
+type ownership struct {
+	names map[string]struct{}
+	ids   map[string]struct{}
+}
+
+func (o ownership) has(name, id string) bool {
+	if _, ok := o.names[name]; ok {
+		return true
+	}
+	if id != "" {
+		if _, ok := o.ids[id]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// ownedSnapshot lists the live ScalewayAppleSiliconMachine CRs through
+// reader and returns the owned host names + serverIDs, plus the zones to
+// sweep (the configured Zones unioned with every CR's zone, so a zone
+// stays covered after its last CR is deleted).
+func (r *OrphanReclaimer) ownedSnapshot(ctx context.Context, reader client.Reader) (ownership, map[string]struct{}, error) {
+	machines := &infrav1.ScalewayAppleSiliconMachineList{}
+	if err := reader.List(ctx, machines); err != nil {
+		return ownership{}, nil, fmt.Errorf("list ScalewayAppleSiliconMachines: %w", err)
+	}
+	owned := ownership{
+		names: make(map[string]struct{}, len(machines.Items)),
+		ids:   make(map[string]struct{}, len(machines.Items)),
+	}
+	zones := make(map[string]struct{}, len(r.Zones))
+	for _, z := range r.Zones {
+		if z != "" {
+			zones[z] = struct{}{}
+		}
+	}
+	for i := range machines.Items {
+		m := &machines.Items[i]
+		owned.names[m.Name] = struct{}{}
+		if m.Status.ServerID != "" {
+			owned.ids[m.Status.ServerID] = struct{}{}
+		}
+		if m.Spec.Zone != "" {
+			zones[m.Spec.Zone] = struct{}{}
+		}
+	}
+	return owned, zones, nil
 }

@@ -433,6 +433,7 @@ func main() {
 		reclaimZones := parseCommaList(orphanReclaimZonesRaw)
 		if err := mgr.Add(&controllers.OrphanReclaimer{
 			Client:          mgr.GetClient(),
+			APIReader:       mgr.GetAPIReader(),
 			Scaleway:        scwClient,
 			Interval:        orphanReclaimInterval,
 			Zones:           reclaimZones,
