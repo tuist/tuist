@@ -1737,10 +1737,7 @@ jobs:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    # Stays on an external runner: it builds and publishes the
-    # linux-runner image, so it must not run on the fleet that image
-    # backs.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
