@@ -6,19 +6,15 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-/// Owns the framework-search-path setup for every target: it derives the precompiled and SDK
-/// framework search paths from the target's dependency graph and writes the corresponding build
-/// settings onto the target, plus — for targets above the consolidation threshold — the
-/// `Derived/FrameworkSearchPaths/<Target>.resp` response file.
+/// Sets up framework search paths for every target: it derives the precompiled and SDK framework
+/// search paths from the target's dependency graph, writes the corresponding build settings onto
+/// the target, and — for targets above the consolidation threshold — writes the
+/// `Derived/FrameworkSearchPaths/<Target>.resp` response file those settings reference.
 ///
-/// This used to live in `LinkGenerator` (a project-descriptor generator), but the response file was
-/// emitted there as a *project* side effect, which runs before the mapper side effects. So on a
-/// regeneration over an existing `Derived/`, `DeleteDerivedDirectoryProjectMapper`'s cleanup (a
-/// mapper side effect) deleted the just-written file, leaving the build referencing a missing
-/// `@file`. Owning the whole thing in a graph mapper means the file is written in the same
-/// side-effect batch as the cleanup, after the deletes, so it survives — consistent with how
-/// `ModuleMapMapper` writes the deps module maps. It is registered after the binary-cache
-/// replacement mappers so it sees the precompiled xcframework dependencies.
+/// It must run after the binary-cache replacement mappers so it sees the precompiled xcframework
+/// dependencies, and its `.resp` side effect must land in the same batch as
+/// `DeleteDerivedDirectoryProjectMapper`'s cleanup, after the deletes, so the file is not removed
+/// once written — the same way `ModuleMapMapper` writes the dependency module maps.
 public struct FrameworkSearchPathsGraphMapper: GraphMapping {
     private static let frameworkSearchPathsSetting = "FRAMEWORK_SEARCH_PATHS"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
@@ -138,8 +134,7 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
 }
 
 /// Computes, for a single target, the precompiled framework search paths and the consolidated
-/// response file. Used only by `FrameworkSearchPathsGraphMapper`; extracted so the values can be
-/// unit-tested with a mocked graph traverser.
+/// response file. A standalone type so the values can be unit-tested with a mocked graph traverser.
 struct FrameworkSearchPathConsolidation {
     /// Targets with at least this many unique precompiled framework search paths get those paths
     /// consolidated into a response file to keep C/ObjC compilation and linking under ARG_MAX.
