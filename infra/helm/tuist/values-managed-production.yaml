@@ -270,15 +270,29 @@ runnersFleet:
   # envs via `values-managed-common.yaml`. Per-env tuning lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
-  # time. The sum of `replicas` across all overrides must stay
-  # ≤ `hostCount` (production runs 9 hosts). Default gets the bulk
-  # of the warm capacity; the second profile keeps a smaller floor
-  # so customers pinned to it don't cold-start every job.
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; the sum across overrides must stay ≤ `hostCount`
+  # (production runs 9 hosts). `maxReplicas: 9` lets either pool
+  # absorb the whole fleet under skewed demand — the allocator caps
+  # the joint sum so the pools don't double-book.
+  #
+  # Today's floors (7 + 2) saturate the budget, so behaviour matches
+  # the prior static replicas: 7/2 split. Lowering one floor unlocks
+  # dynamic redistribution toward whichever pool the queue points at.
   xcodeOverrides:
     "26.5":
-      replicas: 7
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 7
+        maxReplicas: 9
     "26.4.1":
-      replicas: 2
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 2
+        maxReplicas: 9
   runnerImageSemver: "0.0.1"
   pools: []
 

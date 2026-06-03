@@ -183,11 +183,17 @@ runnersFleet:
   # envs via `values-managed-common.yaml`. Per-env tuning lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
   # template merges each catalog entry with its override at render
-  # time. `replicas` on each override is the warm floor for that
-  # Xcode pool — the sum across all overrides must stay ≤ `hostCount`.
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
     "26.5":
-      replicas: 1
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 1
     "26.4.1":
       autoscaling:
         enabled: true

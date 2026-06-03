@@ -779,16 +779,23 @@ runnersFleet:
   # without re-pasting the catalog. Unset fields fall back to the
   # template defaults (replicas: 0, pod sizing from the catalog's
   # `default: true` shape, no autoscaling).
+  #
+  # The runners-controller's fleet allocator apportions the
+  # `hostCount` slot budget across every macOS pool sharing this
+  # fleetSelector using the same three-tier (floor / load /
+  # headroom) policy as the Linux pools. `maxReplicas` is per-pool
+  # and can be set to the full host budget — the allocator caps
+  # the joint sum so two pools both at max don't double-book hosts.
   xcodeOverrides: {}
     # "26.5":
-    #   replicas: 1                    # spec.replicas — number of warm Pods.
+    #   replicas: 1                    # Static (non-autoscaling) warm count.
     #   pod:                           # Optional. Defaults to the catalog's default shape.
     #     cpuMilli: 6000
     #     memoryMB: 14336
-    #   autoscaling:                   # Optional. Omit for a static-replicas pool.
+    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
     #     enabled: true
-    #     minWarmPoolFloor: 1
-    #     maxReplicas: 0
+    #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
+    #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
     #     scaleDownCooldownSeconds: 300
     #   runnerLabels:                  # Optional. Defaults to ["self-hosted", "macOS", "ARM64"].
     #     - self-hosted

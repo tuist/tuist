@@ -281,13 +281,21 @@ runnersFleet:
   # (6 vCPU / 14 GB on M2-L) — only declare `pod` here if a profile
   # needs to deviate from it.
   #
-  # `replicas` is the warm floor on each Xcode profile — the sum
-  # across all overrides must stay ≤ `hostCount`. With hostCount=1
-  # today the warm slot goes to the default profile; the second
-  # profile cold-starts on its first job.
+  # Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools in this fleet using the same three-tier
+  # (floor / load / headroom) policy that backs the Linux pools.
+  # `minWarmPoolFloor` is the always-on warm guarantee; sum across
+  # overrides must stay ≤ `hostCount` or the excess goes Pending.
+  # `maxReplicas` is per-pool and can be the full host budget — the
+  # allocator caps the joint sum so two pools both asking for 9
+  # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
-      replicas: 1
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 1
     "26.4.1":
       autoscaling:
         enabled: true

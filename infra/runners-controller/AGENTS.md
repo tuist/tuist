@@ -24,24 +24,35 @@ independent workqueues:
   `maxReplicas`, `scaleDownCooldownSeconds`) live in the
   `RunnerPool` spec, so a tuning change is helm-only.
 
-  **Fleet-capacity awareness (Linux).** Linux shape pools share one
-  bare-metal node pool, so their speculative warm headroom competes for
-  the same memory. For `os: linux` pools the reconciler runs the
+  **Fleet-capacity awareness.** Both Linux shape pools and macOS
+  Xcode pools share a capacity budget across siblings, so their
+  speculative warm headroom competes. The reconciler runs the
   per-pool target through `internal/scaling/allocate.go`'s
-  `AllocateFleet`, a three-tier waterfall over the pools sharing a
-  `FleetSelector`: (1) every pool's `minWarmPoolFloor`, (2) real load
-  (`claimed + queued`), then (3) the speculative p95 buffer from
-  whatever memory is left. Tiers 1+2 are always honored (excess goes
-  Pending — the "add a host" signal); tier 3 is squeezed under
-  contention, so an idle shape's warm Pods fall back toward its floor to
-  admit another shape's real queued work. Memory is the only dimension
-  (kata pins it per microVM; CPU is oversubscribed). Fleet allocatable
-  is summed from nodes labeled `node.cluster.x-k8s.io/pool=<FleetSelector>`
-  (cluster-scoped `nodes` read in the ClusterRole), scaled by
-  `MemReserveFraction` (default 0.9). Any failure gathering the fleet
-  view falls back to the per-pool target — a node-read blip must never
-  trigger a mass scale-down. macOS pools (one VM per host, no
-  bin-packing) keep the plain per-pool path.
+  `AllocateFleet`, a three-tier waterfall over the pools sharing
+  `(OS, FleetSelector)`: (1) every pool's `minWarmPoolFloor`,
+  (2) real load (`claimed + queued`), then (3) the speculative p95
+  buffer from whatever capacity is left. Tiers 1+2 are always honored
+  (excess goes Pending — the "add a host" signal); tier 3 is squeezed
+  under contention, so an idle pool's warm Pods fall back toward its
+  floor to admit another pool's real queued work.
+
+  The capacity unit and per-Pod cost depend on OS:
+
+  - Linux: budget = sum of allocatable memory across nodes labeled
+    `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
+    `MemReserveFraction`, default 0.9); cost = `spec.podMemoryMB`.
+    Memory is the only dimension — kata pins it per microVM and
+    CPU is oversubscribed.
+  - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
+    + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
+    mini under the Virtualization.framework SLA). The allocator
+    apportions the host budget across competing Xcode pools.
+
+  The reconciler reads nodes via the cluster-scoped `nodes` verb in
+  the ClusterRole. Any failure gathering the fleet view falls back
+  to the per-pool target — a node-read blip must never trigger a
+  mass scale-down. A pool with an unrecognised `OS` (or without
+  autoscaling enabled) skips the allocator entirely.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
