@@ -119,25 +119,34 @@
 			"ip": ["tcp:22"],
 		},
 
-		// Human kubectl access to the staging cluster's API server
-		// proxy, served by the tailscale operator under
-		// tag:tuist-k8s-staging. The `app` capability authorizes
+		// Human kubectl access to the API server proxies served by
+		// each env's tailscale operator (one device per env, tagged
+		// tag:tuist-k8s-<env>). The `app` capability authorizes
 		// impersonation; the impersonated group is mapped to a
 		// ClusterRole by accessBindings in the tailscale-operator
-		// chart (tuist-eng -> edit on staging). tcp:443 is the
-		// proxy's listen port, included so the rule survives removal
-		// of the catch-all above. Extend `dst` to
-		// tag:tuist-k8s-canary / tag:tuist-k8s-production as the
-		// rollout proceeds (production maps tuist-eng to read-only).
+		// chart per env (staging/canary tuist-eng -> edit, production
+		// tuist-eng -> view). tcp:443 is the proxy's listen port,
+		// included so the rules survive removal of the catch-all
+		// above. Grants for canary and production are inert until
+		// the corresponding chart overlay enables the proxy on those
+		// clusters.
 		{
 			"src": ["group:tuist-admins"],
-			"dst": ["tag:tuist-k8s-staging"],
+			"dst": [
+				"tag:tuist-k8s-staging",
+				"tag:tuist-k8s-canary",
+				"tag:tuist-k8s-production",
+			],
 			"ip":  ["tcp:443"],
 			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-admins"]}}]},
 		},
 		{
 			"src": ["group:tuist-eng"],
-			"dst": ["tag:tuist-k8s-staging"],
+			"dst": [
+				"tag:tuist-k8s-staging",
+				"tag:tuist-k8s-canary",
+				"tag:tuist-k8s-production",
+			],
 			"ip":  ["tcp:443"],
 			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-eng"]}}]},
 		},
@@ -195,11 +204,19 @@
 		},
 		{
 			"src": "group:tuist-admins",
-			"accept": ["tag:tuist-k8s-staging:443"],
+			"accept": [
+				"tag:tuist-k8s-staging:443",
+				"tag:tuist-k8s-canary:443",
+				"tag:tuist-k8s-production:443",
+			],
 		},
 		{
 			"src": "group:tuist-eng",
-			"accept": ["tag:tuist-k8s-staging:443"],
+			"accept": [
+				"tag:tuist-k8s-staging:443",
+				"tag:tuist-k8s-canary:443",
+				"tag:tuist-k8s-production:443",
+			],
 		},
 	],
 }
