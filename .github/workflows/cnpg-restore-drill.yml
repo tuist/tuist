@@ -40,7 +40,7 @@ permissions:
 jobs:
   restore-drill:
     name: Restore drill (${{ inputs.environment || 'staging' }})
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment || 'staging' }}
     concurrency:
