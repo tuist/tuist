@@ -8,6 +8,10 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+kuraController:
+  telemetry:
+    deploymentEnvironment: staging
+
 server:
   replicaCount: 1
 
