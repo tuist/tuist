@@ -22,12 +22,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @impl true
   def rollout(
         name,
-        %{
-          image_tag: image_tag,
-          account: account,
-          server: %Server{} = server,
-          region: %Regions{} = region
-        } = inputs
+        %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
       ) do
     with {:ok, hook_script} <- hook_script(inputs) do
       manifest = manifest(name, image_tag, account, region, server, hook_script)
@@ -152,17 +147,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     }
   end
 
-  defp public_host(handle, %Regions{
-         provisioner_config: %{public_host_template: template} = config
-       }) do
+  defp public_host(handle, %Regions{provisioner_config: %{public_host_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
   end
 
   defp public_host(_handle, _region), do: nil
 
-  defp grpc_public_host(handle, %Regions{
-         provisioner_config: %{grpc_public_host_template: template} = config
-       }) do
+  defp grpc_public_host(handle, %Regions{provisioner_config: %{grpc_public_host_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
   end
 
@@ -217,21 +208,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> URI.to_string()
   end
 
-  defp tuist_base_url(%Regions{provisioner_config: %{tuist_base_url: url}})
-       when is_binary(url) and url != "",
-       do: url
+  defp tuist_base_url(%Regions{provisioner_config: %{tuist_base_url: url}}) when is_binary(url) and url != "", do: url
 
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
 
-  defp rewrite_loopback(%URI{host: host} = uri, replacement)
-       when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
+  defp rewrite_loopback(%URI{host: host} = uri, replacement) when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
     %{uri | host: replacement}
   end
 
   defp rewrite_loopback(uri, _), do: uri
 
-  defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}),
-    do: storage_class
+  defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
 
   defp storage_class(_), do: nil
 
@@ -241,8 +228,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp replicas(%Regions{provisioner_config: %{replicas: replicas}}), do: replicas
   defp replicas(_), do: nil
 
-  defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}),
-    do: node_selector
+  defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 
   defp node_selector(_), do: nil
 

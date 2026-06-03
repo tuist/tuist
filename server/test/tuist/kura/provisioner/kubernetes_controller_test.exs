@@ -293,9 +293,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "extracts the tag from a reference that also has a digest" do
-      assert KubernetesController.image_tag_from_image(
-               "ghcr.io/tuist/kura:sha-abcdef123456@sha256:abc123"
-             ) ==
+      assert KubernetesController.image_tag_from_image("ghcr.io/tuist/kura:sha-abcdef123456@sha256:abc123") ==
                "sha-abcdef123456"
     end
   end
@@ -310,13 +308,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     %Regions{
       id: "eu-central",
       provisioner_config:
-        %{
-          cluster_id: "eu-central-1",
-          public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-          grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-          storage_class: "hcloud-volumes"
-        }
-        |> Map.merge(extra_config)
+        Map.merge(
+          %{
+            cluster_id: "eu-central-1",
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            storage_class: "hcloud-volumes"
+          },
+          extra_config
+        )
     }
   end
 
