@@ -134,23 +134,81 @@ jobs:
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
-      - name: Push image to GHCR
-        id: push
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      # Push to GHCR via a disk-backed local OCI registry on the
+      # builder. tart's own push uses Swift URLSession, which is
+      # documented-unreliable for multi-GB blob uploads (see
+      # cirruslabs/tart#963 — skopeo pushes the same image ~40x more
+      # reliably). Split into:
+      #   1. tart push to localhost over loopback (~5 min, no
+      #      network), so the multi-GB upload completes regardless
+      #      of upstream issues.
+      #   2. skopeo copy to GHCR with mature retry semantics.
+      # `crane registry serve --disk` (already on the builder via
+      # the bootstrap) is a single-binary OCI v2 registry. Same shape
+      # as `macos-xcode-image.yml` — keep them in sync if either
+      # workflow's push path changes.
+      - name: Start local OCI registry
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/local-registry
+          nohup crane registry serve --address 127.0.0.1:5000 --disk /tmp/local-registry \
+            > /tmp/local-registry.log 2>&1 &
+          echo $! > /tmp/local-registry.pid
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
+              echo "local registry up (pid $(cat /tmp/local-registry.pid))"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "local registry did not come up in 10s; log:" >&2
+          cat /tmp/local-registry.log >&2 || true
+          exit 1
+
+      - name: Push image to local registry
+        id: push-local
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           PROFILE="${{ steps.build.outputs.profile }}"
-          # Per-profile sha tag so a dispatch build is clearly
-          # distinguishable from the official `:macos-<dashes>` rolling
-          # tag that release.yml owns.
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
-          echo "tag=${PROFILE}-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          TAG="${PROFILE}-${GIT_SHA}"
+          # --insecure for HTTP loopback; --chunk-size 3 keeps the
+          # monolithic-upload path off (it's the same path that fails
+          # against ghcr.io).
+          tart push --insecure --chunk-size 3 \
+            tuist-runner "127.0.0.1:5000/tuist/tuist-runner:${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Copy image to GHCR (skopeo)
+        id: push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.push-local.outputs.tag }}"
+          for attempt in 1 2 3; do
+            echo "skopeo copy attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if skopeo copy \
+                --src-tls-verify=false \
+                --dest-creds "tuist-bot:${GITHUB_TOKEN}" \
+                "docker://127.0.0.1:5000/tuist/tuist-runner:${TAG}" \
+                "docker://ghcr.io/tuist/tuist-runner:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
+              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "skopeo copy attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "skopeo copy failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()
-        run: tart delete tuist-runner 2>/dev/null || true
+        run: |
+          tart delete tuist-runner 2>/dev/null || true
+          if [ -f /tmp/local-registry.pid ]; then
+            kill "$(cat /tmp/local-registry.pid)" 2>/dev/null || true
+            rm -f /tmp/local-registry.pid
+          fi
+          rm -rf /tmp/local-registry /tmp/local-registry.log
