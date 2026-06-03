@@ -266,23 +266,18 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS Profile catalog (M2-L + Xcode versions). Server-side only
-  # for now — production still renders the single `name: default`
-  # pool below; per-Xcode pool rendering lands once staging proves it
-  # out. Keep `xcodeVersions` aligned with the matrix in `release.yml`.
-  shapes:
-    - vcpus: 6
-      memoryGb: 14
-      default: true
-  xcodeVersions:
-    # Warm pool floor split across active Xcodes — the sum must be
-    # ≤ `hostCount` (production runs 9 hosts). Default gets the bulk
-    # of the warm capacity; the second profile keeps a smaller floor
-    # so customers pinned to it don't cold-start every job.
-    - xcodeVersion: "26.5"
-      default: true
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. The sum of `replicas` across all overrides must stay
+  # ≤ `hostCount` (production runs 9 hosts). Default gets the bulk
+  # of the warm capacity; the second profile keeps a smaller floor
+  # so customers pinned to it don't cold-start every job.
+  xcodeOverrides:
+    "26.5":
       replicas: 7
-    - xcodeVersion: "26.4.1"
+    "26.4.1":
       replicas: 2
   runnerImageSemver: "0.0.1"
   pools: []

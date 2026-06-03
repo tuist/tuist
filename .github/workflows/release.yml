@@ -1532,10 +1532,10 @@ jobs:
     # workflow change.
     #
     # The active-profile list is declared inline below. Keep it
-    # aligned with the `runnersFleet.xcodeVersions` lists in the
-    # managed-env values files — every Xcode that ships a pool needs
-    # a runner image published for it, and the post-job reads the
-    # values file to build the Release notes image list.
+    # aligned with `runnersFleet.xcodeVersions` in
+    # values-managed-common.yaml — every Xcode that ships a pool
+    # needs a runner image published for it, and the post-job reads
+    # that file to build the Release notes image list.
     #
     # To refresh an out-of-rotation profile (one not in the matrix),
     # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
@@ -1645,12 +1645,11 @@ jobs:
           install_args: "git-cliff"
 
       - name: Render active profile image refs
-        # Read the active xcode list straight from
-        # `runnersFleet.xcodeVersions` in a managed-env values file —
-        # the same source of truth `runner-pool.yaml` iterates over,
-        # so the Release body lists exactly the tags the chart will
-        # render pools for. Staging is the canonical source since the
-        # xcodeVersions list is kept identical across managed envs.
+        # `runnersFleet.xcodeVersions` lives in
+        # values-managed-common.yaml — the shared catalog every
+        # managed env layers `xcodeOverrides` on top of, and the same
+        # source `runner-pool.yaml` iterates over. The Release body
+        # lists exactly the tags the chart will render pools for.
         # `yq` is preinstalled on ubuntu-latest.
         id: images
         run: |
@@ -1659,7 +1658,7 @@ jobs:
           {
             echo "images<<EOF"
             yq -r '.runnersFleet.xcodeVersions[].xcodeVersion' \
-              infra/helm/tuist/values-managed-staging.yaml |
+              infra/helm/tuist/values-managed-common.yaml |
               while IFS= read -r v; do
                 tag=$(echo "$v" | tr '.' '-')
                 echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"

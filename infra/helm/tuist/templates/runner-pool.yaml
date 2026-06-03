@@ -94,23 +94,49 @@ a `:<profile>-<git-sha>` tag).
 */}}
 {{- $imageRepo := .Values.runnersFleet.runnerImageRepository | default "" }}
 {{- $imageSemver := .Values.runnersFleet.runnerImageSemver | default "" }}
+{{- /*
+Per-env tuning (replicas, pod sizing, autoscaling, runtime class)
+lives in `runnersFleet.xcodeOverrides`, a map keyed by
+`xcodeVersion`. The catalog (`xcodeVersions`) stays shared in
+values-managed-common.yaml; each managed env supplies only its
+fleet-specific overrides without redeclaring the catalog list, so
+Helm's no-merge-on-lists doesn't force a full re-paste. An xcode
+entry that has no matching override renders as a pool with the
+chart defaults (replicas: 0, the long-standing pod sizing).
+*/}}
+{{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict }}
+{{- /*
+Pod sizing defaults follow the catalog's default shape so a pool
+inherits 6 vCPU / 14 GB from the M2-L catalog without each env
+re-stating it. An override can still pin custom pod sizing if a
+future shape moves off the default.
+*/}}
+{{- $defaultShape := dict }}
+{{- range $.Values.runnersFleet.shapes | default list }}
+  {{- if .default }}
+    {{- $defaultShape = . }}
+  {{- end }}
+{{- end }}
+{{- $defaultCPU := mul (dig "vcpus" 8 $defaultShape) 1000 }}
+{{- $defaultMem := mul (dig "memoryGb" 14 $defaultShape) 1024 }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
 {{- $xcodeTag := $xcodeVersion | replace "." "-" }}
 {{- $profile := printf "macos-%s" $xcodeTag }}
-{{- $imageTag := $xcode.imageTag | default (printf "%s-%s" $profile $imageSemver) }}
+{{- $override := dig $xcodeVersion (dict) $overrides }}
+{{- $imageTag := dig "imageTag" (printf "%s-%s" $profile $imageSemver) $override }}
 {{- if not $imageRepo }}
   {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" }}
 {{- end }}
-{{- if and (not $xcode.imageTag) (not $imageSemver) }}
-  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and entry %s has no imageTag override" $xcodeVersion) }}
+{{- if and (not (dig "imageTag" "" $override)) (not $imageSemver) }}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and override %s has no imageTag" $xcodeVersion) }}
 {{- end }}
 {{- $image := printf "%s:%s" $imageRepo $imageTag }}
-{{- $replicas := $xcode.replicas | default 0 }}
-{{- $podCPU := dig "pod" "cpuMilli" 8000 $xcode }}
-{{- $podMem := dig "pod" "memoryMB" 14336 $xcode }}
-{{- $runnerLabels := $xcode.runnerLabels | default $defaultRunnerLabels }}
-{{- $autoscaling := $xcode.autoscaling }}
+{{- $replicas := dig "replicas" 0 $override }}
+{{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $override }}
+{{- $podMem := dig "pod" "memoryMB" $defaultMem $override }}
+{{- $runnerLabels := dig "runnerLabels" $defaultRunnerLabels $override }}
+{{- $autoscaling := $override.autoscaling }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $xcodeTag }}
 ---
 apiVersion: tuist.dev/v1alpha1

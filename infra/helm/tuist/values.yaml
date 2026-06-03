@@ -773,6 +773,28 @@ runnersFleet:
     - xcodeVersion: "26.5"
       default: true
     - xcodeVersion: "26.4.1"
+  # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
+  # catalog stays in `xcodeVersions` above so it's shared via the
+  # common values file; each managed env layers its overrides here
+  # without re-pasting the catalog. Unset fields fall back to the
+  # template defaults (replicas: 0, pod sizing from the catalog's
+  # `default: true` shape, no autoscaling).
+  xcodeOverrides: {}
+    # "26.5":
+    #   replicas: 1                    # spec.replicas — number of warm Pods.
+    #   pod:                           # Optional. Defaults to the catalog's default shape.
+    #     cpuMilli: 6000
+    #     memoryMB: 14336
+    #   autoscaling:                   # Optional. Omit for a static-replicas pool.
+    #     enabled: true
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 0
+    #     scaleDownCooldownSeconds: 300
+    #   runnerLabels:                  # Optional. Defaults to ["self-hosted", "macOS", "ARM64"].
+    #     - self-hosted
+    #     - macOS
+    #     - ARM64
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageSemver`.
   # Per-pool runner image template. `runner-pool.yaml` constructs each
   # macOS pool's `spec.image` as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,

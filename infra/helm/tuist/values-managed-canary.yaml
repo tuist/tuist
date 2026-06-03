@@ -179,22 +179,16 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  # macOS Profile catalog (M2-L + Xcode versions). Server-side only
-  # for now — the canary chart still renders the single `name: default`
-  # pool below; per-Xcode pool rendering lands once staging proves it
-  # out. Keep `xcodeVersions` aligned with the matrix in `release.yml`.
-  shapes:
-    - vcpus: 6
-      memoryGb: 14
-      default: true
-  xcodeVersions:
-    - xcodeVersion: "26.5"
-      default: true
-      # 1 warm runner per host on the default Xcode; sum across
-      # active xcodeVersions must stay ≤ `hostCount`. Other profiles
-      # cold-start on their first job.
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. `replicas` on each override is the warm floor for that
+  # Xcode pool — the sum across all overrides must stay ≤ `hostCount`.
+  xcodeOverrides:
+    "26.5":
       replicas: 1
-    - xcodeVersion: "26.4.1"
+    "26.4.1":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
