@@ -581,7 +581,7 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
-    func test_setupFrameworkSearchPath_consolidatesIntoResponseFile_whenManyPrecompiledPaths() throws {
+    func test_setupFrameworkSearchPath_setsConsolidatedSettings_whenManyPrecompiledPaths() throws {
         // Given
         var dependencies: [GraphDependencyReference] = []
         for i in 0 ..< 25 {
@@ -605,7 +605,7 @@ final class LinkGeneratorTests: XCTestCase {
             .willReturn(Set(dependencies))
 
         // When
-        let sideEffects = try subject.setupFrameworkSearchPath(
+        try subject.setupFrameworkSearchPath(
             target: target,
             pbxTarget: xcodeprojElements.pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -614,23 +614,8 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-
-        // Should produce a response file side effect
-        XCTAssertEqual(sideEffects.count, 1)
-        guard case let .file(fileDescriptor) = sideEffects.first else {
-            XCTFail("Expected file side effect")
-            return
-        }
-        XCTAssertTrue(fileDescriptor.path.pathString.hasSuffix("Derived/FrameworkSearchPaths/MyTarget.resp"))
-
-        // Response file should contain -F flags with absolute paths
-        let responseContent = String(data: fileDescriptor.contents!, encoding: .utf8)!
-        for i in 0 ..< 25 {
-            XCTAssertTrue(
-                responseContent.contains("-F/path/cache/hash\(i)"),
-                "Response file should contain -F flag for hash\(i)"
-            )
-        }
+        // The response file itself is written by FrameworkSearchPathConsolidationGraphMapper;
+        // LinkGenerator only injects the build settings that reference it.
 
         // FRAMEWORK_SEARCH_PATHS should only contain SDK paths (no precompiled)
         let config = xcodeprojElements.config

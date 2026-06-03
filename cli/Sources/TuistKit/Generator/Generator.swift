@@ -78,15 +78,11 @@ public class Generator: Generating {
         )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
-        // Mapper side effects
-        // These run before writing the workspace because they include cleaning the projects'
-        // Derived/ directories of stale content. The writer emits project side effects (e.g. the
-        // framework-search-path .resp files) into Derived/, so running the cleanup afterwards
-        // would delete freshly written output and leave the build referencing missing files.
-        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
-
         // Write
         try await writer.write(workspace: workspaceDescriptor)
+
+        // Mapper side effects
+        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
         try await postGenerationActions(
