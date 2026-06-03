@@ -23,7 +23,7 @@ permissions:
 jobs:
   sweep:
     name: Sweep expired previews
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     environment:
       name: server-k8s-preview
     timeout-minutes: 15

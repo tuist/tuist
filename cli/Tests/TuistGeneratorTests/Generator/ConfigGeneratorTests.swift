@@ -101,6 +101,67 @@ struct ConfigGeneratorTests {
         assert(config: customReleaseConfig, contains: releaseSettings)
     }
 
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_whenAggregateTarget_clearsVersioningSystem() async throws {
+        // Given
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(
+            name: "SharedKMP",
+            settings: nil,
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(
+                    path: dir.appending(component: "SharedKMP.xcframework"),
+                    linking: .dynamic
+                )
+            )
+        )
+        let aggregateTarget = PBXAggregateTarget(
+            name: "SharedKMP",
+            buildConfigurationList: nil,
+            buildPhases: [],
+            buildRules: [],
+            dependencies: [],
+            productName: nil
+        )
+        pbxproj.add(object: aggregateTarget)
+        let projectSettings = Settings.test(
+            configurations: [
+                .debug: Configuration(settings: ["VERSIONING_SYSTEM": "apple-generic"]),
+                .release: Configuration(settings: ["VERSIONING_SYSTEM": "apple-generic"]),
+            ]
+        )
+        let project = Project.test(
+            path: dir,
+            sourceRootPath: dir,
+            xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
+            settings: projectSettings,
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: aggregateTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: dir
+        )
+
+        // Then
+        let debugConfig = aggregateTarget.buildConfigurationList?.configuration(name: "Debug")
+        #expect(debugConfig?.buildSettings["VERSIONING_SYSTEM"]?.stringValue == "")
+        #expect(debugConfig?.buildSettings["PRODUCT_NAME"] == nil)
+        #expect(debugConfig?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] == nil)
+        #expect(debugConfig?.buildSettings["SDKROOT"] == nil)
+    }
+
     @Test(
         .withMockedXcodeController,
         .inTemporaryDirectory

@@ -100,6 +100,12 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: production
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true
@@ -116,7 +122,13 @@ postgresql:
   cnpg:
     instances: 3
     storage:
-      size: "100Gi"
+      # Sized for the Supabase → CNPG initial COPY: per-table sync workers
+      # each pin WAL until their COPY commits, so peak disk during the
+      # one-time migration is data + indexes + accumulated WAL — for
+      # cache_events (6 secondary indexes, 6-10× WAL amplification per
+      # insert) that runs ~5× the source data size. Steady-state usage
+      # after the COPY commits and slots release is ~30-40 GiB.
+      size: "250Gi"
     # Requests sized to fit three instances under hard pod anti-affinity
     # alongside the rest of the pool tenants; limits left generous so
     # Postgres runtime peaks aren't capped by the scheduling budget.
@@ -328,6 +340,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
 # Each AX162-R (48c/96t EPYC Genoa, 256 GB ECC, 2x1.92 TB NVMe DC
@@ -352,7 +368,7 @@ runnersFleetLinux:
   # default shape keeps the warm floor the legacy pool used to carry,
   # since it absorbs both `tuist-default` traffic and the `linux`
   # default-profile (`tuist-linux`) jobs that route through it.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:1970d76d557e03495fa7a3e82f1358e9ecc44f03dd8e236c0346f6430a1aa581"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true
