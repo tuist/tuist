@@ -61,7 +61,7 @@ jobs:
 
   test-fork:
     name: Test Fork
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 15
     permissions:
       contents: read
@@ -107,7 +107,7 @@ jobs:
 
   build-fork:
     name: Build Fork
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 15
     permissions:
       contents: read
