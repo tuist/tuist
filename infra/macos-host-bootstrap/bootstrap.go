@@ -177,11 +177,13 @@ type Config struct {
 	// vm-image-builder fleet; pure Node hosts leave this nil.
 	//
 	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
-	// picks up image-bake workflow jobs from GitHub. It coexists
-	// peacefully with tart-kubelet on the same host because no Pods
-	// are ever scheduled to builder Nodes (the per-fleet
-	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
-	// the builder fleet name).
+	// picks up image-bake workflow jobs from GitHub. No Pods are ever
+	// scheduled to builder Nodes (the per-fleet `tuist.dev/fleet`
+	// NodeLabel scopes Pod selection away from the builder fleet
+	// name). That same property means tart-kubelet's orphan-VM GC
+	// would treat the host-baked build VM as collectable and reap it
+	// mid-`tart push`, so renderLaunchdPlist passes `--disable-vm-gc`
+	// when this is set.
 	//
 	// The reconciler is responsible for resolving the registration
 	// token from a Secret before populating
@@ -539,6 +541,17 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.ProviderID != "" {
 		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
 	}
+	// Builder-fleet hosts (GHActionsRunner set) never have Pods
+	// scheduled but bake images with a host-level Packer/`tart`
+	// process. tart-kubelet's orphan-VM GC treats every local VM not
+	// backed by a Pod as collectable, so it would reap the in-flight
+	// build VM mid-`tart push` (the push then fails at the NVRAM layer
+	// with `nvram.bin doesn't exist`). Disable the GC there; the
+	// image-bake workflow reclaims its own Tart disk.
+	disableVMGCArg := ""
+	if cfg.GHActionsRunner != nil {
+		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -561,7 +574,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -575,7 +588,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
 }
 
 func shellQuote(s string) string {
