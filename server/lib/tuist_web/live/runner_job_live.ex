@@ -307,10 +307,18 @@ defmodule TuistWeb.RunnerJobLive do
   def streaming?(_), do: false
 
   @doc """
-  Time-of-day label for a captured log line, matching the terminal
-  styling of the Logs view.
+  Per-line timestamp label. Mirrors GitHub's "Tue, 02 Jun 2026
+  20:26:29 GMT" formatting so a copied log line carries enough
+  context (day-of-week, full date, UTC marker) to be useful when
+  pasted into an incident channel — `12:00:42` on its own loses
+  the day, which is the most common ambiguity in CI postmortems.
   """
-  def log_ts(%DateTime{} = ts), do: Calendar.strftime(ts, "%H:%M:%S")
+  def log_ts(%DateTime{} = ts) do
+    ts
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> Calendar.strftime("%a, %d %b %Y %H:%M:%S GMT")
+  end
+
   def log_ts(_), do: ""
 
   # Renders a list of grouped log nodes (`{:line, line}` /
