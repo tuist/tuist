@@ -654,8 +654,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 packageDirectory: path,
                 moduleName: moduleName,
                 publicHeadersPath: target.publicHeadersPath(packageFolder: path),
-                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory,
-                generateModuleMapForSwiftOnlyTargets: product == .framework
+                swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
             )
         default:
             moduleMap = nil
@@ -1340,7 +1339,7 @@ extension ProjectDescription.Headers {
                     ]
                 )
             )
-        case .none, .swiftOnly, .header, .custom:
+        case .none, .header, .custom:
             return nil
         }
     }
@@ -1366,13 +1365,7 @@ extension ProjectDescription.Settings {
 
         var dependencyHeaderSearchPaths: [String] = []
         if let moduleMap {
-            let needsHeaderSearchPath = switch moduleMap {
-            case .directory, .header, .custom:
-                true
-            case .none, .swiftOnly:
-                false
-            }
-            if needsHeaderSearchPath, target.type != .system {
+            if moduleMap != .none, target.type != .system {
                 let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
                 let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
                 dependencyHeaderSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
@@ -1443,7 +1436,7 @@ extension ProjectDescription.Settings {
 
         if let moduleMap {
             switch moduleMap {
-            case .directory, .header, .custom, .swiftOnly:
+            case .directory, .header, .custom:
                 settingsDictionary["DEFINES_MODULE"] = "NO"
                 switch settingsDictionary["OTHER_CFLAGS"] ?? .array(["$(inherited)"]) {
                 case let .array(values):

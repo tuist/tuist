@@ -202,6 +202,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline
 # catches regressions on a production-shape cluster before they hit
@@ -216,7 +220,7 @@ runnersFleetLinux:
   # Shape-keyed pools backing Runner Profiles. Keep in sync with
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero; the default shape keeps a warm floor since it
-  # absorbs new + aliased legacy traffic.
+  # absorbs `tuist-default` + `linux` default-profile traffic.
   shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
@@ -227,13 +231,13 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    - { vcpus: 2, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 8 }
-    - vcpus: 4
-      memoryGb: 16
+    - vcpus: 2
+      memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 2
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }

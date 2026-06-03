@@ -28,7 +28,7 @@ env:
 jobs:
   migration-safety:
     name: Migration Safety
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:

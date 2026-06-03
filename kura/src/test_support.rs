@@ -17,6 +17,7 @@ use crate::{
     runtime::{DataDirLock, RuntimeState},
     state::{AppState, ReadinessState},
     store::Store,
+    usage::Usage,
 };
 
 pub(crate) struct TestContext {
@@ -109,6 +110,8 @@ where
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
+    let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
+        .expect("failed to build test usage");
     let client = Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -124,7 +127,7 @@ where
         runtime: RuntimeState::new(),
         extension,
         analytics,
-        usage: None,
+        usage,
         geoip: None,
         client,
         notify: Notify::new(),

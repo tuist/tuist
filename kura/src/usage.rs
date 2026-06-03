@@ -191,39 +191,43 @@ impl Usage {
         closed_keys
             .into_iter()
             .filter_map(|key| {
-                buckets.get(&key).map(|bucket| {
-                    let event_id = format!(
-                        "{}:{}:{}:{}:{}:{}:{}:{}:{}",
-                        self.inner.node_id,
-                        key.window_start_unix_seconds,
-                        key.tenant_id,
-                        key.namespace_id,
-                        key.traffic_plane,
-                        key.direction,
-                        key.operation,
-                        key.protocol,
-                        key.artifact_kind
-                    );
-                    let rollup = UsageRollup {
-                        event_id,
-                        tenant_id: key.tenant_id.clone(),
-                        namespace_id: key.namespace_id.clone(),
-                        window_start_unix_seconds: key.window_start_unix_seconds,
-                        window_seconds: self.inner.config.window_secs,
-                        node_id: self.inner.node_id.clone(),
-                        region: self.inner.region.clone(),
-                        traffic_plane: key.traffic_plane.to_owned(),
-                        direction: key.direction.to_owned(),
-                        operation: key.operation.to_owned(),
-                        protocol: key.protocol.to_owned(),
-                        artifact_kind: key.artifact_kind.to_owned(),
-                        bytes: bucket.bytes,
-                        request_count: bucket.request_count,
-                    };
-                    (key, rollup)
-                })
+                buckets
+                    .get(&key)
+                    .map(|bucket| (key.clone(), self.rollup_for_bucket(&key, bucket)))
             })
             .collect()
+    }
+
+    fn rollup_for_bucket(&self, key: &UsageBucketKey, bucket: &UsageBucket) -> UsageRollup {
+        let event_id = format!(
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            self.inner.node_id,
+            key.window_start_unix_seconds,
+            key.tenant_id,
+            key.namespace_id,
+            key.traffic_plane,
+            key.direction,
+            key.operation,
+            key.protocol,
+            key.artifact_kind
+        );
+
+        UsageRollup {
+            event_id,
+            tenant_id: key.tenant_id.clone(),
+            namespace_id: key.namespace_id.clone(),
+            window_start_unix_seconds: key.window_start_unix_seconds,
+            window_seconds: self.inner.config.window_secs,
+            node_id: self.inner.node_id.clone(),
+            region: self.inner.region.clone(),
+            traffic_plane: key.traffic_plane.to_owned(),
+            direction: key.direction.to_owned(),
+            operation: key.operation.to_owned(),
+            protocol: key.protocol.to_owned(),
+            artifact_kind: key.artifact_kind.to_owned(),
+            bytes: bucket.bytes,
+            request_count: bucket.request_count,
+        }
     }
 
     fn remove_buckets(&self, keys: &[UsageBucketKey]) {
@@ -231,6 +235,16 @@ impl Usage {
         for key in keys {
             buckets.remove(key);
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn current_rollups_for_tests(&self) -> Vec<UsageRollup> {
+        let buckets = self.inner.buckets.lock().expect("usage buckets poisoned");
+
+        buckets
+            .iter()
+            .map(|(key, bucket)| self.rollup_for_bucket(key, bucket))
+            .collect()
     }
 }
 

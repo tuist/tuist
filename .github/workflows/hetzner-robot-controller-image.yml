@@ -33,7 +33,7 @@ env:
 
 jobs:
   test:
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -50,7 +50,7 @@ jobs:
   build:
     needs: test
     if: github.event_name != 'pull_request'
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default
     steps:
