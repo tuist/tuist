@@ -331,7 +331,7 @@ jobs:
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
-  #   runs-on: namespace-profile-default-with-volume
+  #   runs-on: tuist-linux
   #   timeout-minutes: 15
   #   services:
   #     postgres:

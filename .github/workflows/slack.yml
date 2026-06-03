@@ -35,7 +35,7 @@ env:
 jobs:
   format:
     name: Format
-    runs-on: namespace-profile-default
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
 
   credo:
     name: Credo
-    runs-on: namespace-profile-default
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -88,7 +88,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: namespace-profile-default
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -115,7 +115,7 @@ jobs:
 
   compile-prod:
     name: Compile (prod)
-    runs-on: namespace-profile-default
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
