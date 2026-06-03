@@ -1252,7 +1252,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
 
-      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+      assert [%{name: "linux", protected: true, vcpus: 2, memory_gb: 8}] =
                RunnerProfiles.list_for_account(organization.account)
     end
 
@@ -1711,7 +1711,7 @@ defmodule Tuist.AccountsTest do
 
       {:ok, user} = Accounts.create_user(unique_user_email(), password: valid_user_password())
 
-      assert [%{name: "linux", protected: true, vcpus: 4, memory_gb: 16}] =
+      assert [%{name: "linux", protected: true, vcpus: 2, memory_gb: 8}] =
                RunnerProfiles.list_for_account(user.account)
     end
 
