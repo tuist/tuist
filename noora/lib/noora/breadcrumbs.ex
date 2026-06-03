@@ -103,7 +103,7 @@ defmodule Noora.Breadcrumbs do
       data-on-focus-outside={@on_focus_outside}
       data-on-interact-outside={@on_interact_outside}
       data-positioning-offset-main-axis={8}
-      data-positioning-anchor="selector"
+      data-positioning-anchor="trigger"
       {@rest}
     >
       <a href={@href} data-part="link">
