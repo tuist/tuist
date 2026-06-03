@@ -351,8 +351,9 @@ defmodule TuistWeb.RunnerJobLive do
       <summary data-part="log-group-summary">
         <span data-part="log-ln">{@header.line_number}</span>
         <span data-part="log-ts">{log_ts(@header.ts)}</span>
-        <span data-part="log-group-chevron"><.chevron_right /></span>
-        <span data-part="log-group-label">{LogFormatter.group_label(@header)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron"><.chevron_right /></span>{LogFormatter.group_label(@header)}
+        </span>
       </summary>
       <div data-part="log-group-body">
         <.log_tree tree={@children} />

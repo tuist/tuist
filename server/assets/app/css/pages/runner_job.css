@@ -407,45 +407,46 @@
         color: var(--noora-surface-label-secondary);
       }
 
-      & > [data-part="log-group-chevron"] {
-        display: inline-flex;
-        align-items: center;
-        flex-shrink: 0;
-        color: var(--noora-surface-label-primary);
-        transition: transform 0.15s ease;
-
-        /* Noora's chevron renders as a 24×24 SVG by default; in
-           dense terminal text it dwarfs the surrounding glyphs.
-           Snap it down to the line's cap height. */
-        & svg {
-          width: 1em;
-          height: 1em;
-        }
-      }
-
       & > [data-part="log-group-label"] {
         flex: 1;
         min-width: 0;
+        display: inline-flex;
+        align-items: baseline;
         word-break: break-word;
-      }
 
-      &:hover > [data-part="log-group-chevron"] {
-        color: var(--noora-surface-label-primary);
+        & > [data-part="log-group-chevron"] {
+          display: inline-flex;
+          align-items: center;
+          flex-shrink: 0;
+          margin-right: var(--noora-spacing-2);
+          color: var(--noora-surface-label-primary);
+          transition: transform 0.15s ease;
+
+          /* Noora's chevron renders as a 24×24 SVG by default;
+             dwarfs the surrounding glyphs in this dense
+             terminal-text context. Snap to cap height. */
+          & svg {
+            width: 1em;
+            height: 1em;
+          }
+        }
       }
     }
 
-    &[open] > [data-part="log-group-summary"] > [data-part="log-group-chevron"] {
+    &[open] > [data-part="log-group-summary"] [data-part="log-group-chevron"] {
       transform: rotate(90deg);
     }
 
-    /* Children of an expanded group get a small left margin so
-       the body lines visually nest under the chevron — same
-       behaviour as GitHub's own log UI. We push only the line
-       content, not the gutter, by indenting the whole row: the
-       gutter shifts with it but the relative alignment between
-       gutter and message stays intact. */
-    & > [data-part="log-group-body"] {
-      padding-left: var(--noora-spacing-6);
+    /* Indent only the message text of group children, not their
+       line-number gutter. The gutter stays in the same column as
+       its parent's so the user can scan numbers vertically; the
+       message content is what visually nests under the group's
+       label. The indent is sized to land past the parent
+       summary's chevron + text, so nesting reads at a glance.
+       Mirrors GitHub Actions' own log UI. */
+    & > [data-part="log-group-body"] > [data-part="log-line"] > [data-part="log-message"],
+    & > [data-part="log-group-body"] > [data-part="log-group"] > [data-part="log-group-summary"] > [data-part="log-group-label"] {
+      padding-left: var(--noora-spacing-9);
     }
   }
 
