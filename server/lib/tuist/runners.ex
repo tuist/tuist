@@ -371,8 +371,7 @@ defmodule Tuist.Runners do
       {:error, reason} when attempts_left > 1 ->
         Logger.warning("runners: pod label stamp failed; retrying",
           pod: pod_name,
-          reason: inspect(reason),
-          attempts_left: attempts_left - 1
+          reason: inspect(reason)
         )
 
         Process.sleep(@owner_label_stamp_retry_backoff_ms)
