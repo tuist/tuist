@@ -44,7 +44,10 @@ env:
 
 jobs:
   build:
-    runs-on: tuist-linux
+    # Stays on an external runner: this job builds the linux-runner
+    # image itself, so it must not run on the fleet that image backs
+    # (a broken build would leave nothing able to rebuild it).
+    runs-on: namespace-profile-default
     steps:
       - uses: actions/checkout@v4
 
