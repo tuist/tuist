@@ -73,9 +73,19 @@ tailscale-operator:
 # templates/rbac.yaml. Each entry binds a Kubernetes group (the name
 # the API server proxy impersonates, set in the matching tailnet ACL
 # grant) to a built-in ClusterRole. Default is empty: every env opts in
-# explicitly so a new cluster never inherits standing access. Tiers:
-#   staging / canary -> edit   (write, no RBAC/Secret escalation)
-#   production        -> view   (read-only, excludes Secrets)
+# explicitly so a new cluster never inherits standing access.
+#
+# Per-env intent for the rollout. Production is default-deny for writes
+# for EVERYONE, including founders, so an agent acting on anyone's
+# behalf cannot wreck prod through the proxy. Deliberate prod writes go
+# through the 1P admin kubeconfig (break-glass; retrieval is
+# interactive in the 1P CLI so agents cannot use it silently):
+#
+#   staging / canary  tuist-admins -> cluster-admin
+#                     tuist-eng    -> edit  (no RBAC/cluster-admin
+#                                            escalation; can read Secrets)
+#   production        tuist-admins -> view  (break-glass: 1P kubeconfig)
+#                     tuist-eng    -> view  (excludes Secrets)
 accessBindings: []
 
 # Connector CR — the operator-managed `tailscaled` subnet router
