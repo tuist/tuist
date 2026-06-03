@@ -87,13 +87,12 @@ type RunnerPoolSpec struct {
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
 
 	// RuntimeClass, when set, is stamped on the runner Pod's
-	// `spec.runtimeClassName`. The chart's `kata-fc` RuntimeClass
-	// routes Pod containers through Kata Containers + Firecracker
-	// so each runner Pod becomes a microVM with its own kernel,
-	// real per-tenant isolation, and ~5 MiB snapshot overhead. Empty
-	// (the v1 default) uses the cluster default runtime (runc on
-	// containerd), which is fine for macOS pools and single-tenant
-	// bare-metal Linux pools.
+	// `spec.runtimeClassName`. The chart's `kata-qemu` RuntimeClass
+	// wraps each Pod in a microVM with its own kernel — required on
+	// Linux pools because the controller attaches a privileged
+	// docker:dind sidecar to every Linux runner Pod. The microVM
+	// keeps the sidecar's privileged surface off the bare-metal
+	// host.
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 

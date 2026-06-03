@@ -10,6 +10,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,6 +48,7 @@ func main() {
 		scalingSignalsURL   string
 		sessionsURL         string
 		watchedNS           string
+		dindImage           string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -60,6 +62,8 @@ func main() {
 		"URL prefix the pod-lifecycle reconciler POSTs Pod terminal-phase events to (`/pods/stopped` is appended). Required for billing; until configured, the server falls back to its safety clamp.")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
+	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
+		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -96,6 +100,7 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
+		DindImage:           dindImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)
@@ -106,10 +111,15 @@ func main() {
 	// shape) we skip wiring it up — autoscaling pools fail open
 	// (no scaling-driven changes), static pools work as before.
 	if scalingSignalsURL != "" {
+		signalsClient := scaling.NewClient(scalingSignalsURL)
+		// Cache just under the poll interval so the fleet-aware pass
+		// (which fetches every sibling shape's signals each reconcile)
+		// collapses an N-shape fleet's N² requests down to ~N per cycle.
+		signalsClient.CacheTTL = 4 * time.Second
 		if err := (&controllers.AutoscalerReconciler{
 			Client:        mgr.GetClient(),
 			Scheme:        mgr.GetScheme(),
-			SignalsClient: scaling.NewClient(scalingSignalsURL),
+			SignalsClient: signalsClient,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "setup Autoscaler reconciler")
 			os.Exit(1)

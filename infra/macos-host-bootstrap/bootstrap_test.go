@@ -25,6 +25,24 @@ func TestRenderLaunchdPlist_OmitsNodeLabelsWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_OmitsProviderIDWhenEmpty(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--provider-id") {
+		t.Fatalf("expected --provider-id to be absent when ProviderID is empty\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersProviderID(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:   "n1",
+		SSHUser:    "m1",
+		ProviderID: "scw-applesilicon://fr-par-1/abc-123",
+	})
+	if !strings.Contains(out, "<string>--provider-id=scw-applesilicon://fr-par-1/abc-123</string>") {
+		t.Fatalf("expected --provider-id flag in plist\n%s", out)
+	}
+}
+
 func TestRenderLaunchdPlist_RendersFleetLabel(t *testing.T) {
 	out := renderLaunchdPlist(Config{
 		NodeName:   "n1",

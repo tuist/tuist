@@ -9,14 +9,14 @@ import TuistTesting
 @testable import TuistKit
 
 struct PluginAcceptanceTests {
-    @Test(.disabled(), .withFixture("generated_tuist_plugin"))
+    @Test(.withFixture("generated_tuist_plugin"))
     func tuist_plugin() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(PluginBuildCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(PluginRunCommand.self, ["tuist-create-file", "--path", fixtureDirectory.pathString])
     }
 
-    @Test(.disabled(), .withFixture("generated_app_with_plugins"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_app_with_plugins"), .inTemporaryDirectory)
     func app_with_plugins() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)

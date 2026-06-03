@@ -140,12 +140,12 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp kura_introspection_client do
-    if Environment.kura_introspection_configured?() do
+    if Environment.kura_control_plane_configured?() do
       %Client{
-        id: Environment.kura_introspection_client_id(),
-        secret: Environment.kura_introspection_client_secret(),
-        name: "Kura introspection",
-        supported_grant_types: ["introspect"],
+        id: Environment.kura_control_plane_client_id(),
+        secret: Environment.kura_control_plane_client_secret(),
+        name: "Kura control plane",
+        supported_grant_types: ["introspect", "kura_usage"],
         confidential: true,
         token_endpoint_auth_methods: [
           "client_secret_basic",

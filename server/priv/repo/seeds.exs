@@ -22,6 +22,7 @@ alias Tuist.Projects.Project
 alias Tuist.Repo
 alias Tuist.Runners.Job
 alias Tuist.Runners.Jobs
+alias Tuist.Runners.Profile
 alias Tuist.Runners.RunnerSession
 alias Tuist.Shards.ShardPlan
 alias Tuist.Shards.ShardPlanModule
@@ -264,6 +265,15 @@ _account =
   end
 
 {:ok, user} = Accounts.get_user_by_email(email)
+
+# Re-stamp the seeded password on every run. Bcrypt hashing depends on
+# `Tuist.Environment.secret_key_password()`; if that secret has rotated
+# since the user was first created, the original hash no longer matches
+# the documented credentials and the "Log in as test user" button fails.
+# Always overwriting on seed makes the dev flow self-healing.
+user
+|> Tuist.Accounts.User.password_changeset(%{password: password, password_confirmation: password})
+|> Repo.update!()
 
 organization =
   if Accounts.get_organization_by_handle("tuist") do
@@ -3278,6 +3288,54 @@ IO.puts("  - Xcode machine metrics: #{length(xcode_machine_metrics)} data points
 IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data points")
 
 # =============================================================================
+# Runner Profiles (customer-facing vCPU/RAM bundles)
+# =============================================================================
+
+# Enable runners (cap > 0) and seed a few profiles per dev account so
+# the sidebar Profiles tab is non-empty for both the personal account
+# (where the seed login lands) and the `tuist` organization (the
+# context most demo flows switch into).
+#
+# `runner_max_concurrent` gates dispatch, not the UI — the UI uses
+# `FeatureFlags.runners_enabled?` which is always true outside prod.
+# But setting a cap here keeps the seed data internally consistent.
+runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
+
+Enum.each(runner_profile_accounts, fn account ->
+  account
+  |> Ecto.Changeset.change(runner_max_concurrent: 10)
+  |> Repo.update!()
+end)
+
+runner_profile_seeds = [
+  # `linux` is auto-bootstrapped by `Accounts.create_user` /
+  # `Accounts.create_organization`; only seed the user-created
+  # extras so the table still shows the typical "default + a few
+  # bigger shapes" mix in dev.
+  %{name: "large", vcpus: 8, memory_gb: 32},
+  %{name: "xlarge", vcpus: 16, memory_gb: 32}
+]
+
+now_seconds = DateTime.truncate(DateTime.utc_now(), :second)
+
+for account <- runner_profile_accounts, shape <- runner_profile_seeds do
+  case Repo.get_by(Profile, account_id: account.id, name: shape.name) do
+    nil ->
+      Repo.insert!(%Profile{
+        account_id: account.id,
+        name: shape.name,
+        vcpus: shape.vcpus,
+        memory_gb: shape.memory_gb,
+        inserted_at: now_seconds,
+        updated_at: now_seconds
+      })
+
+    _existing ->
+      :ok
+  end
+end
+
+# =============================================================================
 # Runner Jobs (GitHub Actions on Tuist-hosted runners)
 # =============================================================================
 
@@ -3831,6 +3889,93 @@ end)
 
 IO.puts("  - webhook endpoints: #{length(webhook_endpoints_with_events)}")
 IO.puts("  - webhook delivery attempts: #{length(webhook_attempts)}")
+
+# =============================================================================
+# Kura usage events
+# =============================================================================
+#
+# Synthetic hourly rollups across a handful of Kura nodes in multiple regions
+# so the Usage page renders a non-empty chart and per-node table in dev. We
+# spread events across the seeded projects of the `tuist` organization so the
+# project filter dropdown has more than one selectable option.
+
+kura_seed_projects = [
+  {tuist_project, organization.account.name},
+  {android_project, organization.account.name}
+]
+
+kura_seed_nodes = [
+  {"kura-us-east-1-a", "us-east-1"},
+  {"kura-us-east-1-b", "us-east-1"},
+  {"kura-eu-west-1-a", "eu-west-1"},
+  {"kura-ap-south-1-a", "ap-south-1"}
+]
+
+kura_window_seconds = 3600
+kura_hours_back = 30 * 24
+
+# Wipe any prior rollups for the seeded account so re-seeding doesn't
+# stack up against the previous run.
+IngestRepo.query!(
+  "DELETE FROM kura_usage_events WHERE account_id = {account_id:Int64}",
+  %{account_id: organization.account.id}
+)
+
+now_naive = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+# Egress (downloads) is the dominant traffic plane for a cache; ingress
+# (uploads) is much smaller. The directions also pair with distinct
+# operations so the underlying schema reflects what Kura actually emits.
+kura_directions = [
+  {"egress", "download", 1.0},
+  {"ingress", "upload", 0.15}
+]
+
+kura_events =
+  for hour_offset <- 1..kura_hours_back,
+      {project, _account_handle} <- kura_seed_projects,
+      {node_id, region} <- kura_seed_nodes,
+      {direction, operation, scale} <- kura_directions do
+    window_start =
+      now_naive
+      |> NaiveDateTime.add(-hour_offset * 3600, :second)
+      |> Map.put(:minute, 0)
+      |> Map.put(:second, 0)
+
+    # Mild diurnal pattern so the chart isn't a flat line.
+    hour_of_day = window_start.hour
+    diurnal_factor = 1.0 + 0.5 * :math.sin(hour_of_day / 24 * 2 * :math.pi())
+
+    base_bytes = Enum.random(50_000_000..250_000_000)
+    bytes = trunc(base_bytes * diurnal_factor * scale)
+    request_count = trunc(Enum.random(80..400) * scale)
+
+    %{
+      event_id: "seed-#{hour_offset}-#{project.id}-#{node_id}-#{direction}",
+      account_id: organization.account.id,
+      project_id: project.id,
+      node_id: node_id,
+      region: region,
+      traffic_plane: "public",
+      direction: direction,
+      operation: operation,
+      protocol: "http",
+      artifact_kind: "xcframework",
+      bytes: bytes,
+      request_count: request_count,
+      window_start: window_start,
+      window_seconds: kura_window_seconds,
+      inserted_at: now_naive
+    }
+  end
+
+kura_events
+|> Enum.chunk_every(2_000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Tuist.Kura.UsageEvent, chunk, timeout: 120_000)
+end)
+
+IO.puts("  - kura usage events: #{length(kura_events)}")
 
 IO.puts("")
 IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")

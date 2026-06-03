@@ -718,6 +718,12 @@ defmodule TuistWeb.Router do
     post "/runners/pods/stopped", RunnerPodsController, :stopped
   end
 
+  scope "/_internal", TuistWeb.Internal do
+    pipe_through [:non_authenticated_api]
+
+    post "/kura/usage", KuraUsageController, :create
+  end
+
   scope "/oauth2", TuistWeb.Oauth do
     pipe_through [:browser_app, :fetch_current_user]
 
@@ -789,6 +795,8 @@ defmodule TuistWeb.Router do
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/db", TuistWeb.OpsDatabaseLive
+      live "/db/tables/:schema/:name", TuistWeb.OpsDatabaseTableLive
     end
   end
 
@@ -976,11 +984,13 @@ defmodule TuistWeb.Router do
       live "/runners/workflows/:repo_owner/:repo_name/:workflow_name", RunnerWorkflowLive
       live "/runners/jobs", RunnerJobsLive
       live "/runners/runs/:workflow_run_id/jobs/:workflow_job_id", RunnerJobLive
+      live "/runners/profiles", RunnerProfilesLive
       live "/members", MembersLive
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
       live "/billing", BillingLive
+      live "/usage", UsageLive
       live "/settings", AccountSettingsLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive

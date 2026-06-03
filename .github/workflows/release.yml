@@ -705,7 +705,7 @@ jobs:
     # TODO: migrate to tuist-production-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -735,6 +735,8 @@ jobs:
           file: ./kura/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=kura-runtime
+          cache-to: type=gha,mode=max,scope=kura-runtime
           tags: |
             ghcr.io/tuist/kura:${{ needs.check-releases.outputs.kura-next-version-number }}
             ghcr.io/tuist/kura:latest
@@ -1820,26 +1822,24 @@ jobs:
       - name: Bump linux runner image digest pin in chart values
         run: |
           # The linux runner image digest pin lives in each managed
-          # env's values file under runnersFleetLinux.pools[].runnerImage.
-          # Anchor the substitution to `tuist-linux-runner` so we
-          # don't touch the macOS `tuist-runner` pin on the same line
-          # shape under `runnersFleet`. The digest comes from the
-          # build-push-action's own output — no second registry round
-          # trip via crane needed.
+          # env's values file under runnersFleetLinux.shapeRunnerImage
+          # (the shape catalog is the whole Linux fleet; the legacy
+          # `pools[].runnerImage` was retired). Anchor the substitution
+          # to `shapeRunnerImage` + `tuist-linux-runner` so we don't
+          # touch the macOS `tuist-runner` pin under `runnersFleet`. The
+          # digest comes from the build-push-action's own output — no
+          # second registry round trip via crane needed.
           DIGEST="${{ steps.build.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
             # Only rewrite if the file already has a non-empty pin to
-            # the Linux runner image. canary/production ship with
-            # `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release
-            # flow. The match accepts both pin styles the chart has
-            # used: a digest (`@sha256:...`) and a tag (`:<short-sha>`
-            # or `:<semver>`).
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
-              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
+            # the Linux runner image. The match accepts both pin styles
+            # the chart has used: a digest (`@sha256:...`) and a tag
+            # (`:<short-sha>` or `:<semver>`).
+            if grep -qE '^\s*shapeRunnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
+              sed -i -E "s|^([[:space:]]*shapeRunnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
             fi
           done
 
@@ -1957,7 +1957,11 @@ jobs:
           path: cache
 
       - name: Download Kura release metadata
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-prepare.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-prepare.result == 'success' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.release-kura-docker.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-release-metadata
@@ -2397,7 +2401,7 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
             git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock
             FILES_ADDED=true
           fi
@@ -2500,7 +2504,7 @@ jobs:
               if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist Cache ${{ needs.check-releases.outputs.cache-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Kura ${{ needs.check-releases.outputs.kura-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then

@@ -35,6 +35,8 @@ defmodule TuistWeb.API.CacheController do
 
   plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
 
+  plug :sign
+
   tags(["Cache"])
 
   operation(:endpoints,
@@ -69,10 +71,20 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    endpoints =
-      Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(conn))
+    technology = technology(conn)
 
-    json(conn, %{endpoints: endpoints})
+    endpoints =
+      params[:account_handle]
+      |> Accounts.get_cache_endpoints_for_handle(technology)
+      |> Enum.reject(&is_nil/1)
+
+    if technology == :kura and Enum.any?(endpoints, &(String.trim(&1) == "")) do
+      conn
+      |> put_status(:service_unavailable)
+      |> json(%{message: "Kura cache endpoint is unavailable."})
+    else
+      json(conn, %{endpoints: endpoints})
+    end
   end
 
   operation(:access,
@@ -727,6 +739,18 @@ defmodule TuistWeb.API.CacheController do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
       "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
+    end
+  end
+
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(conn, _opts), do: conn
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
+    else
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

@@ -14,6 +14,8 @@
 package podtemplate
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,9 +32,25 @@ import (
 // Cloud LB hairpin when they try to reach the public ingress IP
 // from inside the cluster, so they must use the in-cluster
 // Service URL instead.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL string) *corev1.Pod {
+//
+// `dindImage` is the OCI ref of the dockerd sidecar baked into
+// every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
+// the sidecar, which is fine for macOS-only installs.
+//
+// Returns an error (fails closed) when a Linux pool would get the
+// privileged dind sidecar without `spec.runtimeClass == kata-qemu`.
+// The sidecar runs `privileged: true`; that's only safe because the
+// kata-qemu microVM is the isolation boundary. Without the runtime
+// class the Pod falls back to runc on the host kernel and the
+// privileged container escapes onto the bare-metal host — so refuse
+// to build it rather than ship an unbounded privileged container.
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
+
+	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
+		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
+	}
 
 	nodeSelector, tolerations := schedulingFor(pool)
 
@@ -77,10 +95,141 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		}}
 	}
 
+	env := []corev1.EnvVar{
+		{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
+		{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
+		{
+			Name: "TUIST_RUNNER_POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
+			},
+		},
+		{
+			// dispatch-poll.sh keys claim de-dup on (pool, pod_uid)
+			// so a recreated-same-name Pod gets a fresh slot. With
+			// set -u, the script bails before its first poll if this
+			// env is missing.
+			Name: "TUIST_RUNNER_POD_UID",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
+			},
+		},
+	}
+
+	// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
+	// initContainer with restartPolicy=Always). The runner stays
+	// unprivileged; only the sidecar is privileged, bounded by the
+	// Pod's kata-qemu microVM. The startupProbe blocks the runner
+	// from starting until `docker info` succeeds, replacing what
+	// would otherwise be a polling loop in dispatch-poll.sh.
+	var initContainers []corev1.Container
+	if linuxPod && dindImage != "" {
+		extraVolumes = append(extraVolumes,
+			corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			// Node-disk emptyDir holding a sparse disk.img file.
+			// The dind sidecar loop-mounts that file as an ext4
+			// filesystem onto /var/lib/docker so dockerd's
+			// overlay2 driver sees a kernel-native fs (real
+			// trusted.* xattr support) rather than virtio-fs.
+			// Per upstream kata docs (how-to-run-docker-with-
+			// kata.md), virtio-fs can't be an overlayfs upper
+			// layer — overlay's trusted.overlay.* xattrs trip
+			// the host kernel's CAP_SYS_ADMIN gate that
+			// virtiofsd can't bypass. tmpfs medium:Memory or a
+			// loop-mounted disk image are the only two
+			// recommended workarounds; we pick loop-mounted
+			// because the disk.img is sparse on virtio-fs and
+			// only consumes node-disk bytes as written (no pod-
+			// memory tax of tmpfs medium:Memory). Volume name
+			// kept as `dind-storage` for consistency with the
+			// earlier shape; mount path moved off /var/lib/docker
+			// so the dind entrypoint can loop-mount over it.
+			corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
+		extraVolumeMounts = append(extraVolumeMounts,
+			corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
+			corev1.VolumeMount{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		)
+		env = append(env, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
+		initContainers = []corev1.Container{{
+			Name:  "dind",
+			Image: dindImage,
+			// Entrypoint stages, in order:
+			//   1. lift nofile rlimit (kata kernel default
+			//      1024 starves dockerd + buildkit on heavy
+			//      node_modules trees)
+			//   2. install e2fsprogs (Alpine docker:*-dind
+			//      ships without mkfs.ext4)
+			//   3. truncate a sparse 100 GiB disk.img on the
+			//      virtio-fs-backed dind-storage volume —
+			//      sparse, only consumes node-disk bytes as
+			//      written, so this is a ceiling, not an
+			//      allocation. Large enough to fit the full
+			//      server-build working set (base image, mix
+			//      deps, npm tree, swift toolchain, buildkit
+			//      caches) with room to spare.
+			//   4. mkfs.ext4 + loop-mount it onto /var/lib/
+			//      docker — dockerd now sees real ext4 with
+			//      trusted.* xattrs and overlay2 initializes
+			//      normally (no vfs fallback, no buildkit
+			//      runc-native).
+			//   5. exec dockerd with --default-ulimit nofile=
+			//      so containers it spawns (incl. buildx's
+			//      docker-container buildkit container)
+			//      inherit the high cap.
+			// --group pins the docker.sock GID so the runner
+			// user (member of `docker` group, GID 123) can
+			// reach it.
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"set -e && " +
+					"ulimit -n 1048576 && " +
+					"apk add --no-cache e2fsprogs >/dev/null && " +
+					"mkdir -p /mnt/dind-disk && " +
+					"truncate -s 100G /mnt/dind-disk/disk.img && " +
+					"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
+					"mkdir -p /var/lib/docker && " +
+					"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+					"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
+					"--default-ulimit nofile=1048576:1048576",
+			},
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: ptr(true),
+			},
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			StartupProbe: &corev1.Probe{
+				ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: []string{"docker", "info"}}},
+				PeriodSeconds: 2,
+				// Was 30. apk add + truncate + mkfs.ext4 +
+				// loop mount add ~8 s of pre-dockerd setup;
+				// bump the probe ceiling so a slow apt mirror
+				// doesn't trip the restart.
+				FailureThreshold: 60,
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "dind-sock", MountPath: "/var/run"},
+				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+				{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
+			},
+		}}
+	}
+
+	// No kata virtiofsd annotation — earlier attempts (`--xattr`
+	// alone, then `--xattrmap=:map::user.virtiofs.::`) didn't fix
+	// the EMFILE class because virtio-fs can't be an overlayfs
+	// upper layer regardless of virtiofsd config (host kernel
+	// gates trusted.* writes on CAP_SYS_ADMIN of virtiofsd's
+	// effective uid). The loop-mounted ext4 above sidesteps the
+	// problem entirely by giving dockerd a real kernel-native
+	// filesystem.
+	annotations := map[string]string{}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: pool.Namespace,
+			Name:        podName,
+			Namespace:   pool.Namespace,
+			Annotations: annotations,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":      "tuist-runner",
 				"app.kubernetes.io/component": "runner",
@@ -101,6 +250,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			NodeSelector:                 nodeSelector,
 			Tolerations:                  tolerations,
 			Volumes:                      extraVolumes,
+			InitContainers:               initContainers,
 			// RuntimeClassName, when set, routes the Pod through a
 			// non-default container runtime. Linux bare-metal pools
 			// use `kata-fc` (Kata Containers + Firecracker) so each
@@ -124,38 +274,21 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 							corev1.ResourceCPU:    *cpu,
 							corev1.ResourceMemory: *mem,
 						},
+						// kata sizes the microVM from container limits
+						// (default 2 GiB without). Setting limit ==
+						// request gives the VM the budget the chart
+						// asks for.
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    *cpu,
+							corev1.ResourceMemory: *mem,
+						},
 					},
 					VolumeMounts: extraVolumeMounts,
-					Env: []corev1.EnvVar{
-						{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
-						{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
-						{
-							Name: "TUIST_RUNNER_POD_NAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
-							},
-						},
-						{
-							// dispatch-poll.sh inside the runner VM
-							// keys cap-check + claim de-dup on the
-							// (pool, pod_uid) tuple so a Pod that's
-							// recreated under the same name gets a
-							// fresh claim slot. Without this the
-							// in-VM script bails before its first
-							// poll with `TUIST_RUNNER_POD_UID not
-							// set` (set -u), the dispatch endpoint
-							// never sees a runner check in, and the
-							// queued workflow_job stays unclaimed.
-							Name: "TUIST_RUNNER_POD_UID",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
-							},
-						},
-					},
+					Env:          env,
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // BuildServiceAccount returns the per-Pod ServiceAccount manifest.

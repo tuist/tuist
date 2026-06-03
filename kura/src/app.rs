@@ -28,6 +28,7 @@ use crate::{
     state::{AppState, ReadinessState},
     store::Store,
     telemetry::{init_tracing, log_context_span},
+    usage::Usage,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -92,6 +93,8 @@ async fn run_with_config(
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .map_err(|error| format!("failed to initialize analytics: {error}"))?;
+    let usage = Usage::from_config(config.usage.as_ref(), &config.node_url, metrics.clone())
+        .map_err(|error| format!("failed to initialize usage metering: {error}"))?;
     let io = IoController::new(
         metrics.clone(),
         config.file_descriptor_pool_size,
@@ -118,6 +121,7 @@ async fn run_with_config(
         runtime: RuntimeState::new(),
         extension,
         analytics,
+        usage,
         geoip,
         client,
         notify,
@@ -129,6 +133,7 @@ async fn run_with_config(
 
     spawn_membership_task(state.clone());
     spawn_outbox_task(state.clone());
+    Usage::spawn_tasks(state.clone());
     spawn_snapshot_task(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());

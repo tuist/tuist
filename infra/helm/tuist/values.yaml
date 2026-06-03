@@ -8,18 +8,6 @@ global:
   nodeSelector: {}
   tolerations: []
 
-# When false, the regional Kura controller stops reconciling the
-# Cloudflare-fronted global endpoint layer for Kura instances. Regional
-# HTTPS and gRPC traffic still uses the per-region Hetzner
-# LoadBalancer Services managed by the controller.
-kuraGlobalEndpointsEnabled: true
-
-# When false, the server and Kura controller keep reconciling workload
-# readiness even if the Cloudflare-fronted global Kura endpoints are not
-# available yet. This only relaxes readiness; it does not disable the
-# global endpoint wiring by itself.
-kuraGlobalEndpointsRequired: true
-
 kuraController:
   enabled: false
   namespace: kura
@@ -43,23 +31,6 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
-  # Reconciles DNS-only Cloudflare load balancers that steer the global
-  # Kura hostnames to healthy regional origins without proxying traffic.
-  cloudflareLoadBalancing:
-    enabled: false
-    zoneName: ""
-    accountID: ""
-    zoneID: ""
-    apiTokenSecret:
-      name: cloudflare-api-token
-      key: api-token
-      managed: false
-      refreshInterval: "1h"
-      storeRef:
-        kind: ClusterSecretStore
-        name: onepassword
-      item: cloudflare-tuist-dns
-      field: credential
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override
@@ -502,6 +473,25 @@ xcresultProcessor:
 # alongside `macosFleet.enabled`.
 capi:
   enabled: true
+  # Workload kubeconfig CAPI core's cluster cache uses to reach this
+  # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
+  # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
+  # Off by default — self-hosters without the 1Password item leave it
+  # off; the in-cluster CAPI then can't bind Machines, but the fleet
+  # still works at the Kubernetes level (tart-kubelet registers the
+  # nodes directly). Managed envs enable it.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: false
+      refreshInterval: "1h"
+      # 1Password item holding the assembled kubeconfig (server =
+      # in-cluster API, cluster CA, the capi-remote SA token). Populated
+      # once per cluster — see infra/k8s/onboarding.md.
+      item: "capi-workload-kubeconfig"
+      field: "kubeconfig"
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
 
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
@@ -838,7 +828,10 @@ runnersFleetLinux:
   namespace: ""
   # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
   # One entry per image variant. Required when
-  # `runnersFleetLinux.enabled` is true.
+  # `runnersFleetLinux.enabled` is true and `shapes` is empty.
+  # Operator-defined pools sit alongside shape-keyed pools (below)
+  # for image variants that don't fit the shape catalog (e.g.,
+  # bespoke ops or builder workloads).
   pools: []
     # Example entry:
     # - name: ubuntu-22-04
@@ -852,11 +845,47 @@ runnersFleetLinux:
     #   pod:
     #     cpuMilli: 4000
     #     memoryMB: 16384
+    #   # Required on Linux pools. The controller injects a
+    #   # docker:dind native sidecar that runs `privileged: true`;
+    #   # the kata-qemu microVM is the safety boundary that keeps
+    #   # the privileged sidecar off the bare-metal host kernel.
+    #   runtimeClass: kata-qemu
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3
     #     maxReplicas: 30
     #     scaleDownCooldownSeconds: 300
+
+  # Shape-keyed pools backing the Runner Profiles feature. Each entry
+  # renders one RunnerPool CR with a deterministic name and an
+  # internal dispatch label (`shape-linux-<vcpus>vcpu-<gb>gb`).
+  # Customers never reference these labels directly; they create
+  # account-scoped Profiles in the Tuist UI, and the server resolves
+  # `(account, requested-label)` through the profile to a shape pool.
+  #
+  # All shapes share `shapeRunnerImage` + `shapeRuntimeClass`. Each
+  # shape can override autoscaling via its own `autoscaling:` block;
+  # otherwise `shapeAutoscaling` defaults apply.
+  shapeRunnerImage: ""
+  shapeRuntimeClass: "kata-qemu"
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 1
+    maxReplicas: 0
+    scaleDownCooldownSeconds: 300
+  shapes: []
+    # Example catalog:
+    # - { vcpus: 1, memoryGb: 2 }
+    # - { vcpus: 2, memoryGb: 4 }
+    # - { vcpus: 2, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 16, default: true }
+    # - { vcpus: 8, memoryGb: 16 }
+    # - { vcpus: 8, memoryGb: 32 }
+    # - { vcpus: 16, memoryGb: 32 }
+    # Exactly one entry should carry `default: true`. The server's
+    # profile backfill seeds new accounts with a `default` profile
+    # whose vcpus/memoryGb match the entry tagged default.
 
 # Bare-metal vm-image-builder fleet — sibling of macosFleet and
 # runnersFleet, provisioned by the same CAPI operator from the same
@@ -982,6 +1011,25 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     tag: ""
     pullPolicy: IfNotPresent
+  # OCI ref of the dockerd sidecar stamped on every Linux runner
+  # Pod (`docker:dind` upstream image). Required for any
+  # `runnersFleetLinux` pool; empty disables the sidecar so Pods
+  # come up with no `DOCKER_HOST`. Renovate keeps this pinned.
+  # Digest-pinned: the controller stamps this into a privileged
+  # container, so the exact image must not move outside review.
+  # renovate: datasource=docker depName=docker versioning=docker
+  dindImage: "docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # Feature gates the controller manager binary's `--dind-image`
+  # flag. The flag was added by the docker-in-runner change; older
+  # controller binaries (<= the release before that change) don't
+  # register the flag and `flag.Parse` exits with code 2 if it's
+  # passed. Each env overlay flips this to `true` only once its
+  # `runnersController.image.tag` points at a binary that recognises
+  # the flag, so a chart upgrade in an env still on the old binary
+  # stays a no-op for runner pools instead of crashing the
+  # controller.
+  features:
+    dindImage: false
   resources:
     requests:
       cpu: 50m
@@ -1066,6 +1114,12 @@ cache:
     registryBucket: tuist-registry
 
 postgresql:
+  # `embedded` runs a single-replica Postgres StatefulSet (templates/postgresql.yaml).
+  # `external` points DATABASE_URL at a managed Postgres (Supabase, RDS, etc.).
+  # `cnpg` provisions a CloudNativePG-managed in-cluster Postgres cluster
+  # (templates/postgresql-cnpg.yaml) — used by managed envs after the
+  # Supabase→CNPG migration. Requires the cloudnative-pg operator to
+  # be installed cluster-wide first.
   mode: embedded
   external:
     host: ""
@@ -1088,6 +1142,102 @@ postgresql:
         - ReadWriteOnce
       size: 20Gi
     resources: {}
+  # CloudNativePG settings. Two toggles to support the Supabase→CNPG
+  # migration as a phased rollout:
+  #
+  #   * `cnpg.enabled` — when true, the chart renders the Cluster +
+  #     ScheduledBackup + ESO secrets. The cloudnative-pg operator
+  #     provisions the cluster; server pods stay on whatever
+  #     `postgresql.mode` points at. Use this during the soak window
+  #     to bring CNPG up in parallel with Supabase.
+  #
+  #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
+  #     processor, and migration-job pods all read DATABASE_URL from
+  #     the cluster's `<name>-app` Secret (CNPG-generated). Implies
+  #     `cnpg.enabled = true`.
+  cnpg:
+    enabled: false
+    # Image tag tracks the CNPG operator's compatibility table. Bump
+    # together with the operator chart version installed on the platform.
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "16.6"
+    # Number of cluster members. The primary plus (instances - 1)
+    # replicas. We run sync replication (1 sync + N-2 async); see the
+    # `synchronous` block in templates/postgresql-cnpg.yaml.
+    instances: 2
+    # Owner role created by `bootstrap.initdb` and the user the
+    # application connects as. Owns every object created by Ecto
+    # migrations.
+    owner: tuist_app
+    # Initial database created on bootstrap.
+    database: tuist
+    storage:
+      # Bumped per env. 100Gi at staging, 250Gi at canary + production.
+      size: "20Gi"
+      # The Hetzner CSI default (`hcloud-volumes`) is fine for staging
+      # and canary; production may want a topology-aware class if we
+      # ever add multi-AZ awareness.
+      storageClass: ""
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+    # PodMonitor stays off: managed clusters scrape via Alloy with
+    # annotation autodiscovery, not the prometheus-operator
+    # `monitoring.coreos.com/v1` CRD set. Re-enable once we either
+    # install prometheus-operator CRDs or the CNPG operator grows
+    # annotation-emit support on the instance Pods (it doesn't today).
+    monitoring:
+      enablePodMonitor: false
+    roles:
+      # Least-privilege Oban-queue consumer. CNPG creates the role;
+      # per-table GRANTs run via the bootstrap SQL in
+      # infra/cnpg/tuist-processor-grants.sql (see README in that dir).
+      processor:
+        name: tuist_processor
+      # Read-only role for the /ops/db inspection UI. Granted
+      # `pg_read_all_data` declaratively via `inRoles` so it can SELECT
+      # against every table without per-object GRANTs to maintain.
+      opsRo:
+        name: tuist_ops_ro
+    backup:
+      # Daily base backup at 03:00 UTC; the continuous WAL archive keeps
+      # PITR alive between snapshots. CNPG's ScheduledBackup cron is
+      # 6-field (leading seconds), unlike the 5-field Kubernetes CronJob
+      # format — `0 3 * * *` there parses as "second 0, minute 3, every
+      # hour" and fires hourly. `0 0 3 * * *` is the correct daily-03:00.
+      schedule: "0 0 3 * * *"
+      # Barman retention. Older base backups (and the WALs they pin)
+      # are pruned automatically once outside this window.
+      retention: "30d"
+      # Tigris bucket the backups live in. Per-env overlay sets the
+      # bucket name in the path; the endpoint is shared.
+      destinationPath: ""
+      endpointURL: "https://t3.storage.dev"
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Tigris access credentials scoped to the backup bucket. Separate
+      # 1P item from the workload's `S3_CREDENTIALS` so the backup key
+      # can be rotated independently and granted bucket-scoped
+      # permissions only.
+      backupCredentials:
+        item: S3_BACKUP_CREDENTIALS
+        accessKeyField: access_key_id
+        secretKeyField: secret_access_key
+      # Passwords for the managed roles. Per-env 1Password vault.
+      processorPassword:
+        item: PROCESSOR_DATABASE_PASSWORD
+        field: password
+      opsRoPassword:
+        item: OPS_DATABASE_PASSWORD
+        field: password
 
 clickhouse:
   mode: embedded

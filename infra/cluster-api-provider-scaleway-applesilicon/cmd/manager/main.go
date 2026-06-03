@@ -77,6 +77,8 @@ func main() {
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
 		tartKubeletMaxUpdateAttempts int
+		bootstrapRebootAfter         int
+		bootstrapMaxAttempts         int
 
 		machineMaxConcurrentReconciles int
 
@@ -152,6 +154,14 @@ func main() {
 	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
 		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
 			"Set to 0 to disable the cap (not recommended for production).")
+	flag.IntVar(&bootstrapRebootAfter, "bootstrap-reboot-after", 3,
+		"Consecutive BootstrapFailed count at which the controller asks Scaleway to "+
+			"reboot the host once to clear volatile state (PAM lockouts, sshd throttling). "+
+			"Fires once per host. Set to 0 to disable the reboot step.")
+	flag.IntVar(&bootstrapMaxAttempts, "bootstrap-max-attempts", 8,
+		"Consecutive BootstrapFailed count at which the controller returns the host to "+
+			"the adopt pool (triggering ReinstallServer) and claims a different mini on the "+
+			"next reconcile. Set to 0 to disable pool release (host is retried forever).")
 	flag.IntVar(&machineMaxConcurrentReconciles, "machine-max-concurrent-reconciles", 4,
 		"How many ScalewayAppleSiliconMachine reconciles run in parallel. The "+
 			"default of 1 (controller-runtime's default) serializes the whole "+
@@ -353,6 +363,8 @@ func main() {
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
+		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),
 		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
 		EgressNamespace:              egressNamespace,
 		EgressProxyGroup:             egressProxyGroup,

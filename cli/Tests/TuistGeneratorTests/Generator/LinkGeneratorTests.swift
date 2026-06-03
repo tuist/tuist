@@ -648,9 +648,20 @@ final class LinkGeneratorTests: XCTestCase {
         let otherCFlags = config.buildSettings["OTHER_CFLAGS"]?.arrayValue ?? []
         XCTAssertTrue(otherCFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
 
-        // OTHER_SWIFT_FLAGS should reference the response file
+        // OTHER_SWIFT_FLAGS should pass the precompiled framework search paths inline as
+        // native -F flags, never through the response file. Routing them via @file is
+        // broken under Xcode 26 (the ClangImporter or the integrated SwiftDriver mishandle
+        // the token), and Swift has no ARG_MAX problem that would require it.
         let otherSwiftFlags = config.buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue ?? []
-        XCTAssertTrue(otherSwiftFlags.contains { $0.contains("@$(SRCROOT)/Derived/FrameworkSearchPaths/MyTarget.resp") })
+        XCTAssertFalse(otherSwiftFlags.contains { $0.contains(".resp") })
+        XCTAssertFalse(otherSwiftFlags.contains("-Xcc"))
+        XCTAssertTrue(otherSwiftFlags.contains("-F"))
+        for i in 0 ..< 25 {
+            XCTAssertTrue(
+                otherSwiftFlags.contains("$(SRCROOT)/cache/hash\(i)"),
+                "OTHER_SWIFT_FLAGS should contain inline framework search path for hash\(i)"
+            )
+        }
 
         // OTHER_LDFLAGS should reference the response file
         let otherLDFlags = config.buildSettings["OTHER_LDFLAGS"]?.arrayValue ?? []

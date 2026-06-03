@@ -435,6 +435,9 @@ exists, request its creation alongside the changeset.
 - Module / function naming, pipe-chain start, function ordering,
   parentheses-on-no-arg-calls → `mix format` + `credo` (`PipeChainStart`,
   `StrictModuleLayout`, `Nesting`, `UnsafeToAtom`, `ModuleDoc`).
+- Inline `import` / `alias` / `require` inside a `def`/`defp`/`test`/
+  `setup`/`describe` body → covered by the custom credo check
+  `Credo.Checks.DisallowDirectivesInFunction`.
 - Missing `@spec` / `@type` — this codebase intentionally avoids
   typespecs. Never suggest adding them.
 - Missing `@doc` / `@moduledoc` on internal helper modules.

@@ -1,8 +1,7 @@
 name: Linux Runner Image
 
 # PR validation + on-demand build of the Tuist Linux runner OCI image
-# consumed by `runnersFleetLinux.pools[].runnerImage` in the helm
-# chart.
+# consumed by `runnersFleetLinux.shapeRunnerImage` in the helm chart.
 #
 # PR: builds without pushing — catches Dockerfile / shell-syntax
 #     breakage before merge.

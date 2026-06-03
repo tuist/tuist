@@ -25,8 +25,8 @@
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL              → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*                    → Guardian verifier for Tuist JWTs
---   * KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID              → OAuth client ID used by Kura
---   * KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET          → OAuth client secret used by Kura
+--   * KURA_CONTROL_PLANE_CLIENT_ID                           → OAuth client ID used by Kura
+--   * KURA_CONTROL_PLANE_CLIENT_SECRET                       → OAuth client secret used by Kura
 
 local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
@@ -42,6 +42,14 @@ local function bearer_token(headers)
     return nil
   end
   return string.gsub(authorization, "^Bearer%s+", "")
+end
+
+local function env_value(key)
+  if type(kura.env) ~= "function" then
+    return nil
+  end
+
+  return kura.env(key)
 end
 
 local function normalized_handles(handles)
@@ -282,19 +290,21 @@ local function grant_allows(grants, scope, action, identifier)
 end
 
 local function introspection_client_configured()
-  local client_id = kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
-  local client_secret = kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
+  local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+  local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
 
   return client_id ~= nil and client_id ~= "" and client_secret ~= nil and client_secret ~= ""
 end
 
 local function authenticate_via_introspection_endpoint(token)
+  local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
+  local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
   local response = kura.http_json("tuist", {
     method = "POST",
     path = "/oauth2/introspect",
     body = {
-      client_id = kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"),
-      client_secret = kura.env("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET"),
+      client_id = client_id,
+      client_secret = client_secret,
       token = token,
     },
   })

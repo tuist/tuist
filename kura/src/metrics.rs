@@ -30,7 +30,8 @@ pub struct Metrics {
     registry: Arc<Mutex<Registry>>,
     rollout_snapshot: Arc<RolloutSnapshot>,
     http_requests: Family<HttpRequestLabels, Counter>,
-    http_request_duration: Family<HttpRouteLabels, Histogram>,
+    http_client_requests: Family<HttpClientCountryLabels, Counter>,
+    http_request_duration: Histogram,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
     artifact_writes: Family<ArtifactOpLabels, Counter>,
@@ -129,10 +130,8 @@ impl Metrics {
         let rollout_snapshot = Arc::new(RolloutSnapshot::default());
 
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
-        let http_request_duration =
-            Family::<HttpRouteLabels, Histogram>::new_with_constructor(|| {
-                Histogram::new(exponential_buckets(0.001, 2.0, 16))
-            });
+        let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
+        let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
@@ -246,8 +245,13 @@ impl Metrics {
             http_requests.clone(),
         );
         registry.register(
+            "kura_http_client_requests_total",
+            "Public HTTP requests by client country",
+            http_client_requests.clone(),
+        );
+        registry.register(
             "kura_http_request_duration_seconds",
-            "HTTP request latency by route",
+            "Public HTTP request latency excluding probes and internal endpoints",
             http_request_duration.clone(),
         );
         registry.register(
@@ -652,6 +656,7 @@ impl Metrics {
             registry: Arc::new(Mutex::new(registry)),
             rollout_snapshot,
             http_requests,
+            http_client_requests,
             http_request_duration,
             http_exceptions,
             artifact_reads,
@@ -741,6 +746,10 @@ impl Metrics {
         metrics
     }
 
+    pub fn region(&self) -> &str {
+        &self.region
+    }
+
     pub fn record_node_geo(&self, location: &NodeLocation) {
         self.node_geo
             .get_or_create(&NodeGeoLabels {
@@ -758,24 +767,25 @@ impl Metrics {
     pub fn record_http(
         &self,
         route: String,
-        method: String,
         status: StatusCode,
         client_country: Option<String>,
         duration: Duration,
     ) {
+        let public_http_metrics = records_public_http_metrics(&route);
         self.http_requests
             .get_or_create(&HttpRequestLabels {
                 route: route.clone(),
-                method,
                 status: status.as_u16(),
-                client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
             })
             .inc();
-        self.http_request_duration
-            .get_or_create(&HttpRouteLabels {
-                route: route.clone(),
-            })
-            .observe(duration.as_secs_f64());
+        if public_http_metrics {
+            self.http_client_requests
+                .get_or_create(&HttpClientCountryLabels {
+                    client_country: client_country.unwrap_or_else(|| "unknown".to_owned()),
+                })
+                .inc();
+            self.http_request_duration.observe(duration.as_secs_f64());
+        }
 
         if status.is_server_error() {
             self.http_exceptions
@@ -861,16 +871,16 @@ impl Metrics {
         result: &str,
         duration: Duration,
     ) {
+        let target = replication_target_label(target);
         self.replication_requests
             .get_or_create(&ReplicationLabels {
-                target: replication_target_label(target),
+                target,
                 operation: operation.to_owned(),
                 result: result.to_owned(),
             })
             .inc();
         self.replication_request_duration
             .get_or_create(&ReplicationRouteLabels {
-                target: replication_target_label(target),
                 operation: operation.to_owned(),
             })
             .observe(duration.as_secs_f64());
@@ -1272,17 +1282,22 @@ impl Metrics {
     }
 }
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct HttpRequestLabels {
-    route: String,
-    method: String,
-    status: u16,
-    client_country: String,
+fn records_public_http_metrics(route: &str) -> bool {
+    !matches!(
+        route,
+        "/up" | "/ready" | "/status/rollout" | "/metrics" | "/_unmatched"
+    ) && !route.starts_with("/_internal/")
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
-struct HttpRouteLabels {
+struct HttpRequestLabels {
     route: String,
+    status: u16,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct HttpClientCountryLabels {
+    client_country: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
@@ -1311,7 +1326,6 @@ struct ReplicationLabels {
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ReplicationRouteLabels {
-    target: String,
     operation: String,
 }
 
@@ -1463,18 +1477,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn public_http_metrics_exclude_probes_internal_and_unmatched_routes() {
+        assert!(records_public_http_metrics("/api/cache/cas/{id}"));
+        assert!(!records_public_http_metrics("/up"));
+        assert!(!records_public_http_metrics("/metrics"));
+        assert!(!records_public_http_metrics("/_internal/status"));
+        assert!(!records_public_http_metrics("/_unmatched"));
+    }
+
+    #[test]
     fn render_includes_recorded_metrics() {
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         metrics.record_http(
             "/up".into(),
-            "GET".into(),
             StatusCode::OK,
             Some("US".into()),
             Duration::from_millis(10),
         );
         metrics.record_http(
             "/api/cache/keyvalue".into(),
-            "PUT".into(),
             StatusCode::INTERNAL_SERVER_ERROR,
             None,
             Duration::from_millis(20),
@@ -1537,7 +1558,33 @@ mod tests {
         let rendered = metrics.render();
 
         assert!(rendered.contains("kura_http_requests_total"));
+        assert!(rendered.contains("kura_http_client_requests_total"));
         assert!(rendered.contains("kura_http_exceptions_total"));
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| line.starts_with("kura_http_request_duration_seconds"))
+                .all(|line| !line.contains("route="))
+        );
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| line.starts_with("kura_http_requests_total"))
+                .all(|line| !line.contains("client_country="))
+        );
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| line.starts_with("kura_http_requests_total"))
+                .all(|line| !line.contains("method="))
+        );
+        assert!(rendered.contains("client_country=\"unknown\""));
+        assert!(
+            rendered
+                .lines()
+                .filter(|line| line.starts_with("kura_replication_request_duration_seconds"))
+                .all(|line| !line.contains("target="))
+        );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
         assert!(rendered.contains("kura_segment_refreshes_total"));

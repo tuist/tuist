@@ -88,11 +88,44 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+# CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
+# replica), 10Gi per instance. Each instance is a streaming replica
+# holding the whole DB, so the size is per-replica capacity, not a
+# pool to split across them. The existing staging volumes are already
+# 100Gi on disk — Hetzner CSI doesn't shrink in place — so this value
+# only takes effect on a future re-provision of the cluster. WAL
+# archive + daily base backups land in the `tuist-stag-pg-backups`
+# Tigris bucket; barman writes a directory per cluster name under
+# `destinationPath`.
+#
+# Memory request kept low (1Gi vs the 2Gi default in values.yaml) because
+# the cpx22 staging workers only have ~2.5Gi allocatable each after
+# system DaemonSets. With hard pod anti-affinity (one CNPG instance per
+# node) plus the server / processor pods plus the migration-job hook
+# during deploys, a 2Gi request commits more than each node has free and
+# the migration-job ends up Pending. The 4Gi limit stays so runtime
+# memory isn't constrained.
+postgresql:
+  cnpg:
+    instances: 2
+    storage:
+      size: "10Gi"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "4Gi"
+    backup:
+      destinationPath: s3://tuist-stag-pg-backups/
+
 processor:
-  # Supabase staging project (inzgspjesrhqhleomvkb) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`. After cutover, the
+  # processor-external-secrets template ignores `database.host` and
+  # composes against the in-cluster `<cluster>-rw` Service instead.
   database:
     host: db.inzgspjesrhqhleomvkb.supabase.co
   # Single replica on staging — 2-replica redundancy isn't needed for a
@@ -258,22 +291,18 @@ runnersFleet:
         cpuMilli: 8000
         memoryMB: 14336
 
-# Bare-metal vm-image-builder fleet — bakes the Tart VM images that
-# the macosFleet and runnersFleet hosts run. Shares the
-# `tuist-pool-` host pool with the other two fleets; CAPI claims
-# the next available `tuist-pool-*` Mac mini, bootstraps it
-# identically to the other fleets (tart-kubelet + node_exporter +
-# Tailscale), and then layers on a GitHub Actions self-hosted
-# runner LaunchAgent that picks up image-bake workflow jobs from
-# the tuist org. The runner agent's registration token is minted
-# on every bootstrap by the CAPI reconciler from the
-# `BUILDERS_FLEET_GITHUB_APP` 1P item synced via ESO.
+# Bare-metal vm-image-builder fleet. Disabled in staging: the baked
+# Tart images are global GHCR artifacts, so only the production fleet
+# bakes them. A builder here registers the shared `vm-image-builder`
+# org runner label (the fleets advertise identical labels to the same
+# org, with no per-env scoping), so it would pick up production release
+# jobs, exactly the cross-env bleed we want to avoid.
 buildersFleet:
-  enabled: true
-  replicas: 1
+  enabled: false
+  replicas: 0
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
-    enabled: true
+    enabled: false
 
 # Kata Containers + Firecracker runtime for Linux bare-metal nodes.
 # The `kataContainers` block above defaults to disabled; staging
@@ -281,6 +310,10 @@ buildersFleet:
 # every bare-metal worker that joins the workload cluster.
 kataContainers:
   enabled: true
+
+runnersController:
+  features:
+    dindImage: true
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
@@ -312,39 +345,35 @@ runnersFleetLinux:
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
-  pools:
-    - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
-      dispatchLabel: "tuist-staging-linux"
-      runnerLabels:
-        - self-hosted
-        - Linux
-        - X64
-      # Each Pod is a QEMU microVM (Kata Containers under containerd).
-      # Per-tenant kernel boundary, ~50 MiB hypervisor overhead per
-      # Pod. Disable to fall back to runc on the host (no tenant
-      # isolation, single-Pod-per-host).
-      runtimeClass: kata-qemu
-      pod:
-        # Per-tenant slot, ccx23-equivalent. AX42-U fits ~16 of these
-        # cleanly with 1:1 CPU + a small RAM reserve for kubelet and
-        # other system DaemonSets on the host. Production AX162-R
-        # quadruples this density (64 slots — 256 GB / 4 GB cap, with
-        # CPU undersubscribed at 96 threads / 64 vCPU = 1.5× headroom
-        # for noisy-neighbor protection).
-        cpuMilli: 1000
-        memoryMB: 4096
-      # Queue-depth driven autoscaling. Pod-level only — the operator
-      # manages bare-metal Host count manually via the cluster topology
-      # in `infra/k8s/clusters/cluster-staging.yaml`. Bare-metal hosts
-      # are monthly-billed in Hetzner Robot; auto-scaling them via the
-      # autoscaler's `machineDeployment` field would (a) silently
-      # provision unused capacity at non-trivial cost, and (b) mis-size
-      # because the autoscaler doesn't know slots-per-host. Pending
-      # Pods past `maxReplicas` are the operator's signal to order
-      # another `tuist-bm-*` host.
+  pools: []
+  # Shape-keyed pools backing Runner Profiles. Customers reference them
+  # via account-scoped profiles (`runs-on: tuist-<name>`); the server
+  # resolves the profile's (vcpus, memory_gb) to one of these CRs. Keep
+  # this list in sync with `:runner_linux_shapes` in
+  # `server/config/config.exs` — the same catalog from two sides (Helm
+  # renders the pools; the server validates + addresses them).
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
+  shapeRuntimeClass: kata-qemu
+  shapeAutoscaling:
+    enabled: true
+    # Long-tail shapes scale to zero — they cost nothing while idle and
+    # pay a microVM cold start on the first job. The default shape
+    # overrides this with a warm floor below.
+    minWarmPoolFloor: 0
+    maxReplicas: 14
+    scaleDownCooldownSeconds: 300
+  shapes:
+    - { vcpus: 1, memoryGb: 2 }
+    - { vcpus: 2, memoryGb: 4 }
+    - { vcpus: 2, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 8 }
+    # Default shape: keeps a warm floor (the legacy pool's value) since
+    # it absorbs `tuist-default` + aliased legacy `tuist-staging-linux`.
+    - vcpus: 4
+      memoryGb: 16
+      default: true
       autoscaling:
-        enabled: true
         minWarmPoolFloor: 2
-        maxReplicas: 14
-        scaleDownCooldownSeconds: 300
+    - { vcpus: 8, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 32 }
+    - { vcpus: 16, memoryGb: 32 }

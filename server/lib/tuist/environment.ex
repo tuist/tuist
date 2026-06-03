@@ -181,24 +181,6 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
-  @doc """
-  Whether managed Kura servers must wait for the global Cloudflare-
-  fronted endpoint before being projected active.
-
-  Defaults to true. Set `TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS=0` to
-  degrade gracefully while the global load-balancer layer is
-  unavailable or quota-limited.
-  """
-  def kura_require_global_endpoints? do
-    "TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS"
-    |> System.get_env()
-    |> case do
-      nil -> true
-      "" -> true
-      value -> not falsey?(value)
-    end
-  end
-
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -1014,18 +996,31 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
-  def kura_introspection_client_id(secrets \\ secrets()) do
-    get([:kura, :introspection_client_id], secrets)
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The server still falls back to the legacy
+  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
+  # so existing deployments and dev secrets keep working through the
+  # rename.
+  def kura_control_plane_client_id(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
   end
 
-  def kura_introspection_client_secret(secrets \\ secrets()) do
-    get([:kura, :introspection_client_secret], secrets)
+  def kura_control_plane_client_secret(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
   end
 
-  def kura_introspection_configured?(secrets \\ secrets()) do
-    kura_introspection_client_id(secrets) != nil and
-      kura_introspection_client_secret(secrets) != nil
+  def kura_control_plane_configured?(secrets \\ secrets()) do
+    kura_control_plane_client_id(secrets) != nil and
+      kura_control_plane_client_secret(secrets) != nil
   end
+
+  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
+  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
@@ -1078,6 +1073,30 @@ defmodule Tuist.Environment do
   """
   def runners_namespace do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
+  end
+
+  @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
   end
 
   @doc """
@@ -1139,10 +1158,6 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
-
-  defp falsey?(value) when is_binary(value) do
-    String.downcase(value) in ["0", "false", "no", "off"]
-  end
 
   defp split_endpoints(endpoints) do
     endpoints

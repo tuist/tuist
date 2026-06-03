@@ -73,15 +73,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def global_public_url(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"globalPublicURL" => url}}} when is_binary(url) and url != "" -> url
-      {:ok, _} -> nil
-      {:error, _reason} -> nil
-    end
-  end
-
-  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
@@ -121,6 +112,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script) do
+    account_handle = dns_handle(account.name)
+
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
       "kind" => "KuraInstance",
@@ -130,22 +123,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "labels" => %{
           "app.kubernetes.io/name" => "kura",
           "app.kubernetes.io/instance" => name,
-          "tuist.dev/account" => account.name,
+          "tuist.dev/account" => account_handle,
           "tuist.dev/region" => region.id
         }
       },
       "spec" =>
         %{
-          "accountHandle" => account.name,
-          "tenantID" => account.name,
+          "accountHandle" => account_handle,
+          "tenantID" => account_handle,
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
-          "publicHost" => public_host(account.name, region),
-          "grpcPublicHost" => grpc_public_host(account.name, region),
-          "globalPublicHost" => global_public_host(account.name, region),
-          "globalGrpcPublicHost" => global_grpc_public_host(account.name, region),
-          "cloudflarePoolLatitude" => cloudflare_pool_latitude(region),
-          "cloudflarePoolLongitude" => cloudflare_pool_longitude(region),
+          "publicHost" => public_host(account_handle, region),
+          "grpcPublicHost" => grpc_public_host(account_handle, region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -170,34 +159,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp grpc_public_host(_handle, _region), do: nil
 
-  def global_public_url_for_handle(handle, %Regions{} = region) do
-    case global_public_host(handle, region) do
-      nil -> nil
-      host -> "https://" <> host
-    end
-  end
-
-  defp global_public_host(handle, %Regions{provisioner_config: %{global_public_host_template: template} = config}) do
-    interpolate_host(template, dns_handle(handle), config)
-  end
-
-  defp global_public_host(_handle, _region), do: nil
-
-  defp global_grpc_public_host(handle, %Regions{
-         provisioner_config: %{global_grpc_public_host_template: template} = config
-       }) do
-    interpolate_host(template, dns_handle(handle), config)
-  end
-
-  defp global_grpc_public_host(_handle, _region), do: nil
-
-  defp cloudflare_pool_latitude(%Regions{provisioner_config: %{cloudflare_pool_latitude: latitude}}), do: latitude
-  defp cloudflare_pool_latitude(_), do: nil
-
-  defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
-  defp cloudflare_pool_longitude(_), do: nil
-
-  # Tuist-platform-wide secrets (JWT verifier, introspection client
+  # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
@@ -211,13 +173,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
       env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
     ] ++
       maybe_env_var(
+        "KURA_CONTROL_PLANE_CLIENT_ID",
+        Tuist.Environment.kura_control_plane_client_id()
+      ) ++
+      maybe_env_var(
         "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
-        Tuist.Environment.kura_introspection_client_id()
+        Tuist.Environment.kura_control_plane_client_id()
       ) ++
       telemetry_env(region)
   end

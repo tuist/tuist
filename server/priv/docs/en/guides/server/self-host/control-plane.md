@@ -17,7 +17,7 @@ We offer a self-hosted version of the Tuist server for organizations that requir
 > [!WARNING]
 > **Legacy cache service**
 >
-> The old self-hosted cache-node technology is deprecated for new installations. Use <.localized_link href="/guides/server/self-host/kura">Kura</.localized_link> for self-hosted cache infrastructure.
+> The old self-hosted cache-node technology is deprecated for new installations. Use the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link> for current self-hosted cache infrastructure.
 >
 > Existing deployments can still reference the legacy source documentation in GitHub's markdown viewer: [cache nodes](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/self-host.md) and [cache architecture](https://github.com/tuist/tuist/blob/main/server/priv/docs/en/guides/cache/architecture.md).
 
@@ -97,16 +97,16 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 > [!TIP]
 > **Optimized Caching**
 >
-> If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy Kura close to your CI or developer network and connect it to the hosted Tuist server or your self-hosted server.
+> If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted cache nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <.localized_link href="/guides/server/self-host/kura">Kura self-hosting guide</.localized_link>.
+> See the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
 
 
-### Kura cache nodes {#kura-cache-nodes}
+### Self-hosted cache nodes {#self-hosted-cache-nodes}
 
-To use Kura with a self-hosted Tuist server:
+To use self-hosted cache nodes with a self-hosted Tuist server:
 
-1. Deploy Kura following the <.localized_link href="/guides/server/self-host/kura">Kura self-hosting guide</.localized_link>.
+1. Deploy cache nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
 2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
 
 ## Configuration {#configuration}

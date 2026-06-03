@@ -32,6 +32,8 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      # Read-only database inspection backing the /ops/db LiveView.
+      Ops.Database,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -48,6 +50,8 @@ defmodule Tuist do
       Kura,
       Kura.Deployment,
       Kura.Server,
+      Kura.Usage,
+      Kura.UsageEvent,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
@@ -178,6 +182,7 @@ defmodule Tuist do
       Runners,
       Runners.Analytics,
       Runners.Billing,
+      Runners.Catalog,
       Runners.Dispatch,
       Runners.Workers.DispatchWorker,
       Runners.Workers.WebhookRedeliveryWorker,
@@ -185,6 +190,8 @@ defmodule Tuist do
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.Profile,
+      Runners.Profiles,
       Runners.RunnerSession,
       Runners.RunnerSessions,
       Runners.PromExPlugin,

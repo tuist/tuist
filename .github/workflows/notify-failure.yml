@@ -9,6 +9,7 @@ on:
       - Cache Deploy
       - CLI
       - CLI Cache EE
+      - CNPG Restore Drill
       - Gradle
       - Gradle Cache Acceptance
       - Handbook
