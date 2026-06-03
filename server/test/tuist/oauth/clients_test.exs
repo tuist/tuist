@@ -78,5 +78,67 @@ defmodule Tuist.OAuth.ClientsTest do
       assert Clients.service_client?("service-client")
       refute Clients.service_client?("tuist-cli")
     end
+
+    test "restricts a service client to its configured scopes" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [
+          %{
+            "id" => "service-client",
+            "secret" => "service-secret",
+            "scopes" => ["account:service:read:any"]
+          }
+        ]
+      end)
+
+      client = Clients.get_client("service-client")
+
+      assert client.authorize_scope == true
+      assert Enum.map(client.authorized_scopes, & &1.name) == ["account:service:read:any"]
+      assert Enum.map(Clients.authorized_scopes(client), & &1.name) == ["account:service:read:any"]
+    end
+
+    test "grants a service client no scopes when none are configured" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [%{"id" => "service-client", "secret" => "service-secret"}]
+      end)
+
+      client = Clients.get_client("service-client")
+
+      assert client.authorize_scope == true
+      assert client.authorized_scopes == []
+      assert Clients.authorized_scopes(client) == []
+    end
+
+    test "caps a service client access token TTL" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [
+          %{
+            "id" => "service-client",
+            "secret" => "service-secret",
+            "access_token_ttl" => 99_999
+          }
+        ]
+      end)
+
+      client = Clients.get_client("service-client")
+
+      assert client.access_token_ttl == 3600
+      assert client.refresh_token_ttl == 3600
+    end
   end
 end

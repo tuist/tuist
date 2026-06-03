@@ -317,5 +317,22 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
 
       assert TokenGenerator.generate(:access_token, token) == nil
     end
+
+    test "routes a numeric service client id to a service token, not a user token" do
+      stub(Clients, :service_client?, fn "123456" -> true end)
+
+      token = %Token{
+        sub: "123456",
+        client_id: "123456",
+        scope: "account:service:read:any"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      assert claims["type"] == "service"
+      assert claims["client_id"] == "123456"
+      refute Map.has_key?(claims, "user_id")
+    end
   end
 end
