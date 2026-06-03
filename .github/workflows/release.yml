@@ -1445,11 +1445,22 @@ jobs:
           ls -lh /tmp/release.tar.gz
 
       # vm-image-builder hosts are bare-metal Mac minis we provision
-      # manually; a fresh host (or one whose Homebrew tree got reset)
-      # may not have `crane` yet. Install it idempotently so the
-      # workflow doesn't depend on host state.
+      # manually; a fresh host may not have `crane` (nor Homebrew)
+      # yet. Drop the binary into the runner-scoped ~/.local/bin so
+      # the workflow doesn't depend on host state and doesn't need
+      # sudo. Same step lives in `runner-image.yml`.
       - name: Ensure crane is installed
-        run: command -v crane >/dev/null || brew install crane
+        run: |
+          set -euo pipefail
+          if ! command -v crane >/dev/null; then
+            CRANE_VERSION=0.20.6
+            TMP=$(mktemp -d)
+            curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Darwin_arm64.tar.gz" -o "$TMP/gcr.tar.gz"
+            tar -xzf "$TMP/gcr.tar.gz" -C "$TMP" crane
+            mkdir -p "$HOME/.local/bin"
+            install -m 0755 "$TMP/crane" "$HOME/.local/bin/crane"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -1569,11 +1580,22 @@ jobs:
       - uses: actions/checkout@v4
 
       # vm-image-builder hosts are bare-metal Mac minis we provision
-      # manually; a fresh host (or one whose Homebrew tree got reset)
-      # may not have `crane` yet. Install it idempotently so the
-      # workflow doesn't depend on host state.
+      # manually; a fresh host may not have `crane` (nor Homebrew)
+      # yet. Drop the binary into the runner-scoped ~/.local/bin so
+      # the workflow doesn't depend on host state and doesn't need
+      # sudo. Same step lives in `runner-image.yml`.
       - name: Ensure crane is installed
-        run: command -v crane >/dev/null || brew install crane
+        run: |
+          set -euo pipefail
+          if ! command -v crane >/dev/null; then
+            CRANE_VERSION=0.20.6
+            TMP=$(mktemp -d)
+            curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Darwin_arm64.tar.gz" -o "$TMP/gcr.tar.gz"
+            tar -xzf "$TMP/gcr.tar.gz" -C "$TMP" crane
+            mkdir -p "$HOME/.local/bin"
+            install -m 0755 "$TMP/crane" "$HOME/.local/bin/crane"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
