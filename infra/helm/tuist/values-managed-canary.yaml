@@ -202,7 +202,7 @@ runnersFleet:
   # See values-managed-staging.yaml for the rationale on the SHA
   # bootstrap; auto-rewritten to a real semver by the first
   # post-merge `release-runner-image` run.
-  runnerImageSemver: "3e13af57"
+  runnerImageSemver: "477d6954"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
