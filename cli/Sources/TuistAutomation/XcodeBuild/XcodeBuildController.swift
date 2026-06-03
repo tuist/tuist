@@ -22,22 +22,26 @@ public struct XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let simulatorController: SimulatorController
     private let commandRunner: CommandRunning
+    private let terminalCommandRunner: CommandRunning
     private static let showBuildSettingsTimeout: Duration = .seconds(20)
 
     public init() {
         self.init(
             formatter: Formatter(),
-            commandRunner: CommandRunner()
+            commandRunner: CommandRunner(),
+            terminalCommandRunner: PseudoTerminalCommandRunner()
         )
     }
 
     init(
         formatter: Formatting,
-        commandRunner: CommandRunning
+        commandRunner: CommandRunning,
+        terminalCommandRunner: CommandRunning? = nil
     ) {
         self.formatter = formatter
         self.simulatorController = SimulatorController()
         self.commandRunner = commandRunner
+        self.terminalCommandRunner = terminalCommandRunner ?? commandRunner
     }
 
     public func build(
@@ -190,7 +194,11 @@ public struct XcodeBuildController: XcodeBuildControlling {
             }
         }
 
-        try await run(arguments: arguments)
+        // The `test` action buffers all of its output when stdout is a pipe and parallel testing is
+        // enabled, only flushing on exit. Running it attached to a pseudo-terminal makes xcodebuild
+        // stream the results in real time. `build-for-testing` and `test-without-building` stream
+        // correctly through a pipe, so they keep using it.
+        try await run(arguments: arguments, useTerminal: action == .test)
     }
 
     public func archive(
@@ -315,8 +323,12 @@ public struct XcodeBuildController: XcodeBuildControlling {
     }
 
     public func run(arguments: [String]) async throws {
+        try await run(arguments: arguments, useTerminal: false)
+    }
+
+    func run(arguments: [String], useTerminal: Bool) async throws {
         let logger = Logger.current
-        
+
         func format(_ bytes: [UInt8]) -> String {
             let string = String(decoding: bytes, as: Unicode.UTF8.self)
             if Environment.current.isVerbose == true {
@@ -338,10 +350,11 @@ public struct XcodeBuildController: XcodeBuildControlling {
         }
         
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
-        
+
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
-        
-        for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
+
+        let runner = useTerminal ? terminalCommandRunner : commandRunner
+        for try await event in runner.run(arguments: command, environment: Environment.current.variables) {
             switch event {
             case let .standardOutput(bytes):
                 log(bytes)
