@@ -411,7 +411,8 @@
         flex: 1;
         min-width: 0;
         display: inline-flex;
-        align-items: baseline;
+        align-items: center;
+        line-height: 1.2;
         word-break: break-word;
 
         & > [data-part="log-group-chevron"] {
