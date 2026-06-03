@@ -335,15 +335,17 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    - { vcpus: 2, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 8 }
     # Default shape: ~50% of P95 warm floor (the legacy pool's value),
-    # since all `tuist-default` + `linux` default-profile traffic lands here.
-    - vcpus: 4
-      memoryGb: 16
+    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
+    # traffic lands here. The floor is a slot count, so it absorbs the
+    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    - vcpus: 2
+      memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 30
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
