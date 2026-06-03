@@ -1,4 +1,8 @@
+# syntax=docker/dockerfile:1.7
+
 FROM rust:1.94.1-bookworm AS build
+
+ARG TARGETARCH
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -10,10 +14,25 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+ENV CARGO_INCREMENTAL=0
+
 COPY Cargo.toml Cargo.lock ./
+
+RUN --mount=type=cache,id=kura-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=kura-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    mkdir -p src && \
+    printf 'fn main() {}\n' > src/main.rs && \
+    touch src/lib.rs && \
+    cargo fetch --locked && \
+    rm -rf src
+
 COPY src src
 
-RUN cargo build --release --locked
+RUN --mount=type=cache,id=kura-target-${TARGETARCH},target=/app/target,sharing=locked \
+    --mount=type=cache,id=kura-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,id=kura-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    cargo build --release --locked && \
+    cp /app/target/release/kura /usr/local/bin/kura
 
 FROM debian:bookworm-slim AS geoip
 
@@ -55,7 +74,7 @@ ENV RUST_LOG=info
 
 WORKDIR /app
 
-COPY --from=build /app/target/release/kura /usr/local/bin/kura
+COPY --from=build /usr/local/bin/kura /usr/local/bin/kura
 COPY --from=geoip /opt/geoip/dbip-city-lite.mmdb /opt/geoip/dbip-city-lite.mmdb
 
 EXPOSE 4000

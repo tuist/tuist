@@ -30,7 +30,7 @@ env:
 jobs:
   translate:
     name: Translate
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

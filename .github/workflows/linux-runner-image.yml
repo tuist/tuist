@@ -44,7 +44,7 @@ env:
 
 jobs:
   build:
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine. Note:
     # this workflow builds that same runner image, so the migration has
     # to land in two steps: first add docker to the image and rebuild

@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   dispatch:
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 10
     steps:
       - name: Dispatch Server Production Deployment

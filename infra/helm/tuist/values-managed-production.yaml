@@ -117,10 +117,13 @@ postgresql:
     instances: 3
     storage:
       size: "100Gi"
+    # Requests sized to fit three instances under hard pod anti-affinity
+    # alongside the rest of the pool tenants; limits left generous so
+    # Postgres runtime peaks aren't capped by the scheduling budget.
     resources:
       requests:
-        cpu: "2000m"
-        memory: "8Gi"
+        cpu: "1500m"
+        memory: "6Gi"
       limits:
         cpu: "4000m"
         memory: "16Gi"
@@ -335,8 +338,8 @@ runnersFleetLinux:
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
   # default shape keeps the warm floor the legacy pool used to carry,
-  # since it absorbs both new `tuist-default` traffic and the aliased
-  # legacy `tuist-production-linux` jobs.
+  # since it absorbs both `tuist-default` traffic and the `linux`
+  # default-profile (`tuist-linux`) jobs that route through it.
   shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
@@ -347,15 +350,17 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    - { vcpus: 2, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 8 }
     # Default shape: ~50% of P95 warm floor (the legacy pool's value),
-    # since all `tuist-default` + aliased legacy traffic lands here.
-    - vcpus: 4
-      memoryGb: 16
+    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
+    # traffic lands here. The floor is a slot count, so it absorbs the
+    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    - vcpus: 2
+      memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 30
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }

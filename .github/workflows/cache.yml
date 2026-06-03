@@ -37,7 +37,7 @@ env:
 jobs:
   format:
     name: Format
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -60,7 +60,7 @@ jobs:
 
   credo:
     name: Credo
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -84,7 +84,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -108,7 +108,7 @@ jobs:
 
   compile-prod:
     name: Compile (prod)
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -132,7 +132,7 @@ jobs:
 
   docker-compose:
     name: Docker Compose
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — `docker compose config` requires the docker CLI
     # and engine.
     runs-on: namespace-profile-default

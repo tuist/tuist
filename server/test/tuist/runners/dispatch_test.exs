@@ -4,7 +4,6 @@ defmodule Tuist.Runners.DispatchTest do
   import Mimic
 
   alias Tuist.Accounts
-  alias Tuist.Environment
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Dispatch
@@ -150,35 +149,6 @@ defmodule Tuist.Runners.DispatchTest do
                 requested_dispatch_label: "tuist-default"
               }} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
-    end
-
-    test "aliases the current env's legacy tuist-<env>-linux label to the default shape", %{
-      account: account
-    } do
-      # On a `prod` deploy, only `tuist-production-linux` aliases here.
-      # The original label is preserved as the dispatch label so GitHub
-      # still binds the job.
-      stub(Environment, :env, fn -> :prod end)
-
-      assert {:ok,
-              %{
-                pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
-                requested_dispatch_label: "tuist-production-linux"
-              }} =
-               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-production-linux"])
-    end
-
-    test "ignores other envs' legacy labels (cross-env webhook isolation)", %{account: account} do
-      # The GitHub App installation delivers `workflow_job` events for
-      # every org workflow to every env's server. A `stag` server must
-      # NOT enqueue a `tuist-production-linux` job (nor vice versa) —
-      # otherwise webhook redelivery floods after an outage cross-
-      # contaminate pools.
-      stub(Environment, :env, fn -> :stag end)
-      stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
-
-      assert {:error, :no_pools} =
-               Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-production-linux"])
     end
 
     test "falls back to legacy pool match for non-Linux labels (macOS)", %{account: account} do

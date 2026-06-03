@@ -11,6 +11,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
   alias Tuist.Ops.DailySlackReportWorker
   alias Tuist.Ops.HourlySlackReportWorker
   alias Tuist.Slack.Workers.ReportWorker
+  alias Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker
+  alias Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker
+  alias Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker
   alias Tuist.Tests.Workers.ExpireStaleTestRunsWorker
 
   describe "peer_eligible?/1" do
@@ -60,6 +64,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         refute DailySlackReportWorker in workers
         refute HourlySlackReportWorker in workers
         refute UpdateAllAccountsUsageWorker in workers
+        refute ScheduleExpiredArtifactsWorker in workers
+        refute DeleteExpiredXcodeCacheArtifactsWorker in workers
+        refute DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
+        refute DeleteExpiredGradleCacheArtifactsWorker in workers
         refute SyncStripeMetersWorker in workers
         refute KuraReconciler in workers
       end
@@ -80,6 +88,10 @@ defmodule Tuist.Oban.RuntimeConfigTest do
         assert DailySlackReportWorker in workers
         assert HourlySlackReportWorker in workers
         assert UpdateAllAccountsUsageWorker in workers
+        assert ScheduleExpiredArtifactsWorker in workers
+        assert DeleteExpiredXcodeCacheArtifactsWorker in workers
+        assert DeleteExpiredXcodeModuleCacheArtifactsWorker in workers
+        assert DeleteExpiredGradleCacheArtifactsWorker in workers
         assert SyncStripeMetersWorker in workers
         assert KuraReconciler in workers
       end

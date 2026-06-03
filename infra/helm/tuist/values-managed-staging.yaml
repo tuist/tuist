@@ -333,6 +333,10 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
 # Substrate: AX42-U class boxes (8c/16t Zen 4 Ryzen, 64 GB DDR5,
@@ -383,15 +387,16 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    - { vcpus: 2, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 8 }
     # Default shape: keeps a warm floor (the legacy pool's value) since
-    # it absorbs `tuist-default` + aliased legacy `tuist-staging-linux`.
-    - vcpus: 4
-      memoryGb: 16
+    # it absorbs `tuist-default` + the `linux` default-profile
+    # (`tuist-staging-linux`) traffic.
+    - vcpus: 2
+      memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 2
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }

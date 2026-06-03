@@ -240,7 +240,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.7.0"
+    tag: "0.7.1"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on
@@ -254,7 +254,7 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
     # workflow.
-    tag: "0.4.0"
+    tag: "0.6.1"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
