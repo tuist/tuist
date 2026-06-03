@@ -392,9 +392,12 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # helm-upgrade waits up to 30m and setup/teardown adds ~5m. 50m
-    # leaves a healthy buffer around that stack and keeps a
-    # SIGTERM-stuck helm from holding the slot indefinitely.
+    # This job ceiling MUST stay above helm's `--timeout` plus its
+    # `--atomic` rollback, or GitHub SIGKILLs helm mid-wait and the
+    # release is left wedged in pending-upgrade. helm waits up to 25m
+    # and its rollback up to ~10m; with ~5m setup, 50m leaves helm room
+    # to reach its own timeout (clean rollback + diagnostics) before
+    # this ceiling fires.
     timeout-minutes: 50
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -560,20 +563,17 @@ jobs:
         # in-cluster ExternalSecret. Passing secrets through --set would
         # leak them into `helm get manifest`.
         #
-        # helm --timeout 60m is sized for the adoption path: Mac minis
-        # are pre-ordered by the operator under the `tuist-pool-` prefix
-        # and the CAPI controller claims them on demand. Adoption is
-        # cheap (rename + tart-kubelet bootstrap + Tart VM cold-boot)
-        # vs Scaleway CreateServer (~50 min). Steady-state deploys
-        # finish in 5-15 min once the Mac mini is already in the cluster.
-        # If we ever flip back to auto-order in an env, bump this back
-        # to ~90m to absorb a fresh Scaleway provisioning.
-        #
-        # 70 min = helm's `--timeout 60m` plus a 10-min cushion for the
-        # in-process `--atomic` rollback. A workflow-side timeout under
-        # 70 min risks killing helm after it has moved the release into
-        # pending-rollback, leaving the cluster wedged for the next run.
-        timeout-minutes: 70
+        # helm `--timeout 25m` is deliberately well under this job's 50m
+        # `timeout-minutes` ceiling. On a stuck rollout helm reaches its
+        # own timeout first and runs the `--atomic` rollback, which
+        # restores a clean deployed release and lets the failure-path
+        # diagnostics below run. If the job ceiling fired first it would
+        # SIGKILL helm mid-wait, before the rollback, leaving the release
+        # wedged in pending-upgrade (the failure mode that produced the
+        # long pending-upgrade/rollback churn). Steady-state deploys
+        # finish in 5-15m, so 25m is ample headroom; the 40m step timeout
+        # covers helm's 25m wait plus its rollback.
+        timeout-minutes: 40
         run: |
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
@@ -599,16 +599,13 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
-            --atomic --timeout 60m --wait
-      - name: Diagnostics on failure or cancellation
-        # Runs on cancellation as well as failure. Cancelling a deploy while
-        # `helm upgrade --wait` is still converging is the common interruption
-        # (someone kills a deploy that looks stuck), and that is exactly when
-        # we most need to capture which workload never went Ready, which a
-        # cancel would otherwise discard. On a clean `--atomic` timeout the
-        # release is already rolled back, so `helm history` reflects that;
-        # everything here is best-effort.
-        if: ${{ failure() || cancelled() }}
+            --atomic --timeout 25m --wait
+      - name: Diagnostics on failure
+        # `--atomic` rolls back the release on timeout, so `helm history` and
+        # most cluster state reflect the rolled-back revision rather than the
+        # failure. Migration-job pods linger long enough for logs to be useful;
+        # everything else is best-effort.
+        if: failure()
         run: |
           set +e
           echo "::group::helm history"
@@ -696,39 +693,3 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
-      - name: Recover release if the deploy was interrupted
-        # A cancelled deploy SIGKILLs `helm upgrade --atomic` mid-flight, so it
-        # neither finishes nor completes its own rollback and the release is
-        # left in pending-upgrade. That wedges the next deploy until its
-        # start-of-run recovery rolls it back, and leaves the cluster sitting
-        # in a half-applied upgrade in the meantime. Roll back to the last
-        # deployed revision here so an interrupted deploy self-heals. No-op on
-        # a clean `--atomic` timeout, where the status is already deployed.
-        # Best-effort: if the cancellation grace window cuts this short, the
-        # next deploy's "Recover interrupted Helm release" step still covers it.
-        if: ${{ failure() || cancelled() }}
-        run: |
-          set +e
-          status="$(
-            helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>/dev/null |
-              awk '/^STATUS:/ { print $2 }'
-          )"
-          case "$status" in
-            pending-install|pending-upgrade|pending-rollback)
-              echo "Release $HELM_RELEASE_NAME is $status after interruption; rolling back to the last deployed revision."
-              deployed_revision="$(
-                helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
-                  awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
-              )"
-              if [ -n "$deployed_revision" ]; then
-                helm rollback "$HELM_RELEASE_NAME" "$deployed_revision" \
-                  --namespace "$NAMESPACE" --timeout 3m
-                helm status "$HELM_RELEASE_NAME" -n "$NAMESPACE" | awk '/^STATUS:/ { print }'
-              else
-                echo "No deployed revision found; leaving recovery to the next deploy."
-              fi
-              ;;
-            *)
-              echo "Release $HELM_RELEASE_NAME status is ${status:-unknown}; no recovery needed."
-              ;;
-          esac
