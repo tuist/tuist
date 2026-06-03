@@ -46,10 +46,6 @@ defmodule TuistWeb.RunnerJobLive do
         head_title =
           "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
 
-        if connected?(socket) do
-          Tuist.PubSub.subscribe(JobLogs.topic(job.workflow_job_id))
-        end
-
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
 
@@ -283,28 +279,8 @@ defmodule TuistWeb.RunnerJobLive do
      |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
   end
 
-  @impl true
-  def handle_info({:runner_job_log_lines, %{lines: lines}}, socket) do
-    socket =
-      Enum.reduce(lines, socket, fn line, acc ->
-        stream_insert(acc, :log_lines, log_stream_item(line))
-      end)
-
-    {:noreply, assign(socket, :has_logs, socket.assigns.has_logs or lines != [])}
-  end
-
-  def handle_info(_message, socket), do: {:noreply, socket}
-
   def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
   def step_expanded?(_expanded_steps, _step), do: false
-
-  @doc """
-  Whether the job's logs are still being streamed in — drives the
-  live "tail" affordance vs a settled, finished log.
-  """
-  def streaming?(%{log_state: "streaming"}), do: true
-  def streaming?(%{status: status}) when status in ["queued", "claimed", "running"], do: true
-  def streaming?(_), do: false
 
   @doc """
   Per-line timestamp label. Mirrors GitHub's "Tue, 02 Jun 2026
@@ -360,7 +336,9 @@ defmodule TuistWeb.RunnerJobLive do
         <span data-part="log-ln">{@header.line_number}</span>
         <span data-part="log-ts">{log_ts(@header.ts)}</span>
         <span data-part="log-group-label">
-          <span data-part="log-group-chevron"><.chevron_right /></span>{LogFormatter.group_label(@header)}
+          <span data-part="log-group-chevron"><.chevron_right /></span>{LogFormatter.group_label(
+            @header
+          )}
         </span>
       </summary>
       <div data-part="log-group-body">

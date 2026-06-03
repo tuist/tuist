@@ -21,7 +21,6 @@ defmodule TuistWeb.RunnersController do
 
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
-  alias TuistWeb.RunnerLogToken
 
   require Logger
 
@@ -30,16 +29,10 @@ defmodule TuistWeb.RunnersController do
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id}} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      # `log_token` scopes the in-VM log shipper's uploads to exactly
-      # this workflow_job + account. It's verified locally on the log
-      # ingest path (no per-chunk TokenReview round-trip) and survives
-      # the PG claim's deletion at completion, so the runner's final
-      # flush still authenticates. See `TuistWeb.RunnerLogsController`.
       json(conn, %{
         encoded_jit_config: jit,
         owner: account.name,
-        workflow_job_id: workflow_job_id,
-        log_token: RunnerLogToken.sign(workflow_job_id, account.id)
+        workflow_job_id: workflow_job_id
       })
     else
       {:error, :no_work_yet} ->

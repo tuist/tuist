@@ -3837,7 +3837,7 @@ if File.exists?(runner_smoke_log_path) do
   smoke_completed_at = DateTime.add(now, -45, :second)
 
   :ok =
-    Tuist.Runners.Jobs.enqueue(%{
+    Jobs.enqueue(%{
       workflow_job_id: smoke_workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: "linux-amd64",
@@ -3851,10 +3851,10 @@ if File.exists?(runner_smoke_log_path) do
       enqueued_at: DateTime.add(smoke_started_at, -10, :second)
     })
 
-  {:ok, smoke_candidate} = Tuist.Runners.Jobs.pick_queued("linux-amd64", [])
-  :ok = Tuist.Runners.Jobs.record_claimed(smoke_candidate, "runner-pod-smoke", smoke_started_at)
-  :ok = Tuist.Runners.Jobs.record_running(smoke_workflow_job_id, "tuist-runner-smoke")
-  {:ok, _} = Tuist.Runners.Jobs.complete(smoke_workflow_job_id, "success")
+  {:ok, smoke_candidate} = Jobs.pick_queued("linux-amd64", [])
+  :ok = Jobs.record_claimed(smoke_candidate, "runner-pod-smoke", smoke_started_at)
+  :ok = Jobs.record_running(smoke_workflow_job_id, "tuist-runner-smoke")
+  {:ok, _} = Jobs.complete(smoke_workflow_job_id, "success")
 
   smoke_lines =
     runner_smoke_log_path

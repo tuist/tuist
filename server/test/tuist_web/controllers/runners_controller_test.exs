@@ -11,7 +11,6 @@ defmodule TuistWeb.RunnersControllerTest do
   alias Tuist.Runners
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
-  alias TuistWeb.RunnerLogToken
 
   describe "GET /api/internal/runners/desired_replicas" do
     test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
@@ -123,9 +122,6 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["encoded_jit_config"] == "JITCONFIG"
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
-
-      account_id = account.id
-      assert {:ok, %{workflow_job_id: 4242, account_id: ^account_id}} = RunnerLogToken.verify(body["log_token"])
     end
   end
 

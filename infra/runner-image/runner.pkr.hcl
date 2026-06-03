@@ -231,27 +231,11 @@ build {
     destination = "/tmp/dispatch-poll.sh"
   }
 
-  # Cross-compile the log shipper for the VM (Apple Silicon) on the
-  # build host. `GOWORK=off` so it builds standalone regardless of the
-  # repo's (gitignored) go.work. The build host needs Go on PATH — the
-  # bare-metal image-builder Mac has it via Homebrew.
-  provisioner "shell-local" {
-    inline = [
-      "cd ${path.root}/../runner-log-tee && GOWORK=off CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -o ${path.root}/tuist-log-tee ."
-    ]
-  }
-
-  provisioner "file" {
-    source      = "${path.root}/tuist-log-tee"
-    destination = "/tmp/tuist-log-tee"
-  }
-
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
-      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-log-tee /opt/tuist/tuist-log-tee",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/tuist-log-tee"
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh"
     ]
   }
 

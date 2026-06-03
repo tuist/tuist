@@ -18,15 +18,6 @@ defmodule Tuist.Runners.LogFormatter do
   """
 
   @doc """
-  Strips ANSI SGR escape sequences from `message` and returns the
-  plain text. Use for places that don't (yet) render colour — the
-  download endpoint, the live-tail stream, the search results.
-  """
-  def strip_ansi(message) when is_binary(message) do
-    Regex.replace(~r/\x1b\[[0-9;]*m/, message, "")
-  end
-
-  @doc """
   Splits a message into a list of `{text, classes}` tuples, one per
   ANSI SGR run. `classes` is a (possibly empty) list of CSS class
   names that the template wraps in `<span class="…">`.
@@ -202,7 +193,7 @@ defmodule Tuist.Runners.LogFormatter do
   end
 
   defp segment_to_iodata({text, []}) do
-    Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string()
+    text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
   end
 
   defp segment_to_iodata({text, classes}) do
@@ -210,7 +201,7 @@ defmodule Tuist.Runners.LogFormatter do
       "<span class=\"",
       Enum.intersperse(classes, " "),
       "\">",
-      Phoenix.HTML.html_escape(text) |> Phoenix.HTML.safe_to_string(),
+      text |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string(),
       "</span>"
     ]
   end

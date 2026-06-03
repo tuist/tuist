@@ -3,20 +3,6 @@ defmodule Tuist.Runners.LogFormatterTest do
 
   alias Tuist.Runners.LogFormatter
 
-  describe "strip_ansi/1" do
-    test "drops every SGR escape sequence, preserving the surrounding text" do
-      assert LogFormatter.strip_ansi("\e[36;1mset -euo pipefail\e[0m") == "set -euo pipefail"
-    end
-
-    test "leaves text without escapes untouched" do
-      assert LogFormatter.strip_ansi("plain text") == "plain text"
-    end
-
-    test "handles empty SGR (treated as reset)" do
-      assert LogFormatter.strip_ansi("a\e[mb") == "ab"
-    end
-  end
-
   describe "to_segments/1" do
     test "splits a basic colour run into the coloured text + reset tail" do
       assert LogFormatter.to_segments("\e[36;1mhello\e[0m world") == [

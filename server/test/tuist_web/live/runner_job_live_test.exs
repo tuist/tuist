@@ -160,7 +160,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Steps will appear here once the job finishes."
   end
 
-  test "renders captured logs and live-appends streamed lines", %{conn: conn, account: account} do
+  test "renders captured logs on mount", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_601,
@@ -186,18 +186,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
         }
       ])
 
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
 
     assert html =~ "Logs"
     assert html =~ "compiling project"
-
-    send(
-      lv.pid,
-      {:runner_job_log_lines,
-       %{lines: [%{line_number: 2, ts: ~U[2026-05-28 12:00:01.000000Z], message: "linking binary"}]}}
-    )
-
-    assert render(lv) =~ "linking binary"
   end
 
   test "expanding a step reveals only that step's logs", %{conn: conn, account: account} do

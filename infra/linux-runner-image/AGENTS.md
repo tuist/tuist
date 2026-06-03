@@ -38,10 +38,8 @@ the sidecar Pod shape + lifecycle.
 ## Build
 
 ```bash
-# Context is `infra/` (not the image dir) so the Dockerfile's
-# tee-builder stage can reach `infra/runner-log-tee/`.
-cd infra
-docker build --pull -f linux-runner-image/Dockerfile -t ghcr.io/tuist/tuist-linux-runner:dev .
+cd infra/linux-runner-image
+docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
 `RUNNER_VERSION` is a `--build-arg` (default lives in the
