@@ -190,12 +190,13 @@ runnersFleet:
   xcodeVersions:
     - xcodeVersion: "26.5"
       default: true
-    - xcodeVersion: "26.4.1"
-  pools:
-    - name: default
+      # 1 warm runner per host on the default Xcode; sum across
+      # active xcodeVersions must stay ≤ `hostCount`. Other profiles
+      # cold-start on their first job.
       replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-canary-macos"
+    - xcodeVersion: "26.4.1"
+  runnerImageSemver: "0.0.1"
+  pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

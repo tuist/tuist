@@ -762,15 +762,29 @@ runnersFleet:
     - vcpus: 8
       memoryGb: 14
       default: true
-  # macOS Xcode catalog. Profiles pin one of these per row; the
-  # release-runner-image flow publishes a per-Xcode runner image tag
-  # that the corresponding pool uses. Keep this list in sync with the
-  # `runner-image-build.strategy.matrix.xcode` matrix in
-  # `.github/workflows/release.yml`.
+  # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
+  # `<release>-runner-pool-macos-<xcode-dashes>` with image
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # Customers route via account-scoped Runner Profiles; the server
+  # resolves (account, requested-label) → profile → pool. Keep this
+  # list in sync with the `runner-image-build.strategy.matrix.xcode`
+  # matrix in `.github/workflows/release.yml`.
   xcodeVersions:
     - xcodeVersion: "26.5"
       default: true
     - xcodeVersion: "26.4.1"
+  # Per-pool runner image template. `runner-pool.yaml` constructs each
+  # macOS pool's `spec.image` as
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
+  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
+  # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
+  # an out-of-rotation Xcode refreshed via `runner-image.yml`).
+  runnerImageRepository: "ghcr.io/tuist/tuist-runner"
+  # Required when `xcodeVersions` is non-empty (the template fails the
+  # render otherwise). Bumped by `release-runner-image` on every
+  # release; managed envs override this with the live version.
+  runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.

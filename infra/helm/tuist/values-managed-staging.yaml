@@ -284,26 +284,34 @@ runnersFleet:
       memoryGb: 14
       default: true
   xcodeVersions:
+    # Pod sizing matches the host capacity for every Xcode pool —
+    # kube-scheduler bin-packs one Pod per host AND tart-kubelet's
+    # `tart set` gives the VM the host's full CPU/RAM. Mismatch with
+    # `machine.host*` would either waste memory (Pod under-requests,
+    # VM is smaller than host) or fail to schedule (over-requests).
+    #
+    # `replicas` is the warm floor on this Xcode profile — it must
+    # sum to ≤ `hostCount` across all active xcodeVersions. With
+    # hostCount=1 today the warm slot goes to the default profile;
+    # the second profile cold-starts on its first job.
     - xcodeVersion: "26.5"
       default: true
-    - xcodeVersion: "26.4.1"
-  pools:
-    - name: default
-      # 1 warm runner per host. Pool replicas must equal `hostCount`
-      # while pods request the full host — over-provisioning the
-      # pool only produces unschedulable Pods that drag readiness
-      # gates without adding capacity.
       replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-staging-macos"
       pod:
-        # Pod request = host capacity. kube-scheduler bin-packs one
-        # Pod per host AND tart-kubelet's `tart set` gives the VM
-        # the host's full CPU/RAM. Mismatch with `machine.host*`
-        # would either waste memory (Pod under-requests, VM is
-        # smaller than host) or fail to schedule (over-requests).
         cpuMilli: 8000
         memoryMB: 14336
+    - xcodeVersion: "26.4.1"
+      pod:
+        cpuMilli: 8000
+        memoryMB: 14336
+  # Bumped by `release-runner-image` on every release; the chart
+  # template constructs each pool's image as
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # The starting value here matches the previously-pinned digest's
+  # effective runner-image version so the first deploy after this
+  # change doesn't pull a tag that hasn't been published yet.
+  runnerImageSemver: "0.0.1"
+  pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

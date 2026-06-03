@@ -1693,27 +1693,26 @@ jobs:
             git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
           fi
 
-      - name: Bump runner image pin in chart values
+      - name: Bump runner image semver in chart values
         run: |
-          # The runner image pin lives in each managed env's values
-          # file under runnersFleet.runnerImage. Anchor the
-          # substitution to the runnerImage line so we only touch
-          # that one (the values files carry several image refs).
-          # GNU sed (-i without an argument) — this job runs on ubuntu.
-          IMAGE="${{ steps.image.outputs.image }}"
+          # `runnersFleet.runnerImageSemver` is the single field the
+          # chart consumes — `runner-pool.yaml` constructs each macOS
+          # pool's image as
+          # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`
+          # so every active Xcode pool refreshes in lockstep when this
+          # value moves. GNU sed (-i without an argument) — this job
+          # runs on ubuntu.
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
-            # Only rewrite if the file already has a non-empty pin to
-            # the runner image — values-managed-{canary,production}.yaml
-            # ship with `runnerImage: ""` until those envs are flipped
-            # on, and we don't want to populate them silently from the
-            # release flow. The match accepts every pin style the chart
-            # has used: a digest (`@sha256:...`) and a tag (`:<short-sha>`,
-            # `:<semver>`, `:macos-<profile>-<semver>`).
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
-              sed -i -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1${IMAGE}\2|" "$f"
+            # Only rewrite if the file declares a runnerImageSemver
+            # (managed envs that haven't enabled the macOS fleet yet
+            # would have an empty or absent value). Match accepts the
+            # current double-quoted form: `runnerImageSemver: "x.y.z"`.
+            if grep -qE '^\s*runnerImageSemver:\s*"[^"]*"' "$f"; then
+              sed -i -E "s|^([[:space:]]*runnerImageSemver:[[:space:]]*\")[^\"]*(\".*)|\1${VERSION}\2|" "$f"
             fi
           done
 
