@@ -67,7 +67,7 @@ env:
 jobs:
   resolve:
     name: Resolve inputs
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     # Skip pull_request events that aren't a preview-label action and aren't
     # a synchronize/close on an already-labeled PR. Also skip fork PRs:
     # secrets don't propagate to fork-based runs and a deploy attempt would
@@ -184,7 +184,7 @@ jobs:
     name: Start GitHub Deployment
     needs: resolve
     if: needs.resolve.outputs.action == 'deploy' && needs.resolve.outputs.pr_number != ''
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     outputs:
       deployment_id: ${{ steps.create.outputs.deployment_id }}
     steps:
@@ -459,7 +459,7 @@ jobs:
     name: Teardown ${{ needs.resolve.outputs.release }}
     needs: resolve
     if: needs.resolve.outputs.action == 'teardown'
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     environment:
       name: server-k8s-preview
     concurrency:
