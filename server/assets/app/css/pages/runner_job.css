@@ -411,7 +411,7 @@
         display: inline-flex;
         align-items: center;
         flex-shrink: 0;
-        color: var(--noora-surface-label-tertiary);
+        color: var(--noora-surface-label-primary);
         transition: transform 0.15s ease;
 
         /* Noora's chevron renders as a 24×24 SVG by default; in
@@ -438,11 +438,15 @@
       transform: rotate(90deg);
     }
 
-    /* GitHub's own log UI doesn't indent group bodies — the
-       line-number gutter does the visual nesting for free
-       (collapsing a group makes those line numbers disappear; the
-       next visible line jumps ahead). Matching that here keeps
-       lines aligned regardless of nesting depth. */
+    /* Children of an expanded group get a small left margin so
+       the body lines visually nest under the chevron — same
+       behaviour as GitHub's own log UI. We push only the line
+       content, not the gutter, by indenting the whole row: the
+       gutter shifts with it but the relative alignment between
+       gutter and message stays intact. */
+    & > [data-part="log-group-body"] {
+      padding-left: var(--noora-spacing-6);
+    }
   }
 
   & [data-part="log-message"] {
