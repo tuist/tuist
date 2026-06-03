@@ -134,7 +134,12 @@ public struct BuildGraphInspector: BuildGraphInspecting {
             if testTarget.isSkipped {
                 return false
             } else if testTargets.isEmpty {
-                return !skipTestTargets.contains { $0.target == testTarget.target.name }
+                // Only a whole-target skip removes the target; a test-case-level skip still needs
+                // the target built so xcodebuild can skip the individual case. Mirrors the
+                // generator's `excludedTargets` filter so the scheme and this check stay in sync.
+                return !skipTestTargets.contains {
+                    $0.target == testTarget.target.name && $0.class == nil
+                }
             } else {
                 return testTargets.contains { $0.target == testTarget.target.name }
             }

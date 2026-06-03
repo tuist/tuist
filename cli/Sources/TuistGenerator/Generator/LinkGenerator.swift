@@ -377,14 +377,18 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             pbxTarget: pbxTarget
         )
 
-        // OTHER_SWIFT_FLAGS: add @response_file (no -Xcc) so swift-driver expands it
-        // into native -F flags. Passing -Xcc @file instead forwards the token verbatim
-        // to Swift's ClangImporter, whose createInvocation does not expand @file under
-        // Xcode 26 and treats it as a second Objective-C input, producing two -cc1 jobs
-        // and the "expected exactly one compiler job" error.
+        // OTHER_SWIFT_FLAGS: pass the precompiled framework search paths inline as native
+        // -F flags rather than through the response file. Unlike C/ObjC compilation, Swift
+        // does not hit ARG_MAX here, so it never needed the @file indirection, and routing
+        // it through @file is actively broken under Xcode 26: `-Xcc @file` makes the
+        // ClangImporter treat the response file as a second input ("expected exactly one
+        // compiler job"), while a bare `@file` is left unexpanded by Xcode's integrated
+        // SwiftDriver and resolved as a literal input ("Unexpected input file") whenever the
+        // .resp is absent at build time. Inline -F sidesteps both and needs no side-effect file.
+        let swiftFrameworkSearchPathFlags = precompiledXcodeValues.flatMap { ["-F", $0] }
         try setup(
             setting: "OTHER_SWIFT_FLAGS",
-            values: [responseFileRef],
+            values: swiftFrameworkSearchPathFlags,
             pbxTarget: pbxTarget
         )
 

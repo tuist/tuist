@@ -265,6 +265,36 @@ defmodule Tuist.RunnersTest do
       assert_receive {:jit_labels, labels}
       assert "shape-linux-4vcpu-16gb" in labels
     end
+
+    test "retries the owner-label stamp on a transient patch failure and still dispatches" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      # Two transient failures then success. The owner label gates the
+      # dispatch-egress NetworkPolicy, so a flaky patch must not leave
+      # the Pod unstamped. Sequential expects are consumed in order,
+      # ahead of the stub stub_dispatch_path installed.
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :timeout} end)
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:error, :timeout} end)
+      expect(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:jit_labels, _labels}
+    end
+
+    test "gives up after the stamp retry budget but still dispatches (non-fatal)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      # Every attempt fails. Dispatch must still succeed (the claim is
+      # already won) and the stamp must be bounded at @owner_label_stamp_attempts,
+      # not retried forever — verify_on_exit! asserts exactly 3 calls.
+      expect(K8sClient, :patch_pod, 3, fn _ns, _pod, _patch -> {:error, :timeout} end)
+
+      assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
   end
 
   # Find a Pod name that falls in slot != 0. The slot count is 8

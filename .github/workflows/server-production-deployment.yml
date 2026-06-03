@@ -80,7 +80,7 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build server image
-    # TODO: migrate to tuist-production-linux once the runner image ships
+    # TODO: migrate to tuist-linux once the runner image ships
     # a docker daemon — buildx requires a working docker engine.
     runs-on: namespace-profile-default-with-volume
     timeout-minutes: 40

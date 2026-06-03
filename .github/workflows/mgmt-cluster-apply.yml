@@ -58,7 +58,7 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: mgmt-cluster-apply
     # The apply path normally finishes in under 2 min; 5 min

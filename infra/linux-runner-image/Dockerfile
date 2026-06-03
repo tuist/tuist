@@ -160,12 +160,31 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && chmod 0755 /usr/local/bin/helm \
     && helm version --short
 
+# Docker CLI + buildx + compose plugins. The daemon runs in the
+# `dind` native sidecar (`docker:dind`); this image carries only
+# the client side. `docker-buildx-plugin` isn't in Ubuntu's repos
+# and `docker.io` lags upstream, so we use download.docker.com.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && . /etc/os-release \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        docker-ce-cli \
+        docker-buildx-plugin \
+        docker-compose-plugin \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Non-root runner user. `actions/runner` refuses to register as
-# root unless `RUNNER_ALLOW_RUNASROOT=1` is set — explicitly opt
-# out by creating a dedicated user. The user gets passwordless
-# sudo so workflow steps can install packages without prompting,
-# matching the GitHub-hosted runner experience.
-RUN useradd -m -d /home/runner -s /bin/bash runner \
+# root unless `RUNNER_ALLOW_RUNASROOT=1` is set. Passwordless sudo
+# matches the hosted-runner experience. The `docker` group GID is
+# pinned to 123 to match the `--group=123` arg the controller
+# passes to dockerd in the sidecar, so the runner can reach
+# /var/run/docker.sock without sudo.
+RUN groupadd -g 123 docker \
+    && useradd -m -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
     && chown -R runner:runner /home/runner

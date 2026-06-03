@@ -147,7 +147,7 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp bundle_object_key(account, project, plan_id) do
+  def bundle_object_key(account, project, plan_id) do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
 

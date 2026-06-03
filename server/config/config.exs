@@ -341,9 +341,9 @@ config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1
 config :tuist, :runner_linux_shapes, [
   %{vcpus: 1, memory_gb: 2},
   %{vcpus: 2, memory_gb: 4},
-  %{vcpus: 2, memory_gb: 8},
+  %{vcpus: 2, memory_gb: 8, default: true},
   %{vcpus: 4, memory_gb: 8},
-  %{vcpus: 4, memory_gb: 16, default: true},
+  %{vcpus: 4, memory_gb: 16},
   %{vcpus: 8, memory_gb: 16},
   %{vcpus: 8, memory_gb: 32},
   %{vcpus: 16, memory_gb: 32}

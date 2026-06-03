@@ -47,7 +47,7 @@ rules:
     resources: [statefulsets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
-    resources: [services, configmaps]
+    resources: [services, configmaps, secrets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses, networkpolicies]

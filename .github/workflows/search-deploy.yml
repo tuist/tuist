@@ -26,7 +26,7 @@ env:
 
 jobs:
   deploy:
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     environment: search-production
     steps:

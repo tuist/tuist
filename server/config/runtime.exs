@@ -467,7 +467,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
-base_queues = [default: 10, vcs_comments: 20, webhooks: 20]
+base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 
