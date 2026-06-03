@@ -17,23 +17,25 @@
 #   * No SA token copy — the projected token lives at the standard
 #     in-cluster path the moment the container starts.
 #
-# Two modes, selected by TUIST_RUNNER_JIT_OUTPUT_PATH:
+# Runs in the `poller` init container — the only container that
+# holds the SA token. On a claim it writes the minted JIT to
+# TUIST_RUNNER_JIT_OUTPUT_PATH and exits 0; the sibling `runner`
+# main container (no token) then reads it via run-job.sh and runs
+# the one job, so untrusted workflow code never shares a container
+# with the token.
 #
-#   * Poller mode (env set) — token-isolation Pod shape. This script
-#     runs in the `poller` init container, which is the only
-#     container holding the SA token. On a claim it writes the JIT
-#     to TUIST_RUNNER_JIT_OUTPUT_PATH and exits 0; the sibling
-#     `runner` main container (no token) then reads it via
-#     run-job.sh and runs the one job. Untrusted workflow code never
-#     shares a container with the token.
-#   * Exec mode (env unset, legacy single-container shape) — execs
-#     ./run.sh directly in this same container.
+# If TUIST_RUNNER_JIT_OUTPUT_PATH is unset, it execs ./run.sh in
+# this same container instead. That branch is purely a rollout
+# bridge: the runner image and the controller ship as independent
+# artifacts, so during the (image-first) cutover a not-yet-upgraded
+# controller runs this image as a single container with the env
+# unset. Delete it once the split controller is live in every env.
 #
 # Server contract (matches the macOS image):
 #   POST <url>
 #     200 with { encoded_jit_config, pool, owner }
-#       → poller mode: stage the JIT for the runner container, exit 0
-#       → exec mode:   exec ./run.sh --jitconfig <jit> --disableupdate
+#       → stage the JIT for the runner container, exit 0
+#       → (env unset) exec ./run.sh --jitconfig <jit> --disableupdate
 #         (single job, ephemeral, no auto-upgrade)
 #     204 → no work; sleep + retry
 #     401/403 → auth failed; abort (the SA is GC'd or invalid)
@@ -46,9 +48,10 @@ set -uo pipefail
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
-# When set, the minted JIT config is written here (poller mode) and
+# When set (the split Pod shape), the minted JIT is written here and
 # this script never execs the runner — that's the sibling runner
-# container's job. Unset falls back to the legacy in-container exec.
+# container's job. Unset falls back to exec'ing the runner in place
+# (the rollout bridge described above).
 JIT_OUTPUT_PATH=${TUIST_RUNNER_JIT_OUTPUT_PATH:-}
 
 # Audience-scoped projected token (the controller wires this in via
@@ -97,11 +100,11 @@ while true; do
         continue
       fi
       if [ -n "${JIT_OUTPUT_PATH}" ]; then
-        # Poller mode: stage the JIT for the sibling runner container
-        # and exit. Write to a temp file + atomic rename so a partial
-        # write can never be observed, and chmod 0644 so the non-root
-        # runner user can read it regardless of this container's umask
-        # (the JIT is the runner's own job credential, so in-Pod
+        # Stage the JIT for the sibling runner container and exit.
+        # Write to a temp file + atomic rename so a partial write can
+        # never be observed, and chmod 0644 so the non-root runner
+        # user can read it regardless of this container's umask (the
+        # JIT is the runner's own job credential, so in-Pod
         # readability is intended).
         tmp="${JIT_OUTPUT_PATH}.tmp"
         printf '%s' "${jit}" >"${tmp}"

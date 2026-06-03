@@ -12,8 +12,7 @@
 # code never shares a process namespace with the dispatch token.
 #
 #   JIT present → exec ./run.sh --jitconfig <jit> --disableupdate
-#                 (single job, ephemeral, no auto-upgrade), matching
-#                 the legacy single-container flags exactly.
+#                 (single job, ephemeral, no auto-upgrade).
 #   JIT absent  → the poller exited without a claim (HTTP 410 stale
 #                 image, or an auth/transport abort). Nothing to run;
 #                 exit 0 so the Pod completes and the RunnerPool

@@ -14,12 +14,14 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 - `/home/runner/actions-runner/` — GitHub Actions runner binary
   (no registration baked in; we register at runtime via the JIT
   config minted by `Tuist.Runners.dispatch_for_sa/2`).
-- `/usr/local/bin/dispatch-poll.sh` — the poll loop. POSTs to the
-  dispatch endpoint with the projected SA token as Bearer; on 204
-  it sleeps. With `TUIST_RUNNER_JIT_OUTPUT_PATH` set (the Linux
-  poller container) it writes the claimed JIT there and exits 0;
-  without it (legacy single-container shape) it `exec`s
-  `./run.sh --jitconfig <jit>` itself.
+- `/usr/local/bin/dispatch-poll.sh` — the poll loop, run by the
+  `poller` container. POSTs to the dispatch endpoint with the
+  projected SA token as Bearer; on 204 it sleeps; on a claim it
+  writes the minted JIT to the shared `tuist-runner-jit` volume
+  (`TUIST_RUNNER_JIT_OUTPUT_PATH`) and exits 0 for the runner
+  container to consume. (If that env is unset it `exec`s `./run.sh`
+  in place — a rollout bridge for a controller still mid-upgrade;
+  see `infra/runners-controller/AGENTS.md`.)
 - `/usr/local/bin/run-job.sh` — the `runner` container's
   entrypoint in the split shape. Reads the JIT the poller staged
   (`TUIST_RUNNER_JIT_PATH`) and `exec`s

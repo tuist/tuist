@@ -275,7 +275,9 @@ controller that creates the split Pod shape. A new controller on an
 old image would set `TUIST_RUNNER_JIT_OUTPUT_PATH` against a
 dispatch-poll that ignores it and execs the job inside the poller
 (token still mounted). The reverse (old controller, new image) is
-safe: with the env unset the new script keeps the legacy exec path.
+safe: with the env unset the new script execs the runner in place —
+a rollout bridge that can be dropped once every env runs the split
+controller.
 
 ## dockerd sidecar (Linux pools)
 
