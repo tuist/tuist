@@ -79,7 +79,8 @@ defmodule Tuist.GitHub.Releases do
       {:ok, %Req.Response{status: 200, body: releases}} ->
         releases
 
-      {:ok, %Req.Response{status: status}} when status in 500..599 ->
+      {:ok, %Req.Response{status: status}} ->
+        Logger.error("Failed to fetch GitHub releases, status: #{status}")
         []
 
       {:error, _reason} ->

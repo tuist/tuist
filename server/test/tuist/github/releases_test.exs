@@ -157,6 +157,29 @@ defmodule Tuist.GitHub.ReleasesTest do
     assert release == nil
   end
 
+  test "returns nil when GitHub rate-limits the request with a 403" do
+    # Given
+    releases_url = Releases.releases_url()
+
+    stub(
+      Req,
+      :get,
+      fn ^releases_url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 403,
+           body: %{"message" => "API rate limit exceeded"}
+         }}
+      end
+    )
+
+    # When
+    release = Releases.get_latest_cli_release()
+
+    # Then
+    assert release == nil
+  end
+
   describe "get_latest_app_release/0" do
     test "returns latest release if the response is successful" do
       # Given
