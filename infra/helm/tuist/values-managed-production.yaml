@@ -293,7 +293,10 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 2
         maxReplicas: 9
-  runnerImageSemver: "0.0.1"
+  # See values-managed-staging.yaml for the rationale on the SHA
+  # bootstrap; auto-rewritten to a real semver by the first
+  # post-merge `release-runner-image` run.
+  runnerImageSemver: "8841fc7b"
   pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the

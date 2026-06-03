@@ -304,10 +304,12 @@ runnersFleet:
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  # The starting value here matches the previously-pinned digest's
-  # effective runner-image version so the first deploy after this
-  # change doesn't pull a tag that hasn't been published yet.
-  runnerImageSemver: "0.0.1"
+  # The current value is the 8-char branch SHA from the first
+  # dispatch builds of `runner-image.yml` against this branch — those
+  # publish `:macos-26-5-<sha>` and `:macos-26-4-1-<sha>` so the
+  # chart is deployable before the post-merge release pipeline runs.
+  # The first auto-release rewrites this to a proper `X.Y.Z` semver.
+  runnerImageSemver: "8841fc7b"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
