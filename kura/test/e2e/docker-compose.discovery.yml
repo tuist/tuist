@@ -10,6 +10,7 @@ services:
           - kura-ring.kura.internal
 
   kura-us-2:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
