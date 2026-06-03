@@ -526,27 +526,21 @@ macosFleet:
   # Orphan-reclaim sweep — a leader-gated periodic sweep that returns
   # Scaleway hosts which were claimed by the controller but whose CR is
   # gone (a legacy CR that skipped release, a force-delete that bypassed
-  # the finalizer, a crash mid-claim) back to the adopt pool. `poolPrefix`
-  # also serves as the prefix the per-Machine delete path falls back to
-  # when a CR carries no adoptPoolPrefix, which actively prevents new
-  # strands. See controllers/orphan_reclaimer.go.
+  # the finalizer, a crash mid-claim) back to the adopt pool. The sweep's
+  # pool prefix and zones are derived from the fleet config
+  # (adoptPoolPrefix + each fleet's machine.zone) and the claimed-name
+  # prefix from the chart name, so the only knob here is whether the
+  # sweep may mutate. See controllers/orphan_reclaimer.go.
   orphanReclaim:
-    # Pool prefix (shared across all fleets). Setting it enables both the
-    # delete-path fallback and the sweep. Empty disables both.
-    poolPrefix: "tuist-pool-"
-    # Claimed-name namespace this cluster owns within the Scaleway
-    # project. Empty keeps the sweep report-only — it exports the
-    # scaleway_orphan_servers gauge and logs strays but never mutates a
-    # host. Set it to actively return stranded hosts to the pool. MUST be
-    # unique to this cluster when the Scaleway project is shared across
-    # environments: a non-unique prefix could reclaim another env's live
-    # host, whose CR isn't visible to this cluster's API server. Confirm
-    # per-env project isolation before enabling.
-    claimNamePrefix: ""
-    # Zones swept each cycle (comma-separated), unioned with the zones of
-    # all live CRs so a zone stays covered after its last CR is deleted.
-    zones: "fr-par-1"
-    interval: "15m"
+    # false (default): report-only. The sweep exports the
+    # scaleway_orphan_servers gauge and logs strays but never touches a
+    # host; the per-Machine delete path still falls back to the fleet
+    # pool prefix, which prevents new strands. true: the sweep also
+    # returns stranded hosts to the pool (rename + reinstall). Enable per
+    # env only after confirming this cluster has its own Scaleway project
+    # — a shared project could let the sweep reclaim another env's live
+    # host, whose CR isn't visible to this cluster's API server.
+    activeReclaim: false
 
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Each Mac mini joins the cluster as a real Node and

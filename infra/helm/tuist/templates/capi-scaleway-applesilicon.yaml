@@ -294,19 +294,17 @@ spec:
             - --tailscale-egress-namespace={{ .Values.macosFleet.tailscaleEgress.namespace }}
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
             {{- end }}
-            {{- with .Values.macosFleet.orphanReclaim }}
-            {{- if .poolPrefix }}
+            {{- if .Values.macosFleet.adoptPoolPrefix }}
             # Orphan-reclaim sweep + delete-path pool-prefix fallback.
-            # poolPrefix enables both the sweep and the per-Machine
-            # delete fallback (which actively prevents new strands);
-            # claimNamePrefix, when set, flips the sweep from report-only
-            # to active reclaim. See controllers/orphan_reclaimer.go.
-            - --default-adopt-pool-prefix={{ .poolPrefix }}
-            - --orphan-reclaim-zones={{ .zones | default "fr-par-1" }}
-            - --orphan-reclaim-interval={{ .interval | default "15m" }}
-            {{- with .claimNamePrefix }}
-            - --orphan-reclaim-claim-name-prefix={{ . }}
-            {{- end }}
+            # Pool prefix and swept zones are derived from the fleet
+            # config (the sweep also unions in every live CR's zone at
+            # runtime); the claimed-name prefix is the chart name. The
+            # sweep is report-only unless orphanReclaim.activeReclaim is
+            # set. See controllers/orphan_reclaimer.go.
+            - --default-adopt-pool-prefix={{ .Values.macosFleet.adoptPoolPrefix }}
+            - --orphan-reclaim-zones={{ list (.Values.macosFleet.machine.zone | default "fr-par-1") (.Values.runnersFleet.machine.zone | default "fr-par-1") (.Values.buildersFleet.machine.zone | default "fr-par-1") | uniq | join "," }}
+            {{- if .Values.macosFleet.orphanReclaim.activeReclaim }}
+            - --orphan-reclaim-claim-name-prefix={{ include "tuist.fullname" . }}-
             {{- end }}
             {{- end }}
           env:
