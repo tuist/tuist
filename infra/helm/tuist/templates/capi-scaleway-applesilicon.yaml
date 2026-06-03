@@ -295,6 +295,15 @@ spec:
             - --tailscale-egress-magicdns-suffix={{ required "macosFleet.tailscaleEgress.magicDNSSuffix is required when tailscaleEgress.enabled" .Values.macosFleet.tailscaleEgress.magicDNSSuffix }}
             {{- end }}
           env:
+            # Soft heap cap so Go's GC reclaims before the cgroup hard
+            # limit OOM-kills the manager. The process keeps the macOS
+            # bootstrap binaries (tart-kubelet, tart, tailscale,
+            # node_exporter — ~100Mi total) resident and reconciles the
+            # whole fleet in a cold-start burst, so the live heap sits
+            # close enough to the limit that default GOGC pacing can
+            # overshoot. Kept below the memory limit below.
+            - name: GOMEMLIMIT
+              value: "900MiB"
             # Scaleway credentials. ESO syncs them from 1Password into
             # this Secret automatically (see
             # capi-scaleway-applesilicon-external-secrets.yaml). For
@@ -332,8 +341,8 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
+              memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "1Gi"
 {{- end }}
