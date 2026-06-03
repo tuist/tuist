@@ -351,6 +351,28 @@ defmodule TuistWeb.RunnerProfilesLive do
     ]
 
   @doc """
+  Operating system + version the runner image for `platform` ships.
+  Surfaces in the form as a static (non-editable) field so customers
+  know exactly what their workflows execute against — even before the
+  catalog supports multiple OS versions per platform.
+
+  Hardcoded today: the runner-image Dockerfile / Packer template pins
+  one OS per platform. When future shape diversity ships, this moves
+  into the chart's per-shape OS catalog.
+  """
+  def os_label_for_form("linux"), do: dgettext("dashboard_runners", "Ubuntu 22.04 LTS")
+  def os_label_for_form("macos"), do: dgettext("dashboard_runners", "Tahoe 26.3")
+  def os_label_for_form(_), do: ""
+
+  @doc """
+  OS label for a persisted `%Profile{}` — the table-column variant
+  of `os_label_for_form/1`. Mirrors `platform_label/1`'s shape so
+  the table cell stays consistent with the form's read-only field.
+  """
+  def os_label(%Profile{platform: :linux}), do: os_label_for_form("linux")
+  def os_label(%Profile{platform: :macos}), do: os_label_for_form("macos")
+
+  @doc """
   Label for the platform dropdown trigger, resolved from the selected
   value. Falls back to a placeholder when nothing matches.
   """

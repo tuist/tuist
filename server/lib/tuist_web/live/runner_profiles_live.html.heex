@@ -90,6 +90,31 @@
               </.dropdown>
             </div>
 
+            <div data-part="field">
+              <span data-part="field-label">{dgettext("dashboard_runners", "Operating system")}</span>
+              <%!--
+                Single-option dropdown today — the OS pins to whatever
+                the runner image's base layer ships (Dockerfile / Packer
+                template). When the catalog grows per-shape OS diversity
+                this becomes a real selector driven by the platform's
+                catalog; for now Noora's dropdown component keeps the
+                form's visual language consistent and the single item
+                already carries the check mark so the selection is
+                explicit.
+              --%>
+              <.dropdown
+                id="runner-profile-os-dropdown"
+                label={os_label_for_form(@form_platform)}
+              >
+                <.dropdown_item
+                  value={os_label_for_form(@form_platform)}
+                  label={os_label_for_form(@form_platform)}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </div>
+
             <div :if={@form_platform == "macos"} data-part="field">
               <span data-part="field-label">{dgettext("dashboard_runners", "Xcode version")}</span>
               <.dropdown
@@ -195,6 +220,9 @@
         color={platform_badge_color(profile)}
         style="light-fill"
       />
+    </:col>
+    <:col :let={profile} label={dgettext("dashboard_runners", "Operating system")}>
+      <.text_cell label={os_label(profile)} />
     </:col>
     <:col :let={profile} label={dgettext("dashboard_runners", "vCPU")}>
       <.text_cell label={Integer.to_string(profile.vcpus)} />

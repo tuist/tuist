@@ -759,7 +759,7 @@ runnersFleet:
   # `TUIST_RUNNER_MACOS_SHAPES` (JSON). M2-L is the only Scaleway Apple
   # Silicon SKU on the fleet today.
   shapes:
-    - vcpus: 8
+    - vcpus: 6
       memoryGb: 14
       default: true
   # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named

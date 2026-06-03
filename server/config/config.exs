@@ -355,7 +355,7 @@ config :tuist, :runner_linux_shapes, [
 # ships here. Managed deploys override at boot from
 # `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
 config :tuist, :runner_macos_shapes, [
-  %{vcpus: 8, memory_gb: 14, default: true}
+  %{vcpus: 6, memory_gb: 14, default: true}
 ]
 
 # macOS Xcode catalog. Each entry is a runnable Xcode version on the

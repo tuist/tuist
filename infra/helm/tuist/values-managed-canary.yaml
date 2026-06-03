@@ -184,7 +184,7 @@ runnersFleet:
   # pool below; per-Xcode pool rendering lands once staging proves it
   # out. Keep `xcodeVersions` aligned with the matrix in `release.yml`.
   shapes:
-    - vcpus: 8
+    - vcpus: 6
       memoryGb: 14
       default: true
   xcodeVersions:

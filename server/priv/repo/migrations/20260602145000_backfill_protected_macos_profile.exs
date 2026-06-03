@@ -9,8 +9,8 @@ defmodule Tuist.Repo.Migrations.BackfillProtectedMacosProfile do
   # Shape + Xcode values are inlined for the same reason the Linux
   # backfill inlined them: migrations run with a slim application
   # boot and the catalog reads its values from runtime env vars
-  # that aren't guaranteed to be set at this point. The 8 vCPU /
-  # 14 GB M2-L shape is the only macOS shape, and `26.5` is the
+  # that aren't guaranteed to be set at this point. The 6 vCPU /
+  # 14 GB M2-L shape is the default macOS shape, and `26.5` is the
   # current default in `runner_macos_xcode_versions`. Re-shaping or
   # re-versioning later is just an `update` from the UI.
 
@@ -18,7 +18,7 @@ defmodule Tuist.Repo.Migrations.BackfillProtectedMacosProfile do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("""
     INSERT INTO runner_profiles (account_id, name, platform, vcpus, memory_gb, xcode_version, protected, inserted_at, updated_at)
-    SELECT a.id, 'macos', 'macos', 8, 14, '26.5', true, NOW(), NOW()
+    SELECT a.id, 'macos', 'macos', 6, 14, '26.5', true, NOW(), NOW()
       FROM accounts a
      WHERE NOT EXISTS (
        SELECT 1 FROM runner_profiles p

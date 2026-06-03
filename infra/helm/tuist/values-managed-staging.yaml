@@ -280,15 +280,14 @@ runnersFleet:
   # `.github/workflows/release.yml` so every active runner-image tag
   # has a profile that can pin to it.
   shapes:
-    - vcpus: 8
+    - vcpus: 6
       memoryGb: 14
       default: true
   xcodeVersions:
-    # Pod sizing matches the host capacity for every Xcode pool —
-    # kube-scheduler bin-packs one Pod per host AND tart-kubelet's
-    # `tart set` gives the VM the host's full CPU/RAM. Mismatch with
-    # `machine.host*` would either waste memory (Pod under-requests,
-    # VM is smaller than host) or fail to schedule (over-requests).
+    # Pod sizing matches the catalog shape (6 vCPU / 14 GB on M2-L) —
+    # tart-kubelet's `tart set` gives the VM the Pod's CPU/RAM, which
+    # is what the customer sees inside the runner. The remaining
+    # host cores stay free for tart-kubelet itself and host services.
     #
     # `replicas` is the warm floor on this Xcode profile — it must
     # sum to ≤ `hostCount` across all active xcodeVersions. With
@@ -298,7 +297,7 @@ runnersFleet:
       default: true
       replicas: 1
       pod:
-        cpuMilli: 8000
+        cpuMilli: 6000
         memoryMB: 14336
     - xcodeVersion: "26.4.1"
       autoscaling:
@@ -306,7 +305,7 @@ runnersFleet:
         minWarmPoolFloor: 0
         maxReplicas: 1
       pod:
-        cpuMilli: 8000
+        cpuMilli: 6000
         memoryMB: 14336
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
