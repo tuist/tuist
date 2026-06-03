@@ -29,7 +29,7 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         for i in 0 ..< 25 {
             xcframeworks.append(
                 .testXCFramework(
-                    path: try AbsolutePath(validating: "/xcframeworks/hash\(i)/Module\(i).xcframework"),
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
                     linking: .dynamic
                 )
             )
@@ -55,9 +55,9 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         )
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
         XCTAssertTrue(otherSwiftFlags.contains("-F"))
-        XCTAssertTrue(otherSwiftFlags.contains("/xcframeworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
         // The precompiled paths live in the response file, not in FRAMEWORK_SEARCH_PATHS.
-        XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/xcframeworks/") })
+        XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/Frameworks/") })
 
         let responseFile = try XCTUnwrap(sideEffects.compactMap { sideEffect -> FileDescriptor? in
             guard case let .file(file) = sideEffect,
@@ -66,7 +66,7 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
             return file
         }.first)
         let contents = try XCTUnwrap(String(data: try XCTUnwrap(responseFile.contents), encoding: .utf8))
-        XCTAssertTrue(contents.contains("-F/xcframeworks/hash0"))
+        XCTAssertTrue(contents.contains("-F\(projectPath.appending(components: "Frameworks", "hash0").pathString)"))
     }
 
     func test_map_keepsFrameworkSearchPaths_whenFewPrecompiledFrameworks() throws {
@@ -75,7 +75,7 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         let app = Target.test(name: "App", product: .app)
         let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
         let xcframework: GraphDependency = .testXCFramework(
-            path: try AbsolutePath(validating: "/xcframeworks/hash0/Module0.xcframework"),
+            path: projectPath.appending(components: "Frameworks", "hash0", "Module0.xcframework"),
             linking: .dynamic
         )
         let graph = Graph.test(
@@ -91,7 +91,7 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
 
         // Then
         let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
-        XCTAssertTrue(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains("/xcframeworks/hash0"))
+        XCTAssertTrue(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains("$(SRCROOT)/Frameworks/hash0"))
         XCTAssertNil(settings.base["OTHER_CFLAGS"])
         XCTAssertTrue(sideEffects.isEmpty)
     }
