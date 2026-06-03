@@ -115,16 +115,6 @@ openssl x509 -req -in peer.csr \
   -extfile peer.ext
 ```
 
-In Kubernetes, store those files in the Secret referenced by the Helm chart:
-
-```bash
-kubectl create secret generic kura-peer-tls \
-  --namespace kura \
-  --from-file=ca.pem=ca.pem \
-  --from-file=tls.crt=tls.crt \
-  --from-file=tls.key=tls.key
-```
-
 Use network-level restrictions in addition to mTLS. In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery, then allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, give each node a stable DNS name or IP address, seed the mesh with the internal URLs of the other nodes, and use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
 
 ## Configuration {#configuration}
