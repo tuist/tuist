@@ -121,6 +121,25 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
                Jobs.get_for_account(account.id, 9_910_003)
     end
 
+    test "strips the UTF-8 BOM that prefixes GitHub's Logs API response" do
+      account = account_fixture()
+      enqueue(account, 9_910_010)
+      stub_gh_installation_token()
+
+      # GitHub returns the payload with a leading BOM. Without
+      # stripping it the first line's ISO peel fails and the raw
+      # timestamp leaks into the message.
+      body = "﻿2026-06-02T15:31:03.111111Z Current runner version: '2.334.0'\n"
+
+      expect(Req, :get, fn _opts -> {:ok, %Req.Response{status: 200, body: body}} end)
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_010, account.id)})
+
+      [line] = JobLogs.list_for_job(9_910_010)
+      assert line.message == "Current runner version: '2.334.0'"
+      refute line.message =~ "2026-06-02T"
+    end
+
     test "is a no-op when the GitHub App installation has been uninstalled" do
       account = account_fixture()
       enqueue(account, 9_910_004)

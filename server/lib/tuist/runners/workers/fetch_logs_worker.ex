@@ -141,6 +141,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   """
   def parse_lines(text, workflow_job_id, account_id) do
     text
+    # GitHub's Logs API prefixes the payload with a UTF-8 BOM.
+    # Without stripping it the first line's ISO timestamp peel
+    # fails (it sees `﻿2026-…` instead of `2026-…`) and the
+    # raw ISO leaks into the rendered `message` text.
+    |> String.trim_leading("﻿")
     |> String.split("\n", trim: false)
     |> Enum.reject(&(&1 == ""))
     |> Enum.with_index(1)
