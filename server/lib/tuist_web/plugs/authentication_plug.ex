@@ -101,11 +101,8 @@ defmodule TuistWeb.AuthenticationPlug do
       %User{} = user ->
         TuistWeb.Authentication.put_current_user(conn, user)
 
-      %AuthenticatedAccount{} = authenticated_account ->
-        assign(conn, :current_subject, authenticated_account)
-
-      %AuthenticatedService{} = authenticated_service ->
-        assign(conn, :current_subject, authenticated_service)
+      %struct{} = subject when struct in [AuthenticatedAccount, AuthenticatedService] ->
+        assign(conn, :current_subject, subject)
 
       nil ->
         conn
