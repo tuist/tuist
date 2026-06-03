@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -316,6 +317,162 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcilePeerTLSSecretCreatesValidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	secret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, secret); err != nil {
+		t.Fatalf("expected peer TLS Secret to be created: %v", err)
+	}
+	if secret.Type != corev1.SecretTypeOpaque {
+		t.Fatalf("expected opaque Secret, got %q", secret.Type)
+	}
+	if !peerTLSSecretDataValid(secret.Data, instance) {
+		t.Fatal("expected generated peer TLS data to validate")
+	}
+	if got := secret.Labels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected account label, got %q", got)
+	}
+	if len(secret.OwnerReferences) != 1 || secret.OwnerReferences[0].Name != instance.Name {
+		t.Fatalf("expected Secret to be owned by KuraInstance, got %v", secret.OwnerReferences)
+	}
+
+	block, _ := pem.Decode(secret.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected peer certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("expected peer certificate to parse: %v", err)
+	}
+	if !containsString(cert.DNSNames, "*.kura-tuist-eu-1-headless.kura.svc.cluster.local") {
+		t.Fatalf("expected peer certificate SANs to cover StatefulSet pod DNS names, got %v", cert.DNSNames)
+	}
+	if !containsExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth) ||
+		!containsExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth) {
+		t.Fatalf("expected peer certificate to support server and client auth, got %v", cert.ExtKeyUsage)
+	}
+}
+
+func TestKuraInstanceReconcilePeerTLSSecretPreservesValidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	validData, err := generatePeerTLSSecretData(instance)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       cloneSecretData(validData),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, secret).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	updated := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if !secretDataEqual(validData, updated.Data) {
+		t.Fatal("expected existing valid peer TLS material to be preserved")
+	}
+}
+
+func TestKuraInstanceReconcilePeerTLSSecretRegeneratesInvalidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	invalidData := map[string][]byte{
+		peerTLSCAFile:   []byte("not a ca"),
+		peerTLSCertFile: []byte("not a cert"),
+		peerTLSKeyFile:  []byte("not a key"),
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       cloneSecretData(invalidData),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, secret).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	updated := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if !peerTLSSecretDataValid(updated.Data, instance) {
+		t.Fatal("expected invalid peer TLS material to be regenerated")
+	}
+	if secretDataEqual(invalidData, updated.Data) {
+		t.Fatal("expected regenerated peer TLS material to differ from invalid input")
+	}
+}
+
 func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -597,4 +754,43 @@ func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
 	if status.observedImage != "ghcr.io/tuist/kura:0.5.3" {
 		t.Fatalf("expected observed image to advance, got %q", status.observedImage)
 	}
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func containsExtKeyUsage(values []x509.ExtKeyUsage, needle x509.ExtKeyUsage) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneSecretData(data map[string][]byte) map[string][]byte {
+	clone := make(map[string][]byte, len(data))
+	for key, value := range data {
+		clone[key] = bytes.Clone(value)
+	}
+	return clone
+}
+
+func secretDataEqual(left, right map[string][]byte) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, leftValue := range left {
+		rightValue, ok := right[key]
+		if !ok || !bytes.Equal(leftValue, rightValue) {
+			return false
+		}
+	}
+	return true
 }
