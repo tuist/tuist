@@ -96,6 +96,18 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  plug TuistWeb.Plugs.SlackWebhookPlug,
+    at: "/webhooks/tailscale-jit/slash",
+    handler: TuistWeb.Webhooks.TailscaleJITController,
+    action: :slash,
+    secret: {Tuist.Environment, :tailscale_jit_slack_signing_secret, []}
+
+  plug TuistWeb.Plugs.SlackWebhookPlug,
+    at: "/webhooks/tailscale-jit/interactive",
+    handler: TuistWeb.Webhooks.TailscaleJITController,
+    action: :interactive,
+    secret: {Tuist.Environment, :tailscale_jit_slack_signing_secret, []}
+
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.

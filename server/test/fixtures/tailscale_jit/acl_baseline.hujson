@@ -1,0 +1,33 @@
+// Test fixture mirroring the shape of infra/tailscale/acls.json:
+// header comments, multiple groups (populated + empty), grants
+// referencing those groups, and tests below. The mutation module
+// must preserve everything outside the targeted group's array
+// byte-for-byte across a round trip.
+{
+	"groups": {
+		// Founders.
+		"group:tuist-admins": ["pedro@tuist.dev", "marek@tuist.dev"],
+		"group:tuist-eng": ["eduardo.ext@tuist.dev"],
+
+		// Break-glass groups (empty by default).
+		"group:tuist-staging-write": [],
+		"group:tuist-canary-write":  [],
+		"group:tuist-prod-write":    [],
+	},
+
+	"tagOwners": {
+		"tag:tuist-k8s-staging":    ["autogroup:admin"],
+		"tag:tuist-k8s-production": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// Comment in grants.
+		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
+		{
+			"src": ["group:tuist-prod-write"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:443"],
+			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-prod-write"]}}]},
+		},
+	],
+}

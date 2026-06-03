@@ -1395,3 +1395,20 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+
+# Tailscale JIT elevation bot. The bot is a module tree inside the
+# Tuist server release that runs ONLY on production (single writer
+# for the global tailnet ACL); this flag toggles the rendering of
+# the ExternalSecret that materialises its credentials. Self-host
+# and non-production managed envs leave this off.
+tailscaleJIT:
+  enabled: false
+  externalSecrets:
+    # 1P item holding client_id, client_secret, tailnet,
+    # slack_signing_secret, slack_bot_token, approvals_channel_id,
+    # alerts_channel_id.
+    item: TAILSCALE_JIT_BOT
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword

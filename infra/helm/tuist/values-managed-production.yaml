@@ -50,6 +50,18 @@ server:
           name: tuist-kura-kubeconfigs
           key: TUIST_KURA_KUBECONFIG_US_WEST_1
 
+  # Mount the JIT bot's Tailscale + Slack credentials. The Secret
+  # is rendered by templates/tailscale-jit-externalsecret.yaml from
+  # the TAILSCALE_JIT_BOT 1P item; the bot supervisor in the server
+  # release reads the values at boot. Production-only because the
+  # tailnet ACL is a single-writer global resource.
+  extraEnvFrom:
+    - secretRef:
+        name: tuist-tailscale-jit-bot
+
+tailscaleJIT:
+  enabled: true
+
   autoscaling:
     enabled: true
     minReplicas: 2
