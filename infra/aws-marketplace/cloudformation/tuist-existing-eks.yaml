@@ -1,0 +1,497 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Deploy Tuist into an existing Amazon EKS cluster with AWS-managed Postgres and
+  S3 dependencies. This is the first AWS Marketplace one-click deployment
+  milestone, before the full empty-account Quick Launch template.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: EKS target
+        Parameters:
+          - EKSClusterName
+          - KubernetesNamespace
+          - HelmReleaseName
+          - NodeSecurityGroupId
+          - OIDCProviderArn
+          - OIDCIssuerHostPath
+      - Label:
+          default: Tuist configuration
+        Parameters:
+          - TuistAppUrl
+          - TuistLicenseKey
+          - TuistChartRepository
+          - TuistChartName
+          - TuistChartVersion
+      - Label:
+          default: Database
+        Parameters:
+          - VpcId
+          - PrivateSubnet1Id
+          - PrivateSubnet2Id
+          - DatabaseName
+          - DatabaseUsername
+          - DatabasePassword
+          - DatabaseInstanceClass
+          - DatabaseAllocatedStorage
+          - DatabaseMultiAZ
+    ParameterLabels:
+      EKSClusterName:
+        default: EKS cluster name
+      KubernetesNamespace:
+        default: Kubernetes namespace
+      HelmReleaseName:
+        default: Helm release name
+      NodeSecurityGroupId:
+        default: EKS node security group
+      OIDCProviderArn:
+        default: EKS OIDC provider ARN
+      OIDCIssuerHostPath:
+        default: EKS OIDC issuer host path
+      TuistAppUrl:
+        default: Public Tuist URL
+      TuistLicenseKey:
+        default: Tuist license key
+      TuistChartRepository:
+        default: Helm chart repository
+      TuistChartName:
+        default: Helm chart name
+      TuistChartVersion:
+        default: Helm chart version
+      VpcId:
+        default: VPC
+      PrivateSubnet1Id:
+        default: Private subnet 1
+      PrivateSubnet2Id:
+        default: Private subnet 2
+      DatabaseName:
+        default: Database name
+      DatabaseUsername:
+        default: Database username
+      DatabasePassword:
+        default: Database password
+      DatabaseInstanceClass:
+        default: Database instance class
+      DatabaseAllocatedStorage:
+        default: Database storage
+      DatabaseMultiAZ:
+        default: Multi-AZ database
+
+Parameters:
+  EKSClusterName:
+    Type: String
+    Description: Existing EKS cluster where Tuist will be installed.
+
+  KubernetesNamespace:
+    Type: String
+    Default: tuist
+    AllowedPattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    Description: Kubernetes namespace for the Tuist Helm release.
+
+  HelmReleaseName:
+    Type: String
+    Default: tuist
+    AllowedPattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    Description: Helm release name.
+
+  NodeSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group used by EKS worker nodes. RDS allows Postgres traffic from this group.
+
+  OIDCProviderArn:
+    Type: String
+    Description: IAM OIDC provider ARN for the target EKS cluster, used for IRSA.
+
+  OIDCIssuerHostPath:
+    Type: String
+    Description: >
+      OIDC issuer host and path without https://, for example
+      oidc.eks.us-east-1.amazonaws.com/id/0123456789ABCDEF.
+
+  TuistAppUrl:
+    Type: String
+    Default: https://tuist.example.com
+    Description: Public URL that users and the Tuist CLI use to reach this deployment.
+
+  TuistLicenseKey:
+    Type: String
+    NoEcho: true
+    AllowedPattern: "^[A-Za-z0-9_.:-]{1,2048}$"
+    Description: Tuist Enterprise self-hosting license key.
+
+  TuistChartRepository:
+    Type: String
+    Default: oci://ghcr.io/tuist/charts
+    Description: >
+      Helm chart repository. Marketplace submission should replace this with
+      the AWS Marketplace-managed chart location.
+
+  TuistChartName:
+    Type: String
+    Default: tuist
+    Description: Helm chart name.
+
+  TuistChartVersion:
+    Type: String
+    Default: 0.2.0
+    Description: Tuist Helm chart version to install.
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC that contains the EKS worker nodes and private database subnets.
+
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: First private subnet for the RDS subnet group.
+
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Second private subnet for the RDS subnet group.
+
+  DatabaseName:
+    Type: String
+    Default: tuist
+    AllowedPattern: "^[A-Za-z][A-Za-z0-9_]{0,62}$"
+    Description: Initial Postgres database name.
+
+  DatabaseUsername:
+    Type: String
+    Default: tuist
+    AllowedPattern: "^[A-Za-z][A-Za-z0-9_]{0,62}$"
+    Description: Postgres owner username.
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 64
+    AllowedPattern: "^[A-Za-z0-9]{16,64}$"
+    Description: Postgres owner password. Use only letters and numbers because the chart composes this into DATABASE_URL.
+
+  DatabaseInstanceClass:
+    Type: String
+    Default: db.t4g.medium
+    Description: RDS instance class for Postgres.
+
+  DatabaseAllocatedStorage:
+    Type: Number
+    Default: 100
+    MinValue: 20
+    Description: Allocated RDS storage in GiB.
+
+  DatabaseMultiAZ:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Whether to provision RDS as Multi-AZ.
+
+Conditions:
+  UseMultiAZDatabase: !Equals [!Ref DatabaseMultiAZ, "true"]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  CacheBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  XcodeCacheBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  RegistryBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow Tuist EKS nodes to reach Tuist Postgres.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref NodeSecurityGroupId
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for Tuist Postgres.
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+
+  TuistDatabase:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      AllocatedStorage: !Ref DatabaseAllocatedStorage
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 7
+      DBInstanceClass: !Ref DatabaseInstanceClass
+      DBName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      Engine: postgres
+      MasterUsername: !Ref DatabaseUsername
+      MasterUserPassword: !Ref DatabasePassword
+      MultiAZ: !If [UseMultiAZDatabase, true, false]
+      PubliclyAccessible: false
+      StorageEncrypted: true
+      VPCSecurityGroups:
+        - !GetAtt DatabaseSecurityGroup.GroupId
+
+  TuistServerS3Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Fn::Sub:
+          - |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": "${ProviderArn}"
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity",
+                  "Condition": {
+                    "StringEquals": {
+                      "${IssuerHostPath}:aud": "sts.amazonaws.com",
+                      "${IssuerHostPath}:sub": "system:serviceaccount:${Namespace}:tuist-server"
+                    }
+                  }
+                }
+              ]
+            }
+          - ProviderArn: !Ref OIDCProviderArn
+            IssuerHostPath: !Ref OIDCIssuerHostPath
+            Namespace: !Ref KubernetesNamespace
+      Policies:
+        - PolicyName: tuist-s3-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub "${ArtifactBucket.Arn}/*"
+                  - !Sub "${CacheBucket.Arn}/*"
+                  - !Sub "${XcodeCacheBucket.Arn}/*"
+                  - !Sub "${RegistryBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ArtifactBucket.Arn
+                  - !GetAtt CacheBucket.Arn
+                  - !GetAtt XcodeCacheBucket.Arn
+                  - !GetAtt RegistryBucket.Arn
+
+  TuistNamespace:
+    Type: AWSQS::Kubernetes::Resource
+    Properties:
+      ClusterName: !Ref EKSClusterName
+      Namespace: default
+      Manifest: !Sub |
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${KubernetesNamespace}
+
+  TuistHelmRelease:
+    Type: AWSQS::Kubernetes::Helm
+    DependsOn:
+      - TuistNamespace
+    Properties:
+      ClusterID: !Ref EKSClusterName
+      Name: !Ref HelmReleaseName
+      Namespace: !Ref KubernetesNamespace
+      Repository: !Ref TuistChartRepository
+      Chart: !Ref TuistChartName
+      Version: !Ref TuistChartVersion
+      TimeOut: 20
+      ValueYaml:
+        Fn::Sub:
+          - |
+            global:
+              commonLabels:
+                tuist.dev/distribution: aws-marketplace
+
+            server:
+              replicaCount: 1
+              appUrl: "${TuistAppUrl}"
+              hosted: false
+              skipEmailConfirmation: true
+              database:
+                ssl: true
+              service:
+                type: LoadBalancer
+                port: 80
+                targetPort: 8080
+              s3:
+                region: "${AWS::Region}"
+                bucketName: "${ArtifactBucketName}"
+                virtualHost: false
+                bucketAsHost: false
+              serviceAccount:
+                create: true
+                name: tuist-server
+                annotations:
+                  eks.amazonaws.com/role-arn: "${TuistServerS3RoleArn}"
+              extraEnv:
+                - name: TUIST_S3_AUTHENTICATION_METHOD
+                  value: aws_web_identity_token_from_env_vars
+              license:
+                key: "${TuistLicenseKey}"
+
+            cache:
+              enabled: false
+              s3:
+                region: "${AWS::Region}"
+                bucket: "${CacheBucketName}"
+                xcodeCacheBucket: "${XcodeCacheBucketName}"
+                registryBucket: "${RegistryBucketName}"
+
+            processor:
+              enabled: false
+
+            xcresultProcessor:
+              enabled: false
+
+            runnersFleet:
+              enabled: false
+
+            runnersFleetLinux:
+              enabled: false
+
+            kuraController:
+              enabled: false
+
+            capi:
+              enabled: false
+
+            postgresql:
+              mode: external
+              external:
+                host: "${DatabaseHost}"
+                port: ${DatabasePort}
+                database: "${DatabaseName}"
+                username: "${DatabaseUsername}"
+                password: "${DatabasePassword}"
+
+            clickhouse:
+              mode: embedded
+              embedded:
+                persistence:
+                  size: 100Gi
+
+            objectStorage:
+              mode: external
+              external:
+                endpoint: "https://s3.${AWS::Region}.${AWS::URLSuffix}"
+                accessKey: ""
+                secretKey: ""
+                region: "${AWS::Region}"
+                buckets:
+                  default: "${ArtifactBucketName}"
+                  cache: "${CacheBucketName}"
+                  xcodeCache: "${XcodeCacheBucketName}"
+                  registry: "${RegistryBucketName}"
+
+            observability:
+              enabled: false
+          - TuistServerS3RoleArn: !GetAtt TuistServerS3Role.Arn
+            DatabaseHost: !GetAtt TuistDatabase.Endpoint.Address
+            DatabasePort: !GetAtt TuistDatabase.Endpoint.Port
+            ArtifactBucketName: !Ref ArtifactBucket
+            CacheBucketName: !Ref CacheBucket
+            XcodeCacheBucketName: !Ref XcodeCacheBucket
+            RegistryBucketName: !Ref RegistryBucket
+
+Outputs:
+  Namespace:
+    Description: Kubernetes namespace where Tuist was installed.
+    Value: !Ref KubernetesNamespace
+
+  HelmRelease:
+    Description: Tuist Helm release name.
+    Value: !Ref HelmReleaseName
+
+  DatabaseEndpoint:
+    Description: RDS Postgres endpoint.
+    Value: !GetAtt TuistDatabase.Endpoint.Address
+
+  ArtifactBucketName:
+    Description: S3 bucket used for Tuist artifacts.
+    Value: !Ref ArtifactBucket
+
+  CacheBucketName:
+    Description: S3 bucket reserved for cache artifacts.
+    Value: !Ref CacheBucket
+
+  XcodeCacheBucketName:
+    Description: S3 bucket reserved for Xcode cache artifacts.
+    Value: !Ref XcodeCacheBucket
+
+  RegistryBucketName:
+    Description: S3 bucket reserved for registry artifacts.
+    Value: !Ref RegistryBucket
+
+  TuistServerS3RoleArn:
+    Description: IAM role annotated on the Tuist server ServiceAccount.
+    Value: !GetAtt TuistServerS3Role.Arn

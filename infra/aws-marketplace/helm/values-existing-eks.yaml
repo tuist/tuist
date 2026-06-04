@@ -1,0 +1,87 @@
+global:
+  commonLabels:
+    tuist.dev/distribution: aws-marketplace
+
+server:
+  replicaCount: 1
+  appUrl: https://tuist.example.com
+  hosted: false
+  skipEmailConfirmation: true
+  database:
+    ssl: true
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 8080
+  s3:
+    region: us-east-1
+    bucketName: tuist-artifacts-example
+    virtualHost: false
+    bucketAsHost: false
+  serviceAccount:
+    create: true
+    name: tuist-server
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/tuist-server-s3
+  extraEnv:
+    - name: TUIST_S3_AUTHENTICATION_METHOD
+      value: aws_web_identity_token_from_env_vars
+  license:
+    key: REPLACE_WITH_TUIST_LICENSE
+
+cache:
+  enabled: false
+  s3:
+    region: us-east-1
+    bucket: tuist-cache-example
+    xcodeCacheBucket: tuist-xcode-cache-example
+    registryBucket: tuist-registry-example
+
+processor:
+  enabled: false
+
+xcresultProcessor:
+  enabled: false
+
+runnersFleet:
+  enabled: false
+
+runnersFleetLinux:
+  enabled: false
+
+kuraController:
+  enabled: false
+
+capi:
+  enabled: false
+
+postgresql:
+  mode: external
+  external:
+    host: tuist-postgres.example.com
+    port: 5432
+    database: tuist
+    username: tuist
+    password: REPLACE_WITH_DATABASE_PASSWORD
+
+clickhouse:
+  mode: embedded
+  embedded:
+    persistence:
+      size: 100Gi
+
+objectStorage:
+  mode: external
+  external:
+    endpoint: https://s3.us-east-1.amazonaws.com
+    accessKey: ""
+    secretKey: ""
+    region: us-east-1
+    buckets:
+      default: tuist-artifacts-example
+      cache: tuist-cache-example
+      xcodeCache: tuist-xcode-cache-example
+      registry: tuist-registry-example
+
+observability:
+  enabled: false
