@@ -242,6 +242,7 @@ defmodule Tuist.Runners.AnalyticsTest do
       account = account_fixture()
 
       completed_job(account, 78_001, "success", fleet: "linux-amd64")
+
       completed_job(account, 78_002, "success",
         fleet: Tuist.Runners.Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
       )

@@ -91,7 +91,9 @@
             </div>
 
             <div data-part="field">
-              <span data-part="field-label">{dgettext("dashboard_runners", "Operating system")}</span>
+              <span data-part="field-label">
+                {dgettext("dashboard_runners", "Operating system")}
+              </span>
               <%!--
                 Single-option dropdown today — the OS pins to whatever
                 the runner image's base layer ships (Dockerfile / Packer
@@ -116,7 +118,9 @@
             </div>
 
             <div :if={@form_platform == "macos"} data-part="field">
-              <span data-part="field-label">{dgettext("dashboard_runners", "Xcode version")}</span>
+              <span data-part="field-label">
+                {dgettext("dashboard_runners", "Xcode version")}
+              </span>
               <.dropdown
                 :if={not Enum.empty?(@xcode_catalog)}
                 id="runner-profile-xcode-version-dropdown"

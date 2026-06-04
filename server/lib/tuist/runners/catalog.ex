@@ -207,8 +207,7 @@ defmodule Tuist.Runners.Catalog do
   defp shapes_config_key(:linux), do: :runner_linux_shapes
   defp shapes_config_key(:macos), do: :runner_macos_shapes
 
-  defp normalize_shape(%{vcpus: vcpus, memory_gb: memory_gb} = shape)
-       when is_integer(vcpus) and is_integer(memory_gb) do
+  defp normalize_shape(%{vcpus: vcpus, memory_gb: memory_gb} = shape) when is_integer(vcpus) and is_integer(memory_gb) do
     %{
       vcpus: vcpus,
       memory_gb: memory_gb,
@@ -219,8 +218,7 @@ defmodule Tuist.Runners.Catalog do
 
   defp normalize_shape(_), do: nil
 
-  defp normalize_xcode_version(%{xcode_version: version} = entry)
-       when is_binary(version) and version != "" do
+  defp normalize_xcode_version(%{xcode_version: version} = entry) when is_binary(version) and version != "" do
     %{
       xcode_version: version,
       tag: xcode_version_tag(version),

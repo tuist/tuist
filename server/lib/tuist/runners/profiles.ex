@@ -238,6 +238,5 @@ defmodule Tuist.Runners.Profiles do
 
   defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
 
-  defp catalog_opts_for(:macos),
-    do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
+  defp catalog_opts_for(:macos), do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
 end

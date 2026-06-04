@@ -410,11 +410,9 @@ defmodule TuistWeb.RunnerProfilesLive do
   Label for the Xcode-version dropdown trigger, resolved from the
   selected `xcode_version` string. Falls back to a placeholder.
   """
-  def xcode_version_label_for_value(nil),
-    do: dgettext("dashboard_runners", "Select Xcode version")
+  def xcode_version_label_for_value(nil), do: dgettext("dashboard_runners", "Select Xcode version")
 
-  def xcode_version_label_for_value(""),
-    do: dgettext("dashboard_runners", "Select Xcode version")
+  def xcode_version_label_for_value(""), do: dgettext("dashboard_runners", "Select Xcode version")
 
   def xcode_version_label_for_value(version) when is_binary(version),
     do: dgettext("dashboard_runners", "Xcode %{version}", version: version)
