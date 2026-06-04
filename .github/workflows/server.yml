@@ -73,6 +73,12 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
       - name: Check gettext templates are up-to-date
+        env:
+          # Throttle Elixir's parallel-compiler — gettext.extract has to
+          # compile the whole project to reach every dgettext/3 call site,
+          # and the default parallelism OOM-kills even tuist-linux-large.
+          # Same countermeasure the Security job uses.
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: |
           run_gettext_extract() {
             log_file="$1"
