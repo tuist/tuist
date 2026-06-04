@@ -67,32 +67,7 @@ jobs:
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl
 
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM on this host, not just the
-        # one this workflow produces. The sibling
-        # `xcresult-processor-image` workflow runs on the same host
-        # and leaves its working VM behind (and vice versa); each
-        # VM is ~80 GB, and on an M1-M's 256 GB SSD they accumulate
-        # fast and the next `tart clone` fails with "The file
-        # couldn't be saved because there isn't enough space."
-        # Filtering on `Source=local` keeps the cached OCI base
-        # image (`ghcr.io/cirruslabs/macos-tahoe-xcode:26.4`,
-        # ~70 GB) so the next clone is still fast — `tart prune`
-        # below is what reclaims that cache when an image is
-        # upgraded. The `--older-than 1` vms prune doesn't catch
-        # the clones because `tart list` updates the access time.
-        # New image-bake workflows on this host don't need this
-        # step updated; their VMs get cleaned up the same way.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
+      - uses: ./.github/actions/reclaim-tart-disk
 
       - name: Build image
         id: build
