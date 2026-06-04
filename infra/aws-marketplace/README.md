@@ -9,7 +9,7 @@ The first deployable milestone is an **existing EKS** Marketplace-style stack:
 1. The buyer selects an existing EKS cluster.
 2. CloudFormation creates AWS dependencies:
    - RDS Postgres for Tuist relational data.
-   - S3 buckets for Tuist artifacts, cache artifacts, Xcode cache artifacts, and registry artifacts.
+   - S3 buckets for Tuist artifacts and registry artifacts.
    - An IAM role for the Tuist server ServiceAccount to access those buckets through IRSA.
 3. CloudFormation installs the Tuist Helm chart into the cluster through the `AWSQS::Kubernetes::Helm` public extension.
 
@@ -30,6 +30,8 @@ The first template assumes the buyer already has:
 - The EKS worker node security group ID, so the template can allow Postgres traffic from the cluster.
 - A public Tuist URL. The current template exposes the server through a `LoadBalancer` Service; DNS/TLS automation is deferred to the full Quick Launch milestone.
 - A valid Tuist Enterprise self-hosting license key.
+
+The deprecated cache service is explicitly disabled in the Marketplace overlay. Kura cache nodes should be modeled separately from this legacy cache service path.
 
 ## Marketplace readiness gaps
 

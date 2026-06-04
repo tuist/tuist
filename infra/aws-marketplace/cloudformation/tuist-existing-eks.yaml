@@ -207,36 +207,6 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  CacheBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
-  XcodeCacheBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
   RegistryBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -330,16 +300,12 @@ Resources:
                   - s3:PutObject
                 Resource:
                   - !Sub "${ArtifactBucket.Arn}/*"
-                  - !Sub "${CacheBucket.Arn}/*"
-                  - !Sub "${XcodeCacheBucket.Arn}/*"
                   - !Sub "${RegistryBucket.Arn}/*"
               - Effect: Allow
                 Action:
                   - s3:ListBucket
                 Resource:
                   - !GetAtt ArtifactBucket.Arn
-                  - !GetAtt CacheBucket.Arn
-                  - !GetAtt XcodeCacheBucket.Arn
                   - !GetAtt RegistryBucket.Arn
 
   TuistNamespace:
@@ -401,11 +367,6 @@ Resources:
 
             cache:
               enabled: false
-              s3:
-                region: "${AWS::Region}"
-                bucket: "${CacheBucketName}"
-                xcodeCacheBucket: "${XcodeCacheBucketName}"
-                registryBucket: "${RegistryBucketName}"
 
             processor:
               enabled: false
@@ -449,8 +410,8 @@ Resources:
                 region: "${AWS::Region}"
                 buckets:
                   default: "${ArtifactBucketName}"
-                  cache: "${CacheBucketName}"
-                  xcodeCache: "${XcodeCacheBucketName}"
+                  cache: "${ArtifactBucketName}"
+                  xcodeCache: "${ArtifactBucketName}"
                   registry: "${RegistryBucketName}"
 
             observability:
@@ -459,8 +420,6 @@ Resources:
             DatabaseHost: !GetAtt TuistDatabase.Endpoint.Address
             DatabasePort: !GetAtt TuistDatabase.Endpoint.Port
             ArtifactBucketName: !Ref ArtifactBucket
-            CacheBucketName: !Ref CacheBucket
-            XcodeCacheBucketName: !Ref XcodeCacheBucket
             RegistryBucketName: !Ref RegistryBucket
 
 Outputs:
@@ -479,14 +438,6 @@ Outputs:
   ArtifactBucketName:
     Description: S3 bucket used for Tuist artifacts.
     Value: !Ref ArtifactBucket
-
-  CacheBucketName:
-    Description: S3 bucket reserved for cache artifacts.
-    Value: !Ref CacheBucket
-
-  XcodeCacheBucketName:
-    Description: S3 bucket reserved for Xcode cache artifacts.
-    Value: !Ref XcodeCacheBucket
 
   RegistryBucketName:
     Description: S3 bucket reserved for registry artifacts.

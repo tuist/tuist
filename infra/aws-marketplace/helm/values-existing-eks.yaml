@@ -31,11 +31,6 @@ server:
 
 cache:
   enabled: false
-  s3:
-    region: us-east-1
-    bucket: tuist-cache-example
-    xcodeCacheBucket: tuist-xcode-cache-example
-    registryBucket: tuist-registry-example
 
 processor:
   enabled: false
@@ -79,8 +74,8 @@ objectStorage:
     region: us-east-1
     buckets:
       default: tuist-artifacts-example
-      cache: tuist-cache-example
-      xcodeCache: tuist-xcode-cache-example
+      cache: tuist-artifacts-example
+      xcodeCache: tuist-artifacts-example
       registry: tuist-registry-example
 
 observability:
