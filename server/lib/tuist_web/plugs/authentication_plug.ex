@@ -19,6 +19,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
   def init(:load_authenticated_subject = opts), do: opts
   def init({:require_authentication, _} = opts), do: opts
+  def init(:reject_service_subjects = opts), do: opts
 
   def call(conn, :load_authenticated_subject) do
     token = TuistWeb.Authentication.get_authorization_token_from_conn(conn)
@@ -56,6 +57,19 @@ defmodule TuistWeb.AuthenticationPlug do
           })
           |> halt()
       end
+    end
+  end
+
+  def call(conn, :reject_service_subjects) do
+    case TuistWeb.Authentication.authenticated_subject(conn) do
+      %AuthenticatedService{} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{message: "Service tokens are not allowed to access this resource."})
+        |> halt()
+
+      _ ->
+        conn
     end
   end
 
