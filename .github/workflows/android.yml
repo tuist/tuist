@@ -33,9 +33,13 @@ defaults:
     working-directory: android
 
 jobs:
+  # All android jobs stay on GitHub-hosted runners: gradle needs the
+  # Android SDK (ANDROID_HOME), which the hosted image pre-installs but
+  # the in-house tuist-linux runner image does not. Moving them onto
+  # the fleet needs the SDK baked into that image first.
   test:
     name: Test
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -61,7 +65,7 @@ jobs:
 
   test-fork:
     name: Test Fork
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -77,7 +81,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -107,7 +111,7 @@ jobs:
 
   build-fork:
     name: Build Fork
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
