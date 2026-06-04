@@ -1,0 +1,169 @@
+{{- range $fleet := .Values.seaweedfsFleet }}
+{{- if $fleet.enabled }}
+{{- $name := printf "seaweedfs-%s" $fleet.name }}
+{{- $svc := include "tuist.componentName" (dict "root" $ "component" $name) }}
+{{- $secret := include "tuist.componentName" (dict "root" $ "component" (printf "%s-creds" $name)) }}
+{{- $bucket := $fleet.bucket | default "gha-cache" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+  ports:
+    - name: s3
+      port: 8333
+      targetPort: 8333
+    - name: metrics
+      port: 9327
+      targetPort: 9327
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $svc }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  serviceName: {{ $svc }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 8 }}
+        {{- with $.Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9327"
+    spec:
+{{ include "tuist.podScheduling" $ | nindent 6 }}
+      initContainers:
+        # Render the S3 identities file from the static credentials so the
+        # gateway (and only the gateway) can address the bucket.
+        - name: render-s3-config
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              cat > /etc/seaweedfs/s3.json <<EOF
+              {
+                "identities": [
+                  {
+                    "name": "{{ $bucket }}",
+                    "credentials": [{ "accessKey": "$ACCESS_KEY", "secretKey": "$SECRET_KEY" }],
+                    "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+                  }
+                ]
+              }
+              EOF
+          env:
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: access-key
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: secret-key
+          volumeMounts:
+            - name: s3config
+              mountPath: /etc/seaweedfs
+      containers:
+        - name: seaweedfs
+          image: "{{ $.Values.seaweedfs.image.repository }}:{{ $.Values.seaweedfs.image.tag }}"
+          imagePullPolicy: {{ $.Values.seaweedfs.image.pullPolicy }}
+          args:
+            - server
+            - -s3
+            - -dir=/data
+            - -s3.config=/etc/seaweedfs/s3.json
+            - -s3.port=8333
+            - -metricsPort=9327
+            - -volume.max=0
+          ports:
+            - { name: s3, containerPort: 8333 }
+            - { name: metrics, containerPort: 9327 }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: s3config, mountPath: /etc/seaweedfs, readOnly: true }
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: s3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            {{- toYaml ($fleet.resources | default dict) | nindent 12 }}
+      volumes:
+        - name: s3config
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ ($fleet.persistence).size | default "100Gi" }}
+        {{- with ($fleet.persistence).storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $ "component" (printf "%s-init" $name)) }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $ "component" (printf "%s-init" $name)) | nindent 8 }}
+    spec:
+{{ include "tuist.podScheduling" $ | nindent 6 }}
+      restartPolicy: OnFailure
+      containers:
+        - name: bucket-init
+          image: "{{ $.Values.seaweedfs.mcImage.repository }}:{{ $.Values.seaweedfs.mcImage.tag }}"
+          imagePullPolicy: {{ $.Values.seaweedfs.mcImage.pullPolicy }}
+          env:
+            - name: ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: access-key
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: secret-key
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until mc alias set sw http://{{ $svc }}:8333 "$ACCESS_KEY" "$SECRET_KEY"; do sleep 2; done
+              mc mb --ignore-existing sw/{{ $bucket }}
+              # 7-day TTL bounds the working set so the cache self-trims.
+              mc ilm rule add --expire-days {{ $fleet.ttlDays | default 7 }} sw/{{ $bucket }} || true
+{{- end }}
+{{- end }}

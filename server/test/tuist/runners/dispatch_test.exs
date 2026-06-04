@@ -8,6 +8,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -120,6 +121,74 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
+    end
+
+    test "persists ref-scope fields and flags an untrusted fork PR" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Client, :list_runner_pools, fn _ns -> {:ok, [pool_cr(name: "macos", label: "tuist-macos")]} end)
+
+      test_pid = self()
+
+      expect(Jobs, :enqueue, fn attrs ->
+        send(test_pid, {:enqueue_attrs, attrs})
+        :ok
+      end)
+
+      payload = %{
+        "action" => "queued",
+        "workflow_job" => %{
+          "id" => System.unique_integer([:positive]),
+          "labels" => ["tuist-macos"],
+          "run_id" => 1,
+          "run_attempt" => 1,
+          "name" => "Build",
+          "head_branch" => "feature-x",
+          "head_sha" => "abc",
+          # Fork PR: the base repo id differs from the repo the workflow runs in.
+          "pull_requests" => [%{"base" => %{"ref" => "develop", "repo" => %{"id" => 100}}}]
+        },
+        "repository" => %{"full_name" => "#{account.name}/repo", "default_branch" => "main", "id" => 200}
+      }
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 1)
+      assert_receive {:enqueue_attrs, attrs}
+      assert attrs.default_branch == "main"
+      assert attrs.base_ref == "develop"
+      assert attrs.untrusted_fork == 1
+    end
+
+    test "marks a same-repo PR as trusted (not a fork)" do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Client, :list_runner_pools, fn _ns -> {:ok, [pool_cr(name: "macos", label: "tuist-macos")]} end)
+
+      test_pid = self()
+
+      expect(Jobs, :enqueue, fn attrs ->
+        send(test_pid, {:enqueue_attrs, attrs})
+        :ok
+      end)
+
+      payload = %{
+        "action" => "queued",
+        "workflow_job" => %{
+          "id" => System.unique_integer([:positive]),
+          "labels" => ["tuist-macos"],
+          "run_id" => 1,
+          "run_attempt" => 1,
+          "name" => "Build",
+          "head_branch" => "feature-x",
+          "head_sha" => "abc",
+          "pull_requests" => [%{"base" => %{"ref" => "main", "repo" => %{"id" => 200}}}]
+        },
+        "repository" => %{"full_name" => "#{account.name}/repo", "default_branch" => "main", "id" => 200}
+      }
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 1)
+      assert_receive {:enqueue_attrs, attrs}
+      assert attrs.base_ref == "main"
+      assert attrs.untrusted_fork == 0
     end
   end
 

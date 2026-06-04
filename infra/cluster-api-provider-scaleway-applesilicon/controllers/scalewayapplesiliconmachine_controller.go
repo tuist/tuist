@@ -111,6 +111,21 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// minis use whatever default tag the auth key carries.
 	TailscaleTags []string
 
+	// RunnerCacheProxyBinary is the darwin/arm64 runner-cache-proxy
+	// binary, cross-compiled in the operator image. Installed on each
+	// Mac mini at bootstrap under a launchd job + pf rdr rule. Empty
+	// disables the self-hosted cache interception (paired with the CA
+	// keypair + gateway URL, all required for the step to run).
+	RunnerCacheProxyBinary []byte
+	// RunnerCacheProxyCACert / RunnerCacheProxyCAKey are the MITM CA
+	// keypair PEMs. The cert's public half is also baked into the runner
+	// image trust store; the key is staged host-side only.
+	RunnerCacheProxyCACert []byte
+	RunnerCacheProxyCAKey  []byte
+	// CacheGatewayURL is the per-fleet cache-gateway endpoint the host
+	// proxy diverts CacheService calls to. Empty disables diversion.
+	CacheGatewayURL string
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -557,6 +572,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
 			GHActionsRunner:      ghRunner,
+
+			RunnerCacheProxyBinary: r.RunnerCacheProxyBinary,
+			RunnerCacheProxyCACert: r.RunnerCacheProxyCACert,
+			RunnerCacheProxyCAKey:  r.RunnerCacheProxyCAKey,
+			CacheGatewayURL:        r.CacheGatewayURL,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the

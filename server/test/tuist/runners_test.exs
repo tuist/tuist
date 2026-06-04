@@ -4,9 +4,11 @@ defmodule Tuist.RunnersTest do
   import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
+  alias Tuist.Runners.CacheToken
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
@@ -294,6 +296,62 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :patch_pod, 3, fn _ns, _pod, _patch -> {:error, :timeout} end)
 
       assert {:ok, %{runner_name: "pod-1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "dispatch_for_sa/2 cache dispatch" do
+    test "omits cache fields when the feature is disabled (no gateway URL)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      # No gateway URL configured for either OS => feature off.
+      stub(Environment, :cache_gateway_url, fn _os -> nil end)
+
+      assert {:ok, dispatch} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:jit_labels, _labels}
+      assert dispatch.cache_token == nil
+      assert dispatch.cache_gateway_url == nil
+    end
+
+    test "includes the minted token and the per-OS gateway URL when enabled" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      test_pid = self()
+      # runner_labels from stub_dispatch_path are ["self-hosted", "Linux", "X64"].
+      stub(Environment, :cache_gateway_url, fn os ->
+        send(test_pid, {:gateway_os, os})
+        "https://cache-gateway.linux.internal"
+      end)
+
+      expect(CacheToken, :mint, fn ^candidate, ^account, os ->
+        send(test_pid, {:mint_os, os})
+        {:ok, "cache-jwt"}
+      end)
+
+      assert {:ok, dispatch} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:jit_labels, _labels}
+      assert dispatch.cache_token == "cache-jwt"
+      assert dispatch.cache_gateway_url == "https://cache-gateway.linux.internal"
+      # A Linux fleet selects the linux gateway and stamps :linux into the token.
+      assert_receive {:gateway_os, :linux}
+      assert_receive {:mint_os, :linux}
+    end
+
+    test "fails open to no cache when minting fails despite a configured URL" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      stub(Environment, :cache_gateway_url, fn _os -> "https://cache-gateway.linux.internal" end)
+      expect(CacheToken, :mint, fn _candidate, _account, _os -> {:error, :disabled} end)
+
+      assert {:ok, dispatch} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert_receive {:jit_labels, _labels}
+      assert dispatch.cache_token == nil
+      assert dispatch.cache_gateway_url == nil
     end
   end
 

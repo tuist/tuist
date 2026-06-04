@@ -1373,6 +1373,84 @@ objectStorage:
       registry: tuist-registry
     resources: {}
 
+# SeaweedFS — self-hosted S3-compatible storage backing the GitHub Actions
+# cache redirected through cache-gateway. One independent cluster per runner
+# fleet (macOS on Scaleway, Linux on Hetzner). Off by default (self-host safe):
+# `seaweedfsFleet` is empty so nothing renders unless an overlay enables a
+# fleet. A single `weed server -s3` process per fleet (master+volume+filer+S3
+# in one binary) with a PVC; a 7-day TTL bounds the working set.
+seaweedfs:
+  image:
+    repository: chrislusf/seaweedfs
+    # Digest-pinned per chart convention; overlays set the real digest.
+    tag: "3.97"
+    pullPolicy: IfNotPresent
+  mcImage:
+    repository: quay.io/minio/mc
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Per-fleet list. Each entry is one SeaweedFS release. Empty => nothing
+# rendered. `name` ties the storage to its fleet and to the matching
+# `cacheGatewayFleet` entry.
+seaweedfsFleet: []
+  # - name: runners
+  #   enabled: false
+  #   bucket: gha-cache
+  #   ttlDays: 7
+  #   persistence:
+  #     size: 100Gi
+  #     storageClassName: ""
+  #   resources: {}
+  #   # Managed: pull the static S3 credentials from 1Password via ESO.
+  #   externalSecrets:
+  #     enabled: false
+  #     refreshInterval: "1h"
+  #     storeRef:
+  #       kind: ClusterSecretStore
+  #       name: onepassword
+  #     accessKey:
+  #       item: SEAWEEDFS_RUNNERS_S3
+  #       field: access_key_id
+  #     secretKey:
+  #       item: SEAWEEDFS_RUNNERS_S3
+  #       field: secret_access_key
+  #   # Self-host: inline credentials (used when externalSecrets.enabled is false).
+  #   accessKey: ""
+  #   secretKey: ""
+
+# cache-gateway — terminates the GitHub Actions cache v2 Twirp coordination
+# the host proxy diverts, verifies the swapped tenant token, and stores/serves
+# blobs in the per-fleet SeaweedFS bucket. One release per fleet, gated off by
+# default.
+cacheGateway:
+  image:
+    repository: ghcr.io/tuist/cache-gateway
+    tag: ""
+    pullPolicy: IfNotPresent
+
+cacheGatewayFleet: []
+  # - name: runners
+  #   enabled: false
+  #   replicaCount: 2
+  #   bucket: gha-cache
+  #   # Externally reachable base URL of the blob surface (real certificate).
+  #   # Signed blob URLs point here; the runner connects directly.
+  #   blobBaseURL: ""
+  #   resources: {}
+  #   persistence:
+  #     size: 5Gi
+  #     storageClassName: ""
+  #   # Managed: pull S3 creds, the token-verification public key, and the
+  #   # blob-URL HMAC secret from 1Password via ESO.
+  #   externalSecrets:
+  #     enabled: false
+  #     refreshInterval: "1h"
+  #     storeRef:
+  #       kind: ClusterSecretStore
+  #       name: onepassword
+  #     item: CACHE_GATEWAY_RUNNERS
+
 observability:
   enabled: false
   collector:

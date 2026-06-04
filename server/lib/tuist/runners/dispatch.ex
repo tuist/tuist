@@ -112,7 +112,7 @@ defmodule Tuist.Runners.Dispatch do
 
     with {:ok, account} <- fetch_enabled_account(owner),
          {:ok, target} <- resolve_dispatch_target(account, requested),
-         :ok <- Jobs.enqueue(enqueue_attrs(account, target, full_name, job)) do
+         :ok <- Jobs.enqueue(enqueue_attrs(account, target, full_name, job, repo)) do
       Logger.info("runners: enqueued",
         account: account.name,
         repo: full_name,
@@ -223,7 +223,9 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp enqueue_attrs(account, target, full_name, job) do
+  defp enqueue_attrs(account, target, full_name, job, repo) do
+    {base_ref, untrusted_fork} = pull_request_scope(job, repo)
+
     %{
       workflow_job_id: get_integer(job, "id"),
       account_id: account.id,
@@ -235,8 +237,31 @@ defmodule Tuist.Runners.Dispatch do
       run_attempt: get_integer(job, "run_attempt", 1),
       job_name: get_string(job, "name"),
       head_branch: get_string(job, "head_branch"),
-      head_sha: get_string(job, "head_sha")
+      head_sha: get_string(job, "head_sha"),
+      default_branch: get_string(repo, "default_branch"),
+      base_ref: base_ref,
+      untrusted_fork: untrusted_fork
     }
+  end
+
+  # Derives the PR base ref and the untrusted-fork flag from the
+  # workflow_job payload when present. The base ref bounds the cache
+  # scope a PR can read; the fork flag (head repo differs from base repo)
+  # isolates fork PRs to their own ref so they can't read or poison the
+  # base/default-branch cache. When the payload carries no pull-request
+  # context (a push build), both default to "no base ref / not a fork".
+  defp pull_request_scope(job, repo) do
+    case Map.get(job, "pull_requests") do
+      [pr | _] when is_map(pr) ->
+        base_ref = pr |> Map.get("base", %{}) |> get_string("ref")
+        base_repo_id = pr |> Map.get("base", %{}) |> Map.get("repo", %{}) |> Map.get("id")
+        repo_id = Map.get(repo, "id")
+        untrusted = if is_integer(base_repo_id) and base_repo_id != repo_id, do: 1, else: 0
+        {base_ref, untrusted}
+
+      _ ->
+        {"", 0}
+    end
   end
 
   @doc """

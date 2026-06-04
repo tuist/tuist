@@ -27,11 +27,8 @@ defmodule TuistWeb.RunnersController do
   def dispatch(conn, _params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{jit: jit, account: account}} <- Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, %{
-        encoded_jit_config: jit,
-        owner: account.name
-      })
+         {:ok, %{jit: jit, account: account} = dispatch} <- Runners.dispatch_for_sa(ns, sa_name) do
+      json(conn, dispatch_response(jit, account, dispatch))
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -133,6 +130,21 @@ defmodule TuistWeb.RunnersController do
       ["Bearer " <> token] when token != "" -> {:ok, token}
       ["bearer " <> token] when token != "" -> {:ok, token}
       _ -> {:error, :missing_bearer}
+    end
+  end
+
+  # Adds the self-hosted cache fields only when both are present, so the
+  # response is byte-identical to the pre-cache shape whenever the feature
+  # is off (the runner then transparently uses GitHub's hosted cache).
+  defp dispatch_response(jit, account, dispatch) do
+    base = %{encoded_jit_config: jit, owner: account.name}
+
+    case {Map.get(dispatch, :cache_token), Map.get(dispatch, :cache_gateway_url)} do
+      {token, url} when is_binary(token) and is_binary(url) ->
+        Map.merge(base, %{cache_token: token, cache_gateway_url: url})
+
+      _ ->
+        base
     end
   end
 end

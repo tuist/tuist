@@ -189,6 +189,25 @@ type Config struct {
 	// token from a Secret before populating
 	// GHActionsRunner.GHRunnerRegistrationToken.
 	GHActionsRunner *GHActionsRunnerConfig
+
+	// RunnerCacheProxyBinary is the darwin/arm64 runner-cache-proxy
+	// binary (cross-compiled in the operator image). Installed at
+	// /usr/local/bin/runner-cache-proxy under a launchd plist, with a pf
+	// rdr rule DNAT'ing guest :443 to it. Empty disables the whole
+	// cache-proxy step (self-host / chart bring-up safe).
+	RunnerCacheProxyBinary []byte
+
+	// RunnerCacheProxyCAKey / RunnerCacheProxyCACert are the MITM CA
+	// keypair PEMs. The key is staged at /etc/tuist/cache-proxy/ca.key
+	// (0600 root) and never touches the guest; only the public cert is
+	// baked into the runner image trust store. Empty disables the step.
+	RunnerCacheProxyCAKey  []byte
+	RunnerCacheProxyCACert []byte
+
+	// CacheGatewayURL is the per-fleet cache-gateway endpoint the proxy
+	// diverts CacheService Twirp calls to (reached over the tailnet /
+	// cluster). Empty disables diversion (the proxy fails fully open).
+	CacheGatewayURL string
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -242,6 +261,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
+	}
+	if err := installRunnerCacheProxy(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache proxy: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
@@ -1339,6 +1361,133 @@ sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.pli
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
 	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// installRunnerCacheProxy installs the host-side runner-cache-proxy: it
+// stages the MITM CA keypair (key 0600 root, never in the guest), creates
+// the per-guest token staging directory the proxy watches, drops the
+// cross-compiled binary under a launchd job, and installs a pf rdr anchor
+// that DNATs guest :443 to the proxy. The proxy then transparently routes
+// the GitHub Actions cache plane to the per-fleet cache-gateway.
+//
+// No-op unless the binary, the CA keypair, and the gateway URL are all
+// present — chart bring-up before the cache feature is provisioned, and
+// every self-host deployment, fall through cleanly.
+//
+// Idempotent: overwrites the same anchor + plist on every call, mirroring
+// installVMEgressFirewall / installNodeExporter.
+func installRunnerCacheProxy(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if len(cfg.RunnerCacheProxyBinary) == 0 || len(cfg.RunnerCacheProxyCAKey) == 0 ||
+		len(cfg.RunnerCacheProxyCACert) == 0 || cfg.CacheGatewayURL == "" {
+		return nil
+	}
+
+	// 1. Stage the CA private key (0600 root). Streamed via stdin and
+	//    never echoed, same custody discipline as the Tailscale auth key.
+	keyScript := `set -euo pipefail
+sudo mkdir -p /etc/tuist/cache-proxy
+sudo tee /etc/tuist/cache-proxy/ca.key >/dev/null
+sudo chown root:wheel /etc/tuist/cache-proxy/ca.key
+sudo chmod 0600 /etc/tuist/cache-proxy/ca.key
+`
+	if err := RunCommandWithStdin(ctx, client, keyScript, bytes.NewReader(cfg.RunnerCacheProxyCAKey)); err != nil {
+		return fmt.Errorf("stage ca key: %w", err)
+	}
+
+	// 2. Stage the CA public cert (0644 root) next to the key.
+	certScript := `set -euo pipefail
+sudo tee /etc/tuist/cache-proxy/ca.crt >/dev/null
+sudo chown root:wheel /etc/tuist/cache-proxy/ca.crt
+sudo chmod 0644 /etc/tuist/cache-proxy/ca.crt
+`
+	if err := RunCommandWithStdin(ctx, client, certScript, bytes.NewReader(cfg.RunnerCacheProxyCACert)); err != nil {
+		return fmt.Errorf("stage ca cert: %w", err)
+	}
+
+	// 3. Install the binary + token dir + pf rdr anchor + launchd job.
+	//    The token dir is owned by the SSH user so tart-kubelet (running
+	//    as that user) can stage per-guest tokens into it.
+	script := `set -euo pipefail
+sudo mkdir -p /usr/local/bin
+sudo tee /usr/local/bin/runner-cache-proxy >/dev/null
+sudo chmod 0755 /usr/local/bin/runner-cache-proxy
+# Forced ad-hoc re-sign: overwriting at the same inode otherwise leaves
+# AMFI validating new pages against the previous cdhash (AMFI kills it).
+sudo codesign --force --sign - /usr/local/bin/runner-cache-proxy
+
+# Per-guest token staging directory, writable by the kubelet's SSH user.
+sudo mkdir -p /var/lib/tuist-cache-proxy/tokens
+sudo chown ` + cfg.SSHUser + `:staff /var/lib/tuist-cache-proxy /var/lib/tuist-cache-proxy/tokens
+sudo chmod 0700 /var/lib/tuist-cache-proxy/tokens
+
+# pf rdr anchor: DNAT guest :443 to the local proxy. vmnet places Tart
+# VMs on 192.168.64.0/22 (same range installVMEgressFirewall filters);
+# the bridge interface is the vmnet bridge. The proxy recovers the
+# original destination via /dev/pf DIOCNATLOOK. Interface + rdr semantics
+# are validated on a canary host at rollout (RFC rollout step 3).
+sudo mkdir -p /etc/pf.anchors
+sudo tee /etc/pf.anchors/tuist.cacheproxy >/dev/null <<'PFCONF'
+table <vm_sources> { 192.168.64.0/22 }
+rdr pass on bridge100 inet proto tcp from <vm_sources> to any port 443 -> 127.0.0.1 port 8443
+PFCONF
+
+sudo sed -i.bak '/^# BEGIN tuist.cacheproxy$/,/^# END tuist.cacheproxy$/d' /etc/pf.conf
+sudo rm -f /etc/pf.conf.bak
+sudo tee -a /etc/pf.conf >/dev/null <<'PFCONFENTRY'
+# BEGIN tuist.cacheproxy
+rdr-anchor "tuist.cacheproxy"
+load anchor "tuist.cacheproxy" from "/etc/pf.anchors/tuist.cacheproxy"
+# END tuist.cacheproxy
+PFCONFENTRY
+sudo pfctl -f /etc/pf.conf || true
+sudo pfctl -E || true
+
+# Wrapper resolves the tailnet IP fresh on each start so metrics bind to
+# the private interface, never the public one (same pattern as node_exporter).
+sudo tee /usr/local/bin/tuist-runner-cache-proxy-wrapper >/dev/null <<'WRAPPER'
+#!/bin/sh
+for i in 1 2 3 4 5; do
+  TAILSCALE_IP="$(/usr/local/bin/tailscale ip -4 2>/dev/null | head -1)"
+  if [ -n "$TAILSCALE_IP" ]; then break; fi
+  sleep 2
+done
+METRICS_ADDR="127.0.0.1:9092"
+if [ -n "$TAILSCALE_IP" ]; then METRICS_ADDR="${TAILSCALE_IP}:9092"; fi
+exec /usr/local/bin/runner-cache-proxy \
+  --listen=127.0.0.1:8443 \
+  --metrics-bind-address="${METRICS_ADDR}" \
+  --ca-cert=/etc/tuist/cache-proxy/ca.crt \
+  --ca-key=/etc/tuist/cache-proxy/ca.key \
+  --token-dir=/var/lib/tuist-cache-proxy/tokens \
+  --gateway-url=` + cfg.CacheGatewayURL + `
+WRAPPER
+sudo chmod 0755 /usr/local/bin/tuist-runner-cache-proxy-wrapper
+
+sudo tee /Library/LaunchDaemons/dev.tuist.runner-cache-proxy.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.runner-cache-proxy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-runner-cache-proxy-wrapper</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>/var/log/tuist-runner-cache-proxy.log</string>
+  <key>StandardErrorPath</key><string>/var/log/tuist-runner-cache-proxy.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.runner-cache-proxy.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.runner-cache-proxy.plist
+sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.runner-cache-proxy.plist 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.runner-cache-proxy.plist
+`
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.RunnerCacheProxyBinary))
 }
 
 // === SSH helpers ===========================================================

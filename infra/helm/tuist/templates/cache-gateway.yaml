@@ -1,0 +1,121 @@
+{{- range $fleet := .Values.cacheGatewayFleet }}
+{{- if $fleet.enabled }}
+{{- $name := printf "cache-gateway-%s" $fleet.name }}
+{{- $svc := include "tuist.componentName" (dict "root" $ "component" $name) }}
+{{- $secret := include "tuist.componentName" (dict "root" $ "component" (printf "cache-gateway-%s-secrets" $fleet.name)) }}
+{{- $seaweed := include "tuist.componentName" (dict "root" $ "component" (printf "seaweedfs-%s" $fleet.name)) }}
+{{- $bucket := $fleet.bucket | default "gha-cache" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $svc }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $name }}
+spec:
+  serviceName: {{ $svc }}
+  # One writer: the bbolt metadata index is single-writer. HA (shared
+  # multipart + index state) is deferred (see the RFC).
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $ "component" $name) | nindent 8 }}
+        {{- with $.Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+{{ include "tuist.podScheduling" $ | nindent 6 }}
+      containers:
+        - name: cache-gateway
+          image: "{{ $.Values.cacheGateway.image.repository }}:{{ $.Values.cacheGateway.image.tag | default $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $.Values.cacheGateway.image.pullPolicy }}
+          env:
+            - name: CACHE_GATEWAY_BLOB_BASE_URL
+              value: {{ $fleet.blobBaseURL | quote }}
+            - name: CACHE_GATEWAY_INDEX_PATH
+              value: /data/index.db
+            - name: CACHE_GATEWAY_TOKEN_PUBLIC_KEY_FILE
+              value: /etc/cache-gateway/token-public-key.pem
+            - name: CACHE_GATEWAY_URL_SIGNING_SECRET_FILE
+              value: /etc/cache-gateway/blob-signing-secret
+            - name: CACHE_GATEWAY_S3_ENDPOINT
+              value: "http://{{ $seaweed }}:8333"
+            - name: CACHE_GATEWAY_S3_BUCKET
+              value: {{ $bucket | quote }}
+            - name: CACHE_GATEWAY_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: s3-access-key
+            - name: CACHE_GATEWAY_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: s3-secret-key
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: metrics, containerPort: 9090 }
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - { name: secrets, mountPath: /etc/cache-gateway, readOnly: true }
+            - { name: data, mountPath: /data }
+          resources:
+            {{- toYaml ($fleet.resources | default dict) | nindent 12 }}
+      volumes:
+        - name: secrets
+          secret:
+            secretName: {{ $secret }}
+            items:
+              - { key: token-verify-pubkey, path: token-public-key.pem }
+              - { key: blob-signing-secret, path: blob-signing-secret }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ ($fleet.persistence).size | default "5Gi" }}
+        {{- with ($fleet.persistence).storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+{{- end }}
+{{- end }}

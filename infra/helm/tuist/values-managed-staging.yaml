@@ -236,6 +236,31 @@ macosFleet:
 # manually for now (one digest per runner-image release);
 # automation lands when the image flow gets its own
 # release-bump workflow.
+# Self-hosted GitHub Actions cache (off until the operator provisions the
+# 1Password items + image digests, then flips these on — staging first per
+# the RFC rollout). To enable:
+#   1. seaweedfsFleet[] + cacheGatewayFleet[] entries below (one per fleet),
+#      with externalSecrets.enabled and the matching 1P items.
+#   2. On `server.extraEnv` above, add the per-OS gateway URLs and the
+#      Ed25519 signing key (private half — the gateway holds only the public):
+#        - { name: TUIST_CACHE_GATEWAY_URL_MACOS, value: "https://<macos-gw>" }
+#        - { name: TUIST_CACHE_GATEWAY_URL_LINUX, value: "https://<linux-gw>" }
+#        - TUIST_CACHE_TOKEN_SIGNING_KEY (base64 PEM) via the server secrets blob.
+# seaweedfsFleet:
+#   - name: runners
+#     enabled: true
+#     externalSecrets:
+#       enabled: true
+#       accessKey: { item: SEAWEEDFS_STAGING_S3, field: access_key_id }
+#       secretKey: { item: SEAWEEDFS_STAGING_S3, field: secret_access_key }
+# cacheGatewayFleet:
+#   - name: runners
+#     enabled: true
+#     blobBaseURL: "https://cache-gw-staging.tuist.dev"
+#     externalSecrets:
+#       enabled: true
+#       item: CACHE_GATEWAY_STAGING
+
 runnersFleet:
   enabled: true
   hostCount: 1

@@ -1,0 +1,21 @@
+# EXAMPLE Tuist Runner Cache MITM CA (public certificate only).
+#
+# This placeholder is a valid, non-production self-signed CA. Before
+# enabling the self-hosted cache, generate a real keypair: keep the
+# PRIVATE key in 1Password (delivered to hosts by bootstrap) and
+# replace this file with the PUBLIC certificate. Rotating the CA is a
+# coordinated event: rotate the 1Password key, commit the new public
+# cert here, rebuild the runner images, and roll the hosts.
+-----BEGIN CERTIFICATE-----
+MIIB8TCCAZegAwIBAgIUTFpB1JCPMYoRrxLjUP+YzgaLaIAwCgYIKoZIzj0EAwIw
+TjE8MDoGA1UEAwwzVHVpc3QgUnVubmVyIENhY2hlIENBIChFWEFNUExFIC0gcm90
+YXRlIGJlZm9yZSB1c2UpMQ4wDAYDVQQKDAVUdWlzdDAeFw0yNjA2MDQxNTI0MTRa
+Fw0zNjA2MDExNTI0MTRaME4xPDA6BgNVBAMMM1R1aXN0IFJ1bm5lciBDYWNoZSBD
+QSAoRVhBTVBMRSAtIHJvdGF0ZSBiZWZvcmUgdXNlKTEOMAwGA1UECgwFVHVpc3Qw
+WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQsFJiz53Sd+12eNpbRnCyDUbfP8hyf
+3Nie4mblZ/juQTL+R7/hsyNwtcTdRgCWd5idYR+C7IRlqksBnJfrzqeso1MwUTAd
+BgNVHQ4EFgQU49Yo5cvvNpPymKNUKKKU0oJfegUwHwYDVR0jBBgwFoAU49Yo5cvv
+NpPymKNUKKKU0oJfegUwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBF
+AiBEo2J0zH5FjHRYCTKCZ1HIihYV5Bqo4v2E1vwwI86NeQIhAJnpdGWigN7eWeYA
+P3BDfpLShbZsL1PLxblKwh2e/MsK
+-----END CERTIFICATE-----
