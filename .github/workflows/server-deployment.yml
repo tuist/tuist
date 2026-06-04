@@ -118,7 +118,15 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: tuist-linux-large
+    # TEMPORARY: on ubuntu-latest (4 vCPU / 16 GB — same memory as
+    # tuist-linux-large) while we bootstrap the Docker Hub registry-mirror
+    # fix. The tuist-linux fleet shares one egress IP, so this build's
+    # `FROM` pulls trip the unauthenticated rate limit (toomanyrequests).
+    # ubuntu-latest pulls via GitHub's rotating IP pool. Revert to
+    # `tuist-linux-large` once the mirrored controller is rolled out
+    # fleet-wide. Watch root-disk headroom — the heavy multi-stage image
+    # can crowd ubuntu-latest's ~14 GB free `/`.
+    runs-on: ubuntu-latest
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:
