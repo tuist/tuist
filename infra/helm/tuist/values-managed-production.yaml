@@ -290,11 +290,12 @@ runnersFleet:
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 4 of the 9-slot budget — the remaining 5 slots are
-  # dynamically apportioned by queue depth across the two pools. The
-  # default (26.5) keeps a larger baseline since most traffic lands
-  # there; 26.4.1 keeps one always-warm so customers pinned to it
-  # don't cold-start every job.
+  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
+  # dynamically apportioned by queue depth across the two pools.
+  # The default (26.5) keeps the warm baseline since most traffic
+  # lands there; 26.4.1 sits cold (floor 0) so an unused runner
+  # doesn't tie up a host. Revisit once we open the runners to
+  # general signups where the pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.5":
       autoscaling:
@@ -304,7 +305,7 @@ runnersFleet:
     "26.4.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 1
+        minWarmPoolFloor: 0
         maxReplicas: 9
   runnerImageSemver: "9642ee0b"
   pools: []
