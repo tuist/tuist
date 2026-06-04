@@ -354,7 +354,8 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account, :default_runner_profile] ->
+      {:error, part, changeset, _changes}
+      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -736,8 +737,8 @@ defmodule Tuist.Accounts do
           {:error, changeset}
         end
 
-      {:error, :default_runner_profile, reason, _} ->
-        Logger.error("create_user: default runner profile insert failed: #{inspect(reason)}")
+      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
     end
   end

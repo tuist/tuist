@@ -17,9 +17,18 @@ defmodule Tuist.Runners.ProfilesTest do
   ]
 
   setup do
-    stub(Catalog, :shapes, fn :linux -> @catalog end)
-    stub(Catalog, :default_shape, fn :linux -> Enum.find(@catalog, & &1.default?) end)
+    stub(Catalog, :shapes, fn
+      :linux -> @catalog
+      :macos -> []
+    end)
+
+    stub(Catalog, :default_shape, fn
+      :linux -> Enum.find(@catalog, & &1.default?)
+      :macos -> nil
+    end)
+
     stub(Catalog, :xcode_versions, fn -> [] end)
+    stub(Catalog, :default_xcode_version, fn -> nil end)
 
     %{account: account} =
       AccountsFixtures.organization_fixture(

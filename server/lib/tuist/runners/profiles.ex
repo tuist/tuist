@@ -154,7 +154,13 @@ defmodule Tuist.Runners.Profiles do
       |> Profile.changeset(attrs, catalog_opts_for(:macos))
       |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :name])
     else
-      _ -> {:error, :no_catalog_default}
+      # Self-hosted servers without a macOS runner catalog (no fleet,
+      # tests without the macos stubs) skip the macOS protected
+      # profile rather than aborting the account-creation Multi. The
+      # account just won't have a default macOS dispatch target;
+      # `tuist-…-macos` labels will return RunnerNotFound until an
+      # operator wires the catalog.
+      _ -> {:ok, :no_macos_capable}
     end
   end
 

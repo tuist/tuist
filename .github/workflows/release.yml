@@ -1625,9 +1625,19 @@ jobs:
 
       - name: Get release notes
         id: release-notes
+        # Keep these include paths aligned with `runner-image` in
+        # `mise/tasks/release/components.json` — the active Xcode
+        # manifest is split across the Packer template and the
+        # chart's `runnersFleet.xcodeVersions` catalog, and a future
+        # commit that only promotes or removes an Xcode version
+        # should still trigger a runner-image release.
         run: |
           LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -1640,7 +1650,11 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runner-image
         run: |
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
