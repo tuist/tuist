@@ -61,6 +61,7 @@ if not:
 | `tart`              | `/usr/local/bin/tart`             | Operator-image-baked `tart.app` tarball (`installTart` in `macos-host-bootstrap`). Same install path the macosFleet and runnersFleet hosts use; Tart's version is pinned by what the operator image ships. |
 | `packer`            | `/opt/homebrew/bin/packer`        | Homebrew (`hashicorp/tap/packer`) installed by the builder tail (`installBuilderTooling`) and `brew pin`'d. A follow-up will bake Packer into the operator image too, dropping Homebrew from the bootstrap entirely. |
 | `crane`             | `/opt/homebrew/bin/crane`         | Homebrew core, installed by `installBuilderTooling`. Used by the image-build workflows to write GHCR credentials into `~/.docker/config.json` for `tart push` (`crane auth login`), and by `release.yml`'s runner-image leg to resolve a pushed tag to its immutable digest (`crane digest`). |
+| `oras`              | `/opt/homebrew/bin/oras`          | Homebrew core, installed by `installBuilderTooling`. Used by `macos-xcode-image.yml` to pull the pre-mirrored Xcode `.xip` artifacts from `ghcr.io/tuist/xcode-xips`. |
 | Actions runner      | `/opt/actions-runner/`            | Downloaded directly from `actions/runner`'s GitHub releases by `installActionsRunner` and registered as a launchd LaunchAgent under `m1`. |
 
 Nothing in the workflow yaml installs or upgrades any of these.
@@ -324,8 +325,18 @@ workflows can't run as Pods on that model because they'd need to
 spawn nested macOS guests (Packer → Tart → macOS), which Apple
 Silicon Virtualization.framework refuses. So the builder runs as a
 host-level LaunchAgent that invokes Tart directly, sitting beside
-tart-kubelet on the same host without conflict because no Pods are
-ever scheduled there.
+tart-kubelet on the same host.
+
+The one place this isn't conflict-free: tart-kubelet's orphan-VM
+GC (`internal/podagent/garbage.go`) deletes every local Tart VM
+not backed by a Pod scheduled to the Node. Because no Pods ever
+land on a builder, the host-baked build VM looks orphaned and the
+GC would `tart delete` it mid-`tart push` — the push then fails at
+the NVRAM layer with `The file "nvram.bin" doesn't exist`. The
+bootstrap therefore starts tart-kubelet with `--disable-vm-gc` on
+builder Nodes (`renderLaunchdPlist` keys this off `GHActionsRunner`
+being set); the image-bake workflow's own "Reclaim Tart disk" step
+handles disk reclamation there instead.
 
 The bootstrap helpers in
 [`infra/macos-host-bootstrap/`](macos-host-bootstrap/) are shared

@@ -44,6 +44,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"sort"
 	"strings"
@@ -176,11 +177,13 @@ type Config struct {
 	// vm-image-builder fleet; pure Node hosts leave this nil.
 	//
 	// The runner agent runs as a LaunchAgent under cfg.SSHUser and
-	// picks up image-bake workflow jobs from GitHub. It coexists
-	// peacefully with tart-kubelet on the same host because no Pods
-	// are ever scheduled to builder Nodes (the per-fleet
-	// `tuist.dev/fleet` NodeLabel scopes Pod selection away from
-	// the builder fleet name).
+	// picks up image-bake workflow jobs from GitHub. No Pods are ever
+	// scheduled to builder Nodes (the per-fleet `tuist.dev/fleet`
+	// NodeLabel scopes Pod selection away from the builder fleet
+	// name). That same property means tart-kubelet's orphan-VM GC
+	// would treat the host-baked build VM as collectable and reap it
+	// mid-`tart push`, so renderLaunchdPlist passes `--disable-vm-gc`
+	// when this is set.
 	//
 	// The reconciler is responsible for resolving the registration
 	// token from a Secret before populating
@@ -343,7 +346,7 @@ sudo mkdir -p /etc/tart-kubelet
 sudo tee /etc/tart-kubelet/kubeconfig >/dev/null
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 `
-	return RunCommandWithStdin(ctx, client, script, kubeconfig)
+	return RunCommandWithStdin(ctx, client, script, strings.NewReader(kubeconfig))
 }
 
 // installTartKubelet uploads the operator-baked tart-kubelet binary
@@ -373,7 +376,7 @@ sudo chmod 0755 /usr/local/bin/tart-kubelet
 # stale cache so the rolled binary actually runs.
 sudo codesign --force --sign - /usr/local/bin/tart-kubelet
 `
-	return RunCommandWithStdin(ctx, client, script, string(binary))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(binary))
 }
 
 // loadTartKubeletLaunchd writes /Library/LaunchDaemons/dev.tuist.tart-kubelet.plist
@@ -466,7 +469,7 @@ settled && exit 0
 echo "tart-kubelet did not reach a running state after launchd reload" >&2
 exit 1
 `, shellQuote(cfg.SSHUser))
-	return RunCommandWithStdin(ctx, client, script, plist)
+	return RunCommandWithStdin(ctx, client, script, strings.NewReader(plist))
 }
 
 func renderLaunchdPlist(cfg Config) string {
@@ -538,6 +541,17 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.ProviderID != "" {
 		providerIDArg = fmt.Sprintf("\n    <string>--provider-id=%s</string>", cfg.ProviderID)
 	}
+	// Builder-fleet hosts (GHActionsRunner set) never have Pods
+	// scheduled but bake images with a host-level Packer/`tart`
+	// process. tart-kubelet's orphan-VM GC treats every local VM not
+	// backed by a Pod as collectable, so it would reap the in-flight
+	// build VM mid-`tart push` (the push then fails at the NVRAM layer
+	// with `nvram.bin doesn't exist`). Disable the GC there; the
+	// image-bake workflow reclaims its own Tart disk.
+	disableVMGCArg := ""
+	if cfg.GHActionsRunner != nil {
+		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -560,7 +574,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -574,7 +588,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
 }
 
 func shellQuote(s string) string {
@@ -898,7 +912,7 @@ EOF
 sudo chmod 0755 /usr/local/bin/tart
 /usr/local/bin/tart --version
 `
-	return RunCommandWithStdin(ctx, client, script, string(tarball))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(tarball))
 }
 
 // installVMEgressFirewall configures pfctl rules that drop egress
@@ -1093,7 +1107,7 @@ func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error
 sudo mkdir -p /etc/tuist
 sudo tee /etc/tuist/tailscale-auth-key >/dev/null
 sudo chmod 0600 /etc/tuist/tailscale-auth-key`
-	if err := RunCommandWithStdin(ctx, client, keyScript, cfg.TailscaleAuthKey); err != nil {
+	if err := RunCommandWithStdin(ctx, client, keyScript, strings.NewReader(cfg.TailscaleAuthKey)); err != nil {
 		return fmt.Errorf("stage tailscale auth key: %w", err)
 	}
 
@@ -1248,7 +1262,7 @@ echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
 `, hostnameArg, tagsArg)
-	return RunCommandWithStdin(ctx, client, script, string(cfg.TailscaleBinaries))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.TailscaleBinaries))
 }
 
 // installNodeExporter drops the cross-compiled darwin/arm64 binary,
@@ -1324,24 +1338,29 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.plist 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
-	return RunCommandWithStdin(ctx, client, script, string(cfg.NodeExporterBinary))
+	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.NodeExporterBinary))
 }
 
 // === SSH helpers ===========================================================
 
 func RunCommand(ctx context.Context, client *ssh.Client, cmd string) error {
-	return RunCommandWithStdin(ctx, client, cmd, "")
+	return RunCommandWithStdin(ctx, client, cmd, nil)
 }
 
-func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd, stdin string) error {
+// stdin is an io.Reader rather than a string so callers streaming the
+// multi-MB bootstrap binaries can pass bytes.NewReader over the
+// operator's resident slice — no per-call copy. The reader is read
+// once and never mutated, so concurrent reconciles can share the same
+// backing slice safely.
+func RunCommandWithStdin(ctx context.Context, client *ssh.Client, cmd string, stdin io.Reader) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 
-	if stdin != "" {
-		session.Stdin = strings.NewReader(stdin)
+	if stdin != nil {
+		session.Stdin = stdin
 	}
 
 	var stderr bytes.Buffer

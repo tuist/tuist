@@ -12,6 +12,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
 };
+use bytes::Bytes;
+use futures_util::stream;
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
@@ -1093,7 +1095,7 @@ async fn get_keyvalue(
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Key-value entry not found")
         }
         Err(error) => {
             state
@@ -1931,7 +1933,7 @@ async fn get_artifact(
         }
         Ok(None) => {
             state.metrics.record_artifact_read(producer, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Artifact not found")
         }
         Err(error) => {
             state.metrics.record_artifact_read(producer, "error", 0);
@@ -2113,21 +2115,36 @@ async fn serve_file(
     status: StatusCode,
     manifest: &ArtifactManifest,
 ) -> Response {
+    match state.store.try_mmap_artifact_bytes(manifest).await {
+        Ok(Some(bytes)) => {
+            let mut response = Response::new(Body::from_stream(bytes_chunks(bytes)));
+            *response.status_mut() = status;
+            apply_artifact_response_headers(&mut response, manifest);
+            response
+        }
+        Ok(None) => serve_file_reader(state, status, manifest).await,
+        Err(error) => {
+            tracing::warn!(
+                artifact_id = %manifest.artifact_id,
+                %error,
+                "mmap artifact serving failed; falling back to streaming reader"
+            );
+            serve_file_reader(state, status, manifest).await
+        }
+    }
+}
+
+async fn serve_file_reader(
+    state: &SharedState,
+    status: StatusCode,
+    manifest: &ArtifactManifest,
+) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
             let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_TYPE,
-                HeaderValue::from_str(&manifest.content_type)
-                    .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
-            );
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_LENGTH,
-                HeaderValue::from_str(&manifest.size.to_string())
-                    .unwrap_or_else(|_| HeaderValue::from_static("0")),
-            );
+            apply_artifact_response_headers(&mut response, manifest);
             response
         }
         Err(error) => error_response(
@@ -2135,6 +2152,32 @@ async fn serve_file(
             format!("Artifact bytes are missing from local storage: {error}"),
         ),
     }
+}
+
+fn bytes_chunks(bytes: Bytes) -> impl futures_util::Stream<Item = Result<Bytes, std::io::Error>> {
+    stream::unfold((bytes, 0), |(bytes, offset)| async move {
+        if offset >= bytes.len() {
+            return None;
+        }
+        let end = offset
+            .saturating_add(RESPONSE_STREAM_CHUNK_BYTES)
+            .min(bytes.len());
+        let chunk = bytes.slice(offset..end);
+        Some((Ok(chunk), (bytes, end)))
+    })
+}
+
+fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_str(&manifest.content_type)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_LENGTH,
+        HeaderValue::from_str(&manifest.size.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("0")),
+    );
 }
 
 fn draining_response(version: Version) -> Response {
@@ -2193,6 +2236,18 @@ mod tests {
             max_buckets: 100,
             outbox_max_depth: 100,
         }
+    }
+
+    async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/json"))
+        );
+
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode error response");
+        assert_eq!(body["message"], message);
     }
 
     #[tokio::test]
@@ -2644,6 +2699,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_json_error_response(response, StatusCode::NOT_FOUND, "Key-value entry not found")
+            .await;
+    }
+
+    #[tokio::test]
     async fn keyvalue_routes_emit_usage_events() {
         let context = test_context(|config| {
             config.usage = Some(test_usage_config());
@@ -2737,6 +2810,134 @@ mod tests {
             .expect("get request failed");
         assert_eq!(get_response.status(), StatusCode::OK);
         assert_eq!(response_text(get_response).await, "xcode-binary");
+    }
+
+    #[tokio::test]
+    async fn bytes_chunks_reassembles_multi_chunk_payloads() {
+        use futures_util::StreamExt;
+
+        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let payload = Bytes::from(
+            (0..len)
+                .map(|index| (index % 251) as u8)
+                .collect::<Vec<u8>>(),
+        );
+
+        let mut stream = Box::pin(bytes_chunks(payload.clone()));
+        let mut chunks = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            chunks.push(chunk.expect("chunk should be produced"));
+        }
+
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), RESPONSE_STREAM_CHUNK_BYTES);
+        assert_eq!(chunks[1].len(), RESPONSE_STREAM_CHUNK_BYTES);
+        assert_eq!(chunks[2].len(), 7);
+        assert_eq!(chunks.concat(), payload.to_vec());
+    }
+
+    #[tokio::test]
+    async fn artifact_get_serves_multi_chunk_payloads_via_mmap_and_reader_fallback() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let payload: Vec<u8> = (0..len).map(|index| (index % 251) as u8).collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/multi-chunk?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_request = || {
+            Request::builder()
+                .uri("/api/cache/cas/multi-chunk?tenant_id=acme&namespace_id=ios")
+                .body(Body::empty())
+                .expect("failed to build get request")
+        };
+
+        let mmap_response = app
+            .clone()
+            .oneshot(get_request())
+            .await
+            .expect("mmap get request failed");
+        assert_eq!(mmap_response.status(), StatusCode::OK);
+        let mmap_body = mmap_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect mmap body")
+            .to_bytes();
+        assert_eq!(mmap_body.as_ref(), payload.as_slice());
+
+        // Force memory pressure so mmap serving is skipped and the streaming
+        // reader path serves the same artifact; the bytes must be identical.
+        context.state.memory.observe(u64::MAX);
+
+        let reader_response = app
+            .oneshot(get_request())
+            .await
+            .expect("reader get request failed");
+        assert_eq!(reader_response.status(), StatusCode::OK);
+        let reader_body = reader_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect reader body")
+            .to_bytes();
+        assert_eq!(reader_body.as_ref(), payload.as_slice());
+    }
+
+    #[tokio::test]
+    async fn artifact_get_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let cas_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build CAS request"),
+            )
+            .await
+            .expect("CAS request failed");
+        assert_json_error_response(cas_response, StatusCode::NOT_FOUND, "Artifact not found").await;
+
+        let module_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/module/missing-module?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build module request"),
+            )
+            .await
+            .expect("module request failed");
+        assert_json_error_response(module_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
+
+        let gradle_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/gradle/missing-gradle?tenant_id=acme&namespace_id=android")
+                    .body(Body::empty())
+                    .expect("failed to build Gradle request"),
+            )
+            .await
+            .expect("Gradle request failed");
+        assert_json_error_response(gradle_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
     }
 
     #[tokio::test]

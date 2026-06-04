@@ -44,18 +44,16 @@ env:
 
 jobs:
   build:
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine. Note:
-    # this workflow builds that same runner image, so the migration has
-    # to land in two steps: first add docker to the image and rebuild
-    # from a Namespace runner, then flip this job to use the in-house
-    # fleet.
-    runs-on: namespace-profile-default
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
 
-      - name: Syntax-check dispatch-poll.sh
-        run: bash -n infra/linux-runner-image/dispatch-poll.sh
+      - name: Syntax-check runner scripts
+        run: |
+          bash -n infra/linux-runner-image/dispatch-poll.sh
+          bash -n infra/linux-runner-image/run-job.sh
+          bash -n infra/linux-runner-image/vitals.sh
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

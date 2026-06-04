@@ -212,7 +212,7 @@ xcresultProcessor:
     # in the same auto-commit. Until release.yml has run for this
     # component, pin to a known-good SHA-tagged build that the standalone
     # xcresult-processor-image.yml workflow pushed.
-    tag: "0.10.0"
+    tag: "0.11.0"
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
@@ -240,7 +240,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.7.1"
+    tag: "0.8.2"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on
@@ -254,7 +254,7 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
     # workflow.
-    tag: "0.6.1"
+    tag: "0.8.0"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
@@ -340,3 +340,31 @@ observability:
   # We forward to Grafana Cloud via an in-cluster Alloy DaemonSet installed by
   # the platform chart. The chart's embedded observability stack stays off.
   enabled: false
+
+# macOS Profile catalog — shared across every managed env. The
+# catalog (which shapes / Xcode versions exist) doesn't differ per
+# env today; per-env files only declare `xcodeOverrides` keyed by
+# `xcodeVersion`, where they tune `replicas`, pod sizing, and
+# autoscaling for the local fleet.
+#
+# - `runner-pool.yaml` iterates `xcodeVersions` here and merges the
+#   matching per-env `xcodeOverrides[<version>]` to render each pool.
+# - The server reads these via `TUIST_RUNNER_MACOS_SHAPES` and
+#   `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON projections in
+#   server-deployment.yaml), so the Profiles dropdown + validation
+#   stay in lockstep with the rendered pools.
+# - `release.yml`'s `release-runner-image` reads `xcodeVersions`
+#   from THIS file to build the Release notes image list.
+#
+# Keep `xcodeVersions` aligned with `runner-image-build.strategy.matrix.xcode`
+# in `.github/workflows/release.yml` so every active Xcode tag has a
+# pool that pins to it.
+runnersFleet:
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"

@@ -119,7 +119,8 @@ defmodule Tuist.Kura.Regions do
         hetzner_location: "fsn1",
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
+        storage_class: "hcloud-volumes",
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
       }
     }
   end

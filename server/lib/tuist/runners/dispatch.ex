@@ -15,8 +15,9 @@ defmodule Tuist.Runners.Dispatch do
     1. Parse `repository.owner.login` from the payload; look up
        the Tuist account by that name (account `name` IS the
        GitHub org login by convention).
-    2. Reject if `account.runner_max_concurrent` is 0 (runners
-       disabled for this customer).
+    2. Reject if runners aren't enabled for the customer
+       (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
+       flag in production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -24,16 +25,13 @@ defmodule Tuist.Runners.Dispatch do
     4. Enqueue a ClickHouse row with the full workflow_job
        metadata so the customer UI can surface it.
 
-  `max_concurrent` is enforced at *claim* time, not enqueue, so
-  a capped customer's overflow waits in the queue instead of
-  being dropped on the GitHub side.
-
   Returns `{:ok, :queued}` / `{:ok, :completed}` / `:ignored` /
   `{:error, reason}`. The webhook handler always responds 200.
   """
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
@@ -50,13 +48,12 @@ defmodule Tuist.Runners.Dispatch do
   # to ~2/min while keeping post-deploy propagation under a minute.
   @pools_cache_ttl_ms 30_000
 
-  # Only accounts already in the `enabled` state (cap > 0) get
-  # cached. The hard cap is re-enforced in PG inside `Claims.attempt/4`,
-  # so a stale cached value can't overcommit — the only thing the
-  # cached value gates here is the cap=0 vs cap>0 boundary. We
-  # explicitly *don't* cache cap=0 accounts so a customer flipping
-  # the switch from disabled to enabled doesn't have to wait an
-  # entire TTL for their first webhook to dispatch.
+  # Account lookups by org login are cached to keep the webhook path
+  # off Postgres. Enablement isn't part of the cached value — it's
+  # evaluated per call via `FeatureFlags.runners_enabled?/1` (the
+  # `:runners` flag has its own cache + invalidation), so flipping a
+  # customer on takes effect on their next webhook regardless of this
+  # TTL.
   @account_cache_ttl_ms 60_000
 
   @doc """
@@ -136,7 +133,7 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :no_account}
 
       {:error, :runners_disabled} ->
-        Logger.info("runners: account has runners disabled (max_concurrent=0); ignoring",
+        Logger.info("runners: runners not enabled for account; ignoring",
           owner: owner,
           repo: full_name
         )
@@ -251,12 +248,17 @@ defmodule Tuist.Runners.Dispatch do
 
     1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
        e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
-       maps to its shape pool. The common path. The auto-bootstrapped
-       `linux` default profile means `<prefix>linux` (`tuist-linux` on
-       production, `tuist-<env>-linux` elsewhere) resolves here too.
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path. The auto-bootstrapped
+       `linux` and `macos` default profiles mean `<prefix>linux` /
+       `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
+       env-prefixed elsewhere) resolve here too — no separate legacy
+       alias path needed.
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Still serves macOS pools and any
-       other non-shape fleets.
+       Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
+       pool the operator manually renders via `runnersFleet.pools[]`
+       (e.g. an Xcode the catalog has removed but customer workflows
+       still pin).
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
@@ -269,7 +271,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           pool_name: Catalog.pool_name(profile),
            requested_dispatch_label: Profile.dispatch_label(profile)
          }}
 
@@ -369,9 +371,7 @@ defmodule Tuist.Runners.Dispatch do
         {:error, :no_account}
 
       account ->
-        cap = account.runner_max_concurrent || 0
-
-        if cap > 0 do
+        if FeatureFlags.runners_enabled?(account) do
           {:ok, account}
         else
           {:error, :runners_disabled}
@@ -406,13 +406,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # Caches enabled accounts (cap > 0) only. Skipping the cache for
-  # cap=0 / nil accounts keeps the adoption path snappy: a customer
-  # who first flips `runner_max_concurrent` from 0 to N expects the
-  # next webhook to dispatch right away, not after the previous
-  # cap-0 result has aged out of a long TTL. We also skip caching
-  # unknown handles for the same reason — `KeyValueStore.get/1`
-  # can't distinguish "cached nil" from "no entry" anyway.
+  # Caches any account resolved for an org login. Enablement is a
+  # feature-flag decision the caller makes per webhook, not a property
+  # of the cached row, so caching every account is safe and a flag
+  # flip still takes effect immediately. Unknown handles aren't cached
+  # — `KeyValueStore.get/1` can't distinguish "cached nil" from "no
+  # entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
     cache_opts = [cache: __MODULE__.cache_name()]
@@ -423,11 +422,8 @@ defmodule Tuist.Runners.Dispatch do
           nil ->
             nil
 
-          %{runner_max_concurrent: cap} = account when is_integer(cap) and cap > 0 ->
-            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
-            account
-
           account ->
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
             account
         end
 

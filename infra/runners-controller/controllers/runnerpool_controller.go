@@ -125,27 +125,36 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	for i := range pods.Items {
 		p := &pods.Items[i]
 
-		// Drop stale Pending Pods immediately so the gap-fill below
-		// can create replacements on the current spec.image. Stale
-		// here means the Pod's image differs from the RunnerPool's,
-		// which happens whenever `runnerImage` in the chart rolls
-		// to a new digest. Pending is the safe phase to delete: the
-		// VM isn't running a customer job yet (and may never get
-		// scheduled, since the controller's gap math fills replicas
-		// based on alive count). Running stale Pods are left alone —
-		// they may be mid-job, and single-shot lifecycle will turn
-		// them over to Succeeded on exit, where the reap path below
-		// replaces them with a current-image Pod.
+		// Drop stale, idle Pending Pods immediately so the gap-fill
+		// below can create replacements on the current spec.image.
+		// Stale here means the Pod's image differs from the
+		// RunnerPool's, which happens whenever `runnerImage` in the
+		// chart rolls to a new digest. Pending is the safe phase to
+		// delete: the runner isn't running a customer job yet.
 		//
-		// Idle Running stale Pods are picked up by the server-side
-		// drain signal in Tuist.Runners.dispatch_for_sa: on the next
-		// idle poll, the server compares the Pod's image to the
-		// RunnerPool's and returns HTTP 410, which the in-VM
-		// dispatch-poll script treats as a clean-exit. The reap
-		// path then replaces the Pod with a current-image one.
-		// In-flight customer jobs aren't disrupted because the 410
-		// check fires only on idle polls (before claim).
-		if isAlive(p) && p.Status.Phase == corev1.PodPending && isStaleImage(p, pool) {
+		// The `isIdle` guard matters because of the Linux
+		// token-isolation Pod shape: the poller runs as an init
+		// container, so a warm-standby Pod sits in Pending (not
+		// Running) for its whole pre-claim life, and a just-claimed
+		// Pod is also briefly Pending while the poller init exits and
+		// the runner main container starts. `isIdle` treats both the
+		// `runner-pool-owner` label and a terminated poller as
+		// "claimed" (see its doc), so an image roll that races a
+		// claim won't reap a Pod mid-job even if the best-effort
+		// label stamp hasn't landed. macOS warm Pods are Running
+		// (tart-kubelet), so this path only ever matched idle Pods
+		// for them anyway.
+		//
+		// Idle Running stale Pods (macOS) are instead picked up by
+		// the server-side drain signal in
+		// Tuist.Runners.dispatch_for_sa: on the next idle poll, the
+		// server compares the Pod's image to the RunnerPool's and
+		// returns HTTP 410, which the dispatch-poll script treats as
+		// a clean exit. The reap path then replaces the Pod with a
+		// current-image one. In-flight customer jobs aren't disrupted
+		// because the 410 check fires only on idle polls (before
+		// claim).
+		if isAlive(p) && p.Status.Phase == corev1.PodPending && isIdle(p) && isStaleImage(p, pool) {
 			// Reuse the reap path so the sibling SA goes with the
 			// Pod. Pod and SA are owned by the RunnerPool as
 			// siblings (not parent/child), so deleting the Pod
@@ -376,14 +385,47 @@ func isAlive(pod *corev1.Pod) bool {
 }
 
 // isIdle returns true for alive Pods that have NOT yet claimed a
-// customer's workflow_job. The Tuist server stamps
-// `tuist.dev/runner-pool-owner=<account>` on the Pod at the
-// moment it claims a queue entry; absent label means the Pod is
-// warm-polling. Scale-down deletes idle Pods first so we never
-// kill a runner mid-job.
+// customer's workflow_job. Two independent signals say "claimed",
+// and either one is enough to treat the Pod as busy:
+//
+//   - The Tuist server stamps `tuist.dev/runner-pool-owner=<account>`
+//     on the Pod when it claims a queue entry. This is the primary
+//     signal, but it's best-effort: the server degrades to "running
+//     without the label" rather than dropping a job if the apiserver
+//     patch keeps failing (Tuist.Runners.patch_pod_labels), so the
+//     label can be absent on a genuinely-claimed Pod.
+//   - On Linux (split shape) the `poller` init container exits as
+//     soon as it stages the JIT for a claim, so a terminated poller
+//     means the Pod has claimed (or is draining on a 410) and the
+//     runner is about to run — independent of whether the label
+//     stamp landed. This closes the window where a just-claimed Pod
+//     is briefly Pending while the runner container starts and an
+//     unlucky reconcile would otherwise see it as idle and reap it.
+//
+// macOS Pods have no poller init container, so they fall back to the
+// label signal alone (their single Tart-VM container never produces
+// this transition). Scale-down, drain, and the stale-Pending reap
+// all key off this so we never kill a runner mid-job.
 func isIdle(pod *corev1.Pod) bool {
-	v, ok := pod.Labels["tuist.dev/runner-pool-owner"]
-	return !ok || v == ""
+	if v, ok := pod.Labels["tuist.dev/runner-pool-owner"]; ok && v != "" {
+		return false
+	}
+	return !pollerTerminated(pod)
+}
+
+// pollerTerminated reports whether the Linux `poller` init container
+// has exited. The poller exits 0 the instant it stages a claimed
+// JIT (or drains on a 410), so its termination is a label-independent
+// "this Pod is no longer warm-polling" signal. Returns false when
+// there is no poller container status yet (still Waiting/Running) or
+// at all (macOS single-container Pods).
+func pollerTerminated(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Terminated != nil
+		}
+	}
+	return false
 }
 
 // isStaleImage returns true when the Pod's runner container image

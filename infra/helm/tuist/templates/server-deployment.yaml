@@ -137,11 +137,11 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}
-            {{- if .Values.runnersFleet.enabled }}
+            {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
-            # dispatch time to discover the fleet name; per-customer
-            # config is `accounts.runner_max_concurrent` and has no
-            # chart-level setting.
+            # dispatch time to discover the fleet name; runner
+            # availability is gated by the `:runners` feature flag and
+            # has no chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             # Identity gate for `POST /api/internal/runners/pods/stopped`:
@@ -152,6 +152,8 @@ spec:
               value: {{ .Release.Namespace | quote }}
             - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
               value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            {{- end }}
+            {{- if .Values.runnersFleetLinux.enabled }}
             # Prefix the dispatch path prepends to a shape key to address
             # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
             # Injected from the same helper that names the CRs in
@@ -174,6 +176,41 @@ spec:
             {{- end }}
             - name: TUIST_RUNNER_LINUX_SHAPES
               value: {{ $serverShapes | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # macOS analogue of the Linux pool name prefix above. The
+            # chart's macOS RunnerPool CRs are named
+            # `<componentName>-runner-pool-macos-<xcode-dashes>` (per
+            # Xcode profile); injecting the prefix here keeps
+            # `Catalog.pool_name/1` in lockstep with the rendered CRs.
+            - name: TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") | quote }}
+            {{- with .Values.runnersFleet.shapes }}
+            # Same projection as the Linux shapes above, for the macOS
+            # fleet. M2-L is the only shape today; this is wired now so
+            # future shape diversity doesn't need a chart change.
+            {{- $serverMacosShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverMacosShapes = append $serverMacosShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_SHAPES
+              value: {{ $serverMacosShapes | toJson | quote }}
+            {{- end }}
+            {{- with .Values.runnersFleet.xcodeVersions }}
+            # macOS Xcode catalog injection. Mirrors the shape pattern:
+            # one source for the chart pool rendering (planned) and the
+            # server's `:runner_macos_xcode_versions` validation.
+            {{- $serverXcodeVersions := list }}
+            {{- range . }}
+            {{- $entry := dict "xcodeVersion" (.xcodeVersion | toString) }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverXcodeVersions = append $serverXcodeVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
+              value: {{ $serverXcodeVersions | toJson | quote }}
             {{- end }}
             {{- end }}
             {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
@@ -256,6 +293,8 @@ spec:
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
+            - name: TUIST_KURA_TUIST_BASE_URL
+              value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL

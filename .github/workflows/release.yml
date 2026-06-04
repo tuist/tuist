@@ -143,7 +143,11 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: cli
-        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
+        # Use the authoritative version from check-releases via --tag instead of
+        # --bump. Full-history --bump can't anchor on CLI tags that landed on
+        # non-cli commits (it filters them out), so it froze the top heading at
+        # an old version while real releases advanced.
+        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cli-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
         run: mise run --no-deps cli:bundle
@@ -277,15 +281,9 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: app
-        run: |
-          # Get the latest app version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        # Full-history regen with authoritative --tag. A ranged --bump with -o
+        # overwrites the file with only the latest release, dropping prior history.
+        run: git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.app-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle macOS app
         run: mise run --no-deps app:bundle
@@ -408,9 +406,11 @@ jobs:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -445,15 +445,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: server
-        run: |
-          # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.server-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -494,9 +486,7 @@ jobs:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -531,15 +521,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: cache
-        run: |
-          # Get the latest cache version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^cache@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cache-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -618,15 +600,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: kura
-        run: |
-          # Get the latest kura version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^kura@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.kura-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Upload Kura release metadata
         uses: actions/upload-artifact@v4
@@ -700,20 +674,32 @@ jobs:
 
   release-kura-docker:
     name: Release Kura Docker Image
-    needs: [check-releases, release-kura-prepare]
+    needs: [check-releases, release-kura-prepare, release-kura-binaries]
     if: needs.check-releases.outputs.kura-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 90
+    runs-on: tuist-linux
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Kura release metadata
+      - name: Download Kura amd64 binary
         uses: actions/download-artifact@v4
         with:
-          name: kura-release-metadata
-          path: kura
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -732,7 +718,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./kura
-          file: ./kura/Dockerfile
+          file: ./kura/Dockerfile.release
           push: true
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=kura-runtime
@@ -792,15 +778,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: gradle
-        run: |
-          # Get the latest gradle version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.gradle-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
@@ -892,15 +870,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: skills
-        run: |
-          # Get the latest skills version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^skills@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.skills-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Push to tuist/agent-skills
         run: |
@@ -972,15 +942,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: noora
-        run: |
-          # Get the latest noora version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^noora@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.noora-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Install dependencies
         working-directory: noora
@@ -1053,15 +1015,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
-        run: |
-          # Get the latest helm version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.helm-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -1094,9 +1048,7 @@ jobs:
     name: Release CAPI operator
     needs: check-releases
     if: needs.check-releases.outputs.capi-scaleway-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1135,19 +1087,13 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.capi-scaleway-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1186,9 +1132,7 @@ jobs:
     name: Release runners-controller
     needs: check-releases
     if: needs.check-releases.outputs.runners-controller-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1225,17 +1169,11 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runners-controller
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/runners-controller/**/*"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runners-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1274,9 +1212,7 @@ jobs:
     name: Release hetzner-robot-controller
     needs: check-releases
     if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1313,17 +1249,11 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/hetzner-robot-controller
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^hetzner-robot-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/hetzner-robot-controller/**/*"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -1405,8 +1335,6 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/xcresult-processor-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
             --include-path "server/lib/**/*"
@@ -1415,11 +1343,7 @@ jobs:
             --include-path "server/mix.lock"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Build server release for macOS
         id: release
@@ -1444,79 +1368,43 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Initialize Packer
-        working-directory: infra/xcresult-processor-image
-        run: packer init -upgrade xcresult-processor.pkr.hcl
-
-      # Keep the Cirrus base-image pull anonymous. Tart also consults
-      # Docker credential helpers, and this runner can have the macOS
-      # helper installed without the Docker CLI. Clear both stores
-      # before Packer clones ghcr.io/cirruslabs/*.
-      - name: Drop cached ghcr.io credentials
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
-
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM; see runner-image.yml's
-        # same step for the rationale.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
-
-      - name: Build image
-        working-directory: infra/xcresult-processor-image
-        run: |
-          set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
-          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "output_image=tuist-xcresult-processor" \
-            -var "release_tarball=/tmp/release.tar.gz" \
-            xcresult-processor.pkr.hcl
-
-      # Two-step GHCR auth, mirroring the release-runner-image leg
-      # above. See runner-image.yml's matching step for the long
-      # explanation: keychain is gated on Tahoe LaunchAgents,
-      # env-var-only push hangs at "Error: The request timed out.",
-      # and `crane auth login` writes ~/.docker/config.json which
-      # `tart push` reads via the Docker credential-helper protocol.
-      # `crane` is installed by the builder bootstrap.
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. crane writes creds
+      # to ~/.docker/config.json, which Tart reads via the Docker
+      # credential-helper protocol for both the pull (this build's
+      # clone of the base) and the push at the end. See
+      # runner-image.yml's matching step for the long explanation.
       - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail
           echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/xcresult-processor-image
+        run: packer init -upgrade xcresult-processor.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build image
+        working-directory: infra/xcresult-processor-image
+        # The processor parses .xcresult bundles from *all* customer
+        # runner profiles, so the Xcode here should be at least as new
+        # as the newest active runner-image profile (xcresulttool's
+        # JSON schema changes across Xcode majors). Promotion rule:
+        # when you bump the first matrix entry in runner-image-build
+        # above, bump this too.
+        env:
+          XCODE_VERSION: "26.5"
+        run: |
+          set -euo pipefail
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          echo "Base image: ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-xcresult-processor" \
+            -var "release_tarball=/tmp/release.tar.gz" \
+            xcresult-processor.pkr.hcl
 
       - name: Push image to GHCR
         env:
@@ -1548,18 +1436,161 @@ jobs:
           rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
-  release-runner-image:
-    name: Release runner image
+  runner-image-build:
+    # One job per active profile, fanned out across whatever
+    # vm-image-builder hosts are available. GitHub schedules them
+    # respecting the label set — with 2 builders, 2 profiles build
+    # in parallel; adding more hosts scales linearly without any
+    # workflow change.
+    #
+    # The active-profile list is declared inline below. Keep it
+    # aligned with `runnersFleet.xcodeVersions` in
+    # values-managed-common.yaml — every Xcode that ships a pool
+    # needs a runner image published for it, and the post-job reads
+    # that file to build the Release notes image list.
+    #
+    # To refresh an out-of-rotation profile (one not in the matrix),
+    # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
+    # that path keeps publishing tags without going through the full
+    # release flow.
+    name: Build runner image (Xcode ${{ matrix.xcode }})
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 60
+    strategy:
+      # If any profile build fails, abort sibling builds so the chart
+      # pin doesn't move to a partially-published set.
+      fail-fast: true
+      matrix:
+        xcode: ["26.5", "26.4.1"]
     env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. `crane auth login`
+      # writes creds to ~/.docker/config.json, which Tart reads via
+      # the Docker credential-helper protocol for both pull (Packer's
+      # clone of the base) and push at the end. See runner-image.yml
+      # for the long explanation of why crane and not `tart login`.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build profile
+        id: build
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          XCODE="${{ matrix.xcode }}"
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ matrix.xcode }}
+        # See `runner-image.yml` for the rationale: packer-plugin-tart
+        # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
+        # so the subsequent `tart push` fails after a successful disk
+        # upload. Restore the file from a fresh clone of the base.
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
+
+      - name: Push profile to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # See runner-image.yml's matching step for the rationale —
+          # tart's auto-prune races mid-push (cirruslabs/tart#860).
+          TART_NO_AUTO_PRUNE: "1"
+        # Direct tart push; same shape as `macos-xcode-image.yml`.
+        # Push both the immutable per-version tag and the rolling
+        # `:<profile>` tag so the chart's tag template stays valid
+        # without overrides while operators can still pin to a
+        # specific version when they need to roll back. 3× retry per
+        # tag — blob uploads are content-addressed so a re-push only
+        # re-uploads layers that didn't make it on the previous
+        # attempt.
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          PROFILE="${{ steps.build.outputs.profile }}"
+          for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
+            DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
+            for attempt in 1 2 3; do
+              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+              if tart push tuist-runner "$DST"; then
+                echo "Pushed ${DST} on attempt ${attempt}"
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "tart push failed three times for ${dest_tag}" >&2
+                exit 1
+              fi
+              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+              sleep 60
+            done
+          done
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
+
+  release-runner-image:
+    # Post-job: every active profile is now in GHCR with a fresh
+    # `:macos-<dashes>-<semver>` tag. Bump
+    # `runnersFleet.runnerImageSemver` in the managed-env values
+    # files so `runner-pool.yaml` re-renders every macOS pool's
+    # image in lockstep (one field, all pools refresh). Generate
+    # release notes + CHANGELOG, render the image list for the
+    # GitHub Release body, upload artifacts. Lightweight, runs on
+    # ubuntu. Downstream `release-*` jobs key off this job's
+    # outputs + result.
+    name: Release runner image
+    needs: [check-releases, runner-image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      images: ${{ steps.images.outputs.images }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1570,16 +1601,43 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      # `crane` is installed by the builder bootstrap; the
-      # release-runner-image leg uses `crane digest` further down
-      # to resolve a pushed tag to its immutable @sha256:… form
-      # for the chart pin, plus `crane auth login` for GHCR auth.
+      - name: Render active profile image refs
+        # `runnersFleet.xcodeVersions` lives in
+        # values-managed-common.yaml — the shared catalog every
+        # managed env layers `xcodeOverrides` on top of, and the same
+        # source `runner-pool.yaml` iterates over. The Release body
+        # lists exactly the tags the chart will render pools for.
+        # `yq` is preinstalled on ubuntu-latest.
+        id: images
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          {
+            echo "images<<EOF"
+            yq -r '.runnersFleet.xcodeVersions[].xcodeVersion' \
+              infra/helm/tuist/values-managed-common.yaml |
+              while IFS= read -r v; do
+                tag=$(echo "$v" | tr '.' '-')
+                echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
+              done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get release notes
         id: release-notes
+        # Keep these include paths aligned with `runner-image` in
+        # `mise/tasks/release/components.json` — the active Xcode
+        # manifest is split across the Packer template and the
+        # chart's `runnersFleet.xcodeVersions` catalog, and a future
+        # commit that only promotes or removes an Xcode version
+        # should still trigger a runner-image release.
         run: |
           LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -1592,141 +1650,34 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runner-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
-      # Tart isn't installed by this workflow. The builder host's
-      # bootstrap path (infra/macos-host-bootstrap.installTart, run
-      # by the Scaleway CAPI provider on every Mac mini Node)
-      # extracts the operator-image-baked tart.app tarball to
-      # /usr/local/bin/tart. Same install path the in-cluster
-      # macosFleet / runnersFleet hosts use; the workflow's PATH
-      # picks it up and `packer init` / Packer's tart-cli plugin
-      # fail loudly if it's missing.
-
-      - name: Initialize Packer
-        working-directory: infra/runner-image
-        run: packer init -upgrade runner.pkr.hcl
-
-      - name: Drop cached ghcr.io credentials
-        # Same anonymous-pull dance as xcresult-processor-image: the
-        # bare-metal runner has tuist-bot creds cached for ghcr.io
-        # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
-        # consults Docker credential helpers, and this runner can have
-        # the macOS helper installed without the Docker CLI — clear
-        # both stores before Packer clones ghcr.io/cirruslabs/*.
+      - name: Bump runner image semver in chart values
         run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
-
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM; see runner-image.yml's
-        # same step for the rationale.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
-
-      - name: Build image
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
-          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "output_image=tuist-runner" \
-            runner.pkr.hcl
-
-      - name: Log in to GHCR (crane only)
-        # `tart login` would write to the macOS keychain, which on
-        # Tahoe-host LaunchAgents fails with "User interaction is not
-        # allowed". The Push step below uses TART_REGISTRY_USERNAME /
-        # TART_REGISTRY_PASSWORD env-vars instead, which bypass
-        # keychain entirely. `crane` keeps its own credential store
-        # (~/.docker/config.json), which is not subject to keychain
-        # gating, so crane still needs an explicit login for the
-        # `crane digest` step that reads the manifest back.
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-
-      - name: Push image to GHCR + resolve digest
-        id: push
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
+          # `runnersFleet.runnerImageSemver` is the single field the
+          # chart consumes — `runner-pool.yaml` constructs each macOS
+          # pool's image as
+          # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`
+          # so every active Xcode pool refreshes in lockstep when this
+          # value moves. GNU sed (-i without an argument) — this job
+          # runs on ubuntu.
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${VERSION}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:latest"
-          # The chart pins runners by digest, not tag (server-deployment.yaml
-          # `required` rejects non-digest values), so resolve the tag to its
-          # immutable @sha256:… form right after push.
-          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${VERSION}")
-          echo "Pushed ghcr.io/tuist/tuist-runner:${VERSION} (digest: ${DIGEST})"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-
-      - name: Bump runner image digest pin in chart values
-        run: |
-          # The runner image digest pin lives in each managed env's
-          # values file under runnersFleet.runnerImage. Anchor the
-          # substitution to the runnerImage line so we only touch
-          # that one (the values files carry several image refs).
-          DIGEST="${{ steps.push.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
-            # Only rewrite if the file already has a non-empty pin to the
-            # runner image — values-managed-{canary,production}.yaml ship
-            # with `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release flow.
-            # The match accepts both pin styles the chart has used: a
-            # digest (`@sha256:...`) and a tag (`:<short-sha>` or
-            # `:<semver>`). Staging is on `:08e66c9b` during bring-up;
-            # narrowing the guard to `@sha256:` would skip it on every
-            # release and leave the only enabled env on the previous
-            # image.
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
-              sed -i '' -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
+            # Only rewrite if the file declares a runnerImageSemver
+            # (managed envs that haven't enabled the macOS fleet yet
+            # would have an empty or absent value). Match accepts the
+            # current double-quoted form: `runnerImageSemver: "x.y.z"`.
+            if grep -qE '^\s*runnerImageSemver:\s*"[^"]*"' "$f"; then
+              sed -i -E "s|^([[:space:]]*runnerImageSemver:[[:space:]]*\")[^\"]*(\".*)|\1${VERSION}\2|" "$f"
             fi
           done
 
@@ -1741,17 +1692,11 @@ jobs:
             infra/helm/tuist/values-managed-production.yaml
           retention-days: 1
 
-      - name: Cleanup
-        if: always()
-        run: tart delete tuist-runner 2>/dev/null || true
-
   release-linux-runner-image:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1785,14 +1730,9 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/linux-runner-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
           INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -2343,7 +2283,8 @@ jobs:
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
-            Tart image: `ghcr.io/tuist/tuist-runner:${{ needs.check-releases.outputs.runner-image-next-version-number }}`
+            Active runner image tags:
+            ${{ needs.release-runner-image.outputs.images }}
 
             ${{ needs.release-runner-image.outputs.release-notes }}
 
