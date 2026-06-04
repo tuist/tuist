@@ -91,78 +91,37 @@ jobs:
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
-      # Push to GHCR via a disk-backed local OCI registry on the
-      # builder. tart's own push uses Swift URLSession, which is
-      # documented-unreliable for multi-GB blob uploads (see
-      # cirruslabs/tart#963). Split into:
-      #   1. tart push to localhost over loopback (~5 min, no
-      #      network), so the multi-GB upload completes regardless
-      #      of upstream issues.
-      #   2. crane copy to GHCR — same go-containerregistry codebase
-      #      as `crane registry serve` above, mature net/http retry
-      #      semantics, picks up GHCR creds from the
-      #      `crane auth login` we already ran.
-      # `crane registry serve --disk` is a single-binary OCI v2
-      # registry. Same shape as `macos-xcode-image.yml` — keep them
-      # in sync if either workflow's push path changes.
-      - name: Start local OCI registry
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/local-registry
-          nohup crane registry serve --address 127.0.0.1:5000 --disk /tmp/local-registry \
-            > /tmp/local-registry.log 2>&1 &
-          echo $! > /tmp/local-registry.pid
-          for _ in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
-              echo "local registry up (pid $(cat /tmp/local-registry.pid))"
-              exit 0
-            fi
-            sleep 0.5
-          done
-          echo "local registry did not come up in 10s; log:" >&2
-          cat /tmp/local-registry.log >&2 || true
-          exit 1
-
-      - name: Push image to local registry
-        id: push-local
+      - name: Push image to GHCR
+        id: push
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # Direct tart push. Cirrus uses the same path to publish
+        # macos-tahoe-xcode at the same size; the prior bridge through
+        # a local registry was an unsuccessful workaround on a
+        # different host's structurally bad network. Outer 3× retry
+        # stays as belt-and-braces; blob uploads are content-
+        # addressed so a re-push only re-uploads layers that didn't
+        # make it on the previous attempt.
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           PROFILE="${{ steps.build.outputs.profile }}"
           TAG="${PROFILE}-${GIT_SHA}"
-          # --insecure for HTTP loopback; --chunk-size 3 keeps the
-          # monolithic-upload path off (it's the same path that fails
-          # against ghcr.io).
-          tart push --insecure --chunk-size 3 \
-            tuist-runner "127.0.0.1:5000/tuist/tuist-runner:${TAG}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-      - name: Copy image to GHCR (crane)
-        id: push
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.push-local.outputs.tag }}"
           for attempt in 1 2 3; do
-            echo "crane copy attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if crane copy --insecure \
-                "127.0.0.1:5000/tuist/tuist-runner:${TAG}" \
-                "ghcr.io/tuist/tuist-runner:${TAG}"; then
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
               echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
               echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "crane copy attempt ${attempt} failed; sleeping 60s before retry" >&2
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
             sleep 60
           done
-          echo "crane copy failed three times in a row" >&2
+          echo "tart push failed three times in a row" >&2
           exit 1
 
       - name: Cleanup
         if: always()
-        run: |
-          tart delete tuist-runner 2>/dev/null || true
-          if [ -f /tmp/local-registry.pid ]; then
-            kill "$(cat /tmp/local-registry.pid)" 2>/dev/null || true
-            rm -f /tmp/local-registry.pid
-          fi
-          rm -rf /tmp/local-registry /tmp/local-registry.log
+        run: tart delete tuist-runner 2>/dev/null || true

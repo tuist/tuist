@@ -1571,73 +1571,43 @@ jobs:
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
-      # See runner-image.yml's matching block for the full rationale —
-      # raw `tart push` to ghcr.io is unreliable for multi-GB blobs
-      # (cirruslabs/tart#963), so push to a local disk-backed OCI
-      # registry first, then `crane copy` upstream. Same shape across
-      # both workflows; keep them in sync.
-      - name: Start local OCI registry
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/local-registry
-          nohup crane registry serve --address 127.0.0.1:5000 --disk /tmp/local-registry \
-            > /tmp/local-registry.log 2>&1 &
-          echo $! > /tmp/local-registry.pid
-          for _ in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
-              echo "local registry up (pid $(cat /tmp/local-registry.pid))"
-              exit 0
-            fi
-            sleep 0.5
-          done
-          echo "local registry did not come up in 10s; log:" >&2
-          cat /tmp/local-registry.log >&2 || true
-          exit 1
-
-      - name: Push image to local registry
+      - name: Push profile to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # Direct tart push; same shape as `macos-xcode-image.yml`.
+        # Push both the immutable per-version tag and the rolling
+        # `:<profile>` tag so the chart's tag template stays valid
+        # without overrides while operators can still pin to a
+        # specific version when they need to roll back. 3× retry per
+        # tag — blob uploads are content-addressed so a re-push only
+        # re-uploads layers that didn't make it on the previous
+        # attempt.
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           PROFILE="${{ steps.build.outputs.profile }}"
-          tart push --insecure --chunk-size 3 \
-            tuist-runner "127.0.0.1:5000/tuist/tuist-runner:${PROFILE}-${VERSION}"
-
-      - name: Copy image to GHCR (crane)
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          PROFILE="${{ steps.build.outputs.profile }}"
-          SRC="127.0.0.1:5000/tuist/tuist-runner:${PROFILE}-${VERSION}"
-          # Push both the immutable per-version tag and the rolling
-          # `:<profile>` tag so the chart's tag template stays valid
-          # without overrides while operators can still pin to a
-          # specific version when they need to roll back.
           for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
             DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
             for attempt in 1 2 3; do
-              echo "crane copy -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if crane copy --insecure "$SRC" "$DST"; then
+              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+              if tart push tuist-runner "$DST"; then
                 echo "Pushed ${DST} on attempt ${attempt}"
                 break
               fi
               if [ "$attempt" = 3 ]; then
-                echo "crane copy failed three times for ${dest_tag}" >&2
+                echo "tart push failed three times for ${dest_tag}" >&2
                 exit 1
               fi
-              echo "crane copy attempt ${attempt} failed; sleeping 60s before retry" >&2
+              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
               sleep 60
             done
           done
 
       - name: Cleanup
         if: always()
-        run: |
-          tart delete tuist-runner 2>/dev/null || true
-          if [ -f /tmp/local-registry.pid ]; then
-            kill "$(cat /tmp/local-registry.pid)" 2>/dev/null || true
-            rm -f /tmp/local-registry.pid
-          fi
-          rm -rf /tmp/local-registry /tmp/local-registry.log
+        run: tart delete tuist-runner 2>/dev/null || true
 
   release-runner-image:
     # Post-job: every active profile is now in GHCR with a fresh

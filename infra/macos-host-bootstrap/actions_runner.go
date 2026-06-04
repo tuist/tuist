@@ -68,11 +68,9 @@ const builderMixBuildRoot = "/opt/tuist-build-cache"
 
 // installBuilderTooling lays down the host-level dependencies the
 // image-bake workflows expect to find on PATH: Homebrew, Packer
-// from `hashicorp/tap`, and `crane` (for GHCR auth before
-// `tart push`, as the local-registry server backing the
-// `tart push → crane copy` workaround in `runner-image.yml` and
-// `release.yml`'s `runner-image-build`, and for the upstream copy
-// from that local registry to ghcr.io).
+// from `hashicorp/tap`, and `crane` (for GHCR auth via
+// `crane auth login` before `tart push`, and to resolve a pushed
+// tag to its immutable digest in `release.yml`'s runner-image leg).
 //
 // `hashicorp/tap` instead of Homebrew core because HashiCorp pulled
 // Packer (and the rest of the BSL-licensed tools) from core when
