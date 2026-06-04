@@ -33,6 +33,11 @@ defaults:
     working-directory: gradle
 
 jobs:
+  # Split into non-fork (`test`) and fork (`test-fork`) like android.yml
+  # so only trusted runs get `id-token: write`. GitHub exposes the OIDC
+  # token request env whenever that permission is granted, and the fork
+  # path skips `tuist auth login` (the only OIDC consumer), so fork
+  # executions must run with `contents: read` alone.
   test:
     name: Test
     runs-on: tuist-linux
@@ -40,7 +45,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: |
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -55,6 +62,27 @@ jobs:
           cache: "false"
           working_directory: .
       - name: Authenticate with Tuist
-        if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
+      - run: ./gradlew test
+
+  test-fork:
+    name: Test Fork
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: tuist
+          cache: "false"
+          working_directory: .
       - run: ./gradlew test
