@@ -72,8 +72,11 @@ EOF
             --password "$TUIST_AUTH_PASSWORD" \
             --path "$FIXTURE_DIR"
 
+    # --build-system is required non-interactively; without it the CLI prompts
+    # "Which build system does your project use?" and aborts in CI. xcode is the
+    # build system the binary cache flow exercised below depends on.
     echo "# Creating throwaway project ${PROJECT_HANDLE}..." >&3
-    "$TUIST_EXECUTABLE" project create "$PROJECT_HANDLE" --path "$FIXTURE_DIR"
+    "$TUIST_EXECUTABLE" project create "$PROJECT_HANDLE" --path "$FIXTURE_DIR" --build-system xcode
 }
 
 teardown_file() {
