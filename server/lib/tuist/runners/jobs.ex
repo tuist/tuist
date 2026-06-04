@@ -331,17 +331,15 @@ defmodule Tuist.Runners.Jobs do
   which scales poorly as the table grows.
   """
   def list_expired_archives(%DateTime{} = threshold) do
-    from(j in Job,
-      group_by: j.workflow_job_id,
-      having:
-        not is_nil(fragment("argMax(?, ?)", j.log_archived_at, j.updated_at)) and
-          fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
-      select: %{
-        workflow_job_id: j.workflow_job_id,
-        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
-      }
+    ClickHouseRepo.all(
+      from(j in Job,
+        group_by: j.workflow_job_id,
+        having:
+          not is_nil(fragment("argMax(?, ?)", j.log_archived_at, j.updated_at)) and
+            fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
+        select: %{workflow_job_id: j.workflow_job_id, account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)}
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   @doc """

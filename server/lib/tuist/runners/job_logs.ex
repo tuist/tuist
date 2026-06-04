@@ -46,19 +46,20 @@ defmodule Tuist.Runners.JobLogs do
     limit = Keyword.get(opts, :limit, 1000)
     offset = Keyword.get(opts, :offset, 0)
 
-    from(l in JobLog,
-      where: l.workflow_job_id == ^workflow_job_id,
-      group_by: [l.workflow_job_id, l.line_number],
-      order_by: [asc: l.line_number],
-      limit: ^limit,
-      offset: ^offset,
-      select: %{
-        line_number: l.line_number,
-        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
-        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
-      }
+    ClickHouseRepo.all(
+      from(l in JobLog,
+        where: l.workflow_job_id == ^workflow_job_id,
+        group_by: [l.workflow_job_id, l.line_number],
+        order_by: [asc: l.line_number],
+        limit: ^limit,
+        offset: ^offset,
+        select: %{
+          line_number: l.line_number,
+          ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+          message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+        }
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   @doc """
@@ -116,19 +117,20 @@ defmodule Tuist.Runners.JobLogs do
   def search(workflow_job_id, term, limit) when is_integer(workflow_job_id) and is_binary(term) and is_integer(limit) do
     pattern = "%" <> escape_like(term) <> "%"
 
-    from(l in JobLog,
-      where: l.workflow_job_id == ^workflow_job_id,
-      group_by: [l.workflow_job_id, l.line_number],
-      having: fragment("argMax(?, ?) ILIKE ?", l.message, l.inserted_at, ^pattern),
-      order_by: [asc: l.line_number],
-      limit: ^limit,
-      select: %{
-        line_number: l.line_number,
-        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
-        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
-      }
+    ClickHouseRepo.all(
+      from(l in JobLog,
+        where: l.workflow_job_id == ^workflow_job_id,
+        group_by: [l.workflow_job_id, l.line_number],
+        having: fragment("argMax(?, ?) ILIKE ?", l.message, l.inserted_at, ^pattern),
+        order_by: [asc: l.line_number],
+        limit: ^limit,
+        select: %{
+          line_number: l.line_number,
+          ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+          message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+        }
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   # Escape the LIKE wildcards so a user's literal `%` / `_` aren't
@@ -170,18 +172,19 @@ defmodule Tuist.Runners.JobLogs do
 
   defp reduce_from(workflow_job_id, after_line_number, batch_size, acc, fun) do
     batch =
-      from(l in JobLog,
-        where: l.workflow_job_id == ^workflow_job_id and l.line_number > ^after_line_number,
-        group_by: [l.workflow_job_id, l.line_number],
-        order_by: [asc: l.line_number],
-        limit: ^batch_size,
-        select: %{
-          line_number: l.line_number,
-          ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
-          message: fragment("argMax(?, ?)", l.message, l.inserted_at)
-        }
+      ClickHouseRepo.all(
+        from(l in JobLog,
+          where: l.workflow_job_id == ^workflow_job_id and l.line_number > ^after_line_number,
+          group_by: [l.workflow_job_id, l.line_number],
+          order_by: [asc: l.line_number],
+          limit: ^batch_size,
+          select: %{
+            line_number: l.line_number,
+            ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+            message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+          }
+        )
       )
-      |> ClickHouseRepo.all()
 
     case batch do
       [] ->
@@ -327,9 +330,7 @@ defmodule Tuist.Runners.JobLogs do
 
   defp end_of_last_user_step(_workflow_job_id, total_max, []), do: total_max
 
-  defp end_of_last_user_step(workflow_job_id, total_max, [
-         %{started_at: %DateTime{} = teardown_start} | _
-       ]) do
+  defp end_of_last_user_step(workflow_job_id, total_max, [%{started_at: %DateTime{} = teardown_start} | _]) do
     case teardown_anchor_line(workflow_job_id, teardown_start) do
       nil -> total_max
       anchor -> anchor - 1
@@ -395,14 +396,15 @@ defmodule Tuist.Runners.JobLogs do
   # runner emits per user-defined `run:` step. The HAVING runs against
   # the deduped message so a retried row can't slip past the filter.
   defp marker_line_numbers(workflow_job_id) do
-    from(l in JobLog,
-      where: l.workflow_job_id == ^workflow_job_id,
-      group_by: [l.workflow_job_id, l.line_number],
-      having: fragment("startsWith(argMax(?, ?), '##[group]Run ')", l.message, l.inserted_at),
-      order_by: [asc: l.line_number],
-      select: l.line_number
+    ClickHouseRepo.all(
+      from(l in JobLog,
+        where: l.workflow_job_id == ^workflow_job_id,
+        group_by: [l.workflow_job_id, l.line_number],
+        having: fragment("startsWith(argMax(?, ?), '##[group]Run ')", l.message, l.inserted_at),
+        order_by: [asc: l.line_number],
+        select: l.line_number
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   # `ts` comes from the GH log line itself, so a retried row carries

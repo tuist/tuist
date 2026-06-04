@@ -46,19 +46,20 @@ defmodule Tuist.Runners.JobSteps do
   without paying for `FINAL`'s part merge.
   """
   def list_for_job(workflow_job_id) when is_integer(workflow_job_id) do
-    from(s in JobStep,
-      where: s.workflow_job_id == ^workflow_job_id,
-      group_by: [s.workflow_job_id, s.number],
-      order_by: [asc: s.number],
-      select: %{
-        number: s.number,
-        name: fragment("argMax(?, ?)", s.name, s.inserted_at),
-        status: fragment("argMax(?, ?)", s.status, s.inserted_at),
-        conclusion: fragment("argMax(?, ?)", s.conclusion, s.inserted_at),
-        started_at: fragment("argMax(?, ?)", s.started_at, s.inserted_at),
-        completed_at: fragment("argMax(?, ?)", s.completed_at, s.inserted_at)
-      }
+    ClickHouseRepo.all(
+      from(s in JobStep,
+        where: s.workflow_job_id == ^workflow_job_id,
+        group_by: [s.workflow_job_id, s.number],
+        order_by: [asc: s.number],
+        select: %{
+          number: s.number,
+          name: fragment("argMax(?, ?)", s.name, s.inserted_at),
+          status: fragment("argMax(?, ?)", s.status, s.inserted_at),
+          conclusion: fragment("argMax(?, ?)", s.conclusion, s.inserted_at),
+          started_at: fragment("argMax(?, ?)", s.started_at, s.inserted_at),
+          completed_at: fragment("argMax(?, ?)", s.completed_at, s.inserted_at)
+        }
+      )
     )
-    |> ClickHouseRepo.all()
   end
 end
