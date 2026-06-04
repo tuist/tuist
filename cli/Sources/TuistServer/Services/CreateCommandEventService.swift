@@ -82,6 +82,7 @@
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,
                             error_message: errorMessage,
+                            generation_id: commandEvent.generationId,
                             git_branch: commandEvent.gitBranch,
                             git_commit_sha: commandEvent.gitCommitSHA,
                             git_ref: commandEvent.gitRef,

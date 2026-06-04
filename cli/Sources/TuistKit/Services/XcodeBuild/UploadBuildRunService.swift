@@ -48,6 +48,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
     private let ciController: CIControlling
+    private let generationMetadataStore: GenerationMetadataStoring
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
@@ -57,7 +58,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         uploadBuildService: UploadBuildServicing = UploadBuildService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
-        ciController: CIControlling = CIController()
+        ciController: CIControlling = CIController(),
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore()
     ) {
         self.fileSystem = fileSystem
         self.machineEnvironment = machineEnvironment
@@ -67,6 +69,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
         self.ciController = ciController
+        self.generationMetadataStore = generationMetadataStore
     }
 
     @discardableResult
@@ -83,6 +86,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         }
 
         let buildId = activityLogPath.basenameWithoutExt
+        let generationId = try? await generationMetadataStore.read(for: projectPath)
 
         let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
             let archivePath = try await bundleBuild(
@@ -103,6 +107,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 id: buildId,
+                generationId: generationId,
                 category: .incremental,
                 configuration: configuration ?? Environment.current.variables["CONFIGURATION"],
                 customMetadata: customMetadata,

@@ -33,7 +33,9 @@ public actor RunMetadataStorage {
     }
 
     /// A unique ID associated with a specific run
-    public var runId: String { Environment.current.processId }
+    public var runId: String {
+        Environment.current.processId
+    }
 
     /// Graph associated with the current run
     public private(set) var graph: Graph?
@@ -90,6 +92,14 @@ public actor RunMetadataStorage {
     public private(set) var testRunId: String?
     public func update(testRunId: String?) {
         self.testRunId = testRunId
+    }
+
+    /// Identifier of the generation that produced the project. Shared between the generate command
+    /// event (which uploads the graph) and a later local Xcode build so the build can reuse that
+    /// graph for its Module Cache breakdown.
+    public private(set) var generationId: String?
+    public func update(generationId: String?) {
+        self.generationId = generationId
     }
 
     /// The URL of the uploaded build run.

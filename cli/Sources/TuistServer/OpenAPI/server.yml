@@ -6494,6 +6494,11 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
+                generation_id:
+                  description: The identifier of the generation that produced the project. Local Xcode builds reuse this to reference the graph uploaded by the original generation.
+                  type: string
+                  x-struct:
+                  x-validate:
                 git_branch:
                   description: The git branch.
                   type: string
@@ -11454,6 +11459,11 @@ paths:
                     x-struct:
                     x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
+                generation_id:
+                  description: The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project.
+                  type: string
                   x-struct:
                   x-validate:
                 git_branch:
@@ -17973,6 +17983,11 @@ paths:
                     x-struct:
                     x-validate:
                   type: array
+                  x-struct:
+                  x-validate:
+                generation_id:
+                  description: The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project.
+                  type: string
                   x-struct:
                   x-validate:
                 git_branch:
