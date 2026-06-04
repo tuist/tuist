@@ -2,17 +2,17 @@ defmodule Tuist.Runners.JobLogs do
   @moduledoc """
   ClickHouse-backed per-line log store for runner jobs.
 
-  Writes are append-only batches from the log-ingest endpoint
-  (`IngestRepo.insert_all/2`); reads are single-job, time-windowed
-  scans served by the `(workflow_job_id, line_number)` order key.
+  Writes are append-only batches from `FetchLogsWorker`
+  (`IngestRepo.insert_all/2`); reads are single-job scans served by
+  the `(workflow_job_id, line_number)` order key.
 
-  The shipper delivers chunks at-least-once, so an append can repeat
-  a `(workflow_job_id, line_number)` row on retry. The
-  ReplacingMergeTree dedup on that key collapses the duplicate; reads
-  use `FINAL` so the dedup is visible immediately. `FINAL` is cheap
-  here because every query is scoped to a single `workflow_job_id`
-  (the order-key prefix), unlike the multi-row `runner_jobs` reads
-  that deliberately avoid it.
+  A worker retry can repeat a `(workflow_job_id, line_number)` row,
+  so the ReplacingMergeTree dedups on that key with `inserted_at` as
+  the version. Reads use the
+  `argMax(col, inserted_at) GROUP BY line_number` pattern to surface
+  the latest version immediately — same shape as `Tuist.Runners.Jobs`,
+  and cheaper than `FINAL` once a multi-batch job spreads its lines
+  across many parts.
   """
   import Ecto.Query
 
@@ -46,13 +46,18 @@ defmodule Tuist.Runners.JobLogs do
     limit = Keyword.get(opts, :limit, 1000)
     offset = Keyword.get(opts, :offset, 0)
 
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id)
-    |> order_by([l], asc: l.line_number)
-    |> limit(^limit)
-    |> offset(^offset)
-    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      group_by: [l.workflow_job_id, l.line_number],
+      order_by: [asc: l.line_number],
+      limit: ^limit,
+      offset: ^offset,
+      select: %{
+        line_number: l.line_number,
+        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
@@ -63,12 +68,17 @@ defmodule Tuist.Runners.JobLogs do
   them all into memory.
   """
   def recent(workflow_job_id, limit) when is_integer(workflow_job_id) and is_integer(limit) do
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id)
-    |> order_by([l], desc: l.line_number)
-    |> limit(^limit)
-    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      group_by: [l.workflow_job_id, l.line_number],
+      order_by: [desc: l.line_number],
+      limit: ^limit,
+      select: %{
+        line_number: l.line_number,
+        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+      }
+    )
     |> ClickHouseRepo.all()
     |> Enum.reverse()
   end
@@ -79,12 +89,17 @@ defmodule Tuist.Runners.JobLogs do
   """
   def older(workflow_job_id, before_line_number, limit)
       when is_integer(workflow_job_id) and is_integer(before_line_number) and is_integer(limit) do
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number)
-    |> order_by([l], desc: l.line_number)
-    |> limit(^limit)
-    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number,
+      group_by: [l.workflow_job_id, l.line_number],
+      order_by: [desc: l.line_number],
+      limit: ^limit,
+      select: %{
+        line_number: l.line_number,
+        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+      }
+    )
     |> ClickHouseRepo.all()
     |> Enum.reverse()
   end
@@ -101,12 +116,18 @@ defmodule Tuist.Runners.JobLogs do
   def search(workflow_job_id, term, limit) when is_integer(workflow_job_id) and is_binary(term) and is_integer(limit) do
     pattern = "%" <> escape_like(term) <> "%"
 
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id and fragment("? ILIKE ?", l.message, ^pattern))
-    |> order_by([l], asc: l.line_number)
-    |> limit(^limit)
-    |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      group_by: [l.workflow_job_id, l.line_number],
+      having: fragment("argMax(?, ?) ILIKE ?", l.message, l.inserted_at, ^pattern),
+      order_by: [asc: l.line_number],
+      limit: ^limit,
+      select: %{
+        line_number: l.line_number,
+        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
@@ -127,11 +148,11 @@ defmodule Tuist.Runners.JobLogs do
 
   def has_older?(workflow_job_id, before_line_number)
       when is_integer(workflow_job_id) and is_integer(before_line_number) do
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number)
-    |> select([l], 1)
-    |> limit(1)
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id and l.line_number < ^before_line_number,
+      select: 1,
+      limit: 1
+    )
     |> ClickHouseRepo.one()
     |> is_integer()
   end
@@ -149,12 +170,17 @@ defmodule Tuist.Runners.JobLogs do
 
   defp reduce_from(workflow_job_id, after_line_number, batch_size, acc, fun) do
     batch =
-      JobLog
-      |> from(hints: ["FINAL"])
-      |> where([l], l.workflow_job_id == ^workflow_job_id and l.line_number > ^after_line_number)
-      |> order_by([l], asc: l.line_number)
-      |> limit(^batch_size)
-      |> select([l], %{line_number: l.line_number, ts: l.ts, message: l.message})
+      from(l in JobLog,
+        where: l.workflow_job_id == ^workflow_job_id and l.line_number > ^after_line_number,
+        group_by: [l.workflow_job_id, l.line_number],
+        order_by: [asc: l.line_number],
+        limit: ^batch_size,
+        select: %{
+          line_number: l.line_number,
+          ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+          message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+        }
+      )
       |> ClickHouseRepo.all()
 
     case batch do
@@ -375,10 +401,10 @@ defmodule Tuist.Runners.JobLogs do
   Number of distinct log lines captured for a job.
   """
   def count_for_job(workflow_job_id) when is_integer(workflow_job_id) do
-    JobLog
-    |> from(hints: ["FINAL"])
-    |> where([l], l.workflow_job_id == ^workflow_job_id)
-    |> select([l], count(l.line_number))
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      select: fragment("uniqExact(?)", l.line_number)
+    )
     |> ClickHouseRepo.one()
     |> Kernel.||(0)
   end
