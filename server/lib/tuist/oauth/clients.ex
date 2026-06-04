@@ -102,9 +102,26 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp oauth_service_clients do
+    reserved_ids = reserved_client_ids()
+
     Environment.oauth_service_clients()
     |> Enum.map(&oauth_service_client_from_config/1)
-    |> Enum.reject(&is_nil/1)
+    |> Enum.reject(&(is_nil(&1) or &1.id in reserved_ids))
+  end
+
+  # Service-client ids that collide with a built-in client (the Tuist CLI client
+  # or the Kura control-plane client) are dropped. `static_client/1` resolves the
+  # built-in client first, so without this filter Boruta would authenticate the
+  # built-in client while `service_client?/1` still reported the id as a service
+  # client, causing the token generator to sign a service token that bypasses the
+  # built-in client's secret, TTL, and scope configuration.
+  defp reserved_client_ids do
+    kura_id =
+      if Environment.kura_control_plane_configured?() do
+        Environment.kura_control_plane_client_id()
+      end
+
+    Enum.reject([Environment.oauth_client_id(), kura_id], &is_nil/1)
   end
 
   defp oauth_service_client_from_config(config) when is_map(config) do

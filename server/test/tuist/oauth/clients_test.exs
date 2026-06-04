@@ -119,6 +119,31 @@ defmodule Tuist.OAuth.ClientsTest do
       assert Clients.authorized_scopes(client) == []
     end
 
+    test "ignores a service client whose id collides with the Tuist CLI client" do
+      stub(Environment, :kura_control_plane_configured?, fn -> false end)
+      stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)
+      stub(Environment, :oauth_client_secret, fn -> "tuist-cli-secret" end)
+      stub(Environment, :oauth_client_name, fn -> "Tuist CLI" end)
+      stub(Environment, :oauth_jwt_public_key, fn -> nil end)
+      stub(Environment, :oauth_private_key, fn -> nil end)
+
+      stub(Environment, :oauth_service_clients, fn ->
+        [
+          %{
+            "id" => "tuist-cli",
+            "secret" => "service-secret",
+            "scopes" => ["account:service:read:any"]
+          }
+        ]
+      end)
+
+      client = Clients.get_client("tuist-cli")
+
+      assert client.secret == "tuist-cli-secret"
+      assert client.confidential == false
+      refute Clients.service_client?("tuist-cli")
+    end
+
     test "caps a service client access token TTL" do
       stub(Environment, :kura_control_plane_configured?, fn -> false end)
       stub(Environment, :oauth_client_id, fn -> "tuist-cli" end)

@@ -6,6 +6,7 @@ defmodule TuistWeb.AuthenticationPlugTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -232,6 +233,47 @@ defmodule TuistWeb.AuthenticationPlugTest do
                "error" => "invalid_token",
                "error_description" => "Missing or invalid access token."
              }
+    end
+  end
+
+  describe "reject_service_subjects" do
+    test "rejects service subjects with a forbidden response" do
+      # Given
+      opts = AuthenticationPlug.init(:reject_service_subjects)
+
+      conn =
+        :get
+        |> build_conn("/")
+        |> assign(:current_subject, %AuthenticatedService{
+          client_id: "service-client",
+          scopes: ["account:service:read:any"]
+        })
+
+      # When
+      conn = AuthenticationPlug.call(conn, opts)
+
+      # Then
+      assert conn.halted == true
+
+      assert json_response(conn, :forbidden) == %{
+               "message" => "Service tokens are not allowed to access this resource."
+             }
+    end
+
+    test "lets non-service subjects through" do
+      # Given
+      opts = AuthenticationPlug.init(:reject_service_subjects)
+
+      conn =
+        :get
+        |> build_conn("/")
+        |> assign(:current_subject, %AuthenticatedAccount{account: nil, scopes: ["account:members:read"]})
+
+      # When
+      conn = AuthenticationPlug.call(conn, opts)
+
+      # Then
+      assert conn.halted == false
     end
   end
 end
