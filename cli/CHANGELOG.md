@@ -5,16 +5,16 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* move framework search path setup into a graph mapper by [@fortmarek](https://github.com/fortmarek) in [#11054](https://github.com/tuist/tuist/pull/11054)
-* generate foreign build aggregates as scripts by [@pepicrft](https://github.com/pepicrft) in [#11030](https://github.com/tuist/tuist/pull/11030)
-* inherit canary fixture feature flags by [@pepicrft](https://github.com/pepicrft) in [#11050](https://github.com/tuist/tuist/pull/11050)
-* always expose -Swift.h for Swift-only SPM frameworks (#11007) by [@fortmarek](https://github.com/fortmarek) in [#11012](https://github.com/tuist/tuist/pull/11012)
-* pass precompiled framework search paths to Swift inline, not via @resp by [@fortmarek](https://github.com/fortmarek) in [#11033](https://github.com/tuist/tuist/pull/11033)
-* keep test target buildable when only a test-case-level skip matches by [@fortmarek](https://github.com/fortmarek) in [#11032](https://github.com/tuist/tuist/pull/11032)
-* use AsyncParsableCommand for plugin run and test commands by [@rwjc](https://github.com/rwjc) in [#10603](https://github.com/tuist/tuist/pull/10603)
-* infer DerivedData location for inspect build and tests by [@natanrolnik](https://github.com/natanrolnik) in [#11015](https://github.com/tuist/tuist/pull/11015)
-* stop emitting -Xcc @resp into OTHER_SWIFT_FLAGS (Xcode 26 "expected exactly one compiler job") by [@fortmarek](https://github.com/fortmarek) in [#11023](https://github.com/tuist/tuist/pull/11023)
-* finish test command early when every test target is filtered out by [@fortmarek](https://github.com/fortmarek) in [#11010](https://github.com/tuist/tuist/pull/11010)
+* move framework search path setup into a graph mapper ([#11054](https://github.com/tuist/tuist/pull/11054))
+* generate foreign build aggregates as scripts ([#11030](https://github.com/tuist/tuist/pull/11030))
+* inherit canary fixture feature flags ([#11050](https://github.com/tuist/tuist/pull/11050))
+* always expose -Swift.h for Swift-only SPM frameworks ([#11007](https://github.com/tuist/tuist/pull/11007)) ([#11012](https://github.com/tuist/tuist/pull/11012))
+* pass precompiled framework search paths to Swift inline, not via @resp ([#11033](https://github.com/tuist/tuist/pull/11033))
+* keep test target buildable when only a test-case-level skip matches ([#11032](https://github.com/tuist/tuist/pull/11032))
+* use AsyncParsableCommand for plugin run and test commands ([#10603](https://github.com/tuist/tuist/pull/10603))
+* infer DerivedData location for inspect build and tests ([#11015](https://github.com/tuist/tuist/pull/11015))
+* stop emitting -Xcc @resp into OTHER_SWIFT_FLAGS (Xcode 26 "expected exactly one compiler job") ([#11023](https://github.com/tuist/tuist/pull/11023))
+* finish test command early when every test target is filtered out ([#11010](https://github.com/tuist/tuist/pull/11010))
 
 
 
@@ -24,12 +24,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* hash the resolved embedded product closure into the cache content hash by [@fortmarek](https://github.com/fortmarek) in [#10984](https://github.com/tuist/tuist/pull/10984)
-* pass explicit working directory to manifest evaluation by [@fortmarek](https://github.com/fortmarek) in [#10996](https://github.com/tuist/tuist/pull/10996)
-* isolate acceptance fixtures from feature flags by [@pepicrft](https://github.com/pepicrft) in [#10993](https://github.com/tuist/tuist/pull/10993)
-* Fix Swift-only package framework modulemaps by [@pepicrft](https://github.com/pepicrft) in [#10971](https://github.com/tuist/tuist/pull/10971)
-* avoid checkout cwd for SwiftPM package dumps by [@pepicrft](https://github.com/pepicrft) in [#10966](https://github.com/tuist/tuist/pull/10966)
-* avoid expanding recursive exclusion globs by [@pepicrft](https://github.com/pepicrft) in [#10957](https://github.com/tuist/tuist/pull/10957)
+* hash the resolved embedded product closure into the cache content hash ([#10984](https://github.com/tuist/tuist/pull/10984))
+* pass explicit working directory to manifest evaluation ([#10996](https://github.com/tuist/tuist/pull/10996))
+* isolate acceptance fixtures from feature flags ([#10993](https://github.com/tuist/tuist/pull/10993))
+* Fix Swift-only package framework modulemaps ([#10971](https://github.com/tuist/tuist/pull/10971))
+* avoid checkout cwd for SwiftPM package dumps ([#10966](https://github.com/tuist/tuist/pull/10966))
+* avoid expanding recursive exclusion globs ([#10957](https://github.com/tuist/tuist/pull/10957))
 
 
 
@@ -39,25 +39,25 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use combined module map to avoid argument list too long errors by [@fortmarek](https://github.com/fortmarek) in [#10228](https://github.com/tuist/tuist/pull/10228)
-* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts by [@fortmarek](https://github.com/fortmarek) in [#10945](https://github.com/tuist/tuist/pull/10945)
-* preserve module names for xcframework wrappers by [@pepicrft](https://github.com/pepicrft) in [#10938](https://github.com/tuist/tuist/pull/10938)
-* stop duplicating SwiftPM output during tuist install by [@shgew](https://github.com/shgew) in [#10931](https://github.com/tuist/tuist/pull/10931)
-* respect configured SwiftPM scratch paths by [@sanghyeok-kim](https://github.com/sanghyeok-kim) in [#9253](https://github.com/tuist/tuist/pull/9253)
-* canonicalize xcodebuild analytics metadata by [@pepicrft](https://github.com/pepicrft) in [#10920](https://github.com/tuist/tuist/pull/10920)
-* ignore embeddable watch apps in redundant dependency inspection by [@shgew](https://github.com/shgew) in [#10771](https://github.com/tuist/tuist/pull/10771)
-* preserve asset symbol generation for buildable-folder xcassets by [@pepicrft](https://github.com/pepicrft) in [#10911](https://github.com/tuist/tuist/pull/10911)
-* emit cross-project PBXTargetDependency for foreign build consumers by [@fortmarek](https://github.com/fortmarek) in [#10885](https://github.com/tuist/tuist/pull/10885)
-* pass explicit workingDirectory to swift package commands by [@fortmarek](https://github.com/fortmarek) in [#10891](https://github.com/tuist/tuist/pull/10891)
-* keep tuist dump stdout machine-readable by [@pepicrft](https://github.com/pepicrft) in [#10874](https://github.com/tuist/tuist/pull/10874)
-* re-run foreign build script when inputs cannot be tracked by [@fortmarek](https://github.com/fortmarek) in [#10872](https://github.com/tuist/tuist/pull/10872)
-* align tuist hash selective-testing with the test pipeline by [@fortmarek](https://github.com/fortmarek) in [#10870](https://github.com/tuist/tuist/pull/10870)
-* apply test quarantine to --without-building and shard runs by [@fortmarek](https://github.com/fortmarek) in [#10864](https://github.com/tuist/tuist/pull/10864)
-* Indentation in StringsTemplate.swift by [@teameh](https://github.com/teameh) in [#10853](https://github.com/tuist/tuist/pull/10853)
-* retry run metadata upload on transient errors by [@fortmarek](https://github.com/fortmarek) in [#10842](https://github.com/tuist/tuist/pull/10842)
+* use combined module map to avoid argument list too long errors ([#10228](https://github.com/tuist/tuist/pull/10228))
+* anchor SwiftPM module-map flags on absolute derived-dir to survive symlinked .build/checkouts ([#10945](https://github.com/tuist/tuist/pull/10945))
+* preserve module names for xcframework wrappers ([#10938](https://github.com/tuist/tuist/pull/10938))
+* stop duplicating SwiftPM output during tuist install ([#10931](https://github.com/tuist/tuist/pull/10931))
+* respect configured SwiftPM scratch paths ([#9253](https://github.com/tuist/tuist/pull/9253))
+* canonicalize xcodebuild analytics metadata ([#10920](https://github.com/tuist/tuist/pull/10920))
+* ignore embeddable watch apps in redundant dependency inspection ([#10771](https://github.com/tuist/tuist/pull/10771))
+* preserve asset symbol generation for buildable-folder xcassets ([#10911](https://github.com/tuist/tuist/pull/10911))
+* emit cross-project PBXTargetDependency for foreign build consumers ([#10885](https://github.com/tuist/tuist/pull/10885))
+* pass explicit workingDirectory to swift package commands ([#10891](https://github.com/tuist/tuist/pull/10891))
+* keep tuist dump stdout machine-readable ([#10874](https://github.com/tuist/tuist/pull/10874))
+* re-run foreign build script when inputs cannot be tracked ([#10872](https://github.com/tuist/tuist/pull/10872))
+* align tuist hash selective-testing with the test pipeline ([#10870](https://github.com/tuist/tuist/pull/10870))
+* apply test quarantine to --without-building and shard runs ([#10864](https://github.com/tuist/tuist/pull/10864))
+* Indentation in StringsTemplate.swift ([#10853](https://github.com/tuist/tuist/pull/10853))
+* retry run metadata upload on transient errors ([#10842](https://github.com/tuist/tuist/pull/10842))
 ### ⚡ Performance
 
-* use Set for project path lookups in tree-shake mapper by [@inju2403](https://github.com/inju2403) in [#10033](https://github.com/tuist/tuist/pull/10033)
+* use Set for project path lookups in tree-shake mapper ([#10033](https://github.com/tuist/tuist/pull/10033))
 
 
 
@@ -67,16 +67,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* expose is_quarantined on test case run API by [@justine-acorns](https://github.com/justine-acorns) in [#10785](https://github.com/tuist/tuist/pull/10785)
-* add onOutdatedDependencies action to GenerationOptions by [@freak4pc](https://github.com/freak4pc) in [#10715](https://github.com/tuist/tuist/pull/10715)
+* expose is_quarantined on test case run API ([#10785](https://github.com/tuist/tuist/pull/10785))
+* add onOutdatedDependencies action to GenerationOptions ([#10715](https://github.com/tuist/tuist/pull/10715))
 ### 🐛 Bug Fixes
 
-* deduplicate conditioned xcframework search paths by [@fortmarek](https://github.com/fortmarek) in [#10813](https://github.com/tuist/tuist/pull/10813)
-* bind shard reference across split build/test jobs by [@fortmarek](https://github.com/fortmarek) in [#10805](https://github.com/tuist/tuist/pull/10805)
-* avoid collecting large verbose HTTP bodies by [@fortmarek](https://github.com/fortmarek) in [#10795](https://github.com/tuist/tuist/pull/10795)
-* map default actor isolation to MainActor by [@fortmarek](https://github.com/fortmarek) in [#10779](https://github.com/tuist/tuist/pull/10779)
-* synthesize Bundle.module for static frameworks with .metal in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10746](https://github.com/tuist/tuist/pull/10746)
-* release SwiftPM lock before invoking manifest subprocesses by [@fortmarek](https://github.com/fortmarek) in [#10758](https://github.com/tuist/tuist/pull/10758)
+* deduplicate conditioned xcframework search paths ([#10813](https://github.com/tuist/tuist/pull/10813))
+* bind shard reference across split build/test jobs ([#10805](https://github.com/tuist/tuist/pull/10805))
+* avoid collecting large verbose HTTP bodies ([#10795](https://github.com/tuist/tuist/pull/10795))
+* map default actor isolation to MainActor ([#10779](https://github.com/tuist/tuist/pull/10779))
+* synthesize Bundle.module for static frameworks with .metal in buildable folders ([#10746](https://github.com/tuist/tuist/pull/10746))
+* release SwiftPM lock before invoking manifest subprocesses ([#10758](https://github.com/tuist/tuist/pull/10758))
 
 
 
@@ -86,17 +86,17 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* allow forwarding extra env vars to manifest evaluation by [@pepicrft](https://github.com/pepicrft) in [#10705](https://github.com/tuist/tuist/pull/10705)
+* allow forwarding extra env vars to manifest evaluation ([#10705](https://github.com/tuist/tuist/pull/10705))
 ### 🐛 Bug Fixes
 
-* coordinate SwiftPM graph reads by [@pepicrft](https://github.com/pepicrft) in [#10729](https://github.com/tuist/tuist/pull/10729)
-* propagate selective testing and module cache analytics across --build-only / --without-building by [@fortmarek](https://github.com/fortmarek) in [#10672](https://github.com/tuist/tuist/pull/10672)
-* avoid invalidating shared URLSession on no-op HTTPSettings writes by [@fortmarek](https://github.com/fortmarek) in [#10727](https://github.com/tuist/tuist/pull/10727)
-* handle nested buildable folder xcstrings by [@pepicrft](https://github.com/pepicrft) in [#10721](https://github.com/tuist/tuist/pull/10721)
-* make metadata upload non-fatal by [@pepicrft](https://github.com/pepicrft) in [#10696](https://github.com/tuist/tuist/pull/10696)
-* rewrite dangling pre/post-action targets at prune time by [@fortmarek](https://github.com/fortmarek) in [#10654](https://github.com/tuist/tuist/pull/10654)
-* allow folder resources to overlap sources by [@pepicrft](https://github.com/pepicrft) in [#10692](https://github.com/tuist/tuist/pull/10692)
-* route static xcframeworks behind dynamic via search paths, not relink by [@pepicrft](https://github.com/pepicrft) in [#10704](https://github.com/tuist/tuist/pull/10704)
+* coordinate SwiftPM graph reads
+* propagate selective testing and module cache analytics across --build-only / --without-building ([#10672](https://github.com/tuist/tuist/pull/10672))
+* avoid invalidating shared URLSession on no-op HTTPSettings writes ([#10727](https://github.com/tuist/tuist/pull/10727))
+* handle nested buildable folder xcstrings ([#10721](https://github.com/tuist/tuist/pull/10721))
+* make metadata upload non-fatal ([#10696](https://github.com/tuist/tuist/pull/10696))
+* rewrite dangling pre/post-action targets at prune time ([#10654](https://github.com/tuist/tuist/pull/10654))
+* allow folder resources to overlap sources ([#10692](https://github.com/tuist/tuist/pull/10692))
+* route static xcframeworks behind dynamic via search paths, not relink ([#10704](https://github.com/tuist/tuist/pull/10704))
 
 
 
@@ -106,25 +106,25 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* rename Tuist `cache` to `xcodeCache` by [@fortmarek](https://github.com/fortmarek) in [#10663](https://github.com/tuist/tuist/pull/10663)
-* add tuist test case update command by [@justine-acorns](https://github.com/justine-acorns) in [#10450](https://github.com/tuist/tuist/pull/10450)
+* rename Tuist `cache` to `xcodeCache` ([#10663](https://github.com/tuist/tuist/pull/10663))
+* add tuist test case update command ([#10450](https://github.com/tuist/tuist/pull/10450))
 ### 🐛 Bug Fixes
 
-* remove noisy transport-level HTTP error logging by [@fortmarek](https://github.com/fortmarek) in [#10699](https://github.com/tuist/tuist/pull/10699)
-* limit implicit import source scans by [@pepicrft](https://github.com/pepicrft) in [#10693](https://github.com/tuist/tuist/pull/10693)
-* CLI hangs running processes concurrently by [@pepicrft](https://github.com/pepicrft) in [#10682](https://github.com/tuist/tuist/pull/10682)
-* resolve race condition in CachedManifestLoader parallel writes by [@ze-diaz](https://github.com/ze-diaz) in [#10662](https://github.com/tuist/tuist/pull/10662)
-* duplicate selective testing log messages and improve skip reason clarity by [@irena327](https://github.com/irena327) in [#10637](https://github.com/tuist/tuist/pull/10637)
-* skip run metadata upload when no auth is available by [@pepicrft](https://github.com/pepicrft) in [#10649](https://github.com/tuist/tuist/pull/10649)
-* make multi-process token refresh resilient to slow peers and rotation races by [@fortmarek](https://github.com/fortmarek) in [#10650](https://github.com/tuist/tuist/pull/10650)
-* support PackageDescription context by [@Kyle-Ye](https://github.com/Kyle-Ye) in [#10622](https://github.com/tuist/tuist/pull/10622)
-* respect disabled autogenerated workspace schemes by [@pepicrft](https://github.com/pepicrft) in [#10631](https://github.com/tuist/tuist/pull/10631)
-* treat non-source files in buildable folders as resources by [@fortmarek](https://github.com/fortmarek) in [#10645](https://github.com/tuist/tuist/pull/10645)
-* preserve whitespace in plist template for Array-root scalars by [@winston-riley-zocdoc](https://github.com/winston-riley-zocdoc) in [#10614](https://github.com/tuist/tuist/pull/10614)
-* preserve pruned test plan metadata by [@pepicrft](https://github.com/pepicrft) in [#10611](https://github.com/tuist/tuist/pull/10611)
-* include macOS SDK version in ProjectDescriptionHelpers cache key by [@pepicrft](https://github.com/pepicrft) in [#10598](https://github.com/tuist/tuist/pull/10598)
-* skip fully cached missing test plans by [@pepicrft](https://github.com/pepicrft) in [#10582](https://github.com/tuist/tuist/pull/10582)
-* disable HAR recording for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#10589](https://github.com/tuist/tuist/pull/10589)
+* remove noisy transport-level HTTP error logging ([#10699](https://github.com/tuist/tuist/pull/10699))
+* limit implicit import source scans ([#10693](https://github.com/tuist/tuist/pull/10693))
+* CLI hangs running processes concurrently ([#10682](https://github.com/tuist/tuist/pull/10682))
+* resolve race condition in CachedManifestLoader parallel writes ([#10662](https://github.com/tuist/tuist/pull/10662))
+* duplicate selective testing log messages and improve skip reason clarity ([#10637](https://github.com/tuist/tuist/pull/10637))
+* skip run metadata upload when no auth is available ([#10649](https://github.com/tuist/tuist/pull/10649))
+* make multi-process token refresh resilient to slow peers and rotation races ([#10650](https://github.com/tuist/tuist/pull/10650))
+* support PackageDescription context ([#10622](https://github.com/tuist/tuist/pull/10622))
+* respect disabled autogenerated workspace schemes ([#10631](https://github.com/tuist/tuist/pull/10631))
+* treat non-source files in buildable folders as resources ([#10645](https://github.com/tuist/tuist/pull/10645))
+* preserve whitespace in plist template for Array-root scalars ([#10614](https://github.com/tuist/tuist/pull/10614))
+* preserve pruned test plan metadata ([#10611](https://github.com/tuist/tuist/pull/10611))
+* include macOS SDK version in ProjectDescriptionHelpers cache key ([#10598](https://github.com/tuist/tuist/pull/10598))
+* skip fully cached missing test plans ([#10582](https://github.com/tuist/tuist/pull/10582))
+* disable HAR recording for cache daemon ([#10589](https://github.com/tuist/tuist/pull/10589))
 
 
 
@@ -134,11 +134,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use stamp file for macro copy phase to keep incremental rebuilds by [@fortmarek](https://github.com/fortmarek) in [#10576](https://github.com/tuist/tuist/pull/10576)
-* fix macro copy phase output collision on macOS consumer targets by [@freak4pc](https://github.com/freak4pc) in [#10566](https://github.com/tuist/tuist/pull/10566)
-* intersect linkable dep destinations for orphan local SPM tests by [@mqzkim](https://github.com/mqzkim) in [#10554](https://github.com/tuist/tuist/pull/10554)
-* re-embed test target frameworks not embedded in host by [@pepicrft](https://github.com/pepicrft) in [#10504](https://github.com/tuist/tuist/pull/10504)
-* make shared cache and state writes safe across concurrent processes by [@pepicrft](https://github.com/pepicrft) in [#10562](https://github.com/tuist/tuist/pull/10562)
+* use stamp file for macro copy phase to keep incremental rebuilds ([#10576](https://github.com/tuist/tuist/pull/10576))
+* fix macro copy phase output collision on macOS consumer targets ([#10566](https://github.com/tuist/tuist/pull/10566))
+* intersect linkable dep destinations for orphan local SPM tests ([#10554](https://github.com/tuist/tuist/pull/10554))
+* re-embed test target frameworks not embedded in host ([#10504](https://github.com/tuist/tuist/pull/10504))
+* make shared cache and state writes safe across concurrent processes ([#10562](https://github.com/tuist/tuist/pull/10562))
 
 
 
@@ -148,7 +148,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* stabilize cache EE canary acceptance test by [@fortmarek](https://github.com/fortmarek) in [#10549](https://github.com/tuist/tuist/pull/10549)
+* stabilize cache EE canary acceptance test ([#10549](https://github.com/tuist/tuist/pull/10549))
 
 
 
@@ -158,15 +158,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add --skip-macro-support-targets flag to tuist graph by [@natanrolnik](https://github.com/natanrolnik) in [#10300](https://github.com/tuist/tuist/pull/10300)
-* re-add config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10513](https://github.com/tuist/tuist/pull/10513)
-* add "Skip" quarantine mode for test cases by [@fortmarek](https://github.com/fortmarek) in [#10429](https://github.com/tuist/tuist/pull/10429)
+* add --skip-macro-support-targets flag to tuist graph ([#10300](https://github.com/tuist/tuist/pull/10300))
+* re-add config-driven network proxy opt-out ([#10513](https://github.com/tuist/tuist/pull/10513))
+* add "Skip" quarantine mode for test cases ([#10429](https://github.com/tuist/tuist/pull/10429))
 ### 🐛 Bug Fixes
 
-* keep static framework xcstrings on main target Resources phase by [@pepicrft](https://github.com/pepicrft) in [#10532](https://github.com/tuist/tuist/pull/10532)
-* refresh expired tokens under optionalAuthentication by [@fortmarek](https://github.com/fortmarek) in [#10537](https://github.com/tuist/tuist/pull/10537)
-* add TuistHTTP to TuistConfigLoader cross-platform deps by [@fortmarek](https://github.com/fortmarek) in [#10531](https://github.com/tuist/tuist/pull/10531)
-* bump tuist.Command to 0.14.1 to surface xcodebuild stderr by [@fortmarek](https://github.com/fortmarek) in [#10508](https://github.com/tuist/tuist/pull/10508)
+* keep static framework xcstrings on main target Resources phase ([#10532](https://github.com/tuist/tuist/pull/10532))
+* refresh expired tokens under optionalAuthentication ([#10537](https://github.com/tuist/tuist/pull/10537))
+* add TuistHTTP to TuistConfigLoader cross-platform deps ([#10531](https://github.com/tuist/tuist/pull/10531))
+* bump tuist.Command to 0.14.1 to surface xcodebuild stderr ([#10508](https://github.com/tuist/tuist/pull/10508))
 
 
 
@@ -176,13 +176,13 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* update xcactivitylog_nif package path after processor consolidation by [@fortmarek](https://github.com/fortmarek) in [#10507](https://github.com/tuist/tuist/pull/10507)
-* honor #if guards in inspect dependencies --only implicit by [@fortmarek](https://github.com/fortmarek) in [#10474](https://github.com/tuist/tuist/pull/10474)
-* restore [Path] overload of TestAction.testPlans as deprecated by [@fortmarek](https://github.com/fortmarek) in [#10488](https://github.com/tuist/tuist/pull/10488)
-* sanitize target name in generated Obj-C bundle accessor identifiers by [@pepicrft](https://github.com/pepicrft) in [#10482](https://github.com/tuist/tuist/pull/10482)
+* update xcactivitylog_nif package path after processor consolidation ([#10507](https://github.com/tuist/tuist/pull/10507))
+* honor #if guards in inspect dependencies --only implicit ([#10474](https://github.com/tuist/tuist/pull/10474))
+* restore [Path] overload of TestAction.testPlans as deprecated ([#10488](https://github.com/tuist/tuist/pull/10488))
+* sanitize target name in generated Obj-C bundle accessor identifiers ([#10482](https://github.com/tuist/tuist/pull/10482))
 ### ⚡ Performance
 
-* lower URLSession resource timeout from 300s to 90s by [@fortmarek](https://github.com/fortmarek) in [#10503](https://github.com/tuist/tuist/pull/10503)
+* lower URLSession resource timeout from 300s to 90s ([#10503](https://github.com/tuist/tuist/pull/10503))
 
 
 
@@ -192,16 +192,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add CopyFileElement.buildProduct for embedding target products in Copy Files phases by [@freak4pc](https://github.com/freak4pc) in [#10467](https://github.com/tuist/tuist/pull/10467)
-* generate .xctestplan files from ProjectDescription by [@fortmarek](https://github.com/fortmarek) in [#10426](https://github.com/tuist/tuist/pull/10426)
-* add 'tuist teardown cache' command by [@fortmarek](https://github.com/fortmarek) in [#10421](https://github.com/tuist/tuist/pull/10421)
-* add --inspect-mode off to skip result bundle upload by [@fortmarek](https://github.com/fortmarek) in [#10447](https://github.com/tuist/tuist/pull/10447)
+* add CopyFileElement.buildProduct for embedding target products in Copy Files phases ([#10467](https://github.com/tuist/tuist/pull/10467))
+* generate .xctestplan files from ProjectDescription ([#10426](https://github.com/tuist/tuist/pull/10426))
+* add 'tuist teardown cache' command ([#10421](https://github.com/tuist/tuist/pull/10421))
+* add --inspect-mode off to skip result bundle upload ([#10447](https://github.com/tuist/tuist/pull/10447))
 ### 🐛 Bug Fixes
 
-* upload build run when -derivedDataPath is passed via passthrough by [@fortmarek](https://github.com/fortmarek) in [#10478](https://github.com/tuist/tuist/pull/10478)
-* include source filename in selective testing hash by [@fortmarek](https://github.com/fortmarek) in [#10475](https://github.com/tuist/tuist/pull/10475)
-* preserve bundle directory in AppleArchive uploads by [@fortmarek](https://github.com/fortmarek) in [#10460](https://github.com/tuist/tuist/pull/10460)
-* handle buildable-folder xcstrings stale analysis by [@pepicrft](https://github.com/pepicrft) in [#10445](https://github.com/tuist/tuist/pull/10445)
+* upload build run when -derivedDataPath is passed via passthrough ([#10478](https://github.com/tuist/tuist/pull/10478))
+* include source filename in selective testing hash ([#10475](https://github.com/tuist/tuist/pull/10475))
+* preserve bundle directory in AppleArchive uploads ([#10460](https://github.com/tuist/tuist/pull/10460))
+* handle buildable-folder xcstrings stale analysis ([#10445](https://github.com/tuist/tuist/pull/10445))
 
 
 
@@ -211,16 +211,16 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* AppleArchive for xcresult upload + respect --inspect-mode remote by [@fortmarek](https://github.com/fortmarek) in [#10416](https://github.com/tuist/tuist/pull/10416)
+* AppleArchive for xcresult upload + respect --inspect-mode remote ([#10416](https://github.com/tuist/tuist/pull/10416))
 ### 🐛 Bug Fixes
 
-* skip xcodebuild when -skip-testing clears selective tests by [@fortmarek](https://github.com/fortmarek) in [#10433](https://github.com/tuist/tuist/pull/10433)
-* respect repo optional auth in command tracking by [@pepicrft](https://github.com/pepicrft) in [#10387](https://github.com/tuist/tuist/pull/10387)
-* scope cache warm target selection to non-test roots by [@pepicrft](https://github.com/pepicrft) in [#10398](https://github.com/tuist/tuist/pull/10398)
-* make swift-file-system the default filesystem backend by [@pepicrft](https://github.com/pepicrft) in [#10418](https://github.com/tuist/tuist/pull/10418)
-* restore static framework .xcstrings localization by [@pepicrft](https://github.com/pepicrft) in [#10423](https://github.com/tuist/tuist/pull/10423)
-* propagate default-enabled Swift package traits by [@pepicrft](https://github.com/pepicrft) in [#10403](https://github.com/tuist/tuist/pull/10403)
-* add muted/unmuted test case event types by [@justine-acorns](https://github.com/justine-acorns) in [#10417](https://github.com/tuist/tuist/pull/10417)
+* skip xcodebuild when -skip-testing clears selective tests ([#10433](https://github.com/tuist/tuist/pull/10433))
+* respect repo optional auth in command tracking ([#10387](https://github.com/tuist/tuist/pull/10387))
+* scope cache warm target selection to non-test roots ([#10398](https://github.com/tuist/tuist/pull/10398))
+* make swift-file-system the default filesystem backend ([#10418](https://github.com/tuist/tuist/pull/10418))
+* restore static framework .xcstrings localization ([#10423](https://github.com/tuist/tuist/pull/10423))
+* propagate default-enabled Swift package traits ([#10403](https://github.com/tuist/tuist/pull/10403))
+* add muted/unmuted test case event types ([#10417](https://github.com/tuist/tuist/pull/10417))
 
 
 
@@ -230,10 +230,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support config-driven network proxy opt-out by [@pepicrft](https://github.com/pepicrft) in [#10334](https://github.com/tuist/tuist/pull/10334)
+* support config-driven network proxy opt-out ([#10334](https://github.com/tuist/tuist/pull/10334))
 ### 🐛 Bug Fixes
 
-* skip result bundle upload when --inspect-mode local by [@fortmarek](https://github.com/fortmarek) in [#10401](https://github.com/tuist/tuist/pull/10401)
+* skip result bundle upload when --inspect-mode local ([#10401](https://github.com/tuist/tuist/pull/10401))
 
 
 
@@ -243,8 +243,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Support  optional Buildable Folders by [@PaulTaykalo](https://github.com/PaulTaykalo) in [#9974](https://github.com/tuist/tuist/pull/9974)
-* error instead of silently ignoring mismatched test shard flags by [@fortmarek](https://github.com/fortmarek) in [#10392](https://github.com/tuist/tuist/pull/10392)
+* Support  optional Buildable Folders ([#9974](https://github.com/tuist/tuist/pull/9974))
+* error instead of silently ignoring mismatched test shard flags ([#10392](https://github.com/tuist/tuist/pull/10392))
 
 
 
@@ -254,15 +254,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add feature flag headers by [@pepicrft](https://github.com/pepicrft) in [#10382](https://github.com/tuist/tuist/pull/10382)
+* add feature flag headers ([#10382](https://github.com/tuist/tuist/pull/10382))
 ### 🐛 Bug Fixes
 
-* map static library dependencies in XcodeGraph by [@pepicrft](https://github.com/pepicrft) in [#10358](https://github.com/tuist/tuist/pull/10358)
-* ensure package product dependencies are initialized by [@pepicrft](https://github.com/pepicrft) in [#10370](https://github.com/tuist/tuist/pull/10370)
-* preserve scheme buildAction targets in `tuist test <scheme>` focus by [@fortmarek](https://github.com/fortmarek) in [#10367](https://github.com/tuist/tuist/pull/10367)
+* map static library dependencies in XcodeGraph ([#10358](https://github.com/tuist/tuist/pull/10358))
+* ensure package product dependencies are initialized ([#10370](https://github.com/tuist/tuist/pull/10370))
+* preserve scheme buildAction targets in `tuist test <scheme>` focus ([#10367](https://github.com/tuist/tuist/pull/10367))
 ### 🚜 Refactor
 
-* deprecate unused `swiftVersion` on `TuistProject.tuist(...)` by [@fortmarek](https://github.com/fortmarek) in [#10381](https://github.com/tuist/tuist/pull/10381)
+* deprecate unused `swiftVersion` on `TuistProject.tuist(...)` ([#10381](https://github.com/tuist/tuist/pull/10381))
 
 
 
@@ -272,12 +272,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add paginated test case events endpoint by [@justine-acorns](https://github.com/justine-acorns) in [#10117](https://github.com/tuist/tuist/pull/10117)
+* add paginated test case events endpoint ([#10117](https://github.com/tuist/tuist/pull/10117))
 ### 🐛 Bug Fixes
 
-* scope `tuist test <scheme>` to the scheme's test plan targets by [@fortmarek](https://github.com/fortmarek) in [#10339](https://github.com/tuist/tuist/pull/10339)
-* Fix xcstrings handling in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#10332](https://github.com/tuist/tuist/pull/10332)
-* handle strictMemorySafety with empty dump-package JSON by [@alpaka99](https://github.com/alpaka99) in [#10308](https://github.com/tuist/tuist/pull/10308)
+* scope `tuist test <scheme>` to the scheme's test plan targets ([#10339](https://github.com/tuist/tuist/pull/10339))
+* Fix xcstrings handling in buildable folders ([#10332](https://github.com/tuist/tuist/pull/10332))
+* handle strictMemorySafety with empty dump-package JSON ([#10308](https://github.com/tuist/tuist/pull/10308))
 
 
 
@@ -287,13 +287,13 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* preserve test targets for local SPM packages by [@sabade-omkar](https://github.com/sabade-omkar) in [#10268](https://github.com/tuist/tuist/pull/10268)
-* resolve inspect bundle app names like share by [@pepicrft](https://github.com/pepicrft) in [#9916](https://github.com/tuist/tuist/pull/9916)
-* drop fd-limit caps when swift-file-system backend is enabled by [@pepicrft](https://github.com/pepicrft) in [#10314](https://github.com/tuist/tuist/pull/10314)
+* preserve test targets for local SPM packages ([#10268](https://github.com/tuist/tuist/pull/10268))
+* resolve inspect bundle app names like share ([#9916](https://github.com/tuist/tuist/pull/9916))
+* drop fd-limit caps when swift-file-system backend is enabled ([#10314](https://github.com/tuist/tuist/pull/10314))
 ### 🐛 Bug Fixes
 
-* clear pruned expandVariableFromTarget instead of dropping the scheme by [@fortmarek](https://github.com/fortmarek) in [#10310](https://github.com/tuist/tuist/pull/10310)
-* use literal string matching in ManifestLoader to fix hang on large output by [@sabade-omkar](https://github.com/sabade-omkar) in [#10288](https://github.com/tuist/tuist/pull/10288)
+* clear pruned expandVariableFromTarget instead of dropping the scheme ([#10310](https://github.com/tuist/tuist/pull/10310))
+* use literal string matching in ManifestLoader to fix hang on large output ([#10288](https://github.com/tuist/tuist/pull/10288))
 
 
 
@@ -303,9 +303,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* reject xcodebuild action verbs in passthrough arguments by [@fortmarek](https://github.com/fortmarek) in [#10303](https://github.com/tuist/tuist/pull/10303)
-* use proxy-aware URLSession for cache endpoint latency checks by [@changusmc](https://github.com/changusmc) in [#10307](https://github.com/tuist/tuist/pull/10307)
-* handle binary wrapper xcframework name collisions for Singular and Firebase patterns by [@fortmarek](https://github.com/fortmarek) in [#10309](https://github.com/tuist/tuist/pull/10309)
+* reject xcodebuild action verbs in passthrough arguments ([#10303](https://github.com/tuist/tuist/pull/10303))
+* use proxy-aware URLSession for cache endpoint latency checks ([#10307](https://github.com/tuist/tuist/pull/10307))
+* handle binary wrapper xcframework name collisions for Singular and Firebase patterns ([#10309](https://github.com/tuist/tuist/pull/10309))
 
 
 
@@ -315,19 +315,19 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* auto-detect HTTP proxy from HTTPS_PROXY/HTTP_PROXY by [@pepicrft](https://github.com/pepicrft) in [#10261](https://github.com/tuist/tuist/pull/10261)
+* auto-detect HTTP proxy from HTTPS_PROXY/HTTP_PROXY ([#10261](https://github.com/tuist/tuist/pull/10261))
 ### 🐛 Bug Fixes
 
-* stop excluding transitive deps from cache hashing for positional targets by [@fortmarek](https://github.com/fortmarek) in [#10301](https://github.com/tuist/tuist/pull/10301)
-* Catalyst should use macosx sdk by [@wojmangh](https://github.com/wojmangh) in [#10298](https://github.com/tuist/tuist/pull/10298)
-* Make StringProtocol.range(of:) scan UTF-8 bytes by [@pepicrft](https://github.com/pepicrft) in [#10295](https://github.com/tuist/tuist/pull/10295)
-* resolve bare "container:" xctestplan target references by [@fortmarek](https://github.com/fortmarek) in [#10290](https://github.com/tuist/tuist/pull/10290)
-* Add warning for missing xctestplan files by [@yhkaplan](https://github.com/yhkaplan) in [#10282](https://github.com/tuist/tuist/pull/10282)
-* bump FileSystem to 0.16.1 for Musl support by [@fortmarek](https://github.com/fortmarek) in [#10277](https://github.com/tuist/tuist/pull/10277)
-* preserve original error when test result parsing fails by [@fortmarek](https://github.com/fortmarek) in [#10275](https://github.com/tuist/tuist/pull/10275)
-* fix synthesized resource interface generation for numeric target names by [@pepicrft](https://github.com/pepicrft) in [#10266](https://github.com/tuist/tuist/pull/10266)
-* skip token refresh when optionalAuthentication is enabled by [@pepicrft](https://github.com/pepicrft) in [#10260](https://github.com/tuist/tuist/pull/10260)
-* keep xcstrings in Resources phase for static framework stale detection by [@pepicrft](https://github.com/pepicrft) in [#10247](https://github.com/tuist/tuist/pull/10247)
+* stop excluding transitive deps from cache hashing for positional targets ([#10301](https://github.com/tuist/tuist/pull/10301))
+* Catalyst should use macosx sdk ([#10298](https://github.com/tuist/tuist/pull/10298))
+* Make StringProtocol.range(of:) scan UTF-8 bytes ([#10295](https://github.com/tuist/tuist/pull/10295))
+* resolve bare "container:" xctestplan target references ([#10290](https://github.com/tuist/tuist/pull/10290))
+* Add warning for missing xctestplan files ([#10282](https://github.com/tuist/tuist/pull/10282))
+* bump FileSystem to 0.16.1 for Musl support ([#10277](https://github.com/tuist/tuist/pull/10277))
+* preserve original error when test result parsing fails ([#10275](https://github.com/tuist/tuist/pull/10275))
+* fix synthesized resource interface generation for numeric target names ([#10266](https://github.com/tuist/tuist/pull/10266))
+* skip token refresh when optionalAuthentication is enabled ([#10260](https://github.com/tuist/tuist/pull/10260))
+* keep xcstrings in Resources phase for static framework stale detection ([#10247](https://github.com/tuist/tuist/pull/10247))
 
 
 
@@ -337,10 +337,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* process test insights remotely by [@fortmarek](https://github.com/fortmarek) in [#10243](https://github.com/tuist/tuist/pull/10243)
+* process test insights remotely ([#10243](https://github.com/tuist/tuist/pull/10243))
 ### 🐛 Bug Fixes
 
-* ignore .DS_Store files when hashing buildable folders by [@heoblitz](https://github.com/heoblitz) in [#10240](https://github.com/tuist/tuist/pull/10240)
+* ignore .DS_Store files when hashing buildable folders ([#10240](https://github.com/tuist/tuist/pull/10240))
 
 
 
@@ -350,7 +350,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* skip embedding extensions in unit test targets by [@danieleformichelli](https://github.com/danieleformichelli) in [#10224](https://github.com/tuist/tuist/pull/10224)
+* skip embedding extensions in unit test targets ([#10224](https://github.com/tuist/tuist/pull/10224))
 
 
 
@@ -360,7 +360,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add retry middleware for OpenAPI requests by [@fortmarek](https://github.com/fortmarek) in [#10233](https://github.com/tuist/tuist/pull/10233)
+* add retry middleware for OpenAPI requests ([#10233](https://github.com/tuist/tuist/pull/10233))
 
 
 
@@ -370,9 +370,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resolve StoreKit configuration paths relative to the xcworkspace bundle by [@jsj](https://github.com/jsj) in [#10179](https://github.com/tuist/tuist/pull/10179)
-* use Modules include path for source-built ProjectDescription by [@jsj](https://github.com/jsj) in [#10181](https://github.com/tuist/tuist/pull/10181)
-* resolve relative -testProductsPath when writing selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#10239](https://github.com/tuist/tuist/pull/10239)
+* resolve StoreKit configuration paths relative to the xcworkspace bundle ([#10179](https://github.com/tuist/tuist/pull/10179))
+* use Modules include path for source-built ProjectDescription ([#10181](https://github.com/tuist/tuist/pull/10181))
+* resolve relative -testProductsPath when writing selective testing graph ([#10239](https://github.com/tuist/tuist/pull/10239))
 
 
 
@@ -382,10 +382,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add parameterized test argument support by [@fortmarek](https://github.com/fortmarek) in [#10127](https://github.com/tuist/tuist/pull/10127)
+* add parameterized test argument support ([#10127](https://github.com/tuist/tuist/pull/10127))
 ### 🐛 Bug Fixes
 
-* mark generated bundle accessors as nonisolated by [@DimaMishchenko](https://github.com/DimaMishchenko) in [#10065](https://github.com/tuist/tuist/pull/10065)
+* mark generated bundle accessors as nonisolated ([#10065](https://github.com/tuist/tuist/pull/10065))
 
 
 
@@ -395,12 +395,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support self-managed shard archives by [@pepicrft](https://github.com/pepicrft) in [#10169](https://github.com/tuist/tuist/pull/10169)
+* support self-managed shard archives ([#10169](https://github.com/tuist/tuist/pull/10169))
 ### 🐛 Bug Fixes
 
-* avoid duplicate App Intents dependency file list outputs by [@pepicrft](https://github.com/pepicrft) in [#10235](https://github.com/tuist/tuist/pull/10235)
-* link test runs to builds and fix command event metadata by [@fortmarek](https://github.com/fortmarek) in [#10234](https://github.com/tuist/tuist/pull/10234)
-* declare symlink target in macro copy script input paths for sandbox compatibility by [@zippi-MD](https://github.com/zippi-MD) in [#10116](https://github.com/tuist/tuist/pull/10116)
+* avoid duplicate App Intents dependency file list outputs ([#10235](https://github.com/tuist/tuist/pull/10235))
+* link test runs to builds and fix command event metadata ([#10234](https://github.com/tuist/tuist/pull/10234))
+* declare symlink target in macro copy script input paths for sandbox compatibility ([#10116](https://github.com/tuist/tuist/pull/10116))
 
 
 
@@ -410,7 +410,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add --cache-profile option to cache warm with profile-driven exclusions by [@gnejfejf2](https://github.com/gnejfejf2) in [#9946](https://github.com/tuist/tuist/pull/9946)
+* add --cache-profile option to cache warm with profile-driven exclusions ([#9946](https://github.com/tuist/tuist/pull/9946))
 
 
 
@@ -420,7 +420,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* write empty shard matrix on all early return paths by [@fortmarek](https://github.com/fortmarek) in [#10220](https://github.com/tuist/tuist/pull/10220)
+* write empty shard matrix on all early return paths ([#10220](https://github.com/tuist/tuist/pull/10220))
 
 
 
@@ -430,8 +430,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use overwrite option when writing module maps by [@fortmarek](https://github.com/fortmarek) in [#10218](https://github.com/tuist/tuist/pull/10218)
-* update Package.resolved to match current dependencies by [@fortmarek](https://github.com/fortmarek) in [#10216](https://github.com/tuist/tuist/pull/10216)
+* use overwrite option when writing module maps ([#10218](https://github.com/tuist/tuist/pull/10218))
+* update Package.resolved to match current dependencies ([#10216](https://github.com/tuist/tuist/pull/10216))
 
 
 
@@ -441,9 +441,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix xcstrings stale-string detection for multiplatform static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10155](https://github.com/tuist/tuist/pull/10155)
-* mkdir data race by [@fortmarek](https://github.com/fortmarek) in [#10211](https://github.com/tuist/tuist/pull/10211)
-* write empty shard matrix output when selective testing skips all tests by [@fortmarek](https://github.com/fortmarek) in [#10205](https://github.com/tuist/tuist/pull/10205)
+* fix xcstrings stale-string detection for multiplatform static frameworks ([#10155](https://github.com/tuist/tuist/pull/10155))
+* mkdir data race ([#10211](https://github.com/tuist/tuist/pull/10211))
+* write empty shard matrix output when selective testing skips all tests ([#10205](https://github.com/tuist/tuist/pull/10205))
 
 
 
@@ -453,11 +453,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add workspace-level DerivedData location support by [@davidpasztor](https://github.com/davidpasztor) in [#9693](https://github.com/tuist/tuist/pull/9693)
+* add workspace-level DerivedData location support ([#9693](https://github.com/tuist/tuist/pull/9693))
 ### 🐛 Bug Fixes
 
-* add retry logic to build uploads by [@fortmarek](https://github.com/fortmarek) in [#10210](https://github.com/tuist/tuist/pull/10210)
-* add nonisolated(unsafe) to generated plist accessors with Any type by [@fortmarek](https://github.com/fortmarek) in [#10195](https://github.com/tuist/tuist/pull/10195)
+* add retry logic to build uploads ([#10210](https://github.com/tuist/tuist/pull/10210))
+* add nonisolated(unsafe) to generated plist accessors with Any type ([#10195](https://github.com/tuist/tuist/pull/10195))
 
 
 
@@ -467,11 +467,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* fix App Intents metadata for cached xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#10168](https://github.com/tuist/tuist/pull/10168)
-* upload build data from tuist xcodebuild build by [@fortmarek](https://github.com/fortmarek) in [#10186](https://github.com/tuist/tuist/pull/10186)
+* fix App Intents metadata for cached xcframeworks ([#10168](https://github.com/tuist/tuist/pull/10168))
+* upload build data from tuist xcodebuild build ([#10186](https://github.com/tuist/tuist/pull/10186))
 ### 🐛 Bug Fixes
 
-* handle existing files during shard xctestrun write by [@fortmarek](https://github.com/fortmarek) in [#10188](https://github.com/tuist/tuist/pull/10188)
+* handle existing files during shard xctestrun write ([#10188](https://github.com/tuist/tuist/pull/10188))
 
 
 
@@ -481,11 +481,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* namespace dependency-derived artifacts by [@pepicrft](https://github.com/pepicrft) in [#10166](https://github.com/tuist/tuist/pull/10166)
-* fix cross-project test host embed and TEST_HOST settings by [@pepicrft](https://github.com/pepicrft) in [#10139](https://github.com/tuist/tuist/pull/10139)
+* namespace dependency-derived artifacts ([#10166](https://github.com/tuist/tuist/pull/10166))
+* fix cross-project test host embed and TEST_HOST settings ([#10139](https://github.com/tuist/tuist/pull/10139))
 ### 🚜 Refactor
 
-* remove local MCP command by [@pepicrft](https://github.com/pepicrft) in [#10171](https://github.com/tuist/tuist/pull/10171)
+* remove local MCP command ([#10171](https://github.com/tuist/tuist/pull/10171))
 
 
 
@@ -495,7 +495,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add missing TuistTesting dependency to TuistCASTests by [@jsj](https://github.com/jsj) in [#10182](https://github.com/tuist/tuist/pull/10182)
+* add missing TuistTesting dependency to TuistCASTests ([#10182](https://github.com/tuist/tuist/pull/10182))
 
 
 
@@ -505,7 +505,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix selective testing not skipping unchanged test targets by [@pepicrft](https://github.com/pepicrft) in [#10173](https://github.com/tuist/tuist/pull/10173)
+* fix selective testing not skipping unchanged test targets ([#10173](https://github.com/tuist/tuist/pull/10173))
 
 
 
@@ -515,7 +515,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* deduplicate entries during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10164](https://github.com/tuist/tuist/pull/10164)
+* deduplicate entries during Apple Archive compression ([#10164](https://github.com/tuist/tuist/pull/10164))
 
 
 
@@ -525,8 +525,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* dereference symlinks during Apple Archive compression by [@fortmarek](https://github.com/fortmarek) in [#10163](https://github.com/tuist/tuist/pull/10163)
-* resolve result bundle symlink before remote upload by [@fortmarek](https://github.com/fortmarek) in [#10161](https://github.com/tuist/tuist/pull/10161)
+* dereference symlinks during Apple Archive compression ([#10163](https://github.com/tuist/tuist/pull/10163))
+* resolve result bundle symlink before remote upload ([#10161](https://github.com/tuist/tuist/pull/10161))
 
 
 
@@ -536,7 +536,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add defaultSwiftVersion generation option and respect package-declared Swift versions by [@pepicrft](https://github.com/pepicrft) in [#10151](https://github.com/tuist/tuist/pull/10151)
+* add defaultSwiftVersion generation option and respect package-declared Swift versions ([#10151](https://github.com/tuist/tuist/pull/10151))
 
 
 
@@ -546,7 +546,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resource/file glob excluding with ** pattern incorrectly excludes all sibling files by [@stefanomondino](https://github.com/stefanomondino) in [#10114](https://github.com/tuist/tuist/pull/10114)
+* resource/file glob excluding with ** pattern incorrectly excludes all sibling files ([#10114](https://github.com/tuist/tuist/pull/10114))
 
 
 
@@ -556,11 +556,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add --inspect-mode flag for remote xcresult processing by [@fortmarek](https://github.com/fortmarek) in [#10145](https://github.com/tuist/tuist/pull/10145)
-* support shared volumes for test shard distribution by [@fortmarek](https://github.com/fortmarek) in [#10144](https://github.com/tuist/tuist/pull/10144)
+* add --inspect-mode flag for remote xcresult processing ([#10145](https://github.com/tuist/tuist/pull/10145))
+* support shared volumes for test shard distribution ([#10144](https://github.com/tuist/tuist/pull/10144))
 ### 🐛 Bug Fixes
 
-* preserve .swiftmodule directories in shard archives by [@fortmarek](https://github.com/fortmarek) in [#10137](https://github.com/tuist/tuist/pull/10137)
+* preserve .swiftmodule directories in shard archives ([#10137](https://github.com/tuist/tuist/pull/10137))
 
 
 
@@ -570,10 +570,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add remote processing mode for tuist inspect test by [@fortmarek](https://github.com/fortmarek) in [#10094](https://github.com/tuist/tuist/pull/10094)
+* add remote processing mode for tuist inspect test ([#10094](https://github.com/tuist/tuist/pull/10094))
 ### 🐛 Bug Fixes
 
-* focus to scope to scheme test targets by [@fortmarek](https://github.com/fortmarek) in [#10131](https://github.com/tuist/tuist/pull/10131)
+* focus to scope to scheme test targets ([#10131](https://github.com/tuist/tuist/pull/10131))
 
 
 
@@ -583,9 +583,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix xctestproducts lookup after AppleArchive extraction by [@fortmarek](https://github.com/fortmarek) in [#10126](https://github.com/tuist/tuist/pull/10126)
-* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes by [@fortmarek](https://github.com/fortmarek) in [#10122](https://github.com/tuist/tuist/pull/10122)
-* embed App Intents metadata in cached xcframeworks by [@fortmarek](https://github.com/fortmarek) in [#10120](https://github.com/tuist/tuist/pull/10120)
+* fix xctestproducts lookup after AppleArchive extraction ([#10126](https://github.com/tuist/tuist/pull/10126))
+* resolve incorrect storeKitConfigurationPath and GPX paths in generated xcschemes ([#10122](https://github.com/tuist/tuist/pull/10122))
+* embed App Intents metadata in cached xcframeworks ([#10120](https://github.com/tuist/tuist/pull/10120))
 
 
 
@@ -595,7 +595,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* archive shard bundle directly from source with exclude patterns by [@fortmarek](https://github.com/fortmarek) in [#10121](https://github.com/tuist/tuist/pull/10121)
+* archive shard bundle directly from source with exclude patterns ([#10121](https://github.com/tuist/tuist/pull/10121))
 
 
 
@@ -605,7 +605,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* preserve external static xcframework deps for cached dynamics by [@pepicrft](https://github.com/pepicrft) in [#10089](https://github.com/tuist/tuist/pull/10089)
+* preserve external static xcframework deps for cached dynamics ([#10089](https://github.com/tuist/tuist/pull/10089))
 
 
 
@@ -615,7 +615,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* strip dSYMs and compress shard bundle before upload by [@fortmarek](https://github.com/fortmarek) in [#10112](https://github.com/tuist/tuist/pull/10112)
+* strip dSYMs and compress shard bundle before upload ([#10112](https://github.com/tuist/tuist/pull/10112))
 
 
 
@@ -625,7 +625,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add retries for OIDC token failures in [#10085](https://github.com/tuist/tuist/pull/10085)
+* add retries for OIDC token failures ([#10085](https://github.com/tuist/tuist/pull/10085))
 
 
 
@@ -635,10 +635,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add selective testing observability via MCP, API, CLI, and skills by [@pepicrft](https://github.com/pepicrft) in [#10013](https://github.com/tuist/tuist/pull/10013)
+* add selective testing observability via MCP, API, CLI, and skills ([#10013](https://github.com/tuist/tuist/pull/10013))
 ### 🐛 Bug Fixes
 
-* replace file-based CAS analytics with SQLite for faster inspect build by [@fortmarek](https://github.com/fortmarek) in [#10062](https://github.com/tuist/tuist/pull/10062)
+* replace file-based CAS analytics with SQLite for faster inspect build ([#10062](https://github.com/tuist/tuist/pull/10062))
 
 
 
@@ -648,7 +648,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* handle remote binary wrapper xcframework name collisions by [@pepicrft](https://github.com/pepicrft) in [#10054](https://github.com/tuist/tuist/pull/10054)
+* handle remote binary wrapper xcframework name collisions ([#10054](https://github.com/tuist/tuist/pull/10054))
 
 
 
@@ -658,11 +658,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* honor explicit run executable for extension schemes by [@pepicrft](https://github.com/pepicrft) in [#10057](https://github.com/tuist/tuist/pull/10057)
-* preserve input order in bounded concurrentMap by [@fortmarek](https://github.com/fortmarek) in [#10041](https://github.com/tuist/tuist/pull/10041)
+* honor explicit run executable for extension schemes ([#10057](https://github.com/tuist/tuist/pull/10057))
+* preserve input order in bounded concurrentMap ([#10041](https://github.com/tuist/tuist/pull/10041))
 ### 🚜 Refactor
 
-* replace FileHandler with FileSystem by [@fortmarek](https://github.com/fortmarek) in [#10040](https://github.com/tuist/tuist/pull/10040)
+* replace FileHandler with FileSystem ([#10040](https://github.com/tuist/tuist/pull/10040))
 
 
 
@@ -672,15 +672,15 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* link build runs to shard plans by [@fortmarek](https://github.com/fortmarek) in [#10032](https://github.com/tuist/tuist/pull/10032)
-* resolving SPM Targets with automatic product type using baseProductType by [@Loupehope](https://github.com/Loupehope) in [#9809](https://github.com/tuist/tuist/pull/9809)
+* link build runs to shard plans ([#10032](https://github.com/tuist/tuist/pull/10032))
+* resolving SPM Targets with automatic product type using baseProductType ([#9809](https://github.com/tuist/tuist/pull/9809))
 ### 🐛 Bug Fixes
 
-* support .tbd stub files in xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9992](https://github.com/tuist/tuist/pull/9992)
-* add missing macOS platforms to mise.lock by [@fortmarek](https://github.com/fortmarek) in [#10030](https://github.com/tuist/tuist/pull/10030)
+* support .tbd stub files in xcframeworks ([#9992](https://github.com/tuist/tuist/pull/9992))
+* add missing macOS platforms to mise.lock ([#10030](https://github.com/tuist/tuist/pull/10030))
 ### ⚡ Performance
 
-* use dictionary lookup for target resolution in PackageInfoMapper by [@inju2403](https://github.com/inju2403) in [#10021](https://github.com/tuist/tuist/pull/10021)
+* use dictionary lookup for target resolution in PackageInfoMapper ([#10021](https://github.com/tuist/tuist/pull/10021))
 
 
 
@@ -690,7 +690,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add native shard matrix output for all CI providers by [@fortmarek](https://github.com/fortmarek) in [#10009](https://github.com/tuist/tuist/pull/10009)
+* add native shard matrix output for all CI providers ([#10009](https://github.com/tuist/tuist/pull/10009))
 
 
 
@@ -700,8 +700,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* show suite names in shard log for suite granularity by [@fortmarek](https://github.com/fortmarek) in [#10008](https://github.com/tuist/tuist/pull/10008)
-* use structural action log timing for test run duration reporting by [@fortmarek](https://github.com/fortmarek) in [#10007](https://github.com/tuist/tuist/pull/10007)
+* show suite names in shard log for suite granularity ([#10008](https://github.com/tuist/tuist/pull/10008))
+* use structural action log timing for test run duration reporting ([#10007](https://github.com/tuist/tuist/pull/10007))
 
 
 
@@ -711,7 +711,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Allow configuring expected signatures for XCFrameworks exposed by Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9914](https://github.com/tuist/tuist/pull/9914)
+* Allow configuring expected signatures for XCFrameworks exposed by Swift packages ([#9914](https://github.com/tuist/tuist/pull/9914))
 
 
 
@@ -721,12 +721,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* run quarantined tests instead of skipping them by [@fortmarek](https://github.com/fortmarek) in [#9978](https://github.com/tuist/tuist/pull/9978)
+* run quarantined tests instead of skipping them ([#9978](https://github.com/tuist/tuist/pull/9978))
 ### 🐛 Bug Fixes
 
-* remove containsResources special-casing for static frameworks by [@pepicrft](https://github.com/pepicrft) in [#10003](https://github.com/tuist/tuist/pull/10003)
-* sort concurrentMap results in content hashers for determinism by [@fortmarek](https://github.com/fortmarek) in [#9998](https://github.com/tuist/tuist/pull/9998)
-* infer platform destination for shard enumeration from graph by [@fortmarek](https://github.com/fortmarek) in [#9997](https://github.com/tuist/tuist/pull/9997)
+* remove containsResources special-casing for static frameworks ([#10003](https://github.com/tuist/tuist/pull/10003))
+* sort concurrentMap results in content hashers for determinism ([#9998](https://github.com/tuist/tuist/pull/9998))
+* infer platform destination for shard enumeration from graph ([#9997](https://github.com/tuist/tuist/pull/9997))
 
 
 
@@ -736,8 +736,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* pass destination to test enumeration for suite sharding by [@fortmarek](https://github.com/fortmarek) in [#9986](https://github.com/tuist/tuist/pull/9986)
-* fix macro copy script failing on clean builds by [@pepicrft](https://github.com/pepicrft) in [#9995](https://github.com/tuist/tuist/pull/9995)
+* pass destination to test enumeration for suite sharding ([#9986](https://github.com/tuist/tuist/pull/9986))
+* fix macro copy script failing on clean builds ([#9995](https://github.com/tuist/tuist/pull/9995))
 
 
 
@@ -747,7 +747,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* skip project generation for --without-building with embedded selective testing graph by [@fortmarek](https://github.com/fortmarek) in [#9987](https://github.com/tuist/tuist/pull/9987)
+* skip project generation for --without-building with embedded selective testing graph ([#9987](https://github.com/tuist/tuist/pull/9987))
 
 
 
@@ -757,12 +757,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add test sharding support by [@fortmarek](https://github.com/fortmarek) in [#9796](https://github.com/tuist/tuist/pull/9796)
+* add test sharding support ([#9796](https://github.com/tuist/tuist/pull/9796))
 ### 🐛 Bug Fixes
 
-* support macOS app bundle layout by [@lechuckcaptain](https://github.com/lechuckcaptain) in [#9849](https://github.com/tuist/tuist/pull/9849)
-* always copy macro executable on incremental builds by [@ffittschen](https://github.com/ffittschen) in [#9962](https://github.com/tuist/tuist/pull/9962)
-* fix static framework resource bundle crash when using xcstrings by [@pepicrft](https://github.com/pepicrft) in [#9953](https://github.com/tuist/tuist/pull/9953)
+* support macOS app bundle layout ([#9849](https://github.com/tuist/tuist/pull/9849))
+* always copy macro executable on incremental builds ([#9962](https://github.com/tuist/tuist/pull/9962))
+* fix static framework resource bundle crash when using xcstrings ([#9953](https://github.com/tuist/tuist/pull/9953))
 
 
 
@@ -772,7 +772,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add storages option to cache configuration by [@fortmarek](https://github.com/fortmarek) in [#9938](https://github.com/tuist/tuist/pull/9938)
+* add storages option to cache configuration ([#9938](https://github.com/tuist/tuist/pull/9938))
 
 
 
@@ -782,7 +782,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* remove unsupported DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER build setting by [@fortmarek](https://github.com/fortmarek) in [#9940](https://github.com/tuist/tuist/pull/9940)
+* remove unsupported DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER build setting ([#9940](https://github.com/tuist/tuist/pull/9940))
 
 
 
@@ -792,8 +792,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* increase URLSession max connections per host to 20 by [@fortmarek](https://github.com/fortmarek) in [#9931](https://github.com/tuist/tuist/pull/9931)
-* normalize swift package target names with spaces by [@pepicrft](https://github.com/pepicrft) in [#9928](https://github.com/tuist/tuist/pull/9928)
+* increase URLSession max connections per host to 20 ([#9931](https://github.com/tuist/tuist/pull/9931))
+* normalize swift package target names with spaces ([#9928](https://github.com/tuist/tuist/pull/9928))
 
 
 
@@ -803,13 +803,13 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* process builds remotely by [@fortmarek](https://github.com/fortmarek) in [#9911](https://github.com/tuist/tuist/pull/9911)
+* process builds remotely ([#9911](https://github.com/tuist/tuist/pull/9911))
 ### 🐛 Bug Fixes
 
-* prevent xcstrings stale extraction state in static targets by [@pepicrft](https://github.com/pepicrft) in [#9907](https://github.com/tuist/tuist/pull/9907)
-* use SDK-conditioned FRAMEWORK_SEARCH_PATHS for xcframeworks by [@wojmangh](https://github.com/wojmangh) in [#9902](https://github.com/tuist/tuist/pull/9902)
-* resolve merge commit to actual PR head SHA by [@fortmarek](https://github.com/fortmarek) in [#9905](https://github.com/tuist/tuist/pull/9905)
-* only record /cache/ac hashes for test targets, not their deps by [@fortmarek](https://github.com/fortmarek) in [#9909](https://github.com/tuist/tuist/pull/9909)
+* prevent xcstrings stale extraction state in static targets ([#9907](https://github.com/tuist/tuist/pull/9907))
+* use SDK-conditioned FRAMEWORK_SEARCH_PATHS for xcframeworks ([#9902](https://github.com/tuist/tuist/pull/9902))
+* resolve merge commit to actual PR head SHA ([#9905](https://github.com/tuist/tuist/pull/9905))
+* only record /cache/ac hashes for test targets, not their deps ([#9909](https://github.com/tuist/tuist/pull/9909))
 
 
 
@@ -819,8 +819,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* redact sensitive headers in verbose HTTP logs by [@fortmarek](https://github.com/fortmarek) in [#9906](https://github.com/tuist/tuist/pull/9906)
-* restore TuistCacheEE submodule pointer to include empty graph fix by [@fortmarek](https://github.com/fortmarek) in [#9904](https://github.com/tuist/tuist/pull/9904)
+* redact sensitive headers in verbose HTTP logs ([#9906](https://github.com/tuist/tuist/pull/9906))
+* restore TuistCacheEE submodule pointer to include empty graph fix ([#9904](https://github.com/tuist/tuist/pull/9904))
 
 
 
@@ -830,11 +830,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* log test targets that will be tested by [@pepicrft](https://github.com/pepicrft) in [#9731](https://github.com/tuist/tuist/pull/9731)
+* log test targets that will be tested ([#9731](https://github.com/tuist/tuist/pull/9731))
 ### 🐛 Bug Fixes
 
-* use xcactivitylog UUID as build ID for remote processing by [@fortmarek](https://github.com/fortmarek) in [#9897](https://github.com/tuist/tuist/pull/9897)
-* allow iOS bundle targets to have dependencies by [@fortmarek](https://github.com/fortmarek) in [#9883](https://github.com/tuist/tuist/pull/9883)
+* use xcactivitylog UUID as build ID for remote processing ([#9897](https://github.com/tuist/tuist/pull/9897))
+* allow iOS bundle targets to have dependencies ([#9883](https://github.com/tuist/tuist/pull/9883))
 
 
 
@@ -844,10 +844,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* upload CLI session to S3 after command event creation by [@fortmarek](https://github.com/fortmarek) in [#9870](https://github.com/tuist/tuist/pull/9870)
+* upload CLI session to S3 after command event creation ([#9870](https://github.com/tuist/tuist/pull/9870))
 ### 🐛 Bug Fixes
 
-* add audio and video file extensions to validResourceExtensions by [@natanrolnik](https://github.com/natanrolnik) in [#9800](https://github.com/tuist/tuist/pull/9800)
+* add audio and video file extensions to validResourceExtensions ([#9800](https://github.com/tuist/tuist/pull/9800))
 
 
 
@@ -857,8 +857,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use CFBundleExecutable for binary lookup in tuist share by [@fortmarek](https://github.com/fortmarek) in [#9840](https://github.com/tuist/tuist/pull/9840)
-* correct SYMROOT path in cache warm builds by [@fortmarek](https://github.com/fortmarek) in [#9833](https://github.com/tuist/tuist/pull/9833)
+* use CFBundleExecutable for binary lookup in tuist share ([#9840](https://github.com/tuist/tuist/pull/9840))
+* correct SYMROOT path in cache warm builds ([#9833](https://github.com/tuist/tuist/pull/9833))
 
 
 
@@ -868,10 +868,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* server-side xcactivitylog processing by [@fortmarek](https://github.com/fortmarek) in [#9752](https://github.com/tuist/tuist/pull/9752)
+* server-side xcactivitylog processing ([#9752](https://github.com/tuist/tuist/pull/9752))
 ### 🐛 Bug Fixes
 
-* filter pruned test targets from -only-testing flags by [@fortmarek](https://github.com/fortmarek) in [#9823](https://github.com/tuist/tuist/pull/9823)
+* filter pruned test targets from -only-testing flags ([#9823](https://github.com/tuist/tuist/pull/9823))
 
 
 
@@ -881,10 +881,10 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resolve --path flag not working for tuist setup cache by [@fortmarek](https://github.com/fortmarek) in [#9826](https://github.com/tuist/tuist/pull/9826)
-* use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9819](https://github.com/tuist/tuist/pull/9819)
-* use modern launchctl bootstrap/bootout for cache daemon by [@fortmarek](https://github.com/fortmarek) in [#9815](https://github.com/tuist/tuist/pull/9815)
-* skip binary cache mapping when graph is empty after selective testing by [@fortmarek](https://github.com/fortmarek) in [#9814](https://github.com/tuist/tuist/pull/9814)
+* resolve --path flag not working for tuist setup cache ([#9826](https://github.com/tuist/tuist/pull/9826))
+* use modern launchctl bootstrap/bootout for cache daemon ([#9819](https://github.com/tuist/tuist/pull/9819))
+* use modern launchctl bootstrap/bootout for cache daemon ([#9815](https://github.com/tuist/tuist/pull/9815))
+* skip binary cache mapping when graph is empty after selective testing ([#9814](https://github.com/tuist/tuist/pull/9814))
 
 
 
@@ -894,14 +894,14 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add watch2AppContainer product type for watchOS-only apps by [@BugorBN](https://github.com/BugorBN) in [#9648](https://github.com/tuist/tuist/pull/9648)
+* add watch2AppContainer product type for watchOS-only apps ([#9648](https://github.com/tuist/tuist/pull/9648))
 ### 🐛 Bug Fixes
 
-* resolve missing module dependencies with cached local frameworks by [@pepicrft](https://github.com/pepicrft) in [#9805](https://github.com/tuist/tuist/pull/9805)
-* override SYMROOT in cache warm builds to prevent custom build location mismatch by [@gnejfejf2](https://github.com/gnejfejf2) in [#9803](https://github.com/tuist/tuist/pull/9803)
-* restore generate run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9795](https://github.com/tuist/tuist/pull/9795)
-* handle selectively-pruned targets in --test-targets validation by [@fortmarek](https://github.com/fortmarek) in [#9783](https://github.com/tuist/tuist/pull/9783)
-* include all platform-matching xcframework slices in FRAMEWORK_SEARCH_PATHS by [@ngs](https://github.com/ngs) in [#9730](https://github.com/tuist/tuist/pull/9730)
+* resolve missing module dependencies with cached local frameworks ([#9805](https://github.com/tuist/tuist/pull/9805))
+* override SYMROOT in cache warm builds to prevent custom build location mismatch ([#9803](https://github.com/tuist/tuist/pull/9803))
+* restore generate run analytics on dashboard ([#9795](https://github.com/tuist/tuist/pull/9795))
+* handle selectively-pruned targets in --test-targets validation ([#9783](https://github.com/tuist/tuist/pull/9783))
+* include all platform-matching xcframework slices in FRAMEWORK_SEARCH_PATHS ([#9730](https://github.com/tuist/tuist/pull/9730))
 
 
 
@@ -911,11 +911,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* track machine metrics by [@fortmarek](https://github.com/fortmarek) in [#9760](https://github.com/tuist/tuist/pull/9760)
+* track machine metrics ([#9760](https://github.com/tuist/tuist/pull/9760))
 ### 🐛 Bug Fixes
 
-* support OIDC account tokens for registry login on CI by [@pepicrft](https://github.com/pepicrft) in [#9769](https://github.com/tuist/tuist/pull/9769)
-* fix build category detection for Xcode 26.3+ with compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9762](https://github.com/tuist/tuist/pull/9762)
+* support OIDC account tokens for registry login on CI ([#9769](https://github.com/tuist/tuist/pull/9769))
+* fix build category detection for Xcode 26.3+ with compilation cache ([#9762](https://github.com/tuist/tuist/pull/9762))
 
 
 
@@ -925,9 +925,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* archive builds for static targets with xcassets by [@Iron-Ham](https://github.com/Iron-Ham) in [#9722](https://github.com/tuist/tuist/pull/9722)
-* prevent multiple commands produce when static product depends on same-named xcframework by [@pepicrft](https://github.com/pepicrft) in [#9758](https://github.com/tuist/tuist/pull/9758)
-* exclude non-test-dependency targets from workspace scheme build action by [@fortmarek](https://github.com/fortmarek) in [#9741](https://github.com/tuist/tuist/pull/9741)
+* archive builds for static targets with xcassets ([#9722](https://github.com/tuist/tuist/pull/9722))
+* prevent multiple commands produce when static product depends on same-named xcframework ([#9758](https://github.com/tuist/tuist/pull/9758))
+* exclude non-test-dependency targets from workspace scheme build action ([#9741](https://github.com/tuist/tuist/pull/9741))
 
 
 
@@ -937,7 +937,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* expose ProjectDescription product on Linux for DocC generation by [@pepicrft](https://github.com/pepicrft) in [#9745](https://github.com/tuist/tuist/pull/9745)
+* expose ProjectDescription product on Linux for DocC generation ([#9745](https://github.com/tuist/tuist/pull/9745))
 
 
 
@@ -947,7 +947,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* correctly detect incremental builds with Xcode compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9725](https://github.com/tuist/tuist/pull/9725)
+* correctly detect incremental builds with Xcode compilation cache ([#9725](https://github.com/tuist/tuist/pull/9725))
 
 
 
@@ -957,11 +957,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* group test attachments by repetition by [@fortmarek](https://github.com/fortmarek) in [#9714](https://github.com/tuist/tuist/pull/9714)
+* group test attachments by repetition ([#9714](https://github.com/tuist/tuist/pull/9714))
 ### 🐛 Bug Fixes
 
-* bump Rosalind to 0.7.22 and restore dependency versions by [@fortmarek](https://github.com/fortmarek) in [#9720](https://github.com/tuist/tuist/pull/9720)
-* propagate module map flags to configuration-level setting overrides by [@pepicrft](https://github.com/pepicrft) in [#9692](https://github.com/tuist/tuist/pull/9692)
+* bump Rosalind to 0.7.22 and restore dependency versions ([#9720](https://github.com/tuist/tuist/pull/9720))
+* propagate module map flags to configuration-level setting overrides ([#9692](https://github.com/tuist/tuist/pull/9692))
 
 
 
@@ -971,12 +971,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* bump Rosalind to 0.7.22 and swift-protobuf to 1.35.1 by [@fortmarek](https://github.com/fortmarek) in [#9701](https://github.com/tuist/tuist/pull/9701)
-* fix build categorization for Xcode 26+ compilation cache by [@fortmarek](https://github.com/fortmarek) in [#9689](https://github.com/tuist/tuist/pull/9689)
-* bump XCLogParser to 0.2.46 and improve activity log error messages by [@fortmarek](https://github.com/fortmarek) in [#9691](https://github.com/tuist/tuist/pull/9691)
+* bump Rosalind to 0.7.22 and swift-protobuf to 1.35.1 ([#9701](https://github.com/tuist/tuist/pull/9701))
+* fix build categorization for Xcode 26+ compilation cache ([#9689](https://github.com/tuist/tuist/pull/9689))
+* bump XCLogParser to 0.2.46 and improve activity log error messages ([#9691](https://github.com/tuist/tuist/pull/9691))
 ### 📚 Documentation
 
-* replace SourceDocs ProjectDescription reference with DocC by [@pepicrft](https://github.com/pepicrft) in [#9637](https://github.com/tuist/tuist/pull/9637)
+* replace SourceDocs ProjectDescription reference with DocC ([#9637](https://github.com/tuist/tuist/pull/9637))
 
 
 
@@ -986,8 +986,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Fix buildable-folder header visibility and generation crash by [@pepicrft](https://github.com/pepicrft) in [#9604](https://github.com/tuist/tuist/pull/9604)
-* treat opaque directories as files in buildable folder resolution by [@pepicrft](https://github.com/pepicrft) in [#9683](https://github.com/tuist/tuist/pull/9683)
+* Fix buildable-folder header visibility and generation crash ([#9604](https://github.com/tuist/tuist/pull/9604))
+* treat opaque directories as files in buildable folder resolution ([#9683](https://github.com/tuist/tuist/pull/9683))
 
 
 
@@ -997,31 +997,31 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* upload and display all test attachments from xcresult bundles by [@fortmarek](https://github.com/fortmarek) in [#9630](https://github.com/tuist/tuist/pull/9630)
-* make tuist inspect bundle available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9644](https://github.com/tuist/tuist/pull/9644)
-* prune old binary cache entries on startup by [@pepicrft](https://github.com/pepicrft)
-* vendor XcodeGraph into tuist and reconcile dependency graphs by [@pepicrft](https://github.com/pepicrft) in [#9616](https://github.com/tuist/tuist/pull/9616)
-* add "Ask on Launch" executable option for scheme actions by [@FelixLisczyk](https://github.com/FelixLisczyk) in [#9373](https://github.com/tuist/tuist/pull/9373)
-* add warningsAsErrors generation option by [@fortmarek](https://github.com/fortmarek) in [#9574](https://github.com/tuist/tuist/pull/9574)
+* upload and display all test attachments from xcresult bundles ([#9630](https://github.com/tuist/tuist/pull/9630))
+* make tuist inspect bundle available on Linux ([#9644](https://github.com/tuist/tuist/pull/9644))
+* prune old binary cache entries on startup ([#9423](https://github.com/tuist/tuist/pull/9423))
+* vendor XcodeGraph into tuist and reconcile dependency graphs ([#9616](https://github.com/tuist/tuist/pull/9616))
+* add "Ask on Launch" executable option for scheme actions ([#9373](https://github.com/tuist/tuist/pull/9373))
+* add warningsAsErrors generation option ([#9574](https://github.com/tuist/tuist/pull/9574))
 ### 🐛 Bug Fixes
 
-* include transitive search paths through dynamic framework dependencies by [@pepicrft](https://github.com/pepicrft) in [#9681](https://github.com/tuist/tuist/pull/9681)
-* exclude directories from buildable folder resolved files by [@fortmarek](https://github.com/fortmarek) in [#9678](https://github.com/tuist/tuist/pull/9678)
-* cap concurrency to avoid file descriptor exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9677](https://github.com/tuist/tuist/pull/9677)
-* Fix case-insensitive prioritize local packages over registry by [@fdiaz](https://github.com/fdiaz) in [#9673](https://github.com/tuist/tuist/pull/9673)
-* add xcassets and xcstrings to sources build phase for static targets by [@pepicrft](https://github.com/pepicrft) in [#9666](https://github.com/tuist/tuist/pull/9666)
-* update Command package to 0.14.0 by [@fortmarek](https://github.com/fortmarek) in [#9657](https://github.com/tuist/tuist/pull/9657)
-* make CacheLocalStorage.clean public by [@fortmarek](https://github.com/fortmarek) in [#9647](https://github.com/tuist/tuist/pull/9647)
-* bump FileSystem to 0.15.0 for setFileTimes support by [@fortmarek](https://github.com/fortmarek) in [#9646](https://github.com/tuist/tuist/pull/9646)
-* sort Set iterations in graph mappers for deterministic cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9629](https://github.com/tuist/tuist/pull/9629)
-* limit concurrency of buildable folder resolution to avoid FD exhaustion by [@fortmarek](https://github.com/fortmarek) in [#9626](https://github.com/tuist/tuist/pull/9626)
-* add validation folder exists for BuildableFolder by [@ivan-gaydamakin](https://github.com/ivan-gaydamakin) in [#9609](https://github.com/tuist/tuist/pull/9609)
-* prune static xcframework deps from dynamic xcframeworks for hostless unit tests by [@pepicrft](https://github.com/pepicrft) in [#9602](https://github.com/tuist/tuist/pull/9602)
-* upload APK files directly instead of wrapping in zip by [@fortmarek](https://github.com/fortmarek) in [#9581](https://github.com/tuist/tuist/pull/9581)
-* populate explicitFolders for excluded directories in buildable folders by [@fortmarek](https://github.com/fortmarek) in [#9578](https://github.com/tuist/tuist/pull/9578)
+* include transitive search paths through dynamic framework dependencies ([#9681](https://github.com/tuist/tuist/pull/9681))
+* exclude directories from buildable folder resolved files ([#9678](https://github.com/tuist/tuist/pull/9678))
+* cap concurrency to avoid file descriptor exhaustion ([#9677](https://github.com/tuist/tuist/pull/9677))
+* Fix case-insensitive prioritize local packages over registry ([#9673](https://github.com/tuist/tuist/pull/9673))
+* add xcassets and xcstrings to sources build phase for static targets ([#9666](https://github.com/tuist/tuist/pull/9666))
+* update Command package to 0.14.0 ([#9657](https://github.com/tuist/tuist/pull/9657))
+* make CacheLocalStorage.clean public ([#9647](https://github.com/tuist/tuist/pull/9647))
+* bump FileSystem to 0.15.0 for setFileTimes support ([#9646](https://github.com/tuist/tuist/pull/9646))
+* sort Set iterations in graph mappers for deterministic cache hashing ([#9629](https://github.com/tuist/tuist/pull/9629))
+* limit concurrency of buildable folder resolution to avoid FD exhaustion ([#9626](https://github.com/tuist/tuist/pull/9626))
+* add validation folder exists for BuildableFolder ([#9609](https://github.com/tuist/tuist/pull/9609))
+* prune static xcframework deps from dynamic xcframeworks for hostless unit tests ([#9602](https://github.com/tuist/tuist/pull/9602))
+* upload APK files directly instead of wrapping in zip ([#9581](https://github.com/tuist/tuist/pull/9581))
+* populate explicitFolders for excluded directories in buildable folders ([#9578](https://github.com/tuist/tuist/pull/9578))
 ### 🚜 Refactor
 
-* migrate acceptance tests to Swift Testing by [@pepicrft](https://github.com/pepicrft) in [#9352](https://github.com/tuist/tuist/pull/9352)
+* migrate acceptance tests to Swift Testing ([#9352](https://github.com/tuist/tuist/pull/9352))
 
 
 
@@ -1031,7 +1031,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* replace deprecated tuist build recommendation in previews by [@fortmarek](https://github.com/fortmarek) in [#9562](https://github.com/tuist/tuist/pull/9562)
+* replace deprecated tuist build recommendation in previews ([#9562](https://github.com/tuist/tuist/pull/9562))
 
 
 
@@ -1041,7 +1041,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* expand glob patterns in buildable folder exclusions by [@InderKumarRathore](https://github.com/InderKumarRathore) in [#9552](https://github.com/tuist/tuist/pull/9552)
+* expand glob patterns in buildable folder exclusions  ([#9552](https://github.com/tuist/tuist/pull/9552))
 
 
 
@@ -1051,8 +1051,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* expanding folder to input inner files when used as input in foreign build phase script by [@scarayaa](https://github.com/scarayaa) in [#9556](https://github.com/tuist/tuist/pull/9556)
-* place precompiled dependencies from SPM build directory in frameworks group by [@JanC](https://github.com/JanC) in [#9555](https://github.com/tuist/tuist/pull/9555)
+* expanding folder to input inner files when used as input in foreign build phase script ([#9556](https://github.com/tuist/tuist/pull/9556))
+* place precompiled dependencies from SPM build directory in frameworks group ([#9555](https://github.com/tuist/tuist/pull/9555))
 
 
 
@@ -1062,7 +1062,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add platformFilters for buildable folder exceptions by [@fortmarek](https://github.com/fortmarek) in [#9545](https://github.com/tuist/tuist/pull/9545)
+* Add platformFilters for buildable folder exceptions ([#9545](https://github.com/tuist/tuist/pull/9545))
 
 
 
@@ -1072,7 +1072,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Use latest Gradle plugin version in init and add takeaways by [@fortmarek](https://github.com/fortmarek) in [#9543](https://github.com/tuist/tuist/pull/9543)
+* Use latest Gradle plugin version in init and add takeaways ([#9543](https://github.com/tuist/tuist/pull/9543))
 
 
 
@@ -1082,10 +1082,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Android APK previews with cross-platform share and run by [@fortmarek](https://github.com/fortmarek) in [#9509](https://github.com/tuist/tuist/pull/9509)
+* Android APK previews with cross-platform share and run ([#9509](https://github.com/tuist/tuist/pull/9509))
 ### 🐛 Bug Fixes
 
-* Prioritize local packages over registry versions by [@fdiaz](https://github.com/fdiaz) in [#9540](https://github.com/tuist/tuist/pull/9540)
+* Prioritize local packages over registry versions ([#9540](https://github.com/tuist/tuist/pull/9540))
 
 
 
@@ -1095,11 +1095,11 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* apply PackageSettings.baseSettings.defaultSettings to SPM targets by [@hiltonc](https://github.com/hiltonc) in [#9301](https://github.com/tuist/tuist/pull/9301)
-* restore SRCROOT path resolution for cached target settings by [@fortmarek](https://github.com/fortmarek) in [#9531](https://github.com/tuist/tuist/pull/9531)
-* respect custom server url by [@yusufozgul](https://github.com/yusufozgul) in [#9524](https://github.com/tuist/tuist/pull/9524)
-* include buildable folder resources in Target.containsResources by [@hiltonc](https://github.com/hiltonc) in [#9290](https://github.com/tuist/tuist/pull/9290)
-* use product name as module name for SPM wrapper targets by [@pepicrft](https://github.com/pepicrft) in [#9370](https://github.com/tuist/tuist/pull/9370)
+* apply PackageSettings.baseSettings.defaultSettings to SPM targets ([#9301](https://github.com/tuist/tuist/pull/9301))
+* restore SRCROOT path resolution for cached target settings ([#9531](https://github.com/tuist/tuist/pull/9531))
+* respect custom server url ([#9524](https://github.com/tuist/tuist/pull/9524))
+* include buildable folder resources in Target.containsResources ([#9290](https://github.com/tuist/tuist/pull/9290))
+* use product name as module name for SPM wrapper targets ([#9370](https://github.com/tuist/tuist/pull/9370))
 
 
 
@@ -1109,19 +1109,19 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add Android bundle support (AAB + APK) by [@fortmarek](https://github.com/fortmarek) in [#9506](https://github.com/tuist/tuist/pull/9506)
-* crash stack traces with formatted frames, attachments, and download URLs by [@fortmarek](https://github.com/fortmarek) in [#9436](https://github.com/tuist/tuist/pull/9436)
+* add Android bundle support (AAB + APK) ([#9506](https://github.com/tuist/tuist/pull/9506))
+* crash stack traces with formatted frames, attachments, and download URLs ([#9436](https://github.com/tuist/tuist/pull/9436))
 ### 🐛 Bug Fixes
 
-* pass jsonThroughNoora to Noora on Linux by [@fortmarek](https://github.com/fortmarek) in [#9516](https://github.com/tuist/tuist/pull/9516)
-* bump xcode version release by [@fortmarek](https://github.com/fortmarek) in [#9511](https://github.com/tuist/tuist/pull/9511)
-* preserve JSON logger for non-Noora commands on Linux by [@fortmarek](https://github.com/fortmarek) in [#9510](https://github.com/tuist/tuist/pull/9510)
-* don't run foreign build script when target is served from binary cache by [@fortmarek](https://github.com/fortmarek) in [#9501](https://github.com/tuist/tuist/pull/9501)
-* sanitize + character in intra-package target dependency names by [@pepicrft](https://github.com/pepicrft) in [#9437](https://github.com/tuist/tuist/pull/9437)
-* warn when skip test targets don't intersect by [@pepicrft](https://github.com/pepicrft) in [#9487](https://github.com/tuist/tuist/pull/9487)
-* add Swift toolchain library search path for ObjC targets linking static Swift dependencies by [@pepicrft](https://github.com/pepicrft) in [#9483](https://github.com/tuist/tuist/pull/9483)
-* resolve static ObjC xcframework search paths without Package.swift by [@pepicrft](https://github.com/pepicrft) in [#9440](https://github.com/tuist/tuist/pull/9440)
-* enable HTTP logging and server warnings on Linux by [@fortmarek](https://github.com/fortmarek) in [#9479](https://github.com/tuist/tuist/pull/9479)
+* pass jsonThroughNoora to Noora on Linux ([#9516](https://github.com/tuist/tuist/pull/9516))
+* bump xcode version release ([#9511](https://github.com/tuist/tuist/pull/9511))
+* preserve JSON logger for non-Noora commands on Linux ([#9510](https://github.com/tuist/tuist/pull/9510))
+* don't run foreign build script when target is served from binary cache ([#9501](https://github.com/tuist/tuist/pull/9501))
+* sanitize + character in intra-package target dependency names ([#9437](https://github.com/tuist/tuist/pull/9437))
+* warn when skip test targets don't intersect ([#9487](https://github.com/tuist/tuist/pull/9487))
+* add Swift toolchain library search path for ObjC targets linking static Swift dependencies ([#9483](https://github.com/tuist/tuist/pull/9483))
+* resolve static ObjC xcframework search paths without Package.swift ([#9440](https://github.com/tuist/tuist/pull/9440))
+* enable HTTP logging and server warnings on Linux ([#9479](https://github.com/tuist/tuist/pull/9479))
 
 
 
@@ -1131,7 +1131,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix cache building unnecessary Catalyst scheme for external dependencies by [@fortmarek](https://github.com/fortmarek) in [#9476](https://github.com/tuist/tuist/pull/9476)
+* fix cache building unnecessary Catalyst scheme for external dependencies ([#9476](https://github.com/tuist/tuist/pull/9476))
 
 
 
@@ -1141,17 +1141,17 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add foreign build system dependencies by [@fortmarek](https://github.com/fortmarek) in [#9400](https://github.com/tuist/tuist/pull/9400)
+* add foreign build system dependencies ([#9400](https://github.com/tuist/tuist/pull/9400))
 ### 🐛 Bug Fixes
 
-* restore TuistSimulator to macOS-only block in Package.swift by [@fortmarek](https://github.com/fortmarek) in [#9468](https://github.com/tuist/tuist/pull/9468)
-* increase inspect build activity log timeout and make it configurable by [@fortmarek](https://github.com/fortmarek) in [#9465](https://github.com/tuist/tuist/pull/9465)
-* fix CLI release (static linking, Musl imports, Bundle(for:)) by [@fortmarek](https://github.com/fortmarek) in [#9459](https://github.com/tuist/tuist/pull/9459)
-* use canImport(Musl) for Static Linux SDK compatibility by [@fortmarek](https://github.com/fortmarek) in [#9457](https://github.com/tuist/tuist/pull/9457)
-* remove OpenAPIURLSession from cross-platform targets for Linux static SDK by [@fortmarek](https://github.com/fortmarek) in [#9456](https://github.com/tuist/tuist/pull/9456)
-* restore cache run analytics on dashboard by [@fortmarek](https://github.com/fortmarek) in [#9451](https://github.com/tuist/tuist/pull/9451)
-* only cache dependency checkouts in Linux CI jobs by [@fortmarek](https://github.com/fortmarek) in [#9447](https://github.com/tuist/tuist/pull/9447)
-* add missing tree-shake after focus targets in automation mapper chain by [@pepicrft](https://github.com/pepicrft) in [#9443](https://github.com/tuist/tuist/pull/9443)
+* restore TuistSimulator to macOS-only block in Package.swift ([#9468](https://github.com/tuist/tuist/pull/9468))
+* increase inspect build activity log timeout and make it configurable ([#9465](https://github.com/tuist/tuist/pull/9465))
+* fix CLI release (static linking, Musl imports, Bundle(for:)) ([#9459](https://github.com/tuist/tuist/pull/9459))
+* use canImport(Musl) for Static Linux SDK compatibility ([#9457](https://github.com/tuist/tuist/pull/9457))
+* remove OpenAPIURLSession from cross-platform targets for Linux static SDK ([#9456](https://github.com/tuist/tuist/pull/9456))
+* restore cache run analytics on dashboard ([#9451](https://github.com/tuist/tuist/pull/9451))
+* only cache dependency checkouts in Linux CI jobs ([#9447](https://github.com/tuist/tuist/pull/9447))
+* add missing tree-shake after focus targets in automation mapper chain ([#9443](https://github.com/tuist/tuist/pull/9443))
 
 
 
@@ -1161,10 +1161,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support build system selection in project create by [@fortmarek](https://github.com/fortmarek) in [#9432](https://github.com/tuist/tuist/pull/9432)
+* support build system selection in project create ([#9432](https://github.com/tuist/tuist/pull/9432))
 ### 🐛 Bug Fixes
 
-* remove unused CacheBuiltArtifactsFetcher from CacheWarmCommandService by [@fortmarek](https://github.com/fortmarek) in [#9434](https://github.com/tuist/tuist/pull/9434)
+* remove unused CacheBuiltArtifactsFetcher from CacheWarmCommandService ([#9434](https://github.com/tuist/tuist/pull/9434))
 
 
 
@@ -1174,7 +1174,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fall back to BUILD_DIR for derived data resolution by [@fortmarek](https://github.com/fortmarek) in [#9429](https://github.com/tuist/tuist/pull/9429)
+* fall back to BUILD_DIR for derived data resolution ([#9429](https://github.com/tuist/tuist/pull/9429))
 
 
 
@@ -1184,7 +1184,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* embed cached static xcframeworks with resources transitively by [@pepicrft](https://github.com/pepicrft) in [#9419](https://github.com/tuist/tuist/pull/9419)
+* embed cached static xcframeworks with resources transitively ([#9419](https://github.com/tuist/tuist/pull/9419))
 
 
 
@@ -1194,7 +1194,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* run StaticXCFrameworkModuleMapGraphMapper after cache replacement by [@pepicrft](https://github.com/pepicrft) in [#9427](https://github.com/tuist/tuist/pull/9427)
+* run StaticXCFrameworkModuleMapGraphMapper after cache replacement ([#9427](https://github.com/tuist/tuist/pull/9427))
 
 
 
@@ -1204,7 +1204,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader by [@fortmarek](https://github.com/fortmarek) in [#9424](https://github.com/tuist/tuist/pull/9424)
+* fix flaky tests caused by Matcher.register race and TOCTOU in CachedManifestLoader ([#9424](https://github.com/tuist/tuist/pull/9424))
 
 
 
@@ -1214,13 +1214,13 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add Gradle project integration to tuist init by [@fortmarek](https://github.com/fortmarek) in [#9422](https://github.com/tuist/tuist/pull/9422)
-* add test case show and run commands with fix-flaky-tests skill by [@fortmarek](https://github.com/fortmarek) in [#9379](https://github.com/tuist/tuist/pull/9379)
+* add Gradle project integration to tuist init ([#9422](https://github.com/tuist/tuist/pull/9422))
+* add test case show and run commands with fix-flaky-tests skill ([#9379](https://github.com/tuist/tuist/pull/9379))
 ### 🐛 Bug Fixes
 
-* resolve derived data path from DERIVED_DATA_DIR env in inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9396](https://github.com/tuist/tuist/pull/9396)
-* use correct TUIST_URL key for env variable lookup in login command by [@fortmarek](https://github.com/fortmarek) in [#9398](https://github.com/tuist/tuist/pull/9398)
-* strip debug symbols (dSYM/DWARF) from cached XCFrameworks by [@pepicrft](https://github.com/pepicrft) in [#9287](https://github.com/tuist/tuist/pull/9287)
+* resolve derived data path from DERIVED_DATA_DIR env in inspect commands ([#9396](https://github.com/tuist/tuist/pull/9396))
+* use correct TUIST_URL key for env variable lookup in login command ([#9398](https://github.com/tuist/tuist/pull/9398))
+* strip debug symbols (dSYM/DWARF) from cached XCFrameworks ([#9287](https://github.com/tuist/tuist/pull/9287))
 
 
 
@@ -1230,12 +1230,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* make server commands available on Linux by [@fortmarek](https://github.com/fortmarek) in [#9377](https://github.com/tuist/tuist/pull/9377)
+* make server commands available on Linux ([#9377](https://github.com/tuist/tuist/pull/9377))
 ### 🐛 Bug Fixes
 
-* don't retry non-retryable errors in module cache download by [@fortmarek](https://github.com/fortmarek) in [#9394](https://github.com/tuist/tuist/pull/9394)
-* restore asset symbol generation for external static frameworks by [@pepicrft](https://github.com/pepicrft) in [#9382](https://github.com/tuist/tuist/pull/9382)
-* use correct bundle accessor for external dynamic frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9381](https://github.com/tuist/tuist/pull/9381)
+* don't retry non-retryable errors in module cache download ([#9394](https://github.com/tuist/tuist/pull/9394))
+* restore asset symbol generation for external static frameworks ([#9382](https://github.com/tuist/tuist/pull/9382))
+* use correct bundle accessor for external dynamic frameworks with resources ([#9381](https://github.com/tuist/tuist/pull/9381))
 
 
 
@@ -1245,7 +1245,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add debug logging to inspect build and test commands by [@fortmarek](https://github.com/fortmarek) in [#9384](https://github.com/tuist/tuist/pull/9384)
+* add debug logging to inspect build and test commands ([#9384](https://github.com/tuist/tuist/pull/9384))
 
 
 
@@ -1255,7 +1255,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add tuist.toml support by [@fortmarek](https://github.com/fortmarek) in [#9368](https://github.com/tuist/tuist/pull/9368)
+* add tuist.toml support ([#9368](https://github.com/tuist/tuist/pull/9368))
 
 
 
@@ -1265,9 +1265,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* skip macro targets in static dependency traversal by [@pepicrft](https://github.com/pepicrft) in [#9337](https://github.com/tuist/tuist/pull/9337)
-* add retry logic to OIDC authentication flow by [@fortmarek](https://github.com/fortmarek) in [#9365](https://github.com/tuist/tuist/pull/9365)
-* fix CI environment variable filtering by [@ivan-gaydamakin](https://github.com/ivan-gaydamakin) in [#9369](https://github.com/tuist/tuist/pull/9369)
+* skip macro targets in static dependency traversal ([#9337](https://github.com/tuist/tuist/pull/9337))
+* add retry logic to OIDC authentication flow ([#9365](https://github.com/tuist/tuist/pull/9365))
+* fix CI environment variable filtering ([#9369](https://github.com/tuist/tuist/pull/9369))
 
 
 
@@ -1277,10 +1277,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add Linux support for auth and cache commands by [@fortmarek](https://github.com/fortmarek) in [#9291](https://github.com/tuist/tuist/pull/9291)
+* add Linux support for auth and cache commands ([#9291](https://github.com/tuist/tuist/pull/9291))
 ### 🐛 Bug Fixes
 
-* fix `tuist version` producing no output on Linux by [@fortmarek](https://github.com/fortmarek) in [#9364](https://github.com/tuist/tuist/pull/9364)
+* fix `tuist version` producing no output on Linux ([#9364](https://github.com/tuist/tuist/pull/9364))
 
 
 
@@ -1290,7 +1290,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* don't embed static precompiled xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9356](https://github.com/tuist/tuist/pull/9356)
+* don't embed static precompiled xcframeworks ([#9356](https://github.com/tuist/tuist/pull/9356))
 
 
 
@@ -1300,10 +1300,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add configurable cache push policy by [@fortmarek](https://github.com/fortmarek) in [#9348](https://github.com/tuist/tuist/pull/9348)
+* add configurable cache push policy ([#9348](https://github.com/tuist/tuist/pull/9348))
 ### 🐛 Bug Fixes
 
-* deduplicate plugins with the same name in tuist edit by [@pepicrft](https://github.com/pepicrft) in [#9354](https://github.com/tuist/tuist/pull/9354)
+* deduplicate plugins with the same name in tuist edit ([#9354](https://github.com/tuist/tuist/pull/9354))
 
 
 
@@ -1313,7 +1313,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add extension bundle search paths for resource accessors by [@pepicrft](https://github.com/pepicrft) in [#9344](https://github.com/tuist/tuist/pull/9344)
+* add extension bundle search paths for resource accessors ([#9344](https://github.com/tuist/tuist/pull/9344))
 
 
 
@@ -1323,7 +1323,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add custom metadata and tags to build runs by [@fortmarek](https://github.com/fortmarek) in [#9310](https://github.com/tuist/tuist/pull/9310)
+* add custom metadata and tags to build runs ([#9310](https://github.com/tuist/tuist/pull/9310))
 
 
 
@@ -1333,7 +1333,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* guard log file creation for Noora by [@pepicrft](https://github.com/pepicrft) in [#9324](https://github.com/tuist/tuist/pull/9324)
+* guard log file creation for Noora ([#9324](https://github.com/tuist/tuist/pull/9324))
 
 
 
@@ -1343,7 +1343,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* record network requests to HAR files for debugging by [@pepicrft](https://github.com/pepicrft) in [#9192](https://github.com/tuist/tuist/pull/9192)
+* record network requests to HAR files for debugging ([#9192](https://github.com/tuist/tuist/pull/9192))
 
 
 
@@ -1353,11 +1353,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add generations and cache runs API endpoints and CLI commands by [@pepicrft](https://github.com/pepicrft) in [#9277](https://github.com/tuist/tuist/pull/9277)
+* add generations and cache runs API endpoints and CLI commands ([#9277](https://github.com/tuist/tuist/pull/9277))
 ### 🐛 Bug Fixes
 
-* embed static frameworks with buildable-folder resources by [@pepicrft](https://github.com/pepicrft) in [#9317](https://github.com/tuist/tuist/pull/9317)
-* skip config loading for inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9315](https://github.com/tuist/tuist/pull/9315)
+* embed static frameworks with buildable-folder resources ([#9317](https://github.com/tuist/tuist/pull/9317))
+* skip config loading for inspect commands ([#9315](https://github.com/tuist/tuist/pull/9315))
 
 
 
@@ -1367,7 +1367,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* avoid stale auth token cache during long uploads in [#9314](https://github.com/tuist/tuist/pull/9314)
+* avoid stale auth token cache during long uploads ([#9314](https://github.com/tuist/tuist/pull/9314))
 
 
 
@@ -1377,7 +1377,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* generate registry config before resolving Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9311](https://github.com/tuist/tuist/pull/9311)
+* generate registry config before resolving Swift packages ([#9311](https://github.com/tuist/tuist/pull/9311))
 
 
 
@@ -1387,7 +1387,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* auto-skip quarantined tests in tuist test by [@fortmarek](https://github.com/fortmarek) in [#9306](https://github.com/tuist/tuist/pull/9306)
+* auto-skip quarantined tests in tuist test ([#9306](https://github.com/tuist/tuist/pull/9306))
 
 
 
@@ -1397,7 +1397,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Bump cache version for static framework copy layout by [@pepicrft](https://github.com/pepicrft) in [#9309](https://github.com/tuist/tuist/pull/9309)
+* Bump cache version for static framework copy layout ([#9309](https://github.com/tuist/tuist/pull/9309))
 
 
 
@@ -1407,7 +1407,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add build list and build show commands by [@pepicrft](https://github.com/pepicrft) in [#9272](https://github.com/tuist/tuist/pull/9272)
+* add build list and build show commands ([#9272](https://github.com/tuist/tuist/pull/9272))
 
 
 
@@ -1417,7 +1417,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* handle Metal files in buildable folders for resource bundle generation by [@pepicrft](https://github.com/pepicrft) in [#9298](https://github.com/tuist/tuist/pull/9298)
+* handle Metal files in buildable folders for resource bundle generation ([#9298](https://github.com/tuist/tuist/pull/9298))
 
 
 
@@ -1427,9 +1427,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* propagate .bundle resource files from external static frameworks to host app by [@pepicrft](https://github.com/pepicrft) in [#9294](https://github.com/tuist/tuist/pull/9294)
-* search host bundle paths in ObjC resource bundle accessor by [@pepicrft](https://github.com/pepicrft) in [#9295](https://github.com/tuist/tuist/pull/9295)
-* harden log cleanup by [@pepicrft](https://github.com/pepicrft) in [#9296](https://github.com/tuist/tuist/pull/9296)
+* propagate .bundle resource files from external static frameworks to host app ([#9294](https://github.com/tuist/tuist/pull/9294))
+* search host bundle paths in ObjC resource bundle accessor ([#9295](https://github.com/tuist/tuist/pull/9295))
+* harden log cleanup ([#9296](https://github.com/tuist/tuist/pull/9296))
 
 
 
@@ -1439,8 +1439,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* eagerly compute conditional targets to prevent thread starvation during generation by [@pepicrft](https://github.com/pepicrft) in [#9292](https://github.com/tuist/tuist/pull/9292)
-* only embed static XCFrameworks containing .framework bundles by [@pepicrft](https://github.com/pepicrft) in [#9288](https://github.com/tuist/tuist/pull/9288)
+* eagerly compute conditional targets to prevent thread starvation during generation ([#9292](https://github.com/tuist/tuist/pull/9292))
+* only embed static XCFrameworks containing .framework bundles ([#9288](https://github.com/tuist/tuist/pull/9288))
 
 
 
@@ -1450,8 +1450,8 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add TUIST_CACHE_ENDPOINT environment variable override by [@fortmarek](https://github.com/fortmarek) in [#9282](https://github.com/tuist/tuist/pull/9282)
-* add debug logging to diagnose generation hangs by [@fortmarek](https://github.com/fortmarek) in [#9284](https://github.com/tuist/tuist/pull/9284)
+* add TUIST_CACHE_ENDPOINT environment variable override ([#9282](https://github.com/tuist/tuist/pull/9282))
+* add debug logging to diagnose generation hangs ([#9284](https://github.com/tuist/tuist/pull/9284))
 
 
 
@@ -1461,8 +1461,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add authentication failure error for cache in [#9280](https://github.com/tuist/tuist/pull/9280)
-* update FileSystem to fix intermittent crash on startup by [@pepicrft](https://github.com/pepicrft) in [#9276](https://github.com/tuist/tuist/pull/9276)
+* add authentication failure error for cache ([#9280](https://github.com/tuist/tuist/pull/9280))
+* update FileSystem to fix intermittent crash on startup ([#9276](https://github.com/tuist/tuist/pull/9276))
 
 
 
@@ -1472,7 +1472,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add registryEnabled generation option by [@pepicrft](https://github.com/pepicrft) in [#9258](https://github.com/tuist/tuist/pull/9258)
+* add registryEnabled generation option ([#9258](https://github.com/tuist/tuist/pull/9258))
 
 
 
@@ -1482,10 +1482,10 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* revert swift-protobuf to GitHub URL to fix manifest issue by [@pepicrft](https://github.com/pepicrft) in [#9267](https://github.com/tuist/tuist/pull/9267)
-* set default cache concurrency limit to 100 by [@fortmarek](https://github.com/fortmarek) in [#9235](https://github.com/tuist/tuist/pull/9235)
-* support BITRISE_IDENTITY_TOKEN env var for Bitrise OIDC auth by [@pepicrft](https://github.com/pepicrft) in [#9257](https://github.com/tuist/tuist/pull/9257)
-* embed static XCFrameworks to support resources by [@pepicrft](https://github.com/pepicrft) in [#9240](https://github.com/tuist/tuist/pull/9240)
+* revert swift-protobuf to GitHub URL to fix manifest issue ([#9267](https://github.com/tuist/tuist/pull/9267))
+* set default cache concurrency limit to 100 ([#9235](https://github.com/tuist/tuist/pull/9235))
+* support BITRISE_IDENTITY_TOKEN env var for Bitrise OIDC auth ([#9257](https://github.com/tuist/tuist/pull/9257))
+* embed static XCFrameworks to support resources ([#9240](https://github.com/tuist/tuist/pull/9240))
 
 
 
@@ -1495,7 +1495,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
+* restore mapper order for selective testing and fix parseAsRoot ([#9234](https://github.com/tuist/tuist/pull/9234))
 
 
 
@@ -1505,7 +1505,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
+* add test quarantine and automations settings ([#9175](https://github.com/tuist/tuist/pull/9175))
 
 
 
@@ -1515,13 +1515,13 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* ensure consistent mapper order between automation and cache pipelines by [@fortmarek](https://github.com/fortmarek) in [#9228](https://github.com/tuist/tuist/pull/9228)
-* use patched swift-openapi-urlsession to fix crash by [@fortmarek](https://github.com/fortmarek) in [#9229](https://github.com/tuist/tuist/pull/9229)
-* filter out dependencies with unsatisfied trait conditions by [@pepicrft](https://github.com/pepicrft) in [#9219](https://github.com/tuist/tuist/pull/9219)
-* fix bundle accessor for Obj-C external static frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9210](https://github.com/tuist/tuist/pull/9210)
+* ensure consistent mapper order between automation and cache pipelines ([#9228](https://github.com/tuist/tuist/pull/9228))
+* use patched swift-openapi-urlsession to fix crash ([#9229](https://github.com/tuist/tuist/pull/9229))
+* filter out dependencies with unsatisfied trait conditions ([#9219](https://github.com/tuist/tuist/pull/9219))
+* fix bundle accessor for Obj-C external static frameworks with resources ([#9210](https://github.com/tuist/tuist/pull/9210))
 ### 📚 Documentation
 
-* add intent layer nodes by [@pepicrft](https://github.com/pepicrft) in [#9042](https://github.com/tuist/tuist/pull/9042)
+* add intent layer nodes ([#9042](https://github.com/tuist/tuist/pull/9042))
 
 
 
@@ -1531,7 +1531,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* correct static xcframework paths when depending on cached targets by [@fortmarek](https://github.com/fortmarek) in [#9203](https://github.com/tuist/tuist/pull/9203)
+* correct static xcframework paths when depending on cached targets ([#9203](https://github.com/tuist/tuist/pull/9203))
 
 
 
@@ -1541,7 +1541,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add debug logs to project generation by [@fortmarek](https://github.com/fortmarek) in [#9199](https://github.com/tuist/tuist/pull/9199)
+* add debug logs to project generation ([#9199](https://github.com/tuist/tuist/pull/9199))
 
 
 
@@ -1551,7 +1551,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* handle race condition when creating logs directory by [@pepicrft](https://github.com/pepicrft)
+* handle race condition when creating logs directory
 
 
 
@@ -1561,7 +1561,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* prevent race condition when creating logs directory by [@pepicrft](https://github.com/pepicrft) in [#9191](https://github.com/tuist/tuist/pull/9191)
+* prevent race condition when creating logs directory ([#9191](https://github.com/tuist/tuist/pull/9191))
 
 
 
@@ -1571,7 +1571,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* enable local CAS when enableCaching is true and Tuist project is not configured by [@danieleformichelli](https://github.com/danieleformichelli) in [#9157](https://github.com/tuist/tuist/pull/9157)
+* enable local CAS when enableCaching is true and Tuist project is not configured ([#9157](https://github.com/tuist/tuist/pull/9157))
 
 
 
@@ -1581,9 +1581,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix acceptance tests in [#9150](https://github.com/tuist/tuist/pull/9150)
-* External resources failing at runtime unable to find their associated bundle by [@pepicrft](https://github.com/pepicrft) in [#9148](https://github.com/tuist/tuist/pull/9148)
-* only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
+* fix acceptance tests ([#9150](https://github.com/tuist/tuist/pull/9150))
+* External resources failing at runtime unable to find their associated bundle ([#9148](https://github.com/tuist/tuist/pull/9148))
+* only emit a public import when public symbols are present ([#9129](https://github.com/tuist/tuist/pull/9129))
 
 
 
@@ -1593,14 +1593,14 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* make new module cache default in [#9094](https://github.com/tuist/tuist/pull/9094)
-* add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
-* implement remote cache cleaning in [#9124](https://github.com/tuist/tuist/pull/9124)
+* make new module cache default ([#9094](https://github.com/tuist/tuist/pull/9094))
+* add support for flaky tests detection ([#9098](https://github.com/tuist/tuist/pull/9098))
+* implement remote cache cleaning ([#9124](https://github.com/tuist/tuist/pull/9124))
 ### 🐛 Bug Fixes
 
-* Compilation errors when a static framework contains resources by [@pepicrft](https://github.com/pepicrft) in [#9141](https://github.com/tuist/tuist/pull/9141)
-* remove selective testing support for vanilla Xcode projects by [@fortmarek](https://github.com/fortmarek) in [#9126](https://github.com/tuist/tuist/pull/9126)
-* update inspect acceptance tests for new output format by [@pepicrft](https://github.com/pepicrft) in [#9125](https://github.com/tuist/tuist/pull/9125)
+* Compilation errors when a static framework contains resources ([#9141](https://github.com/tuist/tuist/pull/9141))
+* remove selective testing support for vanilla Xcode projects ([#9126](https://github.com/tuist/tuist/pull/9126))
+* update inspect acceptance tests for new output format ([#9125](https://github.com/tuist/tuist/pull/9125))
 
 
 
@@ -1610,11 +1610,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add unified inspect dependencies command by [@hiltonc](https://github.com/hiltonc) in [#8887](https://github.com/tuist/tuist/pull/8887)
-* Add exceptTargetQueries to cache profiles by [@hiltonc](https://github.com/hiltonc) in [#8761](https://github.com/tuist/tuist/pull/8761)
+* add unified inspect dependencies command ([#8887](https://github.com/tuist/tuist/pull/8887))
+* Add exceptTargetQueries to cache profiles ([#8761](https://github.com/tuist/tuist/pull/8761))
 ### 🐛 Bug Fixes
 
-* Static framework bundles for tests and metal by [@pepicrft](https://github.com/pepicrft) in [#9123](https://github.com/tuist/tuist/pull/9123)
+* Static framework bundles for tests and metal ([#9123](https://github.com/tuist/tuist/pull/9123))
 
 
 
@@ -1624,9 +1624,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* disable Swift debug serialization to prevent LLDB warnings by [@pepicrft](https://github.com/pepicrft) in [#9116](https://github.com/tuist/tuist/pull/9116)
-* update XcodeGraph to 1.30.10 to fix CLI resource bundles by [@pepicrft](https://github.com/pepicrft) in [#9115](https://github.com/tuist/tuist/pull/9115)
-* fix flaky DumpServiceIntegrationTests for package manifests by [@pepicrft](https://github.com/pepicrft) in [#9113](https://github.com/tuist/tuist/pull/9113)
+* disable Swift debug serialization to prevent LLDB warnings ([#9116](https://github.com/tuist/tuist/pull/9116))
+* update XcodeGraph to 1.30.10 to fix CLI resource bundles ([#9115](https://github.com/tuist/tuist/pull/9115))
+* fix flaky DumpServiceIntegrationTests for package manifests ([#9113](https://github.com/tuist/tuist/pull/9113))
 
 
 
@@ -1636,7 +1636,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add support for SwiftPM package traits by [@pepicrft](https://github.com/pepicrft) in [#8535](https://github.com/tuist/tuist/pull/8535)
+* add support for SwiftPM package traits ([#8535](https://github.com/tuist/tuist/pull/8535))
 
 
 
@@ -1646,7 +1646,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* show deprecation notice for CLI < 4.56.1 in [#9110](https://github.com/tuist/tuist/pull/9110)
+* show deprecation notice for CLI < 4.56.1 ([#9110](https://github.com/tuist/tuist/pull/9110))
 
 
 
@@ -1656,7 +1656,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* restore static framework resources without regressions by [@pepicrft](https://github.com/pepicrft) in [#9081](https://github.com/tuist/tuist/pull/9081)
+* restore static framework resources without regressions ([#9081](https://github.com/tuist/tuist/pull/9081))
 
 
 
@@ -1666,11 +1666,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add excluding parameter to FileElement glob by [@fortmarek](https://github.com/fortmarek) in [#9087](https://github.com/tuist/tuist/pull/9087)
-* Add tuist:synthesized tag to synthesized resource bundles by [@pepicrft](https://github.com/pepicrft) in [#8983](https://github.com/tuist/tuist/pull/8983)
+* add excluding parameter to FileElement glob ([#9087](https://github.com/tuist/tuist/pull/9087))
+* Add tuist:synthesized tag to synthesized resource bundles ([#8983](https://github.com/tuist/tuist/pull/8983))
 ### 🐛 Bug Fixes
 
-* preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication by [@fortmarek](https://github.com/fortmarek) in [#9106](https://github.com/tuist/tuist/pull/9106)
+* preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication ([#9106](https://github.com/tuist/tuist/pull/9106))
 
 
 
@@ -1680,7 +1680,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* export hashed graph to file via env variable by [@fortmarek](https://github.com/fortmarek) in [#9078](https://github.com/tuist/tuist/pull/9078)
+* export hashed graph to file via env variable ([#9078](https://github.com/tuist/tuist/pull/9078))
 
 
 
@@ -1690,8 +1690,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* exclude __MACOSX folders for remote binary targets by [@mo5tone](https://github.com/mo5tone) in [#9075](https://github.com/tuist/tuist/pull/9075)
-* ensure consistent graph mapper order for cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9077](https://github.com/tuist/tuist/pull/9077)
+* exclude __MACOSX folders for remote binary targets ([#9075](https://github.com/tuist/tuist/pull/9075))
+* ensure consistent graph mapper order for cache hashing ([#9077](https://github.com/tuist/tuist/pull/9077))
 
 
 
@@ -1701,8 +1701,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* filter Catalyst destinations for external dependencies by [@pepicrft](https://github.com/pepicrft) in [#9067](https://github.com/tuist/tuist/pull/9067)
-* handle multi-byte UTF-8 characters in xcresult parsing by [@fortmarek](https://github.com/fortmarek) in [#9061](https://github.com/tuist/tuist/pull/9061)
+* filter Catalyst destinations for external dependencies ([#9067](https://github.com/tuist/tuist/pull/9067))
+* handle multi-byte UTF-8 characters in xcresult parsing ([#9061](https://github.com/tuist/tuist/pull/9061))
 
 
 
@@ -1712,7 +1712,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use generic destination for Mac Catalyst cache builds by [@pepicrft](https://github.com/pepicrft) in [#9038](https://github.com/tuist/tuist/pull/9038)
+* use generic destination for Mac Catalyst cache builds ([#9038](https://github.com/tuist/tuist/pull/9038))
 
 
 
@@ -1722,14 +1722,14 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* custom cache endpoints in [#8980](https://github.com/tuist/tuist/pull/8980)
+* custom cache endpoints ([#8980](https://github.com/tuist/tuist/pull/8980))
 ### 🐛 Bug Fixes
 
-* Generate TuistBundle if buildableFolders contains synthesized file by [@denisgaskov](https://github.com/denisgaskov) in [#8998](https://github.com/tuist/tuist/pull/8998)
-* Include Mac Catalyst slice when building XCFrameworks for cache by [@pepicrft](https://github.com/pepicrft) in [#9028](https://github.com/tuist/tuist/pull/9028)
+* Generate TuistBundle if buildableFolders contains synthesized file ([#8998](https://github.com/tuist/tuist/pull/8998))
+* Include Mac Catalyst slice when building XCFrameworks for cache ([#9028](https://github.com/tuist/tuist/pull/9028))
 ### 🚜 Refactor
 
-* rename fixtures to examples and simplify fixture handling by [@pepicrft](https://github.com/pepicrft) in [#8962](https://github.com/tuist/tuist/pull/8962)
+* rename fixtures to examples and simplify fixture handling ([#8962](https://github.com/tuist/tuist/pull/8962))
 
 
 
@@ -1739,10 +1739,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* module cache in [#8931](https://github.com/tuist/tuist/pull/8931)
+* module cache ([#8931](https://github.com/tuist/tuist/pull/8931))
 ### 🐛 Bug Fixes
 
-* fix selective testing when experimental cache enabled in [#8981](https://github.com/tuist/tuist/pull/8981)
+* fix selective testing when experimental cache enabled ([#8981](https://github.com/tuist/tuist/pull/8981))
 
 
 
@@ -1752,10 +1752,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* preview tracks by [@fortmarek](https://github.com/fortmarek) in [#8939](https://github.com/tuist/tuist/pull/8939)
+* preview tracks ([#8939](https://github.com/tuist/tuist/pull/8939))
 ### 🐛 Bug Fixes
 
-* handle cross-project dependencies in redundant import inspection by [@hiltonc](https://github.com/hiltonc) in [#8862](https://github.com/tuist/tuist/pull/8862)
+* handle cross-project dependencies in redundant import inspection ([#8862](https://github.com/tuist/tuist/pull/8862))
 
 
 
@@ -1765,7 +1765,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
+* require previews to have unique binary id and bundle version ([#8944](https://github.com/tuist/tuist/pull/8944))
 
 
 
@@ -1775,10 +1775,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
+* compute binary id as part of tuist share ([#8912](https://github.com/tuist/tuist/pull/8912))
 ### 🐛 Bug Fixes
 
-* add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
+* add support for the new mise bin path ([#8929](https://github.com/tuist/tuist/pull/8929))
 
 
 
@@ -1788,7 +1788,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* migrate Fixtures - Tuist initializer with .project by [@2sem](https://github.com/2sem) in [#8886](https://github.com/tuist/tuist/pull/8886)
+* migrate Fixtures - Tuist initializer with .project ([#8886](https://github.com/tuist/tuist/pull/8886))
 
 
 
@@ -1798,7 +1798,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* upload command run analytics in the background by [@fortmarek](https://github.com/fortmarek) in [#8883](https://github.com/tuist/tuist/pull/8883)
+* upload command run analytics in the background ([#8883](https://github.com/tuist/tuist/pull/8883))
 
 
 
@@ -1808,10 +1808,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* OIDC support Bitrise and CircleCI by [@fortmarek](https://github.com/fortmarek) in [#8878](https://github.com/tuist/tuist/pull/8878)
+* OIDC support Bitrise and CircleCI ([#8878](https://github.com/tuist/tuist/pull/8878))
 ### 🐛 Bug Fixes
 
-* parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
+* parsing XCActivityLog on Xcode 26.2 and newer ([#8866](https://github.com/tuist/tuist/pull/8866))
 
 
 
@@ -1821,7 +1821,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+* OIDC token support for GitHub Actions ([#8858](https://github.com/tuist/tuist/pull/8858))
 
 
 
@@ -1831,11 +1831,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* account tokens by [@fortmarek](https://github.com/fortmarek) in [#8834](https://github.com/tuist/tuist/pull/8834)
-* report module cache subhashes by [@fortmarek](https://github.com/fortmarek) in [#8822](https://github.com/tuist/tuist/pull/8822)
+* account tokens ([#8834](https://github.com/tuist/tuist/pull/8834))
+* report module cache subhashes ([#8822](https://github.com/tuist/tuist/pull/8822))
 ### 🐛 Bug Fixes
 
-* respect explicit cache profile none with target focus by [@hiltonc](https://github.com/hiltonc) in [#8830](https://github.com/tuist/tuist/pull/8830)
+* respect explicit cache profile none with target focus ([#8830](https://github.com/tuist/tuist/pull/8830))
 
 
 
@@ -1845,7 +1845,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* handle skipped tests due to a failed build by [@fortmarek](https://github.com/fortmarek) in [#8808](https://github.com/tuist/tuist/pull/8808)
+* handle skipped tests due to a failed build ([#8808](https://github.com/tuist/tuist/pull/8808))
 
 
 
@@ -1855,7 +1855,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* false positive for a .uiTests implicit import of .app by [@fortmarek](https://github.com/fortmarek) in [#8811](https://github.com/tuist/tuist/pull/8811)
+* false positive for a .uiTests implicit import of .app ([#8811](https://github.com/tuist/tuist/pull/8811))
 
 
 
@@ -1865,7 +1865,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* duration for test cases with custom label by [@fortmarek](https://github.com/fortmarek) in [#8800](https://github.com/tuist/tuist/pull/8800)
+* duration for test cases with custom label ([#8800](https://github.com/tuist/tuist/pull/8800))
 
 
 
@@ -1875,7 +1875,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* deprecate tuist build command by [@pepicrft](https://github.com/pepicrft) in [#8401](https://github.com/tuist/tuist/pull/8401)
+* deprecate tuist build command ([#8401](https://github.com/tuist/tuist/pull/8401))
 
 
 
@@ -1885,8 +1885,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* relegate test result upload error to a warning by [@fortmarek](https://github.com/fortmarek) in [#8790](https://github.com/tuist/tuist/pull/8790)
-* Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
+* relegate test result upload error to a warning ([#8790](https://github.com/tuist/tuist/pull/8790))
+* Don't replace targeted external dependencies with cached binary ([#8731](https://github.com/tuist/tuist/pull/8731))
 
 
 
@@ -1896,10 +1896,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* link tests to builds by [@fortmarek](https://github.com/fortmarek) in [#8771](https://github.com/tuist/tuist/pull/8771)
+* link tests to builds ([#8771](https://github.com/tuist/tuist/pull/8771))
 ### 🐛 Bug Fixes
 
-* Remove CLANG_CXX_LIBRARY essential build setting by [@alexmx](https://github.com/alexmx) in [#8763](https://github.com/tuist/tuist/pull/8763)
+* Remove CLANG_CXX_LIBRARY essential build setting ([#8763](https://github.com/tuist/tuist/pull/8763))
 
 
 
@@ -1909,7 +1909,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* track CI run id for test insights by [@fortmarek](https://github.com/fortmarek) in [#8769](https://github.com/tuist/tuist/pull/8769)
+* track CI run id for test insights ([#8769](https://github.com/tuist/tuist/pull/8769))
 
 
 
@@ -1919,7 +1919,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* remove fullHandle requirement for tuist registry setup by [@fortmarek](https://github.com/fortmarek) in [#8750](https://github.com/tuist/tuist/pull/8750)
+* remove fullHandle requirement for tuist registry setup ([#8750](https://github.com/tuist/tuist/pull/8750))
 
 
 
@@ -1929,10 +1929,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add test insights by [@fortmarek](https://github.com/fortmarek) in [#8347](https://github.com/tuist/tuist/pull/8347)
+* add test insights ([#8347](https://github.com/tuist/tuist/pull/8347))
 ### 🐛 Bug Fixes
 
-* duplicated XCFrameworks in embed phase by [@fortmarek](https://github.com/fortmarek) in [#8736](https://github.com/tuist/tuist/pull/8736)
+* duplicated XCFrameworks in embed phase ([#8736](https://github.com/tuist/tuist/pull/8736))
 
 
 
@@ -1942,9 +1942,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* pin swift-collections below 1.3.0 by [@fortmarek](https://github.com/fortmarek) in [#8730](https://github.com/tuist/tuist/pull/8730)
-* skip warning Swift flags when hashing by [@fortmarek](https://github.com/fortmarek) in [#8728](https://github.com/tuist/tuist/pull/8728)
-* prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
+* pin swift-collections below 1.3.0 ([#8730](https://github.com/tuist/tuist/pull/8730))
+* skip warning Swift flags when hashing ([#8728](https://github.com/tuist/tuist/pull/8728))
+* prefer products with matching casing ([#8717](https://github.com/tuist/tuist/pull/8717))
 
 
 
@@ -1954,10 +1954,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* open registry by [@fortmarek](https://github.com/fortmarek) in [#8708](https://github.com/tuist/tuist/pull/8708)
+* open registry ([#8708](https://github.com/tuist/tuist/pull/8708))
 ### 🐛 Bug Fixes
 
-* external dependency case insensitive lookup by [@fortmarek](https://github.com/fortmarek) in [#8714](https://github.com/tuist/tuist/pull/8714)
+* external dependency case insensitive lookup ([#8714](https://github.com/tuist/tuist/pull/8714))
 
 
 
@@ -1967,8 +1967,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix false negative implicit import detection of transitive local dependencies by [@Kolos65](https://github.com/Kolos65) in [#8665](https://github.com/tuist/tuist/pull/8665)
-* refreshing token data race by [@fortmarek](https://github.com/fortmarek) in [#8706](https://github.com/tuist/tuist/pull/8706)
+* fix false negative implicit import detection of transitive local dependencies ([#8665](https://github.com/tuist/tuist/pull/8665))
+* refreshing token data race ([#8706](https://github.com/tuist/tuist/pull/8706))
 
 
 
@@ -1978,7 +1978,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* improve error message of tuist inspect implicit-imports by [@n-zaitsev](https://github.com/n-zaitsev) in [#8604](https://github.com/tuist/tuist/pull/8604)
+* improve error message of tuist inspect implicit-imports ([#8604](https://github.com/tuist/tuist/pull/8604))
 
 
 
@@ -1988,8 +1988,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* resolve token refresh data race in ServerAuthenticationController by [@fortmarek](https://github.com/fortmarek) in [#8692](https://github.com/tuist/tuist/pull/8692)
-* skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
+* resolve token refresh data race in ServerAuthenticationController ([#8692](https://github.com/tuist/tuist/pull/8692))
+* skip hashing Xcode version ([#8658](https://github.com/tuist/tuist/pull/8658))
 
 
 
@@ -1999,7 +1999,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add Emerge Tools SnapshottingTests to the list of targets that depend on XCTest by [@duarteich](https://github.com/duarteich) in [#8653](https://github.com/tuist/tuist/pull/8653)
+* add Emerge Tools SnapshottingTests to the list of targets that depend on XCTest ([#8653](https://github.com/tuist/tuist/pull/8653))
 
 
 
@@ -2009,7 +2009,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* respect xcframework status by [@fortmarek](https://github.com/fortmarek) in [#8651](https://github.com/tuist/tuist/pull/8651)
+* respect xcframework status ([#8651](https://github.com/tuist/tuist/pull/8651))
 
 
 
@@ -2019,7 +2019,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* duplicate CAS outputs by [@fortmarek](https://github.com/fortmarek) in [#8646](https://github.com/tuist/tuist/pull/8646)
+* duplicate CAS outputs ([#8646](https://github.com/tuist/tuist/pull/8646))
 
 
 
@@ -2029,7 +2029,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* skip hashing lockfiles by [@fortmarek](https://github.com/fortmarek) in [#8650](https://github.com/tuist/tuist/pull/8650)
+* skip hashing lockfiles ([#8650](https://github.com/tuist/tuist/pull/8650))
 
 
 
@@ -2039,7 +2039,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* misreported Xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8638](https://github.com/tuist/tuist/pull/8638)
+* misreported Xcode cache analytics ([#8638](https://github.com/tuist/tuist/pull/8638))
 
 
 
@@ -2049,7 +2049,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* connect directly to the cache endpoint by [@fortmarek](https://github.com/fortmarek) in [#8628](https://github.com/tuist/tuist/pull/8628)
+* connect directly to the cache endpoint ([#8628](https://github.com/tuist/tuist/pull/8628))
 
 
 
@@ -2059,11 +2059,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* track cas outputs type and cacheable task description by [@fortmarek](https://github.com/fortmarek) in [#8609](https://github.com/tuist/tuist/pull/8609)
-* track cacheable task description by [@fortmarek](https://github.com/fortmarek) in [#8603](https://github.com/tuist/tuist/pull/8603)
+* track cas outputs type and cacheable task description ([#8609](https://github.com/tuist/tuist/pull/8609))
+* track cacheable task description ([#8603](https://github.com/tuist/tuist/pull/8603))
 ### 🐛 Bug Fixes
 
-* Add extended string delimiter to Strings value in PlistsTemplate by [@ast3150](https://github.com/ast3150) in [#8607](https://github.com/tuist/tuist/pull/8607)
+* Add extended string delimiter to Strings value in PlistsTemplate ([#8607](https://github.com/tuist/tuist/pull/8607))
 
 
 
@@ -2073,7 +2073,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* track cache key read/write latency by [@fortmarek](https://github.com/fortmarek) in [#8598](https://github.com/tuist/tuist/pull/8598)
+* track cache key read/write latency ([#8598](https://github.com/tuist/tuist/pull/8598))
 
 
 
@@ -2083,7 +2083,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* cas output analytics by [@fortmarek](https://github.com/fortmarek) in [#8584](https://github.com/tuist/tuist/pull/8584)
+* cas output analytics ([#8584](https://github.com/tuist/tuist/pull/8584))
 
 
 
@@ -2093,9 +2093,9 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* ensure disableSandbox config is used when dumping package manifests by [@pepicrft](https://github.com/pepicrft) in [#8475](https://github.com/tuist/tuist/pull/8475)
-* support import kind declarations in inspect by [@hiltonc](https://github.com/hiltonc) in [#8455](https://github.com/tuist/tuist/pull/8455)
-* cache Config manifest to improve performance by [@hiltonc](https://github.com/hiltonc) in [#8561](https://github.com/tuist/tuist/pull/8561)
+* ensure disableSandbox config is used when dumping package manifests ([#8475](https://github.com/tuist/tuist/pull/8475))
+* support import kind declarations in inspect ([#8455](https://github.com/tuist/tuist/pull/8455))
+* cache Config manifest to improve performance ([#8561](https://github.com/tuist/tuist/pull/8561))
 
 
 
@@ -2105,7 +2105,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Fix buildable folder resource placement for static targets by [@natanrolnik](https://github.com/natanrolnik) in [#8548](https://github.com/tuist/tuist/pull/8548)
+* Fix buildable folder resource placement for static targets ([#8548](https://github.com/tuist/tuist/pull/8548))
 
 
 
@@ -2115,7 +2115,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* optimize Xcode cache by compressing CAS artifacts by [@fortmarek](https://github.com/fortmarek) in [#8565](https://github.com/tuist/tuist/pull/8565)
+* optimize Xcode cache by compressing CAS artifacts ([#8565](https://github.com/tuist/tuist/pull/8565))
 
 
 
@@ -2125,7 +2125,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Optimize cache hit detection and add diagnostic remarks by [@fortmarek](https://github.com/fortmarek) in [#8556](https://github.com/tuist/tuist/pull/8556)
+* Optimize cache hit detection and add diagnostic remarks ([#8556](https://github.com/tuist/tuist/pull/8556))
 
 
 
@@ -2135,8 +2135,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
-* fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
+* clean up warnings ([#7666](https://github.com/tuist/tuist/pull/7666))
+* fix content hashing to use relative path when file does not exist ([#8557](https://github.com/tuist/tuist/pull/8557))
 
 
 
@@ -2146,7 +2146,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add cache profiles to fine tune cached binary replacement by [@hiltonc](https://github.com/hiltonc) in [#8122](https://github.com/tuist/tuist/pull/8122)
+* Add cache profiles to fine tune cached binary replacement ([#8122](https://github.com/tuist/tuist/pull/8122))
 
 
 
@@ -2156,8 +2156,8 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for SwiftPM disableWarning setting by [@pepicrft](https://github.com/pepicrft) in [#8549](https://github.com/tuist/tuist/pull/8549)
-* improve upload error handling for cache artifacts by [@fortmarek](https://github.com/fortmarek) in [#8553](https://github.com/tuist/tuist/pull/8553)
+* Add support for SwiftPM disableWarning setting ([#8549](https://github.com/tuist/tuist/pull/8549))
+* improve upload error handling for cache artifacts ([#8553](https://github.com/tuist/tuist/pull/8553))
 
 
 
@@ -2167,7 +2167,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
+* downgrade duplicated product name linting from error to warning ([#8540](https://github.com/tuist/tuist/pull/8540))
 
 
 
@@ -2177,7 +2177,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for passing arguments to SwiftPM by [@pepicrft](https://github.com/pepicrft) in [#8544](https://github.com/tuist/tuist/pull/8544)
+* Add support for passing arguments to SwiftPM ([#8544](https://github.com/tuist/tuist/pull/8544))
 
 
 
@@ -2187,7 +2187,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add support for Swift Package Manager strictMemorySafety setting by [@pepicrft](https://github.com/pepicrft) in [#8539](https://github.com/tuist/tuist/pull/8539)
+* add support for Swift Package Manager strictMemorySafety setting ([#8539](https://github.com/tuist/tuist/pull/8539))
 
 
 
@@ -2197,7 +2197,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8534](https://github.com/tuist/tuist/pull/8534)
+* xcode cache analytics ([#8534](https://github.com/tuist/tuist/pull/8534))
 
 
 
@@ -2207,7 +2207,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Add support for Internal Imports By Default for Asset accessors by [@PSKuznetsov](https://github.com/PSKuznetsov) in [#8241](https://github.com/tuist/tuist/pull/8241)
+* Add support for Internal Imports By Default for Asset accessors ([#8241](https://github.com/tuist/tuist/pull/8241))
 
 
 
@@ -2217,7 +2217,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add cache daemon logs by [@fortmarek](https://github.com/fortmarek) in [#8520](https://github.com/tuist/tuist/pull/8520)
+* add cache daemon logs ([#8520](https://github.com/tuist/tuist/pull/8520))
 
 
 
@@ -2227,7 +2227,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Multiple targets with same hash by [@pepicrft](https://github.com/pepicrft) in [#8533](https://github.com/tuist/tuist/pull/8533)
+* Multiple targets with same hash ([#8533](https://github.com/tuist/tuist/pull/8533))
 
 
 
@@ -2237,10 +2237,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Default to no concurrency limit when doing cache uploads and downloads by [@pepicrft](https://github.com/pepicrft) in [#8527](https://github.com/tuist/tuist/pull/8527)
+* Default to no concurrency limit when doing cache uploads and downloads ([#8527](https://github.com/tuist/tuist/pull/8527))
 ### 🐛 Bug Fixes
 
-* Bundle accessor not being generated for txt, js or json resources by [@natanrolnik](https://github.com/natanrolnik) in [#8532](https://github.com/tuist/tuist/pull/8532)
+* Bundle accessor not being generated for txt, js or json resources ([#8532](https://github.com/tuist/tuist/pull/8532))
 
 
 
@@ -2250,10 +2250,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add support for TUIST_-prefixed XDG environment variables by [@pepicrft](https://github.com/pepicrft) in [#8508](https://github.com/tuist/tuist/pull/8508)
+* add support for TUIST_-prefixed XDG environment variables ([#8508](https://github.com/tuist/tuist/pull/8508))
 ### 🐛 Bug Fixes
 
-* improve error messages of cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8509](https://github.com/tuist/tuist/pull/8509)
+* improve error messages of cache daemon ([#8509](https://github.com/tuist/tuist/pull/8509))
 
 
 
@@ -2263,8 +2263,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use TUIST_CONFIG_TOKEN when launching the cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8506](https://github.com/tuist/tuist/pull/8506)
-* ignore macros in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8457](https://github.com/tuist/tuist/pull/8457)
+* use TUIST_CONFIG_TOKEN when launching the cache daemon ([#8506](https://github.com/tuist/tuist/pull/8506))
+* ignore macros in inspect redundant dependencies ([#8457](https://github.com/tuist/tuist/pull/8457))
 
 
 
@@ -2274,11 +2274,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Only use binaries for external dependencies when no focus target is passed to `tuist generate` by [@pepicrft](https://github.com/pepicrft) in [#8478](https://github.com/tuist/tuist/pull/8478)
-* Add --skip-unit-tests parameter to tuist test command by [@RomanAnpilov](https://github.com/RomanAnpilov) in [#8291](https://github.com/tuist/tuist/pull/8291)
+* Only use binaries for external dependencies when no focus target is passed to `tuist generate` ([#8478](https://github.com/tuist/tuist/pull/8478))
+* Add --skip-unit-tests parameter to tuist test command ([#8291](https://github.com/tuist/tuist/pull/8291))
 ### 🐛 Bug Fixes
 
-* ignore unit test host app in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8456](https://github.com/tuist/tuist/pull/8456)
+* ignore unit test host app in inspect redundant dependencies ([#8456](https://github.com/tuist/tuist/pull/8456))
 
 
 
@@ -2288,7 +2288,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* don't restrict which kind of token is used based on the environment by [@fortmarek](https://github.com/fortmarek) in [#8464](https://github.com/tuist/tuist/pull/8464)
+* don't restrict which kind of token is used based on the environment ([#8464](https://github.com/tuist/tuist/pull/8464))
 
 
 
@@ -2298,7 +2298,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* tuist setup cache command by [@fortmarek](https://github.com/fortmarek) in [#8450](https://github.com/tuist/tuist/pull/8450)
+* tuist setup cache command ([#8450](https://github.com/tuist/tuist/pull/8450))
 
 
 
@@ -2308,7 +2308,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add individual target sub-hashes for debugging by [@fortmarek](https://github.com/fortmarek) in [#8460](https://github.com/tuist/tuist/pull/8460)
+* add individual target sub-hashes for debugging ([#8460](https://github.com/tuist/tuist/pull/8460))
 
 
 
@@ -2318,7 +2318,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Add support for `.xcdatamodel` opaque directories by [@MouadBenjrinija](https://github.com/MouadBenjrinija) in [#8445](https://github.com/tuist/tuist/pull/8445)
+* Add support for `.xcdatamodel` opaque directories ([#8445](https://github.com/tuist/tuist/pull/8445))
 
 
 
@@ -2328,7 +2328,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* don't throw file not found when hashing generated source files by [@fortmarek](https://github.com/fortmarek) in [#8449](https://github.com/tuist/tuist/pull/8449)
+* don't throw file not found when hashing generated source files ([#8449](https://github.com/tuist/tuist/pull/8449))
 
 
 
@@ -2338,7 +2338,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* mysteriously vanished binaries by [@fortmarek](https://github.com/fortmarek) in [#8447](https://github.com/tuist/tuist/pull/8447)
+* mysteriously vanished binaries ([#8447](https://github.com/tuist/tuist/pull/8447))
 
 
 
@@ -2348,7 +2348,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Xcode cache server by [@fortmarek](https://github.com/fortmarek) in [#8420](https://github.com/tuist/tuist/pull/8420)
+* Xcode cache server ([#8420](https://github.com/tuist/tuist/pull/8420))
 
 
 
@@ -2358,7 +2358,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* extend inspect build to 5 seconds by [@fortmarek](https://github.com/fortmarek) in [#8446](https://github.com/tuist/tuist/pull/8446)
+* extend inspect build to 5 seconds ([#8446](https://github.com/tuist/tuist/pull/8446))
 
 
 
@@ -2368,7 +2368,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Generated projects with binaries not replacing some targets with macros as transitive dependencies by [@pepicrft](https://github.com/pepicrft) in [#8444](https://github.com/tuist/tuist/pull/8444)
+* Generated projects with binaries not replacing some targets with macros as transitive dependencies ([#8444](https://github.com/tuist/tuist/pull/8444))
 
 
 
@@ -2378,7 +2378,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Optimize resource interface synthesis through parallelization by [@pepicrft](https://github.com/pepicrft) in [#8436](https://github.com/tuist/tuist/pull/8436)
+* Optimize resource interface synthesis through parallelization ([#8436](https://github.com/tuist/tuist/pull/8436))
 
 
 
@@ -2388,7 +2388,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* don't report clean action by [@fortmarek](https://github.com/fortmarek) in [#8439](https://github.com/tuist/tuist/pull/8439)
+* don't report clean action ([#8439](https://github.com/tuist/tuist/pull/8439))
 
 
 
@@ -2398,7 +2398,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Handle target action input and output file paths that contain variables by [@pepicrft](https://github.com/pepicrft) in [#8432](https://github.com/tuist/tuist/pull/8432)
+* Handle target action input and output file paths that contain variables ([#8432](https://github.com/tuist/tuist/pull/8432))
 
 
 
@@ -2408,7 +2408,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* align 'tuist hash cache' to use same generator as cache warming by [@pepicrft](https://github.com/pepicrft) in [#8427](https://github.com/tuist/tuist/pull/8427)
+* align 'tuist hash cache' to use same generator as cache warming ([#8427](https://github.com/tuist/tuist/pull/8427))
 
 
 
@@ -2418,7 +2418,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Improve remote cache error handling by [@pepicrft](https://github.com/pepicrft) in [#8413](https://github.com/tuist/tuist/pull/8413)
+* Improve remote cache error handling ([#8413](https://github.com/tuist/tuist/pull/8413))
 
 
 
@@ -2428,7 +2428,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Support the `defaultIsolation` setting when integrating packages using native Xcode project targets by [@pepicrft](https://github.com/pepicrft) in [#8372](https://github.com/tuist/tuist/pull/8372)
+* Support the `defaultIsolation` setting when integrating packages using native Xcode project targets ([#8372](https://github.com/tuist/tuist/pull/8372))
 
 
 
@@ -2438,7 +2438,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* clean up downloaded binary artifacts from temporary directory by [@fortmarek](https://github.com/fortmarek) in [#8402](https://github.com/tuist/tuist/pull/8402)
+* clean up downloaded binary artifacts from temporary directory ([#8402](https://github.com/tuist/tuist/pull/8402))
 
 
 
@@ -2448,7 +2448,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* don't convert script input and output file list paths relative to manifest paths or with build variables to absolute by [@fortmarek](https://github.com/fortmarek) in [#8397](https://github.com/tuist/tuist/pull/8397)
+* don't convert script input and output file list paths relative to manifest paths or with build variables to absolute ([#8397](https://github.com/tuist/tuist/pull/8397))
 
 
 
@@ -2458,12 +2458,12 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add bundle type by [@fortmarek](https://github.com/fortmarek) in [#8363](https://github.com/tuist/tuist/pull/8363)
+* add bundle type ([#8363](https://github.com/tuist/tuist/pull/8363))
 ### 🐛 Bug Fixes
 
-* Ensure buildableFolder resources are handled with project-defined resourceSynthesizers. by [@Monsteel](https://github.com/Monsteel) in [#8369](https://github.com/tuist/tuist/pull/8369)
-* align with the latest Tuist API by [@fortmarek](https://github.com/fortmarek) in [#8393](https://github.com/tuist/tuist/pull/8393)
-* path to the PackageDescription in projects generated by tuist edit by [@fortmarek](https://github.com/fortmarek) in [#8357](https://github.com/tuist/tuist/pull/8357)
+* Ensure buildableFolder resources are handled with project-defined resourceSynthesizers. ([#8369](https://github.com/tuist/tuist/pull/8369))
+* align with the latest Tuist API ([#8393](https://github.com/tuist/tuist/pull/8393))
+* path to the PackageDescription in projects generated by tuist edit ([#8357](https://github.com/tuist/tuist/pull/8357))
 
 
 
@@ -2473,8 +2473,8 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Make implicit import detection work with buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8358](https://github.com/tuist/tuist/pull/8358)
-* add CI run reference to build runs by [@fortmarek](https://github.com/fortmarek) in [#8356](https://github.com/tuist/tuist/pull/8356)
+* Make implicit import detection work with buildable folders ([#8358](https://github.com/tuist/tuist/pull/8358))
+* add CI run reference to build runs ([#8356](https://github.com/tuist/tuist/pull/8356))
 
 
 
@@ -2484,8 +2484,8 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Report server-side payment-required responses as warnings by [@pepicrft](https://github.com/pepicrft) in [#8338](https://github.com/tuist/tuist/pull/8338)
-* add configuration to build insights by [@fortmarek](https://github.com/fortmarek) in [#8330](https://github.com/tuist/tuist/pull/8330)
+* Report server-side payment-required responses as warnings ([#8338](https://github.com/tuist/tuist/pull/8338))
+* add configuration to build insights ([#8330](https://github.com/tuist/tuist/pull/8330))
 
 
 
@@ -2495,7 +2495,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Only validate cache signatures on successful responses by [@pepicrft](https://github.com/pepicrft) in [#8315](https://github.com/tuist/tuist/pull/8315)
+* Only validate cache signatures on successful responses ([#8315](https://github.com/tuist/tuist/pull/8315))
 
 
 
@@ -2505,8 +2505,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Fix cache warming when external targets are excluded by platform conditions by [@pepicrft](https://github.com/pepicrft) in [#8308](https://github.com/tuist/tuist/pull/8308)
-* don't mark inspected build as failed when it has warnings only by [@fortmarek](https://github.com/fortmarek) in [#8276](https://github.com/tuist/tuist/pull/8276)
+* Fix cache warming when external targets are excluded by platform conditions ([#8308](https://github.com/tuist/tuist/pull/8308))
+* don't mark inspected build as failed when it has warnings only ([#8276](https://github.com/tuist/tuist/pull/8276))
 
 
 
@@ -2516,7 +2516,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Add support for headers in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8298](https://github.com/tuist/tuist/pull/8298)
+* Add support for headers in buildable folders ([#8298](https://github.com/tuist/tuist/pull/8298))
 
 
 
@@ -2526,7 +2526,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Fix synthesized bundle interfaces not generated for `.xcassets` in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8292](https://github.com/tuist/tuist/pull/8292)
+* Fix synthesized bundle interfaces not generated for `.xcassets` in buildable folders ([#8292](https://github.com/tuist/tuist/pull/8292))
 
 
 
@@ -2536,7 +2536,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🧪 Testing
 
-* fix acceptance tests by [@fortmarek](https://github.com/fortmarek) in [#8288](https://github.com/tuist/tuist/pull/8288)
+* fix acceptance tests ([#8288](https://github.com/tuist/tuist/pull/8288))
 
 
 
@@ -2546,7 +2546,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Make `excluded` optional in buildable folder exceptions by [@pepicrft](https://github.com/pepicrft) in [#8293](https://github.com/tuist/tuist/pull/8293)
+* Make `excluded` optional in buildable folder exceptions ([#8293](https://github.com/tuist/tuist/pull/8293))
 
 
 
@@ -2556,7 +2556,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Support exclusion of files and configuration of compiler flags for files in buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8254](https://github.com/tuist/tuist/pull/8254)
+* Support exclusion of files and configuration of compiler flags for files in buildable folders ([#8254](https://github.com/tuist/tuist/pull/8254))
 
 
 
@@ -2566,7 +2566,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Downgrade ProjectDescription Swift version to 6.1 by [@pepicrft](https://github.com/pepicrft) in [#8283](https://github.com/tuist/tuist/pull/8283)
+* Downgrade ProjectDescription Swift version to 6.1 ([#8283](https://github.com/tuist/tuist/pull/8283))
 
 
 
@@ -2576,7 +2576,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* show Products file group in Xcode navigator by [@YIshihara11201](https://github.com/YIshihara11201) in [#8267](https://github.com/tuist/tuist/pull/8267)
+* show Products file group in Xcode navigator ([#8267](https://github.com/tuist/tuist/pull/8267))
 
 
 
@@ -2586,8 +2586,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* adjust NIOFileSystem references by [@fortmarek](https://github.com/fortmarek) in [#8273](https://github.com/tuist/tuist/pull/8273)
-* handle warnings from the underlying assetutil info when inspecting bundles by [@fortmarek](https://github.com/fortmarek) in [#8268](https://github.com/tuist/tuist/pull/8268)
+* adjust NIOFileSystem references ([#8273](https://github.com/tuist/tuist/pull/8273))
+* handle warnings from the underlying assetutil info when inspecting bundles ([#8268](https://github.com/tuist/tuist/pull/8268))
 
 
 
@@ -2597,7 +2597,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* add default.metallib in static framework by [@bilousoleksandr](https://github.com/bilousoleksandr) in [#8207](https://github.com/tuist/tuist/pull/8207)
+* add default.metallib in static framework ([#8207](https://github.com/tuist/tuist/pull/8207))
 
 
 
@@ -2607,7 +2607,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* change sandbox to be opt-in by [@fortmarek](https://github.com/fortmarek) in [#8244](https://github.com/tuist/tuist/pull/8244)
+* change sandbox to be opt-in ([#8244](https://github.com/tuist/tuist/pull/8244))
 
 
 
@@ -2617,7 +2617,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Increase the security of the cache surface by [@pepicrft](https://github.com/pepicrft) in [#8220](https://github.com/tuist/tuist/pull/8220)
+* Increase the security of the cache surface ([#8220](https://github.com/tuist/tuist/pull/8220))
 
 
 
@@ -2627,7 +2627,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Invalid generated projects when projects are generated with binaries keeping sources and targets by [@pepicrft](https://github.com/pepicrft) in [#8227](https://github.com/tuist/tuist/pull/8227)
+* Invalid generated projects when projects are generated with binaries keeping sources and targets ([#8227](https://github.com/tuist/tuist/pull/8227))
 
 
 
@@ -2637,7 +2637,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add SE-0162 support for custom SPM target layouts by [@devyhan](https://github.com/devyhan) in [#8191](https://github.com/tuist/tuist/pull/8191)
+* Add SE-0162 support for custom SPM target layouts ([#8191](https://github.com/tuist/tuist/pull/8191))
 
 
 
@@ -2647,7 +2647,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add unordered xcodebuild command support by [@yusufozgul](https://github.com/yusufozgul) in [#8170](https://github.com/tuist/tuist/pull/8170)
+* Add unordered xcodebuild command support ([#8170](https://github.com/tuist/tuist/pull/8170))
 
 
 
@@ -2657,7 +2657,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* Increase the refresh token timeout period by [@pepicrft](https://github.com/pepicrft)
+* Increase the refresh token timeout period
 
 
 
@@ -2667,7 +2667,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Verbose-log the concurrency limit used by the cache for network connections by [@pepicrft](https://github.com/pepicrft) in [#8217](https://github.com/tuist/tuist/pull/8217)
+* Verbose-log the concurrency limit used by the cache for network connections ([#8217](https://github.com/tuist/tuist/pull/8217))
 
 
 
@@ -2677,10 +2677,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for configuring the cache request concurrency limit by [@pepicrft](https://github.com/pepicrft) in [#8203](https://github.com/tuist/tuist/pull/8203)
+* Add support for configuring the cache request concurrency limit ([#8203](https://github.com/tuist/tuist/pull/8203))
 ### 🐛 Bug Fixes
 
-* tuist cache failing due to the new BuildOperationMetrics attachment type by [@fortmarek](https://github.com/fortmarek) in [#8201](https://github.com/tuist/tuist/pull/8201)
+* tuist cache failing due to the new BuildOperationMetrics attachment type ([#8201](https://github.com/tuist/tuist/pull/8201))
 
 
 
@@ -2690,7 +2690,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Remove user credentials when the token sent on refresh is invalid by [@pepicrft](https://github.com/pepicrft) in [#8173](https://github.com/tuist/tuist/pull/8173)
+* Remove user credentials when the token sent on refresh is invalid ([#8173](https://github.com/tuist/tuist/pull/8173))
 
 
 
@@ -2700,7 +2700,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* generate tests using Swift Testing instead of XCTest by [@fortmarek](https://github.com/fortmarek) in [#8184](https://github.com/tuist/tuist/pull/8184)
+* generate tests using Swift Testing instead of XCTest ([#8184](https://github.com/tuist/tuist/pull/8184))
 
 
 
@@ -2710,7 +2710,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Don't focus when keeping the sources for targets replaced by binaries by [@pepicrft](https://github.com/pepicrft) in [#8180](https://github.com/tuist/tuist/pull/8180)
+* Don't focus when keeping the sources for targets replaced by binaries ([#8180](https://github.com/tuist/tuist/pull/8180))
 
 
 
@@ -2720,7 +2720,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* update Swift package resolution to use -scmProvider system by [@pepicrft](https://github.com/pepicrft)
+* update Swift package resolution to use -scmProvider system
 
 
 
@@ -2730,10 +2730,10 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add additionalPackageResolutionArguments for xcodebuild by [@ichikmarev](https://github.com/ichikmarev) in [#8099](https://github.com/tuist/tuist/pull/8099)
+* Add additionalPackageResolutionArguments for xcodebuild ([#8099](https://github.com/tuist/tuist/pull/8099))
 ### 🐛 Bug Fixes
 
-* not generate bundle accessors in when buildable folders don't resolve to any resources by [@pepicrft](https://github.com/pepicrft) in [#8158](https://github.com/tuist/tuist/pull/8158)
+* not generate bundle accessors in when buildable folders don't resolve to any resources ([#8158](https://github.com/tuist/tuist/pull/8158))
 
 
 
@@ -2743,7 +2743,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* generate bundle accessor when a module has only buildable folders by [@fortmarek](https://github.com/fortmarek) in [#8156](https://github.com/tuist/tuist/pull/8156)
+* generate bundle accessor when a module has only buildable folders ([#8156](https://github.com/tuist/tuist/pull/8156))
 
 
 
@@ -2753,7 +2753,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* default to caching the manifests by [@pepicrft](https://github.com/pepicrft) in [#8116](https://github.com/tuist/tuist/pull/8116)
+* default to caching the manifests ([#8116](https://github.com/tuist/tuist/pull/8116))
 
 
 
@@ -2763,7 +2763,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* optimize dependency conditions calculation by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#8146](https://github.com/tuist/tuist/pull/8146)
+* optimize dependency conditions calculation ([#8146](https://github.com/tuist/tuist/pull/8146))
 
 
 
@@ -2773,7 +2773,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* XCFramework signature by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7999](https://github.com/tuist/tuist/pull/7999)
+* XCFramework signature ([#7999](https://github.com/tuist/tuist/pull/7999))
 
 
 
@@ -2783,7 +2783,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* skip remote cache downloads on failure by [@fortmarek](https://github.com/fortmarek) in [#8135](https://github.com/tuist/tuist/pull/8135)
+* skip remote cache downloads on failure ([#8135](https://github.com/tuist/tuist/pull/8135))
 
 
 
@@ -2793,7 +2793,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* generate bundle accessor for modules with metal files by [@fortmarek](https://github.com/fortmarek) in [#8125](https://github.com/tuist/tuist/pull/8125)
+* generate bundle accessor for modules with metal files ([#8125](https://github.com/tuist/tuist/pull/8125))
 
 
 
@@ -2803,7 +2803,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* missing bundle accessor when the target uses buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8092](https://github.com/tuist/tuist/pull/8092)
+* missing bundle accessor when the target uses buildable folders ([#8092](https://github.com/tuist/tuist/pull/8092))
 
 
 
@@ -2813,7 +2813,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* unable to create account tokens to access the registry by [@pepicrft](https://github.com/pepicrft) in [#8115](https://github.com/tuist/tuist/pull/8115)
+* unable to create account tokens to access the registry ([#8115](https://github.com/tuist/tuist/pull/8115))
 
 
 
@@ -2823,7 +2823,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* CocoaPods unable to install dependencies due to project's `objectVersion` by [@pepicrft](https://github.com/pepicrft) in [#8051](https://github.com/tuist/tuist/pull/8051)
+* CocoaPods unable to install dependencies due to project's `objectVersion` ([#8051](https://github.com/tuist/tuist/pull/8051))
 
 
 
@@ -2833,7 +2833,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* arch incompatibilities when using the cache by [@pepicrft](https://github.com/pepicrft) in [#8096](https://github.com/tuist/tuist/pull/8096)
+* arch incompatibilities when using the cache ([#8096](https://github.com/tuist/tuist/pull/8096))
 
 
 
@@ -2843,7 +2843,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* caching issues due to incompatible architectures by [@pepicrft](https://github.com/pepicrft) in [#8094](https://github.com/tuist/tuist/pull/8094)
+* caching issues due to incompatible architectures ([#8094](https://github.com/tuist/tuist/pull/8094))
 
 
 
@@ -2853,7 +2853,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* revert caching only the default architecture by [@pepicrft](https://github.com/pepicrft) in [#8048](https://github.com/tuist/tuist/pull/8048)
+* revert caching only the default architecture ([#8048](https://github.com/tuist/tuist/pull/8048))
 
 
 
@@ -2863,7 +2863,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* add filePath and customWorkingDirectory support to RunAction by [@plu](https://github.com/plu) in [#8071](https://github.com/tuist/tuist/pull/8071)
+* add filePath and customWorkingDirectory support to RunAction ([#8071](https://github.com/tuist/tuist/pull/8071))
 
 
 
@@ -2873,7 +2873,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* use XcodeGraph for XcodeKit SDK support by [@navtoj](https://github.com/navtoj) in [#8029](https://github.com/tuist/tuist/pull/8029)
+* use XcodeGraph for XcodeKit SDK support ([#8029](https://github.com/tuist/tuist/pull/8029))
 
 
 
@@ -2883,7 +2883,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* relative path for local package by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#8059](https://github.com/tuist/tuist/pull/8059)
+* relative path for local package ([#8059](https://github.com/tuist/tuist/pull/8059))
 
 
 
@@ -2893,7 +2893,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* improve passthrough argument documentation with usage examples by [@pepicrft](https://github.com/pepicrft) in [#8047](https://github.com/tuist/tuist/pull/8047)
+* improve passthrough argument documentation with usage examples ([#8047](https://github.com/tuist/tuist/pull/8047))
 
 
 
@@ -2903,7 +2903,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* include pagination data when listing the bundles as a json by [@pepicrft](https://github.com/pepicrft) in [#8041](https://github.com/tuist/tuist/pull/8041)
+* include pagination data when listing the bundles as a json ([#8041](https://github.com/tuist/tuist/pull/8041))
 
 
 
@@ -2913,7 +2913,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* `bundle show` failing due to wrong data passed by the cli by [@pepicrft](https://github.com/pepicrft) in [#8037](https://github.com/tuist/tuist/pull/8037)
+* `bundle show` failing due to wrong data passed by the cli ([#8037](https://github.com/tuist/tuist/pull/8037))
 
 
 
@@ -2923,7 +2923,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* `tuist run` fails to run a scheme even though it has runnable targets by [@pepicrft](https://github.com/pepicrft) in [#7989](https://github.com/tuist/tuist/pull/7989)
+* `tuist run` fails to run a scheme even though it has runnable targets ([#7989](https://github.com/tuist/tuist/pull/7989))
 
 
 
@@ -2933,7 +2933,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add commands to list and read bundles by [@pepicrft](https://github.com/pepicrft) in [#7893](https://github.com/tuist/tuist/pull/7893)
+* Add commands to list and read bundles ([#7893](https://github.com/tuist/tuist/pull/7893))
 
 
 
@@ -2943,7 +2943,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for buildable folders by [@pepicrft](https://github.com/pepicrft) in [#7984](https://github.com/tuist/tuist/pull/7984)
+* Add support for buildable folders ([#7984](https://github.com/tuist/tuist/pull/7984))
 
 
 
@@ -2953,7 +2953,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* platform conditions not applied for binary dependencies in external packages by [@pepicrft](https://github.com/pepicrft) in [#7991](https://github.com/tuist/tuist/pull/7991)
+* platform conditions not applied for binary dependencies in external packages ([#7991](https://github.com/tuist/tuist/pull/7991))
 
 
 
@@ -2963,8 +2963,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
-* fetching devices when running previews by [@fortmarek](https://github.com/fortmarek) in [#8010](https://github.com/tuist/tuist/pull/8010)
+* generation regression ([#8011](https://github.com/tuist/tuist/pull/8011))
+* fetching devices when running previews ([#8010](https://github.com/tuist/tuist/pull/8010))
 
 
 
@@ -2974,7 +2974,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for keeping the sources of the targets replaced by binaries by [@pepicrft](https://github.com/pepicrft) in [#8000](https://github.com/tuist/tuist/pull/8000)
+* Add support for keeping the sources of the targets replaced by binaries ([#8000](https://github.com/tuist/tuist/pull/8000))
 
 
 
@@ -2984,11 +2984,11 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* support hashing transitive `.xcconfig` files by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7961](https://github.com/tuist/tuist/pull/7961)
-* add support for XcodeKit SDK by [@navtoj](https://github.com/navtoj) in [#7993](https://github.com/tuist/tuist/pull/7993)
+* support hashing transitive `.xcconfig` files ([#7961](https://github.com/tuist/tuist/pull/7961))
+* add support for XcodeKit SDK ([#7993](https://github.com/tuist/tuist/pull/7993))
 ### 🐛 Bug Fixes
 
-* use Xcode default for which architectures are built by [@fortmarek](https://github.com/fortmarek) in [#8007](https://github.com/tuist/tuist/pull/8007)
+* use Xcode default for which architectures are built ([#8007](https://github.com/tuist/tuist/pull/8007))
 
 
 
@@ -2998,7 +2998,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* unexpected behaviours when renaming resources in cached targets by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7988](https://github.com/tuist/tuist/pull/7988)
+* unexpected behaviours when renaming resources in cached targets ([#7988](https://github.com/tuist/tuist/pull/7988))
 
 
 
@@ -3008,7 +3008,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* prevent metal files from being processed as resources. by [@DenTelezhkin](https://github.com/DenTelezhkin) in [#7976](https://github.com/tuist/tuist/pull/7976)
+* prevent metal files from being processed as resources. ([#7976](https://github.com/tuist/tuist/pull/7976))
 
 
 
@@ -3018,7 +3018,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* cache binaries by default for arm64 only, add --architectures option to specify architectures by [@fortmarek](https://github.com/fortmarek) in [#7977](https://github.com/tuist/tuist/pull/7977)
+* cache binaries by default for arm64 only, add --architectures option to specify architectures ([#7977](https://github.com/tuist/tuist/pull/7977))
 
 
 
@@ -3028,7 +3028,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* include project settings hash in target hash by [@mikhailmulyar](https://github.com/mikhailmulyar) in [#7962](https://github.com/tuist/tuist/pull/7962)
+* include project settings hash in target hash ([#7962](https://github.com/tuist/tuist/pull/7962))
 
 
 
@@ -3038,7 +3038,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* print the full sandbox command when a system command fails by [@hiltonc](https://github.com/hiltonc) in [#7972](https://github.com/tuist/tuist/pull/7972)
+* print the full sandbox command when a system command fails ([#7972](https://github.com/tuist/tuist/pull/7972))
 
 
 
@@ -3048,7 +3048,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* treat the new .icon asset as an opaque directory by [@fortmarek](https://github.com/fortmarek) in [#7965](https://github.com/tuist/tuist/pull/7965)
+* treat the new .icon asset as an opaque directory ([#7965](https://github.com/tuist/tuist/pull/7965))
 
 
 
@@ -3058,7 +3058,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Add support for running macOS app via `tuist run` by [@pepicrft](https://github.com/pepicrft) in [#7956](https://github.com/tuist/tuist/pull/7956)
+* Add support for running macOS app via `tuist run` ([#7956](https://github.com/tuist/tuist/pull/7956))
 
 
 
@@ -3068,7 +3068,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* auto-generated *-Workspace scheme not getting generated by [@pepicrft](https://github.com/pepicrft) in [#7932](https://github.com/tuist/tuist/pull/7932)
+* auto-generated *-Workspace scheme not getting generated ([#7932](https://github.com/tuist/tuist/pull/7932))
 
 
 
@@ -3078,7 +3078,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
-* Ignore internal server errors when interating with the cache by [@pepicrft](https://github.com/pepicrft) in [#7924](https://github.com/tuist/tuist/pull/7924)
+* Ignore internal server errors when interating with the cache ([#7924](https://github.com/tuist/tuist/pull/7924))
 
 
 
@@ -3088,7 +3088,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* do not link cached frameworks with linking status .none by [@fortmarek](https://github.com/fortmarek) in [#7918](https://github.com/tuist/tuist/pull/7918)
+* do not link cached frameworks with linking status .none ([#7918](https://github.com/tuist/tuist/pull/7918))
 
 
 
@@ -3098,7 +3098,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* 'tuist version' shows the optional string by [@pepicrft](https://github.com/pepicrft)
+* 'tuist version' shows the optional string
 
 
 
@@ -3108,8 +3108,8 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
-* fix cli not launching because ProjectAutomation's dynamic framework can't be found by [@pepicrft](https://github.com/pepicrft)
-* token refresh race condition by [@pepicrft](https://github.com/pepicrft) in [#7907](https://github.com/tuist/tuist/pull/7907)
+* fix cli not launching because ProjectAutomation's dynamic framework can't be found
+* token refresh race condition ([#7907](https://github.com/tuist/tuist/pull/7907))
 
 
 
