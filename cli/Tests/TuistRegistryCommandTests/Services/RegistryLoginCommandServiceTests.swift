@@ -71,7 +71,10 @@
                     )
                     .willReturn(.init(id: "token-id", token: "token"))
                 given(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .value("token"), registryURL: .any)
+                    .packageRegistryLogin(
+                        token: .value("token"),
+                        registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                    )
                     .willReturn()
 
                 // When
@@ -80,7 +83,10 @@
                 // Then
                 #expect(ui().contains("Logged in to the tuist registry") == true)
                 verify(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .value("token"), registryURL: .any)
+                    .packageRegistryLogin(
+                        token: .value("token"),
+                        registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                    )
                     .called(1)
                 verify(defaultsController)
                     .setPackageDendencySCMToRegistryTransformation(
@@ -109,7 +115,10 @@
                         .authenticationToken(serverURL: .any)
                         .willReturn(.project("project-token"))
                     given(swiftPackageManagerController)
-                        .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+                        .packageRegistryLogin(
+                            token: .value("project-token"),
+                            registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                        )
                         .willReturn()
                     given(manifestFilesLocator)
                         .locatePackageManifest(at: .any)
@@ -120,7 +129,10 @@
 
                     // Then
                     verify(swiftPackageManagerController)
-                        .packageRegistryLogin(token: .value("project-token"), registryURL: .any)
+                        .packageRegistryLogin(
+                            token: .value("project-token"),
+                            registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                        )
                         .called(1)
                 }
             }
@@ -164,7 +176,7 @@
                 verify(securityController)
                     .addInternetPassword(
                         accountName: .any,
-                        serverName: .any,
+                        serverName: .value("swift-registry.test.tuist.io"),
                         password: .any,
                         securityProtocol: .any,
                         update: .any,
@@ -199,7 +211,10 @@
                     .authenticationToken(serverURL: .any)
                     .willReturn(.account(try JWT.parse(accountJWT.token)))
                 given(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .packageRegistryLogin(
+                        token: .any,
+                        registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                    )
                     .willReturn()
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
@@ -210,7 +225,10 @@
 
                 // Then
                 verify(swiftPackageManagerController)
-                    .packageRegistryLogin(token: .any, registryURL: .any)
+                    .packageRegistryLogin(
+                        token: .any,
+                        registryURL: .value(URL(string: "https://swift-registry.test.tuist.io")!)
+                    )
                     .called(1)
             }
         }
@@ -258,7 +276,7 @@
                 verify(securityController)
                     .addInternetPassword(
                         accountName: .any,
-                        serverName: .any,
+                        serverName: .value("swift-registry.test.tuist.io"),
                         password: .any,
                         securityProtocol: .any,
                         update: .any,

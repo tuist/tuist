@@ -39,6 +39,9 @@ public struct RegistryConfigurationGenerator: RegistryConfigurationGenerating {
     }
 
     public static func registryConfigurationJSON(serverURL: URL) -> String {
+        let registryURL = Constants.URLs.swiftRegistry(for: serverURL)
+        let registryHost = registryURL.host() ?? Constants.URLs.swiftRegistry(for: Constants.URLs.production).host()!
+
         """
         {
           "security": {
@@ -49,15 +52,15 @@ public struct RegistryConfigurationGenerator: RegistryConfigurationGenerating {
             }
           },
           "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/registry/swift/login",
+            "\(registryHost)": {
+              "loginAPIPath": "/login",
               "type": "token"
             }
           },
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
+              "url": "\(registryURL.absoluteString.dropSuffix("/"))"
             }
           },
           "version": 1

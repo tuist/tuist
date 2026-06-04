@@ -137,8 +137,8 @@ struct RegistrySetupCommandService {
     }
 
     static func registryConfigurationJSON(serverURL: URL) -> String {
-        let urlString = serverURL.absoluteString
-        let trimmedURLString = urlString.hasSuffix("/") ? String(urlString.dropLast()) : urlString
+        let registryURL = Constants.URLs.swiftRegistry(for: serverURL)
+        let registryHost = registryURL.host() ?? Constants.URLs.swiftRegistry(for: Constants.URLs.production).host()!
         return """
         {
           "security": {
@@ -149,15 +149,15 @@ struct RegistrySetupCommandService {
             }
           },
           "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/registry/swift/login",
+            "\(registryHost)": {
+              "loginAPIPath": "/login",
               "type": "token"
             }
           },
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(trimmedURLString)/api/registry/swift"
+              "url": "\(registryURL.absoluteString.dropSuffix("/"))"
             }
           },
           "version": 1

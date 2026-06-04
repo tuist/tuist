@@ -76,5 +76,38 @@ public enum Constants {
 
     public enum URLs {
         public static let production = URL(string: "https://tuist.dev")!
+
+        public static func swiftRegistry(for serverURL: URL) -> URL {
+            var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false) ?? URLComponents()
+            let serverHost = components.host ?? production.host()!
+            let isLocalHost = ["localhost", "127.0.0.1", "::1"].contains(serverHost)
+
+            components.scheme = components.scheme ?? "https"
+            components.host = isLocalHost ? serverHost : swiftRegistryHost(for: serverHost)
+            components.path = ""
+            components.query = nil
+            components.fragment = nil
+
+            if isLocalHost {
+                components.port = 8091
+            } else {
+                components.port = nil
+            }
+
+            return components.url ?? URL(string: "https://swift-registry.tuist.dev")!
+        }
+
+        private static func swiftRegistryHost(for serverHost: String) -> String {
+            switch serverHost {
+            case "tuist.dev":
+                "swift-registry.tuist.dev"
+            case "canary.tuist.dev":
+                "swift-registry-canary.tuist.dev"
+            case "staging.tuist.dev":
+                "swift-registry-staging.tuist.dev"
+            default:
+                "swift-registry.\(serverHost)"
+            }
+        }
     }
 }

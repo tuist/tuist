@@ -25,7 +25,7 @@ tuist registry setup
 This command will configure the Tuist Registry for your project – regardless of your setup. This command works with standard Xcode projects, generated Xcode projects, and Swift packages. For Swift packages, you can even use directly the `swift` CLI:
 
 ```sh
-swift package-registry set https://tuist.dev/api/registry/swift
+swift package-registry set https://swift-registry.tuist.dev
 ```
 
 Either of these commands will create a configuration file, with its location depending on your setup. For Swift packages, this would be in `.swiftpm/configuration/registries.json`, for Xcode projects, it would be in `YourProject.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/registries.json`. Make sure to commit this configuration file, so all your colleagues and your CI have access to the registry.
