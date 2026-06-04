@@ -308,7 +308,7 @@ runnersFleet:
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  runnerImageSemver: "c65269df"
+  runnerImageSemver: "9642ee0b"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
