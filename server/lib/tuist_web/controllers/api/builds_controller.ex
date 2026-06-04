@@ -781,6 +781,11 @@ defmodule TuistWeb.API.BuildsController do
              type: :boolean,
              description: "Whether Xcode cache upload was enabled for this build."
            },
+           generation_id: %Schema{
+             type: :string,
+             description:
+               "The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project."
+           },
            custom_metadata: %Schema{
              type: :object,
              description: "Custom metadata for the build run.",
@@ -909,6 +914,7 @@ defmodule TuistWeb.API.BuildsController do
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, []),
           xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
+          generation_id: Map.get(params, :generation_id),
           custom_tags: Map.get(custom_metadata, :tags, []),
           custom_values: Map.get(custom_metadata, :values, %{}),
           machine_metrics: Map.get(params, :machine_metrics, [])
@@ -940,6 +946,7 @@ defmodule TuistWeb.API.BuildsController do
               ci_host: Map.get(params, :ci_host),
               ci_provider: Map.get(params, :ci_provider),
               git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+              generation_id: Map.get(params, :generation_id),
               custom_tags: Map.get(custom_metadata, :tags, []),
               custom_values: Map.get(custom_metadata, :values, %{})
             },

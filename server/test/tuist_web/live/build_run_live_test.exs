@@ -255,6 +255,54 @@ defmodule TuistWeb.BuildRunLiveTest do
     assert has_element?(lv, "table span", "AppFramework-hash")
   end
 
+  test "shows module cache tab for a local build via the generation it points at", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    generation_id = UUIDv7.generate()
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        generation_id: generation_id
+      )
+
+    # A local Xcode build has no command event of its own; the breakdown comes from the
+    # generate command event that uploaded the graph, linked by the shared generation_id.
+    generation_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        generation_id: generation_id,
+        command_arguments: ["generate"]
+      )
+
+    xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: generation_event.id)
+    xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: xcode_graph.id)
+
+    _xcode_target =
+      XcodeFixtures.xcode_target_fixture(
+        name: "AppFramework",
+        xcode_project_id: xcode_project.id,
+        binary_cache_hash: "AppFramework-hash",
+        binary_cache_hit: :remote
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}?tab=module-cache"
+      )
+
+    # Then
+    assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+    assert has_element?(lv, "table span", "AppFramework")
+    assert has_element?(lv, "table span", "AppFramework-hash")
+  end
+
   test "hides module cache tab when build has no binary cache data", %{
     conn: conn,
     organization: organization,

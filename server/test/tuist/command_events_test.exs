@@ -1281,6 +1281,58 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "get_command_event_by_generation_id/2" do
+    test "returns a command event when generation_id exists" do
+      # Given
+      generation_id = UUIDv7.generate()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(generation_id: generation_id)
+
+      # When
+      got = CommandEvents.get_command_event_by_generation_id(generation_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == command_event.id
+    end
+
+    test "returns {:error, :not_found} when generation_id does not exist" do
+      # Given
+      non_existent_generation_id = UUIDv7.generate()
+
+      # When
+      got = CommandEvents.get_command_event_by_generation_id(non_existent_generation_id)
+
+      # Then
+      assert got == {:error, :not_found}
+    end
+
+    test "returns the most recent event when multiple events share the same generation_id" do
+      # Given
+      generation_id = UUIDv7.generate()
+
+      _older =
+        CommandEventsFixtures.command_event_fixture(
+          generation_id: generation_id,
+          ran_at: ~U[2024-01-01 10:00:00Z]
+        )
+
+      newer =
+        CommandEventsFixtures.command_event_fixture(
+          generation_id: generation_id,
+          ran_at: ~U[2024-01-02 10:00:00Z]
+        )
+
+      # When
+      got = CommandEvents.get_command_event_by_generation_id(generation_id)
+
+      # Then
+      assert {:ok, event} = got
+      assert event.id == newer.id
+    end
+  end
+
   describe "cache_hit_rate_period_percentile/4" do
     test "returns single percentile value for entire period" do
       # Given
