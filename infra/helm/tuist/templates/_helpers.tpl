@@ -322,6 +322,16 @@ server.externalSecrets.kuraIntrospection.item is set.
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
+- name: KURA_CONTROL_PLANE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_ID
+- name: KURA_CONTROL_PLANE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_SECRET
 - name: TUIST_KURA_INTROSPECTION_CLIENT_ID
   valueFrom:
     secretKeyRef:

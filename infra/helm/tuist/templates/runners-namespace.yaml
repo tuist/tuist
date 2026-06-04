@@ -8,7 +8,8 @@ the chart's release namespace. Reasons:
 1. Blast radius. The runners-controller's ServiceAccount needs
    Pod create/delete + SA create/delete to materialize per-Pod
    credentials; the server's SA needs RunnerPool read + Pod
-   patch + cluster-scoped TokenReview to mint JITs. Both are
+   patch + Pod/SA delete (to reap leaked stamped Pods) +
+   cluster-scoped TokenReview to mint JITs. Both are
    scoped to exactly what they need. Pinning the runner workload
    to a dedicated namespace keeps a controller or server
    compromise from reaching the chart's other workloads.
@@ -42,7 +43,8 @@ metadata:
 # RunnerPool to discover the fleet name, reads SAs to resolve a
 # Pod's pool via its `tuist.dev/runner-pool` label, lists Pods
 # to count per-customer concurrency, and patches the polling
-# Pod with owner labels at JIT-mint time.
+# Pod with owner labels at JIT-mint time. `OrphanedStampedPodsWorker`
+# also deletes leaked stamped Pods and their sibling SAs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -60,17 +62,22 @@ rules:
     verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [serviceaccounts]
-    # Read SA labels (`tuist.dev/runner-pool`) during the
-    # TokenReview-mediated JIT mint to resolve which fleet the
-    # caller is polling for.
-    verbs: [get, list]
+    # `get`/`list` read SA labels (`tuist.dev/runner-pool`) during
+    # the TokenReview-mediated JIT mint to resolve which fleet the
+    # caller is polling for. `delete` lets `OrphanedStampedPodsWorker`
+    # reap the per-Pod SA alongside a leaked stamped Pod — Pod and SA
+    # are RunnerPool siblings, so deleting the Pod alone orphans it.
+    verbs: [get, list, delete]
   - apiGroups: [""]
     resources: [pods]
     # `list` is used to count Pods labeled with a customer's name
     # (`tuist.dev/runner-pool-owner=<account>`) for max_concurrent
     # enforcement at queue-claim time. `patch` stamps owner labels
-    # on the polling Pod the moment it claims a queue entry.
-    verbs: [get, list, patch]
+    # on the polling Pod the moment it claims a queue entry. `delete`
+    # lets `OrphanedStampedPodsWorker` reap a Pod left owner-stamped
+    # after its claim was released (the runner-pool reconciler only
+    # scales down idle, un-stamped Pods, so it never reaps these).
+    verbs: [get, list, patch, delete]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

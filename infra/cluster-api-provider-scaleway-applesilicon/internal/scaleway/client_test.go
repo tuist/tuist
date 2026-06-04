@@ -800,3 +800,48 @@ func TestReleaseToPool_PropagatesNonRecoverableReinstallError(t *testing.T) {
 		t.Fatalf("expected error to identify reinstall step, got %v", err)
 	}
 }
+
+func TestListServers_ReturnsIDAndName(t *testing.T) {
+	api := &fakeAppleSiliconAPI{servers: []*applesilicon.Server{
+		{ID: "a", Name: "tuist-pool-1", Status: applesilicon.ServerStatusReady},
+		{ID: "b", Name: "tuist-tuist-macos-fleet-0", Status: applesilicon.ServerStatusReady},
+	}}
+	c := newTestClient(api)
+
+	got, err := c.ListServers(context.Background(), "fr-par-1")
+	if err != nil {
+		t.Fatalf("ListServers: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(got))
+	}
+	if got[0].ID != "a" || got[0].Name != "tuist-pool-1" {
+		t.Fatalf("unexpected first server: %+v", got[0])
+	}
+	if got[1].ID != "b" || got[1].Name != "tuist-tuist-macos-fleet-0" {
+		t.Fatalf("unexpected second server: %+v", got[1])
+	}
+}
+
+func TestIsPoolOrAdopting(t *testing.T) {
+	cases := []struct {
+		name   string
+		server string
+		prefix string
+		want   bool
+	}{
+		{"pool host", "tuist-pool-abc", "tuist-pool-", true},
+		{"claim-pending host", "tuist-claim-pending-xyz", "tuist-pool-", true},
+		{"claimed host", "tuist-tuist-macos-fleet-0", "tuist-pool-", false},
+		{"foreign default name", "apple-silicon-romantic-x", "tuist-pool-", false},
+		{"empty pool prefix still catches claim-pending", "tuist-claim-pending-1", "", true},
+		{"empty pool prefix does not blanket-match pool names", "tuist-pool-abc", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := IsPoolOrAdopting(tc.server, tc.prefix); got != tc.want {
+				t.Fatalf("IsPoolOrAdopting(%q, %q) = %v, want %v", tc.server, tc.prefix, got, tc.want)
+			}
+		})
+	}
+}

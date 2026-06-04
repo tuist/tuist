@@ -14,7 +14,7 @@ defmodule Tuist.Tests.TestCaseRunByTestRun do
   @derive {
     Flop.Schema,
     filterable: [:test_run_id, :name, :status, :is_flaky, :is_new, :duration, :project_id, :test_case_id],
-    sortable: [:inserted_at, :duration, :name, :ran_at]
+    sortable: [:inserted_at, :duration, :name, :ran_at, :id]
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}

@@ -9,6 +9,12 @@
 > [!NOTE]
 > `Kura` comes from the Japanese word `蔵` (`kura`), which refers to a storehouse or warehouse. The name fits the system's role: keeping build artifacts and cache metadata stored durably and close at hand so they can be served with low latency.
 
+## License and Contributing
+
+Kura is licensed under the GNU Affero General Public License, version 3 only. See [LICENSE.md](./LICENSE.md) for the full license text.
+
+Contributions to Kura require signing the Kura Contributor License Agreement (CLA). Please see [CLA.md](./CLA.md) before submitting pull requests that modify Kura components.
+
 ## Summary ✨
 
 - ⚡ Hot reads come from local disk
@@ -282,7 +288,7 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
 
-Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. In Helm deployments, inject it via `extraEnv` or `extraEnvFrom`.
+Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
 ## 📊 Observability

@@ -4,10 +4,6 @@
 [bump]
 initial_tag = "0.1.0"
 
-[remote.github]
-owner = "tuist"
-repo = "tuist"
-
 [changelog]
 header = """
 # Changelog
@@ -22,16 +18,7 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group | striptags | trim }}
 {% for commit in commits %}
-  {% if commit.github.pr_title -%}
-    {%- set commit_message = commit.github.pr_title -%}
-  {%- else -%}
-    {%- set commit_message = commit.message -%}
-  {%- endif -%}
-  * {{ commit_message | split(pat="\n") | first | trim }}\
-    {% if commit.github.username %} by [@{{ commit.github.username }}](https://github.com/{{ commit.github.username }}){%- endif -%}
-    {% if commit.github.pr_number %} in \
-      [#{{ commit.github.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.github.pr_number }}) \
-    {%- endif %}
+  * {{ commit.message | split(pat="\n") | first | trim }}
 {%- endfor -%}
 {% endfor %}
 
@@ -44,7 +31,7 @@ body = """
 {% endif %}
 
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/tuist/tuist
 {%- endmacro -%}
 """
 trim = true
@@ -60,7 +47,10 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 commit_preprocessors = [
-    { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
+    # Linkify (#123) PR refs straight from commit messages.
+    # [remote.github] is intentionally unset so git-cliff makes no GitHub API
+    # calls per release (each would paginate the whole repo's commits+PRs).
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/tuist/tuist/pull/${1}))" },
 ]
 # Type-only parsers, path filtering via `--include-path` in
 # release.yml. Any conventional-commit touching the component path

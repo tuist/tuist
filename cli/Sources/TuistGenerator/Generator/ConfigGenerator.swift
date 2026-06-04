@@ -169,6 +169,18 @@ struct ConfigGenerator: ConfigGenerating {
         configurationList: XCConfigurationList,
         sourceRootPath: AbsolutePath
     ) async throws {
+        if target.isAggregate {
+            try generateAggregateTargetSettingsFor(
+                target: target,
+                buildConfiguration: buildConfiguration,
+                configuration: configuration,
+                fileElements: fileElements,
+                pbxproj: pbxproj,
+                configurationList: configurationList
+            )
+            return
+        }
+
         let settingsHelper = SettingsHelper()
 
         var settings: SettingsDictionary = try await defaultSettingsProvider.targetSettings(
@@ -201,6 +213,38 @@ struct ConfigGenerator: ConfigGenerating {
                 ),
                 inherit: true
             )
+
+        let variantBuildConfiguration = XCBuildConfiguration(
+            name: buildConfiguration.xcodeValue,
+            baseConfiguration: nil,
+            buildSettings: [:]
+        )
+        if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
+            let fileReference = fileElements.file(path: xcconfig)
+            variantBuildConfiguration.baseConfiguration = fileReference
+        }
+
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
+        pbxproj.add(object: variantBuildConfiguration)
+        configurationList.buildConfigurations.append(variantBuildConfiguration)
+    }
+
+    private func generateAggregateTargetSettingsFor(
+        target: Target,
+        buildConfiguration: BuildConfiguration,
+        configuration: Configuration?,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj,
+        configurationList: XCConfigurationList
+    ) throws {
+        let settingsHelper = SettingsHelper()
+        var settings: SettingsDictionary = [:]
+        settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        if buildConfiguration.variant == .debug {
+            settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
+        }
+        settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        settings["VERSIONING_SYSTEM"] = ""
 
         let variantBuildConfiguration = XCBuildConfiguration(
             name: buildConfiguration.xcodeValue,

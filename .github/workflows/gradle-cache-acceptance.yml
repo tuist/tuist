@@ -35,10 +35,8 @@ env:
 jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    # TODO: migrate to tuist-linux once the runner image ships a
-    # docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    runs-on: tuist-linux
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:

@@ -100,9 +100,7 @@ jobs:
 
   docker_build:
     name: Docker Build (Storybook)
-    # TODO: migrate to tuist-linux once the runner image ships a
-    # docker daemon — this job builds the storybook image directly.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
