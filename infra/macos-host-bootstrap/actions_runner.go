@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -284,7 +285,7 @@ sudo launchctl kickstart -k "gui/$RUNNER_UID/$RUNNER_LABEL"
 		shellQuote(cfg.GHRunnerLabels),
 		shellQuote(runnerName),
 	)
-	return RunCommandWithStdin(ctx, client, script, cfg.GHRunnerRegistrationToken)
+	return RunCommandWithStdin(ctx, client, script, strings.NewReader(cfg.GHRunnerRegistrationToken))
 }
 
 // runActionsRunnerInstall is the public entrypoint Run() calls when

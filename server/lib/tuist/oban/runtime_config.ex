@@ -33,6 +33,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Kura.Reconciler},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
+    {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
   ]
 

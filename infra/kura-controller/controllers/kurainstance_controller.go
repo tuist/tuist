@@ -27,9 +27,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
@@ -52,8 +56,10 @@ const (
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
 
-	sharedSecretsName        = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	sharedSecretsName         = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar  = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar         = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	sharedSecretsRVAnnotation = "kura.tuist.dev/shared-secrets-resource-version"
 
 	grpcTLSVolumeName = "grpc-tls"
 	grpcTLSMountPath  = "/etc/kura/grpc-tls"
@@ -85,6 +91,7 @@ type KuraInstanceReconciler struct {
 	// every cert it asks cert-manager to mint.
 	GRPCClusterIssuer  string
 	OTLPTracesEndpoint string
+	Environment        string
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -555,7 +562,11 @@ func (r *KuraInstanceReconciler) reconcilePodDisruptionBudget(ctx context.Contex
 
 func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+	sharedSecretsResourceVersion, err := r.sharedSecretsResourceVersion(ctx, instance.Namespace)
+	if err != nil {
+		return err
+	}
+	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
 		}
@@ -564,7 +575,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.Replicas = ptr(replicas(instance))
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
-		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint)
+		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
 		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
 		// Drop the PVC when the StatefulSet itself is deleted (server
 		// destroy), but keep it around when scaling down so a replica
@@ -576,6 +587,17 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		return nil
 	})
 	return err
+}
+
+func (r *KuraInstanceReconciler) sharedSecretsResourceVersion(ctx context.Context, namespace string) (string, error) {
+	secret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Name: sharedSecretsName, Namespace: namespace}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return secret.ResourceVersion, nil
 }
 
 type rolloutState struct {
@@ -637,11 +659,11 @@ func rolloutStatusFromStatefulSet(instance *kurav1alpha1.KuraInstance, sts *apps
 	}
 }
 
-func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) corev1.PodTemplateSpec {
+func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string, sharedSecretsResourceVersion string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
-			Annotations: podAnnotations(),
+			Annotations: podAnnotations(sharedSecretsResourceVersion),
 		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
@@ -652,7 +674,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string)
 				Image:           instance.Spec.Image,
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Ports:           containerPorts(instance),
-				Env:             append(baseEnv(instance, otlpTracesEndpoint), instance.Spec.ExtraEnv...),
+				Env:             append(baseEnv(instance, otlpTracesEndpoint, environment), instance.Spec.ExtraEnv...),
 				EnvFrom:         sharedSecretsEnvFrom(),
 				Resources:       defaultResources(),
 				VolumeMounts:    volumeMounts(instance),
@@ -670,12 +692,16 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string)
 // clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
 // with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
 // publish the same telemetry surface as chart-managed ones.
-func podAnnotations() map[string]string {
-	return map[string]string{
+func podAnnotations(sharedSecretsResourceVersion string) map[string]string {
+	annotations := map[string]string{
 		"prometheus.io/scrape":    "true",
 		"prometheus.io/port-name": "http",
 		"prometheus.io/path":      "/metrics",
 	}
+	if sharedSecretsResourceVersion != "" {
+		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
+	}
+	return annotations
 }
 
 // preStopLifecycle sends SIGUSR1 to the kura process so it begins
@@ -842,7 +868,10 @@ func topologySpreadConstraints(instance *kurav1alpha1.KuraInstance) []corev1.Top
 // are derived from the pod's cgroup and rlimit at runtime startup, so
 // the controller deliberately doesn't override them. See
 // kura/src/config.rs::DerivedRuntimeDefaults.
-func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []corev1.EnvVar {
+func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, environment string) []corev1.EnvVar {
+	if environment == "" {
+		environment = "production"
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -860,7 +889,9 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string) []c
 		{Name: "KURA_INTERNAL_TLS_KEY_PATH", Value: peerTLSMountPath + "/" + peerTLSKeyFile},
 		{Name: "KURA_DRAIN_COMPLETION_TIMEOUT_MS", Value: strconv.FormatInt(drainCompletionTimeoutMs, 10)},
 		{Name: "KURA_OTEL_SERVICE_NAME", Value: "$(POD_NAME)"},
-		{Name: "KURA_OTEL_DEPLOYMENT_ENVIRONMENT", Value: "production"},
+	}
+	if !hasEnvVar(instance.Spec.ExtraEnv, environmentEnvVar) {
+		env = append(env, corev1.EnvVar{Name: environmentEnvVar, Value: environment})
 	}
 	if otlpTracesEndpoint != "" && !hasEnvVar(instance.Spec.ExtraEnv, otlpTracesEndpointEnvVar) {
 		env = append(env, corev1.EnvVar{Name: otlpTracesEndpointEnvVar, Value: otlpTracesEndpoint})
@@ -1064,6 +1095,13 @@ func ptr[T any](v T) *T {
 func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kurav1alpha1.KuraInstance{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstancesForSharedSecret),
+			builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+				return object.GetName() == sharedSecretsName
+			})),
+		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
@@ -1072,4 +1110,20 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
 		Complete(r)
+}
+
+func (r *KuraInstanceReconciler) kuraInstancesForSharedSecret(ctx context.Context, object client.Object) []reconcile.Request {
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(object.GetNamespace())); err != nil {
+		log.FromContext(ctx).Error(err, "list Kura instances for shared secret update", "namespace", object.GetNamespace())
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(instances.Items))
+	for _, instance := range instances.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace},
+		})
+	}
+	return requests
 }

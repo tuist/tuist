@@ -80,9 +80,11 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build server image
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
     timeout-minutes: 40
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}

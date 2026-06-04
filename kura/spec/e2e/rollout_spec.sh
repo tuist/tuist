@@ -4,17 +4,14 @@ Describe 'warm rollout lifecycle'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-rollout"
-    export KURA_US_PORT=4601
-    export TEMPO_PORT=3315
-    export OTLP_PORT=4430
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/test/e2e/docker-compose.discovery.yml"
     )
     setup_suite_tmpdir
+
+    suite_env COMPOSE_PROJECT_NAME kura-rollout
+    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us >/dev/null 2>&1
@@ -23,6 +20,7 @@ Describe 'warm rollout lifecycle'
   reset_cluster() {
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc up -d kura-us >/dev/null 2>&1
+    resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up" || return 1
     wait_for_http "${KURA_US_URL}/ready" || return 1
     capture_into ready_body wait_for_contains "${KURA_US_URL}/ready" '"state":"serving"' || return 1
@@ -69,6 +67,7 @@ Describe 'warm rollout lifecycle'
     dc stop kura-us >/dev/null 2>&1 || return 1
     dc rm -f kura-us >/dev/null 2>&1 || return 1
     dc up -d kura-us >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US kura-us
 
     wait_for_http "${KURA_US_URL}/up" || return 1
     wait_for_http "${KURA_US_URL}/ready" || return 1

@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 

@@ -100,6 +100,12 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: production
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true
@@ -116,7 +122,13 @@ postgresql:
   cnpg:
     instances: 3
     storage:
-      size: "100Gi"
+      # Sized for the Supabase → CNPG initial COPY: per-table sync workers
+      # each pin WAL until their COPY commits, so peak disk during the
+      # one-time migration is data + indexes + accumulated WAL — for
+      # cache_events (6 secondary indexes, 6-10× WAL amplification per
+      # insert) that runs ~5× the source data size. Steady-state usage
+      # after the COPY commits and slots release is ~30-40 GiB.
+      size: "250Gi"
     # Requests sized to fit three instances under hard pod anti-affinity
     # alongside the rest of the pool tenants; limits left generous so
     # Postgres runtime peaks aren't capped by the scheduling budget.

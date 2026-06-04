@@ -90,6 +90,8 @@ pub struct Metrics {
     extension_hooks: Family<ExtensionHookLabels, Counter>,
     extension_hook_duration: Family<ExtensionHookRouteLabels, Histogram>,
     extension_cache: Family<ExtensionCacheLabels, Counter>,
+    extension_http_client_requests: Family<ExtensionHttpClientLabels, Counter>,
+    extension_http_client_duration: Family<ExtensionHttpClientRouteLabels, Histogram>,
     process_resident_memory_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
     rocksdb_block_cache_usage_bytes: Gauge,
@@ -210,6 +212,12 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.0005, 2.0, 16))
             });
         let extension_cache = Family::<ExtensionCacheLabels, Counter>::default();
+        let extension_http_client_requests =
+            Family::<ExtensionHttpClientLabels, Counter>::default();
+        let extension_http_client_duration =
+            Family::<ExtensionHttpClientRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
         let process_resident_memory_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
         let rocksdb_block_cache_usage_bytes = Gauge::default();
@@ -545,6 +553,16 @@ impl Metrics {
             extension_cache.clone(),
         );
         registry.register(
+            "kura_extension_http_client_requests_total",
+            "Extension HTTP client requests by client, route, result, status class, and error kind",
+            extension_http_client_requests.clone(),
+        );
+        registry.register(
+            "kura_extension_http_client_request_duration_seconds",
+            "Extension HTTP client request latency by client and route",
+            extension_http_client_duration.clone(),
+        );
+        registry.register(
             "kura_process_resident_memory_bytes",
             "Process resident memory size in bytes",
             process_resident_memory_bytes.clone(),
@@ -716,6 +734,8 @@ impl Metrics {
             extension_hooks,
             extension_hook_duration,
             extension_cache,
+            extension_http_client_requests,
+            extension_http_client_duration,
             process_resident_memory_bytes,
             process_virtual_memory_bytes,
             rocksdb_block_cache_usage_bytes,
@@ -1172,6 +1192,32 @@ impl Metrics {
             .inc();
     }
 
+    pub fn record_extension_http_client(
+        &self,
+        client: &str,
+        route: &str,
+        result: &str,
+        status_class: &str,
+        error_kind: &str,
+        duration: Duration,
+    ) {
+        self.extension_http_client_requests
+            .get_or_create(&ExtensionHttpClientLabels {
+                client: client.to_owned(),
+                route: route.to_owned(),
+                result: result.to_owned(),
+                status_class: status_class.to_owned(),
+                error_kind: error_kind.to_owned(),
+            })
+            .inc();
+        self.extension_http_client_duration
+            .get_or_create(&ExtensionHttpClientRouteLabels {
+                client: client.to_owned(),
+                route: route.to_owned(),
+            })
+            .observe(duration.as_secs_f64());
+    }
+
     pub fn update_process_memory(&self, resident_bytes: u64, virtual_bytes: u64) {
         self.process_resident_memory_bytes
             .set(resident_bytes as i64);
@@ -1421,6 +1467,21 @@ struct ExtensionHookRouteLabels {
 struct ExtensionCacheLabels {
     cache: String,
     result: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ExtensionHttpClientLabels {
+    client: String,
+    route: String,
+    result: String,
+    status_class: String,
+    error_kind: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct ExtensionHttpClientRouteLabels {
+    client: String,
+    route: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

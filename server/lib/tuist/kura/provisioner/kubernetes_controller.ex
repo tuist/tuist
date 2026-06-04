@@ -208,6 +208,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> URI.to_string()
   end
 
+  defp tuist_base_url(%Regions{provisioner_config: %{tuist_base_url: url}}) when is_binary(url) and url != "", do: url
+
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
 
   defp rewrite_loopback(%URI{host: host} = uri, replacement) when host in ["localhost", "127.0.0.1", "0.0.0.0"] do
@@ -217,6 +219,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp rewrite_loopback(uri, _), do: uri
 
   defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+
   defp storage_class(_), do: nil
 
   defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
@@ -226,6 +229,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp replicas(_), do: nil
 
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
+
   defp node_selector(_), do: nil
 
   defp interpolate_host(template, handle, %{cluster_id: cluster_id}) do

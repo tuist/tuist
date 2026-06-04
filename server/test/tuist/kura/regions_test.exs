@@ -17,20 +17,34 @@ defmodule Tuist.Kura.RegionsTest do
       assert "eu-central" in ids
 
       for id <- ["us-east", "us-west", "eu-central"] do
-        assert %Regions{provisioner: KubernetesController, provisioner_config: config} = Regions.get(id)
+        assert %Regions{provisioner: KubernetesController, provisioner_config: config} =
+                 Regions.get(id)
+
         refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
         assert config.hetzner_location == hetzner_locations[id]
         assert config.storage_class == "hcloud-volumes"
       end
 
-      assert Regions.get("us-east").provisioner_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "us-east-1"]
-      assert Regions.get("us-west").provisioner_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "us-west-1"]
+      assert Regions.get("us-east").provisioner_config.kubernetes_client == [
+               mode: :kubeconfig,
+               cluster_id: "us-east-1"
+             ]
+
+      assert Regions.get("us-west").provisioner_config.kubernetes_client == [
+               mode: :kubeconfig,
+               cluster_id: "us-west-1"
+             ]
+
       refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do
-      assert %Regions{id: "local-controller", provisioner: KubernetesController, provisioner_config: config} =
+      assert %Regions{
+               id: "local-controller",
+               provisioner: KubernetesController,
+               provisioner_config: config
+             } =
                Enum.find(Regions.all(), &(&1.id == "local-controller"))
 
       assert config.cluster_id == "local-controller"
@@ -40,6 +54,15 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.replicas == 1
       assert config.storage_size == "10Gi"
       assert config.node_selector == %{"kubernetes.io/os" => "linux"}
+    end
+
+    test "reads the managed-region Tuist base URL from the environment adapter" do
+      stub(Tuist.Environment, :kura_tuist_base_url, fn ->
+        "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
+      end)
+
+      assert Regions.get("eu-central").provisioner_config.tuist_base_url ==
+               "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
     end
   end
 
@@ -59,7 +82,10 @@ defmodule Tuist.Kura.RegionsTest do
     test "returns every configured managed region outside test and development" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east", "us-west"] end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-central", "us-east", "us-west"]
+      end)
 
       assert Enum.map(Regions.available(), & &1.id) == ["us-east", "us-west", "eu-central"]
     end
@@ -136,7 +162,9 @@ defmodule Tuist.Kura.RegionsTest do
       stub(Tuist.Environment, :dev_instance_suffix, fn -> 42 end)
       controller_region = Regions.get("local-controller")
 
-      assert controller_region.provisioner_config.kubernetes_client[:context] == "kind-kura-dev-42"
+      assert controller_region.provisioner_config.kubernetes_client[:context] ==
+               "kind-kura-dev-42"
+
       assert controller_region.provisioner_config.public_url == "http://localhost:4142"
     end
 

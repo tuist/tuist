@@ -76,6 +76,12 @@ objectStorage:
       default: tuist-can-storage
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: canary
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true
@@ -94,6 +100,7 @@ kuraController:
 # footprint climbs. Backups land in the `tuist-can-pg-backups` Tigris
 # bucket.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 2
     storage:
