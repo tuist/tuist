@@ -56,12 +56,10 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
   end
 
   # Stream-gzip the job's log to a temp file and upload it via S3
-  # multipart. A noisy 4-hour build can emit hundreds of MB; the old
-  # in-memory `:zlib.gzip(IO.iodata_to_binary(...))` held the full
-  # plain-text *and* the gzip simultaneously and reran both on every
-  # Oban retry, which would OOM the worker process. With this layout
-  # the peak resident set is one CH batch (~300 KB of lines) plus
-  # zlib's deflate state plus the 5 MiB multipart chunk in flight.
+  # multipart. A noisy 4-hour build can emit hundreds of MB; this
+  # layout keeps the peak resident set at one CH batch (~300 KB of
+  # lines) plus zlib's deflate state plus the 5 MiB multipart chunk
+  # in flight — independent of total log size.
   defp archive(workflow_job_id, account) do
     path = Briefly.create!()
     file = File.open!(path, [:write, :binary, :raw])
