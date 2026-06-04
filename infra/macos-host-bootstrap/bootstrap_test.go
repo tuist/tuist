@@ -71,6 +71,24 @@ func TestRenderLaunchdPlist_RendersMultipleLabelsSorted(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_OmitsDisableVMGCForPureNode(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--disable-vm-gc") {
+		t.Fatalf("expected --disable-vm-gc to be absent on a pure Node (no GHActionsRunner)\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersDisableVMGCForBuilder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:        "n1",
+		SSHUser:         "m1",
+		GHActionsRunner: &GHActionsRunnerConfig{},
+	})
+	if !strings.Contains(out, "<string>--disable-vm-gc</string>") {
+		t.Fatalf("expected --disable-vm-gc in plist for a builder host\n%s", out)
+	}
+}
+
 // HostKeyState is the SSH-side TOFU primitive. The first observation
 // of a host key on a fresh state is captured; later observations
 // against a state seeded with KnownHostFingerprint must match.
