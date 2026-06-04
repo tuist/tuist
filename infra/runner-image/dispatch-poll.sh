@@ -100,6 +100,14 @@ while true; do
         continue
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Forensic vitals for the job's lifetime. POSTs samples to the
+      # server's vitals endpoint (a Tart VM has no stdout->Loki path,
+      # unlike the Linux runner). Backgrounded so it samples alongside
+      # the runner and dies with the VM. Guarded so a missing/older
+      # image never blocks the runner.
+      if [ -x /opt/tuist/vitals.sh ]; then
+        /opt/tuist/vitals.sh &
+      fi
       cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever

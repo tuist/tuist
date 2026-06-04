@@ -230,11 +230,17 @@ build {
     destination = "/tmp/dispatch-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/vitals.sh"
+    destination = "/tmp/vitals.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/vitals.sh /opt/tuist/vitals.sh",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/vitals.sh"
     ]
   }
 

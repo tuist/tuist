@@ -33,6 +33,15 @@ runtime — no service, sudo entry, or auto-login targets it.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
+- `/opt/tuist/vitals.sh` — resource-vitals probe. dispatch-poll.sh
+  backgrounds it just before running the GitHub Actions runner. A
+  Tart VM has no stdout->Loki path (its logs die with the VM), so
+  unlike the Linux runner it POSTs samples (vm_stat / loadavg /
+  swapusage, sanitized to digits) to the server's
+  `/api/internal/runners/vitals` endpoint, reusing the dispatch SA
+  token and URL host; the server logs them so they reach Loki. This
+  is the forensic trail for a runner that dies mid-job. Fail-open;
+  interval via `TUIST_RUNNER_VITALS_INTERVAL` (default 5s).
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.
