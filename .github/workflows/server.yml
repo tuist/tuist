@@ -60,7 +60,11 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: tuist-linux
+    # tuist-linux-large: mix gettext.extract compiles the full project
+    # (every dgettext/3 call needs to be reachable for the extractor) and
+    # OOMs the 2 vCPU / 8 GB default shape — same Elixir-compile-OOM
+    # pattern as `setup-server-mix` callers.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
