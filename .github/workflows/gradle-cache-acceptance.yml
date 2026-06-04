@@ -35,8 +35,12 @@ env:
 jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    runs-on: tuist-linux
-    timeout-minutes: 15
+    # Bigger shape: the e2e compiles and boots the full server + ClickHouse,
+    # which peaks over the 2 vCPU / 8 GB default microVM and OOM-kills the
+    # runner from inside the guest ("lost communication"). The 4 vCPU / 16 GB
+    # shape restores the headroom from before the default downsize (#11052).
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
@@ -113,7 +117,11 @@ jobs:
         run: |
           # Single mix do so compile + all ecto tasks + seeds share one BEAM
           # (and peak memory only once) before we ever start the web server.
-          MIX_ENV=dev mix do \
+          # +S 1 caps the parallel compiler exactly like Start main server
+          # below: on a cold _build cache this does a full compile, and at 4
+          # workers the in-flight module copies OOM the runner from inside the
+          # guest ("lost communication").
+          ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix do \
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \

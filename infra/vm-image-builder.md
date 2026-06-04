@@ -324,8 +324,18 @@ workflows can't run as Pods on that model because they'd need to
 spawn nested macOS guests (Packer → Tart → macOS), which Apple
 Silicon Virtualization.framework refuses. So the builder runs as a
 host-level LaunchAgent that invokes Tart directly, sitting beside
-tart-kubelet on the same host without conflict because no Pods are
-ever scheduled there.
+tart-kubelet on the same host.
+
+The one place this isn't conflict-free: tart-kubelet's orphan-VM
+GC (`internal/podagent/garbage.go`) deletes every local Tart VM
+not backed by a Pod scheduled to the Node. Because no Pods ever
+land on a builder, the host-baked build VM looks orphaned and the
+GC would `tart delete` it mid-`tart push` — the push then fails at
+the NVRAM layer with `The file "nvram.bin" doesn't exist`. The
+bootstrap therefore starts tart-kubelet with `--disable-vm-gc` on
+builder Nodes (`renderLaunchdPlist` keys this off `GHActionsRunner`
+being set); the image-bake workflow's own "Reclaim Tart disk" step
+handles disk reclamation there instead.
 
 The bootstrap helpers in
 [`infra/macos-host-bootstrap/`](macos-host-bootstrap/) are shared

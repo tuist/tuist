@@ -240,7 +240,7 @@ macosFleet:
     # release.yml has run for this scope, pin to a known-good
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
-    tag: "0.7.2"
+    tag: "0.8.1"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on

@@ -9,6 +9,12 @@
 > [!NOTE]
 > `Kura` comes from the Japanese word `蔵` (`kura`), which refers to a storehouse or warehouse. The name fits the system's role: keeping build artifacts and cache metadata stored durably and close at hand so they can be served with low latency.
 
+## License and Contributing
+
+Kura is licensed under the GNU Affero General Public License, version 3 only. See [LICENSE.md](./LICENSE.md) for the full license text.
+
+Contributions to Kura require signing the Kura Contributor License Agreement (CLA). Please see [CLA.md](./CLA.md) before submitting pull requests that modify Kura components.
+
 ## Summary ✨
 
 - ⚡ Hot reads come from local disk
@@ -93,7 +99,7 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 ## 🔌 Protocol Surfaces
 
-Kura exposes multiple cache protocols behind one service. The actively supported surfaces are:
+Kura exposes multiple cache protocols behind one service. Public HTTPS supports HTTP/2 so clients can multiplex concurrent artifact downloads on long-lived connections. The actively supported surfaces are:
 
 - 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
@@ -400,6 +406,7 @@ The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `
 - 🧭 a headless service for stable pod DNS and peer discovery
 - 🌐 a regular service exposing both HTTP and gRPC
 - 🚪 optional ingress for the HTTP API
+- 🚪 optional ingress for the gRPC Remote Execution API
 - 🧩 optional inline extension script mounting through a `ConfigMap`
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
 - 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
@@ -410,6 +417,21 @@ Lint and render the chart:
 ```bash
 helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
+```
+
+Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress that routes to the service's `grpc` port so you can attach controller-specific gRPC annotations without changing the HTTP API ingress:
+
+```yaml
+grpcIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  hosts:
+    - host: kura-grpc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
 ```
 
 Install it on a generic cluster:

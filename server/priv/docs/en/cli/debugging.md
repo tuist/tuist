@@ -37,7 +37,7 @@ The HAR file records all HTTP requests and responses made during the session, wh
 
 By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).
 
-Session directories older than 5 days are automatically cleaned up.
+Session directories older than 5 days are automatically cleaned up. Tuist also keeps at most 50 inactive session directories by default, while preserving sessions owned by currently running Tuist processes. In CI environments that run many Tuist commands with the same state directory, you can raise the inactive-session cap with `TUIST_SESSION_MAX_SESSIONS`, for example `TUIST_SESSION_MAX_SESSIONS=200`. Invalid values, zero, and negative values are ignored and Tuist falls back to the default of 50.
 
 ### Continuous integration {#diagnose-issues-using-logs-ci}
 

@@ -1,5 +1,5 @@
 defmodule Tuist.Storage.ArtifactRetentionCursorTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Repo
   alias Tuist.Storage.ArtifactRetentionCursor
