@@ -192,11 +192,19 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
+# dispatch-poll.sh runs in the `poller` init container (holds the SA
+# token, stages the JIT); run-job.sh runs in the `runner` main
+# container (no token, runs the staged JIT). The controller's
+# podtemplate wires which container runs which. See
+# infra/runners-controller/AGENTS.md for the split-credential shape.
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh
+COPY run-job.sh /usr/local/bin/run-job.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh
 
 USER runner
 
-# PID 1 is the polling script. It exec's the runner once a JIT
-# config lands, and exits normally when `./run.sh` returns.
+# Default CMD is the poll loop, used by the poller init container.
+# The runner main container overrides this with run-job.sh via the
+# controller's podtemplate. On a single-container (non-split)
+# deployment dispatch-poll.sh execs the runner itself.
 CMD ["/usr/local/bin/dispatch-poll.sh"]

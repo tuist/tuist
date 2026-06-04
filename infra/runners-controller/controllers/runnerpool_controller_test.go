@@ -100,6 +100,40 @@ func TestIsStaleImage_EmptyContainers(t *testing.T) {
 	}
 }
 
+func TestIsIdle(t *testing.T) {
+	withPoller := func(name string, state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod(name, "img", corev1.PodPending, "p")
+		p.Status.InitContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			{Name: "poller", State: state},
+		}
+		return p
+	}
+	owner := newRunnerPod("p-owner", "img", corev1.PodPending, "p")
+	owner.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	cases := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{"warm, no label, no init status", newRunnerPod("p-warm", "img", corev1.PodPending, "p"), true},
+		{"owner label set", owner, false},
+		// The poller exits the moment it stages a claim, so a
+		// terminated poller means "claimed" even without the
+		// best-effort owner label.
+		{"poller terminated, no label", withPoller("p-claimed", corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}), false},
+		{"poller still running, no label", withPoller("p-polling", corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isIdle(tc.pod); got != tc.want {
+				t.Fatalf("isIdle = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestReconcile_DeletesStalePendingPodAndCreatesReplacement is the
 // behaviour that fixes the operator-side dance we hit while rolling
 // out runner-image bumps: when the chart rewrites the digest pin,
@@ -162,6 +196,99 @@ func TestReconcile_DeletesStalePendingPodAndCreatesReplacement(t *testing.T) {
 	err = c.Get(context.Background(), nn("tuist-runners", "p-runner-stale"), sa)
 	if err == nil {
 		t.Fatalf("expected stale SA p-runner-stale to be deleted, still present")
+	}
+}
+
+// TestReconcile_LeavesStalePendingClaimedPodAlone covers the
+// isIdle guard on the stale-Pending reap. With the Linux
+// token-isolation Pod shape the poller runs as an init container, so
+// a Pod that has just claimed a job is briefly Pending (poller init
+// exiting, runner main starting). The server stamps
+// `runner-pool-owner` at claim time; the reap must skip such Pods or
+// an image roll racing a claim would kill the job mid-flight.
+func TestReconcile_LeavesStalePendingClaimedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claimed := newRunnerPod("p-runner-claimed", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claimed" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("claimed stale pending pod was reaped; the isIdle guard should protect a just-claimed Pod")
+	}
+	// alive=1 (the claimed pod counts), gap=0 — no replacement.
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while claimed pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+}
+
+// TestReconcile_LeavesStalePendingPollerExitedPodAlone covers the
+// label-independent half of the stale-Pending guard. The server's
+// owner-label stamp is best-effort (it degrades to "running without
+// the label" if the apiserver patch keeps failing), so a genuinely
+// claimed Pod can be Pending with no owner label while the poller
+// exits and the runner starts. The terminated poller is the reliable
+// "claimed" signal, and the reap must honor it.
+func TestReconcile_LeavesStalePendingPollerExitedPodAlone(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:new", 1)
+	claiming := newRunnerPod("p-runner-claiming", "ghcr.io/tuist/tuist-runner@sha256:old", corev1.PodPending, "p")
+	// No owner label (stamp failed), but the poller has staged the JIT
+	// and exited.
+	claiming.Status.InitContainerStatuses = []corev1.ContainerStatus{
+		{Name: "poller", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claiming).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	var survived bool
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-claiming" {
+			survived = true
+		}
+	}
+	if !survived {
+		t.Fatalf("stale Pending pod with an exited poller was reaped; the poller-terminated signal should protect a just-claimed Pod even without the owner label")
+	}
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected no replacement while the claiming pod is alive, got %d: %+v", len(pods.Items), podNames(pods.Items))
 	}
 }
 
