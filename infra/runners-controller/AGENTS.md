@@ -238,6 +238,58 @@ The key remains valid through reinstalls because caph configures it
 into `/root/.ssh/authorized_keys` as part of the cloud-init
 bootstrap.
 
+## Token isolation (credential split, Linux pools)
+
+Linux runner Pods run untrusted workflow code (incl. fork PRs), so
+`podtemplate.Build` splits a Linux Pod into two containers running
+the same runner image so the dispatch token never shares a
+container with customer code:
+
+- **`poller` init container** — the only container that mounts the
+  audience-scoped projected token (`tuist-runner-token`). Runs
+  `dispatch-poll.sh` with `TUIST_RUNNER_JIT_OUTPUT_PATH` set: it
+  polls the dispatch endpoint, and on a claim writes the minted,
+  job-scoped JIT to the shared `tuist-runner-jit` emptyDir, then
+  exits 0. Runs as `runAsUser: 0` purely so it can write that
+  root-owned emptyDir — it executes only our poll script, never
+  customer code. Declared **after** the dind sidecar so it inherits
+  the same `docker info` startupProbe gate the runner container had
+  before the split.
+- **`runner` main container** — holds no token. kubelet starts it
+  only after the poller init container exits, so the JIT (if any)
+  is already staged. Runs `run-job.sh`, which reads
+  `TUIST_RUNNER_JIT_PATH` and execs the runner, or exits 0 when no
+  JIT was staged (the 410 stale-image drain, or a poller abort).
+
+Why this is enough: the token is pool-scoped and can claim a
+pending `workflow_job` for the pool, so a Pod that leaks it could
+race the warm pool for other tenants' jobs. The JIT is job-scoped
+— it binds the runner to exactly one workflow run — so the runner
+already operating under it loses nothing by holding it.
+
+**Lifecycle consequence:** a warm-standby Linux Pod sits in
+`Pending` (poller polling in Init) rather than `Running` until it
+claims a job. `RunnerPoolReconciler`'s stale-Pending reap therefore
+carries an `isIdle` guard so an image roll that races a claim
+doesn't reap a just-claimed Pod that's momentarily Pending. The
+`pod-lifecycle` billing reconciler keys on the `runner` container's
+`terminated.finishedAt` (the poller/dind are init containers, absent
+from `containerStatuses`), so billing still anchors on exactly the
+customer job's runtime. macOS keeps the single-container shape (the
+Tart VM is the isolation boundary; tart-kubelet projects the token
+into it).
+
+**Rollout ordering:** ship the runner image carrying `run-job.sh`
++ the poller-mode `dispatch-poll.sh` (and pin
+`runnersFleetLinux.pools[].runnerImage` to it) **before** the
+controller that creates the split Pod shape. A new controller on an
+old image would set `TUIST_RUNNER_JIT_OUTPUT_PATH` against a
+dispatch-poll that ignores it and execs the job inside the poller
+(token still mounted). The reverse (old controller, new image) is
+safe: with the env unset the new script execs the runner in place —
+a rollout bridge that can be dropped once every env runs the split
+controller.
+
 ## dockerd sidecar (Linux pools)
 
 Every Linux runner Pod gets a `dind` native sidecar (k8s ≥ 1.29:

@@ -76,6 +76,14 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 # during the first resolver fetch. No measurable effect on fast networks.
 ENV HEX_HTTP_TIMEOUT=120
 
+# Cap the BEAM at 2 schedulers for every compile in this stage and the two
+# that branch from it. og-images and builder compile concurrently, so the
+# default (4 schedulers each on the 4-core runner) oversubscribes to 8
+# threads holding ~8 in-flight module copies, which OOM-kills the 16 GB
+# runner mid-build ("lost communication"). 2 each = 4 total still saturates
+# the cores, without the memory spike.
+ENV ELIXIR_ERL_OPTIONS="+S 2"
+
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 

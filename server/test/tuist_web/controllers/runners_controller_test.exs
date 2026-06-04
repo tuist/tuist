@@ -2,18 +2,15 @@ defmodule TuistWeb.RunnersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
     test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
-      account = enabled_account_fixture()
+      account = account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -98,17 +95,5 @@ defmodule TuistWeb.RunnersControllerTest do
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
     end
-  end
-
-  defp enabled_account_fixture do
-    account = account_fixture()
-
-    {1, _} =
-      Repo.update_all(
-        from(a in Account, where: a.id == ^account.id),
-        set: [runner_max_concurrent: 10]
-      )
-
-    Repo.reload!(account)
   end
 end

@@ -1,5 +1,5 @@
 defmodule Tuist.CommandEvents.EventTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.CommandEvents.Event
 
