@@ -286,24 +286,25 @@ runnersFleet:
   # fleet allocator, which apportions the `hostCount` slot budget
   # across all macOS pools using the three-tier (floor / load /
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
-  # guarantee; the sum across overrides must stay ≤ `hostCount`
-  # (production runs 9 hosts). `maxReplicas: 9` lets either pool
-  # absorb the whole fleet under skewed demand — the allocator caps
-  # the joint sum so the pools don't double-book.
+  # guarantee; `maxReplicas: 9` lets either pool absorb the whole
+  # fleet under skewed demand and the allocator caps the joint sum
+  # so the pools don't double-book.
   #
-  # Today's floors (7 + 2) saturate the budget, so behaviour matches
-  # the prior static replicas: 7/2 split. Lowering one floor unlocks
-  # dynamic redistribution toward whichever pool the queue points at.
+  # Floors sum to 4 of the 9-slot budget — the remaining 5 slots are
+  # dynamically apportioned by queue depth across the two pools. The
+  # default (26.5) keeps a larger baseline since most traffic lands
+  # there; 26.4.1 keeps one always-warm so customers pinned to it
+  # don't cold-start every job.
   xcodeOverrides:
     "26.5":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 7
+        minWarmPoolFloor: 3
         maxReplicas: 9
     "26.4.1":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 2
+        minWarmPoolFloor: 1
         maxReplicas: 9
   runnerImageSemver: "865b08d2"
   pools: []
