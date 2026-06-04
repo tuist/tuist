@@ -10,6 +10,7 @@ module(
 )
 
 bazel_dep(name = "rules_rust", version = "0.70.0")
+bazel_dep(name = "rules_cc", version = "0.0.17")
 
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
@@ -26,41 +27,36 @@ register_toolchains("@rust_toolchains//:all")
 #   CARGO_BAZEL_REPIN=1 bazel query '@crates//:all'
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 
-# mlua's `vendored` feature compiles Lua from source shipped inside the `lua-src`
-# crate. lua-src reads `env!("CARGO_MANIFEST_DIR")` at *compile* time, which Bazel
-# bakes as an absolute path into the now-deleted compile sandbox; when the mlua-sys
-# build script later runs, that path is gone. Fix, robust to the runfiles layout:
-#   1. Patch lua-src to take the source dir from an injected MLUA_LUA_SRC_ANCHOR.
-#   2. Expose the vendored Lua sources (and a single-file anchor) as filegroups.
-#   3. Stage them as data of the mlua-sys build script and point the env at the
-#      anchor via $(execpath), so Bazel computes the path (no hardcoded geometry).
+# mlua's `vendored` feature compiles Lua from source shipped in the `lua-src`
+# crate, whose build script reads `env!("CARGO_MANIFEST_DIR")` — a compile-time
+# path that no longer exists when the mlua-sys build script runs under Bazel.
+# Instead of coaxing that build script, we compile Lua ourselves as a cc_library
+# (//bazel/third_party/lua) from lua-src's vendored sources and link it:
+#   1. Expose lua-src's C sources + headers as filegroups for the cc_library.
+#   2. Disable mlua-sys's build script (it only locates/links Lua) and add the
+#      cc_library to its deps, so Bazel handles the C build and linking.
+# This touches no third-party Rust source and gives Lua a real Bazel target.
 crate.annotation(
     crate = "lua-src",
-    patch_args = ["-p1"],
-    patches = ["//bazel/patches:lua-src-env-source-dir.patch"],
     additive_build_file_content = """
 filegroup(
-    name = "vendored_lua_srcs",
-    srcs = glob(["lua-5.4.8/**"]),
+    name = "lua_c_srcs",
+    srcs = glob(["lua-5.4.8/*.c"]),
     visibility = ["//visibility:public"],
 )
 
 filegroup(
-    name = "vendored_lua_anchor",
-    srcs = ["lua-5.4.8/lua.h"],
+    name = "lua_hdrs",
+    srcs = glob(["lua-5.4.8/*.h"]),
     visibility = ["//visibility:public"],
 )
 """,
 )
 crate.annotation(
     crate = "mlua-sys",
-    build_script_data = [
-        "@crates__lua-src-550.0.0//:vendored_lua_srcs",
-        "@crates__lua-src-550.0.0//:vendored_lua_anchor",
-    ],
-    build_script_env = {
-        "MLUA_LUA_SRC_ANCHOR": "$(execpath @crates__lua-src-550.0.0//:vendored_lua_anchor)",
-    },
+    gen_build_script = "off",
+    # @@// is the canonical (main-repo) form, resolvable from the crate repo.
+    deps = ["@@//bazel/third_party/lua:lua"],
 )
 
 crate.from_cargo(

@@ -1,5 +1,5 @@
 {
-  "checksum": "21de669de846f69da01cfebf2aa234672790d72ed73d5b82e7220191164ac209",
+  "checksum": "07a3c70e37c1e0f7128731e219a689c3c526b5043eb4acee42a4961816c55646",
   "crates": {
     "addr2line 0.25.1": {
       "name": "addr2line",
@@ -9632,13 +9632,7 @@
       "repository": {
         "Http": {
           "url": "https://static.crates.io/crates/lua-src/550.0.0/download",
-          "sha256": "e836dc8ae16806c9bdcf42003a88da27d163433e3f9684c52f0301258004a4fb",
-          "patch_args": [
-            "-p1"
-          ],
-          "patches": [
-            "@@//bazel/patches:lua-src-env-source-dir.patch"
-          ]
+          "sha256": "e836dc8ae16806c9bdcf42003a88da27d163433e3f9684c52f0301258004a4fb"
         }
       },
       "targets": [
@@ -9677,7 +9671,7 @@
         "MIT"
       ],
       "license_file": "LICENSE",
-      "additive_build_file_content": "\nfilegroup(\n    name = \"vendored_lua_srcs\",\n    srcs = glob([\"lua-5.4.8/**\"]),\n    visibility = [\"//visibility:public\"],\n)\n\nfilegroup(\n    name = \"vendored_lua_anchor\",\n    srcs = [\"lua-5.4.8/lua.h\"],\n    visibility = [\"//visibility:public\"],\n)\n"
+      "additive_build_file_content": "\nfilegroup(\n    name = \"lua_c_srcs\",\n    srcs = glob([\"lua-5.4.8/*.c\"]),\n    visibility = [\"//visibility:public\"],\n)\n\nfilegroup(\n    name = \"lua_hdrs\",\n    srcs = glob([\"lua-5.4.8/*.h\"]),\n    visibility = [\"//visibility:public\"],\n)\n"
     },
     "luajit-src 210.6.6+707c12b": {
       "name": "luajit-src",
@@ -10367,18 +10361,6 @@
               ]
             }
           }
-        },
-        {
-          "BuildScript": {
-            "crate_name": "build_script_main",
-            "crate_root": "build/main.rs",
-            "srcs": {
-              "allow_empty": true,
-              "include": [
-                "**/*.rs"
-              ]
-            }
-          }
         }
       ],
       "library_target_name": "mlua_sys",
@@ -10400,66 +10382,18 @@
             {
               "id": "libc 0.2.185",
               "target": "libc"
-            },
-            {
-              "id": "mlua-sys 0.10.0",
-              "target": "build_script_main"
             }
+          ],
+          "selects": {}
+        },
+        "extra_deps": {
+          "common": [
+            "@@//bazel/third_party/lua:lua"
           ],
           "selects": {}
         },
         "edition": "2024",
         "version": "0.10.0"
-      },
-      "build_script_attrs": {
-        "compile_data_glob": [
-          "**"
-        ],
-        "compile_data_glob_excludes": [
-          "**/*.rs"
-        ],
-        "data": {
-          "common": [
-            "@crates__lua-src-550.0.0//:vendored_lua_anchor",
-            "@crates__lua-src-550.0.0//:vendored_lua_srcs"
-          ],
-          "selects": {}
-        },
-        "data_glob": [
-          "**"
-        ],
-        "deps": {
-          "common": [
-            {
-              "id": "cc 1.2.60",
-              "target": "cc"
-            },
-            {
-              "id": "cfg-if 1.0.4",
-              "target": "cfg_if"
-            },
-            {
-              "id": "lua-src 550.0.0",
-              "target": "lua_src"
-            },
-            {
-              "id": "luajit-src 210.6.6+707c12b",
-              "target": "luajit_src"
-            },
-            {
-              "id": "pkg-config 0.3.33",
-              "target": "pkg_config"
-            }
-          ],
-          "selects": {}
-        },
-        "build_script_env": {
-          "common": {
-            "MLUA_LUA_SRC_ANCHOR": "$(execpath @crates__lua-src-550.0.0//:vendored_lua_anchor)"
-          },
-          "selects": {}
-        },
-        "links": "lua"
       },
       "license": "MIT",
       "license_ids": [
