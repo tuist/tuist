@@ -10,7 +10,7 @@ on:
     inputs:
       version:
         description: tuist version to test
-        default: "4.118.1"
+        default: "4.155.0"
   push:
     branches:
       - claude/competent-sanderson-dd9ccf
@@ -28,7 +28,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      MIN_SUPPORTED_TUIST_VERSION: ${{ github.event.inputs.version || '4.118.1' }}
+      MIN_SUPPORTED_TUIST_VERSION: ${{ github.event.inputs.version || '4.155.0' }}
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
