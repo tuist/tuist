@@ -4,6 +4,7 @@ defmodule Tuist.Runners.DispatchTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Dispatch
@@ -18,12 +19,8 @@ defmodule Tuist.Runners.DispatchTest do
     :ok
   end
 
-  defp account_with_cap(cap) do
-    account = AccountsFixtures.organization_fixture().account
-
-    account
-    |> Ecto.Changeset.change(runner_max_concurrent: cap)
-    |> Tuist.Repo.update!()
+  defp enabled_account do
+    AccountsFixtures.organization_fixture().account
   end
 
   defp queued_payload(opts) do
@@ -60,17 +57,18 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.handle_webhook(queued_payload(owner: "ghost"), 1)
     end
 
-    test "returns {:ignored, :runners_disabled} when the account has runner_max_concurrent=0" do
-      account = account_with_cap(0)
+    test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do
+      account = enabled_account()
 
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(FeatureFlags, :runners_enabled?, fn _ -> false end)
 
       assert {:ignored, :runners_disabled} =
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
     end
 
     test "returns {:ignored, :no_matching_pool} when none of the pools' dispatchLabels match" do
-      account = account_with_cap(5)
+      account = enabled_account()
 
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
 
@@ -83,7 +81,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "returns {:ignored, :no_pools} when the cluster has no RunnerPool CRs" do
-      account = account_with_cap(5)
+      account = enabled_account()
 
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
@@ -92,8 +90,8 @@ defmodule Tuist.Runners.DispatchTest do
                Dispatch.handle_webhook(queued_payload(owner: account.name), 1)
     end
 
-    test "caches enabled accounts across two webhook calls within the TTL" do
-      account = account_with_cap(5)
+    test "caches the account lookup across two webhook calls within the TTL" do
+      account = enabled_account()
 
       expect(Accounts, :get_account_by_handle, 1, fn _ -> account end)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
@@ -104,24 +102,30 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
     end
 
-    test "does NOT cache cap=0 accounts so adoption (flip from disabled to enabled) takes effect immediately" do
-      account = account_with_cap(0)
+    test "a flag flip from disabled to enabled takes effect on the next webhook" do
+      account = enabled_account()
 
-      expect(Accounts, :get_account_by_handle, 2, fn _ -> account end)
+      # The account is fetched once and cached; enablement is
+      # re-evaluated per webhook, so flipping the flag on is reflected
+      # on the very next delivery without waiting out the cache TTL.
+      expect(Accounts, :get_account_by_handle, 1, fn _ -> account end)
+
+      FeatureFlags
+      |> expect(:runners_enabled?, fn _ -> false end)
+      |> expect(:runners_enabled?, fn _ -> true end)
+
+      stub(Client, :list_runner_pools, fn _ns -> {:ok, []} end)
 
       payload = queued_payload(owner: account.name)
 
       assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
-      assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
+      assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
     end
   end
 
   describe "resolve_dispatch_target/2 — profile path" do
     setup do
-      catalog_account =
-        AccountsFixtures.organization_fixture(preload: [:account]).account
-        |> Ecto.Changeset.change(runner_max_concurrent: 5)
-        |> Tuist.Repo.update!()
+      catalog_account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
       catalog = [
         %{vcpus: 4, memory_gb: 16, key: "4vcpu-16gb", default?: true, pool_dispatch_label: ""},

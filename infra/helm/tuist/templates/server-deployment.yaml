@@ -139,9 +139,9 @@ spec:
             {{- end }}
             {{- if .Values.runnersFleet.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
-            # dispatch time to discover the fleet name; per-customer
-            # config is `accounts.runner_max_concurrent` and has no
-            # chart-level setting.
+            # dispatch time to discover the fleet name; runner
+            # availability is gated by the `:runners` feature flag and
+            # has no chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
             # Identity gate for `POST /api/internal/runners/pods/stopped`:
