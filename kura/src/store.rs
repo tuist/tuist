@@ -40,6 +40,7 @@ use crate::{
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
     memory::MemoryController,
+    mmap::map_file_region,
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
@@ -553,6 +554,60 @@ impl Store {
     ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
+    }
+
+    /// Opportunistically maps an artifact's bytes for zero-copy serving.
+    ///
+    /// Returns `Ok(None)` whenever mmap serving is not appropriate, so callers
+    /// fall back to the streaming reader path: inline artifacts, artifacts
+    /// larger than the serving budget, no memory headroom, or a region whose
+    /// pages are not already resident in the page cache. The residency gate
+    /// means serving never faults disk I/O onto async workers; cold artifacts go
+    /// through [`Self::read_artifact_bytes`], which isolates blocking reads with
+    /// `spawn_blocking`. The mappings rely on segment and blob files being
+    /// append-only and reclaimed by unlink, never truncated; see [`crate::mmap`]
+    /// for the SIGBUS invariant this upholds.
+    pub async fn try_mmap_artifact_bytes(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<Bytes>, String> {
+        if manifest.inline || manifest.size > self.memory.mmap_serving_pool_bytes() as u64 {
+            return Ok(None);
+        }
+        let Ok(requested_bytes) = usize::try_from(manifest.size) else {
+            return Ok(None);
+        };
+        let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+            return Ok(None);
+        };
+
+        if let Some(segment_id) = &manifest.segment_id {
+            let offset = manifest
+                .segment_offset
+                .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let handle = self.segment_handle(segment_id).await?;
+            let Some(bytes) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
+            else {
+                return Ok(None);
+            };
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(bytes));
+        }
+
+        if let Some(blob_path) = &manifest.blob_path {
+            let file = self
+                .io
+                .open_persistent_read_file(Path::new(blob_path))
+                .await
+                .map_err(|error| format!("failed to open blob {blob_path} for mmap: {error}"))?;
+            let Some(bytes) = map_file_region(file.as_std(), 0, manifest.size, permit)? else {
+                return Ok(None);
+            };
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(bytes));
+        }
+
+        Ok(None)
     }
 
     pub async fn read_artifact_bytes(
@@ -2748,6 +2803,81 @@ mod tests {
             raw[0], 2,
             "segment-backed manifest should use compact record"
         );
+    }
+
+    #[tokio::test]
+    async fn mmap_artifact_bytes_is_opportunistic_under_memory_pressure() {
+        let (_temp_dir, config, store) = temp_store();
+
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-1",
+                "application/octet-stream",
+                b"hello",
+            )
+            .await
+            .expect("failed to persist artifact");
+
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&manifest)
+            .await
+            .expect("mmap lookup should not fail")
+            .expect("normal memory pressure should permit mmap serving");
+        assert_eq!(&mmap_bytes[..], b"hello");
+
+        store.memory.observe(config.memory_soft_limit_bytes);
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&manifest)
+            .await
+            .expect("mmap lookup should not fail");
+
+        assert!(mmap_bytes.is_none());
+    }
+
+    #[tokio::test]
+    async fn mmap_artifact_bytes_maps_non_zero_segment_offsets() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let first = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-first",
+                "application/octet-stream",
+                b"first-artifact-payload",
+            )
+            .await
+            .expect("failed to persist first artifact");
+
+        let second = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact-second",
+                "application/octet-stream",
+                b"second-artifact-payload",
+            )
+            .await
+            .expect("failed to persist second artifact");
+
+        assert_eq!(
+            first.segment_id, second.segment_id,
+            "both artifacts should share the same append-only segment"
+        );
+        assert!(
+            second.segment_offset.unwrap_or(0) > first.segment_offset.unwrap_or(0),
+            "second artifact should land at a non-zero offset within the segment"
+        );
+
+        let mmap_bytes = store
+            .try_mmap_artifact_bytes(&second)
+            .await
+            .expect("mmap lookup should not fail")
+            .expect("normal memory pressure should permit mmap serving");
+
+        assert_eq!(&mmap_bytes[..], b"second-artifact-payload");
     }
 
     #[tokio::test]

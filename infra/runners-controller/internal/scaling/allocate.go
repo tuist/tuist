@@ -27,90 +27,132 @@ type PoolDemand struct {
 }
 
 // AllocateFleet distributes `fleetMemBytes` of schedulable memory
-// across pools sharing a bare-metal node pool, in three tiers:
+// across pools sharing a bare-metal node pool, in three priority tiers:
 //
-//  1. Floor — every pool's `minWarmPoolFloor` (the warm guarantee).
-//  2. Load — `claimed + queued` real work above the floor.
-//  3. Headroom — the speculative p95 warm buffer (`Target` above
-//     floor+load).
+//  1. Load — `claimed + queued`, the real work running or waiting for a
+//     Pod. Genuine demand; granted in full even when it exceeds capacity
+//     (the excess goes Pending, the operator's "add a host" signal).
+//  2. Floor — `minWarmPoolFloor` above load: the speculative warm
+//     guarantee that keeps the next spike off cold-start. Idle warm Pods.
+//  3. Headroom — the p95 warm buffer (`Target` above floor+load). Also
+//     idle, the most speculative.
 //
-// Tiers 1+2 are genuine need and are always granted in full, even when
-// their sum exceeds capacity: the excess goes Pending, which is the
-// operator's "add a host" signal. The autoscaler must not mask real
-// demand by dropping warm guarantees or starving queued work.
+// Only tier 1 is inviolable. Tiers 2 and 3 are idle warm capacity, and
+// they yield — headroom first, then floor — to admit another pool's real
+// queued work. That is the cross-pool reclaim: when a starved shape has
+// queued jobs that don't fit, an idle shape's warm Pods are reaped
+// (its desired falls below its floor) to free the memory, rather than
+// leaving the queued jobs Pending while idle Pods hold reservations.
 //
-// Tier 3 is discretionary. It's granted only from the capacity left
-// after tiers 1+2, split proportionally to each pool's requested
-// headroom when short. That squeeze is the cross-pool reclaim: an idle
-// shape's speculative warm Pods are denied before another shape's real
-// queued work, so a starved large shape can grow as idle small shapes
-// fall back toward their floor.
+// The tradeoff is deliberate: under sustained load on one shape, other
+// shapes' warm pools shrink toward their real load, so a returning spike
+// on a squeezed shape pays cold-start. A job queued now beats a warm Pod
+// for a job that might arrive. The per-pool scale-down cooldown damps the
+// reap so it doesn't thrash.
 //
-// Returns desired replicas per pool name, each in `[base_i, Target_i]`
-// where `base_i = min(max(floor_i, load_i), target_i)`. Memory is the
-// only dimension considered.
+// Each tier is granted in full when it fits; otherwise it is split
+// proportionally to requested memory and all lower tiers get nothing.
+// Result per pool is in `[load_i, Target_i]`. Memory is the only
+// dimension considered.
 func AllocateFleet(pools []PoolDemand, fleetMemBytes int64) map[string]int32 {
 	out := make(map[string]int32, len(pools))
 
-	type headroom struct {
+	type tierWant struct {
 		name string
-		want int32 // replicas of speculative buffer requested
-		mem  int64 // per-Pod memory
+		want int32
+		mem  int64
+	}
+	var loadWants, floorWants, headWants []tierWant
+
+	// Decompose each pool's Target into the three priority tiers.
+	for _, p := range pools {
+		target := p.Target
+		if target < 0 {
+			target = 0
+		}
+
+		load := p.Load
+		if load < 0 {
+			load = 0
+		}
+		if load > target {
+			load = target
+		}
+
+		// Top of the floor tier: the warm guarantee, never below load,
+		// never above target. This is what the old "base" used to grant
+		// unconditionally; it is now squeezable above `load`.
+		floorTop := p.Floor
+		if floorTop < load {
+			floorTop = load
+		}
+		if floorTop > target {
+			floorTop = target
+		}
+
+		out[p.Name] = 0
+
+		if load > 0 {
+			loadWants = append(loadWants, tierWant{p.Name, load, p.PodMemBytes})
+		}
+		if floorWant := floorTop - load; floorWant > 0 && p.PodMemBytes > 0 {
+			floorWants = append(floorWants, tierWant{p.Name, floorWant, p.PodMemBytes})
+		}
+		if headWant := target - floorTop; headWant > 0 && p.PodMemBytes > 0 {
+			headWants = append(headWants, tierWant{p.Name, headWant, p.PodMemBytes})
+		}
 	}
 
-	var headrooms []headroom
-	var headroomMemTotal int64
 	remaining := fleetMemBytes
 
-	// Tier 1+2: grant base = real need, always in full.
-	for _, p := range pools {
-		base := p.Floor
-		if p.Load > base {
-			base = p.Load
+	// grantTier grants a discretionary tier from `remaining`, returning
+	// true only when it was satisfied in full (so the caller knows
+	// whether to attempt the next-lower tier). A partially-funded tier
+	// is split proportionally to requested memory and exhausts capacity.
+	grantTier := func(wants []tierWant) bool {
+		var total int64
+		for _, w := range wants {
+			total += int64(w.want) * w.mem
 		}
-		if base > p.Target {
-			base = p.Target
+		if total == 0 {
+			return true // nothing wanted; capacity untouched
 		}
-		if base < 0 {
-			base = 0
+		if remaining >= total {
+			for _, w := range wants {
+				out[w.name] += w.want
+			}
+			remaining -= total
+			return true
 		}
-
-		out[p.Name] = base
-		remaining -= int64(base) * p.PodMemBytes
-
-		want := p.Target - base
-		if want > 0 && p.PodMemBytes > 0 {
-			headrooms = append(headrooms, headroom{name: p.Name, want: want, mem: p.PodMemBytes})
-			headroomMemTotal += int64(want) * p.PodMemBytes
+		if remaining > 0 {
+			ratio := float64(remaining) / float64(total)
+			for _, w := range wants {
+				grant := int32(float64(w.want) * ratio)
+				if grant > w.want {
+					grant = w.want
+				}
+				out[w.name] += grant
+			}
 		}
+		remaining = 0
+		return false
 	}
 
-	// No capacity left for speculative warm, or nobody wants any.
-	if remaining <= 0 || headroomMemTotal == 0 {
-		return out
+	// Tier 1: real load — always granted in full, even past capacity.
+	// Excess drives `remaining` negative; lower tiers then get nothing.
+	for _, w := range loadWants {
+		out[w.name] += w.want
+		remaining -= int64(w.want) * w.mem
+	}
+	if remaining < 0 {
+		remaining = 0
 	}
 
-	// Uncontended: everything fits, grant all headroom.
-	if remaining >= headroomMemTotal {
-		for _, h := range headrooms {
-			out[h.name] += h.want
-		}
-		return out
-	}
-
-	// Contended: split `remaining` proportionally to requested headroom
-	// memory. Each pool's memory-fair grant works out to
-	// `ratio * want` replicas, so we scale the replica ask directly —
-	// a float ratio avoids the int64 overflow that `remaining * wantMem`
-	// hits at GiB scale. Integer floor per pool; leftover from rounding
-	// stays unused (conservative — never over-commits).
-	ratio := float64(remaining) / float64(headroomMemTotal)
-	for _, h := range headrooms {
-		grant := int32(float64(h.want) * ratio)
-		if grant > h.want {
-			grant = h.want
-		}
-		out[h.name] += grant
+	// Tier 2: floor (warm guarantee), then tier 3: headroom — only if
+	// floors fit in full. Floors yield to tier-1 load above; headroom
+	// yields to floors.
+	if grantTier(floorWants) {
+		grantTier(headWants)
 	}
 
 	return out

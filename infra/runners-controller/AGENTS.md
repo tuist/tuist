@@ -25,23 +25,30 @@ independent workqueues:
   `RunnerPool` spec, so a tuning change is helm-only.
 
   **Fleet-capacity awareness (Linux).** Linux shape pools share one
-  bare-metal node pool, so their speculative warm headroom competes for
-  the same memory. For `os: linux` pools the reconciler runs the
-  per-pool target through `internal/scaling/allocate.go`'s
-  `AllocateFleet`, a three-tier waterfall over the pools sharing a
-  `FleetSelector`: (1) every pool's `minWarmPoolFloor`, (2) real load
-  (`claimed + queued`), then (3) the speculative p95 buffer from
-  whatever memory is left. Tiers 1+2 are always honored (excess goes
-  Pending — the "add a host" signal); tier 3 is squeezed under
-  contention, so an idle shape's warm Pods fall back toward its floor to
-  admit another shape's real queued work. Memory is the only dimension
-  (kata pins it per microVM; CPU is oversubscribed). Fleet allocatable
-  is summed from nodes labeled `node.cluster.x-k8s.io/pool=<FleetSelector>`
-  (cluster-scoped `nodes` read in the ClusterRole), scaled by
-  `MemReserveFraction` (default 0.9). Any failure gathering the fleet
-  view falls back to the per-pool target — a node-read blip must never
-  trigger a mass scale-down. macOS pools (one VM per host, no
-  bin-packing) keep the plain per-pool path.
+  bare-metal node pool, so their warm capacity competes for the same
+  memory. For `os: linux` pools the reconciler runs the per-pool target
+  through `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier
+  priority allocation over the pools sharing a `FleetSelector`:
+  (1) real load (`claimed + queued`), (2) each pool's `minWarmPoolFloor`
+  above its load, then (3) the speculative p95 buffer above that. Only
+  tier 1 (real load) is inviolable — granted in full even past capacity,
+  with the excess going Pending (the "add a host" signal). Tiers 2+3 are
+  idle warm capacity and yield under contention — headroom first, then
+  floor — to admit another shape's real queued work. So when a starved
+  shape has queued jobs that don't fit, an idle shape's warm Pods are
+  reaped (its desired drops *below* its floor) to free the memory, rather
+  than leaving the queued jobs Pending while idle Pods hold reservations.
+  The tradeoff: under sustained load on one shape, other shapes' warm
+  pools shrink toward their real load, so a returning spike pays
+  cold-start — a job queued now beats a warm Pod for a job that might
+  arrive, and the scale-down cooldown damps the reap. Memory is the only
+  dimension (kata pins it per microVM; CPU is oversubscribed). Fleet
+  allocatable is summed from nodes labeled
+  `node.cluster.x-k8s.io/pool=<FleetSelector>` (cluster-scoped `nodes`
+  read in the ClusterRole), scaled by `MemReserveFraction` (default 0.9).
+  Any failure gathering the fleet view falls back to the per-pool target
+  — a node-read blip must never trigger a mass scale-down. macOS pools
+  (one VM per host, no bin-packing) keep the plain per-pool path.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
@@ -226,6 +233,58 @@ ssh -i /tmp/hbm root@<host-ip>
 The key remains valid through reinstalls because caph configures it
 into `/root/.ssh/authorized_keys` as part of the cloud-init
 bootstrap.
+
+## Token isolation (credential split, Linux pools)
+
+Linux runner Pods run untrusted workflow code (incl. fork PRs), so
+`podtemplate.Build` splits a Linux Pod into two containers running
+the same runner image so the dispatch token never shares a
+container with customer code:
+
+- **`poller` init container** — the only container that mounts the
+  audience-scoped projected token (`tuist-runner-token`). Runs
+  `dispatch-poll.sh` with `TUIST_RUNNER_JIT_OUTPUT_PATH` set: it
+  polls the dispatch endpoint, and on a claim writes the minted,
+  job-scoped JIT to the shared `tuist-runner-jit` emptyDir, then
+  exits 0. Runs as `runAsUser: 0` purely so it can write that
+  root-owned emptyDir — it executes only our poll script, never
+  customer code. Declared **after** the dind sidecar so it inherits
+  the same `docker info` startupProbe gate the runner container had
+  before the split.
+- **`runner` main container** — holds no token. kubelet starts it
+  only after the poller init container exits, so the JIT (if any)
+  is already staged. Runs `run-job.sh`, which reads
+  `TUIST_RUNNER_JIT_PATH` and execs the runner, or exits 0 when no
+  JIT was staged (the 410 stale-image drain, or a poller abort).
+
+Why this is enough: the token is pool-scoped and can claim a
+pending `workflow_job` for the pool, so a Pod that leaks it could
+race the warm pool for other tenants' jobs. The JIT is job-scoped
+— it binds the runner to exactly one workflow run — so the runner
+already operating under it loses nothing by holding it.
+
+**Lifecycle consequence:** a warm-standby Linux Pod sits in
+`Pending` (poller polling in Init) rather than `Running` until it
+claims a job. `RunnerPoolReconciler`'s stale-Pending reap therefore
+carries an `isIdle` guard so an image roll that races a claim
+doesn't reap a just-claimed Pod that's momentarily Pending. The
+`pod-lifecycle` billing reconciler keys on the `runner` container's
+`terminated.finishedAt` (the poller/dind are init containers, absent
+from `containerStatuses`), so billing still anchors on exactly the
+customer job's runtime. macOS keeps the single-container shape (the
+Tart VM is the isolation boundary; tart-kubelet projects the token
+into it).
+
+**Rollout ordering:** ship the runner image carrying `run-job.sh`
++ the poller-mode `dispatch-poll.sh` (and pin
+`runnersFleetLinux.pools[].runnerImage` to it) **before** the
+controller that creates the split Pod shape. A new controller on an
+old image would set `TUIST_RUNNER_JIT_OUTPUT_PATH` against a
+dispatch-poll that ignores it and execs the job inside the poller
+(token still mounted). The reverse (old controller, new image) is
+safe: with the env unset the new script execs the runner in place —
+a rollout bridge that can be dropped once every env runs the split
+controller.
 
 ## dockerd sidecar (Linux pools)
 

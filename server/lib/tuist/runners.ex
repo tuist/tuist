@@ -16,16 +16,16 @@ defmodule Tuist.Runners do
       each pool's Pods + per-Pod ServiceAccounts directly via
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
-    * **`accounts.runner_max_concurrent`** is the only per-customer
-      knob. 0 = runners disabled; N>0 = at most N concurrent
-      across all pools the customer reaches.
+    * **Runner availability is gated by the `:runners` feature
+      flag** (`Tuist.FeatureFlags.runners_enabled?/1`) — the only
+      per-customer switch. There's no concurrency cap.
     * **Two-store split for the workflow_job lifecycle.** Postgres
       `runner_claims` is the thin OLTP table — one row per
       currently-claimed workflow_job, used for atomic claim (`INSERT
-      … ON CONFLICT DO NOTHING` on the PK) and per-account cap
-      counting. ClickHouse `runner_jobs` is the customer-facing
-      view + history — `queued`, `claimed`, `running`, `completed`
-      state transitions recorded as RMT INSERTs. Every PG write is
+      … ON CONFLICT DO NOTHING` on the PK). ClickHouse `runner_jobs`
+      is the customer-facing view + history — `queued`, `claimed`,
+      `running`, `completed` state transitions recorded as RMT
+      INSERTs. Every PG write is
       paired with a CH INSERT so the customer surfaces stay in
       sync; CH is never queried for OLTP correctness.
 
@@ -123,8 +123,8 @@ defmodule Tuist.Runners do
   Returns `{:ok, %{jit, account, runner_name}}` on success.
 
   Error cases the web layer translates to HTTP responses:
-    * `{:error, :no_work_yet}` — queue empty, all accounts at
-      cap, or we lost a claim race; warm Pod keeps polling.
+    * `{:error, :no_work_yet}` — queue empty or we lost a claim
+      race; warm Pod keeps polling.
     * `{:error, :not_found}` — SA gone (raced with GC).
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
@@ -151,17 +151,7 @@ defmodule Tuist.Runners do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa),
          :ok <- check_not_stale(namespace, sa_name, fleet_name) do
-      # `ineligible_accounts/0` is a perf optimisation — skip
-      # candidates whose account already hit cap so we don't
-      # round-trip ClickHouse for a row we'd reject anyway. The
-      # authoritative gate is `Claims.attempt/4`, which re-checks
-      # the cap inside the same transaction as the INSERT and
-      # holds an advisory lock on the account for the duration.
-      # The pre-filter can be eventually-consistent without
-      # affecting correctness.
-      ineligible = ineligible_accounts()
-
-      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, ineligible),
+      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
            {:ok, claim} <-
              Claims.attempt(
                candidate.workflow_job_id,
@@ -175,7 +165,7 @@ defmodule Tuist.Runners do
         {:error, :empty} ->
           {:error, :no_work_yet}
 
-        {:error, reason} when reason in [:lost_race, :over_cap, :runners_disabled, :pod_in_use, :unknown_account] ->
+        {:error, reason} when reason in [:lost_race, :pod_in_use] ->
           # All transactional-claim outcomes that mean "this poll
           # gets nothing right now" — collapsed for the caller.
           # The candidate (if we had one) stays queued in CH for
@@ -357,28 +347,6 @@ defmodule Tuist.Runners do
 
           :ok
       end
-  end
-
-  # Builds the at-cap account list for the candidate query. One
-  # indexed Postgres query across all fleets for the inflight
-  # counts (the cap is account-level, NOT fleet-level — a
-  # customer at cap=1 can't run one job per pool); a per-account
-  # lookup for the cap config.
-  defp ineligible_accounts do
-    Claims.counts_per_account()
-    |> Enum.filter(&at_cap?/1)
-    |> Enum.map(fn {account_id, _inflight} -> account_id end)
-  end
-
-  defp at_cap?({account_id, inflight}) do
-    case Accounts.get_account_by_id(account_id) do
-      {:ok, %{runner_max_concurrent: cap}} when is_integer(cap) and cap > 0 ->
-        inflight >= cap
-
-      _ ->
-        # No account row or cap=0 — treat as ineligible.
-        true
-    end
   end
 
   defp stamp_owner_labels(namespace, pod_name, account) do

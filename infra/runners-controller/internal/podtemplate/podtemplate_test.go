@@ -60,13 +60,12 @@ func TestBuild_MacOSScheduling(t *testing.T) {
 func TestBuild_LinuxScheduling(t *testing.T) {
 	pod := build(t, basePool("linux"))
 	// Linux pools must use the in-cluster URL — the public path
-	// hits Hetzner Cloud LB hairpin and silently times out.
-	for _, env := range pod.Spec.Containers[0].Env {
-		if env.Name == "TUIST_RUNNER_DISPATCH_URL" {
-			if env.Value != "http://internal-dispatch" {
-				t.Errorf("Linux dispatch URL = %q, want http://internal-dispatch", env.Value)
-			}
-		}
+	// hits Hetzner Cloud LB hairpin and silently times out. The poll
+	// loop (and therefore the dispatch URL) lives on the poller init
+	// container after the credential split, not the runner.
+	poller := initContainerByName(t, pod, "poller")
+	if got := envValue(poller.Env, "TUIST_RUNNER_DISPATCH_URL"); got != "http://internal-dispatch" {
+		t.Errorf("Linux dispatch URL = %q, want http://internal-dispatch", got)
 	}
 
 	if got, want := pod.Spec.NodeSelector["kubernetes.io/os"], "linux"; got != want {
@@ -152,12 +151,14 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	// runner container. Mirrors the ARC pattern.
 	pod := build(t, basePool("linux"))
 
-	if len(pod.Spec.InitContainers) != 1 {
-		t.Fatalf("InitContainers = %d, want 1 (dind sidecar)", len(pod.Spec.InitContainers))
+	// Two init containers: the dind sidecar first (so its startupProbe
+	// gates the rest of the Pod), then the poller.
+	if len(pod.Spec.InitContainers) != 2 {
+		t.Fatalf("InitContainers = %d, want 2 (dind sidecar + poller)", len(pod.Spec.InitContainers))
 	}
 	dind := pod.Spec.InitContainers[0]
 	if dind.Name != "dind" {
-		t.Errorf("sidecar Name = %q, want \"dind\"", dind.Name)
+		t.Errorf("first initContainer Name = %q, want \"dind\" (must precede poller so docker is ready)", dind.Name)
 	}
 	if dind.Image != testDindImage {
 		t.Errorf("sidecar Image = %q, want %q", dind.Image, testDindImage)
@@ -269,8 +270,12 @@ func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
-	if len(pod.Spec.InitContainers) != 0 {
-		t.Errorf("InitContainers = %d, want 0 when dindImage is empty", len(pod.Spec.InitContainers))
+	// Only the poller init container remains — no dind sidecar.
+	if len(pod.Spec.InitContainers) != 1 {
+		t.Fatalf("InitContainers = %d, want 1 (poller only) when dindImage is empty", len(pod.Spec.InitContainers))
+	}
+	if got := pod.Spec.InitContainers[0].Name; got != "poller" {
+		t.Errorf("sole initContainer Name = %q, want \"poller\"", got)
 	}
 	for _, env := range pod.Spec.Containers[0].Env {
 		if env.Name == "DOCKER_HOST" {
@@ -289,6 +294,141 @@ func TestBuild_MacOSPodHasNoDindSidecar(t *testing.T) {
 			t.Errorf("macOS pods should not carry DOCKER_HOST; got %q", env.Value)
 		}
 	}
+}
+
+func TestBuild_LinuxCredentialSplit(t *testing.T) {
+	// Token isolation: the runner container (which runs untrusted
+	// workflow code) must never mount the dispatch token; only the
+	// poller does. The handoff is the JIT staged on a shared emptyDir.
+	pod := build(t, basePool("linux"))
+
+	runner := containerByName(t, pod, "runner")
+	poller := initContainerByName(t, pod, "poller")
+
+	// Runner: no token mount, no dispatch env, JIT mounted read-only,
+	// run-job.sh as the entrypoint.
+	if hasVolumeMount(runner.VolumeMounts, corev1.VolumeMount{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"}) {
+		t.Errorf("runner must NOT mount the dispatch token; got %+v", runner.VolumeMounts)
+	}
+	for _, name := range []string{"TUIST_RUNNER_DISPATCH_URL", "TUIST_RUNNER_POOL"} {
+		if envValue(runner.Env, name) != "" {
+			t.Errorf("runner must not carry dispatch env %q; got %+v", name, runner.Env)
+		}
+	}
+	jitMount := corev1.VolumeMount{Name: "tuist-runner-jit", MountPath: jitMountPath}
+	if !hasVolumeMount(runner.VolumeMounts, jitMount) {
+		t.Errorf("runner missing JIT mount %+v; got %+v", jitMount, runner.VolumeMounts)
+	}
+	for _, m := range runner.VolumeMounts {
+		if m.Name == "tuist-runner-jit" && !m.ReadOnly {
+			t.Errorf("runner JIT mount should be read-only; got %+v", m)
+		}
+	}
+	if got, want := runner.Command, []string{"/usr/local/bin/run-job.sh"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("runner Command = %v, want %v", got, want)
+	}
+	if envValue(runner.Env, "TUIST_RUNNER_JIT_PATH") != jitFilePath {
+		t.Errorf("runner TUIST_RUNNER_JIT_PATH = %q, want %q", envValue(runner.Env, "TUIST_RUNNER_JIT_PATH"), jitFilePath)
+	}
+
+	// Poller: holds the token (read-only), can write the JIT, runs the
+	// poll loop, and runs as root so it can write to the root-owned
+	// emptyDir.
+	tokenMount := corev1.VolumeMount{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"}
+	if !hasVolumeMount(poller.VolumeMounts, tokenMount) {
+		t.Errorf("poller missing token mount %+v; got %+v", tokenMount, poller.VolumeMounts)
+	}
+	for _, m := range poller.VolumeMounts {
+		if m.Name == "tuist-runner-token" && !m.ReadOnly {
+			t.Errorf("poller token mount should be read-only; got %+v", m)
+		}
+		if m.Name == "tuist-runner-jit" && m.ReadOnly {
+			t.Errorf("poller JIT mount must be writable; got %+v", m)
+		}
+	}
+	if !hasVolumeMount(poller.VolumeMounts, corev1.VolumeMount{Name: "tuist-runner-jit", MountPath: jitMountPath}) {
+		t.Errorf("poller missing writable JIT mount; got %+v", poller.VolumeMounts)
+	}
+	if envValue(poller.Env, "TUIST_RUNNER_JIT_OUTPUT_PATH") != jitFilePath {
+		t.Errorf("poller TUIST_RUNNER_JIT_OUTPUT_PATH = %q, want %q", envValue(poller.Env, "TUIST_RUNNER_JIT_OUTPUT_PATH"), jitFilePath)
+	}
+	if got, want := poller.Command, []string{"/usr/local/bin/dispatch-poll.sh"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("poller Command = %v, want %v", got, want)
+	}
+	if poller.SecurityContext == nil || poller.SecurityContext.RunAsUser == nil || *poller.SecurityContext.RunAsUser != 0 {
+		t.Errorf("poller must run as root (uid 0) to write the JIT emptyDir; got %+v", poller.SecurityContext)
+	}
+
+	// Both the JIT and token volumes exist on the Pod, and the runner
+	// keeps automount off.
+	for _, v := range []string{"tuist-runner-jit", "tuist-runner-token"} {
+		if !hasVolume(pod.Spec.Volumes, v) {
+			t.Errorf("pod missing volume %q; got %+v", v, pod.Spec.Volumes)
+		}
+	}
+	if pod.Spec.AutomountServiceAccountToken == nil || *pod.Spec.AutomountServiceAccountToken {
+		t.Errorf("Linux pod must disable default SA token automount; got %v", pod.Spec.AutomountServiceAccountToken)
+	}
+}
+
+func TestBuild_MacOSHasNoPollerOrTokenVolume(t *testing.T) {
+	// macOS keeps the single-container shape: the Tart VM is the
+	// isolation boundary and tart-kubelet projects the token into it,
+	// so there's no poller init container, no JIT volume, and the
+	// runner container carries the dispatch env itself.
+	pod := build(t, basePool(""))
+
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == "poller" {
+			t.Errorf("macOS pod must not get a poller init container")
+		}
+	}
+	for _, v := range []string{"tuist-runner-jit", "tuist-runner-token"} {
+		if hasVolume(pod.Spec.Volumes, v) {
+			t.Errorf("macOS pod must not carry volume %q", v)
+		}
+	}
+	runner := containerByName(t, pod, "runner")
+	if runner.Command != nil {
+		t.Errorf("macOS runner must use the image CMD, not a Command override; got %v", runner.Command)
+	}
+	if envValue(runner.Env, "TUIST_RUNNER_DISPATCH_URL") != "http://dispatch" {
+		t.Errorf("macOS runner dispatch URL = %q, want public http://dispatch", envValue(runner.Env, "TUIST_RUNNER_DISPATCH_URL"))
+	}
+	if pod.Spec.AutomountServiceAccountToken == nil || !*pod.Spec.AutomountServiceAccountToken {
+		t.Errorf("macOS pod must keep default SA token automount on; got %v", pod.Spec.AutomountServiceAccountToken)
+	}
+}
+
+func containerByName(t *testing.T, pod *corev1.Pod, name string) corev1.Container {
+	t.Helper()
+	for _, c := range pod.Spec.Containers {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("container %q not found; got %+v", name, pod.Spec.Containers)
+	return corev1.Container{}
+}
+
+func initContainerByName(t *testing.T, pod *corev1.Pod, name string) corev1.Container {
+	t.Helper()
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("init container %q not found; got %+v", name, pod.Spec.InitContainers)
+	return corev1.Container{}
+}
+
+func envValue(env []corev1.EnvVar, name string) string {
+	for _, e := range env {
+		if e.Name == name {
+			return e.Value
+		}
+	}
+	return ""
 }
 
 func hasVolumeMount(mounts []corev1.VolumeMount, want corev1.VolumeMount) bool {

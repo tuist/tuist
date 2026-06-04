@@ -7,14 +7,12 @@ defmodule Tuist.Runners.Jobs do
   the latest row per key.
 
   This module is **state-recording + read-only views**. Claim
-  atomicity and per-account cap counting live in
-  `Tuist.Runners.Claims` (a thin Postgres table). The split:
+  atomicity lives in `Tuist.Runners.Claims` (a thin Postgres
+  table). The split:
 
     * **Postgres `runner_claims`** is the OLTP claim lock. One
       row per currently-claimed workflow_job; PK on
       `workflow_job_id` gives atomic INSERT-ON-CONFLICT-DO-NOTHING.
-      Cap counting is an indexed `GROUP BY account_id` against
-      this table.
     * **ClickHouse `runner_jobs` (here)** is the customer-facing
       view + history. Powers the "what's queued / running right
       now / recent runs" surfaces and the analytics dashboards.
@@ -112,11 +110,9 @@ defmodule Tuist.Runners.Jobs do
   caller's responsibility to then atomically claim it via
   `Tuist.Runners.Claims.attempt/4`.
 
-  `ineligible_account_ids` is the set of accounts already at
-  cap (built by the caller from `Claims.counts_per_account/1`
-  + the per-account `runner_max_concurrent`). Returns the
-  candidate's full metadata so we can carry it forward on the
-  `claimed` INSERT.
+  `ineligible_account_ids` is an optional set of account_ids to
+  exclude from candidate selection. Returns the candidate's full
+  metadata so we can carry it forward on the `claimed` INSERT.
 
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
