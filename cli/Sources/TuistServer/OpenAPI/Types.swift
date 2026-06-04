@@ -12191,10 +12191,10 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/error_message`.
                     public var error_message: Swift.String?
-                    /// The identifier of the generation that produced the project. Local Xcode builds reuse this to reference the graph uploaded by the original generation.
+                    /// Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id.
                     ///
-                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/generation_id`.
-                    public var generation_id: Swift.String?
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/id`.
+                    public var id: Swift.String?
                     /// The git branch.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/git_branch`.
@@ -12906,7 +12906,7 @@ public enum Operations {
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
                     ///   - error_message: The error message of the command.
-                    ///   - generation_id: The identifier of the generation that produced the project. Local Xcode builds reuse this to reference the graph uploaded by the original generation.
+                    ///   - id: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id.
                     ///   - git_branch: The git branch.
                     ///   - git_commit_sha: The commit SHA.
                     ///   - git_ref: The git ref. When on CI, the value can be equal to remote reference such as `refs/pull/1234/merge`.
@@ -12930,7 +12930,7 @@ public enum Operations {
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Int,
                         error_message: Swift.String? = nil,
-                        generation_id: Swift.String? = nil,
+                        id: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
                         git_ref: Swift.String? = nil,
@@ -12954,7 +12954,7 @@ public enum Operations {
                         self.command_arguments = command_arguments
                         self.duration = duration
                         self.error_message = error_message
-                        self.generation_id = generation_id
+                        self.id = id
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
                         self.git_ref = git_ref
@@ -12979,7 +12979,7 @@ public enum Operations {
                         case command_arguments
                         case duration
                         case error_message
-                        case generation_id
+                        case id
                         case git_branch
                         case git_commit_sha
                         case git_ref

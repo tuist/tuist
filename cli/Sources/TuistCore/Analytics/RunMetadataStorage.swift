@@ -94,9 +94,9 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
-    /// Identifier of the generation that produced the project. Shared between the generate command
-    /// event (which uploads the graph) and a later local Xcode build so the build can reuse that
-    /// graph for its Module Cache breakdown.
+    /// The generate command event's id, minted client-side. `tuist generate` sends it as the command
+    /// event id (so the server stores the graph under it) and persists it; a later local Xcode build
+    /// references it so the build page can resolve the generation's graph for its Module Cache breakdown.
     public private(set) var generationId: String?
     public func update(generationId: String?) {
         self.generationId = generationId

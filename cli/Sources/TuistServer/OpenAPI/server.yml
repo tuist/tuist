@@ -6494,8 +6494,8 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                generation_id:
-                  description: The identifier of the generation that produced the project. Local Xcode builds reuse this to reference the graph uploaded by the original generation.
+                id:
+                  description: Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id.
                   type: string
                   x-struct:
                   x-validate:
