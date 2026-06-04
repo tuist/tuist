@@ -305,10 +305,6 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 2
         maxReplicas: 9
-  # See values-managed-staging.yaml — `"0.0.0"` is the pre-release
-  # sentinel that the first post-merge `release-runner-image` run
-  # rewrites to a real semver in lockstep with publishing the
-  # matching tags.
   runnerImageSemver: "0.0.0"
   pools: []
 

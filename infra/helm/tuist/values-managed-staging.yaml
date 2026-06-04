@@ -308,10 +308,6 @@ runnersFleet:
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  # `"0.0.0"` is the pre-release sentinel — the first
-  # `release-runner-image` run after this PR merges rewrites it to
-  # the auto-bumped semver in the same commit that publishes the
-  # matching `:macos-<xcode-dashes>-<semver>` tags to GHCR.
   runnerImageSemver: "0.0.0"
   pools: []
 
