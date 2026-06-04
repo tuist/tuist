@@ -124,7 +124,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "persists ref-scope fields and flags an untrusted fork PR" do
-      account = account_with_cap(5)
+      account = enabled_account()
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, [pool_cr(name: "macos", label: "tuist-macos")]} end)
 
@@ -159,7 +159,7 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "marks a same-repo PR as trusted (not a fork)" do
-      account = account_with_cap(5)
+      account = enabled_account()
       stub(Accounts, :get_account_by_handle, fn _ -> account end)
       stub(Client, :list_runner_pools, fn _ns -> {:ok, [pool_cr(name: "macos", label: "tuist-macos")]} end)
 
