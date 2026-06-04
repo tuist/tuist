@@ -1,0 +1,225 @@
+use std::fs::File;
+
+use bytes::Bytes;
+use tokio::sync::OwnedSemaphorePermit;
+
+#[cfg(unix)]
+use std::os::raw::c_void;
+
+#[cfg(unix)]
+use memmap2::{Mmap, MmapOptions};
+
+/// Maps `len` bytes of `file` starting at `offset` into a read-only `Bytes`
+/// whose lifetime owns both the mapping and the memory-budget `permit`.
+///
+/// Returns `Ok(None)` when the region is mappable but **not already resident in
+/// the page cache**, so the caller serves it through the streaming reader path
+/// instead. See the residency note below.
+///
+/// # Safety and concurrency
+///
+/// A `MAP_PRIVATE`/`PROT_READ` mapping aliases the page cache for the backing
+/// file. Reads are sound only while the mapped region keeps existing on disk:
+/// unlinking the file is safe (the inode survives until the mapping drops), but
+/// **truncating or shrinking the file in place would fault any live mapping with
+/// SIGBUS and crash the process**. This is sound here only because Kura segment
+/// and blob files are append-only and are reclaimed by unlink, never by
+/// `truncate`/`set_len`. If that invariant ever changes (for example, in-place
+/// segment compaction), this mapping becomes unsound. See `Store` for the
+/// callers that uphold it.
+///
+/// Touching a non-resident mapped page faults synchronous, kernel-side disk I/O
+/// on whatever thread reads it, and that thread is a tokio worker once the
+/// `Bytes` is written to a socket. Under concurrency, cold faults across many
+/// streams would starve the worker pool. mmap serving is only ever a win when
+/// the pages are already resident, so we gate on `mincore`: a fully-resident
+/// region maps and serves zero-copy without faulting, and anything cold returns
+/// `Ok(None)` so the caller falls back to `Store::read_artifact_bytes`, which
+/// keeps cold disk reads off the async workers with `spawn_blocking`.
+///
+/// The `mincore` check is point-in-time: a page can be evicted between the
+/// check and a socket write. That is benign and distinct from the truncation
+/// case above. Eviction does not remove the file's backing (the mapping pins the
+/// inode, and the file is append-only), so the access re-faults cleanly from
+/// disk: correct bytes, just a brief blocking re-read for that chunk. The only
+/// behavior that differs from the reader path is a genuine disk **read error**
+/// during a fault, which mmap surfaces as SIGBUS (process crash) rather than a
+/// recoverable `io::Error`. That is inherent to serving from a mapping; the
+/// residency gate minimizes how often we fault at all, and a crashed node is
+/// recoverable because peers keep serving and the artifact re-replicates.
+#[cfg(unix)]
+pub fn map_file_region(
+    file: &File,
+    offset: u64,
+    len: u64,
+    permit: OwnedSemaphorePermit,
+) -> Result<Option<Bytes>, String> {
+    if len == 0 {
+        return Ok(Some(Bytes::new()));
+    }
+
+    let file_len = file
+        .metadata()
+        .map_err(|error| format!("failed to stat mmap source file: {error}"))?
+        .len();
+    let end = offset
+        .checked_add(len)
+        .ok_or_else(|| "mmap region offset overflows file size".to_string())?;
+    if end > file_len {
+        return Err(format!(
+            "mmap region {offset}..{end} exceeds file size {file_len}"
+        ));
+    }
+
+    let len =
+        usize::try_from(len).map_err(|_| "mmap region length does not fit in usize".to_string())?;
+
+    // SAFETY: the region is in-bounds (checked above) and stays valid for the
+    // lifetime of the mapping because the backing file is append-only and is
+    // only ever removed by unlink, never truncated. See the module-level note.
+    let mmap = unsafe {
+        MmapOptions::new()
+            .offset(offset)
+            .len(len)
+            .map(file)
+            .map_err(|error| format!("failed to mmap file region {offset}..{end}: {error}"))?
+    };
+
+    if !mapping_is_resident(&mmap) {
+        return Ok(None);
+    }
+
+    Ok(Some(Bytes::from_owner(MmapRegion {
+        mmap,
+        _permit: permit,
+    })))
+}
+
+#[cfg(not(unix))]
+pub fn map_file_region(
+    _file: &File,
+    _offset: u64,
+    _len: u64,
+    _permit: OwnedSemaphorePermit,
+) -> Result<Option<Bytes>, String> {
+    Ok(None)
+}
+
+/// Reports whether every page backing `mmap` is currently resident in the page
+/// cache, so reading the mapping will not fault disk I/O. A conservative `false`
+/// (page size unavailable, `mincore` failure) routes the caller to the reader
+/// path, which is always correct.
+#[cfg(unix)]
+fn mapping_is_resident(mmap: &Mmap) -> bool {
+    let len = mmap.len();
+    if len == 0 {
+        return true;
+    }
+    let Some(page_size) = page_size() else {
+        return false;
+    };
+
+    // `mincore` requires a page-aligned base. memmap2 maps from the page-aligned
+    // offset and exposes a slice that may start mid-page, so round the exposed
+    // pointer down to the mapped base and extend the queried length to cover the
+    // sub-page prefix.
+    let addr = mmap.as_ptr() as usize;
+    let aligned = addr & !(page_size - 1);
+    let prefix = addr - aligned;
+    let Some(total) = prefix.checked_add(len) else {
+        return false;
+    };
+    let pages = total.div_ceil(page_size);
+    let mut residency = vec![0u8; pages];
+
+    // SAFETY: `aligned` is the page-aligned base that memmap2 mapped from and
+    // `total` spans only pages within that mapping; `residency` holds one byte
+    // per queried page. `mincore` performs a read-only residency query and does
+    // not touch (fault) the mapped pages.
+    let result =
+        unsafe { libc::mincore(aligned as *mut c_void, total, residency.as_mut_ptr().cast()) };
+
+    result == 0 && residency.iter().all(|page| page & 1 == 1)
+}
+
+#[cfg(unix)]
+fn page_size() -> Option<usize> {
+    let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    usize::try_from(size)
+        .ok()
+        .filter(|size| size.is_power_of_two())
+}
+
+#[cfg(unix)]
+struct MmapRegion {
+    mmap: Mmap,
+    _permit: OwnedSemaphorePermit,
+}
+
+#[cfg(unix)]
+impl AsRef<[u8]> for MmapRegion {
+    fn as_ref(&self) -> &[u8] {
+        self.mmap.as_ref()
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::{io::Write, sync::Arc};
+
+    use tempfile::NamedTempFile;
+    use tokio::sync::Semaphore;
+
+    use super::map_file_region;
+
+    #[test]
+    fn maps_unaligned_file_regions() {
+        let mut file = NamedTempFile::new().expect("temp file should be created");
+        file.write_all(b"0123456789abcdef")
+            .expect("temp file should be written");
+        file.as_file()
+            .sync_all()
+            .expect("temp file should be flushed");
+        let permit = Arc::new(Semaphore::new(16))
+            .try_acquire_many_owned(8)
+            .expect("permit should be acquired");
+
+        let bytes = map_file_region(file.as_file(), 3, 8, permit)
+            .expect("region should map")
+            .expect("freshly written region should be page-cache resident");
+
+        assert_eq!(&bytes[..], b"3456789a");
+    }
+
+    #[test]
+    fn maps_empty_regions_without_mmap() {
+        let file = NamedTempFile::new().expect("temp file should be created");
+        let permit = Arc::new(Semaphore::new(1))
+            .try_acquire_owned()
+            .expect("permit should be acquired");
+
+        let bytes = map_file_region(file.as_file(), 0, 0, permit)
+            .expect("empty region should map")
+            .expect("empty region is trivially resident");
+
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn rejects_regions_beyond_file_length() {
+        let mut file = NamedTempFile::new().expect("temp file should be created");
+        file.write_all(b"0123")
+            .expect("temp file should be written");
+        file.as_file()
+            .sync_all()
+            .expect("temp file should be flushed");
+        let permit = Arc::new(Semaphore::new(16))
+            .try_acquire_many_owned(4)
+            .expect("permit should be acquired");
+
+        let error = map_file_region(file.as_file(), 2, 4, permit)
+            .expect_err("region should exceed file length");
+
+        assert!(error.contains("exceeds file size"));
+    }
+}

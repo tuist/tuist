@@ -12,6 +12,8 @@ const RECOVERY_DENOMINATOR: u64 = 10;
 const MIN_REAPI_RESPONSE_BUDGET_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REAPI_RESPONSE_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 const MAX_REAPI_MATERIALIZATION_POOL_BYTES: usize = 128 * 1024 * 1024;
+const MIN_MMAP_SERVING_POOL_BYTES: usize = 64 * 1024 * 1024;
+const MAX_MMAP_SERVING_POOL_BYTES: usize = 512 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct MemoryController {
@@ -23,6 +25,7 @@ struct MemoryControllerInner {
     hard_limit_bytes: u64,
     state: AtomicU8,
     reapi_materialization_pool: Arc<Semaphore>,
+    mmap_serving_pool: Arc<Semaphore>,
     metrics: Metrics,
 }
 
@@ -75,6 +78,10 @@ impl MemoryController {
                 reapi_materialization_pool: Arc::new(Semaphore::new(
                     reapi_materialization_pool_bytes(soft_limit_bytes, hard_limit_bytes),
                 )),
+                mmap_serving_pool: Arc::new(Semaphore::new(mmap_serving_pool_bytes(
+                    soft_limit_bytes,
+                    hard_limit_bytes,
+                ))),
                 metrics,
             }),
         }
@@ -189,6 +196,22 @@ impl MemoryController {
             .map(Some)
             .map_err(|_| ())
     }
+
+    pub fn mmap_serving_pool_bytes(&self) -> usize {
+        mmap_serving_pool_bytes(self.inner.soft_limit_bytes, self.inner.hard_limit_bytes)
+    }
+
+    pub fn try_acquire_mmap_serving(&self, requested_bytes: usize) -> Option<OwnedSemaphorePermit> {
+        if requested_bytes == 0 || self.pressure() != MemoryPressure::Normal {
+            return None;
+        }
+        let permits = u32::try_from(requested_bytes).ok()?;
+        self.inner
+            .mmap_serving_pool
+            .clone()
+            .try_acquire_many_owned(permits)
+            .ok()
+    }
 }
 
 fn recovery_bytes(limit: u64) -> u64 {
@@ -207,6 +230,15 @@ fn reapi_materialization_pool_bytes(soft_limit_bytes: u64, hard_limit_bytes: u64
         headroom_bytes,
         1,
         MAX_REAPI_MATERIALIZATION_POOL_BYTES as u64,
+    ) as usize
+}
+
+fn mmap_serving_pool_bytes(soft_limit_bytes: u64, hard_limit_bytes: u64) -> usize {
+    let headroom_bytes = hard_limit_bytes.saturating_sub(soft_limit_bytes);
+    clamp_u64(
+        headroom_bytes,
+        MIN_MMAP_SERVING_POOL_BYTES as u64,
+        MAX_MMAP_SERVING_POOL_BYTES as u64,
     ) as usize
 }
 
@@ -251,5 +283,36 @@ mod tests {
         assert_eq!(small.reapi_materialization_pool_bytes(), 12 * 1024 * 1024);
         assert_eq!(medium.reapi_materialization_pool_bytes(), 64 * 1024 * 1024);
         assert_eq!(large.reapi_materialization_pool_bytes(), 128 * 1024 * 1024);
+    }
+
+    #[test]
+    fn mmap_serving_pool_is_bounded_by_memory_headroom() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let small = MemoryController::new(metrics.clone(), 128 * 1024 * 1024, 192 * 1024 * 1024);
+        let medium = MemoryController::new(metrics.clone(), 512 * 1024 * 1024, 768 * 1024 * 1024);
+        let large = MemoryController::new(metrics, 2 * 1024 * 1024 * 1024, 4 * 1024 * 1024 * 1024);
+
+        assert_eq!(small.mmap_serving_pool_bytes(), 64 * 1024 * 1024);
+        assert_eq!(medium.mmap_serving_pool_bytes(), 256 * 1024 * 1024);
+        assert_eq!(large.mmap_serving_pool_bytes(), 512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn mmap_serving_permits_are_non_blocking_and_pressure_sensitive() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::new(metrics, 128 * 1024 * 1024, 256 * 1024 * 1024);
+
+        let permit = controller
+            .try_acquire_mmap_serving(64 * 1024 * 1024)
+            .expect("permit should be available");
+        assert!(
+            controller
+                .try_acquire_mmap_serving(65 * 1024 * 1024)
+                .is_none()
+        );
+
+        drop(permit);
+        controller.observe(128 * 1024 * 1024);
+        assert!(controller.try_acquire_mmap_serving(1).is_none());
     }
 }
