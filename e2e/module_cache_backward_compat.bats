@@ -16,9 +16,12 @@
 #   - TUIST_AUTH_EMAIL / TUIST_AUTH_PASSWORD: canary credentials (server-k8s-canary env)
 #   - TUIST_URL: server to test against (defaults to https://canary.tuist.dev)
 
-setup_file() {
-    load 'test_helper'
+# Loaded at file scope (not inside setup_file) so helpers like
+# refute_signature_error are available inside @test bodies, which bats runs in
+# their own processes.
+load 'test_helper'
 
+setup_file() {
     export TUIST_EXECUTABLE="${TUIST_EXECUTABLE:-}"
     if [[ -z "$TUIST_EXECUTABLE" ]]; then
         skip "TUIST_EXECUTABLE must point to the pinned oldest-supported tuist binary"
