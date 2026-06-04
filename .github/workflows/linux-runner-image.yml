@@ -45,8 +45,7 @@ env:
 jobs:
   build:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    # ubuntu-latest until the Docker Hub mirror is fleet-wide on tuist-linux
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
 

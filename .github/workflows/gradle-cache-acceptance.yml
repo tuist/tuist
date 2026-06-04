@@ -35,11 +35,11 @@ env:
 jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    # ubuntu-latest until the dind sidecar is available again on
-    # tuist-linux-* — the `services:` block can't start without a
-    # reachable Docker daemon. The 4 vCPU / 16 GB compute envelope
-    # matches what tuist-linux-large was giving us.
-    runs-on: ubuntu-latest
+    # Bigger shape: the e2e compiles and boots the full server + ClickHouse,
+    # which peaks over the 2 vCPU / 8 GB default microVM and OOM-kills the
+    # runner from inside the guest ("lost communication"). The 4 vCPU / 16 GB
+    # shape restores the headroom from before the default downsize (#11052).
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
