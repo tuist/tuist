@@ -333,6 +333,8 @@ jobs:
             --build-arg TUIST_VERSION=1.24.11.11 \
             --build-arg MIX_ENV=prod \
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
+            --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
+            --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
             "$GITHUB_WORKSPACE"
       - name: Install Trivy
         env:
