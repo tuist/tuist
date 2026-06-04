@@ -52,7 +52,14 @@ defmodule Tuist.Runners.JobLogsTest do
     end
   end
 
-  describe "lines_grouped_by_step/2" do
+  describe "step_line_ranges/2 + list_step_lines/3" do
+    defp lines_for_step(ranges, job_id, step_number) do
+      case Map.get(ranges, step_number) do
+        {first, last} -> JobLogs.list_step_lines(job_id, first, last)
+        _ -> []
+      end
+    end
+
     test "slices a 3-step job on `##[group]Run` markers" do
       job_id = 90_002
 
@@ -132,10 +139,10 @@ defmodule Tuist.Runners.JobLogsTest do
         %{number: 4, name: "Complete job", started_at: ~U[2026-05-28 12:00:05.000000Z]}
       ]
 
-      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+      ranges = JobLogs.step_line_ranges(job_id, steps)
 
       # "Set up job" gets lines 1-4 (everything before the first ##[group]Run)
-      assert Enum.map(grouped[1], & &1.message) == [
+      assert Enum.map(lines_for_step(ranges, job_id, 1), & &1.message) == [
                "Current runner version: '2.334.0'",
                "##[group]GITHUB_TOKEN Permissions",
                "Metadata: read",
@@ -143,13 +150,13 @@ defmodule Tuist.Runners.JobLogsTest do
              ]
 
       # First user step: from first ##[group]Run to (second ##[group]Run - 1)
-      assert Enum.map(grouped[2], & &1.message) == ["##[group]Run echo hi", "##[endgroup]", "hi"]
+      assert Enum.map(lines_for_step(ranges, job_id, 2), & &1.message) == ["##[group]Run echo hi", "##[endgroup]", "hi"]
 
       # Second user step: from second ##[group]Run to (last_user_end derived from teardown timestamp - 1)
-      assert Enum.map(grouped[3], & &1.message) == ["##[group]Run echo bye", "##[endgroup]", "bye"]
+      assert Enum.map(lines_for_step(ranges, job_id, 3), & &1.message) == ["##[group]Run echo bye", "##[endgroup]", "bye"]
 
       # "Complete job" gets the cleanup tail
-      assert Enum.map(grouped[4], & &1.message) == ["Cleaning up orphan processes"]
+      assert Enum.map(lines_for_step(ranges, job_id, 4), & &1.message) == ["Cleaning up orphan processes"]
     end
 
     test "two adjacent sub-second steps with identical `started_at` each get their own marker block" do
@@ -196,11 +203,11 @@ defmodule Tuist.Runners.JobLogsTest do
         %{number: 3, name: "b", started_at: ~U[2026-05-28 12:00:01.000000Z]}
       ]
 
-      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+      ranges = JobLogs.step_line_ranges(job_id, steps)
 
-      assert Enum.map(grouped[1], & &1.message) == ["Set up job line"]
-      assert Enum.map(grouped[2], & &1.message) == ["##[group]Run a", "a-out"]
-      assert Enum.map(grouped[3], & &1.message) == ["##[group]Run b", "b-out"]
+      assert Enum.map(lines_for_step(ranges, job_id, 1), & &1.message) == ["Set up job line"]
+      assert Enum.map(lines_for_step(ranges, job_id, 2), & &1.message) == ["##[group]Run a", "a-out"]
+      assert Enum.map(lines_for_step(ranges, job_id, 3), & &1.message) == ["##[group]Run b", "b-out"]
     end
 
     test "no markers at all -> everything lumped under step 1" do
@@ -217,15 +224,15 @@ defmodule Tuist.Runners.JobLogsTest do
         %{number: 2, name: "Complete job", started_at: ~U[2026-05-28 12:00:01.000000Z]}
       ]
 
-      grouped = JobLogs.lines_grouped_by_step(job_id, steps)
+      ranges = JobLogs.step_line_ranges(job_id, steps)
 
-      assert Enum.map(grouped[1], & &1.message) == ["one", "two"]
-      assert grouped[2] == []
+      assert Enum.map(lines_for_step(ranges, job_id, 1), & &1.message) == ["one", "two"]
+      assert Map.get(ranges, 2) == nil
     end
 
-    test "empty log -> every step returns an empty list" do
+    test "empty log -> every step is unmapped" do
       steps = [%{number: 1, name: "Set up job", started_at: ~U[2026-05-28 12:00:00.000000Z]}]
-      assert JobLogs.lines_grouped_by_step(90_006, steps) == %{1 => []}
+      assert JobLogs.step_line_ranges(90_006, steps) == %{1 => nil}
     end
   end
 

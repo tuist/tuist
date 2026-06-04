@@ -192,16 +192,18 @@ defmodule Tuist.Runners.JobLogs do
     end
   end
 
-  # Cap on the total lines loaded per per-step grouping call. Marker
-  # detection has to walk the full log, so we put a ceiling here to
-  # bound memory + the ClickHouse fetch. 200k covers virtually every
-  # job we expect to see; beyond that the UI degrades to "everything
-  # under the first step" and the user still has the Logs tab tail.
-  @group_by_step_line_cap 200_000
-
   @doc """
-  Groups a job's log lines by step using GitHub's `##[group]Run`
-  markers. Returns `%{step_number => [%{line_number, ts, message}]}`.
+  For each step, the `{first_line_number, last_line_number}` slice
+  of the job's log that belongs to that step, or `nil` if no slice
+  could be derived (e.g. the step ran but produced no captured
+  output). The Steps card uses this to render headers eagerly and
+  fetch each step's lines via `list_step_lines/3` only on expand,
+  so a 200k-line job never materialises in the socket.
+
+  Three small ClickHouse queries: the job's `max(line_number)`, the
+  `##[group]Run` marker line numbers, and (if there's a teardown
+  step) the first line at or after its `started_at`. Nothing scans
+  the log body.
 
   ## Why markers, not timestamp windows
 
@@ -221,90 +223,81 @@ defmodule Tuist.Runners.JobLogs do
   They're anchored positionally:
 
     * The first step (if `step_count > marker_count`) absorbs every
-      line before the first `##[group]Run` marker — that's the
-      runner banner, token-permission group, prepare-workflow-dir
-      lines, etc.
+      line before the first `##[group]Run` marker — runner banner,
+      token-permission group, prepare-workflow-dir lines, etc.
     * The last step (if `step_count > marker_count + 1`) absorbs
       everything from the first line whose `ts` is at or after its
       own `started_at` — the cleanup phase ("Cleaning up orphan
       processes", etc.). This is the one place we still fall back
-      to GitHub's coordinator timestamp; the boundary is
-      coarse-grained (cleanup happens seconds after the last user
-      step's last line), so second-resolution is enough.
+      to GitHub's coordinator timestamp; the boundary is coarse-
+      grained (cleanup happens seconds after the last user step's
+      last line), so second-resolution is enough.
   """
-  def lines_grouped_by_step(workflow_job_id, steps) when is_integer(workflow_job_id) and is_list(steps) do
+  def step_line_ranges(workflow_job_id, steps) when is_integer(workflow_job_id) and is_list(steps) do
     steps_sorted = Enum.sort_by(steps, & &1.number)
-    lines = list_for_job(workflow_job_id, limit: @group_by_step_line_cap)
-    derive_step_lines(lines, steps_sorted)
-  end
 
-  defp derive_step_lines([], steps_sorted) do
-    Map.new(steps_sorted, fn step -> {step.number, []} end)
-  end
+    case {steps_sorted, max_line_number(workflow_job_id)} do
+      {[], _} ->
+        %{}
 
-  defp derive_step_lines(_lines, []) do
-    %{}
-  end
+      {sorted, nil} ->
+        Map.new(sorted, fn step -> {step.number, nil} end)
 
-  defp derive_step_lines(lines, steps_sorted) do
-    run_indices = find_run_indices(lines)
-
-    if run_indices == [] do
-      # No `##[group]Run` markers — single-step job, or the runner
-      # never reached a user step. Lump everything under the first
-      # step so the UI still surfaces something.
-      first = List.first(steps_sorted)
-
-      Map.new(steps_sorted, fn step ->
-        if step.number == first.number, do: {step.number, lines}, else: {step.number, []}
-      end)
-    else
-      slice_by_markers(lines, steps_sorted, run_indices)
+      {sorted, total_max} ->
+        markers = marker_line_numbers(workflow_job_id)
+        compute_ranges(sorted, markers, total_max, workflow_job_id)
     end
   end
 
-  defp find_run_indices(lines) do
-    lines
-    |> Enum.with_index()
-    |> Enum.flat_map(fn {line, idx} ->
-      if String.starts_with?(line.message, "##[group]Run "), do: [idx], else: []
+  @doc """
+  Lines whose `line_number` falls in `[first, last]` (inclusive),
+  renumbered 1-indexed per step so the Steps card shows "1, 2, 3…"
+  regardless of where the step sits in the job-wide sequence —
+  matches GitHub's own Steps UI.
+  """
+  def list_step_lines(workflow_job_id, first_line, last_line)
+      when is_integer(workflow_job_id) and is_integer(first_line) and is_integer(last_line) and last_line >= first_line do
+    from(l in JobLog,
+      where:
+        l.workflow_job_id == ^workflow_job_id and
+          l.line_number >= ^first_line and
+          l.line_number <= ^last_line,
+      group_by: [l.workflow_job_id, l.line_number],
+      order_by: [asc: l.line_number],
+      select: %{
+        line_number: l.line_number,
+        ts: fragment("argMax(?, ?)", l.ts, l.inserted_at),
+        message: fragment("argMax(?, ?)", l.message, l.inserted_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.with_index(1)
+    |> Enum.map(fn {line, idx} -> %{line | line_number: idx} end)
+  end
+
+  def list_step_lines(_workflow_job_id, _first_line, _last_line), do: []
+
+  defp compute_ranges(steps_sorted, [], total_max, _workflow_job_id) do
+    # No markers — single-step semantics: the first step absorbs
+    # the whole log, the rest are unmappable.
+    first = List.first(steps_sorted)
+
+    Map.new(steps_sorted, fn step ->
+      if step.number == first.number,
+        do: {step.number, {1, total_max}},
+        else: {step.number, nil}
     end)
   end
 
-  defp slice_by_markers(lines, steps_sorted, run_indices) do
-    total = length(lines)
-    {setup_steps, user_steps, teardown_steps} = partition_steps(steps_sorted, length(run_indices))
-    last_user_end = end_of_last_user_step(lines, total, teardown_steps)
+  defp compute_ranges(steps_sorted, markers, total_max, workflow_job_id) do
+    {setup_steps, user_steps, teardown_steps} = partition_steps(steps_sorted, length(markers))
+    last_user_end = end_of_last_user_step(workflow_job_id, total_max, teardown_steps)
 
-    ranges =
-      %{}
-      |> Map.merge(setup_ranges(setup_steps, run_indices))
-      |> Map.merge(user_ranges(user_steps, run_indices, last_user_end, setup_steps != []))
-      |> Map.merge(teardown_ranges(teardown_steps, last_user_end, total))
-
-    steps_sorted
-    |> materialise(ranges, lines)
-    |> renumber_per_step()
-  end
-
-  # Each step's slice gets its own 1-indexed sequence: the first
-  # visible line of a step is line 1, the next is 2, etc. This
-  # matches GitHub's own Steps UI, where every step starts at 1
-  # (collapsing a `##[group]` body makes those numbers disappear so
-  # the next visible line jumps ahead, exactly as in GitHub).
-  # The Logs tab still uses the underlying job-wide `line_number`
-  # because that view shows a single flat log — but per-step the
-  # global counter creates large, distracting offsets between
-  # adjacent steps.
-  defp renumber_per_step(grouped) do
-    Map.new(grouped, fn {step_number, lines} ->
-      renumbered =
-        lines
-        |> Enum.with_index(1)
-        |> Enum.map(fn {line, idx} -> %{line | line_number: idx} end)
-
-      {step_number, renumbered}
-    end)
+    %{}
+    |> Map.merge(setup_range(setup_steps, markers))
+    |> Map.merge(user_ranges(user_steps, markers, last_user_end, setup_steps != []))
+    |> Map.merge(teardown_range(teardown_steps, last_user_end, total_max))
+    |> fill_unmapped(steps_sorted)
   end
 
   # Split the ordered step list into (setup, user, teardown) buckets
@@ -332,70 +325,99 @@ defmodule Tuist.Runners.JobLogs do
     end
   end
 
-  defp end_of_last_user_step(_lines, total, []), do: total - 1
+  defp end_of_last_user_step(_workflow_job_id, total_max, []), do: total_max
 
-  defp end_of_last_user_step(lines, total, teardown_steps) do
-    compute_last_user_end(lines, total, teardown_steps)
+  defp end_of_last_user_step(workflow_job_id, total_max, [
+         %{started_at: %DateTime{} = teardown_start} | _
+       ]) do
+    case teardown_anchor_line(workflow_job_id, teardown_start) do
+      nil -> total_max
+      anchor -> anchor - 1
+    end
   end
 
-  defp materialise(steps_sorted, ranges, lines) do
-    Map.new(steps_sorted, fn step ->
-      case Map.get(ranges, step.number) do
-        {s, e} when is_integer(s) and is_integer(e) and e >= s and s >= 0 ->
-          {step.number, Enum.slice(lines, s..e)}
+  defp end_of_last_user_step(_workflow_job_id, total_max, _teardown_steps), do: total_max
 
-        _ ->
-          {step.number, []}
-      end
-    end)
+  defp setup_range([], _markers), do: %{}
+
+  defp setup_range([first | _rest], [first_marker | _]) do
+    if first_marker > 1, do: %{first.number => {1, first_marker - 1}}, else: %{first.number => nil}
   end
 
-  defp setup_ranges([], _run_indices), do: %{}
-
-  defp setup_ranges([first | rest], run_indices) do
-    first_run = List.first(run_indices)
-    ranges = %{first.number => {0, first_run - 1}}
-    Enum.reduce(rest, ranges, fn step, acc -> Map.put(acc, step.number, nil) end)
-  end
-
-  defp user_ranges(user_steps, run_indices, last_user_end, has_setup) do
+  defp user_ranges(user_steps, markers, last_user_end, has_setup) do
     user_step_count = length(user_steps)
 
     user_steps
     |> Enum.with_index()
     |> Map.new(fn {step, idx} ->
-      start_idx =
+      start_line =
         if idx == 0 and not has_setup,
-          do: 0,
-          else: Enum.at(run_indices, idx)
+          do: 1,
+          else: Enum.at(markers, idx)
 
-      end_idx =
+      end_line =
         if idx == user_step_count - 1,
           do: last_user_end,
-          else: Enum.at(run_indices, idx + 1) - 1
+          else: Enum.at(markers, idx + 1) - 1
 
-      {step.number, {start_idx, end_idx}}
+      {step.number, valid_range(start_line, end_line)}
     end)
   end
 
-  defp teardown_ranges([], _last_user_end, _total), do: %{}
+  defp teardown_range([], _last_user_end, _total_max), do: %{}
 
-  defp teardown_ranges([first | rest], last_user_end, total) do
-    ranges = %{first.number => {last_user_end + 1, total - 1}}
-    Enum.reduce(rest, ranges, fn step, acc -> Map.put(acc, step.number, nil) end)
+  defp teardown_range([first | _rest], last_user_end, total_max) do
+    %{first.number => valid_range(last_user_end + 1, total_max)}
   end
 
-  defp compute_last_user_end(lines, total, [%{started_at: %DateTime{} = teardown_start} | _]) do
-    case Enum.find_index(lines, fn line ->
-           DateTime.compare(line.ts, teardown_start) != :lt
-         end) do
-      nil -> total - 1
-      0 -> -1
-      idx -> idx - 1
+  defp valid_range(first, last) when is_integer(first) and is_integer(last) and last >= first, do: {first, last}
+  defp valid_range(_, _), do: nil
+
+  defp fill_unmapped(ranges, steps_sorted) do
+    Enum.reduce(steps_sorted, ranges, fn step, acc ->
+      Map.put_new(acc, step.number, nil)
+    end)
+  end
+
+  defp max_line_number(workflow_job_id) do
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      select: fragment("max(?)", l.line_number)
+    )
+    |> ClickHouseRepo.one()
+    |> case do
+      0 -> nil
+      value -> value
     end
   end
 
-  defp compute_last_user_end(_lines, total, _teardown_steps), do: total - 1
+  # `##[group]Run ` (trailing space) is the literal prefix GitHub's
+  # runner emits per user-defined `run:` step. The HAVING runs against
+  # the deduped message so a retried row can't slip past the filter.
+  defp marker_line_numbers(workflow_job_id) do
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id,
+      group_by: [l.workflow_job_id, l.line_number],
+      having: fragment("startsWith(argMax(?, ?), '##[group]Run ')", l.message, l.inserted_at),
+      order_by: [asc: l.line_number],
+      select: l.line_number
+    )
+    |> ClickHouseRepo.all()
+  end
+
+  # `ts` comes from the GH log line itself, so a retried row carries
+  # an identical ts — no dedup needed for this anchor.
+  defp teardown_anchor_line(workflow_job_id, teardown_started_at) do
+    from(l in JobLog,
+      where: l.workflow_job_id == ^workflow_job_id and l.ts >= ^teardown_started_at,
+      select: fragment("min(?)", l.line_number)
+    )
+    |> ClickHouseRepo.one()
+    |> case do
+      0 -> nil
+      value -> value
+    end
+  end
 
   @doc """
   Number of distinct log lines captured for a job.

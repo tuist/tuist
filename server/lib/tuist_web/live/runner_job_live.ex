@@ -348,27 +348,33 @@ defmodule TuistWeb.RunnerJobLive do
     """
   end
 
-  # Computes the per-step grouping on first step expand and caches
-  # the full %{step_number => lines} map in the socket. Subsequent
-  # expands are O(1) lookups against the cache.
+  # Per-step ranges are computed once (three small ClickHouse queries,
+  # no log-body scan); the expanded step's lines are fetched on demand
+  # and cached individually. A user who never opens a step pays
+  # nothing beyond mount; a job with hundreds of thousands of lines
+  # never holds them in the socket.
   defp load_step_logs(socket, number) do
     if Map.has_key?(socket.assigns.step_logs, number) do
       socket
     else
-      grouped =
-        if socket.assigns[:step_logs_grouped] do
-          socket.assigns.step_logs_grouped
-        else
-          JobLogs.lines_grouped_by_step(
+      ranges =
+        socket.assigns[:step_line_ranges] ||
+          JobLogs.step_line_ranges(
             socket.assigns.job.workflow_job_id,
             socket.assigns.steps
           )
+
+      lines =
+        case Map.get(ranges, number) do
+          {first, last} ->
+            JobLogs.list_step_lines(socket.assigns.job.workflow_job_id, first, last)
+
+          _ ->
+            []
         end
 
-      lines = Map.get(grouped, number, [])
-
       socket
-      |> assign(:step_logs_grouped, grouped)
+      |> assign(:step_line_ranges, ranges)
       |> assign(:step_logs, Map.put(socket.assigns.step_logs, number, lines))
     end
   end
