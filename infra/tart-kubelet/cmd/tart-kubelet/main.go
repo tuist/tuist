@@ -65,6 +65,7 @@ func main() {
 		metricsAddr        string
 		probeAddr          string
 		tartBinary         string
+		disableVMGC        bool
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -101,6 +102,13 @@ func main() {
 			"the endpoint on the WAN.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
+	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
+		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
+			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
+			"which never have Pods scheduled but bake images with a host-level Packer/`tart` "+
+			"process — every local VM looks orphaned, so the GC reaps the in-flight build VM "+
+			"mid-`tart push` (it fails at the NVRAM layer with `nvram.bin doesn't exist`). Set "+
+			"this on builder Nodes; the image-bake workflow reclaims its own Tart disk.")
 
 	// `--kubeconfig` is registered automatically by controller-runtime's
 	// init() (sigs.k8s.io/controller-runtime/pkg/client/config). Defining
@@ -207,16 +215,28 @@ func main() {
 
 	store := podagent.NewStore()
 
-	gcCollector := &podagent.Collector{
-		K8s:      mgr.GetAPIReader(),
-		Tart:     tartClient,
-		NodeName: nodeName,
-		Interval: 5 * time.Minute,
-		Store:    store,
-	}
-	if err := mgr.Add(gcCollector); err != nil {
-		setupLog.Error(err, "add gc collector")
-		os.Exit(1)
+	// The orphan-VM GC reaps any local Tart VM not backed by a Pod on
+	// this Node. Builder-fleet Nodes never run Pods (they bake images
+	// with a host-level Packer/`tart` process), so every local VM —
+	// including the in-flight build VM — looks orphaned to the GC; it
+	// would `tart delete` the bundle mid-`tart push`, failing the push
+	// at the NVRAM layer. `--disable-vm-gc` leaves the collector off on
+	// those Nodes; the image-bake workflow reclaims its own disk.
+	var gcCollector *podagent.Collector
+	if disableVMGC {
+		setupLog.Info("orphan-VM garbage collector disabled (--disable-vm-gc); this Node manages its own Tart disk")
+	} else {
+		gcCollector = &podagent.Collector{
+			K8s:      mgr.GetAPIReader(),
+			Tart:     tartClient,
+			NodeName: nodeName,
+			Interval: 5 * time.Minute,
+			Store:    store,
+		}
+		if err := mgr.Add(gcCollector); err != nil {
+			setupLog.Error(err, "add gc collector")
+			os.Exit(1)
+		}
 	}
 
 	// Hydrate the Pod ↔ VM map from on-host state before reconciles

@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -43,12 +46,16 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 		},
 	}
 	legacyIngress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "12345"},
+	}
 
 	reconciler := &KuraInstanceReconciler{
-		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress).WithStatusSubresource(instance).Build(),
+		Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacyIngress, sharedSecret).WithStatusSubresource(instance).Build(),
 		Scheme:             scheme,
 		GRPCClusterIssuer:  "letsencrypt-prod",
 		OTLPTracesEndpoint: "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces",
+		Environment:        "canary",
 	}
 
 	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
@@ -144,18 +151,53 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env["KURA_HTTPS_PORT"]; got == "" {
 		t.Fatal("expected KURA_HTTPS_PORT to be set when publicHost is set")
 	}
+	if got := env["KURA_NODE_URL"]; got != "https://$(POD_NAME).kura-tuist-eu-1-headless.$(POD_NAMESPACE).svc.cluster.local:7443" {
+		t.Fatalf("expected peer node URL to use mTLS, got %q", got)
+	}
+	if env["KURA_INTERNAL_TLS_CA_CERT_PATH"] == "" ||
+		env["KURA_INTERNAL_TLS_CERT_PATH"] == "" ||
+		env["KURA_INTERNAL_TLS_KEY_PATH"] == "" {
+		t.Fatal("expected internal peer mTLS env paths to be configured")
+	}
 	if got := env[otlpTracesEndpointEnvVar]; got != "http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces" {
 		t.Fatalf("expected default OTLP traces endpoint, got %q", got)
 	}
+	if got := env[environmentEnvVar]; got != "canary" {
+		t.Fatalf("expected deployment environment, got %q", got)
+	}
 	publicMountFound := false
+	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
 		if mount.Name == publicTLSVolumeName {
 			publicMountFound = true
-			break
+		}
+		if mount.Name == peerTLSVolumeName && mount.ReadOnly {
+			peerMountFound = true
 		}
 	}
 	if !publicMountFound {
 		t.Fatal("expected public TLS secret to be mounted into the kura container")
+	}
+	if !peerMountFound {
+		t.Fatal("expected peer mTLS secret to be mounted into the kura container")
+	}
+	peerSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, peerSecret); err != nil {
+		t.Fatalf("expected per-instance peer mTLS Secret to be created: %v", err)
+	}
+	if !peerTLSSecretDataValid(peerSecret.Data, instance) {
+		t.Fatal("expected generated peer mTLS Secret to contain a valid CA, certificate, and key")
+	}
+	block, _ := pem.Decode(peerSecret.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected peer certificate PEM")
+	}
+	peerCert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("expected peer certificate to parse: %v", err)
+	}
+	if got := peerCert.DNSNames[0]; got != "*.kura-tuist-eu-1-headless.kura.svc.cluster.local" {
+		t.Fatalf("expected peer certificate to cover StatefulSet pod DNS names, got %q", got)
 	}
 	publicPortFound := false
 	for _, port := range container.Ports {
@@ -208,6 +250,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := sts.Spec.Template.Annotations["prometheus.io/path"]; got != "/metrics" {
 		t.Fatalf("expected Prometheus path annotation, got %q", got)
+	}
+	if got := sts.Spec.Template.Annotations[sharedSecretsRVAnnotation]; got != "12345" {
+		t.Fatalf("expected shared secrets resource version annotation, got %q", got)
 	}
 	if got := sts.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura" {
 		t.Fatalf("expected kura node pool selector, got %q", got)
@@ -279,6 +324,162 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 	if got := publicPorts[1].Port.StrVal; got != "grpc" {
 		t.Fatalf("expected public NetworkPolicy rule to expose grpc, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcilePeerTLSSecretCreatesValidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	secret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, secret); err != nil {
+		t.Fatalf("expected peer TLS Secret to be created: %v", err)
+	}
+	if secret.Type != corev1.SecretTypeOpaque {
+		t.Fatalf("expected opaque Secret, got %q", secret.Type)
+	}
+	if !peerTLSSecretDataValid(secret.Data, instance) {
+		t.Fatal("expected generated peer TLS data to validate")
+	}
+	if got := secret.Labels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected account label, got %q", got)
+	}
+	if len(secret.OwnerReferences) != 1 || secret.OwnerReferences[0].Name != instance.Name {
+		t.Fatalf("expected Secret to be owned by KuraInstance, got %v", secret.OwnerReferences)
+	}
+
+	block, _ := pem.Decode(secret.Data[peerTLSCertFile])
+	if block == nil {
+		t.Fatal("expected peer certificate PEM")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("expected peer certificate to parse: %v", err)
+	}
+	if !containsString(cert.DNSNames, "*.kura-tuist-eu-1-headless.kura.svc.cluster.local") {
+		t.Fatalf("expected peer certificate SANs to cover StatefulSet pod DNS names, got %v", cert.DNSNames)
+	}
+	if !containsExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageServerAuth) ||
+		!containsExtKeyUsage(cert.ExtKeyUsage, x509.ExtKeyUsageClientAuth) {
+		t.Fatalf("expected peer certificate to support server and client auth, got %v", cert.ExtKeyUsage)
+	}
+}
+
+func TestKuraInstanceReconcilePeerTLSSecretPreservesValidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	validData, err := generatePeerTLSSecretData(instance)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       cloneSecretData(validData),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, secret).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	updated := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if !secretDataEqual(validData, updated.Data) {
+		t.Fatal("expected existing valid peer TLS material to be preserved")
+	}
+}
+
+func TestKuraInstanceReconcilePeerTLSSecretRegeneratesInvalidMaterial(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	invalidData := map[string][]byte{
+		peerTLSCAFile:   []byte("not a ca"),
+		peerTLSCertFile: []byte("not a cert"),
+		peerTLSKeyFile:  []byte("not a key"),
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       cloneSecretData(invalidData),
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, secret).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.reconcilePeerTLSSecret(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	updated := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}, updated); err != nil {
+		t.Fatal(err)
+	}
+	if !peerTLSSecretDataValid(updated.Data, instance) {
+		t.Fatal("expected invalid peer TLS material to be regenerated")
+	}
+	if secretDataEqual(invalidData, updated.Data) {
+		t.Fatal("expected regenerated peer TLS material to differ from invalid input")
 	}
 }
 
@@ -489,7 +690,7 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 		},
 	}
 
-	stsTemplate := podTemplate(instance, "")
+	stsTemplate := podTemplate(instance, "", "production", "")
 	if got := stsTemplate.Spec.NodeSelector["kubernetes.io/os"]; got != "linux" {
 		t.Fatalf("expected local node selector, got %q", got)
 	}
@@ -563,4 +764,43 @@ func TestRolloutStatusMarksReadyOnlyForCurrentRevision(t *testing.T) {
 	if status.observedImage != "ghcr.io/tuist/kura:0.5.3" {
 		t.Fatalf("expected observed image to advance, got %q", status.observedImage)
 	}
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func containsExtKeyUsage(values []x509.ExtKeyUsage, needle x509.ExtKeyUsage) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneSecretData(data map[string][]byte) map[string][]byte {
+	clone := make(map[string][]byte, len(data))
+	for key, value := range data {
+		clone[key] = bytes.Clone(value)
+	}
+	return clone
+}
+
+func secretDataEqual(left, right map[string][]byte) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, leftValue := range left {
+		rightValue, ok := right[key]
+		if !ok || !bytes.Equal(leftValue, rightValue) {
+			return false
+		}
+	}
+	return true
 }

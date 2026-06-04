@@ -60,7 +60,7 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -159,10 +159,8 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    runs-on: tuist-linux
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
@@ -195,7 +193,7 @@ jobs:
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +206,7 @@ jobs:
         run: mix credo
   format:
     name: Format
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -230,7 +228,7 @@ jobs:
         run: mise run --no-deps format --check
   esbuild:
     name: esbuild
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -275,7 +273,7 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -296,10 +294,10 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # TODO: migrate to tuist-production-linux once the runner image ships a
-    # docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -335,7 +333,7 @@ jobs:
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
-  #   runs-on: namespace-profile-default-with-volume
+  #   runs-on: tuist-linux
   #   timeout-minutes: 15
   #   services:
   #     postgres:
@@ -352,12 +350,9 @@ jobs:
   #         --health-retries 5
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - uses: namespacelabs/nscloud-cache-action@v1
-  #       with:
-  #         cache: mise
   #     - uses: jdx/mise-action@v4.0.1
   #       with:
-  #         cache: "false"
+  #         cache: "true"
   #     - run: mise run install
   #     - run: mise run clickhouse:start
   #     - run: mise run db:reset
@@ -377,9 +372,7 @@ jobs:
   #         fi
   seed:
     name: Seed
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:

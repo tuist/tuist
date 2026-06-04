@@ -34,8 +34,22 @@ defmodule TuistWeb.UsageLiveTest do
   end
 
   defp enable_kura(account) do
-    FunWithFlags.enable(:kura, for_actor: account)
     stub(Environment, :dev?, fn -> false end)
+    stub_kura_flag(account, true)
+  end
+
+  defp disable_kura(account) do
+    stub(Environment, :dev?, fn -> false end)
+    stub_kura_flag(account, false)
+  end
+
+  defp stub_kura_flag(account, enabled?) do
+    account_id = account.id
+
+    stub(FunWithFlags, :enabled?, fn
+      :kura, [for: %{id: ^account_id}] -> enabled?
+      flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
+    end)
   end
 
   defp insert_event(attrs) do
@@ -61,7 +75,7 @@ defmodule TuistWeb.UsageLiveTest do
 
   describe "Kura feature flag gate" do
     test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
-      stub(Environment, :dev?, fn -> false end)
+      disable_kura(account)
 
       assert_raise TuistWeb.Errors.NotFoundError, fn ->
         live(conn, ~p"/#{account.name}/usage")

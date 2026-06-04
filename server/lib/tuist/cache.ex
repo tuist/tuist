@@ -37,6 +37,22 @@ defmodule Tuist.Cache do
     }
   end
 
+  def embedded_cache_claims(resource, opts \\ [])
+
+  def embedded_cache_claims(%User{} = user, opts), do: project_only_embedded_cache_claims(user, opts)
+
+  def embedded_cache_claims(%AuthenticatedAccount{issued_by: %User{}} = subject, opts) do
+    project_only_embedded_cache_claims(subject, opts)
+  end
+
+  def embedded_cache_claims(resource, opts) do
+    %{
+      "accounts" => accessible_account_handles(resource),
+      "projects" => accessible_project_handles(resource, opts),
+      "cache_grants" => cache_grants(resource, opts)
+    }
+  end
+
   def accessible_account_handles(%User{} = user) do
     user
     |> accessible_accounts()
@@ -126,6 +142,19 @@ defmodule Tuist.Cache do
       |> Enum.map(& &1.account)
 
     Enum.reject([personal_account | organization_accounts], &is_nil/1)
+  end
+
+  defp project_only_embedded_cache_claims(resource, opts) do
+    %{
+      "projects" => accessible_project_handles(resource, opts),
+      "cache_grants" => %{
+        "account" => %{"read" => [], "write" => []},
+        "project" => %{
+          "read" => project_cache_handles(resource, :read, opts),
+          "write" => project_cache_handles(resource, :write, opts)
+        }
+      }
+    }
   end
 
   defp account_cache_handles(%User{} = user, _action), do: accessible_account_handles(user)

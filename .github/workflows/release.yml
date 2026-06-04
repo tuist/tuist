@@ -25,7 +25,7 @@ env:
 jobs:
   check-releases:
     name: Check for releasable changes
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 5
     outputs:
       cli-should-release: ${{ steps.check.outputs.cli-should-release }}
@@ -362,7 +362,7 @@ jobs:
     name: Release Android App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -408,9 +408,11 @@ jobs:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -494,9 +496,7 @@ jobs:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -577,7 +577,7 @@ jobs:
     name: Release Kura Metadata
     needs: check-releases
     if: needs.check-releases.outputs.kura-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 20
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -700,20 +700,32 @@ jobs:
 
   release-kura-docker:
     name: Release Kura Docker Image
-    needs: [check-releases, release-kura-prepare]
+    needs: [check-releases, release-kura-prepare, release-kura-binaries]
     if: needs.check-releases.outputs.kura-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 90
+    runs-on: tuist-linux
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Kura release metadata
+      - name: Download Kura amd64 binary
         uses: actions/download-artifact@v4
         with:
-          name: kura-release-metadata
-          path: kura
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -732,7 +744,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./kura
-          file: ./kura/Dockerfile
+          file: ./kura/Dockerfile.release
           push: true
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha,scope=kura-runtime
@@ -745,7 +757,7 @@ jobs:
     name: Release Gradle Plugin
     needs: check-releases
     if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -859,7 +871,7 @@ jobs:
     name: Release Skills
     needs: check-releases
     if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -932,7 +944,7 @@ jobs:
     name: Release Noora
     needs: check-releases
     if: needs.check-releases.outputs.noora-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1012,7 +1024,7 @@ jobs:
     name: Release Helm Chart
     needs: check-releases
     if: needs.check-releases.outputs.helm-should-release == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1094,9 +1106,7 @@ jobs:
     name: Release CAPI operator
     needs: check-releases
     if: needs.check-releases.outputs.capi-scaleway-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1186,9 +1196,7 @@ jobs:
     name: Release runners-controller
     needs: check-releases
     if: needs.check-releases.outputs.runners-controller-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1274,9 +1282,7 @@ jobs:
     name: Release hetzner-robot-controller
     needs: check-releases
     if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1749,9 +1755,7 @@ jobs:
     name: Release Linux runner image
     needs: check-releases
     if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1883,7 +1887,7 @@ jobs:
     if: |
       always() &&
       needs.check-releases.outputs.should-release-any == 'true'
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}

@@ -275,6 +275,34 @@ defmodule Tuist.Kubernetes.Client do
     )
   end
 
+  @doc """
+  Deletes a runner Pod and its same-named per-Pod ServiceAccount.
+  The runner-pool reconciler creates the two as RunnerPool siblings
+  sharing one name (not parent/child), so deleting the Pod alone
+  orphans the SA — mirror the controller's `reapRunner` and delete
+  both. Used by `OrphanedStampedPodsWorker` to reclaim a Pod the
+  reconciler can't scale down (it only reaps idle, un-stamped Pods,
+  so an owner-stamped Pod whose claim has been released is otherwise
+  pinned forever, holding its node's memory).
+
+  Idempotent: a 404 on either resource (already gone) counts as
+  success. Returns `:ok` when both deletes succeed or 404, otherwise
+  `{:error, {pod_result, sa_result}}`.
+  """
+  def delete_runner(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
+    pod_result = delete("/api/v1/namespaces/#{namespace}/pods/#{name}", opts)
+    sa_result = delete("/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}", opts)
+
+    case {ok_or_absent(pod_result), ok_or_absent(sa_result)} do
+      {:ok, :ok} -> :ok
+      _ -> {:error, {pod_result, sa_result}}
+    end
+  end
+
+  defp ok_or_absent(:ok), do: :ok
+  defp ok_or_absent({:error, :not_found}), do: :ok
+  defp ok_or_absent(other), do: other
+
   # ----- Manifest dispatch -----
 
   defp manifest_path(%{

@@ -54,6 +54,27 @@ redoing finished ones. Failures requeue with backoff; only terminal
 errors (Scaleway 400s, validation failures) set
 `Status.FailureReason`.
 
+Two auxiliary controllers run alongside it:
+
+- **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
+  leader-gated periodic sweep that returns Scaleway hosts which were
+  claimed by the controller but whose CR is gone (a legacy CR that
+  skipped release, a force-delete that bypassed the finalizer, a crash
+  mid-claim) back to the adopt pool, so a strand can't silently drain
+  the pool and keep billing under Apple's 24h floor. The per-Machine
+  delete path only covers what reaches it; the sweep is the convergent
+  backstop. A host is left untouched unless it is certainly
+  ours-but-unowned — not in the pool, not mid-adoption, and named after
+  no live CR (the claim renames a pool host to its CR's name, so a live
+  CR name is the authoritative "owned" signal). Active reclaim is gated
+  on a claim-name prefix; report-only otherwise. Exports the
+  `scaleway_orphan_servers` gauge. Enabled by
+  `macosFleet.orphanReclaim.poolPrefix`, which also serves as the
+  delete path's pool-prefix fallback for legacy CRs.
+- **FleetSpreadReconciler** (`controllers/fleetspread_controller.go`) —
+  re-rolls a target Deployment when the Ready Mac mini set changes so
+  Pods spread across newly-joined hosts.
+
 ## Module layout
 
 ```
@@ -66,7 +87,9 @@ infra/cluster-api-provider-scaleway-applesilicon/
 │   └── zz_generated.deepcopy.go
 ├── controllers/
 │   ├── scalewayapplesiliconmachine_controller.go
-│   └── scalewayapplesiliconcluster_controller.go
+│   ├── scalewayapplesiliconcluster_controller.go
+│   ├── fleetspread_controller.go
+│   └── orphan_reclaimer.go
 ├── internal/
 │   ├── scaleway/   # Scaleway SDK wrapper
 │   └── bootstrap/  # SSH-driven kubelet/tart-cri install
