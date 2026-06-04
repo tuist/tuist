@@ -30,11 +30,14 @@ setup_file() {
     require_env TUIST_AUTH_EMAIL
     require_env TUIST_AUTH_PASSWORD
 
-    # Isolate cache + state under the test's tmp dir so we can wipe the local
-    # cache to force a remote pull, and never touch the host's real Tuist data.
+    # Isolate cache + state + config under the test's tmp dir so we can wipe the
+    # local cache to force a remote pull, and never touch the host's real Tuist
+    # data. Credentials live under XDG_CONFIG_HOME (not XDG_CACHE_HOME), so the
+    # cache wipe below does not log us out.
     export XDG_CACHE_HOME="${BATS_FILE_TMPDIR}/cache"
     export XDG_STATE_HOME="${BATS_FILE_TMPDIR}/state"
-    mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME"
+    export XDG_CONFIG_HOME="${BATS_FILE_TMPDIR}/config"
+    mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_CONFIG_HOME"
 
     export FIXTURE_DIR="${BATS_FILE_TMPDIR}/module_cache_app"
     cp -R "${E2E_DIR}/fixtures/module_cache_app" "$FIXTURE_DIR"
@@ -55,11 +58,14 @@ let tuist = Tuist(
 EOF
 
     echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
+    # The oldest supported CLI's `auth login` has no --url flag; it resolves the
+    # server from the project config, so --path points it at the canary URL we
+    # just wrote into Tuist.swift.
     echo "# Logging in to ${TUIST_URL}..." >&3
     "$TUIST_EXECUTABLE" auth login \
         --email "$TUIST_AUTH_EMAIL" \
         --password "$TUIST_AUTH_PASSWORD" \
-        --url "$TUIST_URL"
+        --path "$FIXTURE_DIR"
 
     echo "# Creating throwaway project ${PROJECT_HANDLE}..." >&3
     "$TUIST_EXECUTABLE" project create "$PROJECT_HANDLE" --path "$FIXTURE_DIR"
@@ -69,7 +75,8 @@ teardown_file() {
     if [[ -n "${PROJECT_HANDLE:-}" ]]; then
         "$TUIST_EXECUTABLE" project delete "$PROJECT_HANDLE" --path "$FIXTURE_DIR" 2>/dev/null || true
     fi
-    "$TUIST_EXECUTABLE" auth logout 2>/dev/null || true
+    # --path resolves the canary host so logout clears the right session.
+    "$TUIST_EXECUTABLE" auth logout --path "$FIXTURE_DIR" 2>/dev/null || true
 }
 
 @test "oldest supported CLI pulls the module cache from canary without a signature error" {
