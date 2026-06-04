@@ -4,9 +4,11 @@
 # Debian Bookworm (glibc 2.36) — from a macOS host via the Docker daemon, without
 # going through a GitHub workflow. See docs/bazel-migration-plan.md (Phase 0.3).
 #
-# The apt packages mirror kura/Dockerfile's build stage: the native -sys crates
-# (rocksdb, jemalloc, lua) run their build scripts against these host tools for
-# now; Phase 0.4 replaces them with a hermetic toolchain.
+# The apt packages mirror kura/Dockerfile's build stage (build-essential, clang,
+# cmake, pkg-config) for the native -sys crates. crossbuild-essential-amd64 adds
+# the Debian x86_64 cross GCC + sysroot (glibc 2.36, libstdc++) so an arm64 host
+# can cross-compile the x86_64 target — same gcc/libstdc++/glibc as the native
+# build, matching the Bookworm runtime exactly. See docs/bazel-migration-plan.md.
 #
 # Build:  docker build -f bazel/linux-dev.Dockerfile -t kura-bazel-linux .
 # Use:    see bazel/linux-build.sh
@@ -20,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       clang \
       cmake \
       pkg-config \
+      crossbuild-essential-amd64 \
     && rm -rf /var/lib/apt/lists/*
 
 # Bazelisk reads .bazelversion and fetches the matching Bazel (9.1.0).

@@ -10,17 +10,25 @@ module(
 )
 
 bazel_dep(name = "rules_rust", version = "0.70.0")
-bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "platforms", version = "1.0.0")
 
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
+# extra_target_triples enables cross-compilation to x86_64 from a non-x86 host.
 rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 rust.toolchain(
     edition = "2024",
+    extra_target_triples = ["x86_64-unknown-linux-gnu"],
     versions = ["1.94.1"],
 )
 use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
+
+# Cross C/C++ toolchain for the x86_64-linux target (Debian cross GCC in the dev
+# image). Selected only when building for //bazel/platforms:linux_x86_64; native
+# builds keep the autodetected host toolchain.
+register_toolchains("//bazel/toolchains/cc:x86_64_linux_toolchain")
 
 # Third-party Rust dependencies, resolved from Cargo.toml / Cargo.lock.
 # Repin after changing dependencies or annotations (Bazel 9 has no `bazel sync`):

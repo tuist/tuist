@@ -226,19 +226,28 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   version-coupling — the canonical repo name + the `lua-5.4.8/*.c` glob — fails
   *loudly* on a `lua-src` bump (the `lua-5.4.x` dir name changes too).
 
-  **Still open in 0.3:** linux/**x86_64** (the host is arm64 — needs an emulated amd64
-  container or, better, the 0.4 cross toolchain).
-
-- **0.4 — Hermetic cc + Bookworm sysroot.** Replace the host C/C++ compiler with a
-  hermetic toolchain (e.g. `toolchains_llvm`) and a **pinned Debian Bookworm sysroot**
-  (glibc 2.36, `libstdc++`, headers — obtained/pinned, e.g. extracted from the
-  `debian:bookworm` image by digest). Re-verify all native deps still build against
-  the sysroot.
-  *Rationale for doing 0.3 against host cc first, then switching:* it minimizes
-  variables while getting the awkward build scripts working, then proves
-  hermeticity/glibc as a separate, isolated change.
-  *Check:* the binary links Bookworm's glibc/`libstdc++`, independent of the runner's
-  Ubuntu glibc.
+- **0.4 — Cross-compilation to x86_64. ✅ Done (cross from arm64).** Both Linux arches
+  now build:
+  - **arm64**: native in the arm64 dev container (host cc).
+  - **x86_64**: cross-compiled from the arm64 container at native speed (no QEMU).
+  Emulating an amd64 container was rejected — its x86 JVM has broken networking under
+  emulation, and it would be slow anyway. `toolchains_llvm` was rejected too: it pulls
+  clang/libc++ and an external sysroot whose libstdc++ may be too old for rocksdb's
+  C++17, diverging from the gcc/libstdc++ native build. Instead:
+  - The dev image adds `crossbuild-essential-amd64` (Debian cross GCC 12 + x86_64
+    sysroot — same gcc/libstdc++/glibc 2.36 as native, matching the Bookworm runtime).
+  - `//bazel/toolchains/cc:x86_64_linux_toolchain` is a `cc_toolchain` over that cross
+    GCC (`unix_cc_toolchain_config`, absolute tool paths + builtin include dirs).
+    Registered scoped to `@platforms//cpu:x86_64`, so native arm64 keeps the host cc.
+  - `rust.toolchain(extra_target_triples = ["x86_64-unknown-linux-gnu"])`; build with
+    `--platforms=//bazel/platforms:linux_x86_64`. rules_rust wires the cross `CXX` into
+    the `-sys` build scripts (rocksdb/jemalloc/lua/aws-lc all cross-compile).
+  *Verified:* `//:kura` cross-builds to an x86-64 ELF; NEEDED libs are only base libs
+  (rocksdb/jemalloc/lua static); max glibc referenced is 2.34 (≤ 2.36); the binary runs
+  (in an emulated amd64 container) and exercises config validation. arm64 unaffected.
+  *Follow-up:* the symmetric arm64-cross-from-x86 toolchain (`crossbuild-essential-arm64`
+  + an arm64 `cc_toolchain`) is needed to build both arches from the x86 CI runner for a
+  single-runner multi-arch OCI image (Phase 3).
 
 - **0.5 — Validation & go/no-go.** Run the Bazel binary **inside
   `debian:bookworm-slim`** (the actual runtime image): `kura --version`, a startup
