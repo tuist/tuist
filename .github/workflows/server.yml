@@ -180,7 +180,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -325,7 +325,7 @@ jobs:
         run: |
           docker buildx build \
             --progress=plain \
-            --file ./server/Dockerfile \
+            --file "$GITHUB_WORKSPACE/server/Dockerfile" \
             --target runner \
             --load \
             --tag tuist/tuist \
@@ -333,7 +333,7 @@ jobs:
             --build-arg TUIST_VERSION=1.24.11.11 \
             --build-arg MIX_ENV=prod \
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
-            .
+            "$GITHUB_WORKSPACE"
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -395,7 +395,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
