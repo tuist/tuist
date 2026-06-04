@@ -28,10 +28,6 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
         preload: [:account]
       )
 
-    account
-    |> Ecto.Changeset.change(runner_max_concurrent: 5)
-    |> Tuist.Repo.update!()
-
     conn =
       conn
       |> assign(:selected_account, account)

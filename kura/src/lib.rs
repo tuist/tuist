@@ -10,6 +10,7 @@ mod http;
 mod io;
 mod memory;
 mod metrics;
+mod mmap;
 mod multipart;
 mod node_location;
 mod peer_tls;

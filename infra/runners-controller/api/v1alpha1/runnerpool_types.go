@@ -19,7 +19,8 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // OS/arch triple stamped on the GitHub runner at JIT mint time.
 //
 // No customer fields here — customers are not modeled on the K8s
-// side. Per-customer config lives in `accounts.runner_max_concurrent`.
+// side. Runner availability is gated server-side by the `:runners`
+// feature flag.
 type RunnerPoolSpec struct {
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from

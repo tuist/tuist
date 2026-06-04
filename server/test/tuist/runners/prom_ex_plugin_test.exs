@@ -1,12 +1,9 @@
 defmodule Tuist.Runners.PromExPluginTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Repo
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.PromExPlugin
@@ -34,12 +31,6 @@ defmodule Tuist.Runners.PromExPluginTest do
       )
   end
 
-  defp enabled_account_fixture(cap \\ 10) do
-    account = account_fixture()
-    {1, _} = Repo.update_all(from(a in Account, where: a.id == ^account.id), set: [runner_max_concurrent: cap])
-    Repo.reload!(account)
-  end
-
   defp stub_pool_list(fleets) when is_list(fleets) do
     items =
       Enum.map(fleets, fn name ->
@@ -58,7 +49,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_queue_length())
       stub_pool_list(["fleet-poll"])
 
-      account = enabled_account_fixture()
+      account = account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -100,7 +91,7 @@ defmodule Tuist.Runners.PromExPluginTest do
       attach_collector(handler_id, Telemetry.event_name_claims_count())
       stub_pool_list(["fleet-claims"])
 
-      account = enabled_account_fixture()
+      account = account_fixture()
       {:ok, _} = Claims.attempt(123_456, account.id, "fleet-claims", "pod-x")
 
       PromExPlugin.execute_claims_telemetry_event()

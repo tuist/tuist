@@ -3292,21 +3292,12 @@ IO.puts("  - Gradle machine metrics: #{length(gradle_machine_metrics)} data poin
 # Runner Profiles (customer-facing vCPU/RAM bundles)
 # =============================================================================
 
-# Enable runners (cap > 0) and seed a few profiles per dev account so
-# the sidebar Profiles tab is non-empty for both the personal account
-# (where the seed login lands) and the `tuist` organization (the
-# context most demo flows switch into).
-#
-# `runner_max_concurrent` gates dispatch, not the UI — the UI uses
-# `FeatureFlags.runners_enabled?` which is always true outside prod.
-# But setting a cap here keeps the seed data internally consistent.
+# Seed a few profiles per dev account so the sidebar Profiles tab is
+# non-empty for both the personal account (where the seed login lands)
+# and the `tuist` organization (the context most demo flows switch
+# into). Runners are enabled for every account outside prod via
+# `FeatureFlags.runners_enabled?`, so there's nothing else to flip.
 runner_profile_accounts = Enum.uniq_by([user.account, organization.account], & &1.id)
-
-Enum.each(runner_profile_accounts, fn account ->
-  account
-  |> Ecto.Changeset.change(runner_max_concurrent: 10)
-  |> Repo.update!()
-end)
 
 runner_profile_seeds = [
   # `linux` is auto-bootstrapped by `Accounts.create_user` /

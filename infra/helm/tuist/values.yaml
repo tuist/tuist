@@ -719,8 +719,9 @@ macosFleet:
 # (intentional — we'd rather let a thin overcommit show up as
 # unscheduled Pods than fail a deploy on arithmetic).
 #
-# Per-customer concurrency is enforced server-side via
-# `accounts.runner_max_concurrent` (see server/lib/tuist/runners.ex).
+# Runner availability is gated server-side by the `:runners`
+# feature flag (see server/lib/tuist/runners.ex); there's no
+# per-customer concurrency cap.
 #
 # The Tuist server's ServiceAccount holds Pod create/list/get on
 # the runners namespace (templates/runners-namespace.yaml); a
