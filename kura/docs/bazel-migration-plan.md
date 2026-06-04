@@ -236,17 +236,27 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   C++17, diverging from the gcc/libstdc++ native build. Instead:
   - The dev image adds `crossbuild-essential-amd64` (Debian cross GCC 12 + x86_64
     sysroot — same gcc/libstdc++/glibc 2.36 as native, matching the Bookworm runtime).
-  - `//bazel/toolchains/cc:x86_64_linux_toolchain` is a `cc_toolchain` over that cross
-    GCC (`unix_cc_toolchain_config`, absolute tool paths + builtin include dirs).
-    Registered scoped to `@platforms//cpu:x86_64`, so native arm64 keeps the host cc.
-  - `rust.toolchain(extra_target_triples = ["x86_64-unknown-linux-gnu"])`; build with
-    `--platforms=//bazel/platforms:linux_x86_64`. rules_rust wires the cross `CXX` into
-    the `-sys` build scripts (rocksdb/jemalloc/lua/aws-lc all cross-compile).
+  - The dev image also adds `crossbuild-essential-arm64`, and
+    `//bazel/toolchains/cc:{x86_64,arm64}_linux_toolchain` are `cc_toolchain`s over the
+    cross GCCs (`unix_cc_toolchain_config`, absolute tool paths + builtin include dirs).
+  - **Each toolchain is scoped by both `exec_compatible_with` and
+    `target_compatible_with`** so it is selected only when host arch ≠ target arch
+    (x86_64-from-arm64, arm64-from-x86_64). Native builds (exec == target) keep the
+    autodetected host cc. This matters: the cross GCC's `gcc-cross` include paths only
+    exist on the *opposite* host, so an unscoped toolchain would be wrongly selected on
+    a native CI runner and fail.
+  - `rust.toolchain(extra_target_triples = [x86_64, aarch64])`; build with
+    `--platforms=//bazel/platforms:linux_{x86_64,arm64}`. rules_rust wires the cross
+    `CXX` into the `-sys` build scripts (rocksdb/jemalloc/lua/aws-lc all cross-compile).
   *Verified:* `//:kura` cross-builds to an x86-64 ELF; NEEDED libs are only base libs
-  (rocksdb/jemalloc/lua static); max glibc referenced is 2.34 (≤ 2.36); the binary runs
-  (in an emulated amd64 container) and exercises config validation. arm64 unaffected.
-  *Follow-up:* the symmetric arm64-cross-from-x86 toolchain (`crossbuild-essential-arm64`
-  + an arm64 `cc_toolchain`) is needed to build both arches from the x86 CI runner for a
+  (rocksdb/jemalloc/lua static); max glibc referenced is 2.34 (≤ 2.36); the x86_64 binary
+  runs (in an emulated amd64 container) and exercises config validation. Native arm64
+  unaffected.
+  *arm64 cross caveat:* the arm64-from-x86_64 toolchain parses, registers, and uses
+  paths verified against the real aarch64 cross GCC, and is a structural mirror of the
+  proven x86_64 one — but its end-to-end build runs only on an x86_64 host (the local
+  emulated amd64 container can't run Bazel due to the JVM networking issue), so it is
+  validated on the x86_64 CI runner. Both arches buildable from one host unblocks the
   single-runner multi-arch OCI image (Phase 3).
 
 - **0.5 — Validation & go/no-go.** Run the Bazel binary **inside

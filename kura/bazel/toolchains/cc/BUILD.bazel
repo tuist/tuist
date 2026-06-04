@@ -1,16 +1,23 @@
 load("@bazel_tools//tools/cpp:unix_cc_toolchain_config.bzl", "cc_toolchain_config")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 
-# Cross C/C++ toolchain: an arm64 host compiling for x86_64-linux, using the
-# Debian cross GCC (crossbuild-essential-amd64) baked into the dev image. Same
-# gcc 12 / libstdc++ / glibc 2.36 as the native build, matching the Bookworm
-# runtime. Tools and builtin includes are absolute host paths (non-hermetic, but
-# the dev container is controlled); the linux sandbox exposes them read-only.
+# Cross C/C++ toolchains using the Debian cross GCC (crossbuild-essential-*) baked
+# into the dev image — same gcc 12 / libstdc++ / glibc 2.36 as the native build,
+# matching the Bookworm runtime. Tools and builtin includes are absolute host
+# paths (non-hermetic, but the dev container is controlled); the linux sandbox
+# exposes them read-only.
+#
+# Each toolchain is scoped to a cross scenario via exec_compatible_with +
+# target_compatible_with: it is selected ONLY when the exec (host) arch differs
+# from the target arch. Native builds (exec == target) keep the autodetected host
+# toolchain, whose `gcc` paths differ from the `gcc-cross` paths below.
 # See docs/bazel-migration-plan.md.
 
 package(default_visibility = ["//visibility:public"])
 
 filegroup(name = "empty")
+
+# --- x86_64 target (built from an arm64 host) ---------------------------------
 
 cc_toolchain_config(
     name = "x86_64_linux_config",
@@ -72,10 +79,88 @@ cc_toolchain(
 
 toolchain(
     name = "x86_64_linux_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
     ],
     toolchain = ":x86_64_linux_cc",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+# --- aarch64 target (built from an x86_64 host) -------------------------------
+
+cc_toolchain_config(
+    name = "arm64_linux_config",
+    abi_libc_version = "glibc_2.36",
+    abi_version = "glibc_2.36",
+    compile_flags = [
+        "-fPIC",
+        "-no-canonical-prefixes",
+        "-Wno-builtin-macro-redefined",
+        "-D__DATE__=\"redacted\"",
+        "-D__TIMESTAMP__=\"redacted\"",
+        "-D__TIME__=\"redacted\"",
+    ],
+    compiler = "gcc",
+    cpu = "aarch64",
+    cxx_builtin_include_directories = [
+        "/usr/aarch64-linux-gnu/include/c++/12",
+        "/usr/aarch64-linux-gnu/include/c++/12/aarch64-linux-gnu",
+        "/usr/aarch64-linux-gnu/include/c++/12/backward",
+        "/usr/lib/gcc-cross/aarch64-linux-gnu/12/include",
+        "/usr/aarch64-linux-gnu/include",
+        "/usr/include",
+    ],
+    dbg_compile_flags = ["-g"],
+    host_system_name = "x86_64-unknown-linux-gnu",
+    link_flags = [
+        "-lstdc++",
+        "-lm",
+        "-no-canonical-prefixes",
+    ],
+    opt_compile_flags = ["-O2"],
+    target_libc = "glibc",
+    target_system_name = "aarch64-unknown-linux-gnu",
+    tool_paths = {
+        "ar": "/usr/bin/aarch64-linux-gnu-ar",
+        "cpp": "/usr/bin/aarch64-linux-gnu-cpp",
+        "gcc": "/usr/bin/aarch64-linux-gnu-gcc",
+        "gcov": "/usr/bin/aarch64-linux-gnu-gcov",
+        "ld": "/usr/bin/aarch64-linux-gnu-ld",
+        "nm": "/usr/bin/aarch64-linux-gnu-nm",
+        "objcopy": "/usr/bin/aarch64-linux-gnu-objcopy",
+        "objdump": "/usr/bin/aarch64-linux-gnu-objdump",
+        "strip": "/usr/bin/aarch64-linux-gnu-strip",
+    },
+    toolchain_identifier = "aarch64-linux-cross-gcc",
+)
+
+cc_toolchain(
+    name = "arm64_linux_cc",
+    all_files = ":empty",
+    compiler_files = ":empty",
+    dwp_files = ":empty",
+    linker_files = ":empty",
+    objcopy_files = ":empty",
+    strip_files = ":empty",
+    supports_param_files = 1,
+    toolchain_config = ":arm64_linux_config",
+)
+
+toolchain(
+    name = "arm64_linux_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+    toolchain = ":arm64_linux_cc",
     toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
