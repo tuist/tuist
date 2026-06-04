@@ -1,0 +1,3 @@
+# crate_universe patches applied to third-party crates. Referenced from the
+# crate.annotation(...) calls in //:MODULE.bazel.
+exports_files(glob(["*.patch"]))

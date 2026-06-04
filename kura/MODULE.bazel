@@ -29,26 +29,38 @@ crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 # mlua's `vendored` feature compiles Lua from source shipped inside the `lua-src`
 # crate. lua-src reads `env!("CARGO_MANIFEST_DIR")` at *compile* time, which Bazel
 # bakes as an absolute path into the now-deleted compile sandbox; when the mlua-sys
-# build script later runs, that path is gone. Two-part fix:
-#   1. Pin lua-src's compile-time CARGO_MANIFEST_DIR to its execroot-relative repo
-#      path, so env!() bakes a path that resolves against the run execroot.
-#   2. Stage lua-5.4.8/ as data of the mlua-sys build script at that same path.
+# build script later runs, that path is gone. Fix, robust to the runfiles layout:
+#   1. Patch lua-src to take the source dir from an injected MLUA_LUA_SRC_ANCHOR.
+#   2. Expose the vendored Lua sources (and a single-file anchor) as filegroups.
+#   3. Stage them as data of the mlua-sys build script and point the env at the
+#      anchor via $(execpath), so Bazel computes the path (no hardcoded geometry).
 crate.annotation(
     crate = "lua-src",
-    rustc_env = {
-        "CARGO_MANIFEST_DIR": "../rules_rust++crate+crates__lua-src-550.0.0",
-    },
+    patch_args = ["-p1"],
+    patches = ["//bazel/patches:lua-src-env-source-dir.patch"],
     additive_build_file_content = """
 filegroup(
-    name = "lua_sources",
+    name = "vendored_lua_srcs",
     srcs = glob(["lua-5.4.8/**"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "vendored_lua_anchor",
+    srcs = ["lua-5.4.8/lua.h"],
     visibility = ["//visibility:public"],
 )
 """,
 )
 crate.annotation(
     crate = "mlua-sys",
-    build_script_data = ["@crates__lua-src-550.0.0//:lua_sources"],
+    build_script_data = [
+        "@crates__lua-src-550.0.0//:vendored_lua_srcs",
+        "@crates__lua-src-550.0.0//:vendored_lua_anchor",
+    ],
+    build_script_env = {
+        "MLUA_LUA_SRC_ANCHOR": "$(execpath @crates__lua-src-550.0.0//:vendored_lua_anchor)",
+    },
 )
 
 crate.from_cargo(

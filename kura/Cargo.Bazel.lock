@@ -1,5 +1,5 @@
 {
-  "checksum": "47df65d2fcb540d62846e5983c68aa96ef2166527b6f17b65cf105e5302d1a9b",
+  "checksum": "21de669de846f69da01cfebf2aa234672790d72ed73d5b82e7220191164ac209",
   "crates": {
     "addr2line 0.25.1": {
       "name": "addr2line",
@@ -9632,7 +9632,13 @@
       "repository": {
         "Http": {
           "url": "https://static.crates.io/crates/lua-src/550.0.0/download",
-          "sha256": "e836dc8ae16806c9bdcf42003a88da27d163433e3f9684c52f0301258004a4fb"
+          "sha256": "e836dc8ae16806c9bdcf42003a88da27d163433e3f9684c52f0301258004a4fb",
+          "patch_args": [
+            "-p1"
+          ],
+          "patches": [
+            "@@//bazel/patches:lua-src-env-source-dir.patch"
+          ]
         }
       },
       "targets": [
@@ -9664,12 +9670,6 @@
           "selects": {}
         },
         "edition": "2024",
-        "rustc_env": {
-          "common": {
-            "CARGO_MANIFEST_DIR": "../rules_rust++crate+crates__lua-src-550.0.0"
-          },
-          "selects": {}
-        },
         "version": "550.0.0"
       },
       "license": "MIT",
@@ -9677,7 +9677,7 @@
         "MIT"
       ],
       "license_file": "LICENSE",
-      "additive_build_file_content": "\nfilegroup(\n    name = \"lua_sources\",\n    srcs = glob([\"lua-5.4.8/**\"]),\n    visibility = [\"//visibility:public\"],\n)\n"
+      "additive_build_file_content": "\nfilegroup(\n    name = \"vendored_lua_srcs\",\n    srcs = glob([\"lua-5.4.8/**\"]),\n    visibility = [\"//visibility:public\"],\n)\n\nfilegroup(\n    name = \"vendored_lua_anchor\",\n    srcs = [\"lua-5.4.8/lua.h\"],\n    visibility = [\"//visibility:public\"],\n)\n"
     },
     "luajit-src 210.6.6+707c12b": {
       "name": "luajit-src",
@@ -10420,7 +10420,8 @@
         ],
         "data": {
           "common": [
-            "@crates__lua-src-550.0.0//:lua_sources"
+            "@crates__lua-src-550.0.0//:vendored_lua_anchor",
+            "@crates__lua-src-550.0.0//:vendored_lua_srcs"
           ],
           "selects": {}
         },
@@ -10450,6 +10451,12 @@
               "target": "pkg_config"
             }
           ],
+          "selects": {}
+        },
+        "build_script_env": {
+          "common": {
+            "MLUA_LUA_SRC_ANCHOR": "$(execpath @crates__lua-src-550.0.0//:vendored_lua_anchor)"
+          },
           "selects": {}
         },
         "links": "lua"

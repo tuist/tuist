@@ -203,20 +203,25 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   *Note:* the Bazel sandbox blocks network, which is desirable — it forces these builds
   to be genuinely vendored.
 
-  **The mlua / lua-src fix (option B) — and its fragility.** `lua-src` reads
+  **The mlua / lua-src fix (option A — patched).** `lua-src` reads
   `env!("CARGO_MANIFEST_DIR")` at compile time, which Bazel bakes as an absolute path
   into the (later deleted) compile sandbox, so the `mlua-sys` build script can't find
-  `lua-5.4.8/` at its runtime. Fix, both in `MODULE.bazel`:
-  - `crate.annotation(crate = "lua-src", rustc_env = {"CARGO_MANIFEST_DIR":
-    "../rules_rust++crate+crates__lua-src-550.0.0"})` so `env!()` bakes a path relative
-    to the build script's `cargo_runfiles` CWD, plus a `lua_sources` filegroup.
-  - `crate.annotation(crate = "mlua-sys", build_script_data = [the filegroup])` so the
-    sources are staged as a sibling in `cargo_runfiles`.
-  This is **fragile**: it hardcodes the mangled, version-pinned repo name
-  (`...lua-src-550.0.0`) in three places and the `../` depth of `mlua-sys` in the
-  runfiles tree; a `lua-src` bump breaks it. Acceptable for the spike — **harden before
-  merge** (option A: patch `lua-src` to honor a runtime env var; or option C: build Lua
-  as a `cc_library`).
+  `lua-5.4.8/` at its runtime. The hardened fix (in `MODULE.bazel` +
+  `bazel/patches/lua-src-env-source-dir.patch`):
+  - **Patch `lua-src`** to take its source dir from an injected `MLUA_LUA_SRC_ANCHOR`
+    (the path of a file inside the Lua source dir), falling back to the original
+    `env!()` behavior when unset — so plain `cargo` builds are untouched, and
+    `crate_universe` only patches the Bazel-vendored copy.
+  - Expose the Lua sources + a single-file anchor as filegroups on `lua-src`, stage
+    them as `build_script_data` on `mlua-sys`, and set `MLUA_LUA_SRC_ANCHOR` via
+    `$(execpath …)` so **Bazel computes the path** — no dependence on the
+    `cargo_runfiles` layout.
+  Verified: `mlua` and `//:kura` build in the Linux container; lua/rocksdb/jemalloc/lz4
+  stay statically linked. This replaced an earlier fragile attempt (option B) that
+  hardcoded the `cargo_runfiles` `../` geometry. Residual version-coupling — the
+  version-pinned repo name in two annotation labels, the `lua-5.4.8/**` glob, and the
+  patch's hunk context — all fail *loudly* on a `lua-src` bump (the `lua-5.4.x` dir
+  name changes too), so they get updated together.
 
   **Still open in 0.3:** linux/**x86_64** (the host is arm64 — needs an emulated amd64
   container or, better, the 0.4 cross toolchain).
