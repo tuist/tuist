@@ -68,9 +68,11 @@ const builderMixBuildRoot = "/opt/tuist-build-cache"
 
 // installBuilderTooling lays down the host-level dependencies the
 // image-bake workflows expect to find on PATH: Homebrew, Packer
-// from `hashicorp/tap`, and `crane` (for GHCR auth via
+// from `hashicorp/tap`, `crane` (for GHCR auth via
 // `crane auth login` before `tart push`, and to resolve a pushed
-// tag to its immutable digest in `release.yml`'s runner-image leg).
+// tag to its immutable digest in `release.yml`'s runner-image leg),
+// and `oras` (for `macos-xcode-image.yml`'s pull of the pre-mirrored
+// Xcode .xip from `ghcr.io/tuist/xcode-xips`).
 //
 // `hashicorp/tap` instead of Homebrew core because HashiCorp pulled
 // Packer (and the rest of the BSL-licensed tools) from core when
@@ -94,7 +96,7 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap hashicorp/tap
-brew install hashicorp/tap/packer crane
+brew install hashicorp/tap/packer crane oras
 
 # Pin Packer so subsequent ` + "`brew upgrade`" + ` calls are no-ops.
 # Stable binary signatures matter on macOS Tahoe: the Local Network
@@ -107,6 +109,7 @@ brew pin packer
 
 packer --version
 crane version
+oras version
 `
 	return RunCommand(ctx, client, script)
 }

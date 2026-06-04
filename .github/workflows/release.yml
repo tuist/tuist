@@ -1571,6 +1571,29 @@ jobs:
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ matrix.xcode }}
+        # See `runner-image.yml` for the rationale: packer-plugin-tart
+        # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
+        # so the subsequent `tart push` fails after a successful disk
+        # upload. Restore the file from a fresh clone of the base.
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
+
       - name: Push profile to GHCR
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
