@@ -51,8 +51,10 @@ defmodule Tuist.Runners do
   """
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.CacheToken
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
@@ -240,7 +242,19 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id
           )
 
-          {:ok, %{jit: jit, account: account, runner_name: runner_name}}
+          # Cache dispatch is computed AFTER the critical path commits and
+          # is never part of the `with` chain: a disabled feature or a
+          # mint hiccup yields {nil, nil} and must not release the claim.
+          {cache_token, cache_gateway_url} = build_cache_dispatch(candidate, account, runner_labels)
+
+          {:ok,
+           %{
+             jit: jit,
+             account: account,
+             runner_name: runner_name,
+             cache_token: cache_token,
+             cache_gateway_url: cache_gateway_url
+           }}
         else
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
@@ -255,6 +269,23 @@ defmodule Tuist.Runners do
 
         release_safely(candidate, claim, :unknown_account)
         {:error, :unknown_account}
+    end
+  end
+
+  # Resolves the per-fleet cache gateway URL and mints the tenant cache
+  # token for a served claim. Returns `{nil, nil}` whenever the feature is
+  # disabled (no signing key or no gateway URL for the fleet's OS) or a
+  # mint fails, so the dispatch response simply omits the cache fields and
+  # the runner transparently falls back to GitHub's hosted cache. Never
+  # raises, never affects the claim.
+  defp build_cache_dispatch(candidate, account, runner_labels) do
+    os = if "macOS" in runner_labels, do: :macos, else: :linux
+
+    with url when is_binary(url) <- Environment.cache_gateway_url(os),
+         {:ok, token} <- CacheToken.mint(candidate, account, os) do
+      {token, url}
+    else
+      _ -> {nil, nil}
     end
   end
 

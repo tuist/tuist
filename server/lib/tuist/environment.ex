@@ -1080,6 +1080,43 @@ defmodule Tuist.Environment do
     namespace_partner_id(secrets) != nil and namespace_jwt_private_key(secrets) != nil
   end
 
+  @doc """
+  Ed25519 (EdDSA) private key, PEM-encoded, used to sign the tenant cache
+  token handed to runners at dispatch. The self-hosted cache gateway holds
+  only the matching public key and verifies. Returns `nil` when unset, in
+  which case the self-hosted cache is disabled and dispatch omits the
+  cache fields (runners transparently use GitHub's hosted cache).
+
+  Stored base64-encoded (a PEM contains newlines that are awkward in env
+  vars and 1Password fields), mirroring `namespace_jwt_private_key/1`.
+  """
+  def cache_token_signing_key(secrets \\ secrets()) do
+    case get([:cache_token, :signing_key], secrets) do
+      nil -> nil
+      base64_key -> Base.decode64!(base64_key)
+    end
+  end
+
+  @doc """
+  Per-fleet base URL of the self-hosted cache gateway, selected by the
+  dispatched runner's OS (`:macos` / `:linux`). The macOS and Linux fleets
+  run independent gateways co-located with their storage, so dispatch
+  points each runner at its own fleet's gateway.
+
+  Reads `TUIST_CACHE_GATEWAY_URL_MACOS` / `TUIST_CACHE_GATEWAY_URL_LINUX`,
+  falling back to `TUIST_CACHE_GATEWAY_URL`. `nil` when unset disables the
+  feature for that fleet.
+  """
+  def cache_gateway_url(os, secrets \\ secrets()) when os in [:macos, :linux] do
+    per_os =
+      case os do
+        :macos -> get([:cache_gateway_url, :macos], secrets)
+        :linux -> get([:cache_gateway_url, :linux], secrets)
+      end
+
+    per_os || get([:cache_gateway_url], secrets)
+  end
+
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end

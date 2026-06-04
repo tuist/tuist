@@ -192,6 +192,16 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
+
+# Trust the Tuist runner-cache MITM CA so the host-side runner-cache-proxy
+# can transparently terminate the GitHub Actions cache plane. The Node-based
+# actions/cache client ignores the system trust store, so NODE_EXTRA_CA_CERTS
+# points Node at the same CA. Only the PUBLIC cert is baked in; the private
+# key stays on the host (delivered by node bootstrap), never in the image.
+COPY tuist-runner-cache-ca.crt /usr/local/share/ca-certificates/tuist-runner-cache-ca.crt
+RUN update-ca-certificates
+ENV NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/tuist-runner-cache-ca.crt
+
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 RUN chmod +x /usr/local/bin/dispatch-poll.sh
 

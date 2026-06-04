@@ -24,6 +24,14 @@ defmodule Tuist.Runners.Job do
     field :head_branch, Ch, type: "String", default: ""
     field :head_sha, Ch, type: "String", default: ""
 
+    # GitHub ref-scope dimensions, carried from webhook enqueue so the
+    # dispatch-minted cache token can scope the self-hosted Actions cache
+    # the way GitHub's hosted cache does (own ref, base ref, default
+    # branch; untrusted forks isolated).
+    field :default_branch, Ch, type: "String", default: ""
+    field :base_ref, Ch, type: "String", default: ""
+    field :untrusted_fork, Ch, type: "UInt8", default: 0
+
     field :status, Ch, type: "LowCardinality(String)"
 
     field :conclusion, Ch, type: "LowCardinality(String)", default: ""

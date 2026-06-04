@@ -239,6 +239,29 @@ build {
     ]
   }
 
+  # Trust the Tuist runner-cache MITM CA so the host-side
+  # runner-cache-proxy can transparently terminate the GitHub Actions
+  # cache plane. Only the PUBLIC cert is baked in; the private key stays
+  # host-side (delivered by macos-host-bootstrap), never inside the guest.
+  provisioner "file" {
+    source      = "${path.root}/files/tuist-runner-cache-ca.crt"
+    destination = "/tmp/tuist-runner-cache-ca.crt"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      # System keychain trust covers curl/git/Swift/system TLS.
+      "echo 'admin' | sudo -S security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/tuist-runner-cache-ca.crt",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/tuist-runner-cache-ca.crt /etc/tuist-runner-cache-ca.crt",
+      "rm -f /tmp/tuist-runner-cache-ca.crt",
+      # The Node-based actions/cache client ignores the macOS keychain, so
+      # point Node at the same CA via the runner login shell the agent
+      # sources (zsh -lc -> ~/.zprofile), inherited by every step shell.
+      "echo 'admin' | sudo -S -u runner sh -c 'echo \"export NODE_EXTRA_CA_CERTS=/etc/tuist-runner-cache-ca.crt\" >> /Users/runner/.zprofile'"
+    ]
+  }
+
   # Passwordless sudo for runner. The agent runs as the `runner`
   # user in a real desktop session (LaunchAgent + auto-login),
   # not as root, so the few privileged operations the agent needs

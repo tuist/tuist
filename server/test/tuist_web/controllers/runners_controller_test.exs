@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnersControllerTest do
   alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
@@ -97,6 +98,76 @@ defmodule TuistWeb.RunnersControllerTest do
         |> get("/api/internal/runners/desired_replicas?fleet=fleet-x")
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
+    end
+  end
+
+  describe "POST /api/internal/runners/dispatch" do
+    test "includes cache fields when dispatch returns them", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         %{
+           jit: "jit-blob",
+           account: account,
+           runner_name: "pod-1",
+           cache_token: "cache-jwt",
+           cache_gateway_url: "https://cache-gateway.linux.internal"
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["encoded_jit_config"] == "jit-blob"
+      assert body["owner"] == account.name
+      assert body["cache_token"] == "cache-jwt"
+      assert body["cache_gateway_url"] == "https://cache-gateway.linux.internal"
+    end
+
+    test "omits cache fields when the feature is disabled", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok, %{jit: "jit-blob", account: account, runner_name: "pod-1", cache_token: nil, cache_gateway_url: nil}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["encoded_jit_config"] == "jit-blob"
+      assert body["owner"] == account.name
+      refute Map.has_key?(body, "cache_token")
+      refute Map.has_key?(body, "cache_gateway_url")
+    end
+
+    test "returns 204 when there is no work", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" -> {:error, :no_work_yet} end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      assert response(conn, 204)
     end
   end
 
