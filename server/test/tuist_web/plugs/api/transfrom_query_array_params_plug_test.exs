@@ -1,5 +1,5 @@
 defmodule TuistWeb.API.TransformQueryArrayParamsPlugTest do
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.ConnCase, async: true
 
   alias TuistWeb.Plugs.API.TransformQueryArrayParamsPlug
 

@@ -27,7 +27,8 @@ env:
 
 jobs:
   deploy-canary:
-    runs-on: tuist-linux
+    # kamal deploy builds the Elixir release image locally; the 2/8 default shape OOMs.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     environment: cache-canary
     steps:
@@ -48,7 +49,8 @@ jobs:
         run: |
           mise run deploy canary
   deploy-production:
-    runs-on: tuist-linux
+    # kamal deploy builds the Elixir release image locally; the 2/8 default shape OOMs.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     needs: deploy-canary
     if: ${{ needs.deploy-canary.result == 'success' }}

@@ -1,5 +1,5 @@
 defmodule Tuist.Billing.TokenUsageTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 

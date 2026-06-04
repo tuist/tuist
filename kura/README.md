@@ -99,7 +99,7 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 ## 🔌 Protocol Surfaces
 
-Kura exposes multiple cache protocols behind one service. The actively supported surfaces are:
+Kura exposes multiple cache protocols behind one service. Public HTTPS supports HTTP/2 so clients can multiplex concurrent artifact downloads on long-lived connections. The actively supported surfaces are:
 
 - 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`

@@ -20,7 +20,8 @@ env:
 
 jobs:
   deploy:
-    runs-on: tuist-linux
+    # kamal deploy builds the Elixir release image locally; the 2/8 default shape OOMs.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     environment: cache-staging
     steps:
