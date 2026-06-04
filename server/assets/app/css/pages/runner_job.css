@@ -353,8 +353,8 @@
       min-width: 3ch;
       color: var(--noora-surface-label-tertiary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
-      text-align: right;
       user-select: none;
+      text-align: right;
     }
 
     & > [data-part="log-ts"] {
@@ -386,9 +386,9 @@
       align-items: center;
       gap: var(--noora-spacing-5);
       cursor: pointer;
-      list-style: none;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      list-style: none;
 
       &::-webkit-details-marker {
         display: none;
@@ -398,8 +398,8 @@
         flex-shrink: 0;
         min-width: 3ch;
         color: var(--noora-surface-label-tertiary);
-        text-align: right;
         user-select: none;
+        text-align: right;
       }
 
       & > [data-part="log-ts"] {
@@ -408,20 +408,20 @@
       }
 
       & > [data-part="log-group-label"] {
-        flex: 1;
-        min-width: 0;
         display: inline-flex;
+        flex: 1;
         align-items: center;
+        min-width: 0;
         line-height: 1.2;
         word-break: break-word;
 
         & > [data-part="log-group-chevron"] {
           display: inline-flex;
-          align-items: center;
           flex-shrink: 0;
+          align-items: center;
+          transition: transform 0.15s ease;
           margin-right: var(--noora-spacing-2);
           color: var(--noora-surface-label-primary);
-          transition: transform 0.15s ease;
 
           /* Noora's chevron renders as a 24×24 SVG by default;
              dwarfs the surrounding glyphs in this dense
@@ -446,7 +446,11 @@
        summary's chevron + text, so nesting reads at a glance.
        Mirrors GitHub Actions' own log UI. */
     & > [data-part="log-group-body"] > [data-part="log-line"] > [data-part="log-message"],
-    & > [data-part="log-group-body"] > [data-part="log-group"] > [data-part="log-group-summary"] > [data-part="log-group-label"] {
+    &
+      > [data-part="log-group-body"]
+      > [data-part="log-group"]
+      > [data-part="log-group-summary"]
+      > [data-part="log-group-label"] {
       padding-left: var(--noora-spacing-9);
     }
   }
@@ -455,21 +459,53 @@
     & .ansi-bold {
       font-weight: var(--noora-font-weight-bold);
     }
-    & .ansi-fg-0 { color: var(--noora-neutral-light-1000); }
-    & .ansi-fg-1 { color: var(--noora-red-500); }
-    & .ansi-fg-2 { color: var(--noora-green-500); }
-    & .ansi-fg-3 { color: var(--noora-yellow-500); }
-    & .ansi-fg-4 { color: var(--noora-azure-500); }
-    & .ansi-fg-5 { color: var(--noora-purple-500); }
-    & .ansi-fg-6 { color: var(--noora-azure-400); }
-    & .ansi-fg-7 { color: var(--noora-surface-label-primary); }
-    & .ansi-fg-bright-0 { color: var(--noora-neutral-light-900); }
-    & .ansi-fg-bright-1 { color: var(--noora-red-400); }
-    & .ansi-fg-bright-2 { color: var(--noora-green-400); }
-    & .ansi-fg-bright-3 { color: var(--noora-yellow-400); }
-    & .ansi-fg-bright-4 { color: var(--noora-azure-400); }
-    & .ansi-fg-bright-5 { color: var(--noora-purple-400); }
-    & .ansi-fg-bright-6 { color: var(--noora-azure-300); }
-    & .ansi-fg-bright-7 { color: var(--noora-surface-label-primary); }
+    & .ansi-fg-0 {
+      color: var(--noora-neutral-light-1000);
+    }
+    & .ansi-fg-1 {
+      color: var(--noora-red-500);
+    }
+    & .ansi-fg-2 {
+      color: var(--noora-green-500);
+    }
+    & .ansi-fg-3 {
+      color: var(--noora-yellow-500);
+    }
+    & .ansi-fg-4 {
+      color: var(--noora-azure-500);
+    }
+    & .ansi-fg-5 {
+      color: var(--noora-purple-500);
+    }
+    & .ansi-fg-6 {
+      color: var(--noora-azure-400);
+    }
+    & .ansi-fg-7 {
+      color: var(--noora-surface-label-primary);
+    }
+    & .ansi-fg-bright-0 {
+      color: var(--noora-neutral-light-900);
+    }
+    & .ansi-fg-bright-1 {
+      color: var(--noora-red-400);
+    }
+    & .ansi-fg-bright-2 {
+      color: var(--noora-green-400);
+    }
+    & .ansi-fg-bright-3 {
+      color: var(--noora-yellow-400);
+    }
+    & .ansi-fg-bright-4 {
+      color: var(--noora-azure-400);
+    }
+    & .ansi-fg-bright-5 {
+      color: var(--noora-purple-400);
+    }
+    & .ansi-fg-bright-6 {
+      color: var(--noora-azure-300);
+    }
+    & .ansi-fg-bright-7 {
+      color: var(--noora-surface-label-primary);
+    }
   }
 }
