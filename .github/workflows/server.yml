@@ -77,8 +77,14 @@ jobs:
           # Throttle Elixir's parallel-compiler — gettext.extract has to
           # compile the whole project to reach every dgettext/3 call site,
           # and the default parallelism OOM-kills even tuist-linux-large.
-          # Same countermeasure the Security job uses.
+          # MIX_OS_DEPS_COMPILE_PARTITION_COUNT throttles OS-deps compile
+          # (same gate the Security job uses); ERL_AFLAGS "+S 1:1" forces
+          # BEAM to a single scheduler, which `Kernel.ParallelCompiler`
+          # reads via `System.schedulers_online()` to size its concurrency
+          # — serialising the project compile that the OS-deps gate alone
+          # doesn't reach.
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
         run: |
           run_gettext_extract() {
             log_file="$1"
