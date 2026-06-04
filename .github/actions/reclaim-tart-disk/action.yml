@@ -13,11 +13,6 @@ description: |
   back-to-back releases hit a warm cache and skip a ~10 min
   pull per Xcode.
 
-  Replaces the prior "delete everything every run" pattern that
-  was a defensive against an M1-M with a 256 GB SSD; the
-  cluster-managed builders are M2-L 512 GB hosts where caching
-  is the better default.
-
 inputs:
   free-floor-gb:
     description: |
