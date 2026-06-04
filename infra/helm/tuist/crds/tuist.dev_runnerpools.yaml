@@ -131,10 +131,17 @@ spec:
                       default: 1
                       minimum: 0
                       description: |
-                        Lower bound for the warm pool size. The server-side
-                        rolling p95 of concurrent claims over the last hour
-                        can lift the effective floor higher; this value
-                        only floors it, never caps it.
+                        Preferred lower bound (target) for the warm pool
+                        size. The server-side rolling p95 of concurrent
+                        claims over the last hour can lift the effective
+                        target higher. Not a hard floor: in a shared Linux
+                        fleet (multiple shape pools bin-packing on one
+                        bare-metal node pool), the allocator can squeeze an
+                        idle pool's desired below this value under memory
+                        contention to admit another shape's real queued
+                        work. macOS and uncontended pools honor it as a
+                        floor; real load (claimed + queued) is always funded
+                        above it.
                     maxReplicas:
                       type: integer
                       default: 0

@@ -229,6 +229,14 @@ func (r *AutoscalerReconciler) desiredForPool(
 		return perPool
 	}
 
+	// capacity <= 0 is treated like an error on purpose. A zero sum is
+	// almost always a transient empty node-list read (informer cache
+	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
+	// capacity" state. Routing it into AllocateFleet would squeeze every
+	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
+	// blip-driven mass scale-down this per-pool fallback exists to
+	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// test) is therefore never exercised from here.
 	capacity, err := r.fleetCapacity(ctx, pool)
 	if err != nil || capacity <= 0 {
 		logger.Error(err, "read fleet capacity; falling back to per-pool target",

@@ -48,8 +48,8 @@ func TestAllocateFleet_SqueezesSpeculativeHeadroomUnderContention(t *testing.T) 
 		{Name: "busy", PerPodCost: 8 * gib, Floor: 1, Load: 6, Target: 8},
 		{Name: "idle", PerPodCost: 8 * gib, Floor: 1, Load: 0, Target: 5},
 	}
-	// 64 GiB usable = 8 pods. busy base = load 6 (48 GiB); idle base =
-	// floor 1 (8 GiB). 56 GiB used, 8 GiB (1 pod) left for headroom.
+	// 64 GiB usable = 8 pods. busy load 6 (48 GiB). Floors: busy 0 (load
+	// already > floor), idle 1 (8 GiB) → fit, 8 GiB left for headroom.
 	// Headroom wants: busy 2, idle 4 (6 total). 1 pod split
 	// proportionally → busy ~0, idle ~0 (rounding down). The point:
 	// idle does NOT get its speculative 5; busy's real load is intact.
@@ -63,6 +63,31 @@ func TestAllocateFleet_SqueezesSpeculativeHeadroomUnderContention(t *testing.T) 
 	}
 	if got["idle"] < 1 {
 		t.Errorf("idle = %d, want >= floor 1", got["idle"])
+	}
+}
+
+func TestAllocateFleet_SqueezesIdleFloorForAnotherPoolsQueuedLoad(t *testing.T) {
+	// The production case this re-tiering fixes: a small shape sits at a
+	// large warm floor (mostly idle Pods), while a big shape has real
+	// queued load that doesn't fit. Real load outranks the idle floor —
+	// the small shape's floor is squeezed below its configured value so
+	// the big shape's queued work schedules, instead of leaving it Pending
+	// while idle Pods hold reservations.
+	pools := []PoolDemand{
+		// small: floor 20 (all idle, no real load behind it).
+		{Name: "small", PerPodCost: 8 * gib, Floor: 20, Load: 0, Target: 25},
+		// big: real queued load 10, no floor — pure demand.
+		{Name: "big", PerPodCost: 16 * gib, Floor: 0, Load: 10, Target: 10},
+	}
+	// 200 GiB usable. big's load = 160 GiB granted first, leaving 40 GiB
+	// (5 pods of 8 GiB) for small's floor of 20 → squeezed to 5.
+	got := AllocateFleet(pools, 200*gib)
+
+	if got["big"] != 10 {
+		t.Errorf("big = %d, want 10 (queued load wins over idle floor)", got["big"])
+	}
+	if got["small"] != 5 {
+		t.Errorf("small = %d, want 5 (floor squeezed from 20 to fit big's load)", got["small"])
 	}
 }
 
@@ -95,15 +120,27 @@ func TestAllocateFleet_NeverExceedsTarget(t *testing.T) {
 	}
 }
 
-func TestAllocateFleet_ZeroCapacityStillHonorsBase(t *testing.T) {
-	// Degenerate: no usable memory. Base (floor/load) is still returned
-	// — the scheduler leaves it Pending, surfaced on the dashboard.
+func TestAllocateFleet_ZeroCapacityHonorsLoadNotFloor(t *testing.T) {
+	// Pure-function contract at fleetMem == 0: real load is still
+	// granted (it would go Pending), while a speculative floor with no
+	// load behind it is squeezed to zero rather than manufactured into
+	// Pending Pods.
+	//
+	// NOTE: the AutoscalerReconciler never calls AllocateFleet with
+	// fleetMem <= 0. It treats a zero or failed fleet-memory read as a
+	// blip and falls back to the per-pool target (floor honored), so
+	// this pins AllocateFleet's behavior for callers that pass 0, not
+	// the deployed zero-node behavior.
 	pools := []PoolDemand{
-		{Name: "a", PerPodCost: 4 * gib, Floor: 2, Load: 0, Target: 5},
+		{Name: "load", PerPodCost: 4 * gib, Floor: 2, Load: 3, Target: 5},
+		{Name: "floor", PerPodCost: 4 * gib, Floor: 2, Load: 0, Target: 5},
 	}
 	got := AllocateFleet(pools, 0)
-	if got["a"] != 2 {
-		t.Errorf("a = %d, want 2 (floor honored)", got["a"])
+	if got["load"] != 3 {
+		t.Errorf("load = %d, want 3 (real load honored even at zero capacity)", got["load"])
+	}
+	if got["floor"] != 0 {
+		t.Errorf("floor = %d, want 0 (speculative floor squeezed, not left Pending)", got["floor"])
 	}
 }
 
