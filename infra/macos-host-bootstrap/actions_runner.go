@@ -272,6 +272,17 @@ rm -f .runner .credentials .credentials_rsaparams
 # from the SSH session to the GUI domain without an asuser shim.
 ./svc.sh install %[2]s
 
+# runsvc.sh sources $RUNNER_DIR/.path and exports it as PATH for
+# every workflow step. svc.sh install seeds that file from the SSH
+# session's PATH, which doesn't include /opt/homebrew/bin (Homebrew
+# shellenv is for interactive shells, not the bootstrap session) —
+# image-bake workflows then fail with "packer: command not found"
+# / "crane: command not found" even though installBuilderTooling
+# installed both. Overwrite .path with the same PATH the
+# tart-kubelet LaunchDaemon plist exports, so packer, crane, and
+# tart at /usr/local/bin/tart are all reachable.
+printf '%%s' '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' > .path
+
 RUNNER_UID=$(id -u %[2]s)
 RUNNER_PLIST=/Users/%[2]s/Library/LaunchAgents/$RUNNER_LABEL.plist
 sudo launchctl bootstrap "gui/$RUNNER_UID" "$RUNNER_PLIST"
