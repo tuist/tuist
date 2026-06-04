@@ -191,11 +191,11 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
-    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
-    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
-    # headroom this job had before the default was downsized (#11052).
-    runs-on: tuist-linux-large
+    # ubuntu-latest until the dind sidecar is available again on
+    # tuist-linux-* — the `services:` block can't start without a
+    # reachable Docker daemon. The 4 vCPU / 16 GB compute envelope
+    # matches what tuist-linux-large was giving us.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
