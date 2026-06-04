@@ -7,14 +7,12 @@ defmodule Tuist.Runners.Jobs do
   the latest row per key.
 
   This module is **state-recording + read-only views**. Claim
-  atomicity and per-account cap counting live in
-  `Tuist.Runners.Claims` (a thin Postgres table). The split:
+  atomicity lives in `Tuist.Runners.Claims` (a thin Postgres
+  table). The split:
 
     * **Postgres `runner_claims`** is the OLTP claim lock. One
       row per currently-claimed workflow_job; PK on
       `workflow_job_id` gives atomic INSERT-ON-CONFLICT-DO-NOTHING.
-      Cap counting is an indexed `GROUP BY account_id` against
-      this table.
     * **ClickHouse `runner_jobs` (here)** is the customer-facing
       view + history. Powers the "what's queued / running right
       now / recent runs" surfaces and the analytics dashboards.
@@ -112,11 +110,9 @@ defmodule Tuist.Runners.Jobs do
   caller's responsibility to then atomically claim it via
   `Tuist.Runners.Claims.attempt/4`.
 
-  `ineligible_account_ids` is the set of accounts already at
-  cap (built by the caller from `Claims.counts_per_account/1`
-  + the per-account `runner_max_concurrent`). Returns the
-  candidate's full metadata so we can carry it forward on the
-  `claimed` INSERT.
+  `ineligible_account_ids` is an optional set of account_ids to
+  exclude from candidate selection. Returns the candidate's full
+  metadata so we can carry it forward on the `claimed` INSERT.
 
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
@@ -488,20 +484,19 @@ defmodule Tuist.Runners.Jobs do
     where(query, [j], ilike(j.job_name, ^pattern))
   end
 
-  # Platform filter narrows on the `fleet_name` prefix. Linux jobs
-  # write fleet names from either the legacy `linux-…` per-env pool
-  # or the shape catalog (`<runners_linux_pool_name_prefix>-…`, e.g.
-  # `tuist-runner-pool-linux-4vcpu-16gb`), so the dropdown matches
-  # against the union returned by `Catalog.linux_fleet_name_prefixes/0`.
-  # macOS still uses the legacy `macos-…` prefix today (no shape
-  # catalog yet).
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix (e.g.
+  # `tuist-runner-pool-linux-4vcpu-16gb`, `tuist-runner-pool-macos-26-5`),
+  # so the dropdown matches profile-dispatched and legacy jobs together.
   defp maybe_filter_platform(query, nil), do: query
   defp maybe_filter_platform(query, ""), do: query
   defp maybe_filter_platform(query, "any"), do: query
 
-  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:linux))
 
-  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
+  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_filter_platform(query, _), do: query
 

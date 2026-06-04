@@ -129,7 +129,11 @@
       "tag_regex": "^runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runner-image/**/*"]
+      "include_paths": [
+        "infra/runner-image/**/*",
+        "infra/helm/tuist/values-managed-common.yaml",
+        ".github/workflows/release.yml"
+      ]
     },
     {
       "name": "linux-runner-image",

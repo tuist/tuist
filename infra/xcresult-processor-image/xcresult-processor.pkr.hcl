@@ -15,21 +15,28 @@ packer {
 # (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
 # draining the `:process_xcresult` Oban queue.
 #
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode lives in the base —
+# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+# ships in full Xcode (not the Command Line Tools), so the base
+# must carry the bundle. This build just lays the Erlang release
+# and the launchd unit on top.
+#
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
 #   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
+#   /Applications/Xcode_<version>.app <- inherited from the base
 #
-# Env injection: tart-kubelet stages the Pod's env vars (MASTER_KEY,
-# DATABASE_URL, TUIST_DEPLOY_ENV, ...) under `--dir env:<host-path>:ro`,
-# which the guest sees at /Volumes/My Shared Files/env/tuist.env.
-# inject-env.sh runs at boot, materializes /etc/tuist.env, and
-# launchd's plist sources it.
+# Env injection: tart-kubelet stages the Pod's env vars under
+# `--dir env:<host-path>:ro`, which the guest sees at
+# `/Volumes/My Shared Files/env/tuist.env`. inject-env.sh runs at boot,
+# materializes /etc/tuist.env, and launchd's plist sources it.
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Defaults to Cirrus Labs' macOS+Xcode image so xcresulttool is preinstalled."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
+  description = "Base Tart image, e.g. ghcr.io/tuist/macos-tahoe-xcode:26-5. The release workflow declares the Xcode version inline; the dispatch workflow and local mise task take it as input. Should be at least as new as the newest active runner-image profile (xcresulttool's JSON schema changes across Xcode majors)."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
 variable "output_image" {
@@ -79,6 +86,18 @@ build {
     inline = [
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown admin:staff /opt/tuist"
+    ]
+  }
+
+  # Sanity check: xcresulttool has to be reachable before the
+  # processor ever calls it. The macos-tahoe-xcode base installs
+  # Xcode + xcode-select's it; a regression there would silently
+  # break ingestion at runtime. Fail loudly here so the image
+  # build catches it.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — macos-tahoe-xcode base image regression' >&2 && exit 1)"
     ]
   }
 
