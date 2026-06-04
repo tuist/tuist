@@ -408,7 +408,11 @@ jobs:
     name: Release Server
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    runs-on: tuist-linux
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
