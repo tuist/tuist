@@ -50,6 +50,17 @@ ingress:
           pathType: Prefix
   tls: []
 
+grpcIngress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kura-grpc.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 persistence:
   enabled: true
   # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
