@@ -37,8 +37,7 @@ jobs:
     name: Gradle Cache Acceptance
     runs-on: tuist-linux
     timeout-minutes: 30
-    # TEMP: draft-only while iterating on test perf; revert before ready.
-    if: github.event.pull_request.draft == true
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
         image: postgres:16
