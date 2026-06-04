@@ -15,15 +15,7 @@
     bats = "1.11.1"
     rclone = "1.73.3"
     jq = "1.8.1"
-    # Used by `mise run xcode-mirror:upload <version>` to push
-    # Apple Xcode .xips to `ghcr.io/tuist/xcode-xips`, which the
-    # `macos-xcode-image` workflow then pulls from when it builds
-    # the Layer 1 Tart image.
     oras = "1.3.0"
-    # XcodesOrg/xcodes — Apple-authenticated .xip downloader used
-    # by `mise run xcode-mirror:upload`. xcodes handles the SRP
-    # signin + 2FA dance against developer.apple.com that pure
-    # `curl` can't.
     xcodes = "1.6.0"
     yq = "4.52.5"
     java = "21"
