@@ -23,10 +23,14 @@ inputs:
     description: |
       Free-disk threshold (in GB) below which the OCI cache gets
       pruned. Sized for one base clone (~80 GB) plus a working
-      VM (~80 GB) plus headroom. The default 200 GB is the
-      comfortable floor on the 512 GB M2-L.
+      VM (~80 GB) plus headroom for two-to-three additional
+      cached bases (matrix siblings, sibling image-bake
+      workflows on the same host). The default 300 GB is the
+      comfortable floor on the 512 GB M2-L; below it we start
+      LRU-evicting cold bases to make room for the upcoming
+      clone.
     required: false
-    default: "200"
+    default: "300"
 
 runs:
   using: composite
