@@ -220,8 +220,8 @@ defmodule Tuist.Runners.Billing do
         bucket in fragment(
           """
           (SELECT generate_series(
-            GREATEST(?, ?::timestamptz)::date,
-            LEAST(?, ?::timestamptz)::date,
+            (GREATEST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
+            (LEAST(?, ?::timestamptz) AT TIME ZONE 'UTC')::date,
             '1 day'::interval
           )::date AS day)
           """,
@@ -237,8 +237,8 @@ defmodule Tuist.Runners.Billing do
           fragment(
             """
             GREATEST(0, (EXTRACT(EPOCH FROM (
-              LEAST(?, (?::date + INTERVAL '1 day')::timestamptz, ?) -
-              GREATEST(?, ?::timestamptz, ?)
+              LEAST(?, ((?::date + INTERVAL '1 day')::timestamp AT TIME ZONE 'UTC'), ?) -
+              GREATEST(?, (?::date::timestamp AT TIME ZONE 'UTC'), ?)
             )) * 1000)::bigint)
             """,
             o.effective_end,
