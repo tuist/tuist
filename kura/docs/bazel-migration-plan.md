@@ -267,6 +267,22 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   *Stretch:* wire one `rust_test` target to confirm `bazel test` is viable (full test
   parity is not required in Phase 0).
 
+- **0.6 — Shadow CI. ✅ Done.** `.github/workflows/kura-bazel.yml` is the non-gating
+  shadow job from the strategy above — it runs alongside the Cargo/Docker release path
+  without touching it. A 2-runner matrix (`ubuntu-latest` x86_64, `ubuntu-24.04-arm`
+  arm64) each builds **both** Linux arches inside the Bookworm dev image
+  (`bazel/linux-dev.Dockerfile`) via `bazel/ci-validate.sh`: the host arch is native,
+  the other is cross — so across the two runners both cross directions are exercised,
+  giving the **arm64-from-x86_64 cross build a real x86_64 host** (the gap that can't be
+  closed on an Apple-silicon dev machine). Each binary is validated for ELF machine
+  type, a glibc floor ≤ 2.36, and (native arch only) a clean empty-env smoke run; the
+  binaries are uploaded as artifacts. Triggers on push to `kura-bazel-*` branches, on
+  PRs touching `kura/**`, and `workflow_dispatch`. Building both arches on one host also
+  confirms the single-runner multi-arch input the OCI image needs (Phase 3).
+  *Note:* the runner provides Docker and runs checkout/upload on the host (which has
+  node); only the Bazel build runs in the container. The Bazel cache is cold per run
+  (a warm remote/disk cache is Phase 4).
+
 #### Decisions to lock during Phase 0
 
 - `rules_rust` version (must support Rust 1.94 + edition 2024).

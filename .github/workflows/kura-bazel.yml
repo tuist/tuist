@@ -1,0 +1,75 @@
+name: Kura Bazel
+
+# Shadow CI for the Kura Bazel migration (docs/bazel-migration-plan.md, "Shadow ->
+# compare -> flip"). Non-gating: it builds and validates the Bazel-produced Linux
+# binaries alongside the existing Cargo/Docker release path, without touching it.
+#
+# Each runner builds BOTH Linux arches inside the Debian Bookworm dev container: the
+# arch matching the host is native, the other is cross-compiled (Debian cross GCC, no
+# QEMU). Running on both an x86_64 and an arm64 runner exercises both cross directions
+# of the symmetric toolchains — in particular it gives the arm64-from-x86_64 cross
+# build (which can't be validated on an Apple-silicon dev machine) a real x86_64 host.
+
+on:
+  push:
+    branches:
+      - kura-bazel-phase1
+      - "kura-bazel-*"
+    paths:
+      - kura/**
+      - .github/workflows/kura-bazel.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - kura/**
+      - .github/workflows/kura-bazel.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kura-bazel-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  bazel-linux:
+    name: Bazel Linux binaries (${{ matrix.host_arch }} host)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            host_arch: x86_64
+          - runner: ubuntu-24.04-arm
+            host_arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      # Run Bazel inside the Debian Bookworm dev image (the single source of truth for
+      # the toolchain). The runner provides Docker; checkout/upload run on the host
+      # (which has node), only the Bazel build runs in the container.
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
+
+      - name: Cross-build and validate both Linux binaries
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            kura-bazel-dev \
+            bash bazel/ci-validate.sh
+
+      - name: Upload Bazel-built Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: kura-bazel-linux-from-${{ matrix.host_arch }}
+          path: |
+            kura/bazel-dist/kura-x86_64
+            kura/bazel-dist/kura-aarch64
+            kura/bazel-dist/kura-x86_64.sha256
+            kura/bazel-dist/kura-aarch64.sha256
+          if-no-files-found: error
+          retention-days: 7
