@@ -72,17 +72,23 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
+      # Pre-compile the project in its own step so the OOM (if any)
+      # surfaces here rather than inside the extract heartbeat loop —
+      # makes the failure mode obvious. The throttle stack:
+      # MIX_OS_DEPS_COMPILE_PARTITION_COUNT for OS-deps compile,
+      # ERL_AFLAGS "+S 1:1" for project compile (Kernel.ParallelCompiler
+      # sizes concurrency from System.schedulers_online()), and the
+      # System.schedulers_online() echo verifies the throttle landed.
+      - name: Compile project (throttled)
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        working-directory: server
+        run: |
+          mix run -e 'IO.puts("schedulers_online=#{System.schedulers_online()}")'
+          mix compile
       - name: Check gettext templates are up-to-date
         env:
-          # Throttle Elixir's parallel-compiler — gettext.extract has to
-          # compile the whole project to reach every dgettext/3 call site,
-          # and the default parallelism OOM-kills even tuist-linux-large.
-          # MIX_OS_DEPS_COMPILE_PARTITION_COUNT throttles OS-deps compile
-          # (same gate the Security job uses); ERL_AFLAGS "+S 1:1" forces
-          # BEAM to a single scheduler, which `Kernel.ParallelCompiler`
-          # reads via `System.schedulers_online()` to size its concurrency
-          # — serialising the project compile that the OS-deps gate alone
-          # doesn't reach.
           MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
           ERL_AFLAGS: "+S 1:1"
         run: |
