@@ -3,6 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
 routes = [
+  # Legacy registry URLs kept for clients that have not regenerated registries.json.
   { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" },
   { pattern = "tuist.dev/api/registry/*", zone_name = "tuist.dev" }
 ]

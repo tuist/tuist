@@ -17,6 +17,9 @@ Dedicated chart for the public `storybook.noora.tuist.dev` release. It deploys i
 ### `helm/slack/` — standalone Slack invitation chart
 Dedicated chart for the public `slack.tuist.dev` release. It deploys independently from the Tuist server so Slack invitation-flow changes and operational state (SQLite PVC + ExternalSecret wiring) stay isolated from the main app release.
 
+### `helm/swift-registry/` — standalone Swift registry chart
+Dedicated chart for the public `swift-registry.tuist.dev` release. It deploys independently from the Tuist server and cache services while keeping registry artifacts backed by S3 and local runtime state on PVCs.
+
 ### `helm/k8s-monitoring/` — in-cluster Grafana Kubernetes Monitoring (managed only)
 Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO token sync. Ships the full Kubernetes telemetry picture (cluster / pod / node metrics + events + pod logs + OTLP receivers for managed workload traces, including server and Kura) to Grafana Cloud, so the Grafana Cloud Kubernetes app lights up without dashboard imports. Self-hosters get embedded Grafana / Prometheus / Loki / Tempo via the main chart's `observability.enabled` block instead; they never touch this chart.
 
@@ -40,8 +43,8 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
-### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
-Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
+### `registry-router/` — Cloudflare Worker for legacy registry URLs
+Proxies legacy `registry.tuist.dev/*` and `tuist.dev/api/registry/*` requests to the standalone `swift-registry.tuist.dev` service. This keeps existing SwiftPM registry configurations working while new configurations use the standalone host directly.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL + Supabase→CNPG migration runbook
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). Also holds the end-to-end migration runbook for moving each managed env's Postgres from Supabase to the in-cluster CNPG cluster via logical replication. The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true (provisioning + soak) or `postgresql.mode == "cnpg"` (cutover); this directory holds only the operator-run SQL + procedural docs that can't fit in the chart.
@@ -67,6 +70,7 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
   - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
+- **Swift Registry** (managed) is deployed via `.github/workflows/swift-registry-deploy.yml` and `.github/workflows/swift-registry-staging-deploy.yml` using the standalone `infra/helm/swift-registry` chart.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
 - **Helm charts** under `helm/` target Kubernetes (managed + self-hosted).
 

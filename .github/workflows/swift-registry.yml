@@ -1,0 +1,149 @@
+name: Swift Registry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - swift-registry/**
+      - tuist_common/**
+      - infra/helm/swift-registry/**
+      - .github/workflows/swift-registry.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - swift-registry/**
+      - tuist_common/**
+      - infra/helm/swift-registry/**
+      - .github/workflows/swift-registry.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-registry-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: swift-registry
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+
+jobs:
+  format:
+    name: Format
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            swift-registry/deps
+            swift-registry/_build
+          key: swift-registry-mix-${{ hashFiles('swift-registry/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir ruby"
+          working_directory: swift-registry
+      - name: Install dependencies
+        run: mise run install
+      - name: Check format
+        run: mise run format --check
+
+  credo:
+    name: Credo
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            swift-registry/deps
+            swift-registry/_build
+          key: swift-registry-mix-${{ hashFiles('swift-registry/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir ruby"
+          working_directory: swift-registry
+      - name: Install dependencies
+        run: mise run install
+      - name: Run Credo
+        run: mise run credo
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            swift-registry/deps
+            swift-registry/_build
+          key: swift-registry-mix-${{ hashFiles('swift-registry/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir ruby"
+          working_directory: swift-registry
+      - name: Install dependencies
+        run: mise run install
+      - name: Run tests
+        run: mise run test
+
+  compile-prod:
+    name: Compile (prod)
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            swift-registry/deps
+            swift-registry/_build
+          key: swift-registry-mix-${{ hashFiles('swift-registry/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir ruby"
+          working_directory: swift-registry
+      - name: Install dependencies
+        run: mise run install
+      - name: Compile with MIX_ENV=prod
+        run: MIX_ENV=prod mix compile --warnings-as-errors
+
+  helm:
+    name: Helm
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "helm"
+          cache: "false"
+      - name: Lint chart
+        run: helm lint ../infra/helm/swift-registry -f ../infra/helm/swift-registry/values-ci.yaml
+      - name: Render chart
+        run: helm template swift-registry ../infra/helm/swift-registry -f ../infra/helm/swift-registry/values-ci.yaml >/dev/null

@@ -1,0 +1,142 @@
+name: Swift Registry Staging Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Commit SHA to deploy (defaults to github.sha)
+        required: false
+      image_tag:
+        description: Pre-built image tag to deploy instead of building
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: swift-registry-deploy-staging
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/swift-registry
+  HELM_CHART_PATH: infra/helm/swift-registry
+  HELM_RELEASE_NAME: swift-registry
+  NAMESPACE: swift-registry
+  DEPLOY_ENVIRONMENT: staging
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+
+jobs:
+  build:
+    name: Build and push Swift registry image
+    if: inputs.image_tag == ''
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Swift registry image
+        with:
+          context: .
+          file: ./swift-registry/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            MIX_ENV=prod
+
+  deploy:
+    name: Deploy staging
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    environment:
+      name: server-k8s-staging
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${DEPLOY_ENVIRONMENT}" \
+            --vault "tuist-k8s-${DEPLOY_ENVIRONMENT}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve image tag
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          BUILT_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_IMAGE_TAG:-}" ]; then
+            IMAGE_TAG="$INPUT_IMAGE_TAG"
+          else
+            IMAGE_TAG="$BUILT_IMAGE_TAG"
+          fi
+
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "No image tag available to deploy."
+            exit 1
+          fi
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Deploying image tag $IMAGE_TAG"
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-${DEPLOY_ENVIRONMENT}.yaml" \
+            --set image.tag="$IMAGE_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest"
+          helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::workload resources"
+          kubectl -n "$NAMESPACE" get deploy,svc,ingress,pvc,externalsecret,pods -l app.kubernetes.io/instance="$HELM_RELEASE_NAME" -o wide || true
+          echo "::endgroup::"
+          echo "::group::deployment"
+          kubectl -n "$NAMESPACE" describe deploy/"$HELM_RELEASE_NAME" || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
