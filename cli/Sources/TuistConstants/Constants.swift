@@ -67,6 +67,7 @@ public enum Constants {
         public static let githubAPIToken = "TUIST_CONFIG_GITHUB_API_TOKEN"
         public static let detailedLog = "TUIST_CONFIG_DETAILED_LOG"
         public static let osLog = "TUIST_CONFIG_OS_LOG"
+        public static let useSwifterPM = "TUIST_USE_SWIFTERPM"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
         public static let token = "TUIST_TOKEN"

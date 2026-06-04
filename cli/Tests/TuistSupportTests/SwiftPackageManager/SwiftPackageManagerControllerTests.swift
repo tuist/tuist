@@ -44,12 +44,93 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
     }
 
+    func test_resolve_when_swifterpm_is_enabled() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] },
+            currentExecutablePath: { nil }
+        )
+        mockCommandRunner.succeedCommand([
+            "swifterpm",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_bundled() async throws {
+        // Given
+        let path = try temporaryPath()
+        let bundlePath = try temporaryPath()
+        let tuistExecutablePath = bundlePath.appending(component: "tuist")
+        let swifterPMPath = bundlePath.appending(components: "vendor", "swifterpm")
+        try await fileSystem.touch(tuistExecutablePath)
+        try await fileSystem.makeDirectory(at: swifterPMPath.parentDirectory)
+        try await fileSystem.touch(swifterPMPath)
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] },
+            currentExecutablePath: { tuistExecutablePath }
+        )
+        mockCommandRunner.succeedCommand([
+            swifterPMPath.pathString,
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+    }
+
     func test_update() async throws {
         // Given
         let path = try temporaryPath()
         mockCommandRunner.succeedCommand([
             "swift",
             "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "update",
+        ])
+
+        // When
+        try await subject.update(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+    }
+
+    func test_update_when_swifterpm_is_enabled() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] },
+            currentExecutablePath: { nil }
+        )
+        mockCommandRunner.succeedCommand([
+            "swifterpm",
             "--package-path",
             path.pathString,
             "--replace-scm-with-registry",

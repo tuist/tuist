@@ -4,6 +4,8 @@ import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistConstants
+import TuistEnvironment
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable
@@ -65,6 +67,8 @@ public protocol SwiftPackageManagerControlling {
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
+    private let environmentVariables: @Sendable () -> [String: String]
+    private let currentExecutablePath: @Sendable () -> AbsolutePath?
 
     public init() {
         self.init(
@@ -75,14 +79,18 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
     init(
         fileSystem: FileSysteming,
-        commandRunner: @escaping () -> CommandRunning
+        commandRunner: @escaping () -> CommandRunning,
+        environmentVariables: @escaping @Sendable () -> [String: String] = { Environment.current.variables },
+        currentExecutablePath: @escaping @Sendable () -> AbsolutePath? = { Environment.current.currentExecutablePath() }
     ) {
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.environmentVariables = environmentVariables
+        self.currentExecutablePath = currentExecutablePath
     }
 
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["resolve"]
         )
@@ -93,7 +101,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
-        let command = buildSwiftPackageCommand(
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["update"]
         )
@@ -204,5 +212,32 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             packagePath.pathString,
         ]
             + extraArguments
+    }
+
+    private func buildResolveOrUpdateCommand(packagePath: AbsolutePath, extraArguments: [String]) async throws -> [String] {
+        if let swifterPMExecutablePath = try await swifterPMExecutablePath() {
+            return [
+                swifterPMExecutablePath,
+                "--package-path",
+                packagePath.pathString,
+            ] + extraArguments
+        } else {
+            return buildSwiftPackageCommand(packagePath: packagePath, extraArguments: extraArguments)
+        }
+    }
+
+    private func swifterPMExecutablePath() async throws -> String? {
+        guard environmentVariables()[Constants.EnvironmentVariables.useSwifterPM] != nil else { return nil }
+
+        if let executablePath = currentExecutablePath() {
+            let bundledSwifterPMPath = executablePath
+                .parentDirectory
+                .appending(components: Constants.vendorDirectoryName, "swifterpm")
+            if try await fileSystem.exists(bundledSwifterPMPath) {
+                return bundledSwifterPMPath.pathString
+            }
+        }
+
+        return "swifterpm"
     }
 }

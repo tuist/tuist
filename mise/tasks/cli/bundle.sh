@@ -94,6 +94,22 @@ echo "$(format_section "Copying assets")"
 echo "$(format_subsection "Copying Tuist's templates")"
 cp -r $TUIST_DIR/cli/Templates $BUILD_DIRECTORY/Templates
 
+echo "$(format_subsection "Copying SwifterPM")"
+SWIFTERPM_PATH=""
+if command -v mise > /dev/null; then
+    SWIFTERPM_PATH="$(mise which swifterpm 2>/dev/null || true)"
+fi
+if [[ -z "$SWIFTERPM_PATH" ]]; then
+    SWIFTERPM_PATH="$(command -v swifterpm || true)"
+fi
+if [[ -z "$SWIFTERPM_PATH" ]]; then
+    echo "swifterpm is required to bundle the CLI release"
+    exit 1
+fi
+mkdir -p $BUILD_DIRECTORY/vendor
+cp "$SWIFTERPM_PATH" $BUILD_DIRECTORY/vendor/swifterpm
+chmod +x $BUILD_DIRECTORY/vendor/swifterpm
+
 echo "$(format_section "Bundling")"
 
 (
@@ -101,10 +117,11 @@ echo "$(format_section "Bundling")"
 
     echo "$(format_subsection "Signing")"
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
+    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose vendor/swifterpm
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \
