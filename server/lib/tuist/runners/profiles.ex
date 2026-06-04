@@ -61,7 +61,7 @@ defmodule Tuist.Runners.Profiles do
 
     * Linux profiles validate against `Catalog.shapes(:linux)`.
     * macOS profiles validate against `Catalog.shapes(:macos)` plus
-      `Catalog.xcode_versions(:macos)`.
+      `Catalog.xcode_versions/0`.
 
   Per-account cap applies across platforms.
   """
@@ -139,7 +139,7 @@ defmodule Tuist.Runners.Profiles do
   """
   def create_default_macos_for_account(%{id: account_id}) do
     with default_shape when not is_nil(default_shape) <- Catalog.default_shape(:macos),
-         default_xcode when not is_nil(default_xcode) <- Catalog.default_xcode_version(:macos) do
+         default_xcode when not is_nil(default_xcode) <- Catalog.default_xcode_version() do
       attrs = %{
         "account_id" => account_id,
         "name" => default_macos_name(),
@@ -233,5 +233,5 @@ defmodule Tuist.Runners.Profiles do
   defp catalog_opts_for(:linux), do: [shapes: Catalog.shapes(:linux)]
 
   defp catalog_opts_for(:macos),
-    do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions(:macos)]
+    do: [shapes: Catalog.shapes(:macos), xcode_versions: Catalog.xcode_versions()]
 end

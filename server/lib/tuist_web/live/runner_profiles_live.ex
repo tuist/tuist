@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnerProfilesLive do
      )
      |> assign(:catalog, Catalog.shapes(:linux))
      |> assign(:macos_catalog, Catalog.shapes(:macos))
-     |> assign(:xcode_catalog, Catalog.xcode_versions(:macos))
+     |> assign(:xcode_catalog, Catalog.xcode_versions())
      |> assign(:modal_id, @modal_id)
      |> assign(:delete_modal_id, @delete_modal_id)
      |> assign(:deleting_profile, nil)

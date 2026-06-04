@@ -73,9 +73,10 @@ defmodule Tuist.Runners.Catalog do
   @doc """
   All Xcode versions supported on the macOS fleet, deduped and
   sorted descending (newest first — the default preselect renders
-  at the top of the form dropdown).
+  at the top of the form dropdown). Xcode is macOS-only, so this
+  function takes no platform argument.
   """
-  def xcode_versions(:macos) do
+  def xcode_versions do
     raw =
       case Application.get_env(:tuist, :runner_macos_xcode_versions, []) do
         list when is_list(list) -> list
@@ -93,16 +94,16 @@ defmodule Tuist.Runners.Catalog do
   Look up an Xcode version in the macOS catalog. Returns `nil` if
   absent.
   """
-  def find_xcode_version(:macos, version) when is_binary(version) do
-    Enum.find(xcode_versions(:macos), fn x -> x.xcode_version == version end)
+  def find_xcode_version(version) when is_binary(version) do
+    Enum.find(xcode_versions(), fn x -> x.xcode_version == version end)
   end
 
   @doc """
   The Xcode version tagged `default: true` in the macOS catalog —
   what the "new profile" form preselects. Returns `nil` if none.
   """
-  def default_xcode_version(:macos) do
-    Enum.find(xcode_versions(:macos), & &1.default?)
+  def default_xcode_version do
+    Enum.find(xcode_versions(), & &1.default?)
   end
 
   @doc """

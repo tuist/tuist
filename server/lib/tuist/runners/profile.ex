@@ -13,7 +13,7 @@ defmodule Tuist.Runners.Profile do
       `Tuist.Runners.Catalog.shapes(:linux)`.
     * `:macos` — `(vcpus, memory_gb)` plus an `xcode_version`,
       picked from `Catalog.shapes(:macos)` (M2-L is the only shape
-      today) and `Catalog.xcode_versions(:macos)`. The Xcode
+      today) and `Catalog.xcode_versions/0`. The Xcode
       version pins the runner image's `:macos-<dashes>-<semver>`
       tag.
 
