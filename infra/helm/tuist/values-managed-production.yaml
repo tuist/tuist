@@ -305,7 +305,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 2
         maxReplicas: 9
-  runnerImageSemver: "0.0.0"
+  runnerImageSemver: "70e0ca37"
   pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
