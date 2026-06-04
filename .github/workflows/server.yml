@@ -73,7 +73,13 @@ jobs:
           # Extract only (without --merge) to check if marketing.pot changes
           # DO NOT use --merge here as it would modify .po translation files
           cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract > /dev/null 2>&1 || true
+          mix gettext.extract > /tmp/gettext-extract.log 2>&1 &
+          extract_pid=$!
+          while jobs -r -p | grep -q "^${extract_pid}$"; do
+            echo "Waiting for gettext.extract..."
+            sleep 30
+          done
+          wait "$extract_pid" || true
 
           if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
             echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
@@ -117,7 +123,13 @@ jobs:
 
           # Extract only (without --merge) to check if any .pot changes
           # DO NOT use --merge here as it would modify .po translation files
-          mix gettext.extract > /dev/null 2>&1 || true
+          mix gettext.extract > /tmp/gettext-extract.log 2>&1 &
+          extract_pid=$!
+          while jobs -r -p | grep -q "^${extract_pid}$"; do
+            echo "Waiting for gettext.extract..."
+            sleep 30
+          done
+          wait "$extract_pid" || true
 
           # Check each domain for changes
           CHANGED_DOMAINS=""
@@ -310,19 +322,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Docker build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: false
-          load: true
-          tags: tuist/tuist
-          build-args: |
-            TUIST_HOSTED=0
-            TUIST_VERSION=1.24.11.11
-            MIX_ENV=prod
-            APT_CACHE_BUST=${{ github.sha }}
+        run: |
+          docker buildx build \
+            --progress=plain \
+            --file ./server/Dockerfile \
+            --target runner \
+            --load \
+            --tag tuist/tuist \
+            --build-arg TUIST_HOSTED=0 \
+            --build-arg TUIST_VERSION=1.24.11.11 \
+            --build-arg MIX_ENV=prod \
+            --build-arg APT_CACHE_BUST=${{ github.sha }} \
+            .
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -409,4 +420,3 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
-
