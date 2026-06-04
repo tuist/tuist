@@ -129,7 +129,7 @@ public struct XCResultParser: Sendable {
         module: String?,
         into results: inout [TestResultStatuses.TestCaseStatus]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         if node.nodeType == "Test Case", let name = node.name {
             results.append(
@@ -245,7 +245,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         captureSuiteDuration(from: node, into: &suiteDurations)
 

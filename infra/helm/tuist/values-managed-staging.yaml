@@ -110,6 +110,7 @@ objectStorage:
 # the migration-job ends up Pending. The 4Gi limit stays so runtime
 # memory isn't constrained.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 2
     storage:
