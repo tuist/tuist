@@ -31,6 +31,22 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # Testing-only override: lets the JIT elevation bot supervisor
+    # boot on staging so the flow can be exercised end-to-end before
+    # the prod cutover. Remove (and bounce staging) once production
+    # is the proven sole writer of the tailnet ACL.
+    - name: TUIST_TAILSCALE_JIT_FORCE_ENABLE
+      value: "1"
+
+  # Mount the JIT bot's Tailscale + Slack credentials on staging too
+  # (testing window). The Secret is rendered by
+  # templates/tailscale-jit-externalsecret.yaml from a TAILSCALE_JIT_BOT
+  # 1P item that must be present in the tuist-k8s-staging vault
+  # (mirror it from tuist-k8s-production for the test, or use separate
+  # test credentials).
+  extraEnvFrom:
+    - secretRef:
+        name: tuist-tailscale-jit-bot
 
   appUrl: https://staging.tuist.dev
 
@@ -383,3 +399,5 @@ runnersFleetLinux:
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }
+tailscaleJIT:
+  enabled: true

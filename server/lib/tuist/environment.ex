@@ -548,6 +548,13 @@ defmodule Tuist.Environment do
   # synced to a Kubernetes Secret by ESO and mounted via envFrom.
   # Unset in dev/test/self-host: the bot supervisor only starts
   # when these and the prod-env gate are both satisfied.
+  # Testing-only override that lets the JIT bot supervisor boot on a
+  # non-production env (staging) so the elevation flow can be
+  # exercised end-to-end before merging the prod path. Default is
+  # off; flip on by setting TUIST_TAILSCALE_JIT_FORCE_ENABLE=1 in the
+  # target env's values overlay. Remove once prod is the only writer.
+  def tailscale_jit_force_enable?, do: System.get_env("TUIST_TAILSCALE_JIT_FORCE_ENABLE") == "1"
+
   def tailscale_jit_client_id, do: System.get_env("TAILSCALE_JIT_CLIENT_ID")
   def tailscale_jit_client_secret, do: System.get_env("TAILSCALE_JIT_CLIENT_SECRET")
   def tailscale_jit_tailnet, do: System.get_env("TAILSCALE_JIT_TAILNET") || "-"

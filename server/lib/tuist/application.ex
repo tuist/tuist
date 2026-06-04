@@ -425,8 +425,14 @@ defmodule Tuist.Application do
   # pods only, even though the bot code is loaded everywhere. The
   # production cluster is the only one with the OAuth client + Slack
   # app secrets wired in (see infra/helm/tuist/values-managed-production.yaml).
+  # The `tailscale_jit_force_enable?` env-var override exists so the
+  # supervisor can also boot on staging for end-to-end testing of the
+  # elevation flow before merging the prod path; remove the override
+  # once prod is the proven sole writer.
   defp tailscale_jit_children do
-    if Environment.web?() and Environment.env() == :prod and Environment.tuist_hosted?() do
+    eligible_env? = Environment.env() == :prod or Environment.tailscale_jit_force_enable?()
+
+    if Environment.web?() and eligible_env? and Environment.tuist_hosted?() do
       [Tuist.TailscaleJIT.Supervisor]
     else
       []
