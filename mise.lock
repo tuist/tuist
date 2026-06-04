@@ -359,6 +359,38 @@ url = "https://dl.k8s.io/v1.36.1/bin/windows/amd64/kubectl.exe"
 version = "1.14.39"
 backend = "npm:opencode-ai"
 
+[[tools.oras]]
+version = "1.3.0"
+backend = "aqua:oras-project/oras"
+
+[tools.oras."platforms.linux-arm64"]
+checksum = "sha256:7649738b48fde10542bcc8b0e9b460ba83936c75fb5be01ee6d4443764a14352"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_arm64.tar.gz"
+
+[tools.oras."platforms.linux-arm64-musl"]
+checksum = "sha256:7649738b48fde10542bcc8b0e9b460ba83936c75fb5be01ee6d4443764a14352"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_arm64.tar.gz"
+
+[tools.oras."platforms.linux-x64"]
+checksum = "sha256:6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz"
+
+[tools.oras."platforms.linux-x64-musl"]
+checksum = "sha256:6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz"
+
+[tools.oras."platforms.macos-arm64"]
+checksum = "sha256:e10c6552c02d5a7c7eaf7170d3b6f7f094b675a98a1e0edf4d4478a909447245"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_darwin_arm64.tar.gz"
+
+[tools.oras."platforms.macos-x64"]
+checksum = "sha256:82c33f7da8430ea7fa7e7bdf7721be0a0d0481e5ccb2472ea438490d5e8641a9"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_darwin_amd64.tar.gz"
+
+[tools.oras."platforms.windows-x64"]
+checksum = "sha256:b050e93aa0dc7a79a61fa8e4074dfa302c41d4af01b634fe393c5dd687536aee"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_windows_amd64.zip"
+
 [[tools.protoc]]
 version = "32.1"
 backend = "aqua:protocolbuffers/protobuf/protoc"
@@ -560,6 +592,17 @@ url = "https://github.com/tuist/tuist/releases/download/4.195.16/tuist.zip"
 [tools.tuist."platforms.macos-x64"]
 checksum = "sha256:a7dc59a3a639f80f993a9ce3280fdd9f9225ef3d20c1b41d983fbb9065ae1ceb"
 url = "https://github.com/tuist/tuist/releases/download/4.195.16/tuist.zip"
+
+[[tools.xcodes]]
+version = "1.6.0"
+backend = "aqua:XcodesOrg/xcodes"
+
+[tools.xcodes."platforms.macos-arm64"]
+checksum = "blake3:efa423dc3ecc1da1decdc10fe4f2afec2918c8469eb0e894aa4a80a21f2c3a99"
+url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
+
+[tools.xcodes."platforms.macos-x64"]
+url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
 
 [[tools.yq]]
 version = "4.52.5"

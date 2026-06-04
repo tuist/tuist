@@ -248,12 +248,17 @@ defmodule Tuist.Runners.Dispatch do
 
     1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
        e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
-       maps to its shape pool. The common path. The auto-bootstrapped
-       `linux` default profile means `<prefix>linux` (`tuist-linux` on
-       production, `tuist-<env>-linux` elsewhere) resolves here too.
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path. The auto-bootstrapped
+       `linux` and `macos` default profiles mean `<prefix>linux` /
+       `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
+       env-prefixed elsewhere) resolve here too — no separate legacy
+       alias path needed.
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Still serves macOS pools and any
-       other non-shape fleets.
+       Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
+       pool the operator manually renders via `runnersFleet.pools[]`
+       (e.g. an Xcode the catalog has removed but customer workflows
+       still pin).
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
@@ -266,7 +271,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           pool_name: Catalog.pool_name(profile),
            requested_dispatch_label: Profile.dispatch_label(profile)
          }}
 

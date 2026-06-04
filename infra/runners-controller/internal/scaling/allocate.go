@@ -1,17 +1,22 @@
 package scaling
 
 // PoolDemand is one pool's input to the fleet-capacity allocation.
-// All pools in a single AllocateFleet call share one bare-metal node
-// pool (the contention domain), so their footprints compete for the
-// same allocatable memory.
+// All pools in a single AllocateFleet call share one capacity
+// budget (the contention domain): for Linux that's the schedulable
+// memory across a bare-metal node pool, for macOS the number of
+// available host slots (1 VM per Mac mini).
 type PoolDemand struct {
 	Name string
 
-	// PodMemBytes is the per-Pod memory request — the binding
-	// constraint for kata microVMs, which pin memory per sandbox.
-	// CPU is deliberately oversubscribed on the fleet (see the helm
-	// values), so the allocator bin-packs on memory only.
-	PodMemBytes int64
+	// PerPodCost is what one Pod consumes from the shared budget,
+	// in the same unit as `fleetCapacity`:
+	//   - Linux: per-Pod memory request in bytes (kata microVMs
+	//     pin memory per sandbox; CPU is deliberately
+	//     oversubscribed, so memory is the only bin-packed
+	//     dimension).
+	//   - macOS: always 1 (one Mac mini = one slot = one VM,
+	//     per Apple's Virtualization.framework SLA).
+	PerPodCost int64
 
 	// Floor is `minWarmPoolFloor` — the always-on warm guarantee.
 	Floor int32
@@ -26,8 +31,8 @@ type PoolDemand struct {
 	Target int32
 }
 
-// AllocateFleet distributes `fleetMemBytes` of schedulable memory
-// across pools sharing a bare-metal node pool, in three priority tiers:
+// AllocateFleet distributes `fleetCapacity` across pools sharing a
+// capacity domain, in three priority tiers:
 //
 //  1. Load — `claimed + queued`, the real work running or waiting for a
 //     Pod. Genuine demand; granted in full even when it exceeds capacity
@@ -41,7 +46,7 @@ type PoolDemand struct {
 // they yield — headroom first, then floor — to admit another pool's real
 // queued work. That is the cross-pool reclaim: when a starved shape has
 // queued jobs that don't fit, an idle shape's warm Pods are reaped
-// (its desired falls below its floor) to free the memory, rather than
+// (its desired falls below its floor) to free capacity, rather than
 // leaving the queued jobs Pending while idle Pods hold reservations.
 //
 // The tradeoff is deliberate: under sustained load on one shape, other
@@ -51,16 +56,17 @@ type PoolDemand struct {
 // reap so it doesn't thrash.
 //
 // Each tier is granted in full when it fits; otherwise it is split
-// proportionally to requested memory and all lower tiers get nothing.
-// Result per pool is in `[load_i, Target_i]`. Memory is the only
-// dimension considered.
-func AllocateFleet(pools []PoolDemand, fleetMemBytes int64) map[string]int32 {
+// proportionally to requested cost and all lower tiers get nothing.
+// Result per pool is in `[load_i, Target_i]`. The algorithm is
+// unit-agnostic: `fleetCapacity` and `PerPodCost` just need to be in
+// the same unit (memory bytes for Linux, host slots for macOS).
+func AllocateFleet(pools []PoolDemand, fleetCapacity int64) map[string]int32 {
 	out := make(map[string]int32, len(pools))
 
 	type tierWant struct {
 		name string
 		want int32
-		mem  int64
+		cost int64
 	}
 	var loadWants, floorWants, headWants []tierWant
 
@@ -93,26 +99,26 @@ func AllocateFleet(pools []PoolDemand, fleetMemBytes int64) map[string]int32 {
 		out[p.Name] = 0
 
 		if load > 0 {
-			loadWants = append(loadWants, tierWant{p.Name, load, p.PodMemBytes})
+			loadWants = append(loadWants, tierWant{p.Name, load, p.PerPodCost})
 		}
-		if floorWant := floorTop - load; floorWant > 0 && p.PodMemBytes > 0 {
-			floorWants = append(floorWants, tierWant{p.Name, floorWant, p.PodMemBytes})
+		if floorWant := floorTop - load; floorWant > 0 && p.PerPodCost > 0 {
+			floorWants = append(floorWants, tierWant{p.Name, floorWant, p.PerPodCost})
 		}
-		if headWant := target - floorTop; headWant > 0 && p.PodMemBytes > 0 {
-			headWants = append(headWants, tierWant{p.Name, headWant, p.PodMemBytes})
+		if headWant := target - floorTop; headWant > 0 && p.PerPodCost > 0 {
+			headWants = append(headWants, tierWant{p.Name, headWant, p.PerPodCost})
 		}
 	}
 
-	remaining := fleetMemBytes
+	remaining := fleetCapacity
 
 	// grantTier grants a discretionary tier from `remaining`, returning
 	// true only when it was satisfied in full (so the caller knows
 	// whether to attempt the next-lower tier). A partially-funded tier
-	// is split proportionally to requested memory and exhausts capacity.
+	// is split proportionally to requested cost and exhausts capacity.
 	grantTier := func(wants []tierWant) bool {
 		var total int64
 		for _, w := range wants {
-			total += int64(w.want) * w.mem
+			total += int64(w.want) * w.cost
 		}
 		if total == 0 {
 			return true // nothing wanted; capacity untouched
@@ -142,7 +148,7 @@ func AllocateFleet(pools []PoolDemand, fleetMemBytes int64) map[string]int32 {
 	// Excess drives `remaining` negative; lower tiers then get nothing.
 	for _, w := range loadWants {
 		out[w.name] += w.want
-		remaining -= int64(w.want) * w.mem
+		remaining -= int64(w.want) * w.cost
 	}
 	if remaining < 0 {
 		remaining = 0

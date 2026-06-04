@@ -61,6 +61,7 @@ if not:
 | `tart`              | `/usr/local/bin/tart`             | Operator-image-baked `tart.app` tarball (`installTart` in `macos-host-bootstrap`). Same install path the macosFleet and runnersFleet hosts use; Tart's version is pinned by what the operator image ships. |
 | `packer`            | `/opt/homebrew/bin/packer`        | Homebrew (`hashicorp/tap/packer`) installed by the builder tail (`installBuilderTooling`) and `brew pin`'d. A follow-up will bake Packer into the operator image too, dropping Homebrew from the bootstrap entirely. |
 | `crane`             | `/opt/homebrew/bin/crane`         | Homebrew core, installed by `installBuilderTooling`. Used by the image-build workflows to write GHCR credentials into `~/.docker/config.json` for `tart push` (`crane auth login`), and by `release.yml`'s runner-image leg to resolve a pushed tag to its immutable digest (`crane digest`). |
+| `oras`              | `/opt/homebrew/bin/oras`          | Homebrew core, installed by `installBuilderTooling`. Used by `macos-xcode-image.yml` to pull the pre-mirrored Xcode `.xip` artifacts from `ghcr.io/tuist/xcode-xips`. |
 | Actions runner      | `/opt/actions-runner/`            | Downloaded directly from `actions/runner`'s GitHub releases by `installActionsRunner` and registered as a launchd LaunchAgent under `m1`. |
 
 Nothing in the workflow yaml installs or upgrades any of these.

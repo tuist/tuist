@@ -8,8 +8,8 @@ func TestAllocateFleet_UncontendedGrantsEveryTarget(t *testing.T) {
 	// 100 GiB fleet, two small shapes — everything fits, each gets its
 	// full target.
 	pools := []PoolDemand{
-		{Name: "small", PodMemBytes: 2 * gib, Floor: 1, Load: 2, Target: 5},
-		{Name: "med", PodMemBytes: 4 * gib, Floor: 1, Load: 1, Target: 4},
+		{Name: "small", PerPodCost: 2 * gib, Floor: 1, Load: 2, Target: 5},
+		{Name: "med", PerPodCost: 4 * gib, Floor: 1, Load: 1, Target: 4},
 	}
 	got := AllocateFleet(pools, 100*gib)
 
@@ -25,8 +25,8 @@ func TestAllocateFleet_RealLoadAlwaysGrantedEvenOverCapacity(t *testing.T) {
 	// Floors + load exceed the fleet. Real need is honored in full;
 	// the excess is the operator's "add a host" signal (goes Pending).
 	pools := []PoolDemand{
-		{Name: "a", PodMemBytes: 16 * gib, Floor: 1, Load: 3, Target: 6},
-		{Name: "b", PodMemBytes: 16 * gib, Floor: 1, Load: 2, Target: 5},
+		{Name: "a", PerPodCost: 16 * gib, Floor: 1, Load: 3, Target: 6},
+		{Name: "b", PerPodCost: 16 * gib, Floor: 1, Load: 2, Target: 5},
 	}
 	// Only 32 GiB usable — 2 pods — but real load wants 5 pods.
 	got := AllocateFleet(pools, 32*gib)
@@ -45,8 +45,8 @@ func TestAllocateFleet_SqueezesSpeculativeHeadroomUnderContention(t *testing.T) 
 	// fits busy's real load + floors, but not idle's speculative warm.
 	// idle should fall back toward its floor so busy's real work fits.
 	pools := []PoolDemand{
-		{Name: "busy", PodMemBytes: 8 * gib, Floor: 1, Load: 6, Target: 8},
-		{Name: "idle", PodMemBytes: 8 * gib, Floor: 1, Load: 0, Target: 5},
+		{Name: "busy", PerPodCost: 8 * gib, Floor: 1, Load: 6, Target: 8},
+		{Name: "idle", PerPodCost: 8 * gib, Floor: 1, Load: 0, Target: 5},
 	}
 	// 64 GiB usable = 8 pods. busy load 6 (48 GiB). Floors: busy 0 (load
 	// already > floor), idle 1 (8 GiB) → fit, 8 GiB left for headroom.
@@ -75,9 +75,9 @@ func TestAllocateFleet_SqueezesIdleFloorForAnotherPoolsQueuedLoad(t *testing.T) 
 	// while idle Pods hold reservations.
 	pools := []PoolDemand{
 		// small: floor 20 (all idle, no real load behind it).
-		{Name: "small", PodMemBytes: 8 * gib, Floor: 20, Load: 0, Target: 25},
+		{Name: "small", PerPodCost: 8 * gib, Floor: 20, Load: 0, Target: 25},
 		// big: real queued load 10, no floor — pure demand.
-		{Name: "big", PodMemBytes: 16 * gib, Floor: 0, Load: 10, Target: 10},
+		{Name: "big", PerPodCost: 16 * gib, Floor: 0, Load: 10, Target: 10},
 	}
 	// 200 GiB usable. big's load = 160 GiB granted first, leaving 40 GiB
 	// (5 pods of 8 GiB) for small's floor of 20 → squeezed to 5.
@@ -95,8 +95,8 @@ func TestAllocateFleet_HeadroomSplitProportionally(t *testing.T) {
 	// Two idle shapes, equal pod size, both want speculative headroom;
 	// limited leftover splits proportionally to requested headroom.
 	pools := []PoolDemand{
-		{Name: "x", PodMemBytes: 4 * gib, Floor: 1, Load: 0, Target: 5}, // wants 4 headroom
-		{Name: "y", PodMemBytes: 4 * gib, Floor: 1, Load: 0, Target: 3}, // wants 2 headroom
+		{Name: "x", PerPodCost: 4 * gib, Floor: 1, Load: 0, Target: 5}, // wants 4 headroom
+		{Name: "y", PerPodCost: 4 * gib, Floor: 1, Load: 0, Target: 3}, // wants 2 headroom
 	}
 	// Floors: 2 pods = 8 GiB. Fleet 8 GiB base + 12 GiB (3 pods) left.
 	// Headroom demand: x=4, y=2 (6 total). 3 pods split 2:1 → x≈2, y≈1.
@@ -112,7 +112,7 @@ func TestAllocateFleet_HeadroomSplitProportionally(t *testing.T) {
 
 func TestAllocateFleet_NeverExceedsTarget(t *testing.T) {
 	pools := []PoolDemand{
-		{Name: "a", PodMemBytes: 1 * gib, Floor: 1, Load: 0, Target: 2},
+		{Name: "a", PerPodCost: 1 * gib, Floor: 1, Load: 0, Target: 2},
 	}
 	got := AllocateFleet(pools, 1000*gib)
 	if got["a"] != 2 {
@@ -132,8 +132,8 @@ func TestAllocateFleet_ZeroCapacityHonorsLoadNotFloor(t *testing.T) {
 	// this pins AllocateFleet's behavior for callers that pass 0, not
 	// the deployed zero-node behavior.
 	pools := []PoolDemand{
-		{Name: "load", PodMemBytes: 4 * gib, Floor: 2, Load: 3, Target: 5},
-		{Name: "floor", PodMemBytes: 4 * gib, Floor: 2, Load: 0, Target: 5},
+		{Name: "load", PerPodCost: 4 * gib, Floor: 2, Load: 3, Target: 5},
+		{Name: "floor", PerPodCost: 4 * gib, Floor: 2, Load: 0, Target: 5},
 	}
 	got := AllocateFleet(pools, 0)
 	if got["load"] != 3 {
