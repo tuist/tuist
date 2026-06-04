@@ -103,9 +103,6 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
         worker: ArchiveLogsWorker,
         args: %{workflow_job_id: 9_910_001, account_id: account.id}
       )
-
-      assert {:ok, %{log_state: "complete", log_line_count: 3}} =
-               Jobs.get_for_account(account.id, 9_910_001)
     end
 
     test "returns the error so Oban retries when GitHub hasn't published the log yet (404)" do
@@ -120,8 +117,6 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       assert {:error, :log_not_ready_yet} =
                FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id)})
 
-      # No lines stored, log_state stays at default (still "streaming"-or-empty,
-      # never advanced to "complete").
       assert JobLogs.list_for_job(9_910_002) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_002})
     end
@@ -132,8 +127,8 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       stub_gh_installation_token()
 
       # Empty 200: Req never invokes `:into` because there's no
-      # data chunk. The worker should still finalize the state and
-      # mark the job complete with zero lines.
+      # data chunk. The worker should still finish cleanly without
+      # enqueueing the archive.
       expect(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, private: %{}}}
       end)
@@ -141,9 +136,6 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_003, account.id)})
 
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_003})
-
-      assert {:ok, %{log_state: "complete", log_line_count: 0}} =
-               Jobs.get_for_account(account.id, 9_910_003)
     end
 
     test "strips the UTF-8 BOM that prefixes GitHub's Logs API response" do
@@ -180,9 +172,6 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
 
       lines = JobLogs.list_for_job(9_910_020)
       assert Enum.map(lines, & &1.message) == ["First line", "Second line", "Third line"]
-
-      assert {:ok, %{log_state: "complete", log_line_count: 3}} =
-               Jobs.get_for_account(account.id, 9_910_020)
     end
 
     test "flushes the trailing partial line when the payload doesn't end in a newline" do

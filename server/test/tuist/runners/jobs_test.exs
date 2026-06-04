@@ -532,45 +532,6 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
-  describe "set_log_state/3" do
-    test "records the log lifecycle without reverting the job's own state" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 7300, fleet: "fleet-logs")
-      {:ok, candidate} = Jobs.pick_queued("fleet-logs", [])
-      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-      :ok = Jobs.record_running(7300, "runner-x")
-      {:ok, _} = Jobs.complete(7300, "success")
-
-      :ok = Jobs.set_log_state(7300, "complete", line_count: 42)
-
-      assert {:ok, job} = Jobs.get_for_account(account.id, 7300)
-      assert job.log_state == "complete"
-      assert job.log_line_count == 42
-      # Carrying the other columns forward preserves lifecycle state.
-      assert job.status == "completed"
-      assert job.conclusion == "success"
-    end
-
-    test "streaming state leaves line_count at its default" do
-      account = account_fixture()
-      :ok = enqueue_fixture(account, 7301, fleet: "fleet-logs2")
-      {:ok, candidate} = Jobs.pick_queued("fleet-logs2", [])
-      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-      :ok = Jobs.record_running(7301, "runner-x")
-
-      :ok = Jobs.set_log_state(7301, "streaming")
-
-      assert {:ok, job} = Jobs.get_for_account(account.id, 7301)
-      assert job.log_state == "streaming"
-      assert job.log_line_count == 0
-      assert job.status == "running"
-    end
-
-    test "is a no-op when the job row doesn't exist yet" do
-      assert :ok = Jobs.set_log_state(7_399_999, "streaming")
-    end
-  end
-
   describe "set_log_archive_key/2" do
     test "records the archive key while preserving the job's lifecycle state" do
       account = account_fixture()
@@ -579,14 +540,11 @@ defmodule Tuist.Runners.JobsTest do
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
       :ok = Jobs.record_running(7350, "runner-x")
       {:ok, _} = Jobs.complete(7350, "success")
-      :ok = Jobs.set_log_state(7350, "complete", line_count: 7)
 
       :ok = Jobs.set_log_archive_key(7350, "runners/#{account.id}/7350/runner.log.gz")
 
       assert {:ok, job} = Jobs.get_for_account(account.id, 7350)
       assert job.log_archive_key == "runners/#{account.id}/7350/runner.log.gz"
-      assert job.log_state == "complete"
-      assert job.log_line_count == 7
       assert job.status == "completed"
       assert job.conclusion == "success"
     end

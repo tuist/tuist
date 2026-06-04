@@ -2,8 +2,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   @moduledoc """
   Fetches the full job log from GitHub via its Actions Logs API once a
   workflow_job completes, ingests the lines into `runner_job_logs`,
-  flips `log_state` to `complete`, and enqueues `ArchiveLogsWorker`
-  to gzip + upload the archive.
+  and enqueues `ArchiveLogsWorker` to gzip + upload the archive.
 
   ## Why GitHub's API, not in-VM capture
 
@@ -50,7 +49,6 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Retry
   alias Tuist.Runners.JobLogs
-  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.VCS
 
@@ -75,10 +73,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
          api_url = VCS.installation_api_url(installation),
          {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
          {:ok, line_count} <- stream_log(api_url, repository, workflow_job_id, account_id, token) do
-      :ok = Jobs.set_log_state(workflow_job_id, "complete", line_count: line_count)
-
       enqueue_archive(workflow_job_id, account_id, line_count)
-
       :ok
     else
       {:error, :installation_not_found} ->

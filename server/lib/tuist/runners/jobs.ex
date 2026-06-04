@@ -324,45 +324,6 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Records the captured-log lifecycle for a job as a state-transition
-  INSERT, carrying all other columns forward (so the job's lifecycle
-  state, conclusion, and steps are preserved). Called by the log
-  ingest endpoint: `"streaming"` on the first chunk, `"complete"` /
-  `"partial"` when the stream closes.
-
-  `:line_count` (set at finalization) denormalizes the total onto the
-  row; omitted while streaming, where it keeps its current value.
-
-  No-op when no row exists yet for the workflow_job (a log chunk that
-  raced ahead of the `queued` webhook has nothing to attach to).
-  """
-  def set_log_state(workflow_job_id, state, opts \\ [])
-      when is_integer(workflow_job_id) and is_binary(state) and is_list(opts) do
-    case current(workflow_job_id) do
-      nil ->
-        :ok
-
-      %Job{} = job ->
-        now = DateTime.utc_now()
-
-        updates = maybe_put_line_count(%{log_state: state, updated_at: now}, Keyword.get(opts, :line_count))
-
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(updates)
-
-        insert_row!(row)
-
-        broadcast_status_change(job.account_id, job.status)
-        :ok
-    end
-  end
-
-  defp maybe_put_line_count(updates, count) when is_integer(count), do: Map.put(updates, :log_line_count, count)
-  defp maybe_put_line_count(updates, _), do: updates
-
-  @doc """
   Lists jobs whose log archive has aged past `threshold` and is still
   referenced from the row. Drives the daily prune that keeps the S3
   archive at parity with the 90-day TTL on `runner_job_logs`.

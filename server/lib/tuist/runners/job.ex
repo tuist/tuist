@@ -36,13 +36,6 @@ defmodule Tuist.Runners.Job do
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""
 
-    # Captured-log lifecycle. Per-line logs live in `runner_job_logs`;
-    # these mirror their state onto the job row so the detail page can
-    # decide between a live tail and a finished read. See
-    # `Tuist.Runners.Jobs.set_log_state/3`.
-    field :log_state, Ch, type: "LowCardinality(String)", default: ""
-    field :log_line_count, Ch, type: "UInt32", default: 0
-
     # S3 object key of the gzipped full-log archive, set by
     # `Tuist.Runners.Workers.ArchiveLogsWorker` once the job finishes.
     # Empty while logs are still streaming or before the archive is
