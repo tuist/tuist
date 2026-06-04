@@ -36,12 +36,12 @@ defmodule Tuist.Runners.Job do
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""
 
-    # S3 object key of the gzipped full-log archive, set by
-    # `Tuist.Runners.Workers.ArchiveLogsWorker` once the job finishes.
-    # Empty while logs are still streaming or before the archive is
-    # built; the download endpoint streams ClickHouse directly in that
-    # window. See `Tuist.Runners.Jobs.set_log_archive_key/2`.
-    field :log_archive_key, Ch, type: "String", default: ""
+    # When the gzipped full-log archive landed in S3. `nil` until the
+    # `ArchiveLogsWorker` finishes uploading; the download endpoint
+    # streams ClickHouse directly in that window. The S3 key itself is
+    # derived from `(account_id, workflow_job_id)` via
+    # `ArchiveLogsWorker.archive_key/2` — no column carries it.
+    field :log_archived_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
 
     # The label the customer wrote in `runs-on:` (e.g.
     # `tuist-default`). Carried from webhook enqueue so JIT-mint

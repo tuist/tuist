@@ -77,7 +77,7 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
   test "redirects to a presigned S3 URL once the log archive has been built", %{conn: conn, account: account} do
     enqueue(account, 32_201, 322_010)
-    :ok = Jobs.set_log_archive_key(32_201, "runners/#{account.id}/32201/runner.log.gz")
+    :ok = Jobs.set_log_archived_at(32_201, DateTime.utc_now())
 
     expect(Storage, :generate_download_url, fn key, actor, opts ->
       assert key == "runners/#{account.id}/32201/runner.log.gz"

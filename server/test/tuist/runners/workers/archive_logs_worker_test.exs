@@ -27,7 +27,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
   end
 
   describe "perform/1" do
-    test "gzips the full log, uploads it to S3, and records the archive key" do
+    test "gzips the full log, uploads it to S3, and stamps log_archived_at" do
       account = account_fixture()
       enqueue(account, 9_900_001)
 
@@ -70,7 +70,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
                  args: %{"workflow_job_id" => 9_900_001, "account_id" => account.id}
                })
 
-      assert {:ok, %{log_archive_key: ^expected_key}} = Jobs.get_for_account(account.id, 9_900_001)
+      assert {:ok, %{log_archived_at: %DateTime{}}} = Jobs.get_for_account(account.id, 9_900_001)
     end
 
     test "streams a multi-megabyte log without holding the whole thing in memory" do
@@ -133,7 +133,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
                  args: %{"workflow_job_id" => 9_900_002, "account_id" => account.id}
                })
 
-      assert {:ok, %{log_archive_key: ""}} = Jobs.get_for_account(account.id, 9_900_002)
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 9_900_002)
     end
 
     test "is a no-op when the account no longer exists" do

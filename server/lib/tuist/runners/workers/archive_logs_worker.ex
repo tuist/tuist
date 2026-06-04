@@ -95,7 +95,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
       |> File.stream!(@upload_chunk_bytes)
       |> Storage.upload(key, account)
 
-      Jobs.set_log_archive_key(workflow_job_id, key)
+      Jobs.set_log_archived_at(workflow_job_id, DateTime.utc_now())
       :ok
     end
   end

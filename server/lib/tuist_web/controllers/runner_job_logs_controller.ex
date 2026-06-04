@@ -21,6 +21,7 @@ defmodule TuistWeb.RunnerJobLogsController do
   alias Tuist.Authorization
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.Storage
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
@@ -52,8 +53,9 @@ defmodule TuistWeb.RunnerJobLogsController do
   # Archive is built — redirect to a presigned URL, overriding the
   # response content-disposition so the browser saves it under a
   # recognisable filename rather than the opaque object key.
-  defp serve(conn, account, %{log_archive_key: key, workflow_job_id: workflow_job_id})
-       when is_binary(key) and key != "" do
+  defp serve(conn, account, %{log_archived_at: %DateTime{}, account_id: account_id, workflow_job_id: workflow_job_id}) do
+    key = ArchiveLogsWorker.archive_key(account_id, workflow_job_id)
+
     url =
       Storage.generate_download_url(key, account,
         expires_in: @archive_url_ttl,
