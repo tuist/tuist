@@ -121,10 +121,16 @@ func TestAllocateFleet_NeverExceedsTarget(t *testing.T) {
 }
 
 func TestAllocateFleet_ZeroCapacityHonorsLoadNotFloor(t *testing.T) {
-	// No usable memory. Real load is still granted in full — it goes
-	// Pending, the operator's "add a host" signal. A speculative floor
-	// with no load behind it is NOT manufactured into Pending Pods, since
-	// idle warm capacity yields to genuine demand.
+	// Pure-function contract at fleetMem == 0: real load is still
+	// granted (it would go Pending), while a speculative floor with no
+	// load behind it is squeezed to zero rather than manufactured into
+	// Pending Pods.
+	//
+	// NOTE: the AutoscalerReconciler never calls AllocateFleet with
+	// fleetMem <= 0. It treats a zero or failed fleet-memory read as a
+	// blip and falls back to the per-pool target (floor honored), so
+	// this pins AllocateFleet's behavior for callers that pass 0, not
+	// the deployed zero-node behavior.
 	pools := []PoolDemand{
 		{Name: "load", PodMemBytes: 4 * gib, Floor: 2, Load: 3, Target: 5},
 		{Name: "floor", PodMemBytes: 4 * gib, Floor: 2, Load: 0, Target: 5},
