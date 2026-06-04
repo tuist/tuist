@@ -330,9 +330,12 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # Bigger shape: the server image build (Elixir release compile inside
-    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
-    runs-on: tuist-linux-large
+    # ubuntu-latest until the Docker Hub mirror is fleet-wide on
+    # tuist-linux-* — the runner pods on the linux shapes don't expose
+    # a reachable dind socket, so `docker/setup-buildx-action` fails
+    # before the build even starts. The `mirror.gcr.io/` build-args
+    # below keep base-image pulls off the Hub rate limit.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
