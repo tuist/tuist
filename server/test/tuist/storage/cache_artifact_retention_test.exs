@@ -42,8 +42,9 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, "next-page"}
     end
 
-    test "uses the cache bucket for Gradle and module artifacts" do
+    test "uses the cache bucket for module artifacts" do
       expired_module_key = "tuist/app/module/builds/AB/CD/ABCD/module.zip"
+      expired_gradle_key = "tuist/app/gradle/AB/CD/ABCD"
 
       expect(Environment, :cache_s3_bucket_name, fn -> "cache-bucket" end)
 
@@ -53,7 +54,8 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
          %{
            body: %{
              contents: [
-               %{key: expired_module_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+               %{key: expired_module_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
+               %{key: expired_gradle_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
              ],
              is_truncated: false
            }
@@ -67,6 +69,35 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       end)
 
       assert CacheArtifactRetention.delete_expired(:xcode_module, continuation_token: "cursor") == {:ok, nil}
+    end
+
+    test "uses the cache bucket for Gradle artifacts" do
+      expired_gradle_key = "tuist/app/gradle/AB/CD/ABCD"
+      expired_module_key = "tuist/app/module/builds/AB/CD/ABCD/module.zip"
+
+      expect(Environment, :cache_s3_bucket_name, fn -> "cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_gradle_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
+               %{key: expired_module_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([%Account{id: 1, name: "tuist"}])
+
+      expect(Storage, :delete_objects_from_bucket, fn [^expired_gradle_key], "cache-bucket" ->
+        :ok
+      end)
+
+      assert CacheArtifactRetention.delete_expired(:gradle) == {:ok, nil}
     end
 
     test "continues pagination when ExAws reports the truncated flag as a string" do

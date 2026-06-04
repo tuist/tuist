@@ -15,7 +15,8 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   def artifact_types, do: @artifact_types
 
   def delete_expired(artifact_type, opts \\ []) when artifact_type in @artifact_types do
-    bucket_name = bucket_name(artifact_type)
+    target = retention_target(artifact_type)
+    bucket_name = Map.fetch!(target, :bucket_name)
 
     if is_nil(bucket_name) or bucket_name == "" do
       :ok
@@ -33,8 +34,8 @@ defmodule Tuist.Storage.CacheArtifactRetention do
 
           objects_to_delete =
             objects
-            |> Enum.filter(&matches_artifact_type?(&1, artifact_type))
-            |> expired_objects(artifact_type)
+            |> Enum.filter(&matches_retention_target?(&1, target))
+            |> expired_objects(target)
 
           with :ok <- Storage.delete_objects_from_bucket(Enum.map(objects_to_delete, & &1.key), bucket_name) do
             {:ok, next_continuation_token(body)}
@@ -46,8 +47,9 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     end
   end
 
-  defp expired_objects(objects, artifact_type) do
+  defp expired_objects(objects, target) do
     plans_by_account_handle = plans_by_account_handle(objects)
+    retention_artifact_type = Map.fetch!(target, :retention_artifact_type)
 
     Enum.filter(objects, fn object ->
       # An object whose account handle doesn't resolve to a known account is
@@ -60,10 +62,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
           false
 
         plan ->
-          cutoff =
-            artifact_type
-            |> retention_artifact_type()
-            |> RetentionPolicy.cutoff(plan)
+          cutoff = RetentionPolicy.cutoff(retention_artifact_type, plan)
 
           object
           |> last_modified()
@@ -91,11 +90,11 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     end)
   end
 
-  defp matches_artifact_type?(object, artifact_type) do
+  defp matches_retention_target?(object, target) do
+    expected_path_segment = Map.fetch!(target, :object_path_segment)
+
     case String.split(object.key, "/", parts: 4) do
-      [_account_handle, _project_handle, "xcode", _rest] -> artifact_type == :xcode_cache
-      [_account_handle, _project_handle, "module", _rest] -> artifact_type == :xcode_module
-      [_account_handle, _project_handle, "gradle", _rest] -> artifact_type == :gradle
+      [_account_handle, _project_handle, path_segment, _rest] -> path_segment == expected_path_segment
       _ -> false
     end
   end
@@ -121,13 +120,29 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   defp expired?(nil, _cutoff), do: false
   defp expired?(last_modified, cutoff), do: DateTime.before?(last_modified, cutoff)
 
-  defp retention_artifact_type(:xcode_cache), do: :xcode_cache_artifact
-  defp retention_artifact_type(:xcode_module), do: :cache_artifact
-  defp retention_artifact_type(:gradle), do: :cache_artifact
+  defp retention_target(:xcode_cache) do
+    %{
+      bucket_name: Environment.cache_xcode_s3_bucket_name(),
+      object_path_segment: "xcode",
+      retention_artifact_type: :xcode_cache_artifact
+    }
+  end
 
-  defp bucket_name(:xcode_cache), do: Environment.cache_xcode_s3_bucket_name()
-  defp bucket_name(:xcode_module), do: Environment.cache_s3_bucket_name()
-  defp bucket_name(:gradle), do: Environment.cache_s3_bucket_name()
+  defp retention_target(:xcode_module) do
+    %{
+      bucket_name: Environment.cache_s3_bucket_name(),
+      object_path_segment: "module",
+      retention_artifact_type: :cache_artifact
+    }
+  end
+
+  defp retention_target(:gradle) do
+    %{
+      bucket_name: Environment.cache_s3_bucket_name(),
+      object_path_segment: "gradle",
+      retention_artifact_type: :cache_artifact
+    }
+  end
 
   defp next_continuation_token(body) do
     if Map.get(body, :is_truncated) in [true, "true"] do

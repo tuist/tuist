@@ -75,6 +75,12 @@ objectStorage:
     buckets:
       default: tuist-can-storage
 
+cache:
+  s3:
+    bucket: tuist-cas-canary
+    xcodeCacheBucket: tuist-xcode-cache-canary
+    registryBucket: tuist-registry-canary
+
 kuraController:
   telemetry:
     deploymentEnvironment: canary
