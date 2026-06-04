@@ -39,15 +39,12 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorker do
          :ok <- Storage.delete_object(key, account) do
       Jobs.set_log_archive_key(workflow_job_id, "")
     else
-      {:error, reason} ->
-        Logger.warning("runners: archive prune delete failed for #{key}: #{inspect(reason)}",
+      {:error, reason} = error ->
+        Logger.warning("runners: archive prune skipped for #{key}: #{inspect(reason)}",
           workflow_job_id: workflow_job_id
         )
 
-        :ok
-
-      _ ->
-        :ok
+        error
     end
   end
 end
