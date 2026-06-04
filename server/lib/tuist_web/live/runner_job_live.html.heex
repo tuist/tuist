@@ -238,7 +238,7 @@
     >
       <:actions>
         <.button
-          :if={@has_logs}
+          :if={@job.log_archived_at}
           href={
             ~p"/#{@selected_account.name}/runners/runs/#{@job.workflow_run_id}/jobs/#{@job.workflow_job_id}/logs/download"
           }

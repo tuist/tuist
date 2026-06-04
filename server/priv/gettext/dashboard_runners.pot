@@ -367,7 +367,7 @@ msgstr ""
 msgid "Successful"
 msgstr ""
 
-#: lib/tuist_web/controllers/runner_job_logs_controller.ex:48
+#: lib/tuist_web/controllers/runner_job_logs_controller.ex:47
 #: lib/tuist_web/live/runner_job_live.ex:69
 #: lib/tuist_web/live/runner_job_live.ex:90
 #, elixir-autogen, elixir-format

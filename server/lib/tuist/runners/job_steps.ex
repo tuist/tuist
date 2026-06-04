@@ -41,23 +41,24 @@ defmodule Tuist.Runners.JobSteps do
   Lists a job's steps in display order. Returns maps with `:number`,
   `:name`, `:status`, `:conclusion`, `:started_at`, `:completed_at`.
 
-  `FINAL` is cheap here because every query is scoped to a single
-  `workflow_job_id` (the order-key prefix), and a job has tens of
-  steps at most.
+  Uses the `argMax(col, inserted_at) GROUP BY workflow_job_id, number`
+  pattern so webhook redeliveries collapse to one row per step
+  without paying for `FINAL`'s part merge.
   """
   def list_for_job(workflow_job_id) when is_integer(workflow_job_id) do
-    JobStep
-    |> from(hints: ["FINAL"])
-    |> where([s], s.workflow_job_id == ^workflow_job_id)
-    |> order_by([s], asc: s.number)
-    |> select([s], %{
-      number: s.number,
-      name: s.name,
-      status: s.status,
-      conclusion: s.conclusion,
-      started_at: s.started_at,
-      completed_at: s.completed_at
-    })
+    from(s in JobStep,
+      where: s.workflow_job_id == ^workflow_job_id,
+      group_by: [s.workflow_job_id, s.number],
+      order_by: [asc: s.number],
+      select: %{
+        number: s.number,
+        name: fragment("argMax(?, ?)", s.name, s.inserted_at),
+        status: fragment("argMax(?, ?)", s.status, s.inserted_at),
+        conclusion: fragment("argMax(?, ?)", s.conclusion, s.inserted_at),
+        started_at: fragment("argMax(?, ?)", s.started_at, s.inserted_at),
+        completed_at: fragment("argMax(?, ?)", s.completed_at, s.inserted_at)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 end

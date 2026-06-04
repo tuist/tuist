@@ -4,7 +4,6 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
 
   import Mimic
 
-  alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -41,38 +40,12 @@ defmodule TuistWeb.RunnerJobLogsControllerTest do
       })
   end
 
-  test "streams the full log as a downloadable text file", %{conn: conn, account: account} do
+  test "404s when the job's log archive has not been built yet", %{conn: conn, account: account} do
     enqueue(account, 32_001, 320_010)
 
-    :ok =
-      JobLogs.append([
-        %{
-          workflow_job_id: 32_001,
-          account_id: account.id,
-          line_number: 1,
-          ts: ~U[2026-05-28 12:00:00.000000Z],
-          message: "first log line"
-        },
-        %{
-          workflow_job_id: 32_001,
-          account_id: account.id,
-          line_number: 2,
-          ts: ~U[2026-05-28 12:00:01.000000Z],
-          message: "second log line"
-        }
-      ])
-
-    conn = get(conn, ~p"/#{account.name}/runners/runs/320010/jobs/32001/logs/download")
-
-    assert response_content_type(conn, :txt) =~ "text/plain"
-
-    {"content-disposition", disposition} = List.keyfind(conn.resp_headers, "content-disposition", 0)
-    assert disposition =~ "attachment"
-    assert disposition =~ "runner-job-32001.log"
-
-    body = response(conn, 200)
-    assert body =~ "first log line"
-    assert body =~ "second log line"
+    assert_raise NotFoundError, fn ->
+      get(conn, ~p"/#{account.name}/runners/runs/320010/jobs/32001/logs/download")
+    end
   end
 
   test "redirects to a presigned S3 URL once the log archive has been built", %{conn: conn, account: account} do

@@ -2,31 +2,28 @@ defmodule TuistWeb.RunnerJobLogsController do
   @moduledoc """
   Serves a runner job's full captured log for download.
 
-  Once a job finishes, `Tuist.Runners.Workers.ArchiveLogsWorker` gzips
-  the full log into S3 and records the object key on the job row. This
-  endpoint redirects to a presigned URL for that archive — the
-  GitHub-style path that keeps the download off the request servers and
-  out of ClickHouse. While a job is still streaming (or before its
-  archive lands), it falls back to streaming the log from ClickHouse in
-  batches (`send_chunked` + `JobLogs.reduce/4`) so even a very large
-  log never materialises in memory.
+  Once a job finishes, `Tuist.Runners.Workers.ArchiveLogsWorker`
+  gzips the full log into S3 and stamps `log_archived_at` on the
+  job row. This endpoint redirects to a presigned URL for that
+  archive — the GitHub-style path that keeps the download off the
+  request servers and out of ClickHouse. Until the archive lands,
+  the endpoint 404s; the UI hides the download affordance during
+  that window so the user never sees a button that won't work.
 
-  Authenticated and account-scoped — a user can only download logs for a
-  job in an account they can read, and the run id in the URL must match
-  the job's (same gate as the detail LiveView).
+  Authenticated and account-scoped — a user can only download logs
+  for a job in an account they can read, and the run id in the URL
+  must match the job's (same gate as the detail LiveView).
   """
   use TuistWeb, :controller
 
   alias Tuist.Accounts
   alias Tuist.Authorization
-  alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
   alias Tuist.Storage
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.NotFoundError
 
-  @batch_size 2_000
   @archive_url_ttl 3_600
 
   def download(conn, %{
@@ -41,7 +38,8 @@ defmodule TuistWeb.RunnerJobLogsController do
          :ok <- Authorization.authorize(:projects_read, user, account),
          {workflow_run_id, ""} <- Integer.parse(workflow_run_id_param),
          {workflow_job_id, ""} <- Integer.parse(workflow_job_id_param),
-         {:ok, %{workflow_run_id: ^workflow_run_id} = job} <- Jobs.get_for_account(account.id, workflow_job_id) do
+         {:ok, %{workflow_run_id: ^workflow_run_id, log_archived_at: %DateTime{}} = job} <-
+           Jobs.get_for_account(account.id, workflow_job_id) do
       serve(conn, account, job)
     else
       _ ->
@@ -50,10 +48,7 @@ defmodule TuistWeb.RunnerJobLogsController do
     end
   end
 
-  # Archive is built — redirect to a presigned URL, overriding the
-  # response content-disposition so the browser saves it under a
-  # recognisable filename rather than the opaque object key.
-  defp serve(conn, account, %{log_archived_at: %DateTime{}, account_id: account_id, workflow_job_id: workflow_job_id}) do
+  defp serve(conn, account, %{account_id: account_id, workflow_job_id: workflow_job_id}) do
     key = ArchiveLogsWorker.archive_key(account_id, workflow_job_id)
 
     url =
@@ -65,25 +60,5 @@ defmodule TuistWeb.RunnerJobLogsController do
       )
 
     redirect(conn, external: url)
-  end
-
-  # No archive yet (still streaming, or pre-archive window) — stream the
-  # log straight out of ClickHouse in batches.
-  defp serve(conn, _account, %{workflow_job_id: workflow_job_id}) do
-    conn =
-      conn
-      |> put_resp_content_type("text/plain")
-      |> put_resp_header(
-        "content-disposition",
-        ~s(attachment; filename="runner-job-#{workflow_job_id}.log")
-      )
-      |> send_chunked(200)
-
-    JobLogs.reduce(workflow_job_id, @batch_size, conn, fn lines, conn ->
-      case chunk(conn, JobLogs.encode_lines(lines)) do
-        {:ok, conn} -> conn
-        {:error, _reason} -> conn
-      end
-    end)
   end
 end
