@@ -1,6 +1,7 @@
 package podtemplate
 
 import (
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -239,6 +240,18 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 				t.Errorf("dind-storage EmptyDir.Medium = %q, want \"\" (node disk)", v.EmptyDir.Medium)
 			}
 		}
+	}
+}
+
+func TestBuild_LinuxDindUsesRegistryMirror(t *testing.T) {
+	// dockerd must launch with a Docker Hub pull-through mirror.
+	// Every microVM on a bare-metal host shares that host's egress
+	// IP, so the fleet shares one Docker Hub per-IP pull budget;
+	// the mirror keeps CI jobs off "toomanyrequests".
+	pod := build(t, basePool("linux"))
+	dind := pod.Spec.InitContainers[0]
+	if len(dind.Args) == 0 || !strings.Contains(dind.Args[0], "--registry-mirror=https://mirror.gcr.io") {
+		t.Errorf("dind args missing --registry-mirror=https://mirror.gcr.io; got %v", dind.Args)
 	}
 }
 
