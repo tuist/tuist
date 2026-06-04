@@ -2,7 +2,7 @@
     aube = "1.6.2"
     # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
     # See https://github.com/tuist/tuist/issues/10754.
-    tuist = "4.195.15"
+    tuist = "4.195.16"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"
@@ -45,15 +45,31 @@
     TUIST_CACHE_API_KEY = "7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6"
 
 [tasks.cla-sign]
-    description = "Sign the CLA by adding current user to signatures.json"
+    description = "Sign a component CLA by adding current user to signatures.json"
     run = '''
     #!/usr/bin/env bash
     set -euo pipefail
 
-    SIGNATURES_FILE="server/cla/signatures.json"
+    COMPONENT="${CLA_COMPONENT:-server}"
+    case "$COMPONENT" in
+        server)
+            SIGNATURES_FILE="server/cla/signatures.json"
+            COMPONENT_NAME="Tuist Server"
+            ;;
+        kura)
+            SIGNATURES_FILE="kura/cla/signatures.json"
+            COMPONENT_NAME="Kura"
+            ;;
+        *)
+            echo "Unsupported CLA component: $COMPONENT"
+            echo "Set CLA_COMPONENT to either 'server' or 'kura'."
+            exit 1
+            ;;
+    esac
+
     REPO_ID="250427618"  # tuist/tuist repository ID
 
-    echo "Adding your signature to the CLA..."
+    echo "Adding your signature to the $COMPONENT_NAME CLA..."
 
     # Get current user info from GitHub
     user_info=$(gh api user)
@@ -65,15 +81,16 @@
 
     # Check if user already signed
     if [[ -f "$SIGNATURES_FILE" ]]; then
-        existing_signature=$(jq -r --arg login "$user_login" '.signedContributors[]? | select(.id == ($login | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
+        existing_signature=$(jq -r --arg user_id "$user_id" '.signedContributors[]? | select(.id == ($user_id | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
         if [[ -n "$existing_signature" ]]; then
-            echo "✅ You have already signed the CLA!"
+            echo "✅ You have already signed the $COMPONENT_NAME CLA!"
             exit 0
         fi
     fi
 
     # Create signatures file if it doesn't exist
     if [[ ! -f "$SIGNATURES_FILE" ]]; then
+        mkdir -p "$(dirname "$SIGNATURES_FILE")"
         echo '{"signedContributors":[]}' > "$SIGNATURES_FILE"
     fi
 
@@ -98,7 +115,7 @@
     jq --argjson new_sig "$new_signature" '.signedContributors += [$new_sig]' "$SIGNATURES_FILE" > "$temp_file"
     mv "$temp_file" "$SIGNATURES_FILE"
 
-    echo "✅ CLA signature added successfully!"
+    echo "✅ $COMPONENT_NAME CLA signature added successfully!"
     echo "📝 Your signature has been recorded in $SIGNATURES_FILE"
     echo ""
     echo "Next steps:"

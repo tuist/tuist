@@ -12,6 +12,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Peer TLS support: `src/peer_tls.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
+- License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
 - Install tools from `kura/mise.toml` with `mise install`
@@ -21,6 +22,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
+- Keep `LICENSE.md`, `CLA.md`, and `cla/` aligned with root licensing and contribution policy changes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes

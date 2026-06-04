@@ -217,4 +217,19 @@ defmodule Tuist.Runners.ClaimsTest do
       assert Claims.counts_per_account() == %{account.id => 1}
     end
   end
+
+  describe "live_pod_names/0" do
+    test "returns the pod names of every live claim, claimed and running alike" do
+      account = enabled_account_fixture()
+      {:ok, _} = Claims.attempt(5001, account.id, "fleet-a", "pod-claimed")
+      {:ok, _} = Claims.attempt(5002, account.id, "fleet-a", "pod-running")
+      :ok = Claims.mark_running(5002, "runner-x")
+
+      assert Claims.live_pod_names() == MapSet.new(["pod-claimed", "pod-running"])
+    end
+
+    test "is empty when there are no claims" do
+      assert Claims.live_pod_names() == MapSet.new()
+    end
+  end
 end

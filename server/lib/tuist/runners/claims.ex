@@ -308,4 +308,18 @@ defmodule Tuist.Runners.Claims do
       )
     )
   end
+
+  @doc """
+  Returns the set of `pod_name`s that currently hold a live claim
+  (`claimed` or `running`). `OrphanedStampedPodsWorker` diffs the
+  owner-stamped Pods in Kubernetes against this set: a stamped Pod
+  absent here has no claim backing its label and is therefore a
+  leak the runner-pool reconciler can't see (the reconciler only
+  reaps idle, un-stamped Pods).
+  """
+  def live_pod_names do
+    from(c in Claim, select: c.pod_name, distinct: true)
+    |> Repo.all()
+    |> MapSet.new()
+  end
 end

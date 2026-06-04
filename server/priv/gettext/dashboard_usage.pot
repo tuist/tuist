@@ -52,7 +52,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:229
+#: lib/tuist_web/live/usage_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Node"
 msgstr ""
@@ -62,13 +62,13 @@ msgstr ""
 msgid "Project:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:232
+#: lib/tuist_web/live/usage_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:149
-#: lib/tuist_web/live/usage_live.html.heex:241
+#: lib/tuist_web/live/usage_live.html.heex:145
+#: lib/tuist_web/live/usage_live.html.heex:235
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -83,7 +83,7 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:205
+#: lib/tuist_web/live/usage_live.html.heex:199
 #, elixir-autogen, elixir-format
 msgid "Traffic by node"
 msgstr ""
@@ -95,13 +95,13 @@ msgid "Usage"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:105
-#: lib/tuist_web/live/usage_live.html.heex:235
+#: lib/tuist_web/live/usage_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:127
-#: lib/tuist_web/live/usage_live.html.heex:238
+#: lib/tuist_web/live/usage_live.html.heex:125
+#: lib/tuist_web/live/usage_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Ingress"
 msgstr ""
@@ -112,7 +112,7 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:130
+#: lib/tuist_web/live/usage_live.html.heex:128
 #, elixir-autogen, elixir-format
 msgid "Bytes received by the cache from clients (cache uploads) in the selected window."
 msgstr ""
@@ -127,12 +127,12 @@ msgstr ""
 msgid "Cache traffic"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.ex:252
+#: lib/tuist_web/live/usage_live.ex:244
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:152
+#: lib/tuist_web/live/usage_live.html.heex:148
 #, elixir-autogen, elixir-format
 msgid "Number of cache requests served in the selected window."
 msgstr ""

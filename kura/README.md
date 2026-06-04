@@ -9,6 +9,12 @@
 > [!NOTE]
 > `Kura` comes from the Japanese word `蔵` (`kura`), which refers to a storehouse or warehouse. The name fits the system's role: keeping build artifacts and cache metadata stored durably and close at hand so they can be served with low latency.
 
+## License and Contributing
+
+Kura is licensed under the GNU Affero General Public License, version 3 only. See [LICENSE.md](./LICENSE.md) for the full license text.
+
+Contributions to Kura require signing the Kura Contributor License Agreement (CLA). Please see [CLA.md](./CLA.md) before submitting pull requests that modify Kura components.
+
 ## Summary ✨
 
 - ⚡ Hot reads come from local disk

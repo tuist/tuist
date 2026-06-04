@@ -1,5 +1,5 @@
 defmodule Tuist.OAuth.ClientsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Boruta.Oauth.Client

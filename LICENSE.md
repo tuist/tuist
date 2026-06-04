@@ -4,7 +4,7 @@ This repository contains software under multiple licenses:
 
 ## MIT License (Default)
 
-All content in this repository is licensed under the MIT License except for content in the `server/` directory.
+All content in this repository is licensed under the MIT License except for content in the `server/` and `kura/` directories.
 
 MIT License
 
@@ -31,3 +31,7 @@ SOFTWARE.
 ## Server Directory
 
 Content in the `server/` directory is licensed under a separate license. See [`server/LICENSE.md`](server/LICENSE.md) for details.
+
+## Kura Directory
+
+Content in the `kura/` directory is licensed under the GNU Affero General Public License, version 3 only. See [`kura/LICENSE.md`](kura/LICENSE.md) for details.

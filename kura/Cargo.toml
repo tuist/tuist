@@ -1,7 +1,8 @@
 [package]
 name = "kura"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
+license = "AGPL-3.0-only"
 
 [dependencies]
 axum = "0.8.9"

@@ -32,6 +32,7 @@ env:
 
 jobs:
   format:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +50,7 @@ jobs:
           fi
 
   test:
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
@@ -66,9 +68,7 @@ jobs:
   build:
     needs: test
     if: github.event_name != 'pull_request'
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

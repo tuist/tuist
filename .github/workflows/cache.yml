@@ -132,10 +132,7 @@ jobs:
 
   docker-compose:
     name: Docker Compose
-    # TODO: migrate to tuist-linux once the runner image ships
-    # a docker daemon — `docker compose config` requires the docker CLI
-    # and engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
