@@ -68,8 +68,11 @@ const builderMixBuildRoot = "/opt/tuist-build-cache"
 
 // installBuilderTooling lays down the host-level dependencies the
 // image-bake workflows expect to find on PATH: Homebrew, Packer
-// from `hashicorp/tap`, and `crane` (for GHCR auth before
-// `tart push`).
+// from `hashicorp/tap`, `crane` (for GHCR auth via
+// `crane auth login` before `tart push`, and to resolve a pushed
+// tag to its immutable digest in `release.yml`'s runner-image leg),
+// and `oras` (for `macos-xcode-image.yml`'s pull of the pre-mirrored
+// Xcode .xip from `ghcr.io/tuist/xcode-xips`).
 //
 // `hashicorp/tap` instead of Homebrew core because HashiCorp pulled
 // Packer (and the rest of the BSL-licensed tools) from core when
@@ -93,7 +96,7 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 eval "$(/opt/homebrew/bin/brew shellenv)"
 brew tap hashicorp/tap
-brew install hashicorp/tap/packer crane
+brew install hashicorp/tap/packer crane oras
 
 # Pin Packer so subsequent ` + "`brew upgrade`" + ` calls are no-ops.
 # Stable binary signatures matter on macOS Tahoe: the Local Network
@@ -106,6 +109,7 @@ brew pin packer
 
 packer --version
 crane version
+oras version
 `
 	return RunCommand(ctx, client, script)
 }
@@ -268,6 +272,17 @@ rm -f .runner .credentials .credentials_rsaparams
 # the Aqua session's GUI domain explicitly; sudo lets us cross
 # from the SSH session to the GUI domain without an asuser shim.
 ./svc.sh install %[2]s
+
+# runsvc.sh sources $RUNNER_DIR/.path and exports it as PATH for
+# every workflow step. svc.sh install seeds that file from the SSH
+# session's PATH, which doesn't include /opt/homebrew/bin (Homebrew
+# shellenv is for interactive shells, not the bootstrap session) —
+# image-bake workflows then fail with "packer: command not found"
+# / "crane: command not found" even though installBuilderTooling
+# installed both. Overwrite .path with the same PATH the
+# tart-kubelet LaunchDaemon plist exports, so packer, crane, and
+# tart at /usr/local/bin/tart are all reachable.
+printf '%%s' '/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' > .path
 
 RUNNER_UID=$(id -u %[2]s)
 RUNNER_PLIST=/Users/%[2]s/Library/LaunchAgents/$RUNNER_LABEL.plist

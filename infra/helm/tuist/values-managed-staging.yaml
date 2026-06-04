@@ -294,23 +294,39 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  pools:
-    - name: default
-      # 1 warm runner per host. Pool replicas must equal `hostCount`
-      # while pods request the full host — over-provisioning the
-      # pool only produces unschedulable Pods that drag readiness
-      # gates without adding capacity.
-      replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-staging-macos"
-      pod:
-        # Pod request = host capacity. kube-scheduler bin-packs one
-        # Pod per host AND tart-kubelet's `tart set` gives the VM
-        # the host's full CPU/RAM. Mismatch with `machine.host*`
-        # would either waste memory (Pod under-requests, VM is
-        # smaller than host) or fail to schedule (over-requests).
-        cpuMilli: 8000
-        memoryMB: 14336
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. Pod sizing inherits the catalog's default shape
+  # (6 vCPU / 14 GB on M2-L) — only declare `pod` here if a profile
+  # needs to deviate from it.
+  #
+  # Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools in this fleet using the same three-tier
+  # (floor / load / headroom) policy that backs the Linux pools.
+  # `minWarmPoolFloor` is the always-on warm guarantee; sum across
+  # overrides must stay ≤ `hostCount` or the excess goes Pending.
+  # `maxReplicas` is per-pool and can be the full host budget — the
+  # allocator caps the joint sum so two pools both asking for 9
+  # don't double-book the cluster.
+  xcodeOverrides:
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 1
+    "26.4.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+  # Bumped by `release-runner-image` on every release; the chart
+  # template constructs each pool's image as
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  runnerImageSemver: "3f32dbbb"
+  pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
 # Tart images are global GHCR artifacts, so only the production fleet

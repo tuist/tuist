@@ -6,7 +6,10 @@ use std::{
 };
 
 use axum_server::Handle;
-use hyper_util::rt::TokioTimer;
+use hyper_util::{
+    rt::{TokioExecutor, TokioTimer},
+    server::conn::auto::Builder as HttpBuilder,
+};
 use tokio::sync::{Notify, Semaphore, oneshot};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{Instrument, info, warn};
@@ -30,6 +33,11 @@ use crate::{
     telemetry::{init_tracing, log_context_span},
     usage::Usage,
 };
+
+const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
+const HTTP2_MAX_FRAME_SIZE: u32 = 16 * 1024;
+const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
+const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -281,12 +289,7 @@ async fn run_with_config(
             async move {
                 let mut server =
                     axum_server::bind_rustls(https_address, tls_config).handle(https_handle);
-                server
-                    .http_builder()
-                    .http1()
-                    .keep_alive(true)
-                    .timer(TokioTimer::new())
-                    .header_read_timeout(Some(Duration::from_secs(30)));
+                configure_public_http_builder(server.http_builder());
                 if let Err(error) = server.serve(https_router.into_make_service()).await {
                     tracing::error!("public HTTPS server failed: {error}");
                 }
@@ -298,12 +301,7 @@ async fn run_with_config(
     };
 
     let mut public_server = axum_server::bind(address).handle(public_handle);
-    public_server
-        .http_builder()
-        .http1()
-        .keep_alive(true)
-        .timer(TokioTimer::new())
-        .header_read_timeout(Some(Duration::from_secs(30)));
+    configure_public_http_builder(public_server.http_builder());
     public_server
         .serve(router.into_make_service())
         .await
@@ -331,6 +329,22 @@ async fn run_with_config(
     }
 
     Ok(())
+}
+
+fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
+    builder
+        .http1()
+        .keep_alive(true)
+        .timer(TokioTimer::new())
+        .header_read_timeout(Some(Duration::from_secs(30)));
+    builder
+        .http2()
+        .adaptive_window(true)
+        .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
+        .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
+        .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
+        .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
+        .timer(TokioTimer::new());
 }
 
 async fn shutdown_signal() {
@@ -736,6 +750,16 @@ mod tests {
 
     use super::*;
     use crate::test_support::test_context;
+
+    #[test]
+    fn public_http_builder_accepts_http1_and_http2() {
+        let mut builder = HttpBuilder::new(TokioExecutor::new());
+
+        configure_public_http_builder(&mut builder);
+
+        assert!(builder.is_http1_available());
+        assert!(builder.is_http2_available());
+    }
 
     #[tokio::test]
     async fn wait_for_shutdown_signal_returns_when_ctrl_c_resolves() {

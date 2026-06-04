@@ -30,18 +30,56 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
+alias Tuist.Runners.Catalog
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
 
   json ->
-    case Tuist.Runners.Catalog.parse_shapes_json(json) do
+    case Catalog.parse_shapes_json(json) do
       :error ->
         raise "TUIST_RUNNER_LINUX_SHAPES is set but is not a valid JSON array of shapes " <>
                 "(Helm renders it from runnersFleetLinux.shapes via toJson). Got: #{inspect(json)}"
 
       shapes ->
         config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleet.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_macos_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_xcode_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_XCODE_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.xcodeVersions via toJson). Got: #{inspect(json)}"
+
+      xcodes ->
+        config :tuist, :runner_macos_xcode_versions, xcodes
     end
 end
 
