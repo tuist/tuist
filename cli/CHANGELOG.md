@@ -1,10 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.195.16<!-- RELEASE NOTES START -->
+## What's Changed in 4.195.17<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* stream xcodebuild test output with NSUnbufferedIO ([#11046](https://github.com/tuist/tuist/pull/11046))
+* preserve active session logs during cleanup ([#11083](https://github.com/tuist/tuist/pull/11083))
 * move framework search path setup into a graph mapper ([#11054](https://github.com/tuist/tuist/pull/11054))
 * generate foreign build aggregates as scripts ([#11030](https://github.com/tuist/tuist/pull/11030))
 * inherit canary fixture feature flags ([#11050](https://github.com/tuist/tuist/pull/11050))
@@ -18,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.195.16
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.195.17
 
 ## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
 

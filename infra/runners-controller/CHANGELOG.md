@@ -1,10 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runners-controller@0.8.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* own macOS+Xcode base image ([#10834](https://github.com/tuist/tuist/pull/10834))
+* mirror runner Docker Hub pulls through mirror.gcr.io ([#11096](https://github.com/tuist/tuist/pull/11096))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runners-controller@0.7.0...runners-controller@0.8.0
+
 ## What's Changed in runners-controller@0.7.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* rank queued load above idle warm floors in runner fleet allocation ([#11091](https://github.com/tuist/tuist/pull/11091))
 * gate runner availability solely on the :runners feature flag ([#11090](https://github.com/tuist/tuist/pull/11090))
 * isolate the runner dispatch token and bring fork CI onto the fleet ([#11062](https://github.com/tuist/tuist/pull/11062))
 

@@ -212,7 +212,7 @@ xcresultProcessor:
     # in the same auto-commit. Until release.yml has run for this
     # component, pin to a known-good SHA-tagged build that the standalone
     # xcresult-processor-image.yml workflow pushed.
-    tag: "0.10.0"
+    tag: "0.11.0"
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
@@ -254,7 +254,7 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
     # workflow.
-    tag: "0.7.0"
+    tag: "0.8.0"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
