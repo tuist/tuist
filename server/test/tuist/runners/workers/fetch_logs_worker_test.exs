@@ -49,6 +49,25 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
     end)
   end
 
+  # The worker calls `Req.get` with `:into` so the response body
+  # arrives in chunks. Drive the callback synthetically with one or
+  # more chunks and return the resulting (mutated) `Req.Response`.
+  defp stub_req_stream(chunks) when is_list(chunks) do
+    expect(Req, :get, fn opts ->
+      resp = %Req.Response{status: 200, private: %{}}
+
+      resp =
+        Enum.reduce(chunks, resp, fn chunk, acc ->
+          {:cont, {_req, acc}} = opts[:into].({:data, chunk}, {opts, acc})
+          acc
+        end)
+
+      {:ok, resp}
+    end)
+  end
+
+  defp stub_req_stream(body) when is_binary(body), do: stub_req_stream([body])
+
   describe "perform/1" do
     test "fetches the log from GitHub, ingests every line, and enqueues the archive worker" do
       account = account_fixture()
@@ -66,7 +85,10 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
                  "https://api.github.com/repos/tuist/tuist/actions/jobs/9910001/logs"
 
         assert {"Authorization", "Bearer ghs_test_token"} in opts[:headers]
-        {:ok, %Req.Response{status: 200, body: body}}
+
+        resp = %Req.Response{status: 200, private: %{}}
+        {:cont, {_req, resp}} = opts[:into].({:data, body}, {opts, resp})
+        {:ok, resp}
       end)
 
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_001, account.id)})
@@ -109,8 +131,11 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       enqueue(account, 9_910_003)
       stub_gh_installation_token()
 
+      # Empty 200: Req never invokes `:into` because there's no
+      # data chunk. The worker should still finalize the state and
+      # mark the job complete with zero lines.
       expect(Req, :get, fn _opts ->
-        {:ok, %Req.Response{status: 200, body: ""}}
+        {:ok, %Req.Response{status: 200, private: %{}}}
       end)
 
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_003, account.id)})
@@ -126,18 +151,54 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       enqueue(account, 9_910_010)
       stub_gh_installation_token()
 
-      # GitHub returns the payload with a leading BOM. Without
-      # stripping it the first line's ISO peel fails and the raw
-      # timestamp leaks into the message.
-      body = "﻿2026-06-02T15:31:03.111111Z Current runner version: '2.334.0'\n"
-
-      expect(Req, :get, fn _opts -> {:ok, %Req.Response{status: 200, body: body}} end)
+      stub_req_stream("﻿2026-06-02T15:31:03.111111Z Current runner version: '2.334.0'\n")
 
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_010, account.id)})
 
       [line] = JobLogs.list_for_job(9_910_010)
       assert line.message == "Current runner version: '2.334.0'"
       refute line.message =~ "2026-06-02T"
+    end
+
+    test "preserves lines that span chunk boundaries when the body arrives in pieces" do
+      account = account_fixture()
+      enqueue(account, 9_910_020)
+      stub_gh_installation_token()
+
+      # Three TCP chunks carving the same payload at awkward
+      # offsets (inside the first line's message, inside the next
+      # line's timestamp). The worker must stitch the partial
+      # tail of each chunk onto the head of the next without
+      # losing or splitting any line.
+      stub_req_stream([
+        "2026-06-02T15:31:03.111111Z First li",
+        "ne\n2026-06-02T15:31:03.222222Z Second line\n2026",
+        "-06-02T15:31:03.333333Z Third line\n"
+      ])
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_020, account.id)})
+
+      lines = JobLogs.list_for_job(9_910_020)
+      assert Enum.map(lines, & &1.message) == ["First line", "Second line", "Third line"]
+
+      assert {:ok, %{log_state: "complete", log_line_count: 3}} =
+               Jobs.get_for_account(account.id, 9_910_020)
+    end
+
+    test "flushes the trailing partial line when the payload doesn't end in a newline" do
+      # Defensive: GitHub's payload ends with `\n` today, but the
+      # streaming finaliser handles an unterminated last line so a
+      # truncated response doesn't silently drop a row.
+      account = account_fixture()
+      enqueue(account, 9_910_021)
+      stub_gh_installation_token()
+
+      stub_req_stream("2026-06-02T15:31:03.111111Z Only line, no trailing newline")
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_021, account.id)})
+
+      [line] = JobLogs.list_for_job(9_910_021)
+      assert line.message == "Only line, no trailing newline"
     end
 
     test "is a no-op when the GitHub App installation has been uninstalled" do
