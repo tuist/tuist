@@ -1937,7 +1937,12 @@ defmodule Tuist.Accounts do
   @doc """
   Returns cache endpoint URLs for the given account handle and cache technology.
 
-  For the default cache technology, custom endpoints are only returned when:
+  For the default cache technology, ready account Kura endpoints are preferred when
+  present. Kura servers mirror their public URL into `account_cache_endpoints` only
+  after the public endpoint is ready, so clients do not need a feature flag once
+  an account has an available server.
+
+  When there is no ready account Kura endpoint, custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
@@ -1950,12 +1955,23 @@ defmodule Tuist.Accounts do
 
   def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      account_handle
-      |> get_account_by_handle()
-      |> custom_cache_endpoints()
-      |> case do
-        [] -> CacheEndpoints.active_endpoint_urls()
-        endpoints -> Enum.map(endpoints, & &1.url)
+      case get_account_by_handle(account_handle) do
+        %Account{} = account ->
+          case kura_cache_endpoint_urls(account) do
+            [] ->
+              account
+              |> custom_cache_endpoints()
+              |> case do
+                [] -> CacheEndpoints.active_endpoint_urls()
+                endpoints -> Enum.map(endpoints, & &1.url)
+              end
+
+            endpoints ->
+              endpoints
+          end
+
+        _ ->
+          CacheEndpoints.active_endpoint_urls()
       end
     else
       CacheEndpoints.active_endpoint_urls()
