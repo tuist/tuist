@@ -1,5 +1,5 @@
 defmodule TuistWeb.Webhooks.BillingControllerTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts
   alias TuistTestSupport.Fixtures.AccountsFixtures
