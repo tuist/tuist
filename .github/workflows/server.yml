@@ -159,7 +159,11 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    runs-on: tuist-linux
+    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
+    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
+    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
+    # headroom this job had before the default was downsized (#11052).
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
@@ -372,7 +376,10 @@ jobs:
   #         fi
   seed:
     name: Seed
-    runs-on: tuist-linux
+    # Bigger shape: database setup (migrations + seeds) is too slow on the
+    # 2 vCPU default and overruns the 15m timeout under fleet load. The
+    # 4 vCPU / 16 GB shape restores the headroom from before #11052.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
