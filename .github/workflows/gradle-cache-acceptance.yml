@@ -35,7 +35,9 @@ env:
 jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    runs-on: tuist-linux
+    # TEMP: trying the 4 vCPU shape to see if it speeds up compile + e2e.
+    # Decide before ready.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     # TEMP: draft-only while iterating on test perf; revert before ready.
     if: github.event.pull_request.draft == true

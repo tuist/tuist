@@ -159,7 +159,9 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    runs-on: tuist-linux
+    # TEMP: trying the 4 vCPU shape to see how much the async conversions
+    # parallelize beyond the 2 vCPU default. Decide before ready.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     # TEMP: draft-only while iterating on test perf; revert before ready.
     if: github.event.pull_request.draft == true
