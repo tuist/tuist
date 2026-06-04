@@ -68,14 +68,6 @@ jobs:
   build:
     needs: test
     if: github.event_name != 'pull_request'
-    # TEMPORARY: GitHub-hosted while we bootstrap the Docker Hub
-    # registry-mirror fix. This build pulls golang:alpine + buildkit
-    # from Docker Hub through the dind dockerd, which on tuist-linux
-    # has no mirror yet and trips the per-IP rate limit — the very
-    # bug this image's change fixes. ubuntu-latest pulls via GitHub's
-    # rotating IP pool instead of the fleet's shared egress IP.
-    # Revert to `tuist-linux` once the mirrored controller is rolled
-    # out fleet-wide.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
