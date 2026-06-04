@@ -323,12 +323,24 @@ defmodule Tuist.Runners.Jobs do
   Lists jobs whose log archive has aged past `threshold`. Drives the
   daily prune that keeps the S3 archive at parity with the 90-day TTL
   on `runner_job_logs`.
+
+  Uses the `argMax(col, updated_at) GROUP BY workflow_job_id`
+  pattern documented in this module's `@moduledoc` rather than
+  `FINAL`. The prune scans every job — without a workflow_job_id
+  scope, `FINAL`'s merge would span every part in `runner_jobs`,
+  which scales poorly as the table grows.
   """
   def list_expired_archives(%DateTime{} = threshold) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], not is_nil(j.log_archived_at) and j.log_archived_at < ^threshold)
-    |> select([j], %{workflow_job_id: j.workflow_job_id, account_id: j.account_id})
+    from(j in Job,
+      group_by: j.workflow_job_id,
+      having:
+        not is_nil(fragment("argMax(?, ?)", j.log_archived_at, j.updated_at)) and
+          fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
+      select: %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
+      }
+    )
     |> ClickHouseRepo.all()
   end
 
