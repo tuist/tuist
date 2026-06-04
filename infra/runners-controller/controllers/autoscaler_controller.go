@@ -210,6 +210,14 @@ func (r *AutoscalerReconciler) desiredForPool(
 	}
 
 	fleetMem, err := r.fleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
+	// fleetMem <= 0 is treated like an error on purpose. A zero sum is
+	// almost always a transient empty node-list read (informer cache
+	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
+	// memory" state. Routing it into AllocateFleet would squeeze every
+	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
+	// blip-driven mass scale-down this per-pool fallback exists to
+	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// test) is therefore never exercised from here.
 	if err != nil || fleetMem <= 0 {
 		logger.Error(err, "read fleet allocatable memory; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector)
