@@ -15,6 +15,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 @testable import TuistKit
 
@@ -29,11 +30,17 @@ struct UploadBuildRunServiceTests {
     private let gitController = MockGitControlling()
     private let ciController = MockCIControlling()
     private let generationMetadataStore = MockGenerationMetadataStoring()
+    private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
 
     init() throws {
         given(generationMetadataStore)
             .read(for: .any)
             .willReturn(nil)
+
+        // No workspace under the build path by default, so the lookup falls back to projectPath.
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willThrow(NSError.test())
 
         subject = UploadBuildRunService(
             fileSystem: fileSystem,
@@ -44,7 +51,8 @@ struct UploadBuildRunServiceTests {
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
             ciController: ciController,
-            generationMetadataStore: generationMetadataStore
+            generationMetadataStore: generationMetadataStore,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
         )
 
         given(serverEnvironmentService)
@@ -192,11 +200,18 @@ struct UploadBuildRunServiceTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let activityLogPath = temporaryDirectory.appending(component: "test-uuid.xcactivitylog")
         try await fileSystem.writeText("fake", at: activityLogPath)
-        let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
+        // The build hands us a directory; the service resolves the generated workspace from it and
+        // reads the generation metadata keyed by that workspace.
+        let projectPath = temporaryDirectory
+        let workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
 
+        xcodeProjectOrWorkspacePathLocator.reset()
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(projectPath))
+            .willReturn(workspacePath)
         generationMetadataStore.reset()
         given(generationMetadataStore)
-            .read(for: .value(projectPath))
+            .read(for: .value(workspacePath))
             .willReturn("generation-uuid")
 
         let config = Tuist.test(fullHandle: "tuist/tuist")

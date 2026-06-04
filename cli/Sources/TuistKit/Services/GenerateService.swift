@@ -142,7 +142,7 @@ public struct GenerateService {
             path: path,
             options: config.project.generatedProject?.generationOptions
         )
-        await persistGenerationMetadata(workspacePath: workspacePath, projectDirectory: path)
+        await persistGenerationMetadata(workspacePath: workspacePath)
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
@@ -155,17 +155,13 @@ public struct GenerateService {
     /// Mints a generation identifier, records it on the run so the generate command event carries it
     /// alongside the uploaded graph, and persists it keyed by the generated workspace so a later
     /// `tuist inspect build` can link a local Xcode build back to this generation's module breakdown.
-    private func persistGenerationMetadata(workspacePath: AbsolutePath, projectDirectory: AbsolutePath) async {
+    private func persistGenerationMetadata(workspacePath: AbsolutePath) async {
         let generationId = UUID().uuidString.lowercased()
         await RunMetadataStorage.current.update(generationId: generationId)
         do {
-            // Key the metadata by both the generated workspace and the project directory. A later
-            // `tuist inspect build` resolves the workspace, while `tuist xcodebuild build` without an
-            // explicit -workspace/-project resolves the working directory, so storing both keeps the
-            // generation link from being missed.
-            for path in Set([workspacePath, projectDirectory]) {
-                try await generationMetadataStore.store(generationId: generationId, for: path)
-            }
+            // Keyed by the generated workspace. The build side resolves the same workspace before
+            // reading (see UploadBuildRunService), so this single key matches every build entry point.
+            try await generationMetadataStore.store(generationId: generationId, for: workspacePath)
             try await generationMetadataStore.prune()
         } catch {
             Logger.current.debug("Failed to persist generation metadata: \(error.localizedDescription)")
