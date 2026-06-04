@@ -411,14 +411,7 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp has_custom_storage?(%Account{
-         s3_bucket_name: bucket,
-         s3_access_key_id: access_key,
-         s3_secret_access_key: secret_key
-       })
-       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
-
-  defp has_custom_storage?(_), do: false
+  defp has_custom_storage?(actor), do: Account.custom_s3_storage_configured?(actor)
 
   defp custom_s3_config(%Account{} = account) do
     base_config = %{

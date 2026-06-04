@@ -48,15 +48,12 @@ defmodule Tuist.Storage.CacheArtifactRetention do
   end
 
   defp expired_objects(objects, target) do
-    plans_by_account_handle = plans_by_account_handle(objects)
+    plans_by_account_handle = managed_plans_by_account_handle(objects)
     retention_artifact_type = Map.fetch!(target, :retention_artifact_type)
 
     Enum.filter(objects, fn object ->
-      # An object whose account handle doesn't resolve to a known account is
-      # skipped rather than deleted: defaulting to a plan here would apply the
-      # shortest (`:air`) retention window and risk purging a paying account's
-      # cache early on any handle mismatch. Orphaned blobs from deleted accounts
-      # are reclaimed through account deletion, not this job.
+      # Managed retention only deletes objects whose account resolves to the
+      # managed storage path. Unknown and custom-storage accounts are skipped.
       case Map.get(plans_by_account_handle, account_handle(object)) do
         nil ->
           false
@@ -71,7 +68,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     end)
   end
 
-  defp plans_by_account_handle(objects) do
+  defp managed_plans_by_account_handle(objects) do
     account_handles =
       objects
       |> Enum.map(&account_handle/1)
@@ -81,6 +78,7 @@ defmodule Tuist.Storage.CacheArtifactRetention do
     Account
     |> where([account], account.name in ^account_handles)
     |> Repo.all()
+    |> Enum.reject(&Account.custom_s3_storage_configured?/1)
     |> then(fn accounts ->
       # `current_plans/1` batch-loads subscriptions for all fetched accounts,
       # keeping this at two queries per S3 page instead of one query per account.

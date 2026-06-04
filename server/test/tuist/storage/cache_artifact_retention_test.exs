@@ -153,6 +153,42 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
     end
 
+    test "skips objects for accounts with custom S3 storage configured" do
+      custom_storage_key = "custom-storage-account/app/xcode/AB/CD/ABCD"
+      managed_storage_key = "managed-storage-account/app/xcode/EF/GH/EFGH"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: custom_storage_key, last_modified: DateTime.add(DateTime.utc_now(), -3650, :day)},
+               %{key: managed_storage_key, last_modified: DateTime.add(DateTime.utc_now(), -3650, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect_accounts_and_plans([
+        %Account{
+          id: 1,
+          name: "custom-storage-account",
+          s3_bucket_name: "custom-bucket",
+          s3_access_key_id: "CUSTOM_ACCESS_KEY",
+          s3_secret_access_key: "CUSTOM_SECRET_KEY"
+        },
+        %Account{id: 2, name: "managed-storage-account"}
+      ])
+
+      expect(Storage, :delete_objects_from_bucket, fn [^managed_storage_key], "xcode-cache-bucket" -> :ok end)
+
+      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
+    end
+
     test "skips cleanup when the cache bucket is not configured" do
       expect(Environment, :cache_s3_bucket_name, fn -> nil end)
 
