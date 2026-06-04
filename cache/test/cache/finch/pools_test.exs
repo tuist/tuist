@@ -19,7 +19,6 @@ defmodule Cache.Finch.PoolsTest do
       end)
 
       stub(Cache.Config, :xcode_cache_bucket, fn -> nil end)
-      stub(Cache.Config, :registry_bucket, fn -> nil end)
 
       :ok
     end
@@ -97,14 +96,12 @@ defmodule Cache.Finch.PoolsTest do
     test "registers virtual-hosted bucket pools when enabled" do
       stub(Cache.Config, :s3_virtual_host, fn -> true end)
       stub(Cache.Config, :xcode_cache_bucket, fn -> "xcode-bucket" end)
-      stub(Cache.Config, :registry_bucket, fn -> "registry-bucket" end)
 
       config = Pools.config()
 
       assert Map.has_key?(config, "https://s3.example.com")
       assert Map.has_key?(config, "https://cache-bucket.s3.example.com")
       assert Map.has_key?(config, "https://xcode-bucket.s3.example.com")
-      assert Map.has_key?(config, "https://registry-bucket.s3.example.com")
     end
   end
 end

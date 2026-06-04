@@ -37,8 +37,6 @@ defmodule Cache.Application do
       Cache.S3,
       Cache.KeyValueStore,
       Cache.MultipartUploads,
-      Cache.Registry.Metadata,
-      Cache.Registry.AlternateManifests,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
@@ -50,8 +48,7 @@ defmodule Cache.Application do
 
     children =
       if Cache.Config.analytics_enabled?() do
-        base_children ++
-          [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline, Cache.Registry.EventsPipeline]
+        base_children ++ [Cache.Xcode.EventsPipeline, Cache.Gradle.EventsPipeline]
       else
         base_children
       end

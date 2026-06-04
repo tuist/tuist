@@ -80,14 +80,6 @@
       # syscall per request on the worker's event loop.
       access_log /var/log/nginx/access.log timed_combined buffer=256k flush=5s;
 
-      # Swift Package Registry requires a Content-Version response header.
-      # X-Accel-Redirect to proxy_pass locations replaces upstream headers,
-      # so we re-inject it only for registry requests.
-      map $request_uri $registry_content_version {
-        "~^/api/registry/swift/" "1";
-        default "";
-      }
-
       upstream cache_upstream {
         server unix:/run/cache/current.sock;
         # Idle upstream connections held open per worker. Sized to
@@ -230,11 +222,6 @@
             # CAS keys are content-addressed — once written, never changed.
             # Immutable lets clients skip conditional requests entirely.
             add_header Cache-Control "public, max-age=31536000, immutable";
-            add_header Content-Version $registry_content_version;
-            # Preserve the upstream Link header (set by Phoenix to advertise
-            # alternate registry manifests). X-Accel-Redirect to a static-file
-            # location otherwise drops it.
-            add_header Link $upstream_http_link always;
 
             # CAS artifacts are immutable (content-addressed), so we can
             # cache many more FDs and revalidate less often.
@@ -258,10 +245,6 @@
             # avoid a lookup per download. IPv6 off avoids dual-stack delays.
             resolver 1.1.1.1 ipv6=off valid=300s;
             resolver_timeout 5s;
-            # Capture Phoenix's Link header before proxy_pass replaces
-            # $upstream_http_* with the S3 response's headers (which have
-            # no Link). Re-emitted via add_header below.
-            set $saved_link $upstream_http_link;
             set $download_url $1://$2/$3;
             # Keepalive to S3: HTTP/1.1 + empty Connection reuses TCP
             # connections across consecutive downloads from the same bucket.
@@ -273,11 +256,6 @@
             # hostname in the TLS ClientHello to route to the right bucket.
             proxy_ssl_server_name on;
             proxy_pass $download_url$is_args$args;
-            add_header Content-Version $registry_content_version;
-            # Re-emit the Link header captured above. Required so SwiftPM
-            # discovers alternate registry manifests when the file is being
-            # streamed from S3 (cold cache node).
-            add_header Link $saved_link always;
             gzip off;
             proxy_request_buffering off;
 
@@ -316,7 +294,6 @@
             proxy_hide_header Content-Type;
             default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
-            add_header Content-Version $registry_content_version;
           '';
         };
       };

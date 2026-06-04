@@ -98,6 +98,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 - Outbound webhook endpoint URLs and signing secrets on `webhook_endpoints` (treated as bearer credentials — path/query tokens often appear in destination URLs)
 - GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
+- Swift package registry mirror data: public package source archives, manifests, and package metadata stored by the standalone `swift-registry` service in the registry S3 bucket under `registry/swift/` and `registry/metadata/`, plus service-level sync locks/cursors and local SQLite operational queues (`cache_artifacts`, `s3_transfers`, `orphan_scan_cursors`). These records are used to serve and maintain the public registry mirror, are not tied to Tuist accounts, and are excluded from customer account exports.
 
 ## Binary Files
 

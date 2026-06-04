@@ -1,0 +1,230 @@
+defmodule SwiftRegistry.Disk do
+  @moduledoc """
+  Shared disk infrastructure for Swift package registry artifact storage.
+
+  Handles artifact path construction, file operations, and disk usage monitoring.
+
+  This module stores artifacts on the local filesystem with a configurable storage directory.
+  """
+
+  require Logger
+
+  @doc """
+  Converts a registry key to an absolute file system path.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.artifact_path("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      "/var/tuist/cas/registry/swift/apple/parser/1.0.0/source_archive.zip"
+  """
+  def artifact_path(key) do
+    Path.join(storage_dir(), key)
+  end
+
+  @doc """
+  Extracts two-character shards from a hex ID for directory sharding.
+
+  Takes the first 4 characters of a hex ID and splits them into two 2-character shards
+  to prevent ext4 directory index overflow on filesystems without `large_dir` enabled.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.shards_for_id("ABCD1234")
+      {"AB", "CD"}
+  """
+  def shards_for_id(<<shard1::binary-size(2), shard2::binary-size(2), _rest::binary>>) do
+    {shard1, shard2}
+  end
+
+  @doc """
+  Returns the configured storage directory for registry artifacts.
+
+  Defaults to "tmp/cas" if not configured.
+  """
+  def storage_dir do
+    Application.get_env(:swift_registry, :storage_dir)
+  end
+
+  @doc """
+  Returns the base path prefix used for nginx internal X-Accel-Redirect responses.
+
+  The registry `local_accel_path` function prepends this to the registry key
+  so the literal lives in one place.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.local_base_path()
+      "/internal/local/"
+  """
+  def local_base_path, do: "/internal/local/"
+
+  @doc """
+  Lists all artifact paths on disk.
+  """
+  def list_artifact_paths(dir \\ storage_dir()) do
+    dir
+    |> Path.join("**/*")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.filter(&File.regular?/1)
+  end
+
+  @doc """
+  Deletes a single artifact from disk by its registry key.
+
+  Returns `:ok` on success, `{:error, :enoent}` if the file doesn't exist,
+  or `{:error, reason}` on other failures.
+  """
+  def delete_artifact(key) do
+    key |> artifact_path() |> File.rm()
+  end
+
+  @doc """
+  Deletes all artifacts for a package from disk.
+
+  Removes the entire package directory.
+  Returns :ok on success, {:error, reason} on failure.
+  """
+  def delete_package(scope, name) do
+    path = Path.join(storage_dir(), "registry/swift/#{scope}/#{name}")
+
+    case File.rm_rf(path) do
+      {:ok, _} -> :ok
+      {:error, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Returns disk usage stats for the filesystem that backs the provided path.
+  """
+  def usage(path) when is_binary(path) do
+    expanded_path = Path.expand(path)
+
+    case System.cmd("df", ["-Pk", expanded_path], stderr_to_stdout: true) do
+      {output, 0} ->
+        parse_df_output(output)
+
+      {output, exit_code} ->
+        Logger.warning("df exited with #{exit_code} while inspecting #{expanded_path}: #{String.trim(output)}")
+
+        {:error, :df_failed}
+    end
+  end
+
+  @doc """
+  Creates a directory and all parent directories if they don't exist.
+
+  Uses `File.mkdir_p/1` to create the directory structure and logs any errors
+  that occur during creation.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.ensure_directory("/path/to/file.txt")
+      :ok
+  """
+  def ensure_directory(file_path) do
+    dir = Path.dirname(file_path)
+
+    case File.mkdir_p(dir) do
+      :ok ->
+        :ok
+
+      {:error, reason} = error ->
+        Logger.error("Failed to create directory #{dir}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  @doc """
+  Atomically moves a file from a temporary path to a target path.
+
+  Checks that the target path doesn't already exist before performing the rename.
+  Returns `{:error, :exists}` if the target file already exists, or logs and returns
+  the error reason if the rename operation fails.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.move_file("/tmp/upload-123", "/storage/artifact")
+      :ok
+  """
+  def move_file(tmp_path, target_path) do
+    with false <- File.exists?(target_path),
+         :ok <- File.rename(tmp_path, target_path) do
+      :ok
+    else
+      true ->
+        {:error, :exists}
+
+      {:error, reason} ->
+        Logger.error("Failed to move artifact to #{target_path}: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp parse_df_output(output) do
+    lines =
+      output
+      |> String.trim()
+      |> String.split("\n", trim: true)
+
+    case lines do
+      [_header, data_line | _] ->
+        parse_df_data_line(data_line)
+
+      _ ->
+        {:error, :unexpected_df_output}
+    end
+  end
+
+  defp parse_df_data_line(line) do
+    case String.split(line, ~r/\s+/, trim: true) do
+      [_filesystem, blocks, used, available, capacity | _] ->
+        with {:ok, total_bytes} <- parse_kbytes(blocks),
+             {:ok, used_bytes} <- parse_kbytes(used),
+             {:ok, available_bytes} <- parse_kbytes(available),
+             {:ok, percent_used} <- parse_percent(capacity) do
+          {:ok,
+           %{
+             total_bytes: total_bytes,
+             used_bytes: used_bytes,
+             available_bytes: available_bytes,
+             percent_used: percent_used
+           }}
+        end
+
+      _ ->
+        {:error, :unexpected_df_fields}
+    end
+  end
+
+  defp parse_kbytes(value) do
+    case Integer.parse(value) do
+      {int, _} when int >= 0 -> {:ok, int * 1024}
+      _ -> {:error, :invalid_number}
+    end
+  end
+
+  defp parse_percent(value) do
+    sanitized = String.trim_trailing(value, "%")
+
+    case Float.parse(sanitized) do
+      {number, _} when number >= 0 -> {:ok, number}
+      _ -> {:error, :invalid_percent}
+    end
+  end
+
+  @doc """
+  Formats a byte count as a human-readable string.
+
+  ## Examples
+
+      iex> SwiftRegistry.Disk.format_bytes(512)
+      "512 B"
+
+      iex> SwiftRegistry.Disk.format_bytes(1_536)
+      "1.5 KB"
+  """
+  def format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
+  def format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
+  def format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
+  def format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
+end

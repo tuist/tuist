@@ -139,7 +139,6 @@ if config_env() == :prod do
   config :cache, :s3,
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
     xcode_cache_bucket: System.get_env("S3_XCODE_CACHE_BUCKET"),
-    registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
     protocols: s3_protocol,
     ca_cert_pem: System.get_env("S3_CA_CERT_PEM") || System.get_env("TUIST_S3_CA_CERT_PEM")
 
@@ -154,8 +153,6 @@ if config_env() == :prod do
     analytics_cooldown_ms: Cache.Config.int_env("ANALYTICS_COOLDOWN_MS", 60_000),
     analytics_receive_timeout_ms: Cache.Config.int_env("ANALYTICS_RECEIVE_TIMEOUT_MS", 2_000),
     analytics_pool_timeout_ms: Cache.Config.int_env("ANALYTICS_POOL_TIMEOUT_MS", 1_000),
-    registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
     key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),
     key_value_eviction_min_retention_days:
       String.to_integer(System.get_env("KEY_VALUE_EVICTION_MIN_RETENTION_DAYS") || "1"),

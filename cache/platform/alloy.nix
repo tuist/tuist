@@ -259,15 +259,6 @@
       }
 
       stage.match {
-        selector = "{job=\"cache-nginx\"} |= \"/api/registry/swift\""
-
-        stage.template {
-          source   = "path_group"
-          template = "registry"
-        }
-      }
-
-      stage.match {
         selector = "{job=\"cache-nginx\"} |= \" /metrics \""
 
         stage.template {
