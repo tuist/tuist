@@ -5,10 +5,11 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorker do
   ClickHouse TTL clause, so without this worker the S3 archive would
   outlive the per-line rows and the documented retention.
 
-  Iterates expired archives one by one with a per-archive rescue so a
-  single account with broken credentials can't block deletion for every
-  other account. A failed delete leaves `log_archive_key` set so the
-  next run retries; only a successful delete clears the key.
+  Iterates expired archives one by one. A per-archive S3 error is
+  logged and skipped so one account with bad credentials can't block
+  deletion for every other account; `log_archive_key` stays set on
+  the failing row so the next daily run retries it. Only a
+  successful delete clears the key.
   """
   use Oban.Worker, queue: :default, max_attempts: 1
 
@@ -35,26 +36,18 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorker do
 
   defp prune(%{workflow_job_id: workflow_job_id, account_id: account_id, log_archive_key: key}) do
     with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         :ok <- delete_object(account, key, workflow_job_id) do
+         :ok <- Storage.delete_object(key, account) do
       Jobs.set_log_archive_key(workflow_job_id, "")
     else
-      _ -> :ok
+      {:error, reason} ->
+        Logger.warning("runners: archive prune delete failed for #{key}: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
+
+      _ ->
+        :ok
     end
-  end
-
-  # We swallow + log the per-archive error on purpose: failing the
-  # whole prune run because account 42's bucket credentials rotated
-  # would block deletion for every other account. The unscavenged
-  # archive will be retried tomorrow with `log_archive_key` still set.
-  defp delete_object(account, key, workflow_job_id) do
-    Storage.delete_object(key, account)
-    :ok
-  rescue
-    error ->
-      Logger.warning("runners: archive prune delete failed for #{key}: #{inspect(error)}",
-        workflow_job_id: workflow_job_id
-      )
-
-      :error
   end
 end

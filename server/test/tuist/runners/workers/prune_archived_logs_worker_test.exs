@@ -85,7 +85,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       assert {:ok, %{log_archive_key: ^key}} = Jobs.get_for_account(account.id, 8_500_002)
     end
 
-    test "keeps the key when the S3 delete raises, so tomorrow's run retries" do
+    test "keeps the key when the S3 delete errors, so tomorrow's run retries" do
       account = account_fixture()
       old = DateTime.add(DateTime.utc_now(), -100 * 24 * 60 * 60, :second)
       key = "runners/#{account.id}/8500003/runner.log.gz"
@@ -93,7 +93,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       seed_completed_job(account, 8_500_003, old, archive_key: key)
 
       expect(Storage, :delete_object, fn ^key, _account ->
-        raise "S3 unavailable"
+        {:error, :s3_unavailable}
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
@@ -110,8 +110,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
       seed_completed_job(account, 8_500_005, old, archive_key: good_key)
 
       expect(Storage, :delete_object, 2, fn key, _account ->
-        if key == bad_key, do: raise("S3 unavailable")
-        :ok
+        if key == bad_key, do: {:error, :s3_unavailable}, else: :ok
       end)
 
       assert :ok = PruneArchivedLogsWorker.perform(%Oban.Job{args: %{}})
