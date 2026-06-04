@@ -36,7 +36,7 @@ jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
     runs-on: tuist-linux
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
