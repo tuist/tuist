@@ -58,14 +58,19 @@ let tuist = Tuist(
 EOF
 
     echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
-    # The oldest supported CLI's `auth login` has no --url flag; it resolves the
-    # server from the project config, so --path points it at the canary URL we
-    # just wrote into Tuist.swift.
+    # The way `auth login` is pointed at a server changed across versions: older
+    # CLIs take --path and read the URL from Tuist.swift, newer ones take --url.
+    # Try --url first and fall back to --path so the suite survives the pin
+    # moving across that boundary. Credentials/email/password come from env.
     echo "# Logging in to ${TUIST_URL}..." >&3
     "$TUIST_EXECUTABLE" auth login \
         --email "$TUIST_AUTH_EMAIL" \
         --password "$TUIST_AUTH_PASSWORD" \
-        --path "$FIXTURE_DIR"
+        --url "$TUIST_URL" \
+        || "$TUIST_EXECUTABLE" auth login \
+            --email "$TUIST_AUTH_EMAIL" \
+            --password "$TUIST_AUTH_PASSWORD" \
+            --path "$FIXTURE_DIR"
 
     echo "# Creating throwaway project ${PROJECT_HANDLE}..." >&3
     "$TUIST_EXECUTABLE" project create "$PROJECT_HANDLE" --path "$FIXTURE_DIR"
