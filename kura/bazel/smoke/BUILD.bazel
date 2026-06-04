@@ -1,0 +1,10 @@
+load("@rules_rust//rust:defs.bzl", "rust_binary")
+
+# Dependency-free target that exists only to prove the pinned Rust toolchain
+# (1.94.1, edition 2024) resolves and builds. Removable once Phase 0.2 lands a
+# real target. See docs/bazel-migration-plan.md.
+rust_binary(
+    name = "smoke",
+    srcs = ["main.rs"],
+    edition = "2024",
+)

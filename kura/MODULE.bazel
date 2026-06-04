@@ -1,0 +1,60 @@
+"""Kura — distributed cache mesh (Rust).
+
+Phase 0.1 of the Bazel migration: workspace skeleton and Rust toolchain only.
+See docs/bazel-migration-plan.md for the full plan.
+"""
+
+module(
+    name = "kura",
+    version = "0.6.0",
+)
+
+bazel_dep(name = "rules_rust", version = "0.70.0")
+
+# Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    versions = ["1.94.1"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+# Third-party Rust dependencies, resolved from Cargo.toml / Cargo.lock.
+# Repin after changing dependencies or annotations (Bazel 9 has no `bazel sync`):
+#   CARGO_BAZEL_REPIN=1 bazel query '@crates//:all'
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+
+# mlua's `vendored` feature compiles Lua from source shipped inside the `lua-src`
+# crate. lua-src reads `env!("CARGO_MANIFEST_DIR")` at *compile* time, which Bazel
+# bakes as an absolute path into the now-deleted compile sandbox; when the mlua-sys
+# build script later runs, that path is gone. Two-part fix:
+#   1. Pin lua-src's compile-time CARGO_MANIFEST_DIR to its execroot-relative repo
+#      path, so env!() bakes a path that resolves against the run execroot.
+#   2. Stage lua-5.4.8/ as data of the mlua-sys build script at that same path.
+crate.annotation(
+    crate = "lua-src",
+    rustc_env = {
+        "CARGO_MANIFEST_DIR": "../rules_rust++crate+crates__lua-src-550.0.0",
+    },
+    additive_build_file_content = """
+filegroup(
+    name = "lua_sources",
+    srcs = glob(["lua-5.4.8/**"]),
+    visibility = ["//visibility:public"],
+)
+""",
+)
+crate.annotation(
+    crate = "mlua-sys",
+    build_script_data = ["@crates__lua-src-550.0.0//:lua_sources"],
+)
+
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
+    manifests = ["//:Cargo.toml"],
+)
+use_repo(crate, "crates")

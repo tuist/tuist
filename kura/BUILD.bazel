@@ -1,0 +1,36 @@
+# Root package for the Kura Bazel workspace.
+#
+# Exposes the Cargo manifests so the crate_universe extension can read them as
+# labels, and defines the kura library + binary targets (Phase 0.3).
+
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+# The kura crate is a lib + bin: main.rs calls `kura::run()`, so the library must
+# compile under the crate name `kura`. test_support.rs is `#[cfg(test)]`, so it is
+# inert in this non-test build.
+rust_library(
+    name = "kura_lib",
+    srcs = glob(["src/**/*.rs"], exclude = ["src/main.rs"]),
+    aliases = aliases(),
+    crate_name = "kura",
+    edition = "2024",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True),
+)
+
+rust_binary(
+    name = "kura",
+    srcs = ["src/main.rs"],
+    aliases = aliases(),
+    edition = "2024",
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//visibility:public"],
+    deps = all_crate_deps(normal = True) + [":kura_lib"],
+)
