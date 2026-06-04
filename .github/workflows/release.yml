@@ -1599,6 +1599,9 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # See runner-image.yml's matching step for the rationale —
+          # tart's auto-prune races mid-push (cirruslabs/tart#860).
+          TART_NO_AUTO_PRUNE: "1"
         # Direct tart push; same shape as `macos-xcode-image.yml`.
         # Push both the immutable per-version tag and the rolling
         # `:<profile>` tag so the chart's tag template stays valid

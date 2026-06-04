@@ -123,6 +123,15 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # Tart's OCI-cache prune fires opportunistically during
+          # `tart push`'s internal staging step and races the push
+          # of the source VM bundle — when it loses, nvram.bin is
+          # truncated mid-upload (see cirruslabs/tart#860). Disable
+          # the prune for the duration of the push; the cache was
+          # already trimmed at the start of the job by the
+          # `reclaim-tart-disk` composite action and won't grow
+          # before push completes.
+          TART_NO_AUTO_PRUNE: "1"
         # Direct tart push. Cirrus uses the same path to publish
         # macos-tahoe-xcode at the same size; the prior bridge through
         # a local registry was an unsuccessful workaround on a
