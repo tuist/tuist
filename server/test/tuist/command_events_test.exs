@@ -223,6 +223,37 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "list_command_events/1" do
+    test "sorts via the optimized materialized views and reads generation_id back" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      generation_id = UUIDv7.generate()
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          generation_id: generation_id,
+          ran_at: ~U[2024-03-05 06:00:00Z]
+        )
+
+      # When / Then: each sort routes to a different command_events_by_* materialized view,
+      # which selects the full Event schema (including generation_id). A view missing the
+      # column raises "Unknown identifier generation_id".
+      for field <- [:ran_at, :duration, :hit_rate] do
+        {events, _meta} =
+          CommandEvents.list_command_events(%{
+            first: 5,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [field],
+            order_directions: [:desc]
+          })
+
+        listed = Enum.find(events, &(&1.id == event.id))
+        assert listed, "expected the event when ordering by #{field}"
+        assert listed.generation_id == generation_id
+      end
+    end
+
     test "returns command events" do
       # Given
       project = ProjectsFixtures.project_fixture()
