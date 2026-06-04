@@ -532,20 +532,19 @@ defmodule Tuist.Runners.Jobs do
     where(query, [j], ilike(j.job_name, ^pattern))
   end
 
-  # Platform filter narrows on the `fleet_name` prefix. Linux jobs
-  # write fleet names from either the legacy `linux-…` per-env pool
-  # or the shape catalog (`<runners_linux_pool_name_prefix>-…`, e.g.
-  # `tuist-runner-pool-linux-4vcpu-16gb`), so the dropdown matches
-  # against the union returned by `Catalog.linux_fleet_name_prefixes/0`.
-  # macOS still uses the legacy `macos-…` prefix today (no shape
-  # catalog yet).
+  # Platform filter narrows on the `fleet_name` prefix. Each
+  # platform's `Catalog.fleet_name_prefixes/1` returns both the legacy
+  # `<platform>-…` per-env pool prefix and the catalog-derived
+  # `<runners_<platform>_pool_name_prefix>-…` prefix (e.g.
+  # `tuist-runner-pool-linux-4vcpu-16gb`, `tuist-runner-pool-macos-26-5`),
+  # so the dropdown matches profile-dispatched and legacy jobs together.
   defp maybe_filter_platform(query, nil), do: query
   defp maybe_filter_platform(query, ""), do: query
   defp maybe_filter_platform(query, "any"), do: query
 
-  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.linux_fleet_name_prefixes())
+  defp maybe_filter_platform(query, "linux"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:linux))
 
-  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, ["macos-"])
+  defp maybe_filter_platform(query, "macos"), do: filter_by_prefixes(query, Catalog.fleet_name_prefixes(:macos))
 
   defp maybe_filter_platform(query, _), do: query
 

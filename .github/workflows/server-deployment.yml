@@ -118,7 +118,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: tuist-linux-large
+    runs-on: ubuntu-latest
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:

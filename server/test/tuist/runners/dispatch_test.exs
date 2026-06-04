@@ -19,6 +19,17 @@ defmodule Tuist.Runners.DispatchTest do
     cache = :"runners_dispatch_#{System.unique_integer([:positive])}"
     start_supervised!({Cachex, name: cache})
     stub(Dispatch, :cache_name, fn -> cache end)
+
+    # Disable the macOS protected-profile auto-bootstrap globally for
+    # this suite. `Accounts.create_organization` and `Accounts.create_user`
+    # auto-create a `macos` profile when the macOS catalog has a
+    # default Xcode + shape; with `default_xcode_version/0 -> nil`
+    # the bootstrap short-circuits to `{:ok, :no_macos_capable}` and
+    # the resulting accounts only carry the `linux` protected
+    # profile. Test cases that care about a macOS profile add their
+    # own per-account inserts. (Stubbing Linux is unnecessary — the
+    # `linux` bootstrap reads the test-config default shape.)
+    stub(Catalog, :default_xcode_version, fn -> nil end)
     :ok
   end
 
@@ -218,8 +229,18 @@ defmodule Tuist.Runners.DispatchTest do
         %{vcpus: 8, memory_gb: 32, key: "8vcpu-32gb", default?: false, pool_dispatch_label: ""}
       ]
 
-      stub(Catalog, :list, fn -> catalog end)
-      stub(Catalog, :default, fn -> Enum.find(catalog, & &1.default?) end)
+      stub(Catalog, :shapes, fn
+        :linux -> catalog
+        :macos -> []
+      end)
+
+      stub(Catalog, :default_shape, fn
+        :linux -> Enum.find(catalog, & &1.default?)
+        :macos -> nil
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [] end)
+      stub(Catalog, :default_xcode_version, fn -> nil end)
 
       {:ok, profile} =
         Tuist.Runners.Profiles.create(catalog_account, %{

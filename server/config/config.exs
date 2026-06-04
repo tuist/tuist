@@ -165,6 +165,7 @@ config :logger, :console,
     :client_url,
     :status,
     :body,
+    :url,
     :dispatch_label
   ]
 
@@ -348,6 +349,26 @@ config :tuist, :runner_linux_shapes, [
   %{vcpus: 8, memory_gb: 16},
   %{vcpus: 8, memory_gb: 32},
   %{vcpus: 16, memory_gb: 32}
+]
+
+# macOS shape catalog. Same role as `:runner_linux_shapes`. M2-L is the
+# only Scaleway Apple Silicon SKU on the fleet today, so only one shape
+# ships here. Managed deploys override at boot from
+# `TUIST_RUNNER_MACOS_SHAPES` (Helm injects from `runnersFleet.shapes`).
+config :tuist, :runner_macos_shapes, [
+  %{vcpus: 6, memory_gb: 14, default: true}
+]
+
+# macOS Xcode catalog. Each entry is a runnable Xcode version on the
+# macOS fleet; the profile's `xcode_version` field validates against
+# this list. The list must stay in sync with the
+# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
+# (the Helm value the chart renders is the source of truth in managed
+# deploys; this config is the dev/test/CI fallback). Exactly one
+# entry should carry `default: true`.
+config :tuist, :runner_macos_xcode_versions, [
+  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "26.4.1"}
 ]
 
 config :tuist, :urls,

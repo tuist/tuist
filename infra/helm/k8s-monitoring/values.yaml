@@ -364,6 +364,19 @@ k8s-monitoring:
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
       presets: [filesystem-log-reader]
+      # Tolerate the bare-metal runner taint so the log DaemonSet also
+      # lands on the runner-tier nodes and tails the Linux runner Pods.
+      # Without this, runner Pod logs (including RUNNER_VITALS) never
+      # reach Loki: those nodes repel everything but runner Pods, so the
+      # default-toleration DaemonSet skips them. Tolerations live under
+      # `controller` (the Alloy CR's controller spec); a top-level
+      # `tolerations` here renders to spec.tolerations and is ignored.
+      controller:
+        tolerations:
+          - key: tuist.dev/runner-tier
+            operator: Equal
+            value: bare-metal
+            effect: NoSchedule
     # Kubernetes Events must come from exactly one replica — otherwise
     # every pod watches the event stream and emits duplicate log lines.
     alloy-singleton:

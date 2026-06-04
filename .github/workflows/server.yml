@@ -68,21 +68,85 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
-      - name: Check marketing gettext template is up-to-date
+      - name: Check gettext templates are up-to-date
         run: |
+          run_gettext_extract() {
+            log_file="$1"
+            (
+              while true; do
+                sleep 30
+                echo "Waiting for gettext.extract..."
+              done
+            ) &
+            heartbeat_pid=$!
+
+            set +e
+            timeout 5m mix gettext.extract > "$log_file" 2>&1
+            extract_status=$?
+            set -e
+
+            kill "$heartbeat_pid" 2>/dev/null || true
+            wait "$heartbeat_pid" 2>/dev/null || true
+
+            if [ "$extract_status" -eq 124 ]; then
+              echo "::error title=Gettext extraction timed out::mix gettext.extract did not finish within 5 minutes."
+              cat "$log_file"
+              exit 1
+            fi
+
+            if [ "$extract_status" -gt 128 ]; then
+              exit "$extract_status"
+            fi
+          }
+
           # Extract only (without --merge) to check if marketing.pot changes
           # DO NOT use --merge here as it would modify .po translation files
           cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract > /dev/null 2>&1 || true
+
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          run_gettext_extract /tmp/gettext-extract.log
+
+          exit_code=0
 
           if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
             echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            rm priv/gettext/marketing.pot.backup
-            exit 1
+            exit_code=1
           else
             echo "✅ Marketing gettext template is up-to-date"
-            rm priv/gettext/marketing.pot.backup
           fi
+          rm priv/gettext/marketing.pot.backup
+
+          # Check each dashboard domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit_code=1
+          else
+            echo "✅ All dashboard gettext templates are up-to-date"
+          fi
+
+          exit "$exit_code"
       - name: Check marketing translations exist
         run: |
           # Check if marketing.pot exists
@@ -103,42 +167,6 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-      - name: Check dashboard gettext templates are up-to-date
-        run: |
-          # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
-
-          # Backup all dashboard .pot files
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot" ]; then
-              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
-            fi
-          done
-
-          # Extract only (without --merge) to check if any .pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          mix gettext.extract > /dev/null 2>&1 || true
-
-          # Check each domain for changes
-          CHANGED_DOMAINS=""
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
-              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
-                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-              fi
-              rm "priv/gettext/${domain}.pot.backup"
-            elif [ -f "priv/gettext/${domain}.pot" ]; then
-              # New domain file was created
-              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-            fi
-          done
-
-          if [ -n "$CHANGED_DOMAINS" ]; then
-            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit 1
-          else
-            echo "✅ All dashboard gettext templates are up-to-date"
-          fi
       - name: Check dashboard translations templates exist
         run: |
           # Dashboard domains to check
@@ -168,7 +196,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -310,19 +338,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Docker build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: false
-          load: true
-          tags: tuist/tuist
-          build-args: |
-            TUIST_HOSTED=0
-            TUIST_VERSION=1.24.11.11
-            MIX_ENV=prod
-            APT_CACHE_BUST=${{ github.sha }}
+        run: |
+          docker buildx build \
+            --progress=plain \
+            --file "$GITHUB_WORKSPACE/server/Dockerfile" \
+            --target runner \
+            --load \
+            --tag tuist/tuist \
+            --build-arg TUIST_HOSTED=0 \
+            --build-arg TUIST_VERSION=1.24.11.11 \
+            --build-arg MIX_ENV=prod \
+            --build-arg APT_CACHE_BUST=${{ github.sha }} \
+            --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
+            --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
+            "$GITHUB_WORKSPACE"
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -384,7 +413,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -409,4 +438,3 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
-

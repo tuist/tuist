@@ -785,6 +785,67 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+  # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
+  # single source of truth for the Profiles dropdown and the server's
+  # `:runner_macos_shapes` validation. Injected into the server as
+  # `TUIST_RUNNER_MACOS_SHAPES` (JSON). M2-L is the only Scaleway Apple
+  # Silicon SKU on the fleet today.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+  # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
+  # `<release>-runner-pool-macos-<xcode-dashes>` with image
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # Customers route via account-scoped Runner Profiles; the server
+  # resolves (account, requested-label) → profile → pool. Keep this
+  # list in sync with the `runner-image-build.strategy.matrix.xcode`
+  # matrix in `.github/workflows/release.yml`.
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"
+  # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
+  # catalog stays in `xcodeVersions` above so it's shared via the
+  # common values file; each managed env layers its overrides here
+  # without re-pasting the catalog. Unset fields fall back to the
+  # template defaults (replicas: 0, pod sizing from the catalog's
+  # `default: true` shape, no autoscaling).
+  #
+  # The runners-controller's fleet allocator apportions the
+  # `hostCount` slot budget across every macOS pool sharing this
+  # fleetSelector using the same three-tier (floor / load /
+  # headroom) policy as the Linux pools. `maxReplicas` is per-pool
+  # and can be set to the full host budget — the allocator caps
+  # the joint sum so two pools both at max don't double-book hosts.
+  xcodeOverrides: {}
+    # "26.5":
+    #   replicas: 1                    # Static (non-autoscaling) warm count.
+    #   pod:                           # Optional. Defaults to the catalog's default shape.
+    #     cpuMilli: 6000
+    #     memoryMB: 14336
+    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
+    #     enabled: true
+    #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
+    #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
+    #     scaleDownCooldownSeconds: 300
+    #   runnerLabels:                  # Optional. Defaults to ["self-hosted", "macOS", "ARM64"].
+    #     - self-hosted
+    #     - macOS
+    #     - ARM64
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageSemver`.
+  # Per-pool runner image template. `runner-pool.yaml` constructs each
+  # macOS pool's `spec.image` as
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
+  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
+  # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
+  # an out-of-rotation Xcode refreshed via `runner-image.yml`).
+  runnerImageRepository: "ghcr.io/tuist/tuist-runner"
+  # Required when `xcodeVersions` is non-empty (the template fails the
+  # render otherwise). Bumped by `release-runner-image` on every
+  # release; managed envs override this with the live version.
+  runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.
