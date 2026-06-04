@@ -16,17 +16,35 @@
 #   - CPU/mem starvation  -> cpu.psi / mem.psi avg10 climb, mem.current
 #                            approaching mem.max
 #
+# Scope note: the cgroup mem.* / oom_kill fields are THIS (runner)
+# container only. The heavy build steps often run in the dind sidecar,
+# so vm.mem.* (guest-wide /proc/meminfo), the PSI fields, and the
+# /dev/kmsg OOM watcher are what catch a Docker/buildkit OOM or
+# starvation living in the sidecar / pod / VM boundary.
+#
 # Dependency-free and best-effort: unreadable files (PSI disabled in
 # the guest kernel, cgroup v1, restricted /dev/kmsg) degrade to empty
 # fields, never an error, so this can never block or fail the runner.
 # It only runs while a job executes, so idle warm Pods stay quiet.
 set -u
 
+# Clamp the interval to a positive integer. A 0, empty, or non-numeric
+# value would spin the loop and flood the logs, the opposite of
+# fail-open telemetry.
 interval="${TUIST_RUNNER_VITALS_INTERVAL:-3}"
+if ! [ "${interval}" -ge 1 ] 2>/dev/null; then
+  interval=3
+fi
 cg="/sys/fs/cgroup"
 
 # Read a single cgroup/proc value, stripped of its trailing newline.
 field() { [ -r "$1" ] && tr -d '\n' <"$1" 2>/dev/null || true; }
+
+# Guest-wide memory (kB) from /proc/meminfo. Unlike the cgroup memory.*
+# fields, which are scoped to this container, /proc/meminfo covers the
+# whole microVM, so it reflects the dind sidecar's dockerd/buildkit
+# usage too.
+meminfo() { awk -v k="$1" '$1==k":"{print $2}' /proc/meminfo 2>/dev/null || true; }
 
 # Pull a named counter out of cgroup v2 memory.events (e.g. oom_kill).
 events() {
@@ -57,8 +75,10 @@ if [ -r /dev/kmsg ]; then
 fi
 
 while :; do
-  printf '%s RUNNER_VITALS mem.current=%s mem.peak=%s mem.max=%s mem.swap=%s oom=%s oom_kill=%s cpu.psi.some.avg10=%s mem.psi.some.avg10=%s mem.psi.full.avg10=%s io.psi.some.avg10=%s load=%s\n' \
+  printf '%s RUNNER_VITALS vm.mem.total.kb=%s vm.mem.avail.kb=%s mem.current=%s mem.peak=%s mem.max=%s mem.swap=%s oom=%s oom_kill=%s cpu.psi.some.avg10=%s mem.psi.some.avg10=%s mem.psi.full.avg10=%s io.psi.some.avg10=%s load=%s\n' \
     "$(date -u +%FT%TZ)" \
+    "$(meminfo MemTotal)" \
+    "$(meminfo MemAvailable)" \
     "$(field "$cg/memory.current")" \
     "$(field "$cg/memory.peak")" \
     "$(field "$cg/memory.max")" \
