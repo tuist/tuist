@@ -128,6 +128,93 @@ defmodule TuistWeb.RunnersController do
     conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
   end
 
+  @vitals_numeric_fields ~w(mem_total_mb mem_free_mb mem_used_mb mem_free_pct compressed_mb swap_used_mb load1 load5 load15)
+  @vitals_pressure_values ~w(normal warn warning critical)
+  @vitals_string_max 16
+
+  @doc """
+  Append-only telemetry sink for runner resource vitals.
+
+  macOS Tart VMs have no log egress (their stdout dies with the VM),
+  so a runner that dies mid-job leaves no trace of in-VM memory/CPU
+  pressure. The runner's vitals probe POSTs samples here with the
+  same audience-scoped SA token it uses for dispatch; we authenticate
+  it the same way and emit a `runner_vitals` log line so each sample
+  lands in Loki, durable past the VM. No persistence, no per-customer
+  data: just resource counters tagged with the SA, which identifies
+  the Pod and pool.
+
+  The payload is attacker-influenceable (a leaked dispatch token could
+  POST anything), so only an allowlist of known fields is logged, each
+  coerced to a number (or a short enum for `mem_pressure`); everything
+  else is dropped.
+  """
+  def vitals(conn, params) do
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token) do
+      Logger.info("runner_vitals " <> format_vitals(ns, sa_name, params))
+      send_resp(conn, :no_content, "")
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      {:error, :unauthenticated} ->
+        Logger.warning("runners: tokenreview rejected token on vitals")
+        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+
+      {:error, :not_service_account} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+
+      {:error, :not_found} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "service account gone"})
+
+      {:error, :not_in_cluster} ->
+        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+
+      {:error, reason} ->
+        Logger.error("runners: vitals failed", reason: inspect(reason))
+        conn |> put_status(:internal_server_error) |> json(%{error: "vitals failed"})
+    end
+  end
+
+  # Build a logfmt-style, abuse-safe vitals line: only allowlisted
+  # fields, each coerced to a number (or a short enum for mem_pressure);
+  # anything else is dropped so an attacker-controlled payload can't
+  # inject arbitrary content into the logs.
+  defp format_vitals(ns, sa_name, params) do
+    numeric =
+      for field <- @vitals_numeric_fields,
+          number = vitals_number(Map.get(params, field)),
+          not is_nil(number) do
+        "#{field}=#{number}"
+      end
+
+    pressure =
+      case Map.get(params, "mem_pressure") do
+        v when v in @vitals_pressure_values -> ["mem_pressure=#{v}"]
+        _ -> []
+      end
+
+    Enum.join(["ns=#{ns}", "sa=#{sa_name}"] ++ numeric ++ pressure, " ")
+  end
+
+  defp vitals_number(v) when is_integer(v) or is_float(v), do: v
+
+  defp vitals_number(v) when is_binary(v) and byte_size(v) <= @vitals_string_max do
+    case Integer.parse(v) do
+      {n, ""} ->
+        n
+
+      _ ->
+        case Float.parse(v) do
+          {n, ""} -> n
+          _ -> nil
+        end
+    end
+  end
+
+  defp vitals_number(_), do: nil
+
   defp bearer_token(conn) do
     case Plug.Conn.get_req_header(conn, "authorization") do
       ["Bearer " <> token] when token != "" -> {:ok, token}

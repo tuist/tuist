@@ -2,6 +2,7 @@ defmodule TuistWeb.RunnersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
@@ -94,6 +95,56 @@ defmodule TuistWeb.RunnersControllerTest do
         |> get("/api/internal/runners/desired_replicas?fleet=fleet-x")
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
+    end
+  end
+
+  describe "POST /api/internal/runners/vitals" do
+    test "logs allowlisted vitals and returns 204", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "tuist-tuist-runner-pool-default-runner-abc123"}}
+      end)
+
+      log =
+        capture_log([level: :info], fn ->
+          conn =
+            conn
+            |> put_req_header("authorization", "Bearer valid-token")
+            |> post("/api/internal/runners/vitals", %{
+              "mem_total_mb" => "8192",
+              "load1" => "3.20",
+              "mem_pressure" => "warn",
+              "load5" => "not-a-number",
+              "evil" => "injected stuff"
+            })
+
+          assert response(conn, 204)
+        end)
+
+      assert log =~ "runner_vitals"
+      assert log =~ "sa=tuist-tuist-runner-pool-default-runner-abc123"
+      assert log =~ "mem_total_mb=8192"
+      assert log =~ "load1=3.2"
+      assert log =~ "mem_pressure=warn"
+      # non-numeric and non-allowlisted fields are dropped, never logged
+      refute log =~ "load5="
+      refute log =~ "evil"
+      refute log =~ "injected"
+    end
+
+    test "returns 401 when bearer token is missing", %{conn: conn} do
+      conn = post(conn, "/api/internal/runners/vitals", %{})
+      assert json_response(conn, 401)["error"] =~ "bearer"
+    end
+
+    test "returns 401 when TokenReview rejects the token", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn _ -> {:error, :unauthenticated} end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer bad-token")
+        |> post("/api/internal/runners/vitals", %{})
+
+      assert json_response(conn, 401)["error"] =~ "invalid"
     end
   end
 end
