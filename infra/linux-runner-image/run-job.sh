@@ -37,4 +37,12 @@ if [ -z "${jit}" ]; then
   exit 1
 fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
+# Forensic vitals for this job's lifetime. Backgrounded so it
+# survives the `exec` below and keeps sampling until the container
+# (and microVM) dies; its last line before a mid-job death lands in
+# the Pod logs, the only trail left once the VM is reaped. Guarded so
+# a missing script (older image) never blocks the runner.
+if [ -x /usr/local/bin/vitals.sh ]; then
+  /usr/local/bin/vitals.sh &
+fi
 exec ./run.sh --jitconfig "${jit}" --disableupdate
