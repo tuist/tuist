@@ -421,25 +421,6 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  # Resolves the generation (typically a `tuist generate`) whose command event carries the
-  # `xcode_graph`, so a local Xcode build can reuse that graph for its Module Cache breakdown
-  # without re-uploading it. The `generation_id` is a CLI-minted UUID shared between the generate
-  # command event and the build run, so the lookup is precise across machines and branches.
-  def get_command_event_by_generation_id(generation_id, opts \\ []) do
-    project_id = Keyword.get(opts, :project_id)
-
-    Event
-    |> scope_to_project(project_id)
-    |> where([e], e.generation_id == ^generation_id)
-    |> order_by([e], desc: e.ran_at, desc: e.created_at)
-    |> limit(1)
-    |> ClickHouseRepo.one()
-    |> case do
-      nil -> {:error, :not_found}
-      event -> {:ok, Event.normalize_enums(event)}
-    end
-  end
-
   def get_command_event_by_test_run_id(test_run_id, opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
 

@@ -202,10 +202,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The test run identifier."
            },
-           generation_id: %Schema{
+           id: %Schema{
              type: :string,
              description:
-               "The identifier of the generation that produced the project. Local Xcode builds reuse this to reference the graph uploaded by the original generation."
+               "Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one."
            },
            xcode_graph: %Schema{
              type: :object,
@@ -429,7 +429,7 @@ defmodule TuistWeb.API.AnalyticsController do
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
-    generation_id = Map.get(body_params, :generation_id)
+    command_event_id = Map.get(body_params, :id)
 
     # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
     cli_version = Headers.get_cli_version(conn)
@@ -452,6 +452,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     command_event =
       CommandEvents.create_command_event(%{
+        id: command_event_id,
         name: body_params.name,
         subcommand: Map.get(body_params, :subcommand, nil),
         command_arguments: body_params.command_arguments,
@@ -479,8 +480,7 @@ defmodule TuistWeb.API.AnalyticsController do
         cache_endpoint: Map.get(body_params, :cache_endpoint, ""),
         ran_at: date(body_params),
         build_run_id: build_run_id,
-        test_run_id: test_run_id,
-        generation_id: generation_id
+        test_run_id: test_run_id
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)

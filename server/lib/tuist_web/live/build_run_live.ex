@@ -138,15 +138,16 @@ defmodule TuistWeb.BuildRunLive do
 
   # The Module Cache breakdown lives on the command event that carries the xcode_graph.
   # `tuist test`/`tuist xcodebuild build` builds have it on their own command event (linked by
-  # build_run_id). Builds made straight from Xcode have no such command event, so they point at
-  # the graph uploaded by the last `tuist generate` via `generation_id`.
+  # build_run_id). Builds made straight from Xcode have no such command event, so they point at the
+  # graph uploaded by the last `tuist generate` via `generation_id`, which is that generate command
+  # event's id. The project check guards against a build referencing another project's command event.
   defp binary_cache_command_event(run, command_event) do
     if command_event != nil and Xcode.has_binary_cache_data?(command_event) do
       command_event
     else
       with generation_id when not is_nil(generation_id) <- run.generation_id,
-           {:ok, event} <-
-             CommandEvents.get_command_event_by_generation_id(generation_id, project_id: run.project_id),
+           {:ok, event} <- CommandEvents.get_command_event_by_id(generation_id),
+           true <- event.project_id == run.project_id,
            true <- Xcode.has_binary_cache_data?(event) do
         event
       else

@@ -25,6 +25,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     with_flushed_ingestion_buffers(fn ->
       CommandEvents.create_command_event(
         %{
+          id: Keyword.get(attrs, :id),
           name: Keyword.get(attrs, :name, "generate"),
           subcommand: Keyword.get(attrs, :subcommand, ""),
           command_arguments: Keyword.get(attrs, :command_arguments, []),
@@ -51,8 +52,7 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
           created_at: created_at,
           ran_at: ran_at,
           build_run_id: Keyword.get(attrs, :build_run_id),
-          test_run_id: Keyword.get(attrs, :test_run_id),
-          generation_id: Keyword.get(attrs, :generation_id)
+          test_run_id: Keyword.get(attrs, :test_run_id)
         },
         preload: Keyword.get(attrs, :preload, [])
       )

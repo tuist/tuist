@@ -784,7 +784,7 @@ defmodule TuistWeb.API.BuildsController do
            generation_id: %Schema{
              type: :string,
              description:
-               "The identifier of the generation whose graph backs this build's module cache breakdown. Stamped from the last `tuist generate` of the project."
+               "The command event id of the `tuist generate` whose graph backs this build's module cache breakdown. Stamped from the last generation of the project."
            },
            custom_metadata: %Schema{
              type: :object,

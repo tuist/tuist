@@ -261,22 +261,19 @@ defmodule TuistWeb.BuildRunLiveTest do
     project: project
   } do
     # Given
-    generation_id = UUIDv7.generate()
+    # A local Xcode build has no command event of its own; the breakdown comes from the generate
+    # command event that uploaded the graph, which the build points at by that command event's id.
+    generation_event =
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        command_arguments: ["generate"]
+      )
 
     {:ok, build_run} =
       RunsFixtures.build_fixture(
         project_id: project.id,
         scheme: "App",
-        generation_id: generation_id
-      )
-
-    # A local Xcode build has no command event of its own; the breakdown comes from the
-    # generate command event that uploaded the graph, linked by the shared generation_id.
-    generation_event =
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project.id,
-        generation_id: generation_id,
-        command_arguments: ["generate"]
+        generation_id: generation_event.id
       )
 
     xcode_graph = XcodeFixtures.xcode_graph_fixture(command_event_id: generation_event.id)

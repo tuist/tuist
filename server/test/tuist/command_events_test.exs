@@ -10,6 +10,20 @@ defmodule Tuist.CommandEventsTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "create_command_event/1" do
+    test "honors a client-provided id and generates one otherwise" do
+      # Given
+      client_id = UUIDv7.generate()
+
+      # When
+      with_id = CommandEventsFixtures.command_event_fixture(id: client_id)
+      without_id = CommandEventsFixtures.command_event_fixture()
+
+      # Then
+      assert with_id.id == client_id
+      assert without_id.id
+      assert without_id.id != client_id
+    end
+
     test "truncates an error message if it's over 255 chars" do
       # Given
       error_message = String.duplicate("a", 300)
@@ -223,37 +237,6 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "list_command_events/1" do
-    test "sorts via the optimized materialized views and reads generation_id back" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      generation_id = UUIDv7.generate()
-
-      event =
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          name: "generate",
-          generation_id: generation_id,
-          ran_at: ~U[2024-03-05 06:00:00Z]
-        )
-
-      # When / Then: each sort routes to a different command_events_by_* materialized view,
-      # which selects the full Event schema (including generation_id). A view missing the
-      # column raises "Unknown identifier generation_id".
-      for field <- [:ran_at, :duration, :hit_rate] do
-        {events, _meta} =
-          CommandEvents.list_command_events(%{
-            first: 5,
-            filters: [%{field: :project_id, op: :==, value: project.id}],
-            order_by: [field],
-            order_directions: [:desc]
-          })
-
-        listed = Enum.find(events, &(&1.id == event.id))
-        assert listed, "expected the event when ordering by #{field}"
-        assert listed.generation_id == generation_id
-      end
-    end
-
     test "returns command events" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1305,58 +1288,6 @@ defmodule Tuist.CommandEventsTest do
 
       # When
       got = CommandEvents.get_command_event_by_build_run_id(build_run_id)
-
-      # Then
-      assert {:ok, event} = got
-      assert event.id == newer.id
-    end
-  end
-
-  describe "get_command_event_by_generation_id/2" do
-    test "returns a command event when generation_id exists" do
-      # Given
-      generation_id = UUIDv7.generate()
-
-      command_event =
-        CommandEventsFixtures.command_event_fixture(generation_id: generation_id)
-
-      # When
-      got = CommandEvents.get_command_event_by_generation_id(generation_id)
-
-      # Then
-      assert {:ok, event} = got
-      assert event.id == command_event.id
-    end
-
-    test "returns {:error, :not_found} when generation_id does not exist" do
-      # Given
-      non_existent_generation_id = UUIDv7.generate()
-
-      # When
-      got = CommandEvents.get_command_event_by_generation_id(non_existent_generation_id)
-
-      # Then
-      assert got == {:error, :not_found}
-    end
-
-    test "returns the most recent event when multiple events share the same generation_id" do
-      # Given
-      generation_id = UUIDv7.generate()
-
-      _older =
-        CommandEventsFixtures.command_event_fixture(
-          generation_id: generation_id,
-          ran_at: ~U[2024-01-01 10:00:00Z]
-        )
-
-      newer =
-        CommandEventsFixtures.command_event_fixture(
-          generation_id: generation_id,
-          ran_at: ~U[2024-01-02 10:00:00Z]
-        )
-
-      # When
-      got = CommandEvents.get_command_event_by_generation_id(generation_id)
 
       # Then
       assert {:ok, event} = got
