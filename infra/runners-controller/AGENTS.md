@@ -25,23 +25,30 @@ independent workqueues:
   `RunnerPool` spec, so a tuning change is helm-only.
 
   **Fleet-capacity awareness (Linux).** Linux shape pools share one
-  bare-metal node pool, so their speculative warm headroom competes for
-  the same memory. For `os: linux` pools the reconciler runs the
-  per-pool target through `internal/scaling/allocate.go`'s
-  `AllocateFleet`, a three-tier waterfall over the pools sharing a
-  `FleetSelector`: (1) every pool's `minWarmPoolFloor`, (2) real load
-  (`claimed + queued`), then (3) the speculative p95 buffer from
-  whatever memory is left. Tiers 1+2 are always honored (excess goes
-  Pending — the "add a host" signal); tier 3 is squeezed under
-  contention, so an idle shape's warm Pods fall back toward its floor to
-  admit another shape's real queued work. Memory is the only dimension
-  (kata pins it per microVM; CPU is oversubscribed). Fleet allocatable
-  is summed from nodes labeled `node.cluster.x-k8s.io/pool=<FleetSelector>`
-  (cluster-scoped `nodes` read in the ClusterRole), scaled by
-  `MemReserveFraction` (default 0.9). Any failure gathering the fleet
-  view falls back to the per-pool target — a node-read blip must never
-  trigger a mass scale-down. macOS pools (one VM per host, no
-  bin-packing) keep the plain per-pool path.
+  bare-metal node pool, so their warm capacity competes for the same
+  memory. For `os: linux` pools the reconciler runs the per-pool target
+  through `internal/scaling/allocate.go`'s `AllocateFleet`, a three-tier
+  priority allocation over the pools sharing a `FleetSelector`:
+  (1) real load (`claimed + queued`), (2) each pool's `minWarmPoolFloor`
+  above its load, then (3) the speculative p95 buffer above that. Only
+  tier 1 (real load) is inviolable — granted in full even past capacity,
+  with the excess going Pending (the "add a host" signal). Tiers 2+3 are
+  idle warm capacity and yield under contention — headroom first, then
+  floor — to admit another shape's real queued work. So when a starved
+  shape has queued jobs that don't fit, an idle shape's warm Pods are
+  reaped (its desired drops *below* its floor) to free the memory, rather
+  than leaving the queued jobs Pending while idle Pods hold reservations.
+  The tradeoff: under sustained load on one shape, other shapes' warm
+  pools shrink toward their real load, so a returning spike pays
+  cold-start — a job queued now beats a warm Pod for a job that might
+  arrive, and the scale-down cooldown damps the reap. Memory is the only
+  dimension (kata pins it per microVM; CPU is oversubscribed). Fleet
+  allocatable is summed from nodes labeled
+  `node.cluster.x-k8s.io/pool=<FleetSelector>` (cluster-scoped `nodes`
+  read in the ClusterRole), scaled by `MemReserveFraction` (default 0.9).
+  Any failure gathering the fleet view falls back to the per-pool target
+  — a node-read blip must never trigger a mass scale-down. macOS pools
+  (one VM per host, no bin-packing) keep the plain per-pool path.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
