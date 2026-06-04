@@ -92,20 +92,20 @@ struct XCResultParserTests {
           "testNodes": [
             {
               "nodeType": "Test Plan",
-              "name": "DepopTests",
+              "name": "AppTests",
               "children": [
                 {
                   "nodeType": "Unit test bundle",
-                  "name": "DepopUnitTests",
+                  "name": "AppUnitTests",
                   "children": [
                     {
                       "nodeType": "Test Suite",
-                      "name": "ProductDetailsTests",
+                      "name": "CalculatorTests",
                       "children": [
                         {
                           "nodeType": "Test Case",
                           "name": "testUnitExample()",
-                          "nodeIdentifier": "ProductDetailsTests/testUnitExample()",
+                          "nodeIdentifier": "CalculatorTests/testUnitExample()",
                           "result": "Passed"
                         }
                       ]
@@ -114,16 +114,16 @@ struct XCResultParserTests {
                 },
                 {
                   "nodeType": "UI test bundle",
-                  "name": "DepopUITests",
+                  "name": "AppUITests",
                   "children": [
                     {
                       "nodeType": "Test Suite",
-                      "name": "BuyerMakeOfferFlowFunctionalTests",
+                      "name": "OnboardingFlowTests",
                       "children": [
                         {
                           "nodeType": "Test Case",
-                          "name": "testMakeOfferOnProductWithoutSize()",
-                          "nodeIdentifier": "BuyerMakeOfferFlowFunctionalTests/testMakeOfferOnProductWithoutSize()",
+                          "name": "testUIExample()",
+                          "nodeIdentifier": "OnboardingFlowTests/testUIExample()",
                           "result": "Passed"
                         }
                       ]
@@ -137,12 +137,12 @@ struct XCResultParserTests {
         """
         let parser = XCResultParser(commandRunner: XCResultToolStub(testResultsJSON: json))
 
-        let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/depop.xcresult"))
+        let statuses = try await parser.parseTestStatuses(path: try AbsolutePath(validating: "/tmp/app.xcresult"))
 
-        let uiTest = try #require(statuses.testCases.first { $0.name == "testMakeOfferOnProductWithoutSize()" })
-        #expect(uiTest.module == "DepopUITests")
+        let uiTest = try #require(statuses.testCases.first { $0.name == "testUIExample()" })
+        #expect(uiTest.module == "AppUITests")
         let unitTest = try #require(statuses.testCases.first { $0.name == "testUnitExample()" })
-        #expect(unitTest.module == "DepopUnitTests")
+        #expect(unitTest.module == "AppUnitTests")
     }
 
     @Test
