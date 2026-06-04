@@ -318,8 +318,6 @@ jobs:
           push: false
           load: true
           tags: tuist/tuist
-          cache-from: type=gha,scope=server-image
-          cache-to: type=gha,mode=max,scope=server-image
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=1.24.11.11
