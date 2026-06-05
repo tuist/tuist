@@ -224,7 +224,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     Tuist.PubSub.broadcast(
       %{workflow_job_id: 31_610},
-      Tuist.Runners.JobLogs.topic(31_610),
+      JobLogs.topic(31_610),
       :runner_job_logs_ready
     )
 
@@ -265,7 +265,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     Tuist.PubSub.broadcast(
       %{workflow_job_id: 31_620, archived_at: DateTime.utc_now()},
-      Tuist.Runners.JobLogs.topic(31_620),
+      JobLogs.topic(31_620),
       :runner_job_log_archived
     )
 

@@ -168,8 +168,7 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
                  args: %{"workflow_job_id" => 9_900_020, "account_id" => account.id}
                })
 
-      assert_receive {:runner_job_log_archived,
-                      %{workflow_job_id: 9_900_020, archived_at: %DateTime{}}},
+      assert_receive {:runner_job_log_archived, %{workflow_job_id: 9_900_020, archived_at: %DateTime{}}},
                      1_000
     end
 
