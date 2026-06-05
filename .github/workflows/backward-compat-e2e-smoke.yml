@@ -6,14 +6,14 @@ name: Backward-Compat E2E Smoke
 # green - the real gate lives in server-production-deployment.yml.
 
 on:
+  # Manual-only: canary's DB connection pool is currently exhausted (500s on
+  # writes), so auto-running on every push just produces noisy red checks. Run
+  # this by hand once canary is healthy to validate the suite.
   workflow_dispatch:
     inputs:
       version:
         description: tuist version to test
         default: "4.155.0"
-  push:
-    branches:
-      - claude/competent-sanderson-dd9ccf
 
 permissions:
   contents: read
