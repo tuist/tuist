@@ -67,7 +67,18 @@ build_and_validate() {
   sha256sum "$DIST/kura-$arch" | awk -v f="kura-$arch" '{print $1"  "f}' > "$DIST/kura-$arch.sha256"
 }
 
-for arch in x86_64 aarch64; do
+# Build the cross arch first and the NATIVE arch last. Each `bazel build` with a new
+# --platforms discards Bazel's analysis cache and re-runs the rocksdb build script; the
+# native `bazel test` at the end uses the native --platforms, so if the native binary
+# weren't built last the test would flip --platforms back and pay the full rocksdb
+# rebuild a third time (the x86_64 runner did exactly this). Native-last keeps the test
+# on the same configuration as the preceding build, so it only recompiles the test crate.
+case "$NATIVE" in
+  x86_64) BUILD_ORDER="aarch64 x86_64" ;;
+  aarch64) BUILD_ORDER="x86_64 aarch64" ;;
+  *) echo "unsupported native arch: $NATIVE" >&2; exit 1 ;;
+esac
+for arch in $BUILD_ORDER; do
   build_and_validate "$arch"
 done
 
