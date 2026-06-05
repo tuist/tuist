@@ -276,6 +276,26 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
+	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
+	// but the kata guest kernel boots with PSI off unless psi=1 is on
+	// the cmdline. The annotation appends it (whitelisted via the
+	// containerd kata runtime's io.katacontainers.* pod_annotations).
+	pod := build(t, basePool("linux"))
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; got != "psi=1" {
+		t.Errorf("kernel_params annotation = %q, want \"psi=1\"", got)
+	}
+}
+
+func TestBuild_MacOSPodHasNoKataKernelParamsAnnotation(t *testing.T) {
+	// psi=1 is a kata-guest concern; macOS pods aren't kata, so the
+	// annotation must not leak onto them.
+	pod := build(t, basePool(""))
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; ok {
+		t.Errorf("macOS pod should not carry kata kernel_params annotation; got %+v", pod.Annotations)
+	}
+}
+
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.
