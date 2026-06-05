@@ -147,6 +147,16 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
 
             send_resp(conn, 200, "")
 
+          {:error, :approver_not_authorized} ->
+            SlackClient.ephemeral(
+              channel_id,
+              actor_slack_id,
+              ":no_entry: Your Tailscale role doesn't allow approving this env. " <>
+                "Production approvals require an Owner or Admin role; engineers can only approve staging and canary."
+            )
+
+            send_resp(conn, 200, "")
+
           {:error, reason} ->
             SlackClient.ephemeral(channel_id, actor_slack_id, "Approval failed: #{human_error(reason)}")
             send_resp(conn, 200, "")

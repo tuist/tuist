@@ -1,44 +1,37 @@
 defmodule Tuist.TailscaleJIT.Policy do
   @moduledoc """
-  Policy for when a requester can approve their own elevation
-  request. The default-deny posture (no self-approval ever) is the
-  strongest threat-model stance, but is relaxed in two specific
-  places where the operational friction outweighs the agent-
-  containment benefit:
+  Authorization policy for the JIT elevation flow. Two decisions
+  the bot needs to make and one source of truth (the tailnet role,
+  fetched via `Tuist.TailscaleJIT.TailscaleClient.user_role/1`):
 
-    * **Founders can self-approve any env.** The threat model
-      accepts that a fully-compromised founder workstation can
-      elevate without a second human, on the grounds that the same
-      workstation can also drive the 1P kubeconfig bridge (which
-      has its own biometric friction). Until the Tailscale-only
-      lockdown closes the 1P path, requiring a second human for
-      founders adds operational friction without buying real
-      defense.
+    * `self_approval_allowed?/2` — can the requester approve their
+      own elevation? Owner/Admin roles can self-approve any env;
+      Member can self-approve `staging` and `canary` only.
 
-    * **Engineers can self-approve staging and canary.** Production
-      still requires a second human, even when requested by an
-      engineer. Blast radius of staging/canary writes is contained
-      and the elevation flow's audit trail remains intact, so the
-      friction of a second human approval isn't earning much.
+    * `approver_allowed?/2` — can a second human (whoever clicked
+      Approve) authorize this elevation? Owner/Admin can approve
+      any env; Member can approve `staging` and `canary`. Production
+      always requires an Owner/Admin to click Approve, regardless of
+      whether the requester is the same person or someone else.
 
-  The `@admin_emails` list duplicates `group:tuist-admins`
-  membership in `infra/tailscale/acls.json` and must be kept in
-  sync. When the two diverge the bot is strictly more restrictive
-  (an actor not listed here is treated as an engineer for self-
-  approval purposes, even if Tailscale's ACL has them in
-  `tuist-admins`).
+  The two functions deliberately answer different questions: the
+  first protects the "two humans" property by gating *who* gets the
+  shortcut to self-approve; the second adds a *minimum trust tier*
+  on the approver side so an engineer can't approve another
+  engineer's production write.
+
+  Source of truth = the Tailscale tailnet role (`Owner`, `Admin`,
+  `Member` etc. as shown in the admin console Users page). Nothing
+  in the bot hardcodes email lists; new humans on the tailnet
+  inherit policy by virtue of their assigned role.
+
+  Unknown emails (not on the tailnet) and roles outside
+  Owner/Admin/Member default to deny — admin-flavor roles like
+  Auditor or Billing admin are not granted any self-approve or
+  approver power because they're not engineering identities.
   """
 
-  @admin_emails ~w(marek@tuist.dev pedro@tuist.dev)
-
-  # Mirrors `group:tuist-eng` membership in acls.json. Keeping it
-  # explicit (rather than treating "not an admin" as engineer) means
-  # an identity not in either list always defaults to deny — useful
-  # if the Slack workspace ever has guests or contractors who are
-  # not on the tailnet.
-  @eng_emails ~w(eduardo.ext@tuist.dev)
-
-  @self_approval_envs_for_eng ~w(staging canary)
+  alias Tuist.TailscaleJIT.TailscaleClient
 
   @group_to_env %{
     "group:tuist-staging-write" => "staging",
@@ -46,30 +39,53 @@ defmodule Tuist.TailscaleJIT.Policy do
     "group:tuist-prod-write" => "production"
   }
 
+  # Roles that map to the "engineer / member" tier — staging and
+  # canary self-approve / approve, but not production.
+  @member_envs ~w(staging canary)
+
   @doc """
   Returns true if `actor_email` is allowed to approve their own
   elevation request for `target_group`. Unknown target groups
   default to deny, regardless of who the actor is.
   """
   def self_approval_allowed?(actor_email, target_group) when is_binary(actor_email) and is_binary(target_group) do
-    case Map.get(@group_to_env, target_group) do
-      nil ->
-        false
-
-      env ->
-        cond do
-          actor_email in @admin_emails -> true
-          actor_email in @eng_emails and env in @self_approval_envs_for_eng -> true
-          true -> false
-        end
+    with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
+         {:ok, role} <- TailscaleClient.user_role(actor_email) do
+      allow_for_env?(role, env)
+    else
+      _ -> false
     end
   end
 
   def self_approval_allowed?(_actor_email, _target_group), do: false
 
   @doc """
-  Returns the configured admin email list. Exposed so the rest of
-  the bot can render UI hints that match the policy.
+  Returns true if `approver_email` is allowed to be the second
+  human on the request — i.e. their tailnet role is high enough
+  for the env they're approving. Used in the "second-human" path
+  (`actor != requester`) to keep an engineer from approving
+  another engineer's production write. Unknown target groups
+  default to deny.
+
+  The function does NOT check `approver != requester`; the caller
+  is responsible for routing self-approval requests through
+  `self_approval_allowed?/2` instead.
   """
-  def admin_emails, do: @admin_emails
+  def approver_allowed?(approver_email, target_group) when is_binary(approver_email) and is_binary(target_group) do
+    with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
+         {:ok, role} <- TailscaleClient.user_role(approver_email) do
+      allow_for_env?(role, env)
+    else
+      _ -> false
+    end
+  end
+
+  def approver_allowed?(_approver_email, _target_group), do: false
+
+  # Owner/Admin → any env. Member → staging + canary. Everything
+  # else (Auditor, Billing admin, etc., and unrecognized roles)
+  # falls through to deny.
+  defp allow_for_env?(role, _env) when role in [:owner, :admin], do: true
+  defp allow_for_env?(:member, env) when env in @member_envs, do: true
+  defp allow_for_env?(_role, _env), do: false
 end

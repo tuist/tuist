@@ -37,19 +37,23 @@
 //                            not human access boundaries.
 
 {
-	// Human access groups for the Kubernetes API server proxy (see
-	// the kubernetes grants below). Members are each person's tailnet
-	// login identity (the SSO email Tailscale shows in the admin
-	// console).
+	// Human access groups for the Kubernetes API server proxy.
+	//
+	// Identity for the cluster grants below is sourced from the
+	// tailnet role (Owner/Admin/Member, set in the Tailscale admin
+	// console Users page) via Tailscale's built-in autogroups:
+	//   autogroup:owner  + autogroup:admin   → cluster admins
+	//   autogroup:member                     → engineers
+	// The JIT bot's policy module reads the same role from
+	// `GET /api/v2/tailnet/-/users` so the bot's authorization
+	// decisions track what's shown in the console UI; no email lists
+	// are kept in this file.
+	//
+	// The break-glass groups stay declared here because they hold
+	// transient, bot-managed membership (the JIT bot adds the
+	// requester for the elevation TTL and removes them when the
+	// session ends).
 	"groups": {
-		// Founders. Bound to `view` on every cluster via accessBindings
-		// (see infra/helm/tailscale-operator/values.yaml). Writes go
-		// through the per-env break-glass groups below.
-		"group:tuist-admins": ["pedro@tuist.dev", "marek@tuist.dev"],
-		// Engineers. Bound to `view` on every cluster, same as
-		// founders by default. Writes via break-glass groups below.
-		"group:tuist-eng": ["eduardo.ext@tuist.dev"],
-
 		// Per-env break-glass groups. Empty by default; membership is
 		// managed by the JIT-elevation Slack bot which adds the
 		// requester for the session (TTL ~60 min) after a second
@@ -144,8 +148,17 @@
 		// above. Grants for canary and production are inert until
 		// the corresponding chart overlay enables the proxy on those
 		// clusters.
+		//
+		// Note on the asymmetry between `src` and `impersonate.groups`:
+		// `src` is a tailnet concept (who's allowed to dial the
+		// proxy), so we use the role-derived autogroups. The string
+		// in `impersonate.groups` is a Kubernetes-side label that the
+		// operator injects as Impersonate-Group on the forwarded
+		// request; accessBindings in the tailscale-operator chart map
+		// each label to a ClusterRole. They happen to share names
+		// here for readability but live in different systems.
 		{
-			"src": ["group:tuist-admins"],
+			"src": ["autogroup:owner", "autogroup:admin"],
 			"dst": [
 				"tag:tuist-k8s-staging",
 				"tag:tuist-k8s-canary",
@@ -155,7 +168,7 @@
 			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-admins"]}}]},
 		},
 		{
-			"src": ["group:tuist-eng"],
+			"src": ["autogroup:member"],
 			"dst": [
 				"tag:tuist-k8s-staging",
 				"tag:tuist-k8s-canary",
@@ -245,7 +258,7 @@
 			],
 		},
 		{
-			"src": "group:tuist-admins",
+			"src": "autogroup:admin",
 			"accept": [
 				"tag:tuist-k8s-staging:443",
 				"tag:tuist-k8s-canary:443",
@@ -253,7 +266,7 @@
 			],
 		},
 		{
-			"src": "group:tuist-eng",
+			"src": "autogroup:member",
 			"accept": [
 				"tag:tuist-k8s-staging:443",
 				"tag:tuist-k8s-canary:443",

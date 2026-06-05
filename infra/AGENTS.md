@@ -93,9 +93,9 @@ Every elevation produces records in four independent stores (Slack thread, the b
 ### Where the bot lives
 
 - Service code: [`server/lib/tuist/tailscale_jit/`](../server/lib/tuist/tailscale_jit/).
-- Policy (admin / engineer lists, env-allowance matrix): `Tuist.TailscaleJIT.Policy`.
-- ACL source of truth: [`tailscale/acls.json`](tailscale/acls.json). The bot's `@admin_emails` and `@eng_emails` are kept in sync with this file by hand; if you edit `acls.json`'s `group:tuist-admins` or `group:tuist-eng` membership, update `Policy` too (the bot is strictly more restrictive when they diverge — fail-safe direction).
-- Per-cluster RBAC: `accessBindings` in `helm/tailscale-operator/values-{staging,canary,production}.yaml`.
+- Policy (self-approve + approver trust tiers): `Tuist.TailscaleJIT.Policy`. Both decisions read the requester's / approver's **tailnet role** (Owner / Admin / Member) from `GET /api/v2/tailnet/-/users` via `Tuist.TailscaleJIT.TailscaleClient.user_role/1`. There are no email lists in code; promoting someone in the Tailscale admin console Users page changes their bot policy on the next 30s cache tick.
+- ACL source of truth: [`tailscale/acls.json`](tailscale/acls.json). The `src` selectors for cluster-proxy grants use `autogroup:owner` + `autogroup:admin` (cluster admins) and `autogroup:member` (engineers), so role changes in the console propagate without an ACL edit.
+- Per-cluster RBAC: `accessBindings` in `helm/tailscale-operator/values-{staging,canary,production}.yaml`. The strings there (`tuist-admins`, `tuist-eng`) are the *Kubernetes-side* impersonation labels the operator injects on each forwarded request; they happen to share names with the historical tailnet groups for readability but live in a different system.
 
 ## Deployment
 

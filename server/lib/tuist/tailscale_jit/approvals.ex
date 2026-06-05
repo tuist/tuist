@@ -106,7 +106,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
             # access. Transition the request to `expired` (NOT a
             # rollback — we want the status update + Slack card flip
             # to stick) and surface the error up the case below.
-            DateTime.compare(req.expires_at, DateTime.utc_now()) == :lt ->
+            DateTime.before?(req.expires_at, DateTime.utc_now()) ->
               {:ok, expired} =
                 req
                 |> Request.transition_changeset(%{status: "expired"})
@@ -118,6 +118,16 @@ defmodule Tuist.TailscaleJIT.Approvals do
             req.requester_slack_id == actor_slack_id and
                 not Policy.self_approval_allowed?(actor_email, req.target_group) ->
               Repo.rollback(:cannot_self_approve)
+
+            # Second-human path. Even though the approver is a
+            # different person from the requester, we still gate on
+            # role: an engineer must not approve another engineer's
+            # production write. `approver_allowed?` returns true for
+            # Owner/Admin on any env and for Member on staging/
+            # canary, matching the self-approve policy's trust tiers.
+            req.requester_slack_id != actor_slack_id and
+                not Policy.approver_allowed?(actor_email, req.target_group) ->
+              Repo.rollback(:approver_not_authorized)
 
             true ->
               do_approve(req, actor_slack_id, actor_email)

@@ -11,6 +11,25 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
   alias Tuist.TailscaleJIT.SlackClient
   alias Tuist.TailscaleJIT.TailscaleClient
 
+  setup :verify_on_exit!
+
+  # Default role map for tests that don't care about role specifics.
+  # Tests that DO care override the stub locally.
+  defp stub_default_roles do
+    roles = %{
+      "marek@tuist.dev" => :owner,
+      "pedro@tuist.dev" => :admin,
+      "eduardo.ext@tuist.dev" => :member
+    }
+
+    stub(TailscaleClient, :user_role, fn email ->
+      case Map.fetch(roles, email) do
+        {:ok, role} -> {:ok, role}
+        :error -> {:error, :not_found}
+      end
+    end)
+  end
+
   # Minimal Request row directly via Repo.insert! to keep these
   # tests free of any factory dependency.
   defp insert_request!(overrides) do
@@ -90,6 +109,78 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
     end
   end
 
+  describe "approve/2 — approver trust tier (second-human path)" do
+    test "rejects a Member approving another engineer's production request" do
+      stub_default_roles()
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+      # If the request makes it past the role gate it would try the
+      # ACL mutation; reject! ensures we never get there.
+      reject(&TailscaleClient.update_acl/1)
+
+      req =
+        insert_request!(%{
+          requester_email: "marek@tuist.dev",
+          requester_slack_id: "U_MAREK",
+          target_group: "group:tuist-prod-write"
+        })
+
+      assert {:error, :approver_not_authorized} =
+               Approvals.approve(req.id, %{
+                 slack_id: "U_EDUARDO",
+                 email: "eduardo.ext@tuist.dev"
+               })
+
+      # No Elevation row created when the approver gate trips.
+      assert Repo.get_by(Elevation, request_id: req.id) == nil
+      # And the Request stays pending so an Owner/Admin can still
+      # come along and approve.
+      assert %Request{status: "pending"} = Repo.get!(Request, req.id)
+    end
+
+    test "rejects an off-tailnet approver for any env" do
+      stub(TailscaleClient, :user_role, fn _ -> {:error, :not_found} end)
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+      reject(&TailscaleClient.update_acl/1)
+
+      req =
+        insert_request!(%{
+          requester_email: "marek@tuist.dev",
+          requester_slack_id: "U_MAREK",
+          target_group: "group:tuist-staging-write"
+        })
+
+      assert {:error, :approver_not_authorized} =
+               Approvals.approve(req.id, %{
+                 slack_id: "U_GHOST",
+                 email: "ghost@evil.example"
+               })
+    end
+
+    test "rejects admin-flavor non-engineering roles (Auditor, Billing admin)" do
+      stub(TailscaleClient, :user_role, fn
+        "marek@tuist.dev" -> {:ok, :owner}
+        "auditor@tuist.dev" -> {:ok, :auditor}
+        _ -> {:error, :not_found}
+      end)
+
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+      reject(&TailscaleClient.update_acl/1)
+
+      req =
+        insert_request!(%{
+          requester_email: "marek@tuist.dev",
+          requester_slack_id: "U_MAREK",
+          target_group: "group:tuist-staging-write"
+        })
+
+      assert {:error, :approver_not_authorized} =
+               Approvals.approve(req.id, %{
+                 slack_id: "U_AUDITOR",
+                 email: "auditor@tuist.dev"
+               })
+    end
+  end
+
   describe "re_enqueue_expired_active_elevations/0 — drift reconciler kick" do
     test "enqueues a RevertWorker job for an :active elevation past its expiry" do
       req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
@@ -145,11 +236,12 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
   end
 
   defp revert_worker_job_exists?(elevation_id) do
-    from(j in Oban.Job,
-      where:
-        j.worker == "Tuist.TailscaleJIT.Workers.RevertWorker" and
-          fragment("? @> ?", j.args, ^%{elevation_id: elevation_id})
+    Repo.exists?(
+      from(j in Oban.Job,
+        where:
+          j.worker == "Tuist.TailscaleJIT.Workers.RevertWorker" and
+            fragment("? @> ?", j.args, ^%{elevation_id: elevation_id})
+      )
     )
-    |> Repo.exists?()
   end
 end
