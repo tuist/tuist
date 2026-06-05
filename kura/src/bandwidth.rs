@@ -9,18 +9,24 @@ use crate::runtime::RuntimeState;
 
 pub struct BandwidthLimiter {
     bytes_per_second: u64,
+    public_latency_target_ms: u64,
     runtime: Arc<RuntimeState>,
     next_available: Mutex<Instant>,
 }
 
 impl BandwidthLimiter {
-    pub fn new(bytes_per_second: u64, runtime: Arc<RuntimeState>) -> Option<Self> {
+    pub fn new(
+        bytes_per_second: u64,
+        public_latency_target_ms: u64,
+        runtime: Arc<RuntimeState>,
+    ) -> Option<Self> {
         if bytes_per_second == 0 {
             return None;
         }
 
         Some(Self {
             bytes_per_second,
+            public_latency_target_ms,
             runtime,
             next_available: Mutex::new(Instant::now()),
         })
@@ -31,8 +37,12 @@ impl BandwidthLimiter {
             return;
         }
 
-        let bytes_per_second =
-            effective_bytes_per_second(self.bytes_per_second, self.runtime.public_inflight());
+        let bytes_per_second = effective_bytes_per_second(
+            self.bytes_per_second,
+            self.runtime.public_inflight(),
+            self.runtime
+                .public_latency_pressure_divisor(self.public_latency_target_ms),
+        );
         let wait = {
             let mut next_available = self.next_available.lock().await;
             let now = Instant::now();
@@ -47,17 +57,29 @@ impl BandwidthLimiter {
     }
 
     pub fn effective_bytes_per_second(&self) -> u64 {
-        effective_bytes_per_second(self.bytes_per_second, self.runtime.public_inflight())
+        effective_bytes_per_second(
+            self.bytes_per_second,
+            self.runtime.public_inflight(),
+            self.runtime
+                .public_latency_pressure_divisor(self.public_latency_target_ms),
+        )
     }
 }
 
-pub fn effective_bytes_per_second(configured_bytes_per_second: u64, public_inflight: usize) -> u64 {
+pub fn effective_bytes_per_second(
+    configured_bytes_per_second: u64,
+    public_inflight: usize,
+    latency_pressure_divisor: usize,
+) -> u64 {
     if configured_bytes_per_second == 0 {
         return 0;
     }
 
+    let divisor = (public_inflight as u64)
+        .saturating_add(1)
+        .max(latency_pressure_divisor.max(1) as u64);
     configured_bytes_per_second
-        .checked_div((public_inflight as u64).saturating_add(1))
+        .checked_div(divisor)
         .unwrap_or(1)
         .max(1)
 }
@@ -76,7 +98,7 @@ mod tests {
 
     #[test]
     fn disabled_when_limit_is_zero() {
-        assert!(BandwidthLimiter::new(0, RuntimeState::new()).is_none());
+        assert!(BandwidthLimiter::new(0, 100, RuntimeState::new()).is_none());
     }
 
     #[test]
@@ -90,10 +112,16 @@ mod tests {
 
     #[test]
     fn effective_rate_shrinks_as_public_inflight_grows() {
-        assert_eq!(effective_bytes_per_second(10_000, 0), 10_000);
-        assert_eq!(effective_bytes_per_second(10_000, 1), 5_000);
-        assert_eq!(effective_bytes_per_second(10_000, 4), 2_000);
-        assert_eq!(effective_bytes_per_second(1, 10), 1);
-        assert_eq!(effective_bytes_per_second(0, 10), 0);
+        assert_eq!(effective_bytes_per_second(10_000, 0, 1), 10_000);
+        assert_eq!(effective_bytes_per_second(10_000, 1, 1), 5_000);
+        assert_eq!(effective_bytes_per_second(10_000, 4, 1), 2_000);
+        assert_eq!(effective_bytes_per_second(1, 10, 1), 1);
+        assert_eq!(effective_bytes_per_second(0, 10, 1), 0);
+    }
+
+    #[test]
+    fn effective_rate_uses_larger_latency_pressure_divisor() {
+        assert_eq!(effective_bytes_per_second(10_000, 0, 4), 2_500);
+        assert_eq!(effective_bytes_per_second(10_000, 4, 2), 2_000);
     }
 }

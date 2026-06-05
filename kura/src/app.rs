@@ -120,6 +120,7 @@ async fn run_with_config(
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
+        config.replication_public_latency_target_ms,
         runtime.clone(),
     )
     .map(Arc::new);

@@ -448,6 +448,7 @@ impl AppState {
             self.replication_bandwidth_limiter
                 .as_ref()
                 .map_or(0, |limiter| limiter.effective_bytes_per_second()),
+            self.config.replication_public_latency_target_ms,
         );
     }
 }
