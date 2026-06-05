@@ -401,9 +401,92 @@ to any registry. Production is untouched until the final flip.
     amd64 runner (not arm64-native or amd64-emulated). `mergedusr = True` keeps the layer's
     paths under `/usr` with matching symlinks, composing cleanly with the base. Guarded by
     the smoke step's `docker run` (a native exec on the runner).
-- **3.6 — oci_push + release flip (deferred — the only production change).** `oci_push`
-  to `ghcr.io` `:<version>`/`:latest` with `--stamp`/`workspace_status`; then replace
-  `release-kura-docker`. NOT in scope while "no production change" holds.
+- **3.6 — production cutover (deferred — the only production change).** Flip the
+  production CI test/build jobs, the release binaries, and the release image from
+  Cargo/Docker to Bazel, and delete the QEMU/Buildx path. Full plan below; NOT started
+  while "no production change" holds — needs explicit sign-off, and likely its own
+  review/rollout rather than this shadow branch.
+
+#### 3.6 — Cutover plan
+
+**Production surfaces being replaced** (all currently Cargo/Docker):
+
+| Surface | File / job | Today |
+|---|---|---|
+| CI format | `kura.yml` → `format` | `cargo fmt --check` |
+| CI compile | `kura.yml` → `compile` | `cargo check --locked --all-targets` (`-D warnings`) |
+| CI clippy | `kura.yml` → `clippy` | `cargo clippy --all-targets -- -D warnings` |
+| CI tests | `kura.yml` → `tests` | `cargo test --locked` |
+| CI audit | `kura.yml` → `audit` | `cargo audit` |
+| CI e2e build | `kura.yml` → `e2e-images` | `docker compose build` (Dockerfile) → archive `kura-kura-us/eu/ap` |
+| CI e2e run | `kura.yml` → `e2e` (4 shards) | load images, `shellspec` with `KURA_E2E_SKIP_BUILD=1` |
+| Release binaries | `release.yml` → `release-kura-binaries` | `cargo build --release --target` ×4 (2 linux, 2 darwin) → `kura-<target>.tar.gz` + sha256/sha512, attached to the `kura@<ver>` GitHub release |
+| Release image | `release.yml` → `release-kura-docker` | QEMU + Buildx `build-push-action` → `ghcr.io/tuist/kura:<ver>` + `:latest`, `linux/amd64,arm64` |
+| Deploy contract | `infra/helm/tuist/values.yaml` (`kuraRuntime.image`), `kura-release-deployment.yml` | pulls `ghcr.io/tuist/kura:<ver>` (multi-arch); rollout triggered by the `kura@<ver>` tag |
+
+**Contracts the cutover must preserve** (so deploy/consumers don't notice): image name
+`ghcr.io/tuist/kura`, tags `:<version-number>` + `:latest`, a real multi-arch manifest
+(amd64+arm64), the runtime shape already matched in shadow (entrypoint `tini -- kura`,
+`/opt/geoip/dbip-city-lite.mmdb`, port 4000), and the GitHub-release binary asset layout
+(`kura-<target>.tar.gz` + merged `sha256.txt`/`sha512.txt`).
+
+**Decisions (with current recommendation):**
+1. *macOS binaries* — Bazel macOS (Phase 2) isn't done. Recommend flipping only the two
+   **Linux** binary targets to Bazel; keep `cargo build` for the two darwin targets until
+   Phase 2.
+2. *clippy / fmt / audit* — no clean Bazel equivalent (rules_rust also skips clippy and
+   doctests by default). Recommend keeping `format`, `clippy`, `audit` on Cargo; flip only
+   `tests`, `compile`, and the e2e jobs.
+3. *Keep the Dockerfile?* — after the image flip it's unused for release but still drives
+   local-dev e2e via `docker-compose.yml`. Recommend keeping it (non-authoritative) and
+   removing it in a later cleanup.
+4. *`oci_push` auth + versioning* — `docker/login-action` for ghcr; pass the version into
+   the `:<ver>`/`:latest` tags via `--stamp`/workspace-status (or a tag arg) on a new
+   `oci_push` target.
+
+**Staged rollout** (lowest blast radius first; each stage independently revertible):
+
+- **Stage A — flip CI test + e2e jobs (`kura.yml`).** Promote what `kura-bazel.yml` already
+  proves green into the gating workflow. `tests` → `bazel test //...`; `compile` →
+  `bazel build //:kura` (both arches); `e2e-images`/`e2e` → build the Bazel OCI image, load
+  it, run **all four shards** with `KURA_IMAGE` + `KURA_E2E_SKIP_BUILD=1`. Soak with Bazel
+  jobs non-required → make required → delete the Cargo `tests`/`compile`/`e2e*` jobs.
+  Rollback: re-add the Cargo jobs / flip required checks back (nothing is published).
+  - ⚠️ *Blocker to close first:* confirm `bazel test //...` covers `cargo test`'s scope —
+    integration tests under `tests/` and **doctests** (rules_rust skips doctests; keep a
+    slim `cargo test --doc` job if any exist).
+  - ⚠️ *Coverage gap:* shadow runs only the `cluster` shard; extend to all four
+    (cluster, clients, discovery-faults-handoff, extension-mtls) and confirm green first.
+
+- **Stage B — flip release binaries (`release-kura-binaries`).** Build the two Linux
+  targets with Bazel, then repackage to the *exact* existing layout (`kura-<target>.tar.gz`
+  containing `kura`, plus `sha256.txt`/`sha512.txt` in the format the downstream merge +
+  GitHub-release attach step expects). Keep darwin on Cargo. Validate the tarball
+  contents/layout against a current release and the `glibc ≤ 2.36` ceiling. Rollback:
+  revert the two Linux legs to `cargo build` (artifact names/paths unchanged).
+
+- **Stage C — flip release image (`release-kura-docker`), the core of 3.6.** Add an
+  `oci_push` target pushing `:index` (the multi-arch manifest) to `ghcr.io/tuist/kura`.
+  Rewrite the job: delete `setup-qemu-action` / `setup-buildx-action` / `build-push-action`
+  and the `cache-from/to gha` lines; keep `docker/login-action`; build `:index` in the dev
+  container and `bazel run //bazel/oci:push` with `:<ver>` + `:latest`. Validate against a
+  throwaway tag first (`docker manifest inspect` for 2 arches, pull each arch, run smoke +
+  e2e against the *pulled* image) before enabling the real tags. Rollback: revert to the
+  Buildx job (kept in git history); deploy contract is unchanged.
+
+- **Stage D — cleanup (after a green Bazel production release).** Remove the dead Cargo CI
+  jobs; decide on Dockerfile/compose-build removal (follow-up PR); mark 3.6 ✅ here.
+
+**Cross-cutting risks / gaps:** doctests + integration tests not covered by `bazel test`;
+e2e shard coverage (1 of 4 in shadow); `oci_push` ghcr credentials + version stamping;
+binary artifact byte-layout parity for the attach step; the release runs on `tuist-linux`
+so wire the disk/repo cache there too (or accept one cold ~70-min release build); deploy is
+tag-triggered, so image publication must finish before the rollout dispatch (already
+ordered that way — preserve it).
+
+**Suggested PR sequence:** PR1 Stage A (non-required → required), PR2 Stage B, PR3 Stage C
+(RC-tag validated), PR4 Stage D. Each is revertible, and production tags/contracts never
+change — only how the artifacts behind them are produced.
 
 ### Phase 4 — Remote cache
 
