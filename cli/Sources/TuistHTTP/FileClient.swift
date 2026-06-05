@@ -80,17 +80,13 @@ import Path
                 let (localUrl, response) = try await session.download(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     let error = FileClientError.invalidResponse(request, nil)
-                    if let recorder = HARRecorder.current {
-                        Task.detached(priority: .background) {
-                            await Self.recordDownloadError(request: request, error: error, recorder: recorder)
-                        }
+                    HARRecorder.recordDetached { recorder in
+                        await Self.recordDownloadError(request: request, error: error, recorder: recorder)
                     }
                     throw error
                 }
-                if let recorder = HARRecorder.current {
-                    Task.detached(priority: .background) {
-                        await Self.recordDownload(request: request, response: httpResponse, recorder: recorder)
-                    }
+                HARRecorder.recordDetached { recorder in
+                    await Self.recordDownload(request: request, response: httpResponse, recorder: recorder)
                 }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return try AbsolutePath(validating: localUrl.path)
@@ -100,10 +96,8 @@ import Path
             } catch let error as FileClientError {
                 throw error
             } catch {
-                if let recorder = HARRecorder.current {
-                    Task.detached(priority: .background) {
-                        await Self.recordDownloadError(request: request, error: error, recorder: recorder)
-                    }
+                HARRecorder.recordDetached { recorder in
+                    await Self.recordDownloadError(request: request, error: error, recorder: recorder)
                 }
                 throw FileClientError.urlSessionError(request, error, nil)
             }
@@ -121,27 +115,23 @@ import Path
                 let (_, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
                     let error = FileClientError.invalidResponse(request, file)
-                    if let recorder = HARRecorder.current {
-                        Task.detached(priority: .background) {
-                            await Self.recordUploadError(
-                                request: request,
-                                error: error,
-                                requestBodySize: Int(fileSize),
-                                recorder: recorder
-                            )
-                        }
-                    }
-                    throw error
-                }
-                if let recorder = HARRecorder.current {
-                    Task.detached(priority: .background) {
-                        await Self.recordUpload(
+                    HARRecorder.recordDetached { recorder in
+                        await Self.recordUploadError(
                             request: request,
-                            response: httpResponse,
+                            error: error,
                             requestBodySize: Int(fileSize),
                             recorder: recorder
                         )
                     }
+                    throw error
+                }
+                HARRecorder.recordDetached { recorder in
+                    await Self.recordUpload(
+                        request: request,
+                        response: httpResponse,
+                        requestBodySize: Int(fileSize),
+                        recorder: recorder
+                    )
                 }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return true
@@ -151,15 +141,13 @@ import Path
             } catch let error as FileClientError {
                 throw error
             } catch {
-                if let recorder = HARRecorder.current {
-                    Task.detached(priority: .background) {
-                        await Self.recordUploadError(
-                            request: request,
-                            error: error,
-                            requestBodySize: Int(fileSize),
-                            recorder: recorder
-                        )
-                    }
+                HARRecorder.recordDetached { recorder in
+                    await Self.recordUploadError(
+                        request: request,
+                        error: error,
+                        requestBodySize: Int(fileSize),
+                        recorder: recorder
+                    )
                 }
                 throw FileClientError.urlSessionError(request, error, file)
             }

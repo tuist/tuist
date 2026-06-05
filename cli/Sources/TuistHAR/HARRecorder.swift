@@ -42,15 +42,39 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         )
     }
 
+    public static func withCurrent<T>(_ recorder: HARRecorder?, _ action: () async throws -> T) async throws -> T {
+        try await $current.withValue(recorder) {
+            do {
+                let result = try await action()
+                await recorder?.finish()
+                return result
+            } catch {
+                await recorder?.finish()
+                throw error
+            }
+        }
+    }
+
+    public static func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
+        current?.recordDetached(action)
+    }
+
+    public nonisolated func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
+        Task.detached(priority: .background) {
+            await action(self)
+        }
+    }
+
     /// Records a new entry to the HAR log.
     /// - Parameter entry: The entry to record.
-    public func record(_ entry: HAR.Entry) async {
+    public func record(_ entry: HAR.Entry) {
         guard !isFinished else { return }
         log.entries.append(entry)
     }
 
     /// Stops accepting new HAR entries and persists the entries recorded so far.
-    public func finish() async {
+    public func finish() {
+        guard !isFinished else { return }
         isFinished = true
         persist()
     }
@@ -72,7 +96,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard !isFinished else { return }
         let entry = buildEntry(
             url: url,
@@ -91,7 +115,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
             responseHeadersSize: responseHeadersSize,
             requestBodySize: requestBodySize
         )
-        await record(entry)
+        record(entry)
     }
 
     /// Records an HTTP request and response from URLRequest/HTTPURLResponse.
@@ -107,9 +131,9 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard let url = request.url else { return }
-        await recordRequest(
+        recordRequest(
             url: url,
             method: request.httpMethod ?? "GET",
             requestHeaders: Self.headers(from: request),
@@ -141,7 +165,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard !isFinished else { return }
         let entry = buildErrorEntry(
             url: url,
@@ -156,7 +180,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
             requestHeadersSize: requestHeadersSize,
             requestBodySize: requestBodySize
         )
-        await record(entry)
+        record(entry)
     }
 
     /// Records a failed HTTP request from URLRequest.
@@ -170,9 +194,9 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
-    ) async {
+    ) {
         guard let url = request.url else { return }
-        await recordError(
+        recordError(
             url: url,
             method: request.httpMethod ?? "GET",
             requestHeaders: Self.headers(from: request),

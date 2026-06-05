@@ -372,16 +372,15 @@ public struct TuistCommand: AsyncParsableCommand {
             shouldRecordHAR: Bool,
             _ action: () async throws -> Void
         ) async throws {
+            if shouldRecordHAR, HARRecorder.current != nil {
+                try await action()
+                return
+            }
+
             let harRecorder: HARRecorder? =
                 shouldRecordHAR ? HARRecorder(filePath: networkFilePath) : nil
-            try await HARRecorder.$current.withValue(harRecorder) {
-                do {
-                    try await action()
-                    await harRecorder?.finish()
-                } catch {
-                    await harRecorder?.finish()
-                    throw error
-                }
+            try await HARRecorder.withCurrent(harRecorder) {
+                try await action()
             }
         }
     #endif
