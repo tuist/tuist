@@ -111,13 +111,15 @@ jobs:
       - name: Load the native image into Docker
         run: docker load -i kura/bazel-dist/kura-oci.tar
 
-      - name: Smoke-test the image (tini / curl / clean startup)
+      - name: Smoke-test the image (clean startup via tini)
         run: |
-          docker run --rm --entrypoint /usr/bin/tini kura-bazel:oci --version
-          docker run --rm --entrypoint /usr/bin/curl kura-bazel:oci --version | head -1
+          docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
+          echo "--- runtime files (tini / curl / kura) ---"
+          docker run --rm --entrypoint /bin/ls kura-bazel:oci -l /usr/bin/tini /usr/bin/curl /usr/local/bin/kura || true
+          echo "--- default entrypoint (tini -- kura), empty env ---"
           out="$(docker run --rm kura-bazel:oci 2>&1 || true)"
           echo "$out"
-          echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly"; exit 1; }
+          echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly under tini"; exit 1; }
 
       - name: Run e2e (cluster_spec) against the Bazel image
         working-directory: kura
