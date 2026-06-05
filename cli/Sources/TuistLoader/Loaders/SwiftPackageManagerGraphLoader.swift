@@ -222,6 +222,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
             ($0.name, $0.targetToArtifactPaths)
         })
+        let packagePrebuilts = try packagePrebuilts(
+            packageInfos: packageInfos,
+            prebuilts: workspaceState.object.prebuilts
+        )
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
@@ -273,7 +277,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
+                        packagePrebuilts: packagePrebuilts
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
@@ -315,6 +320,51 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
 
     private static func packageOrigin(for kind: String) -> PackageType.ExternalOrigin {
         isLocalDependencyKind(kind) ? .local : .remote
+    }
+
+    private func packagePrebuilts(
+        packageInfos: [(
+            id: String,
+            name: String,
+            folder: AbsolutePath,
+            targetToArtifactPaths: [String: AbsolutePath],
+            info: PackageInfo,
+            hash: String?,
+            kind: String
+        )],
+        prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt]
+    ) throws -> [String: [String: SwiftPackageManagerPrebuilt]] {
+        try packageInfos.reduce(into: [:]) { result, packageInfo in
+            let packagePrebuilts = prebuilts.filter { $0.identity.lowercased() == packageInfo.id.lowercased() }
+            guard !packagePrebuilts.isEmpty else { return }
+
+            let packageKeys = Set([
+                packageInfo.id,
+                packageInfo.name,
+                packageInfo.name.lowercased(),
+                packageInfo.folder.basename,
+                packageInfo.folder.basename.lowercased(),
+            ])
+
+            for prebuilt in packagePrebuilts {
+                let mappedPrebuilt = SwiftPackageManagerPrebuilt(
+                    identity: prebuilt.identity,
+                    version: prebuilt.version,
+                    libraryName: prebuilt.libraryName,
+                    path: try AbsolutePath(validating: prebuilt.path),
+                    checkoutPath: try prebuilt.checkoutPath.map { try AbsolutePath(validating: $0) },
+                    products: prebuilt.products,
+                    includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
+                    cModules: prebuilt.cModules
+                )
+
+                for packageKey in packageKeys {
+                    for product in prebuilt.products {
+                        result[packageKey, default: [:]][product] = mappedPrebuilt
+                    }
+                }
+            }
+        }
     }
 
     static func enabledTraits(

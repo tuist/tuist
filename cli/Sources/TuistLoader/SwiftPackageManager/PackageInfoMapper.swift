@@ -81,11 +81,15 @@ public enum PackageType {
     }
 
     case local
-    case external(origin: ExternalOrigin = .remote, artifactPaths: [String: AbsolutePath])
+    case external(
+        origin: ExternalOrigin = .remote,
+        artifactPaths: [String: AbsolutePath],
+        packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] = [:]
+    )
 
     fileprivate var includesTestTargets: Bool {
         switch self {
-        case .local, .external(origin: .local, artifactPaths: _):
+        case .local, .external(origin: .local, artifactPaths: _, packagePrebuilts: _):
             return true
         case .external:
             return false
@@ -93,17 +97,32 @@ public enum PackageType {
     }
 
     fileprivate var isLocalExternal: Bool {
-        if case .external(origin: .local, artifactPaths: _) = self {
+        if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = self {
             return true
         }
         return false
     }
 
     fileprivate var isRemoteExternal: Bool {
-        if case .external(origin: .remote, artifactPaths: _) = self {
+        if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _) = self {
             return true
         }
         return false
+    }
+
+    fileprivate var packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] {
+        switch self {
+        case .local:
+            return [:]
+        case let .external(origin: _, artifactPaths: _, packagePrebuilts: packagePrebuilts):
+            return packagePrebuilts
+        }
+    }
+
+    fileprivate func prebuilt(targetPackage: String?, product: String) -> SwiftPackageManagerPrebuilt? {
+        guard let targetPackage else { return nil }
+        return packagePrebuilts[targetPackage]?[product]
+            ?? packagePrebuilts[targetPackage.lowercased()]?[product]
     }
 }
 
@@ -359,6 +378,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             }
         }
         let targetToProducts = mutableTargetToProducts
+        let prebuiltEligibleTargets = prebuiltEligibleTargets(packageInfo: packageInfo, packageType: packageType)
 
         let targets: [ProjectDescription.Target] = try await packageInfo.targets
             .concurrentCompactMap { target -> ProjectDescription.Target? in
@@ -377,7 +397,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
-                    enabledTraits: enabledTraits
+                    enabledTraits: enabledTraits,
+                    prebuiltEligibleTargets: prebuiltEligibleTargets
                 )
             }
 
@@ -569,6 +590,92 @@ public struct PackageInfoMapper: PackageInfoMapping {
             || strippedName.hasPrefix(productName)
     }
 
+    private func prebuiltEligibleTargets(
+        packageInfo: PackageInfo,
+        packageType: PackageType
+    ) -> Set<String> {
+        guard !packageType.packagePrebuilts.isEmpty else { return [] }
+
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let allTargetNames = Set(targetsByName.keys)
+
+        func isHostOnlyTarget(_ targetName: String) -> Bool {
+            switch targetsByName[targetName]?.type {
+            case .macro, .plugin:
+                return true
+            default:
+                return false
+            }
+        }
+
+        func localDependencies(of target: PackageInfo.Target, includeHostOnlyTargets: Bool) -> [String] {
+            target.dependencies.compactMap { dependency in
+                let dependencyName: String
+                switch dependency {
+                case let .target(name, _):
+                    dependencyName = name
+                case let .byName(name, _) where allTargetNames.contains(name):
+                    dependencyName = name
+                case .byName, .product:
+                    return nil
+                }
+
+                guard allTargetNames.contains(dependencyName) else { return nil }
+                guard includeHostOnlyTargets || !isHostOnlyTarget(dependencyName) else { return nil }
+                return dependencyName
+            }
+        }
+
+        func dependencyClosure(from roots: Set<String>, includeHostOnlyTargets: Bool) -> Set<String> {
+            var visited = Set<String>()
+            var queue = Array(roots)
+
+            while let targetName = queue.popLast() {
+                guard visited.insert(targetName).inserted,
+                      let target = targetsByName[targetName]
+                else { continue }
+
+                queue.append(
+                    contentsOf: localDependencies(
+                        of: target,
+                        includeHostOnlyTargets: includeHostOnlyTargets
+                    )
+                )
+            }
+
+            return visited
+        }
+
+        let macroOrPluginTargets = Set(packageInfo.targets.compactMap { target in
+            switch target.type {
+            case .macro, .plugin:
+                target.name
+            default:
+                nil
+            }
+        })
+
+        let macroOrPluginClosure = dependencyClosure(from: macroOrPluginTargets, includeHostOnlyTargets: true)
+        let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
+            guard target.type == .test else { return nil }
+            return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
+                .isDisjoint(with: macroOrPluginClosure) ? nil : target.name
+        })
+
+        let hostRoots = macroOrPluginTargets.union(macroTestTargets)
+        let hostReachableTargets = dependencyClosure(from: hostRoots, includeHostOnlyTargets: true)
+        let nonHostReachableTargets = dependencyClosure(
+            from: allTargetNames.subtracting(hostRoots),
+            includeHostOnlyTargets: false
+        )
+
+        guard hostReachableTargets.isDisjoint(with: nonHostReachableTargets) else {
+            return []
+        }
+
+        return hostReachableTargets
+    }
+
     // swiftlint:disable:next function_body_length
     private func map(
         target: PackageInfo.Target,
@@ -585,7 +692,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
-        enabledTraits: Set<String>
+        enabledTraits: Set<String>,
+        prebuiltEligibleTargets: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -716,6 +824,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         var dependencies: [ProjectDescription.TargetDependency] = []
+        var targetPrebuilts: [SwiftPackageManagerPrebuilt] = []
 
         // Module aliases of used dependencies.
         // These need to be mapped in `OTHER_SWIFT_FLAGS` using the `-module-alias` build flag.
@@ -755,7 +864,19 @@ public struct PackageInfoMapper: PackageInfoMapping {
             dependencies = try linkerDependencies + target.dependencies.compactMap {
                 switch $0 {
                 case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
-                    try mapDependency(
+                    if prebuiltEligibleTargets.contains(target.name),
+                       let prebuilt = try prebuiltDependency(
+                           name: name,
+                           targetPackage: package,
+                           packageType: packageType,
+                           condition: condition,
+                           enabledTraits: enabledTraits
+                       )
+                    {
+                        targetPrebuilts.append(prebuilt)
+                        return nil
+                    }
+                    return try mapDependency(
                         name: name,
                         targetPackage: package,
                         sourceTargetName: target.name,
@@ -772,7 +893,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                          name: name,
                          condition: condition
                      ):
-                    try mapDependency(
+                    return try mapDependency(
                         name: name,
                         packageInfo: packageInfo,
                         packageType: packageType,
@@ -812,7 +933,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
             targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
-            enabledTraits: enabledTraits
+            enabledTraits: enabledTraits,
+            prebuilts: targetPrebuilts
         )
 
         var metadataTags: [String] = []
@@ -836,6 +958,24 @@ public struct PackageInfoMapper: PackageInfoMapping {
             settings: settings,
             metadata: .metadata(tags: metadataTags)
         )
+    }
+
+    private func prebuiltDependency(
+        name: String,
+        targetPackage: String,
+        packageType: PackageType,
+        condition: PackageInfo.PackageConditionDescription?,
+        enabledTraits: Set<String>
+    ) throws -> SwiftPackageManagerPrebuilt? {
+        if let traits = condition?.traits,
+           !traits.isEmpty,
+           !traits.contains(where: { enabledTraits.contains($0) })
+        {
+            return nil
+        }
+
+        _ = try ProjectDescription.PlatformCondition.from(condition)
+        return packageType.prebuilt(targetPackage: targetPackage, product: name)
     }
 
     private func mapDependency(
@@ -876,7 +1016,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if let target = packageInfo.targets.first(where: { $0.name == name }) {
-            if target.type == .binary, case let .external(origin: _, artifactPaths: artifactPaths) = packageType,
+            if target.type == .binary,
+               case let .external(origin: _, artifactPaths: artifactPaths, packagePrebuilts: _) = packageType,
                let artifactPath = artifactPaths[target.name]
             {
                 return .xcframework(
@@ -1358,7 +1499,8 @@ extension ProjectDescription.Settings {
         targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
-        enabledTraits: Set<String>
+        enabledTraits: Set<String>,
+        prebuilts: [SwiftPackageManagerPrebuilt]
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1461,6 +1603,27 @@ extension ProjectDescription.Settings {
                     value.split(separator: " ").map(String.init) + moduleAliases
                 )
             }
+        }
+
+        let uniquePrebuilts = Dictionary(grouping: prebuilts, by: \.libraryName)
+            .compactMap(\.value.first)
+            .sorted { $0.libraryName < $1.libraryName }
+        for prebuilt in uniquePrebuilts {
+            settingsDictionary.appendArraySetting(
+                key: "OTHER_SWIFT_FLAGS",
+                values: prebuilt.includeSearchPaths.flatMap { ["-I", $0.quotedIfContainsSpaces] },
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "LIBRARY_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "OTHER_LDFLAGS",
+                values: ["-l\(prebuilt.libraryName)"],
+                includeInherited: true
+            )
         }
 
         var baseSettingsDictionary = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsDictionary)
@@ -1598,6 +1761,50 @@ extension ProjectDescription.SettingsDictionary {
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }
+    }
+}
+
+extension [String: XcodeGraph.SettingValue] {
+    fileprivate mutating func appendArraySetting(
+        key: String,
+        values: [String],
+        includeInherited: Bool
+    ) {
+        guard !values.isEmpty else { return }
+
+        var resolvedValues: [String]
+        switch self[key] {
+        case let .array(existingValues):
+            resolvedValues = existingValues
+        case let .string(value):
+            resolvedValues = value.split(separator: " ").map(String.init)
+        case nil:
+            resolvedValues = includeInherited ? ["$(inherited)"] : []
+        }
+
+        resolvedValues.append(contentsOf: values)
+
+        self[key] = .array(resolvedValues)
+    }
+}
+
+extension SwiftPackageManagerPrebuilt {
+    fileprivate var librarySearchPath: String {
+        path.appending(component: "lib").pathString
+    }
+
+    fileprivate var includeSearchPaths: [String] {
+        var result = [
+            path.appending(component: "Modules").pathString,
+        ]
+
+        if let checkoutPath, let includePath {
+            result.append(contentsOf: includePath.map { checkoutPath.appending($0).pathString })
+        } else {
+            result.append(contentsOf: cModules.map { path.appending(components: "include", $0).pathString })
+        }
+
+        return result
     }
 }
 
