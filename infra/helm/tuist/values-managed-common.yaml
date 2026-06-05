@@ -254,7 +254,7 @@ runnersController:
     repository: ghcr.io/tuist/tuist-runners-controller
     # SHA-tagged build from the runners-controller-image.yml
     # workflow.
-    tag: "0.9.0"
+    tag: "0.10.0"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
