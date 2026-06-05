@@ -27,6 +27,16 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   (`TUIST_RUNNER_JIT_PATH`) and `exec`s
   `./run.sh --jitconfig <jit> --disableupdate`, or exits 0 if no
   JIT was staged (410 drain / poller abort). Holds no SA token.
+- `/usr/local/bin/vitals.sh` — periodic resource-vitals emitter.
+  `run-job.sh` backgrounds it just before exec'ing the runner (the
+  dispatch-poll rollout-bridge path does too), so it samples for the
+  job's lifetime and its last line lands in the Pod logs -> Loki even
+  after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
+  cgroup memory (current/peak/max, `oom_kill`), CPU/mem/io PSI avg10,
+  loadavg, and a best-effort `/dev/kmsg` OOM watcher. The forensic
+  trail for a runner that dies mid-job (guest OOM vs CPU/memory
+  starvation), which is otherwise invisible from outside the guest.
+  Interval via `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)

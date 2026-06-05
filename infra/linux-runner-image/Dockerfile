@@ -199,7 +199,8 @@ USER root
 # infra/runners-controller/AGENTS.md for the split-credential shape.
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh
+COPY vitals.sh /usr/local/bin/vitals.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh
 
 USER runner
 

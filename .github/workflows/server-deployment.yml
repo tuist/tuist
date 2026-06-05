@@ -118,7 +118,7 @@ jobs:
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: tuist-linux-large
+    runs-on: ubuntu-latest
     # 60m absorbs a fully cold build (no buildcache hits).
     timeout-minutes: 60
     outputs:
@@ -130,12 +130,40 @@ jobs:
           submodules: false
       - id: tag
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Persist the OG-image render output across builds. The /og-cache
+      # `--mount=type=cache` is local to the BuildKit builder, so it is empty
+      # on every ephemeral runner and Chromium re-renders every OG image
+      # (~6 min, on the critical path that gates `mix release`). cache-dance
+      # round-trips the mount through actions/cache so unchanged images are
+      # skipped via their .cachekey sidecars. The registry cache below only
+      # exports layers, never cache-mount contents.
+      - name: Restore OG image render cache
+        id: og-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            og-cache-marketing
+            og-cache-docs
+          key: server-og-cache-${{ env.DEPLOY_SHA }}
+          restore-keys: |
+            server-og-cache-
+      - name: Seed OG cache mounts into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "og-cache-marketing": { "target": "/og-cache/marketing", "id": "og-marketing" },
+              "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
+            }
+          skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
         name: Build and push server image
         with:
@@ -145,8 +173,9 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          # mode=max exports cache for every stage plus
-          # `RUN --mount=type=cache` mounts.
+          # Shared `buildcache:server` ref, kept warm by the push-to-main
+          # build in server-production-deployment.yml. `mode=max` exports
+          # cache for every stage (deps.compile, builder, og-images).
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |

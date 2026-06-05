@@ -278,11 +278,37 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  pools:
-    - name: default
-      replicas: 9
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-macos"
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; `maxReplicas: 9` lets either pool absorb the whole
+  # fleet under skewed demand and the allocator caps the joint sum
+  # so the pools don't double-book.
+  #
+  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
+  # dynamically apportioned by queue depth across the two pools.
+  # The default (26.5) keeps the warm baseline since most traffic
+  # lands there; 26.4.1 sits cold (floor 0) so an unused runner
+  # doesn't tie up a host. Revisit once we open the runners to
+  # general signups where the pool mix is unpredictable in advance.
+  xcodeOverrides:
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 3
+        maxReplicas: 9
+    "26.4.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+  runnerImageSemver: "0.2.1"
+  pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
@@ -341,7 +367,7 @@ runnersFleetLinux:
   # default shape keeps the warm floor the legacy pool used to carry,
   # since it absorbs both `tuist-default` traffic and the `linux`
   # default-profile (`tuist-linux`) jobs that route through it.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:1970d76d557e03495fa7a3e82f1358e9ecc44f03dd8e236c0346f6430a1aa581"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:a0f5ba39d5ccff7b5e2dfcad61696895cf9631d282991a212818ba70948f876e"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true
