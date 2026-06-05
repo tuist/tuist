@@ -343,14 +343,37 @@ Buck2) before investing in Phase 1.
 
 ### Phase 3 — OCI image
 
-- Reuse the Phase 1 Linux binaries as image layers; `oci_image_index` for the
-  multi-arch manifest; `oci_push` to `ghcr.io` with `:<version>` and `:latest`,
-  version injected via `--stamp` / `workspace_status` (so version bumps no longer bust
-  the cache by mutating `Cargo.toml`).
-- The geoip layer (currently a time-dependent DB-IP download) becomes a pinned
-  external artifact (`http_file` / oci layer by digest) or a deliberate non-Bazel
-  step — don't let it silently break reproducibility.
-- Base layers pulled by digest; no Docker daemon, Buildx, or QEMU.
+Built strictly **shadow + additive**: no edits to `kura/Dockerfile`,
+`kura/docker-compose.yml`, or `release.yml`/`release-kura-docker`, and **no `oci_push`**
+to any registry. Production is untouched until the final flip.
+
+- **3.1 — Single-arch image. ✅ Done.** `//bazel/oci` builds the runtime image with
+  `rules_oci` (no Docker daemon / Buildx / QEMU): `pkg_tar` puts the binary at
+  `/usr/local/bin/kura`, `oci_image` sets the entrypoint + `EXPOSE 4000` on a
+  digest-pinned `gcr.io/distroless/cc-debian12` base (Bookworm/glibc 2.36, ships
+  libstdc++/libgcc/glibc + ca-certificates). `oci_load`'s `tarball` output group gives a
+  `docker load`-able tar. Needed `python3` in the dev image (rules_pkg's `pkg_tar`) and
+  the `linux/arm64/v8` variant in the base pull. Verified: built the tar in the arm64
+  container (no daemon), `docker load` on the host → arch=arm64, os=linux,
+  entrypoint=/usr/local/bin/kura; `docker run` reaches config parsing and exits cleanly.
+- **3.2 — Multi-arch index. ✅ Done.** `oci_image_index(images=[":image"],
+  platforms=[linux_x86_64, linux_arm64])` transitions the one image across both arches
+  and assembles a manifest list. `bazel build //bazel/oci:index -c opt` on a single arm64
+  host produced an `oci.image.index` referencing **both linux/amd64 and linux/arm64**
+  (x86_64 via the cross toolchain, arm64 native) — the QEMU-free multi-arch build.
+- **3.3 — geoip layer (todo).** The current Dockerfile downloads a time-dependent DB-IP
+  dump; make it a pinned `http_file` (by digest) added as an image layer, or a deliberate
+  non-Bazel step — `GeoIp::open()` is optional, so the image runs without it meanwhile.
+- **3.4 — base-content parity (todo, decision).** The distroless/cc base differs from the
+  production `debian:bookworm-slim` + `tini` + `curl` + `libstdc++6`. Decide: keep
+  distroless (smaller, no shell/curl → needs a healthcheck rethink) vs. reproduce the
+  bookworm runtime hermetically (e.g. `rules_distroless` apt layer for tini/curl). This
+  gates a clean e2e (the compose healthcheck uses `curl`).
+- **3.5 — e2e + shadow CI (todo).** Run `spec/e2e` against the Bazel image
+  (`KURA_IMAGE`), and add a non-pushing OCI build to shadow CI.
+- **3.6 — oci_push + release flip (deferred — the only production change).** `oci_push`
+  to `ghcr.io` `:<version>`/`:latest` with `--stamp`/`workspace_status`; then replace
+  `release-kura-docker`. NOT in scope while "no production change" holds.
 
 ### Phase 4 — Remote cache
 

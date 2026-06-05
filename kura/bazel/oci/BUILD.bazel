@@ -10,7 +10,7 @@
 # production release path. Base-content parity with the production Dockerfile (tini,
 # curl, geoip) and oci_push/release wiring are later Phase 3 steps.
 
-load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 # The kura binary at the production path (/usr/local/bin/kura), mode 0755 so the image
@@ -35,5 +35,19 @@ oci_load(
     name = "load",
     image = ":image",
     repo_tags = ["kura-bazel:oci"],
+    visibility = ["//visibility:public"],
+)
+
+# Multi-arch manifest. With one image + a platforms list, oci_image_index transitions
+# :image to each platform and assembles the index — both arches from a single host
+# (x86_64 via the cross toolchain, arm64 native, or vice versa), no QEMU. Build with
+# `bazel build //bazel/oci:index -c opt` (no --platforms; the transition sets it).
+oci_image_index(
+    name = "index",
+    images = [":image"],
+    platforms = [
+        "//bazel/platforms:linux_x86_64",
+        "//bazel/platforms:linux_arm64",
+    ],
     visibility = ["//visibility:public"],
 )
