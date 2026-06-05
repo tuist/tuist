@@ -61,6 +61,7 @@ defmodule Tuist.Builds.Build do
     field :custom_tags, {:array, :string}, default: []
     field :custom_values, Ch, type: "Map(String, String)", default: %{}
     field :xcode_cache_upload_enabled, :boolean, default: false
+    field :generation_id, Ch, type: "Nullable(UUID)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :project, Tuist.Projects.Project, define_field: false
@@ -118,7 +119,8 @@ defmodule Tuist.Builds.Build do
         :cacheable_tasks_count,
         :custom_tags,
         :custom_values,
-        :xcode_cache_upload_enabled
+        :xcode_cache_upload_enabled,
+        :generation_id
       ])
       |> validate_required([
         :id,
