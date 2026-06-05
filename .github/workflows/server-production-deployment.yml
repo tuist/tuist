@@ -218,9 +218,11 @@ jobs:
   # that breaks an older but still-supported CLI. This job pins that floor and
   # gates production alongside acceptance-tests.
   #
-  # MIN_SUPPORTED_TUIST_VERSION is the source of truth for the oldest supported
-  # release (3-month window). Bump it as the window slides forward - see the
-  # Compatibility reference at server/priv/docs/en/cli/compatibility.md.
+  # The oldest supported release (3-month window) has a single source of truth:
+  # @minimum_supported_cli_version in
+  # server/lib/tuist_web/plugs/warnings_header_plug.ex. This job derives
+  # MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning enforces it, and
+  # the docs Compatibility page renders it. Bump it there as the window slides.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
@@ -232,7 +234,6 @@ jobs:
       contents: read
       id-token: write
     env:
-      MIN_SUPPORTED_TUIST_VERSION: "4.155.0"
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
@@ -243,6 +244,18 @@ jobs:
         with:
           ref: ${{ inputs.commit_sha || github.sha }}
           submodules: false
+      - name: Resolve oldest supported CLI version
+        # Single source of truth: the server's @minimum_supported_cli_version,
+        # which also drives the deprecation warning and the docs Compatibility page.
+        run: |
+          file=server/lib/tuist_web/plugs/warnings_header_plug.ex
+          version="$(grep -E '@minimum_supported_cli_version Version.parse' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @minimum_supported_cli_version from $file" >&2
+            exit 1
+          fi
+          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Oldest supported CLI version: $version"
       - uses: jdx/mise-action@v4.0.1
         with:
           github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
