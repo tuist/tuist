@@ -134,6 +134,54 @@ func TestIsIdle(t *testing.T) {
 	}
 }
 
+func TestRunnerTerminated(t *testing.T) {
+	withRunner := func(state corev1.ContainerState) *corev1.Pod {
+		p := newRunnerPod("p", "img", corev1.PodFailed, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 0}}},
+			{Name: "runner", State: state},
+		}
+		return p
+	}
+
+	t.Run("guest-OOM fingerprint (137/Error) is captured", func(t *testing.T) {
+		got := runnerTerminated(withRunner(corev1.ContainerState{
+			Terminated: &corev1.ContainerStateTerminated{ExitCode: 137, Signal: 9, Reason: "Error"},
+		}))
+		if got == nil || got.ExitCode != 137 || got.Reason != "Error" {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=137 reason=Error", got)
+		}
+	})
+
+	t.Run("falls back to LastTerminationState", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "runner", LastTerminationState: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{ExitCode: 1},
+			}},
+		}
+		if got := runnerTerminated(p); got == nil || got.ExitCode != 1 {
+			t.Fatalf("runnerTerminated = %+v, want exitCode=1 from LastTerminationState", got)
+		}
+	})
+
+	t.Run("no runner container returns nil", func(t *testing.T) {
+		p := newRunnerPod("p", "img", corev1.PodRunning, "p")
+		p.Status.ContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+		}
+		if got := runnerTerminated(p); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
+
+	t.Run("running runner returns nil", func(t *testing.T) {
+		if got := runnerTerminated(withRunner(corev1.ContainerState{Running: &corev1.ContainerStateRunning{}})); got != nil {
+			t.Fatalf("runnerTerminated = %+v, want nil", got)
+		}
+	})
+}
+
 // TestReconcile_DeletesStalePendingPodAndCreatesReplacement is the
 // behaviour that fixes the operator-side dance we hit while rolling
 // out runner-image bumps: when the chart rewrites the digest pin,
