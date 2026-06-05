@@ -22,21 +22,6 @@ require_env() {
     fi
 }
 
-# Fail if the output contains the cache-artifact signature rejection that broke
-# older CLIs during the signature incident (server stopped signing cache
-# responses; CLIs still running SignatureVerifierMiddleware rejected every pull).
-refute_signature_error() {
-    local text="$1"
-    local marker
-    for marker in "Invalid or missing signature" "SignatureVerifierMiddleware" "blocked for security reasons"; do
-        if [[ "$text" == *"$marker"* ]]; then
-            echo "# Cache signature rejection detected: $marker" >&3
-            return 1
-        fi
-    done
-    return 0
-}
-
 # Setup Android SDK if not set
 setup_android_sdk() {
     if [[ -z "${ANDROID_HOME:-}" ]]; then

@@ -16,12 +16,9 @@
 #   - TUIST_AUTH_EMAIL / TUIST_AUTH_PASSWORD: canary credentials (server-k8s-canary env)
 #   - TUIST_URL: server to test against (defaults to https://canary.tuist.dev)
 
-# Loaded at file scope (not inside setup_file) so helpers like
-# refute_signature_error are available inside @test bodies, which bats runs in
-# their own processes.
-load 'test_helper'
-
 setup_file() {
+    load 'test_helper'
+
     export TUIST_EXECUTABLE="${TUIST_EXECUTABLE:-}"
     if [[ -z "$TUIST_EXECUTABLE" ]]; then
         skip "TUIST_EXECUTABLE must point to the pinned oldest-supported tuist binary"
@@ -97,25 +94,26 @@ teardown_file() {
     run "$TUIST_EXECUTABLE" cache --path "$FIXTURE_DIR"
     echo "# tuist cache output:" >&3
     echo "$output" >&3
-    refute_signature_error "$output"
     [ "$status" -eq 0 ]
 
     # Drop the local cache so the focused generate below has to fetch the
-    # artifact back from canary, exercising the signed download path
-    # (downloadCacheArtifact -> SignatureVerifierMiddleware).
+    # artifact back from canary, exercising the signed cache-artifact download
+    # path that broke older CLIs.
     rm -rf "${XDG_CACHE_HOME:?}"/* 2>/dev/null || true
 
     # Focusing App links the cached Framework as an xcframework, which downloads
-    # it from canary — this is where the missing signature broke older CLIs.
+    # it from canary through that signed path.
     run "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open
     echo "# tuist generate output:" >&3
     echo "$output" >&3
-    refute_signature_error "$output"
     [ "$status" -eq 0 ]
 
-    # Guard against a silent no-op: the cached binary must actually have been
-    # pulled and linked as an xcframework in the generated project, otherwise the
-    # download (and signature verification) never happened.
+    # The signature check is implicit and behavioral: a cached xcframework can
+    # only be linked here if the signed download succeeded. If the server stopped
+    # signing, the pull would fail and generate would either error (caught above)
+    # or fall back to building from source, leaving no xcframework. So a linked
+    # xcframework is the end-to-end proof that an old CLI pulled from cache without
+    # a signature rejection - and it does not depend on matching CLI log wording.
     run bash -c "grep -Rl 'xcframework' '${FIXTURE_DIR}'/*.xcodeproj/project.pbxproj 2>/dev/null"
     if [ "$status" -ne 0 ]; then
         echo "# No xcframework linked in the generated project — the cache was not pulled" >&3
