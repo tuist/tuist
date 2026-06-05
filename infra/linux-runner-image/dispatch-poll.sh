@@ -137,6 +137,11 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
+      #
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner Pod
+      # writes nothing to the ingest path.
       exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)
