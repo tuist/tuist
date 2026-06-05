@@ -92,6 +92,12 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+cache:
+  s3:
+    bucket: tuist-stag-storage
+    xcodeCacheBucket: tuist-xcode-cache-staging
+    registryBucket: ""
+
 # CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Each instance is a streaming replica
 # holding the whole DB, so the size is per-replica capacity, not a
