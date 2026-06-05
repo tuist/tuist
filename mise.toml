@@ -20,7 +20,7 @@
     gradle = "8.12"
     caddy = "2.11.2"
     "github:tuist/blick" = "0.8.0"
-    "github:tuist/swifterpm" = "0.4.0"
+    "github:tuist/swifterpm" = "0.5.1"
     "npm:opencode-ai" = "1.14.39"
     kubectl = "1.36.1"
     helm = "4.2.0"
