@@ -115,21 +115,21 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   end
 
   defp fetch_and_cache_token do
+    # Tailscale's OAuth endpoint expects client_id + client_secret in
+    # the form-encoded request body (RFC 6749 §4.4.2-style client
+    # credentials grant). Their published curl example does NOT use
+    # Basic auth, and an earlier attempt with Basic returned 401
+    # "API token invalid" against valid credentials — so the body
+    # is the load-bearing path.
     body = %{
       grant_type: "client_credentials",
-      scope: "policy_file:write"
+      scope: "policy_file:write",
+      client_id: client_id(),
+      client_secret: client_secret()
     }
 
-    auth = Base.encode64("#{client_id()}:#{client_secret()}")
-
     @token_url
-    |> Req.post(
-      form: body,
-      headers: [
-        {"Authorization", "Basic #{auth}"},
-        {"Accept", "application/json"}
-      ]
-    )
+    |> Req.post(form: body, headers: [{"Accept", "application/json"}])
     |> handle_token_response()
   end
 
