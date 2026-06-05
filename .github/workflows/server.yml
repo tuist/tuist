@@ -247,13 +247,6 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir node aube npm:prettier
-      - name: Restore Aube Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/aube
-            ~/.cache/aube
-          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
       - name: Install aube dependencies
         run: aube install
       - name: Check format
