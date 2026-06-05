@@ -329,6 +329,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// problem entirely by giving dockerd a real kernel-native
 	// filesystem.
 	annotations := map[string]string{}
+	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
+		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
+		// vitals probe can report CPU/memory pressure. The stock kata
+		// kernel ships CONFIG_PSI=y but boots with PSI disabled; `psi=1`
+		// on the guest cmdline turns it on. The annotation is honored
+		// because the containerd kata runtime whitelists
+		// `io.katacontainers.*` pod annotations.
+		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
