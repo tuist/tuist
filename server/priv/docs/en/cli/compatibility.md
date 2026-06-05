@@ -1,7 +1,7 @@
 ---
 {
   "title": "Compatibility",
-  "titleTemplate": ":title · References · Tuist",
+  "titleTemplate": ":title · CLI · Tuist",
   "description": "How long the Tuist server supports older CLI releases, what the support window means for upgrades, and what happens to versions outside it."
 }
 ---
