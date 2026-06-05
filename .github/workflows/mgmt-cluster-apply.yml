@@ -40,6 +40,7 @@ on:
     paths:
       - 'infra/k8s/clusters/**'
       - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
+      - 'infra/mise/tasks/k8s/apply-vultr-regionals.sh'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
@@ -63,7 +64,8 @@ jobs:
     environment:
       name: mgmt-cluster-apply
     # `kubectl diff` can be slow against the Cluster API CRDs when many
-    # Machines are changing, so leave enough room for the visibility step.
+    # Machines are changing, and a cold CAPVULTR install has to register
+    # CRDs, roll the controller, then apply regional Cluster CRs.
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
@@ -73,6 +75,8 @@ jobs:
         with:
           install_args: "kubectl"
           cache: "false"
+      - name: Trust infra mise config
+        run: mise trust "$GITHUB_WORKSPACE/infra/mise.toml"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
         env:
@@ -81,11 +85,17 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+      - name: Install CAPVULTR provider
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: mise -C infra run k8s:apply-vultr-regionals install-provider
       - name: Diff (visibility into what's about to change)
         # `kubectl diff` exits non-zero when there's a diff, which is
         # the expected case here, so don't fail the step on that.
         # The actual gate is the apply step below.
         continue-on-error: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
         run: |
           set +e
           echo "::group::ClusterClass diff"
@@ -102,6 +112,9 @@ jobs:
             kubectl diff -f "$f" || true
             echo "::endgroup::"
           done
+          echo "::group::Vultr regional CAPI diff"
+          mise -C infra run k8s:apply-vultr-regionals diff || true
+          echo "::endgroup::"
           echo "::group::etcd-snapshot.yaml diff"
           kubectl diff -f infra/k8s/mgmt/etcd-snapshot.yaml || true
           echo "::endgroup::"
@@ -159,6 +172,10 @@ jobs:
             echo "==> $f"
             kubectl apply -f "$f"
           done
+      - name: Apply Vultr regional CAPI clusters
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: mise -C infra run k8s:apply-vultr-regionals apply
       - name: Apply mgmt-side workloads
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.

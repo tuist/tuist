@@ -1,0 +1,10 @@
+# Vultr CAPI node image catalog.
+#
+# The snapshot is a deployable infrastructure artifact, not a secret.
+# Keep it in Git like the macOS runner image tags in the Helm values
+# files. 1Password stores only credentials, such as the Vultr API token.
+kubernetesVersion: v1.34.6
+ubuntuVersion: "22.04"
+snapshotID: "abfab9e0-b0a8-42b8-a229-563aabfcf5b8"
+controlPlanePlanID: vc2-4c-8gb
+workerPlanID: vc2-4c-8gb

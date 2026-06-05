@@ -87,8 +87,22 @@ deploy_region() {
     --atomic --timeout 10m --wait
 }
 
+deploy_region_if_kubeconfig_exists() {
+  local region="$1"
+  local cluster_name="$2"
+  local kubeconfig_item="$3"
+  local provider="${4:-hetzner}"
+
+  if ! op item get "$kubeconfig_item" --vault "tuist-k8s-production" >/dev/null 2>&1; then
+    echo "Skipping $region ($provider): 1Password document '$kubeconfig_item' does not exist yet"
+    return
+  fi
+
+  deploy_region "$region" "$cluster_name" "$kubeconfig_item" "$provider"
+}
+
 deploy_extra_regions() {
-  # Optional newline-separated rows:
+  # Optional newline-separated rows for already-reconciled CAPI workload clusters:
   #   <cluster_id>|<cluster_name>|<1Password kubeconfig document>|<provider>
   # Example:
   #   au-southeast-1|tuist-kura-au-southeast|kubeconfig: kura-au-southeast-1|vultr
@@ -106,4 +120,6 @@ deploy_extra_regions() {
 
 deploy_region "us-east-1" "tuist-kura-us-east" "kubeconfig: kura-us-east-1" "hetzner"
 deploy_region "us-west-1" "tuist-kura-us-west" "kubeconfig: kura-us-west-1" "hetzner"
+deploy_region_if_kubeconfig_exists "au-southeast-1" "tuist-kura-au-southeast" "kubeconfig: kura-au-southeast-1" "vultr"
+deploy_region_if_kubeconfig_exists "br-south-1" "tuist-kura-br-south" "kubeconfig: kura-br-south-1" "vultr"
 deploy_extra_regions

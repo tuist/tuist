@@ -12,11 +12,10 @@
 #   1. Extract the workload kubeconfig + API endpoint from the mgmt
 #      cluster's ClusterCR + minted Secret.
 #   2. Install Cilium (must be first — nothing networks without it).
-#   3. Create the legacy `hetzner` Secret on the workload cluster and
-#      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
-#   4. Install hcloud-cloud-controller-manager (sets providerID,
+#   3. Create provider cloud secrets on the workload cluster.
+#   4. Install the provider cloud-controller-manager (sets providerID,
 #      enables LoadBalancer Services).
-#   5. Install hcloud-csi-driver (for parity; no PVCs use it today).
+#   5. Install the provider CSI driver.
 #   6. Wait for nodes to go Ready (CNI- and CCM-dependent).
 #   7. Install the platform chart (cert-manager, ESO, external-dns,
 #      metrics-server, and ingress-nginx only for app-serving clusters).
@@ -37,7 +36,7 @@ set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
-  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-kura-us-east" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-kura-us-east, tuist-kura-au-southeast" >&2
   echo "  env:              staging | canary | production | preview" >&2
   echo "  kubeconfig_item:  optional 1Password document title, e.g. 'kubeconfig: kura-us-east-1'" >&2
   exit 64
@@ -90,6 +89,17 @@ upload_workload_kubeconfig() {
     --account tuist.1password.com --vault "$kubeconfig_vault"
 }
 
+read_vultr_api_key() {
+  if [ -n "${VULTR_API_KEY:-}" ]; then
+    printf '%s' "$VULTR_API_KEY"
+    return
+  fi
+
+  op item get vultr-tuist-workloads \
+    --account tuist.1password.com --vault Founders \
+    --fields password --reveal
+}
+
 # ---------------------------------------------------------------------------
 log "Step 1/13: extract workload kubeconfig + API endpoint from mgmt"
 
@@ -115,15 +125,52 @@ API_HOST=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$C
   -o jsonpath='{.spec.controlPlaneEndpoint.host}')
 API_PORT=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
   -o jsonpath='{.spec.controlPlaneEndpoint.port}')
-REGION=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
-  -o jsonpath='{.spec.topology.variables[?(@.name=="region")].value}' | tr -d '"')
-REGION="${REGION:-fsn1}"
+INFRA_KIND=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+  -o jsonpath='{.spec.infrastructureRef.kind}' 2>/dev/null || true)
+INFRA_NAME=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+  -o jsonpath='{.spec.infrastructureRef.name}' 2>/dev/null || true)
+TOPOLOGY_CLASS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+  -o jsonpath='{.spec.topology.classRef.name}' 2>/dev/null || true)
+
+PROVIDER="hetzner"
+PROVIDER_MACHINE_RESOURCE="hcloudmachines.infrastructure.cluster.x-k8s.io"
+if [ "$INFRA_KIND" = "VultrCluster" ]; then
+  PROVIDER="vultr"
+  PROVIDER_MACHINE_RESOURCE="vultrmachines.infrastructure.cluster.x-k8s.io"
+elif [ "$INFRA_KIND" = "HetznerCluster" ] || [ "$TOPOLOGY_CLASS" = "tuist-hcloud" ]; then
+  PROVIDER="hetzner"
+else
+  err "Unsupported CAPI infrastructure kind '$INFRA_KIND' for cluster $CLUSTER_NAME"
+  exit 1
+fi
+
+if [ "$PROVIDER" = "vultr" ]; then
+  INFRA_NAME="${INFRA_NAME:-$CLUSTER_NAME}"
+  REGION=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get vultrclusters.infrastructure.cluster.x-k8s.io "$INFRA_NAME" \
+    -o jsonpath='{.spec.region}')
+  if [ -z "$REGION" ]; then
+    err "VultrCluster $NAMESPACE/$INFRA_NAME has no spec.region"
+    exit 1
+  fi
+else
+  REGION=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+    -o jsonpath='{.spec.topology.variables[?(@.name=="region")].value}' | tr -d '"')
+  REGION="${REGION:-fsn1}"
+fi
 
 CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
   -o jsonpath='{.status.controlPlane.desiredReplicas}')
 if [ -z "$CONTROL_PLANE_REPLICAS" ]; then
   CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
     -o jsonpath='{.spec.topology.controlPlane.replicas}')
+fi
+if [ -z "$CONTROL_PLANE_REPLICAS" ]; then
+  CONTROL_PLANE_NAME=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get cluster "$CLUSTER_NAME" \
+    -o jsonpath='{.spec.controlPlaneRef.name}' 2>/dev/null || true)
+  if [ -n "$CONTROL_PLANE_NAME" ]; then
+    CONTROL_PLANE_REPLICAS=$(KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get kubeadmcontrolplanes.controlplane.cluster.x-k8s.io "$CONTROL_PLANE_NAME" \
+      -o jsonpath='{.spec.replicas}' 2>/dev/null || true)
+  fi
 fi
 CONTROL_PLANE_REPLICAS="${CONTROL_PLANE_REPLICAS:-1}"
 
@@ -138,6 +185,7 @@ WORKER_REPLICAS="${WORKER_REPLICAS:-0}"
 EXPECTED_MACHINE_COUNT=$((CONTROL_PLANE_REPLICAS + WORKER_REPLICAS))
 
 echo "API endpoint: ${API_HOST}:${API_PORT}"
+echo "Provider:     $PROVIDER"
 echo "Region:       $REGION"
 echo "Machines:     $EXPECTED_MACHINE_COUNT (${CONTROL_PLANE_REPLICAS} control plane, ${WORKER_REPLICAS} workers)"
 
@@ -156,64 +204,88 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
   --set "k8sServicePort=${API_PORT}"
 # Don't --wait here: hubble-relay (a Deployment) can't schedule
 # until at least one non-CP node is Ready, and that doesn't happen
-# until HCCM is installed below. The cilium-agent DaemonSet installs
+# until the cloud-controller-manager is installed below. The cilium-agent DaemonSet installs
 # on each node as the node registers, no wait needed; later steps
 # only depend on the agent, not hubble-relay.
 
 # ---------------------------------------------------------------------------
-log "Step 3/13: create workload Hetzner Secrets"
+log "Step 3/13: create workload cloud provider Secrets"
 
-HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
+if [ "$PROVIDER" = "hetzner" ]; then
+  HCLOUD_TOKEN=$(op read --account tuist.1password.com "op://Founders/tuist-workloads/password")
 
-# Older bootstrap wiring created kube-system/hetzner directly. Keep it
-# idempotently present for compatibility, but HCCM and hcloud-csi consume
-# kube-system/hcloud, which caph writes after the first control-plane node
-# comes up.
-KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic hetzner \
-  --from-literal=hcloud="$HCLOUD_TOKEN" \
-  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-unset HCLOUD_TOKEN
+  # Older bootstrap wiring created kube-system/hetzner directly. Keep it
+  # idempotently present for compatibility, but HCCM and hcloud-csi consume
+  # kube-system/hcloud, which caph writes after the first control-plane node
+  # comes up.
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic hetzner \
+    --from-literal=hcloud="$HCLOUD_TOKEN" \
+    --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+  unset HCLOUD_TOKEN
 
-echo -n "Waiting for caph-provisioned kube-system/hcloud Secret"
-HCLOUD_SECRET_TOKEN=""
-for _ in $(seq 1 60); do
-  HCLOUD_SECRET_TOKEN=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system get secret hcloud \
-    -o jsonpath='{.data.token}' 2>/dev/null || true)
-  if [ -n "$HCLOUD_SECRET_TOKEN" ]; then
-    break
+  echo -n "Waiting for caph-provisioned kube-system/hcloud Secret"
+  HCLOUD_SECRET_TOKEN=""
+  for _ in $(seq 1 60); do
+    HCLOUD_SECRET_TOKEN=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system get secret hcloud \
+      -o jsonpath='{.data.token}' 2>/dev/null || true)
+    if [ -n "$HCLOUD_SECRET_TOKEN" ]; then
+      break
+    fi
+    printf '.'
+    sleep 5
+  done
+  echo
+
+  if [ -z "$HCLOUD_SECRET_TOKEN" ]; then
+    err "kube-system/hcloud Secret did not appear after 5 minutes. HCCM and hcloud-csi need it."
+    err "Check caph reconciliation on the management cluster:"
+    err "  KUBECONFIG=$MGMT_KUBECONFIG kubectl -n $NAMESPACE describe cluster $CLUSTER_NAME"
+    exit 1
   fi
-  printf '.'
-  sleep 5
-done
-echo
-
-if [ -z "$HCLOUD_SECRET_TOKEN" ]; then
-  err "kube-system/hcloud Secret did not appear after 5 minutes. HCCM and hcloud-csi need it."
-  err "Check caph reconciliation on the management cluster:"
-  err "  KUBECONFIG=$MGMT_KUBECONFIG kubectl -n $NAMESPACE describe cluster $CLUSTER_NAME"
-  exit 1
+  unset HCLOUD_SECRET_TOKEN
+else
+  VULTR_TOKEN=$(read_vultr_api_key)
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic vultr-ccm \
+    --from-literal=api-key="$VULTR_TOKEN" \
+    --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system create secret generic vultr-csi \
+    --from-literal=api-key="$VULTR_TOKEN" \
+    --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+  unset VULTR_TOKEN
 fi
-unset HCLOUD_SECRET_TOKEN
 
 # ---------------------------------------------------------------------------
-log "Step 4/13: install hcloud-cloud-controller-manager"
+log "Step 4/13: install cloud-controller-manager"
 
-helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
-helm repo update hcloud >/dev/null
+if [ "$PROVIDER" = "hetzner" ]; then
+  helm repo add hcloud https://charts.hetzner.cloud >/dev/null 2>&1 || true
+  helm repo update hcloud >/dev/null
 
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
-  --namespace kube-system \
-  -f "$BOOTSTRAP_DIR/hccm-values.yaml" \
-  --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${REGION}" \
-  --wait --timeout 3m
+  KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hccm hcloud/hcloud-cloud-controller-manager \
+    --namespace kube-system \
+    -f "$BOOTSTRAP_DIR/hccm-values.yaml" \
+    --set "env.HCLOUD_LOAD_BALANCERS_LOCATION.value=${REGION}" \
+    --wait --timeout 3m
+else
+  KUBECONFIG="$WL_KUBECONFIG" kubectl apply \
+    -f https://raw.githubusercontent.com/vultr/vultr-cloud-controller-manager/master/docs/releases/latest.yml
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system rollout status daemonset/vultr-ccm --timeout=3m
+fi
 
 # ---------------------------------------------------------------------------
-log "Step 5/13: install hcloud-csi-driver"
+log "Step 5/13: install CSI driver"
 
-KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
-  --namespace kube-system \
-  -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
-  --wait --timeout 3m
+if [ "$PROVIDER" = "hetzner" ]; then
+  KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install hcloud-csi hcloud/hcloud-csi \
+    --namespace kube-system \
+    -f "$BOOTSTRAP_DIR/hcloud-csi-values.yaml" \
+    --wait --timeout 3m
+else
+  KUBECONFIG="$WL_KUBECONFIG" kubectl apply \
+    -f https://raw.githubusercontent.com/vultr/vultr-csi/refs/heads/master/docs/releases/latest.yml
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system rollout status statefulset/csi-vultr-controller --timeout=3m
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system rollout status daemonset/csi-vultr-node --timeout=3m
+fi
 
 # ---------------------------------------------------------------------------
 log "Step 6/13: wait for CAPI machines and workload nodes to go Ready"
@@ -241,7 +313,7 @@ fi
 if ! KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" wait --for=condition=Ready \
   machines.cluster.x-k8s.io -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" --timeout=20m; then
   err "Not all CAPI Machines for $CLUSTER_NAME became Ready."
-  KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get machines.cluster.x-k8s.io,hcloudmachines.infrastructure.cluster.x-k8s.io \
+  KUBECONFIG="$MGMT_KUBECONFIG" kubectl -n "$NAMESPACE" get "machines.cluster.x-k8s.io,$PROVIDER_MACHINE_RESOURCE" \
     -l "cluster.x-k8s.io/cluster-name=$CLUSTER_NAME" -o wide >&2 || true
   exit 1
 fi
@@ -254,7 +326,7 @@ log "Step 7/13: install shared platform chart"
 # `mise -C "$REPO_ROOT/infra"` so the nested task resolves regardless
 # of where the caller ran bootstrap-workload from; k8s:* tasks live in
 # infra/mise.toml scope, not the repo root.
-mise -C "$REPO_ROOT/infra" run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME"
+mise -C "$REPO_ROOT/infra" run k8s:install-platform "$WL_KUBECONFIG" "$CLUSTER_NAME" "$PROVIDER"
 
 # ---------------------------------------------------------------------------
 log "Step 8/13: install Cluster API core (Mac mini fleet substrate)"
@@ -455,7 +527,7 @@ rm -f "$CERT_TMP" "$KEY_TMP"
 # ---------------------------------------------------------------------------
 log "Step 13/13: smoke ingress + upload workload kubeconfig to 1Password"
 
-# Wait for HCCM to provision the LB and write the IP back.
+# Wait for the provider cloud-controller-manager to provision the LB and write the IP back.
 echo -n "Waiting for ingress-nginx LB IP"
 for i in $(seq 1 60); do
   LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get svc -l app.kubernetes.io/name=ingress-nginx \
@@ -469,14 +541,18 @@ done
 echo
 
 if [ -z "${LB_IP:-}" ]; then
-  err "ingress-nginx Service has no LoadBalancer IP after 5 minutes. Check HCCM logs:"
-  err "  KUBECONFIG=$WL_KUBECONFIG kubectl -n kube-system logs -l app.kubernetes.io/name=hcloud-cloud-controller-manager"
+  err "ingress-nginx Service has no LoadBalancer IP after 5 minutes. Check cloud-controller-manager logs:"
+  if [ "$PROVIDER" = "hetzner" ]; then
+    err "  KUBECONFIG=$WL_KUBECONFIG kubectl -n kube-system logs -l app.kubernetes.io/name=hcloud-cloud-controller-manager"
+  else
+    err "  KUBECONFIG=$WL_KUBECONFIG kubectl -n kube-system logs daemonset/vultr-ccm"
+  fi
   exit 1
 fi
 
 # Smoke: the ingress LB actually serves HTTP. Any non-zero status (including
 # 404 from ingress-nginx's default backend) proves the full path
-# Hetzner-LB -> Service -> ingress-nginx pod is wired. Connection failures
+# cloud LoadBalancer -> Service -> ingress-nginx pod is wired. Connection failures
 # here mean the cluster is structurally incomplete despite earlier helm
 # successes, and uploading the kubeconfig to 1P would hand CI a target
 # that can't actually serve traffic.

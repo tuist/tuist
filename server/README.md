@@ -97,7 +97,7 @@ curl "http://localhost:${port}/up"
 
 ### Managed Kura Regions
 
-Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account. The catalog also includes Vultr-backed `au-southeast` and `br-south` entries; only add them to `TUIST_KURA_AVAILABLE_REGIONS` after their regional kubeconfigs are synced to the production server and the regional controller is deployed with `kuraController.loadBalancer.provider=vultr`.
+Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-central,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account. The catalog also includes Vultr-backed `au-southeast` and `br-south` entries; only add them to `TUIST_KURA_AVAILABLE_REGIONS` after CAPVULTR has reconciled their regional clusters, their kubeconfigs are synced to the production server, and the regional controller is deployed with `kuraController.loadBalancer.provider=vultr`.
 
 Managed deploys use the latest `kura@...` GitHub release as the visible Kura version. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.5.2` maps to `ghcr.io/tuist/kura:0.5.2`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
 
@@ -118,4 +118,4 @@ mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-
 mise run k8s:bootstrap-workload tuist-kura-us-west production "kubeconfig: kura-us-west-1"
 ```
 
-For Vultr regional clusters, create the VKE cluster in the target Vultr region, ensure the VKE CSI storage classes include `vultr-block-storage`, upload a scoped kubeconfig using the same `kubeconfig: kura-<cluster-id>` convention, and deploy the regional controller with provider `vultr`. `au-southeast` maps to Sydney (`syd`). `br-south` maps to Sao Paulo (`sao`); confirm Vultr LoadBalancer availability in that region before exposing it to customers.
+For Vultr regional clusters, install CAPVULTR on the management cluster, reconcile Vultr instances into the target workload cluster, run workload bootstrap so Vultr CCM/CSI creates the `vultr-block-storage` class, upload a scoped kubeconfig using the same `kubeconfig: kura-<cluster-id>` convention, and deploy the regional controller with provider `vultr`. `au-southeast` maps to Sydney (`syd`). `br-south` maps to Sao Paulo (`sao`); confirm Vultr LoadBalancer availability in that region before exposing it to customers.

@@ -1,8 +1,8 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview, or a production Kura regional cluster) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server or Kura controller to it.
+Stand up a new Tuist workload cluster (staging / canary / production / preview, or a production Kura regional cluster) via our self-hosted CAPI management cluster, and deploy the Tuist server or Kura controller to it.
 
-We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
+We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up Hetzner workload nodes in the workload Hetzner project, and CAPVULTR spins up Vultr workload nodes for Vultr-backed Kura regions. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass for Hetzner) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
 This doc is the runbook for onboarding **a new workload cluster** end-to-end. The mgmt cluster itself is bootstrapped by the migration PR's runbook; re-bootstrapping it is documented inline in [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml).
 
@@ -13,6 +13,7 @@ This doc is the runbook for onboarding **a new workload cluster** end-to-end. Th
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
+- For Vultr-backed Kura regions: a Vultr API token in 1Password as `vultr-tuist-workloads` in the `Founders` vault, plus a Cluster API-compatible Vultr snapshot ID committed in [`clusters/vultr/images.yaml`](clusters/vultr/images.yaml). Use [`../vultr-capi-image`](../vultr-capi-image/) to build the snapshot.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault; production Kura regional deploys also need the same item in `tuist-k8s-production` so CI and the Kura controller can read it.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
 - Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
@@ -37,7 +38,7 @@ The `org-tuist` namespace is where every Cluster CR + the `hetzner` Secret live.
 
 ## 2. Author the Cluster CR
 
-Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
+Hetzner workload clusters are `Cluster` CRs in topology mode referencing the `tuist-hcloud` ClusterClass. Existing per-env files:
 
 - [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
 - [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
@@ -46,7 +47,9 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/cluster-production-us-west.yaml`](clusters/cluster-production-us-west.yaml)
 - [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
 
-For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+For a new Hetzner cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
+
+Vultr Kura regional clusters use CAPVULTR rather than VKE. The regional templates live under [`clusters/vultr/`](clusters/vultr/) because CAPVULTR v0.4.0 currently publishes flat v1beta1 infrastructure templates instead of a ClusterClass. The management workflow installs CAPVULTR, renders those templates with the snapshot and plans from [`clusters/vultr/images.yaml`](clusters/vultr/images.yaml), and applies them on push to `main`.
 
 ## 3. Apply the Cluster CR
 
@@ -74,7 +77,7 @@ On success the script uploads the freshly-minted workload kubeconfig to the per-
 
 CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
 
-Skip this section for production Kura regional clusters. The production server deploy workflow currently syncs the enabled regional kubeconfigs listed in the workflow into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly. When enabling a new Vultr VKE region, add its `TUIST_KURA_KUBECONFIG_<CLUSTER_ID>` key to that sync step and use the same `kubeconfig: kura-<cluster-id>` 1Password document convention. Vultr clusters are provisioned in Vultr rather than through the Hetzner CAPI manifests in this directory.
+Skip this section for production Kura regional clusters. The production server deploy workflow currently syncs the enabled regional kubeconfigs listed in the workflow into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly. When enabling a new Vultr CAPI region, add its `TUIST_KURA_KUBECONFIG_<CLUSTER_ID>` key to that sync step and use the same `kubeconfig: kura-<cluster-id>` 1Password document convention. Vultr clusters are reconciled by CAPVULTR on the management cluster, not created manually as VKE clusters.
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml

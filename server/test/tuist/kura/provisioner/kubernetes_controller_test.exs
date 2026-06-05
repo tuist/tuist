@@ -186,7 +186,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
 
-    test "renders Vultr VKE storage and scheduling overrides" do
+    test "renders Vultr storage and scheduling overrides" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->

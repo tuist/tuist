@@ -1,0 +1,142 @@
+# Production Kura workload Cluster for the managed br-south region.
+# Maps product cluster_id br-south-1 to Vultr Sao Paulo (sao).
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: tuist-kura-br-south
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 172.25.0.0/16
+    services:
+      cidrBlocks:
+        - 172.26.0.0/16
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: VultrCluster
+    name: tuist-kura-br-south
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: tuist-kura-br-south-control-plane
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: VultrCluster
+metadata:
+  name: tuist-kura-br-south
+  namespace: org-tuist
+spec:
+  region: sao
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: tuist-kura-br-south-control-plane
+  namespace: org-tuist
+spec:
+  replicas: 3
+  version: v1.34.6
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: VultrMachineTemplate
+      name: tuist-kura-br-south-control-plane
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        criSocket: unix:///var/run/containerd/containerd.sock
+        kubeletExtraArgs:
+          cgroup-driver: systemd
+          cloud-provider: external
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+          provider-id: vultr://'{{ ds.meta_data["instance_id"] }}'
+    clusterConfiguration:
+      controllerManager:
+        extraArgs:
+          enable-hostpath-provisioner: "true"
+    joinConfiguration:
+      nodeRegistration:
+        criSocket: unix:///var/run/containerd/containerd.sock
+        kubeletExtraArgs:
+          cgroup-driver: systemd
+          cloud-provider: external
+          eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+          provider-id: vultr://'{{ ds.meta_data["instance_id"] }}'
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: VultrMachineTemplate
+metadata:
+  name: tuist-kura-br-south-control-plane
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      region: sao
+      planID: "${VULTR_CONTROL_PLANE_PLAN_ID}"
+      snapshot_id: "${VULTR_CAPI_SNAPSHOT_ID}"
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: tuist-kura-br-south-kura
+  namespace: org-tuist
+  annotations:
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"
+    cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+    cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "12"
+spec:
+  clusterName: tuist-kura-br-south
+  replicas: 3
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: tuist-kura-br-south
+      node.cluster.x-k8s.io/pool: kura
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: tuist-kura-br-south
+        node.cluster.x-k8s.io/pool: kura
+    spec:
+      clusterName: tuist-kura-br-south
+      version: v1.34.6
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: tuist-kura-br-south-kura
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: VultrMachineTemplate
+        name: tuist-kura-br-south-kura
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: VultrMachineTemplate
+metadata:
+  name: tuist-kura-br-south-kura
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      region: sao
+      planID: "${VULTR_WORKER_PLAN_ID}"
+      snapshot_id: "${VULTR_CAPI_SNAPSHOT_ID}"
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-kura-br-south-kura
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          criSocket: unix:///var/run/containerd/containerd.sock
+          kubeletExtraArgs:
+            cgroup-driver: systemd
+            cloud-provider: external
+            eviction-hard: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            provider-id: vultr://'{{ ds.meta_data["instance_id"] }}'

@@ -2,7 +2,8 @@
 
 Self-hosted Kubernetes manifests for the Tuist workload clusters
 (staging / canary / production / preview, plus production Kura regional
-clusters), reconciled by our own management cluster running CAPI + caph.
+clusters), reconciled by our own management cluster running CAPI plus
+provider-specific infrastructure controllers.
 
 ## Why a ClusterClass
 
@@ -25,7 +26,11 @@ clusters/
 ├── cluster-production.yaml
 ├── cluster-production-us-east.yaml
 ├── cluster-production-us-west.yaml
-└── cluster-preview.yaml
+├── cluster-preview.yaml
+└── vultr/
+    ├── images.yaml
+    ├── cluster-production-au-southeast.yaml.tmpl
+    └── cluster-production-br-south.yaml.tmpl
 ```
 
 ## Target shape per cluster
@@ -37,6 +42,8 @@ clusters/
 | `tuist` (production) | 3× cpx22 | md-0: 2× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
 | `tuist-kura-us-east` (production Kura `us-east-1`) | 3× ccx13 in `ash` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→32) |
 | `tuist-kura-us-west` (production Kura `us-west-1`) | 3× ccx13 in `hil` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
+| `tuist-kura-au-southeast` (production Kura `au-southeast-1`) | 3× vc2-4c-8gb in `syd` | kura: 3× vc2-4c-8gb (`pool=kura`, autoscaled 3→12) |
+| `tuist-kura-br-south` (production Kura `br-south-1`) | 3× vc2-4c-8gb in `sao` | kura: 3× vc2-4c-8gb (`pool=kura`, autoscaled 3→12) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 
 Variables exposed by the ClusterClass: control plane replicas + machine
@@ -50,14 +57,22 @@ Managed Kura region mapping is:
 | `eu-central` | `eu-central-1` | `tuist` | Hetzner `fsn1` |
 | `us-east` | `us-east-1` | `tuist-kura-us-east` | Hetzner `ash` |
 | `us-west` | `us-west-1` | `tuist-kura-us-west` | Hetzner `hil` |
-| `au-southeast` | `au-southeast-1` | external VKE cluster | Vultr `syd` |
-| `br-south` | `br-south-1` | external VKE cluster | Vultr `sao` |
+| `au-southeast` | `au-southeast-1` | CAPVULTR-managed workload cluster | Vultr `syd` |
+| `br-south` | `br-south-1` | CAPVULTR-managed workload cluster | Vultr `sao` |
 
-The Hetzner rows above are declared as CAPI `Cluster` CRs in this
-directory. The Vultr rows are intentionally not represented here because
-VKE owns the Kubernetes control plane and node pools. For those regions,
-upload a scoped kubeconfig to 1Password under `kubeconfig: kura-<cluster-id>`
-and deploy the Kura controller with `kuraController.loadBalancer.provider=vultr`.
+The Hetzner rows above are declared as topology-mode CAPI `Cluster` CRs
+through the `tuist-hcloud` ClusterClass. The Vultr rows use the same
+operating model through `vultr/cluster-api-provider-vultr` (CAPVULTR),
+but CAPVULTR currently publishes flat v1beta1 templates rather than a
+ClusterClass. The management workflow installs CAPVULTR v0.4.0, renders
+the `vultr/*.yaml.tmpl` files with the Vultr CAPI snapshot and plan IDs
+from `vultr/images.yaml`, and applies the resulting workload clusters.
+
+The required 1Password item is `vultr-tuist-workloads` in the
+`Founders` vault. Its `password` field stores the Vultr API token.
+The Vultr snapshot ID is not secret; commit it to
+`vultr/images.yaml` after building it with `infra/vultr-capi-image`.
+The same file pins the default control-plane and worker plans.
 
 ## Image strategy
 
@@ -66,6 +81,13 @@ Hetzner-published Ubuntu images plus cloud-init that installs containerd
 about; no Packer pipeline. Acceptable for the autoscaler's `md-processor`
 2→6 cadence; if scaling latency becomes painful we can introduce a
 pre-baked image without changing the ClusterClass shape.
+
+Vultr uses a pre-baked Cluster API node snapshot because CAPVULTR creates
+plain Vultr instances and passes kubeadm bootstrap data as user data. The
+snapshot is built by `infra/vultr-capi-image/build.sh` using upstream
+Kubernetes image-builder. The selected snapshot ID is committed in
+`vultr/images.yaml`, mirroring the macOS runner image model where
+credentials live in 1Password and artifact references live in Git.
 
 ## Adapting from caph upstream
 
