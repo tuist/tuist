@@ -7,7 +7,7 @@
 # `bazel build //bazel/oci:load` produces a docker-loadable tarball (`docker load -i`).
 #
 # This is SHADOW only: it does not push to any registry and changes nothing in the
-# production release path. geoip layer and oci_push/release wiring are later Phase 3 steps.
+# production release path. oci_push/release wiring is a later Phase 3 step.
 
 load("@rules_distroless//distroless:defs.bzl", "cacerts")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load")
@@ -31,6 +31,23 @@ pkg_tar(
     package_dir = "/usr/local/bin",
 )
 
+# GeoIP seed: decompress the digest-pinned DB-IP Lite dump (@dbip_city_lite, see
+# MODULE.bazel) and place it at /opt/geoip/dbip-city-lite.mmdb — the path GeoIp::open
+# reads. Arch-independent data, so the one layer is shared by both arches in the index.
+genrule(
+    name = "dbip_mmdb",
+    srcs = ["@dbip_city_lite//file"],
+    outs = ["dbip-city-lite.mmdb"],
+    cmd = "gzip -dc $< > $@",
+)
+
+pkg_tar(
+    name = "geoip_layer",
+    srcs = [":dbip_mmdb"],
+    mode = "0644",
+    package_dir = "/opt/geoip",
+)
+
 # Runtime image matching the production Dockerfile: debian:bookworm-slim base + the
 # extra-packages layer (tini/curl/libstdc++6/ca-certificates) + the binary, with tini as
 # the init entrypoint. @bookworm_apt//:flat is a per-arch tar selected by the build
@@ -48,6 +65,7 @@ oci_image(
     tars = [
         "@bookworm_apt//:flat",
         ":cacerts",
+        ":geoip_layer",
         ":kura_layer",
     ],
     visibility = ["//visibility:public"],

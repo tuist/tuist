@@ -128,3 +128,21 @@ apt.install(
     mergedusr = True,
 )
 use_repo(apt, "bookworm_apt")
+
+# GeoIP seed database — DB-IP IP-to-City Lite (https://db-ip.com), CC BY 4.0. The
+# production Dockerfile downloads the time-dependent monthly dump (dbip-city-lite-YYYY-MM);
+# here it is a reproducible, digest-pinned http_file decompressed into an image layer by
+# //bazel/oci (placed at /opt/geoip/dbip-city-lite.mmdb, the path GeoIp::open reads).
+# This is only the startup seed: Kura's background refresher
+# (KURA_GEOIP_REFRESH_INTERVAL_SECS, daily by default) keeps the running database current,
+# and GeoIp::open degrades gracefully when the file is absent. DB-IP keeps only recent
+# months online, so bump the URL + sha256 periodically (re-pin: curl the new dump and
+# `sha256sum`).
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "dbip_city_lite",
+    downloaded_file_path = "dbip-city-lite.mmdb.gz",
+    sha256 = "6785ef1db6cb0d0979bcf437a06bea8f1a4729e050845e530604bdac58781ccb",
+    urls = ["https://download.db-ip.com/free/dbip-city-lite-2026-06.mmdb.gz"],
+)

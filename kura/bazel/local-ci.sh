@@ -31,11 +31,21 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   docker build -f "$REPO_ROOT/bazel/linux-dev.Dockerfile" -t "$IMAGE" "$REPO_ROOT"
 fi
 
+# Run a command in the dev container with the persistent cache volume mounted, and —
+# like CI does via /root/.bazelrc — point Bazel at a content-addressed --disk_cache (and
+# --repository_cache) living inside that volume. The disk_cache survives the things that
+# discard Bazel's output-base/analysis cache (a --platforms flip between the two arches, a
+# MODULE.bazel edit), so the native -sys crates (rocksdb/jemalloc/aws-lc/lua) and the geoip
+# fetch are reused across runs instead of recompiled/refetched. The repo-relative .bazelrc
+# still applies; this only adds the cache flags.
 in_container() {
   docker run --rm \
     -v "$REPO_ROOT:/workspace/kura" \
     -v "$CACHE:/root/.cache/bazel" \
-    "$IMAGE" "$@"
+    "$IMAGE" bash -c '
+      mkdir -p /root/.cache/bazel/disk /root/.cache/bazel/repo
+      printf "common --disk_cache=/root/.cache/bazel/disk\ncommon --repository_cache=/root/.cache/bazel/repo\n" > /root/.bazelrc
+      exec "$@"' _ "$@"
 }
 
 echo "==> [1/4] binaries + bazel test (ci-validate.sh)"

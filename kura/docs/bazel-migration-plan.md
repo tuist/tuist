@@ -361,9 +361,16 @@ to any registry. Production is untouched until the final flip.
   and assembles a manifest list. `bazel build //bazel/oci:index -c opt` on a single arm64
   host produced an `oci.image.index` referencing **both linux/amd64 and linux/arm64**
   (x86_64 via the cross toolchain, arm64 native) — the QEMU-free multi-arch build.
-- **3.3 — geoip layer (todo).** The current Dockerfile downloads a time-dependent DB-IP
-  dump; make it a pinned `http_file` (by digest) added as an image layer, or a deliberate
-  non-Bazel step — `GeoIp::open()` is optional, so the image runs without it meanwhile.
+- **3.3 — geoip layer. ✅ Done.** The production Dockerfile downloads a time-dependent
+  DB-IP City Lite dump (`dbip-city-lite-YYYY-MM`); replaced with a digest-pinned `http_file`
+  (`@dbip_city_lite`, MODULE.bazel) decompressed by a genrule (`gzip -dc`) and placed at
+  `/opt/geoip/dbip-city-lite.mmdb` via `pkg_tar` (`:geoip_layer`), added to the image tars.
+  Arch-independent, so one layer is shared across the multi-arch index. Verified locally:
+  the `.mmdb` lands at the right path, mode 0644, 130,444,077 bytes — an exact match for the
+  host-gunzipped dump. This is only the startup seed: Kura's background refresher
+  (`KURA_GEOIP_REFRESH_INTERVAL_SECS`, daily) keeps the running DB current, and `GeoIp::open`
+  degrades gracefully when absent. DB-IP keeps only recent months online, so the pin needs
+  periodic bumping (re-pin: curl the new dump + `sha256sum`).
 - **3.4 — base-content parity. ✅ Done.** Decision: **match production** (not distroless).
   Base switched to the same `debian:bookworm-slim` (pinned by digest) and the extra
   runtime packages the prod Dockerfile installs — `tini`, `curl`, `libstdc++6`,
