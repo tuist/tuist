@@ -345,17 +345,6 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
-- `--registry-mirror=https://mirror.gcr.io` passed to dockerd so
-  Docker Hub pulls route through Google's public pull-through
-  cache. Every microVM on a bare-metal host NATs through that
-  host's single egress IP, so the whole host shares one Docker
-  Hub per-IP pull budget (100/6h anon) and CI jobs trip
-  `toomanyrequests`. GCR absorbs cache misses on its own backend,
-  so the runner's IP never hits Hub for `docker.io` images;
-  dockerd only contacts Hub directly if the mirror is unreachable.
-  Mirror semantics only cover `docker.io`; gcr.io/ghcr.io/quay.io
-  pulls are unaffected. Stopgap ahead of a self-hosted
-  pull-through cache backed by our own object storage.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 
