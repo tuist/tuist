@@ -1,0 +1,126 @@
+{{- if .Values.registryCache.enabled }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+# Docker Hub pull-through cache (CNCF distribution `registry:2` in proxy
+# mode). The runner fleet's dind sidecars point `--registry-mirror` here
+# instead of pulling docker.io directly: every microVM on a bare-metal
+# host shares one egress IP and one anonymous Docker Hub per-IP budget,
+# so direct pulls trip "toomanyrequests". The cache fetches each digest
+# from Docker Hub once, stores it in S3, and serves every later pull from
+# there — turning N anonymous runners into one cache client.
+#
+# Runs on the elastic md-0 pool, NOT the bare-metal runner fleet: it
+# carries no toleration for `tuist.dev/runner-tier=bare-metal:NoSchedule`,
+# so the scheduler keeps it off the rate-limited hosts. That also means
+# its own image is pulled from a different egress IP — and from a non-Hub
+# registry (see registryCache.image) — so the cache can't deadlock on
+# bootstrapping itself.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-cache
+spec:
+  replicas: {{ .Values.registryCache.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry-cache") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "registry-cache") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
+      containers:
+        - name: registry-cache
+          image: "{{ .Values.registryCache.image.repository }}:{{ .Values.registryCache.image.tag }}"
+          imagePullPolicy: {{ .Values.registryCache.image.pullPolicy }}
+          ports:
+            - name: registry
+              containerPort: 5000
+          env:
+            - name: REGISTRY_HTTP_ADDR
+              value: ":5000"
+            - name: REGISTRY_LOG_LEVEL
+              value: {{ .Values.registryCache.logLevel | quote }}
+            - name: REGISTRY_PROXY_REMOTEURL
+              value: {{ .Values.registryCache.proxy.remoteUrl | quote }}
+            {{- with .Values.registryCache.proxy.ttl }}
+            - name: REGISTRY_PROXY_TTL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.registryCache.proxy.auth.enabled }}
+            # Authenticated upstream: the cache becomes a single
+            # authenticated Docker Hub client, lifting the anonymous
+            # per-IP ceiling that otherwise bounds the cold-cache fill.
+            - name: REGISTRY_PROXY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+                  key: username
+            - name: REGISTRY_PROXY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+                  key: password
+            {{- end }}
+            {{- with .Values.registryCache.httpSecret }}
+            # Shared across replicas behind the Service so signed state
+            # validates regardless of which replica serves a request.
+            - name: REGISTRY_HTTP_SECRET
+              value: {{ . | quote }}
+            {{- end }}
+            - name: REGISTRY_STORAGE
+              value: s3
+            - name: REGISTRY_STORAGE_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: REGISTRY_STORAGE_S3_REGIONENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
+              value: "true"
+            # Embedded MinIO is plain http (:9000); external object stores
+            # (Tigris) are https. Drive TLS off the storage mode so the S3
+            # driver doesn't try to speak TLS to an http endpoint.
+            - name: REGISTRY_STORAGE_S3_SECURE
+              value: {{ ternary "false" "true" (eq .Values.objectStorage.mode "embedded") | quote }}
+            - name: REGISTRY_STORAGE_S3_BUCKET
+              value: {{ .Values.registryCache.s3.bucket | quote }}
+            - name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
+              value: {{ .Values.registryCache.s3.rootDirectory | quote }}
+            {{- if $objectStorageAccessKey }}
+            - name: REGISTRY_STORAGE_S3_ACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            {{- end }}
+            {{- if $objectStorageSecretKey }}
+            - name: REGISTRY_STORAGE_S3_SECRETKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- with .Values.registryCache.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.registryCache.resources | nindent 12 }}
+{{- end }}
