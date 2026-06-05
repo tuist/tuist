@@ -45,4 +45,13 @@ echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
 if [ -x /usr/local/bin/vitals.sh ]; then
   /usr/local/bin/vitals.sh &
 fi
+# Tail the actions/runner _diag/*.log files to stdout so the runner's
+# own diagnostic output (Listener handshake, Worker job, retry/HTTP
+# errors against the GitHub Actions service) lands in Loki. Without
+# this, an exit-0 disconnect — runner agent decides it's done while
+# GitHub stops seeing the heartbeat — leaves no record of why it
+# stopped responding. See diag-tail.sh for the empirical justification.
+if [ -x /usr/local/bin/diag-tail.sh ]; then
+  /usr/local/bin/diag-tail.sh &
+fi
 exec ./run.sh --jitconfig "${jit}" --disableupdate

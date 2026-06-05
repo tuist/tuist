@@ -200,7 +200,8 @@ USER root
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh
+COPY diag-tail.sh /usr/local/bin/diag-tail.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/diag-tail.sh
 
 USER runner
 
