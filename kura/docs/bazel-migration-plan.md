@@ -394,6 +394,14 @@ graph. Kura itself speaks the Bazel Remote Execution API (`bazel-remote-apis`
 dependency), so a Kura-backed remote cache is dogfooding. On the persistent
 `tuist-linux` runner even a local disk cache stays warm across runs.
 
+- **4a — GitHub Actions disk/repo cache. ✅ Done (shadow CI).** Each shadow-CI job mounts
+  a host dir into the dev container and points Bazel at it via a CI-only `~/.bazelrc`
+  (`common --disk_cache` + `common --repository_cache`), persisted with `actions/cache`
+  keyed on the lockfiles. The native `-sys` crates (rocksdb/jemalloc/aws-lc/lua) compile
+  once per lockfile-state instead of every run, cutting cold ~70 min runs to ~10 min on
+  cache hits. `actions/cache` saves even on failure, so a red run still warms the next.
+  A true shared remote cache (Kura-backed) is the later, cross-runner step.
+
 ## Open questions / risks
 
 - **rocksdb under Bazel** is the gating risk (Phase 0).

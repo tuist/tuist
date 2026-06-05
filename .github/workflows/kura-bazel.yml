@@ -55,9 +55,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Persist Bazel's disk + repository cache across runs so the native -sys crates
+      # (rocksdb/jemalloc/aws-lc/lua) are not recompiled every time. Keyed on the
+      # lockfiles, so it survives code-only changes and refreshes when deps move. The
+      # cache is saved even when the job fails, so a red run still warms the next one.
+      - name: Cache Bazel (disk + repos)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel-cache
+          key: bazel-linux-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            bazel-linux-${{ matrix.host_arch }}-
+
       # Run Bazel inside the Debian Bookworm dev image (the single source of truth for
       # the toolchain). The runner provides Docker; checkout/upload run on the host
-      # (which has node), only the Bazel build runs in the container.
+      # (which has node), only the Bazel build runs in the container. The disk/repo cache
+      # is mounted in and wired via a CI-only ~/.bazelrc (so local builds are unaffected);
+      # the trailing chmod makes the root-written cache readable to actions/cache.
       - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
         run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
 
@@ -65,8 +79,9 @@ jobs:
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-cache:/bazelcache" \
             kura-bazel-dev \
-            bash bazel/ci-validate.sh
+            bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-validate.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
 
       - name: Upload Bazel-built Linux binaries
         uses: actions/upload-artifact@v4
@@ -98,6 +113,15 @@ jobs:
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
+      # See the bazel-linux job for the caching rationale.
+      - name: Cache Bazel (disk + repos)
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel-cache
+          key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            bazel-oci-
+
       - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
         run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
 
@@ -105,8 +129,9 @@ jobs:
         run: |
           docker run --rm \
             -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-cache:/bazelcache" \
             kura-bazel-dev \
-            bash bazel/ci-oci.sh
+            bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-oci.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
 
       - name: Load the native image into Docker
         run: docker load -i kura/bazel-dist/kura-oci.tar
