@@ -92,14 +92,27 @@ spec:
               value: {{ .Values.registryCache.s3.bucket | quote }}
             - name: REGISTRY_STORAGE_S3_ROOTDIRECTORY
               value: {{ .Values.registryCache.s3.rootDirectory | quote }}
-            {{- if $objectStorageAccessKey }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            # Managed envs: the real S3 creds live in the ESO-synced
+            # object-storage-external-secrets Secret. app-secrets carries
+            # only the (empty) values-supplied key, so the cache must read
+            # from here — same branch the server uses.
+            - name: REGISTRY_STORAGE_S3_ACCESSKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: REGISTRY_STORAGE_S3_SECRETKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
             - name: REGISTRY_STORAGE_S3_ACCESSKEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
                   key: object-storage-access-key
-            {{- end }}
-            {{- if $objectStorageSecretKey }}
             - name: REGISTRY_STORAGE_S3_SECRETKEY
               valueFrom:
                 secretKeyRef:
