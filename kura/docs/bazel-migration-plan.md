@@ -295,12 +295,31 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   giving the **arm64-from-x86_64 cross build a real x86_64 host** (the gap that can't be
   closed on an Apple-silicon dev machine). Each binary is validated for ELF machine
   type, a glibc floor ≤ 2.36, and (native arch only) a clean empty-env smoke run; the
-  binaries are uploaded as artifacts. Triggers on push to `kura-bazel-*` branches, on
-  PRs touching `kura/**`, and `workflow_dispatch`. Building both arches on one host also
-  confirms the single-runner multi-arch input the OCI image needs (Phase 3).
+  binaries are uploaded as artifacts. Building both arches on one host also confirms the
+  single-runner multi-arch input the OCI image needs (Phase 3).
+  *Triggers:* push to `kura-bazel-*` branches + `workflow_dispatch` — deliberately
+  **push-only**. A `pull_request` trigger would, while a draft PR is open, share the
+  concurrency group with the push run, cancel it, then skip itself on the draft guard —
+  so nothing would execute. Push runs already surface in the PR's checks.
   *Note:* the runner provides Docker and runs checkout/upload on the host (which has
   node); only the Bazel build runs in the container. The Bazel cache is cold per run
   (a warm remote/disk cache is Phase 4).
+
+- **0.7 — macOS-native local builds. ✅ Done.** `bazel build //:kura` and
+  `bazel test //:kura_lib_test` now work natively on an Apple-silicon Mac (no Docker) —
+  useful for fast local dev even though macOS is not a release target (shipping macOS
+  artifacts is still Phase 2). One fix was needed: Bazel's autodetected darwin cc
+  toolchain defaults `--macos_minimum_os` to 10.11, which `rules_rust` feeds into the
+  `-sys` build scripts' `CFLAGS` as `-mmacosx-version-min=10.11`; rocksdb's bundled C++
+  uses C++17 aligned `new`/`delete`, which Apple clang only permits at ≥ 10.13, so the
+  default broke the rocksdb build (~5 min in). `.bazelrc` raises the floor to 11.0 via
+  `--macos_minimum_os` **and** `--host_macos_minimum_os` (the `-sys` build scripts run in
+  the **exec** config — the host variant is the one that fixes them), scoped to macOS
+  hosts with `--enable_platform_specific_config` so Linux is untouched. A `MACOSX_-
+  DEPLOYMENT_TARGET` build-script-env annotation was tried first but loses to the
+  explicit toolchain flag; the `.bazelrc` flags are the real lever. Verified: native
+  macOS `bazel test` → 193 passed, 0 failed; `bazel build //:kura` → a Mach-O arm64
+  binary.
 
 #### Decisions to lock during Phase 0
 
