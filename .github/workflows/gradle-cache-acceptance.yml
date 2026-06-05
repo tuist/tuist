@@ -85,30 +85,12 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
-      - name: Restore server deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
       - name: Install server deps
         working-directory: server
         run: mix deps.get
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
-      - name: Restore cache deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            cache/deps
-            cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-          restore-keys: |
-            cache-mix-
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
