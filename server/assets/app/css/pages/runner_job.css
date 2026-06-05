@@ -7,6 +7,18 @@
     align-self: flex-start;
   }
 
+  & > [data-part="tab-panel"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    /* Two attribute selectors so this wins over the `display: flex`
+       above and the Logs panel actually hides when inactive. */
+    &[hidden] {
+      display: none;
+    }
+  }
+
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
@@ -155,6 +167,345 @@
           }
         }
       }
+    }
+  }
+
+  & [data-part="steps-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="steps-empty"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="step"] {
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-4);
+      background: var(--noora-surface-background-primary);
+      overflow: hidden;
+
+      & > [data-part="step-header"] {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--noora-spacing-5);
+        cursor: pointer;
+        padding: var(--noora-spacing-4);
+
+        & > [data-part="step-info"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+          min-width: 0;
+
+          & > [data-part^="step-icon-"] {
+            display: flex;
+            flex-shrink: 0;
+            justify-content: center;
+            align-items: center;
+            border-radius: var(--noora-radius-3);
+            padding: var(--noora-spacing-3);
+
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+            }
+          }
+
+          & > [data-part="step-icon-success"] {
+            background: var(--noora-icon-success-background);
+            color: var(--noora-icon-success-label);
+          }
+
+          & > [data-part="step-icon-failure"] {
+            background: var(--noora-icon-destructive-background);
+            color: var(--noora-icon-destructive-label);
+          }
+
+          & > [data-part="step-icon-warning"] {
+            background: var(--noora-icon-warning-background);
+            color: var(--noora-icon-warning-label);
+          }
+
+          & > [data-part="step-icon-processing"] {
+            background: var(--noora-surface-background-secondary);
+            color: var(--noora-surface-label-secondary);
+          }
+
+          & > [data-part="step-name"] {
+            min-width: 0;
+            overflow: hidden;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+        }
+
+        & > [data-part="step-meta"] {
+          display: flex;
+          flex-shrink: 0;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="step-chevron"] {
+            display: flex;
+            color: var(--noora-surface-label-secondary);
+
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+            }
+          }
+        }
+      }
+
+      & > [data-part="step-logs"] {
+        margin: var(--noora-spacing-4);
+        margin-top: 0;
+      }
+    }
+  }
+
+  & [data-part="logs-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  /* The "Timestamps" button on either the Logs or Steps card toggles
+     this — hides the per-line timestamp column without re-rendering. */
+  & [data-show-timestamps="false"] [data-part="log-ts"] {
+    display: none;
+  }
+
+  & [data-part="logs-toolbar"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="logs-search-form"] {
+      flex: 1;
+      min-width: 0;
+      max-width: 360px;
+    }
+  }
+
+  /* The scrollable terminal area: a recessed, off-white surface
+     distinct from the white card section, matching the design. */
+  & [data-part="log-viewport"],
+  & [data-part="step-logs"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-5) var(--noora-spacing-7);
+    max-height: 480px;
+    overflow: auto;
+  }
+
+  /* Two attribute selectors so this beats the `display: flex` above —
+     the tail viewport hides while a search is active. */
+  & [data-part="log-viewport"][hidden] {
+    display: none;
+  }
+
+  & [data-part="log-stream"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+  }
+
+  & [data-part="load-older"] {
+    align-self: center;
+    cursor: pointer;
+    margin-bottom: var(--noora-spacing-3);
+    box-shadow: var(--noora-border-light-default);
+    border: none;
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-2) var(--noora-spacing-5);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
+  }
+
+  & [data-part="log-line"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="log-ln"] {
+      flex-shrink: 0;
+      min-width: 3ch;
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      user-select: none;
+      text-align: right;
+    }
+
+    & > [data-part="log-ts"] {
+      flex-shrink: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+    }
+
+    & > [data-part="log-message"] {
+      flex: 1;
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  & [data-part="log-empty"] {
+    padding: var(--noora-spacing-4);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+
+  & [data-part="log-group"] {
+    & > [data-part="log-group-summary"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      cursor: pointer;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      list-style: none;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      & > [data-part="log-ln"] {
+        flex-shrink: 0;
+        min-width: 3ch;
+        color: var(--noora-surface-label-tertiary);
+        user-select: none;
+        text-align: right;
+      }
+
+      & > [data-part="log-ts"] {
+        flex-shrink: 0;
+        color: var(--noora-surface-label-secondary);
+      }
+
+      & > [data-part="log-group-label"] {
+        display: inline-flex;
+        flex: 1;
+        align-items: center;
+        min-width: 0;
+        line-height: 1.2;
+        word-break: break-word;
+
+        & > [data-part="log-group-chevron"] {
+          display: inline-flex;
+          flex-shrink: 0;
+          align-items: center;
+          transition: transform 0.15s ease;
+          margin-right: var(--noora-spacing-2);
+          color: var(--noora-surface-label-primary);
+
+          /* Noora's chevron renders as a 24×24 SVG by default;
+             dwarfs the surrounding glyphs in this dense
+             terminal-text context. Snap to cap height. */
+          & svg {
+            width: 1em;
+            height: 1em;
+          }
+        }
+      }
+    }
+
+    &[open] > [data-part="log-group-summary"] [data-part="log-group-chevron"] {
+      transform: rotate(90deg);
+    }
+
+    /* Indent only the message text of group children, not their
+       line-number gutter. The gutter stays in the same column as
+       its parent's so the user can scan numbers vertically; the
+       message content is what visually nests under the group's
+       label. The indent is sized to land past the parent
+       summary's chevron + text, so nesting reads at a glance.
+       Mirrors GitHub Actions' own log UI. */
+    & > [data-part="log-group-body"] > [data-part="log-line"] > [data-part="log-message"],
+    &
+      > [data-part="log-group-body"]
+      > [data-part="log-group"]
+      > [data-part="log-group-summary"]
+      > [data-part="log-group-label"] {
+      padding-left: var(--noora-spacing-9);
+    }
+  }
+
+  & [data-part="log-message"] {
+    & .ansi-bold {
+      font-weight: var(--noora-font-weight-bold);
+    }
+    & .ansi-fg-0 {
+      color: var(--noora-neutral-light-1000);
+    }
+    & .ansi-fg-1 {
+      color: var(--noora-red-500);
+    }
+    & .ansi-fg-2 {
+      color: var(--noora-green-500);
+    }
+    & .ansi-fg-3 {
+      color: var(--noora-yellow-500);
+    }
+    & .ansi-fg-4 {
+      color: var(--noora-azure-500);
+    }
+    & .ansi-fg-5 {
+      color: var(--noora-purple-500);
+    }
+    & .ansi-fg-6 {
+      color: var(--noora-azure-400);
+    }
+    & .ansi-fg-7 {
+      color: var(--noora-surface-label-primary);
+    }
+    & .ansi-fg-bright-0 {
+      color: var(--noora-neutral-light-900);
+    }
+    & .ansi-fg-bright-1 {
+      color: var(--noora-red-400);
+    }
+    & .ansi-fg-bright-2 {
+      color: var(--noora-green-400);
+    }
+    & .ansi-fg-bright-3 {
+      color: var(--noora-yellow-400);
+    }
+    & .ansi-fg-bright-4 {
+      color: var(--noora-azure-400);
+    }
+    & .ansi-fg-bright-5 {
+      color: var(--noora-purple-400);
+    }
+    & .ansi-fg-bright-6 {
+      color: var(--noora-azure-300);
+    }
+    & .ansi-fg-bright-7 {
+      color: var(--noora-surface-label-primary);
     }
   }
 }

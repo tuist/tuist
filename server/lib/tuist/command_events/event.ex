@@ -81,7 +81,9 @@ defmodule Tuist.CommandEvents.Event do
 
     event_attrs =
       event_attrs
-      |> Map.put_new(:id, id)
+      # Honor a client-provided id (the generate command event's id is minted by the CLI so a later
+      # local build can reference it), falling back to a server-generated UUIDv7 when absent or nil.
+      |> Map.update(:id, id, fn existing -> existing || id end)
       |> normalize_status()
       |> Map.update(:command_arguments, "", fn
         args when is_list(args) -> Enum.join(args, " ")

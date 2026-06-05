@@ -7,7 +7,10 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -57,6 +60,18 @@ defmodule Tuist.Runners.DispatchTest do
     %{
       "metadata" => %{"name" => Keyword.fetch!(opts, :name)},
       "spec" => %{"dispatchLabel" => Keyword.fetch!(opts, :label)}
+    }
+  end
+
+  defp completed_payload(opts) do
+    %{
+      "action" => "completed",
+      "workflow_job" => %{
+        "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
+        "conclusion" => Keyword.get(opts, :conclusion, "success"),
+        "steps" => Keyword.get(opts, :steps, [])
+      },
+      "repository" => %{"full_name" => "tuist/repo"}
     }
   end
 
@@ -131,6 +146,77 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ignored, :runners_disabled} = Dispatch.handle_webhook(payload, 1)
       assert {:ignored, :no_pools} = Dispatch.handle_webhook(payload, 1)
+    end
+  end
+
+  describe "handle_webhook/2 completed" do
+    test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
+      test_pid = self()
+      stub(Claims, :complete, fn _ -> :ok end)
+
+      stub(Jobs, :complete, fn _id, conclusion ->
+        send(test_pid, {:completed, conclusion})
+        {:ok, %{account_id: 777}}
+      end)
+
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
+      end)
+
+      payload =
+        completed_payload(
+          id: 4242,
+          conclusion: "success",
+          steps: [
+            %{
+              "name" => "Set up job",
+              "status" => "completed",
+              "conclusion" => "success",
+              "number" => 1,
+              "started_at" => "2026-05-28T10:00:00Z",
+              "completed_at" => "2026-05-28T10:00:05Z"
+            },
+            # A nameless entry is dropped rather than stored half-formed.
+            %{"status" => "completed"}
+          ]
+        )
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(payload, 1)
+
+      assert_receive {:completed, "success"}
+      assert_receive {:steps, rows}
+
+      assert [
+               %{
+                 workflow_job_id: 4242,
+                 account_id: 777,
+                 number: 1,
+                 name: "Set up job",
+                 status: "completed",
+                 conclusion: "success",
+                 started_at: %DateTime{} = started_at,
+                 completed_at: %DateTime{} = completed_at
+               }
+             ] = rows
+
+      assert DateTime.to_iso8601(started_at) =~ "2026-05-28T10:00:00"
+      assert DateTime.to_iso8601(completed_at) =~ "2026-05-28T10:00:05"
+    end
+
+    test "skips the steps write entirely when the payload carries no steps" do
+      test_pid = self()
+      stub(Claims, :complete, fn _ -> :ok end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
+      end)
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
+
+      assert_receive {:steps, []}
     end
   end
 

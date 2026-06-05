@@ -138,6 +138,15 @@ defmodule Tuist.Accounts.Account do
     |> validate_s3_configuration()
   end
 
+  def custom_s3_storage_configured?(%__MODULE__{
+        s3_bucket_name: bucket,
+        s3_access_key_id: access_key,
+        s3_secret_access_key: secret_key
+      })
+      when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+
+  def custom_s3_storage_configured?(_account), do: false
+
   defp validate_s3_configuration(changeset) do
     bucket_name = get_field(changeset, :s3_bucket_name)
     access_key_id = get_field(changeset, :s3_access_key_id)

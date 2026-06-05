@@ -151,6 +151,12 @@ objectStorage:
     buckets:
       default: tuist-prod-storage
 
+cache:
+  s3:
+    bucket: tuist-cas-production
+    xcodeCacheBucket: tuist-xcode-cache-production
+    registryBucket: tuist-registry
+
 processor:
   # During the Supabase→CNPG migration, the processor stays on Supabase
   # (pooler hostname below) until the env-level cutover flips
@@ -367,7 +373,7 @@ runnersFleetLinux:
   # default shape keeps the warm floor the legacy pool used to carry,
   # since it absorbs both `tuist-default` traffic and the `linux`
   # default-profile (`tuist-linux`) jobs that route through it.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:a0f5ba39d5ccff7b5e2dfcad61696895cf9631d282991a212818ba70948f876e"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3e24a1ac38657a092dfe1f27a385ac1087142a7c19208b51a01d700b3d71c0e3"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

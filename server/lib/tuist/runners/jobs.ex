@@ -273,6 +273,9 @@ defmodule Tuist.Runners.Jobs do
   Returns `{:ok, %Job{}}` if the job was found and transitioned,
   or `{:error, :not_found}` if no row exists for the workflow_job
   yet (delivery race where `completed` arrives before `queued`).
+
+  Per-step data lives in `runner_job_steps`; the caller writes it
+  via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
   def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
     case current(workflow_job_id) do
@@ -282,15 +285,17 @@ defmodule Tuist.Runners.Jobs do
       %Job{} = job ->
         now = DateTime.utc_now()
 
+        completion = %{
+          status: "completed",
+          conclusion: conclusion,
+          completed_at: now,
+          updated_at: now
+        }
+
         row =
           job
           |> job_to_row()
-          |> Map.merge(%{
-            status: "completed",
-            conclusion: conclusion,
-            completed_at: now,
-            updated_at: now
-          })
+          |> Map.merge(completion)
 
         insert_row!(row)
 
@@ -310,13 +315,56 @@ defmodule Tuist.Runners.Jobs do
 
         broadcast_status_change(job.account_id, "completed")
 
-        {:ok,
-         Map.merge(job, %{
-           status: "completed",
-           conclusion: conclusion,
-           completed_at: now,
-           updated_at: now
-         })}
+        {:ok, Map.merge(job, completion)}
+    end
+  end
+
+  @doc """
+  Lists jobs whose log archive has aged past `threshold`. Drives the
+  daily prune that keeps the S3 archive at parity with the 90-day TTL
+  on `runner_job_logs`.
+
+  Uses the `argMax(col, updated_at) GROUP BY workflow_job_id`
+  pattern documented in this module's `@moduledoc` rather than
+  `FINAL`. The prune scans every job — without a workflow_job_id
+  scope, `FINAL`'s merge would span every part in `runner_jobs`,
+  which scales poorly as the table grows.
+  """
+  def list_expired_archives(%DateTime{} = threshold) do
+    ClickHouseRepo.all(
+      from(j in Job,
+        group_by: j.workflow_job_id,
+        having:
+          not is_nil(fragment("argMax(?, ?)", j.log_archived_at, j.updated_at)) and
+            fragment("argMax(?, ?)", j.log_archived_at, j.updated_at) < ^threshold,
+        select: %{workflow_job_id: j.workflow_job_id, account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)}
+      )
+    )
+  end
+
+  @doc """
+  Stamps the job row with the time its gzipped log archive landed in
+  S3 (or clears it when the archive has been pruned). State-transition
+  INSERT, carrying all other columns forward.
+
+  No-op when no row exists yet for the workflow_job.
+  """
+  def set_log_archived_at(workflow_job_id, archived_at)
+      when is_integer(workflow_job_id) and (is_nil(archived_at) or is_struct(archived_at, DateTime)) do
+    case current(workflow_job_id) do
+      nil ->
+        :ok
+
+      %Job{} = job ->
+        now = DateTime.utc_now()
+
+        row =
+          job
+          |> job_to_row()
+          |> Map.merge(%{log_archived_at: archived_at, updated_at: now})
+
+        insert_row!(row)
+        :ok
     end
   end
 
