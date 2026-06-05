@@ -1,0 +1,155 @@
+defmodule Tuist.TailscaleJIT.ApprovalsTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  import Ecto.Query
+
+  alias Tuist.Repo
+  alias Tuist.TailscaleJIT.Approvals
+  alias Tuist.TailscaleJIT.Elevation
+  alias Tuist.TailscaleJIT.Request
+  alias Tuist.TailscaleJIT.SlackClient
+  alias Tuist.TailscaleJIT.TailscaleClient
+
+  # Minimal Request row directly via Repo.insert! to keep these
+  # tests free of any factory dependency.
+  defp insert_request!(overrides) do
+    base = %{
+      requester_email: "marek@tuist.dev",
+      requester_slack_id: "U_MAREK",
+      target_group: "group:tuist-staging-write",
+      intent: "approvals test request",
+      ttl_seconds: 900,
+      slack_channel_id: "C_TEST",
+      expires_at: DateTime.add(DateTime.utc_now(), 600, :second)
+    }
+
+    base
+    |> Map.merge(overrides)
+    |> Request.create_changeset()
+    # slack_message_ts isn't accepted by create_changeset (it's set
+    # by request_elevation after the Slack post), so add it via a
+    # follow-up transition changeset that the test setup uses.
+    |> Repo.insert!()
+    |> Request.transition_changeset(%{slack_message_ts: "1780000000.000000"})
+    |> Repo.update!()
+  end
+
+  describe "approve/2 — expired approval window" do
+    test "rejects an approval whose request.expires_at is in the past" do
+      stub(SlackClient, :update_message, fn _channel, _ts, _blocks -> :ok end)
+
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), -3600, :second)})
+
+      assert {:error, :approval_expired} =
+               Approvals.approve(req.id, %{slack_id: "U_OTHER", email: "pedro@tuist.dev"})
+    end
+
+    test "transitions the request to :expired so the row reflects reality" do
+      stub(SlackClient, :update_message, fn _channel, _ts, _blocks -> :ok end)
+
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), -3600, :second)})
+
+      _ = Approvals.approve(req.id, %{slack_id: "U_OTHER", email: "pedro@tuist.dev"})
+
+      assert %Request{status: "expired"} = Repo.get!(Request, req.id)
+    end
+
+    test "updates the original Slack card to the 'expired' terminal state" do
+      pid = self()
+
+      stub(SlackClient, :update_message, fn channel, ts, blocks ->
+        send(pid, {:slack_update, channel, ts, blocks})
+        :ok
+      end)
+
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), -3600, :second)})
+
+      _ = Approvals.approve(req.id, %{slack_id: "U_OTHER", email: "pedro@tuist.dev"})
+
+      assert_received {:slack_update, "C_TEST", "1780000000.000000", blocks}
+      # SlackBlocks.closed renders a single section block whose text
+      # includes the status label.
+      assert blocks |> List.first() |> get_in([:text, :text]) =~ "expired"
+    end
+
+    test "does NOT mutate the Tailscale ACL when expired" do
+      stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
+
+      # If approve tried to elevate via the ACL, this would be
+      # called. The reject! ensures it isn't.
+      reject(&TailscaleClient.update_acl/1)
+
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), -3600, :second)})
+
+      assert {:error, :approval_expired} =
+               Approvals.approve(req.id, %{slack_id: "U_OTHER", email: "pedro@tuist.dev"})
+
+      # And no Elevation row should exist for this request.
+      assert Repo.get_by(Elevation, request_id: req.id) == nil
+    end
+  end
+
+  describe "re_enqueue_expired_active_elevations/0 — drift reconciler kick" do
+    test "enqueues a RevertWorker job for an :active elevation past its expiry" do
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
+
+      elev = insert_elevation!(req, %{expires_at: DateTime.add(DateTime.utc_now(), -120, :second)})
+
+      Approvals.re_enqueue_expired_active_elevations()
+
+      assert revert_worker_job_exists?(elev.id)
+    end
+
+    test "leaves still-fresh :active elevations alone" do
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
+
+      elev = insert_elevation!(req, %{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
+
+      Approvals.re_enqueue_expired_active_elevations()
+
+      refute revert_worker_job_exists?(elev.id)
+    end
+
+    test "leaves already-reverted elevations alone" do
+      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
+
+      elev =
+        insert_elevation!(req, %{
+          expires_at: DateTime.add(DateTime.utc_now(), -120, :second),
+          status: "reverted"
+        })
+
+      Approvals.re_enqueue_expired_active_elevations()
+
+      refute revert_worker_job_exists?(elev.id)
+    end
+  end
+
+  defp insert_elevation!(%Request{} = req, overrides) do
+    base = %{
+      request_id: req.id,
+      requester_email: req.requester_email,
+      target_group: req.target_group,
+      expires_at: DateTime.add(DateTime.utc_now(), 600, :second)
+    }
+
+    {status, attrs} = Map.pop(overrides, :status, "active")
+
+    base
+    |> Map.merge(attrs)
+    |> Elevation.create_changeset()
+    |> Repo.insert!()
+    |> Elevation.transition_changeset(%{status: status})
+    |> Repo.update!()
+  end
+
+  defp revert_worker_job_exists?(elevation_id) do
+    from(j in Oban.Job,
+      where:
+        j.worker == "Tuist.TailscaleJIT.Workers.RevertWorker" and
+          fragment("? @> ?", j.args, ^%{elevation_id: elevation_id})
+    )
+    |> Repo.exists?()
+  end
+end
