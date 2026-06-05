@@ -246,7 +246,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: erlang elixir node aube npm:prettier
+          install_args: erlang elixir node aube
           cache: "true"
           working_directory: server
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -255,7 +255,10 @@ jobs:
       - name: Install aube dependencies
         run: aube install
       - name: Check format
-        run: mise run --no-deps format --check
+        run: |
+          mix format --check-formatted
+          aube exec prettier -c priv/static/app
+          aube exec prettier -c assets
   esbuild:
     name: esbuild
     runs-on: tuist-linux
