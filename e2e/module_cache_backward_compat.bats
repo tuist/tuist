@@ -108,7 +108,7 @@ teardown_file() {
     # stopped signing, the pull would fail and no xcframework would ever appear,
     # so this still fails on the regression it guards, without matching log wording.
     linked=0
-    for attempt in 1 2 3 4 5 6; do
+    for attempt in 1 2 3 4; do
         rm -rf "${XDG_CACHE_HOME:?}"/* 2>/dev/null || true
         echo "# tuist generate (attempt ${attempt}):" >&3
         "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open >&3 2>&1 || true
@@ -116,8 +116,8 @@ teardown_file() {
             linked=1
             break
         fi
-        echo "# cache not pulled yet; retrying in 10s" >&3
-        sleep 10
+        echo "# cache not pulled yet; retrying in 3s" >&3
+        sleep 3
     done
     if [ "$linked" -ne 1 ]; then
         echo "# Cached xcframework was never pulled from canary after retries" >&3
