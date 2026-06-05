@@ -18,12 +18,12 @@ on:
     paths:
       - kura/**
       - .github/workflows/kura-bazel.yml
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - kura/**
-      - .github/workflows/kura-bazel.yml
   workflow_dispatch: {}
+
+# Push-only (plus manual dispatch). We deliberately do NOT add a pull_request trigger:
+# while a draft PR is open, a pull_request run would share this concurrency group,
+# cancel the push run, then skip itself on the draft guard — so nothing would execute.
+# Push runs already surface in the PR's checks, which is all this branch validation needs.
 
 permissions:
   contents: read
@@ -37,7 +37,6 @@ jobs:
     name: Bazel Linux binaries (${{ matrix.host_arch }} host)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
