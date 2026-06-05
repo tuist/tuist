@@ -11,13 +11,14 @@ use tokio::{
 
 use crate::{
     analytics::Analytics,
+    bandwidth::BandwidthLimiter,
     config::Config,
     extension::SharedExtension,
     geoip::GeoIp,
     io::IoController,
     memory::MemoryController,
     metrics::Metrics,
-    runtime::{DataDirLock, InflightGuard, RuntimeState, TrafficState},
+    runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
 };
@@ -37,6 +38,7 @@ pub struct AppState {
     pub usage: Option<Usage>,
     pub geoip: Option<GeoIp>,
     pub client: Client,
+    pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
@@ -227,8 +229,9 @@ impl ReadinessState {
 }
 
 impl AppState {
-    pub fn start_http_request(&self) -> InflightGuard {
-        self.runtime.start_http_request(&self.metrics)
+    pub fn start_http_request(&self, traffic_class: HttpTrafficClass) -> InflightGuard {
+        self.runtime
+            .start_http_request(&self.metrics, traffic_class)
     }
 
     pub fn start_grpc_request(&self) -> InflightGuard {
@@ -439,6 +442,12 @@ impl AppState {
             report.known_peers.len(),
             report.bootstrapped_peers.len(),
             report.bootstrap_inflight_peers.len(),
+        );
+        self.metrics.update_replication_bandwidth_limits(
+            self.config.replication_bandwidth_limit_bytes_per_second,
+            self.replication_bandwidth_limiter
+                .as_ref()
+                .map_or(0, |limiter| limiter.effective_bytes_per_second()),
         );
     }
 }

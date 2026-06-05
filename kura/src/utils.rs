@@ -1,5 +1,6 @@
 use std::{
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -9,7 +10,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::{artifact::producer::ArtifactProducer, io::IoController};
+use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
 
 #[derive(Debug)]
 pub struct TempBodyFile {
@@ -28,6 +29,7 @@ pub async fn read_request_to_temp(
     directory: &Path,
     max_bytes: u64,
     io: &IoController,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
 ) -> Result<TempBodyFile, BodyReadError> {
     let temp_path = temp_file_path(directory, "upload");
     if let Some(parent) = temp_path.parent() {
@@ -57,6 +59,9 @@ pub async fn read_request_to_temp(
             drop(file);
             io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
+        }
+        if let Some(limiter) = bandwidth_limiter.as_ref() {
+            limiter.acquire(chunk.len()).await;
         }
 
         if let Err(error) = file.write_all(&chunk).await {
@@ -273,7 +278,7 @@ mod tests {
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let temp = read_request_to_temp(request, directory.path(), 10, &io)
+        let temp = read_request_to_temp(request, directory.path(), 10, &io, None)
             .await
             .expect("failed to read request to temp");
 
@@ -298,7 +303,7 @@ mod tests {
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let error = read_request_to_temp(request, directory.path(), 4, &io)
+        let error = read_request_to_temp(request, directory.path(), 4, &io, None)
             .await
             .expect_err("expected body reader to reject oversized request");
 

@@ -9,6 +9,7 @@ use tokio::time::Instant;
 
 use crate::{
     analytics::Analytics,
+    bandwidth::BandwidthLimiter,
     config::Config,
     extension::SharedExtension,
     io::IoController,
@@ -70,6 +71,7 @@ where
         rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
         rocksdb_max_write_buffer_number: 4,
         outbox_max_depth: 100_000,
+        replication_bandwidth_limit_bytes_per_second: 0,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
         bootstrap_timeout_ms: 30 * 60 * 1000,
@@ -116,6 +118,12 @@ where
         .timeout(Duration::from_secs(5))
         .build()
         .expect("failed to build test client");
+    let runtime = RuntimeState::new();
+    let replication_bandwidth_limiter = BandwidthLimiter::new(
+        config.replication_bandwidth_limit_bytes_per_second,
+        runtime.clone(),
+    )
+    .map(Arc::new);
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
     let state = Arc::new(AppState {
         config,
@@ -124,12 +132,13 @@ where
         io,
         memory,
         metrics,
-        runtime: RuntimeState::new(),
+        runtime,
         extension,
         analytics,
         usage,
         geoip: None,
         client,
+        replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,

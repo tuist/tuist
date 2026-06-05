@@ -1,6 +1,7 @@
 mod analytics;
 mod app;
 mod artifact;
+mod bandwidth;
 mod config;
 mod constants;
 mod extension;

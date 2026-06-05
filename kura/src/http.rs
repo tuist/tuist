@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     net::IpAddr,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Instant,
 };
@@ -16,13 +17,14 @@ use axum::{
     routing::{delete, get, head, post, put},
 };
 use bytes::Bytes;
-use futures_util::Stream;
+use futures_util::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    bandwidth::BandwidthLimiter,
     constants::{
         MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
         MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
@@ -33,6 +35,7 @@ use crate::{
     metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
+    runtime::HttpTrafficClass,
     state::SharedState,
     store::is_disk_full_error,
     telemetry::{attach_parent_context, record_trace_context},
@@ -482,9 +485,14 @@ async fn track_http_metrics(
     req: Request,
     next: Next,
 ) -> Response {
-    let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = request_route(&req);
+    let traffic_class = if is_public_load_route(&route) {
+        HttpTrafficClass::Public
+    } else {
+        HttpTrafficClass::Background
+    };
+    let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -532,6 +540,10 @@ async fn track_http_metrics(
         .record_http(route, response.status(), client_country, start.elapsed());
 
     response
+}
+
+fn is_public_load_route(route: &str) -> bool {
+    !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
 }
 
 fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
@@ -1514,6 +1526,7 @@ async fn upload_module_part(
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
         &state.io,
+        None,
     )
     .await
     {
@@ -1706,7 +1719,15 @@ async fn internal_bootstrap_artifact(
         .fetch_artifact_by_id_for_serving(&artifact_id)
         .await
     {
-        Ok(Some(manifest)) => serve_file(&state, StatusCode::OK, &manifest).await,
+        Ok(Some(manifest)) => {
+            serve_file_reader(
+                &state,
+                StatusCode::OK,
+                &manifest,
+                state.replication_bandwidth_limiter.clone(),
+            )
+            .await
+        }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1806,6 +1827,7 @@ async fn internal_replicate_artifact(
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
         &state.io,
+        state.replication_bandwidth_limiter.clone(),
     )
     .await
     {
@@ -1976,6 +1998,7 @@ async fn put_blob_artifact(
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
         &state.io,
+        None,
     )
     .await
     {
@@ -2128,14 +2151,14 @@ async fn serve_file(
             apply_artifact_response_headers(&mut response, manifest);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest).await,
+        Ok(None) => serve_file_reader(state, status, manifest, None).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest).await
+            serve_file_reader(state, status, manifest, None).await
         }
     }
 }
@@ -2144,10 +2167,12 @@ async fn serve_file_reader(
     state: &SharedState,
     status: StatusCode,
     manifest: &ArtifactManifest,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
             let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = throttle_body_stream(stream, bandwidth_limiter);
             let stream = instrument_artifact_stream(state, manifest, stream);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
@@ -2206,6 +2231,24 @@ impl<S> InstrumentedArtifactStream<S> {
             self.started_at.elapsed(),
         );
     }
+}
+
+fn throttle_body_stream<S, E>(
+    stream: S,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+) -> impl futures_util::Stream<Item = Result<Bytes, E>>
+where
+    S: futures_util::Stream<Item = Result<Bytes, E>>,
+{
+    stream.then(move |item| {
+        let bandwidth_limiter = bandwidth_limiter.clone();
+        async move {
+            if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                limiter.acquire(chunk.len()).await;
+            }
+            item
+        }
+    })
 }
 
 impl<S> Stream for InstrumentedArtifactStream<S>
@@ -2462,6 +2505,16 @@ mod tests {
             UNMATCHED_ROUTE
         );
         assert_eq!(route_template_for_path("/.docker/.env"), UNMATCHED_ROUTE);
+    }
+
+    #[test]
+    fn public_load_routes_exclude_probes_internal_and_unmatched_routes() {
+        assert!(is_public_load_route(ROUTE_API_CACHE_CAS));
+        assert!(is_public_load_route(ROUTE_API_CACHE_MODULE));
+        assert!(!is_public_load_route(ROUTE_UP));
+        assert!(!is_public_load_route(ROUTE_METRICS));
+        assert!(!is_public_load_route(ROUTE_INTERNAL_REPLICATE_ARTIFACT));
+        assert!(!is_public_load_route(UNMATCHED_ROUTE));
     }
 
     #[tokio::test]
