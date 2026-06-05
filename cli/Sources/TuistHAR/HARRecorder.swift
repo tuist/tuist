@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Synchronization
 import TuistConstants
 import TuistLogging
 
@@ -22,27 +23,20 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         "x-amz-credential",
     ]
 
-    private final class State: @unchecked Sendable {
-        private let lock = NSLock()
-        private var finished = false
+    private nonisolated let finishedState = Mutex(false)
 
-        var isFinished: Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            return finished
-        }
+    private nonisolated var isFinished: Bool {
+        finishedState.withLock { $0 }
+    }
 
-        func markFinished() -> Bool {
-            lock.lock()
-            defer { lock.unlock() }
-
-            guard !finished else { return false }
-            finished = true
+    private nonisolated func markFinished() -> Bool {
+        finishedState.withLock { isFinished in
+            guard !isFinished else { return false }
+            isFinished = true
             return true
         }
     }
 
-    private nonisolated let state = State()
     private var log: HAR.Log
     private let filePath: AbsolutePath?
 
@@ -79,10 +73,14 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         current?.recordDetached(action)
     }
 
+    public static func finishCurrent() async {
+        await current?.finish()
+    }
+
     public nonisolated func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
-        guard !state.isFinished else { return }
+        guard !isFinished else { return }
         Task.detached(priority: .background) {
-            guard !self.state.isFinished else { return }
+            guard !self.isFinished else { return }
             await action(self)
         }
     }
@@ -90,13 +88,13 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     /// Records a new entry to the HAR log.
     /// - Parameter entry: The entry to record.
     public func record(_ entry: HAR.Entry) {
-        guard !state.isFinished else { return }
+        guard !isFinished else { return }
         log.entries.append(entry)
     }
 
     /// Stops accepting new HAR entries and persists the entries recorded so far.
     public nonisolated func finish() async {
-        guard state.markFinished() else { return }
+        guard markFinished() else { return }
         await persist()
     }
 
@@ -118,7 +116,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) {
-        guard !state.isFinished else { return }
+        guard !isFinished else { return }
         let entry = buildEntry(
             url: url,
             method: method,
@@ -187,7 +185,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) {
-        guard !state.isFinished else { return }
+        guard !isFinished else { return }
         let entry = buildErrorEntry(
             url: url,
             method: method,
