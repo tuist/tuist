@@ -57,6 +57,11 @@ psi() {
   awk -v c="$2" '$1==c{for(i=2;i<=NF;i++){split($i,a,"=");if(a[1]=="avg10")print a[2]}}' "$1" 2>/dev/null || true
 }
 
+# Total and idle jiffies from /proc/stat's aggregate cpu line. Diffed
+# between samples to derive guest-wide CPU-busy%, the CPU-starvation
+# signal that works even when the guest kernel doesn't expose PSI.
+cpu_times() { awk '/^cpu /{t=0; for(i=2;i<=NF;i++) t+=$i; print t, $5+$6; exit}' /proc/stat 2>/dev/null; }
+
 # Best-effort guest-kernel OOM watcher. Reading /dev/kmsg needs an
 # unrestricted guest (kernel.dmesg_restrict=0) or capability; when it
 # is readable, an OOM kill shows up here verbatim, which is the
@@ -74,21 +79,37 @@ if [ -r /dev/kmsg ]; then
   ) &
 fi
 
+# CPU baseline so the first sample has a prior to diff against.
+cur="$(cpu_times)"
+prev_total="${cur%% *}"
+prev_idle="${cur##* }"
+
 while :; do
-  printf '%s RUNNER_VITALS vm.mem.total.kb=%s vm.mem.avail.kb=%s mem.current=%s mem.peak=%s mem.max=%s mem.swap=%s oom=%s oom_kill=%s cpu.psi.some.avg10=%s mem.psi.some.avg10=%s mem.psi.full.avg10=%s io.psi.some.avg10=%s load=%s\n' \
-    "$(date -u +%FT%TZ)" \
-    "$(meminfo MemTotal)" \
-    "$(meminfo MemAvailable)" \
-    "$(field "$cg/memory.current")" \
-    "$(field "$cg/memory.peak")" \
-    "$(field "$cg/memory.max")" \
-    "$(field "$cg/memory.swap.current")" \
-    "$(events oom)" \
-    "$(events oom_kill)" \
-    "$(psi /proc/pressure/cpu some)" \
-    "$(psi /proc/pressure/memory some)" \
-    "$(psi /proc/pressure/memory full)" \
-    "$(psi /proc/pressure/io some)" \
-    "$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null | tr ' ' ',')"
-  sleep "$interval"
+  # Guest-wide CPU-busy% over the interval (all vCPUs), from /proc/stat
+  # deltas. Reliable CPU-starvation signal independent of PSI.
+  cur="$(cpu_times)"
+  cur_total="${cur%% *}"
+  cur_idle="${cur##* }"
+  cpu_busy=""
+  if [ -n "${cur_total}" ] && [ -n "${prev_total}" ] && [ "${cur_total}" -gt "${prev_total}" ] 2>/dev/null; then
+    cpu_busy="$(awk -v t="$((cur_total - prev_total))" -v i="$((cur_idle - prev_idle))" 'BEGIN{printf "%d", (t>0)?(1-i/t)*100:0}')"
+  fi
+  prev_total="${cur_total}"
+  prev_idle="${cur_idle}"
+
+  line="$(date -u +%FT%TZ) RUNNER_VITALS"
+  line="${line} vm.mem.total.kb=$(meminfo MemTotal) vm.mem.avail.kb=$(meminfo MemAvailable)"
+  line="${line} mem.current=$(field "$cg/memory.current") mem.peak=$(field "$cg/memory.peak") mem.max=$(field "$cg/memory.max") mem.swap=$(field "$cg/memory.swap.current")"
+  line="${line} oom=$(events oom) oom_kill=$(events oom_kill)"
+  [ -n "${cpu_busy}" ] && line="${line} cpu.busy.pct=${cpu_busy}"
+  # PSI fields only when the guest kernel exposes them (psi=1 on the
+  # kata cmdline). Omitted otherwise so we don't log empty noise.
+  v="$(psi /proc/pressure/cpu some)" && [ -n "${v}" ] && line="${line} cpu.psi.some.avg10=${v}"
+  v="$(psi /proc/pressure/memory some)" && [ -n "${v}" ] && line="${line} mem.psi.some.avg10=${v}"
+  v="$(psi /proc/pressure/memory full)" && [ -n "${v}" ] && line="${line} mem.psi.full.avg10=${v}"
+  v="$(psi /proc/pressure/io some)" && [ -n "${v}" ] && line="${line} io.psi.some.avg10=${v}"
+  line="${line} load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null | tr ' ' ',')"
+
+  printf '%s\n' "${line}"
+  sleep "${interval}"
 done
