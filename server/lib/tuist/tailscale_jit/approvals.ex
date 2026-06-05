@@ -201,7 +201,17 @@ defmodule Tuist.TailscaleJIT.Approvals do
         {:error, :not_found}
 
       %Elevation{status: "active"} = elev ->
-        case %{elevation_id: elev.id} |> RevertWorker.new(schedule_in: 0) |> Oban.insert() do
+        # The RevertWorker is unique on elevation_id across the
+        # available/scheduled/executing/retryable states, so the job
+        # we want to fire NOW collides with the TTL-deferred job that
+        # `do_approve` enqueued at approval time. Without `replace:`,
+        # Oban returns the existing (still-scheduled-for-TTL) job
+        # unchanged and the manual revoke silently no-ops. Pulling
+        # `scheduled_at` forward on the existing scheduled job is the
+        # right behaviour: same job, runs now instead of at TTL.
+        case %{elevation_id: elev.id}
+             |> RevertWorker.new(schedule_in: 0)
+             |> Oban.insert(replace: [scheduled: [:scheduled_at]]) do
           {:ok, _} -> {:ok, elev}
           {:error, reason} -> {:error, reason}
         end
