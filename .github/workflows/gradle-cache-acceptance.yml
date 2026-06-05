@@ -35,11 +35,10 @@ env:
 jobs:
   gradle_cache_acceptance:
     name: Gradle Cache Acceptance
-    # Bigger shape: the e2e compiles and boots the full server + ClickHouse,
-    # which peaks over the 2 vCPU / 8 GB default microVM and OOM-kills the
-    # runner from inside the guest ("lost communication"). The 4 vCPU / 16 GB
-    # shape restores the headroom from before the default downsize (#11052).
-    runs-on: tuist-linux-large
+    # The e2e compiles and boots the full server, ClickHouse, Android tooling,
+    # and the cache server. Keep it on a hosted runner to avoid the self-hosted
+    # Linux pool dropping the runner mid-setup under sustained load.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
