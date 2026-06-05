@@ -91,7 +91,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       conn =
         :get
         |> conn("/")
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.154.0")
+        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.149.0")
 
       # When
       got = WarningsHeaderPlug.call(conn, %{})
@@ -102,7 +102,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       warning = got |> Plug.Conn.get_resp_header("x-tuist-cloud-warnings") |> List.first()
 
       assert JSON.decode!(Base.decode64!(warning)) == [
-               "Your Tuist version 4.154.0 is deprecated. Please upgrade to version 4.160.0 for server-side features to continue working."
+               "Your Tuist version 4.149.0 is deprecated. Please upgrade to version 4.160.0 for server-side features to continue working."
              ]
     end
 
