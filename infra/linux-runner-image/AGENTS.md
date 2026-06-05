@@ -32,11 +32,16 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   dispatch-poll rollout-bridge path does too), so it samples for the
   job's lifetime and its last line lands in the Pod logs -> Loki even
   after the microVM is reaped. Tag `RUNNER_VITALS`; fields cover
-  cgroup memory (current/peak/max, `oom_kill`), CPU/mem/io PSI avg10,
-  loadavg, and a best-effort `/dev/kmsg` OOM watcher. The forensic
-  trail for a runner that dies mid-job (guest OOM vs CPU/memory
-  starvation), which is otherwise invisible from outside the guest.
-  Interval via `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
+  guest-wide memory (`/proc/meminfo`), cgroup memory
+  (current/peak/max, `oom_kill`), guest CPU-busy% (`/proc/stat`
+  deltas), loadavg, and a best-effort `/dev/kmsg` OOM watcher. PSI
+  (`/proc/pressure/*`) avg10 fields are appended only when the guest
+  exposes them — the runners-controller sets `psi=1` on the kata
+  guest cmdline via a pod annotation, since the kata kernel boots
+  with PSI off. The forensic trail for a runner that dies mid-job
+  (guest OOM vs CPU/memory starvation), which is otherwise invisible
+  from outside the guest. Interval via
+  `TUIST_RUNNER_VITALS_INTERVAL` (default 3s).
 - `docker-ce-cli`, `docker-buildx-plugin`, `docker-compose-plugin`
   from the official Docker apt repo — client side only. The
   daemon runs in the `dind` native sidecar (`docker:dind`)

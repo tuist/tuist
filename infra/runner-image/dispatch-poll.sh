@@ -120,6 +120,11 @@ while true; do
       # cold boot. The EXIT trap above halts the VM regardless of
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
+      #
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
+      # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;

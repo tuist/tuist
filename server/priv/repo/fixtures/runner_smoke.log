@@ -1,0 +1,66 @@
+﻿2026-06-02T20:26:29.3897610Z Current runner version: '2.334.0'
+2026-06-02T20:26:29.3904223Z Runner name: 'tuist-tuist-runner-pool-linux-4vcpu-16gb-runner-0863a53d'
+2026-06-02T20:26:29.3905037Z Runner group name: 'default'
+2026-06-02T20:26:29.3905911Z Machine name: 'tuist-tuist-runner-pool-linux-4vcpu-16gb-runner-0863a53d'
+2026-06-02T20:26:29.3909425Z ##[group]GITHUB_TOKEN Permissions
+2026-06-02T20:26:29.3911146Z Metadata: read
+2026-06-02T20:26:29.3911687Z ##[endgroup]
+2026-06-02T20:26:29.3913229Z Secret source: Actions
+2026-06-02T20:26:29.3913982Z Prepare workflow directory
+2026-06-02T20:26:29.4458267Z Prepare all required actions
+2026-06-02T20:26:29.4514987Z Complete job name: smoke
+2026-06-02T20:26:29.5035577Z ##[group]Run set -euo pipefail
+2026-06-02T20:26:29.5036017Z [36;1mset -euo pipefail[0m
+2026-06-02T20:26:29.5036332Z [36;1mecho "Hostname:    $(hostname)"[0m
+2026-06-02T20:26:29.5036661Z [36;1mecho "Kernel:      $(uname -a)"[0m
+2026-06-02T20:26:29.5037116Z [36;1mecho "Distro:      $(lsb_release -ds 2>/dev/null || cat /etc/os-release | head -3)"[0m
+2026-06-02T20:26:29.5037622Z [36;1mecho "Architecture: $(uname -m)"[0m
+2026-06-02T20:26:29.5038064Z [36;1mecho "CPU info:    $(grep -m1 'model name' /proc/cpuinfo | sed 's/^[^:]*: //')"[0m
+2026-06-02T20:26:29.5038566Z [36;1mecho "Memory:      $(grep MemTotal /proc/meminfo)"[0m
+2026-06-02T20:26:29.5039157Z [36;1mecho "Container?  : $(grep -E 'docker|containerd|kubepods' /proc/1/cgroup 2>/dev/null | head -1 || echo unknown)"[0m
+2026-06-02T20:26:29.5223005Z shell: /usr/bin/bash -e {0}
+2026-06-02T20:26:29.5223558Z ##[endgroup]
+2026-06-02T20:26:29.6128260Z Hostname:    tuist-tuist-runner-pool-linux-4vcpu-16gb-runner-0863a53d
+2026-06-02T20:26:29.6129163Z Kernel:      Linux tuist-tuist-runner-pool-linux-4vcpu-16gb-runner-0863a53d 6.18.15 #1 SMP Sat May  2 16:07:11 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+2026-06-02T20:26:29.6129826Z Distro:      Ubuntu 22.04.5 LTS
+2026-06-02T20:26:29.6130127Z Architecture: x86_64
+2026-06-02T20:26:29.6130466Z CPU info:    AMD Ryzen 7 PRO 8700GE w/ Radeon 780M Graphics
+2026-06-02T20:26:29.6130863Z Memory:      MemTotal:        1967816 kB
+2026-06-02T20:26:29.6131173Z Container?  : unknown
+2026-06-02T20:26:29.6418860Z ##[group]Run set -euo pipefail
+2026-06-02T20:26:29.6419304Z [36;1mset -euo pipefail[0m
+2026-06-02T20:26:29.6419715Z [36;1m# Public GH should be reachable (the runner already[0m
+2026-06-02T20:26:29.6420181Z [36;1m# registered, so this had better work). The Pod-side[0m
+2026-06-02T20:26:29.6420716Z [36;1m# NetworkPolicy in the runners namespace gates Pod[0m
+2026-06-02T20:26:29.6421136Z [36;1m# egress to "HTTPS to public internet + DNS"; this[0m
+2026-06-02T20:26:29.6421558Z [36;1m# check exercises that path. Cluster-internal endpoints[0m
+2026-06-02T20:26:29.6421997Z [36;1m# (apiserver, in-cluster services) are deliberately[0m
+2026-06-02T20:26:29.6422424Z [36;1m# NOT reachable from the runner — same posture as the[0m
+2026-06-02T20:26:29.6422837Z [36;1m# macOS Tart VM, just enforced by NetworkPolicy[0m
+2026-06-02T20:26:29.6423284Z [36;1m# instead of vmnet isolation.[0m
+2026-06-02T20:26:29.6423896Z [36;1mcurl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com[0m
+2026-06-02T20:26:29.6458615Z shell: /usr/bin/bash -e {0}
+2026-06-02T20:26:29.6458925Z ##[endgroup]
+2026-06-02T20:26:29.8021844Z github.com → HTTP 200
+2026-06-02T20:26:29.8118076Z ##[group]Run set -euo pipefail
+2026-06-02T20:26:29.8118437Z [36;1mset -euo pipefail[0m
+2026-06-02T20:26:29.8118829Z [36;1m# NetworkPolicy in templates/runners-namespace.yaml lists[0m
+2026-06-02T20:26:29.8119308Z [36;1m# cluster Pod/Service CIDRs under `exceptCIDRs`. From a[0m
+2026-06-02T20:26:29.8119739Z [36;1m# runner Pod, dialing those CIDRs MUST fail (DNS or[0m
+2026-06-02T20:26:29.8120172Z [36;1m# connection). This is the negative gate the macOS smoke[0m
+2026-06-02T20:26:29.8120599Z [36;1m# couldn't enforce (Tart VMs bypass CNI); Linux Pods[0m
+2026-06-02T20:26:29.8120954Z [36;1m# honor it.[0m
+2026-06-02T20:26:29.8121413Z [36;1m# 10.128.0.10 = staging kube-dns Service ClusterIP (per[0m
+2026-06-02T20:26:29.8122576Z [36;1m# cluster-staging.yaml's serviceCIDR + standard[0m
+2026-06-02T20:26:29.8123033Z [36;1m# kube-system/kube-dns assignment). Connection attempt[0m
+2026-06-02T20:26:29.8123459Z [36;1m# should time out, not return data.[0m
+2026-06-02T20:26:29.8123933Z [36;1mif curl --max-time 5 -fsSL -o /dev/null "http://10.128.0.10:53"; then[0m
+2026-06-02T20:26:29.8124578Z [36;1m  echo "ERROR: kube-dns Service was reachable from the runner Pod — NetworkPolicy egress block is wrong"[0m
+2026-06-02T20:26:29.8125094Z [36;1m  exit 1[0m
+2026-06-02T20:26:29.8125333Z [36;1mfi[0m
+2026-06-02T20:26:29.8125625Z [36;1mecho "Cluster-internal egress correctly denied."[0m
+2026-06-02T20:26:29.8156567Z shell: /usr/bin/bash -e {0}
+2026-06-02T20:26:29.8156921Z ##[endgroup]
+2026-06-02T20:26:32.8407673Z curl: (52) Empty reply from server
+2026-06-02T20:26:32.8423513Z Cluster-internal egress correctly denied.
+2026-06-02T20:26:32.8471715Z Cleaning up orphan processes

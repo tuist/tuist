@@ -16,6 +16,11 @@ independent workqueues:
   GC cascade-delete the owned Pods — busy ones included — so the
   finalizer holds the CR Terminating, reaps only idle Pods, and waits
   for mid-job Pods to finish their single-shot job before releasing.
+  When it reaps a terminal Pod it logs the `runner` container's
+  `exitCode`/`reason` first — the durable, image-independent post-mortem
+  fingerprint for a runner that "lost communication" (0 = clean,
+  137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
+  15 = SIGTERM, other = crash), captured before the Pod is gone.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
@@ -340,17 +345,6 @@ Shape:
   starts dockerd to cover dockerd's own fd budget. Kata's
   microVM kernel defaults nofile=1024; without both, a docker
   build that walks a non-trivial `node_modules` tree EMFILEs.
-- `--registry-mirror=https://mirror.gcr.io` passed to dockerd so
-  Docker Hub pulls route through Google's public pull-through
-  cache. Every microVM on a bare-metal host NATs through that
-  host's single egress IP, so the whole host shares one Docker
-  Hub per-IP pull budget (100/6h anon) and CI jobs trip
-  `toomanyrequests`. GCR absorbs cache misses on its own backend,
-  so the runner's IP never hits Hub for `docker.io` images;
-  dockerd only contacts Hub directly if the mirror is unreachable.
-  Mirror semantics only cover `docker.io`; gcr.io/ghcr.io/quay.io
-  pulls are unaffected. Stopgap ahead of a self-hosted
-  pull-through cache backed by our own object storage.
 
 ### Why loop-mount? (the virtio-fs / overlay2 gotcha)
 

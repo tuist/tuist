@@ -6,6 +6,7 @@ defmodule TuistWeb.RunnersControllerTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
@@ -95,6 +96,30 @@ defmodule TuistWeb.RunnersControllerTest do
         |> get("/api/internal/runners/desired_replicas?fleet=fleet-x")
 
       assert json_response(conn, 503)["error"] =~ "kubernetes"
+    end
+  end
+
+  describe "POST /api/internal/runners/dispatch" do
+    test "returns the jit, workflow_job_id, and a per-job log token", %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok, %{jit: "JITCONFIG", account: account, runner_name: "pod-1", workflow_job_id: 4242}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["encoded_jit_config"] == "JITCONFIG"
+      assert body["owner"] == account.name
+      assert body["workflow_job_id"] == 4242
     end
   end
 

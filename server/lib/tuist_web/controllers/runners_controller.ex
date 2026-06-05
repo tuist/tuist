@@ -27,10 +27,12 @@ defmodule TuistWeb.RunnersController do
   def dispatch(conn, _params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{jit: jit, account: account}} <- Runners.dispatch_for_sa(ns, sa_name) do
+         {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id}} <-
+           Runners.dispatch_for_sa(ns, sa_name) do
       json(conn, %{
         encoded_jit_config: jit,
-        owner: account.name
+        owner: account.name,
+        workflow_job_id: workflow_job_id
       })
     else
       {:error, :no_work_yet} ->

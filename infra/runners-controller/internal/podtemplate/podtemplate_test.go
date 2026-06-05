@@ -1,7 +1,6 @@
 package podtemplate
 
 import (
-	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -243,18 +242,6 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	}
 }
 
-func TestBuild_LinuxDindUsesRegistryMirror(t *testing.T) {
-	// dockerd must launch with a Docker Hub pull-through mirror.
-	// Every microVM on a bare-metal host shares that host's egress
-	// IP, so the fleet shares one Docker Hub per-IP pull budget;
-	// the mirror keeps CI jobs off "toomanyrequests".
-	pod := build(t, basePool("linux"))
-	dind := pod.Spec.InitContainers[0]
-	if len(dind.Args) == 0 || !strings.Contains(dind.Args[0], "--registry-mirror=https://mirror.gcr.io") {
-		t.Errorf("dind args missing --registry-mirror=https://mirror.gcr.io; got %v", dind.Args)
-	}
-}
-
 func TestBuild_LinuxPodHasNoKataVirtioFsAnnotation(t *testing.T) {
 	// The dind sidecar's entrypoint loop-mounts an ext4 file
 	// onto /var/lib/docker, so dockerd never touches virtio-fs
@@ -273,6 +260,26 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 	pod := build(t, basePool(""))
 	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.virtio_fs_extra_args"]; ok {
 		t.Errorf("macOS pod should not carry kata virtiofsd annotations; got %+v", pod.Annotations)
+	}
+}
+
+func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
+	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
+	// but the kata guest kernel boots with PSI off unless psi=1 is on
+	// the cmdline. The annotation appends it (whitelisted via the
+	// containerd kata runtime's io.katacontainers.* pod_annotations).
+	pod := build(t, basePool("linux"))
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; got != "psi=1" {
+		t.Errorf("kernel_params annotation = %q, want \"psi=1\"", got)
+	}
+}
+
+func TestBuild_MacOSPodHasNoKataKernelParamsAnnotation(t *testing.T) {
+	// psi=1 is a kata-guest concern; macOS pods aren't kata, so the
+	// annotation must not leak onto them.
+	pod := build(t, basePool(""))
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; ok {
+		t.Errorf("macOS pod should not carry kata kernel_params annotation; got %+v", pod.Annotations)
 	}
 }
 

@@ -92,6 +92,12 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+cache:
+  s3:
+    bucket: tuist-stag-storage
+    xcodeCacheBucket: tuist-xcode-cache-staging
+    registryBucket: ""
+
 # CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Each instance is a streaming replica
 # holding the whole DB, so the size is per-replica capacity, not a
@@ -309,7 +315,7 @@ runnersFleet:
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  runnerImageSemver: "0.2.0"
+  runnerImageSemver: "0.2.1"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
@@ -373,7 +379,7 @@ runnersFleetLinux:
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
   # renders the pools; the server validates + addresses them).
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:1970d76d557e03495fa7a3e82f1358e9ecc44f03dd8e236c0346f6430a1aa581"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3e24a1ac38657a092dfe1f27a385ac1087142a7c19208b51a01d700b3d71c0e3"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

@@ -151,6 +151,12 @@ objectStorage:
     buckets:
       default: tuist-prod-storage
 
+cache:
+  s3:
+    bucket: tuist-cas-production
+    xcodeCacheBucket: tuist-xcode-cache-production
+    registryBucket: tuist-registry
+
 processor:
   # During the Supabase→CNPG migration, the processor stays on Supabase
   # (pooler hostname below) until the env-level cutover flips
@@ -307,7 +313,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 9
-  runnerImageSemver: "0.2.0"
+  runnerImageSemver: "0.2.1"
   pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
@@ -367,7 +373,7 @@ runnersFleetLinux:
   # default shape keeps the warm floor the legacy pool used to carry,
   # since it absorbs both `tuist-default` traffic and the `linux`
   # default-profile (`tuist-linux`) jobs that route through it.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:1970d76d557e03495fa7a3e82f1358e9ecc44f03dd8e236c0346f6430a1aa581"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3e24a1ac38657a092dfe1f27a385ac1087142a7c19208b51a01d700b3d71c0e3"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

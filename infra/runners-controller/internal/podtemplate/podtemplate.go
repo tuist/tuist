@@ -255,16 +255,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				// --group pins the docker.sock GID so the runner
 				// user (member of `docker` group, GID 123) can
 				// reach it.
-				// --registry-mirror routes Docker Hub pulls through
-				// Google's public pull-through cache. Every microVM
-				// on a bare-metal host NATs through that host's single
-				// egress IP, so the whole host shares one Docker Hub
-				// per-IP pull budget (100/6h anon) and CI jobs trip
-				// "toomanyrequests". GCR absorbs cache misses on its
-				// own backend, so the runner's IP never hits Hub for
-				// docker.io images; dockerd only contacts Hub directly
-				// if the mirror itself is unreachable. Mirror semantics
-				// cover docker.io only (gcr/ghcr/quay are untouched).
 				Command: []string{"sh", "-c"},
 				Args: []string{
 					"set -e && " +
@@ -276,7 +266,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 						"mkdir -p /var/lib/docker && " +
 						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
 						"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
-						"--registry-mirror=https://mirror.gcr.io " +
 						"--default-ulimit nofile=1048576:1048576",
 				},
 				SecurityContext: &corev1.SecurityContext{
@@ -329,6 +318,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// problem entirely by giving dockerd a real kernel-native
 	// filesystem.
 	annotations := map[string]string{}
+	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
+		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
+		// vitals probe can report CPU/memory pressure. The stock kata
+		// kernel ships CONFIG_PSI=y but boots with PSI disabled; `psi=1`
+		// on the guest cmdline turns it on. The annotation is honored
+		// because the containerd kata runtime whitelists
+		// `io.katacontainers.*` pod annotations.
+		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

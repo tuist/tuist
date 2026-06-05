@@ -60,7 +60,11 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: tuist-linux
+    # tuist-linux-large: mix gettext.extract compiles the full project
+    # (every dgettext/3 call needs to be reachable for the extractor) and
+    # OOMs the 2 vCPU / 8 GB default shape — same Elixir-compile-OOM
+    # pattern as `setup-server-mix` callers.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -68,7 +72,25 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
+      # Pre-compile the project in its own step so the OOM (if any)
+      # surfaces here rather than inside the extract heartbeat loop —
+      # makes the failure mode obvious. The throttle stack:
+      # MIX_OS_DEPS_COMPILE_PARTITION_COUNT for OS-deps compile,
+      # ERL_AFLAGS "+S 1:1" for project compile (Kernel.ParallelCompiler
+      # sizes concurrency from System.schedulers_online()), and the
+      # System.schedulers_online() echo verifies the throttle landed.
+      - name: Compile project (throttled)
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        working-directory: server
+        run: |
+          mix run -e 'IO.puts("schedulers_online=#{System.schedulers_online()}")'
+          mix compile
       - name: Check gettext templates are up-to-date
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
         run: |
           run_gettext_extract() {
             log_file="$1"

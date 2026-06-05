@@ -17,7 +17,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
+    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
   ]
 
   @hosted_only_crons [
