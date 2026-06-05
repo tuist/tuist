@@ -110,7 +110,7 @@ only surfaces in production.
 
 | Phase | Scope | Ships? | Exit criteria |
 |---|---|---|---|
-| **0 — Foundation + rocksdb spike** | `MODULE.bazel`, `.bazelrc`, `rules_rust`, `crate_universe` from `Cargo.toml`/`Cargo.lock`, hermetic Rust + cc toolchain, Bookworm sysroot. Produce a working **host (x86 Linux)** binary. | No | `rocksdb`/`mlua`/`jemalloc`/`ring` compile under Bazel; `kura --version` + smoke run work. **Gates everything — if rocksdb is intractable, the plan changes.** |
+| **0 — Foundation + rocksdb spike. ✅ Done** | `MODULE.bazel`, `.bazelrc`, `rules_rust`, `crate_universe` from `Cargo.toml`/`Cargo.lock`, hermetic Rust + cc toolchain, Bookworm sysroot. Produce a working **host (x86 Linux)** binary. | No | `rocksdb`/`mlua`/`jemalloc`/`ring` compile under Bazel; startup smoke + `bazel test` work. **Gate cleared — rocksdb builds hermetically.** (Milestones 0.1–0.6 below.) |
 | **1a — Linux x86_64 tarball** | Native build, `pkg_tar` + sha256/sha512 matching the current artifact layout. | Yes (per-target flip) | Bazel tarball passes the same checks as the Cargo one; e2e shellspec green; binary runs inside `debian:bookworm-slim`. |
 | **1b — Linux arm64 tarball (cross)** | The Bookworm cross sysroot for `aarch64`. | Yes (per-target flip) | arm64 binary cross-built from x86, verified on real arm hardware and inside Bookworm. |
 | **2 — macOS tarballs** | Bazel on `tuist-macos` for both darwin targets. | Optional / deferrable | macOS isn't on the image critical path; may stay on Cargo indefinitely. |
@@ -259,13 +259,32 @@ source, and built for minutes. The two genuine 0.3 work items are narrow: the
   validated on the x86_64 CI runner. Both arches buildable from one host unblocks the
   single-runner multi-arch OCI image (Phase 3).
 
-- **0.5 — Validation & go/no-go.** Run the Bazel binary **inside
-  `debian:bookworm-slim`** (the actual runtime image): `kura --version`, a startup
-  smoke test, and the `spec/e2e` shellspec suite. Compare behavior and size against
-  the Cargo-built binary.
-  *Check:* parity with the Cargo binary, running cleanly in Bookworm.
-  *Stretch:* wire one `rust_test` target to confirm `bazel test` is viable (full test
-  parity is not required in Phase 0).
+- **0.5 — Validation & go/no-go. ✅ Done.** The Bazel binary has parity with the Cargo
+  one and runs cleanly in the real runtime image. Evidence (arm64 host):
+  - **Runs in the actual `debian:bookworm-slim` runtime** — assembled the runtime image
+    around the Bazel binary (only `tini`/`libstdc++6`/`ca-certificates` + base libs, no
+    build toolchain, geoip omitted since `GeoIp::open()` is optional) and it started
+    cleanly. This is a stronger check than 0.3's build-container smoke: the slim runtime
+    has none of the build deps, so it proves the runtime dependency surface is satisfied.
+  - **`spec/e2e` shellspec parity** — built the runtime image as `KURA_IMAGE` and ran
+    `cluster_spec` against it with `KURA_E2E_SKIP_BUILD=1`: **6 examples, 0 failures**.
+    That exercises the real cache surface (keyvalue, CAS, Gradle, multipart modules),
+    cross-region replication, and read-after-restart — i.e. the binary genuinely works
+    as a server, not just as a process that starts.
+  - **Size parity** — Bazel (`-c opt`) **31.2 MiB** vs the shipped Cargo binary **32.0
+    MiB** (−2.3%); identical ELF shape (arm64 PIE, same interpreter, not stripped).
+  - **Stretch met — `bazel test` is viable.** Added `//:kura_lib_test` (`rust_test`
+    over `:kura_lib`); it recompiles the crate with `--test` and runs the in-crate unit
+    tests: **193 passed, 0 failed**. Needed `compile_data = ["ops/helm/kura/hooks/
+    tuist.lua"]` because a `#[cfg(test)]` block `include_str!`s that file from outside
+    the `src/` glob (same compile-time-path class as the lua-src fix).
+  *Finding:* the plan's `kura --version` check is **not applicable** — `kura` has no
+  `--version`/`--help` (it is env-configured, no clap). The empty-env startup smoke (it
+  prints `invalid configuration: missing required environment variables: …` and exits 1)
+  is the equivalent liveness check and is what shadow CI asserts.
+  *Note:* the e2e run used a hand-rolled runtime Dockerfile purely as a validation
+  vehicle; the production multi-arch image (and wiring e2e against it in CI) is Phase 3
+  (`rules_oci`).
 
 - **0.6 — Shadow CI. ✅ Done.** `.github/workflows/kura-bazel.yml` is the non-gating
   shadow job from the strategy above — it runs alongside the Cargo/Docker release path

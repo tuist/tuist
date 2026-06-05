@@ -88,6 +88,14 @@ if ! echo "$output" | grep -Eq "invalid configuration|missing required"; then
 fi
 echo "::endgroup::"
 
+# Run the crate's unit tests under `bazel test` for the native arch, reusing the same
+# -c opt + native platform config as the native binary above so the heavy -sys deps are
+# already built (only the test crate recompiles). Native-only: a cross test binary
+# can't execute on this host.
+echo "::group::bazel test //:kura_lib_test ($NATIVE)"
+bazel test //:kura_lib_test $BUILD_FLAGS --platforms="${PLATFORM[$NATIVE]}" --test_output=errors
+echo "::endgroup::"
+
 chmod -R a+rX "$DIST"
 echo
 echo "Bazel binary validation passed:"

@@ -4,7 +4,7 @@
 # labels, and defines the kura library + binary targets (Phase 0.3).
 
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
 
 exports_files([
     "Cargo.toml",
@@ -33,4 +33,23 @@ rust_binary(
     proc_macro_deps = all_crate_deps(proc_macro = True),
     visibility = ["//visibility:public"],
     deps = all_crate_deps(normal = True) + [":kura_lib"],
+)
+
+# Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the
+# test_support module) run under `bazel test`. The dev-only deps and aliases here are
+# appended to the ones inherited from :kura_lib.
+rust_test(
+    name = "kura_lib_test",
+    aliases = aliases(
+        normal_dev = True,
+        proc_macro_dev = True,
+    ),
+    # A #[cfg(test)] block include_str!s this file relative to src/extension/; it lives
+    # outside the srcs glob, so the test compile needs it as a sandbox input.
+    compile_data = ["ops/helm/kura/hooks/tuist.lua"],
+    crate = ":kura_lib",
+    edition = "2024",
+    proc_macro_deps = all_crate_deps(proc_macro_dev = True),
+    size = "small",
+    deps = all_crate_deps(normal_dev = True),
 )
