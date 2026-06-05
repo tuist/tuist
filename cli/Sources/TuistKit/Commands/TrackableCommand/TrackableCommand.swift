@@ -31,6 +31,7 @@ public struct TrackableCommandInfo {
     let ranAt: Date
     let buildRunId: String?
     let testRunId: String?
+    let generationId: String?
     let cacheEndpoint: String
 }
 
@@ -166,6 +167,7 @@ public class TrackableCommand {
                 ranAt: ranAt,
                 buildRunId: runMetadataStorage.buildRunId,
                 testRunId: runMetadataStorage.testRunId,
+                generationId: runMetadataStorage.generationId,
                 cacheEndpoint: runMetadataStorage.cacheEndpoint
             )
             let commandEvent = try await commandEventFactory.make(

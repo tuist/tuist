@@ -16,6 +16,11 @@ independent workqueues:
   GC cascade-delete the owned Pods — busy ones included — so the
   finalizer holds the CR Terminating, reaps only idle Pods, and waits
   for mid-job Pods to finish their single-shot job before releasing.
+  When it reaps a terminal Pod it logs the `runner` container's
+  `exitCode`/`reason` first — the durable, image-independent post-mortem
+  fingerprint for a runner that "lost communication" (0 = clean,
+  137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
+  15 = SIGTERM, other = crash), captured before the Pod is gone.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and

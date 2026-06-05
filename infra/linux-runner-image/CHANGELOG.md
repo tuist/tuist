@@ -1,10 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in linux-runner-image@0.3.0<!-- RELEASE NOTES START -->
+## What's Changed in linux-runner-image@0.4.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* enable PSI + add CPU-busy% for Linux runner vitals ([#11108](https://github.com/tuist/tuist/pull/11108))
 * emit resource vitals so mid-job runner deaths are diagnosable ([#11094](https://github.com/tuist/tuist/pull/11094))
 * isolate the runner dispatch token and bring fork CI onto the fleet ([#11062](https://github.com/tuist/tuist/pull/11062))
 * docker-in-runner for Linux pools ([#10905](https://github.com/tuist/tuist/pull/10905))
@@ -15,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/linux-runner-image@0.1.1...linux-runner-image@0.3.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/linux-runner-image@0.1.1...linux-runner-image@0.4.0
 
 ## What's Changed in linux-runner-image@0.1.1<!-- RELEASE NOTES START -->
 
