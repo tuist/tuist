@@ -1112,6 +1112,12 @@ runnersController:
   # container, so the exact image must not move outside review.
   # renovate: datasource=docker depName=docker versioning=docker
   dindImage: "docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # In-cluster Docker Hub pull-through cache URL the dind sidecar's
+  # dockerd mirrors docker.io through (with a matching insecure-registry,
+  # since it's http in-cluster). Empty = dockerd pulls docker.io directly.
+  # Set per-env to the registry-cache Service, e.g.
+  # http://<release>-registry-cache.<namespace>.svc.cluster.local:5000
+  registryMirror: ""
   # Feature gates the controller manager binary's `--dind-image`
   # flag. The flag was added by the docker-in-runner change; older
   # controller binaries (<= the release before that change) don't
@@ -1123,6 +1129,10 @@ runnersController:
   # controller.
   features:
     dindImage: false
+    # Gates the `--registry-mirror-url` flag for the same reason as
+    # dindImage: only flip true once this env's controller image is a
+    # binary that registers the flag, else flag.Parse exits 2.
+    registryMirror: false
   resources:
     requests:
       cpu: 50m
