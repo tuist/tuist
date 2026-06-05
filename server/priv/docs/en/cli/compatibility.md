@@ -16,8 +16,6 @@ The Tuist server supports CLI releases from the **last 3 months**. Within that w
 
 The CLI follows [semantic versioning](https://semver.org). Any release published within the last 3 months is supported.
 
-This applies to the managed server at `https://tuist.dev`. If you self-host Tuist, you control when the server and CLI upgrade, so you set your own compatibility window.
-
 ## Outside the window {#outside-the-window}
 
 CLI releases older than the support window are considered deprecated. The server still responds, but:
@@ -29,7 +27,7 @@ Behavior on deprecated versions is not guaranteed. If you are on one, upgrade to
 
 ## How we keep the promise {#how-we-keep-the-promise}
 
-Backward compatibility is verified, not assumed. Every server deployment runs an automated acceptance test against the **oldest CLI version still inside the support window**, exercising the cache pull path end to end. If a change would break that version, the deployment is blocked before it reaches production. This runs alongside the tests against the latest CLI, so a regression for older clients is caught the same way a regression for the newest one is.
+Backward compatibility is verified, not assumed. Every server deployment runs an automated acceptance test against the **oldest CLI version still inside the support window**, which today is **4.155.0**, exercising the cache pull path end to end. If a change would break that version, the deployment is blocked before it reaches production. This runs alongside the tests against the latest CLI, so a regression for older clients is caught the same way a regression for the newest one is.
 
 ## Recommendation {#recommendation}
 
