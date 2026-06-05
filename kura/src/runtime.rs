@@ -4,8 +4,9 @@ use std::{
     path::Path,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(test)]
@@ -16,6 +17,9 @@ use tokio::sync::{Notify, futures::Notified};
 use crate::metrics::Metrics;
 
 const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
+const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
+const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
+const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrafficState {
@@ -49,6 +53,8 @@ pub struct RuntimeState {
     http_inflight: AtomicUsize,
     public_http_inflight: AtomicUsize,
     grpc_inflight: AtomicUsize,
+    public_request_latency_ewma_micros: AtomicU64,
+    public_request_latency_sampled_at_ms: AtomicU64,
     outbox_depth: AtomicUsize,
     inflight_changed: Notify,
 }
@@ -62,6 +68,8 @@ impl RuntimeState {
             http_inflight: AtomicUsize::new(0),
             public_http_inflight: AtomicUsize::new(0),
             grpc_inflight: AtomicUsize::new(0),
+            public_request_latency_ewma_micros: AtomicU64::new(0),
+            public_request_latency_sampled_at_ms: AtomicU64::new(0),
             outbox_depth: AtomicUsize::new(0),
             inflight_changed: Notify::new(),
         })
@@ -125,6 +133,44 @@ impl RuntimeState {
         self.public_http_inflight() + self.grpc_inflight()
     }
 
+    #[cfg(test)]
+    pub fn public_request_latency_ewma(&self) -> Option<Duration> {
+        let micros = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::SeqCst);
+        if micros == 0 {
+            None
+        } else {
+            Some(Duration::from_micros(micros))
+        }
+    }
+
+    pub fn public_latency_pressure_divisor(&self, target_ms: u64) -> usize {
+        if target_ms == 0 {
+            return 1;
+        }
+
+        let ewma_micros = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::SeqCst);
+        if ewma_micros == 0 {
+            return 1;
+        }
+
+        let sampled_at_ms = self
+            .public_request_latency_sampled_at_ms
+            .load(Ordering::SeqCst);
+        if sampled_at_ms == 0
+            || now_ms().saturating_sub(sampled_at_ms) > PUBLIC_REQUEST_LATENCY_STALE_MS
+        {
+            return 1;
+        }
+
+        let target_micros = target_ms.saturating_mul(1_000).max(1);
+        let divisor = ewma_micros.div_ceil(target_micros).max(1) as usize;
+        divisor.min(MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR)
+    }
+
     pub fn total_inflight(&self) -> usize {
         self.http_inflight() + self.grpc_inflight()
     }
@@ -160,6 +206,39 @@ impl RuntimeState {
         self.inflight_changed.notify_waiters();
         InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
     }
+
+    fn record_public_request_latency(&self, metrics: &Metrics, duration: Duration) {
+        let sample_micros = duration.as_micros().min(u64::MAX as u128) as u64;
+        if sample_micros == 0 {
+            return;
+        }
+
+        let mut current = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::SeqCst);
+        loop {
+            let next = if current == 0 {
+                sample_micros
+            } else {
+                ((current * (PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR - 1)) + sample_micros)
+                    / PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR
+            };
+            match self.public_request_latency_ewma_micros.compare_exchange(
+                current,
+                next,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => {
+                    self.public_request_latency_sampled_at_ms
+                        .store(now_ms(), Ordering::SeqCst);
+                    metrics.update_public_request_latency_ewma(Duration::from_micros(next));
+                    break;
+                }
+                Err(actual) => current = actual,
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -184,6 +263,7 @@ pub struct InflightGuard {
     runtime: Arc<RuntimeState>,
     metrics: Metrics,
     kind: InflightKind,
+    started_at: Instant,
     active: bool,
 }
 
@@ -193,6 +273,7 @@ impl InflightGuard {
             runtime,
             metrics,
             kind,
+            started_at: Instant::now(),
             active: true,
         }
     }
@@ -204,6 +285,10 @@ impl Drop for InflightGuard {
             return;
         }
         self.active = false;
+        let public_load = matches!(
+            self.kind,
+            InflightKind::Http { public_load: true } | InflightKind::Grpc
+        );
         match self.kind {
             InflightKind::Http { public_load } => {
                 let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
@@ -224,8 +309,19 @@ impl Drop for InflightGuard {
                     .update_grpc_inflight(previous.saturating_sub(1));
             }
         }
+        if public_load {
+            self.runtime
+                .record_public_request_latency(&self.metrics, self.started_at.elapsed());
+        }
         self.runtime.inflight_changed.notify_waiters();
     }
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_millis() as u64
 }
 
 pub struct DataDirLock {
@@ -359,5 +455,22 @@ mod tests {
         drop(background);
         assert_eq!(runtime.http_inflight(), 0);
         assert_eq!(runtime.public_http_inflight(), 0);
+    }
+
+    #[test]
+    fn public_latency_pressure_divisor_tracks_recent_request_latency() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+
+        assert_eq!(runtime.public_latency_pressure_divisor(100), 1);
+
+        runtime.record_public_request_latency(&metrics, Duration::from_millis(250));
+
+        assert_eq!(
+            runtime.public_request_latency_ewma(),
+            Some(Duration::from_millis(250))
+        );
+        assert_eq!(runtime.public_latency_pressure_divisor(100), 3);
+        assert_eq!(runtime.public_latency_pressure_divisor(0), 1);
     }
 }

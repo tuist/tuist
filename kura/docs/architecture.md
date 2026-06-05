@@ -93,7 +93,7 @@ Replication is **leaderless and eventually consistent**:
 - Every node is a writer for its own clients.
 - A successful local write enqueues an `OutboxMessage` in RocksDB inside the same atomic batch as the metadata commit.
 - A background **outbox worker** drains the queue and PUTs each message to the corresponding peer over the internal plane. On success, the message is deleted; on failure it stays queued and the worker retries.
-- Large peer artifact body transfers can be application-throttled with `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND`. The limiter is shared per node across live replication uploads, replication ingests, and bootstrap artifact fetches/responses. The configured value is a ceiling; the effective sync rate is divided by `public_inflight + 1`, where public inflight includes non-probe public HTTP requests plus gRPC cache RPCs. Internal replication and probe requests do not count as public load. This lets sync work use its full budget while the node is quiet and back off automatically when public cache traffic is active.
+- Large peer artifact body transfers can be application-throttled with `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND`. The limiter is shared per node across live replication uploads, replication ingests, and bootstrap artifact fetches/responses. The configured value is a ceiling; the effective sync rate is divided by the larger of `public_inflight + 1` and the recent public request latency EWMA over `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`. Public inflight includes non-probe public HTTP requests plus gRPC cache RPCs. Internal replication and probe requests do not count as public load. This lets sync work use its full budget while the node is quiet and back off automatically when public cache traffic is active or slow.
 - Conflicts are resolved by `version_ms` (last-writer-wins per key); stale applies are rejected with `ArtifactApplyOutcome::IgnoredStale`.
 
 Newly joined nodes catch up by **bootstrapping from a peer**: paginated manifest and tombstone fetches followed by lazy artifact body fetches. Bootstrap re-uses the same apply paths as live replication, so the same conflict rules apply.
@@ -186,7 +186,7 @@ All configuration is environment-driven (`src/config.rs`). The full table lives 
 - Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_GRPC_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
 - Peer plane: `KURA_PEERS`, `KURA_DISCOVERY_DNS_NAME`, optional `KURA_INTERNAL_TLS_*` for peer mTLS.
 - Resource budgets: file-descriptor pool, memory soft/hard limits, manifest cache, RocksDB write buffer pool, all with `auto` defaults derived from the host.
-- Peer sync bandwidth: `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` sets the aggregate peer artifact body traffic ceiling per node when set above `0`; Kura adapts the effective rate downward under public HTTP or gRPC load.
+- Peer sync bandwidth: `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` sets the aggregate peer artifact body traffic ceiling per node when set above `0`; Kura adapts the effective rate downward under public HTTP or gRPC load, and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` controls the latency target for additional backoff.
 - Drain timing: `KURA_DRAIN_COMPLETION_TIMEOUT_MS`.
 
 When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limit, and detected CPU count to pick safe defaults.

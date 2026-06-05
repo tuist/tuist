@@ -49,6 +49,7 @@ pub struct Metrics {
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
     replication_bandwidth_configured_limit_bytes_per_second: Gauge,
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
+    replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
@@ -62,6 +63,7 @@ pub struct Metrics {
     file_descriptor_capacity: Gauge,
     http_inflight_requests: Gauge,
     public_http_inflight_requests: Gauge,
+    public_request_latency_ewma_ms: Gauge,
     grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -166,6 +168,7 @@ impl Metrics {
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
         let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
+        let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
@@ -185,6 +188,7 @@ impl Metrics {
         let file_descriptor_capacity = Gauge::default();
         let http_inflight_requests = Gauge::default();
         let public_http_inflight_requests = Gauge::default();
+        let public_request_latency_ewma_ms = Gauge::default();
         let grpc_inflight_requests = Gauge::default();
         let segment_handles_cached = Gauge::default();
         let segment_handle_cache_capacity = Gauge::default();
@@ -363,6 +367,11 @@ impl Metrics {
             replication_bandwidth_effective_limit_bytes_per_second.clone(),
         );
         registry.register(
+            "kura_replication_bandwidth_public_latency_target_ms",
+            "Public request latency target in milliseconds used to adapt peer artifact body bandwidth",
+            replication_bandwidth_public_latency_target_ms.clone(),
+        );
+        registry.register(
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
@@ -426,6 +435,11 @@ impl Metrics {
             "kura_public_http_inflight_requests",
             "Public non-probe HTTP requests currently in flight",
             public_http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_public_request_latency_ewma_ms",
+            "EWMA of completed public HTTP and gRPC request latency in milliseconds used by peer sync bandwidth adaptation",
+            public_request_latency_ewma_ms.clone(),
         );
         registry.register(
             "kura_grpc_inflight_requests",
@@ -738,6 +752,7 @@ impl Metrics {
             replication_apply_results,
             replication_bandwidth_configured_limit_bytes_per_second,
             replication_bandwidth_effective_limit_bytes_per_second,
+            replication_bandwidth_public_latency_target_ms,
             multipart_parts,
             node_info,
             node_geo,
@@ -751,6 +766,7 @@ impl Metrics {
             file_descriptor_capacity,
             http_inflight_requests,
             public_http_inflight_requests,
+            public_request_latency_ewma_ms,
             grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -997,11 +1013,14 @@ impl Metrics {
         &self,
         configured_bytes_per_second: u64,
         effective_bytes_per_second: u64,
+        public_latency_target_ms: u64,
     ) {
         self.replication_bandwidth_configured_limit_bytes_per_second
             .set(configured_bytes_per_second as i64);
         self.replication_bandwidth_effective_limit_bytes_per_second
             .set(effective_bytes_per_second as i64);
+        self.replication_bandwidth_public_latency_target_ms
+            .set(public_latency_target_ms as i64);
     }
 
     pub fn record_multipart_part(&self, result: &str) {
@@ -1068,6 +1087,11 @@ impl Metrics {
 
     pub fn update_public_http_inflight(&self, count: usize) {
         self.public_http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_public_request_latency_ewma(&self, duration: Duration) {
+        self.public_request_latency_ewma_ms
+            .set(duration.as_millis().min(i64::MAX as u128) as i64);
     }
 
     pub fn update_grpc_inflight(&self, count: usize) {
@@ -1671,13 +1695,14 @@ mod tests {
         );
         metrics.record_replication_apply("replication", "artifact", "applied");
         metrics.record_replication_apply("bootstrap", "namespace_delete", "ignored_older");
-        metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880);
+        metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880, 100);
         metrics.record_multipart_part("ok");
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
         metrics.update_http_inflight(2);
         metrics.update_public_http_inflight(1);
+        metrics.update_public_request_latency_ewma(Duration::from_millis(42));
         metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
@@ -1793,6 +1818,8 @@ mod tests {
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
         assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
         assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));
+        assert!(rendered.contains("kura_replication_bandwidth_public_latency_target_ms"));
+        assert!(rendered.contains("kura_public_request_latency_ewma_ms"));
         assert!(rendered.contains("kura_analytics_events_total"));
         assert!(rendered.contains("kura_analytics_batches_total"));
         assert!(rendered.contains("kura_analytics_batch_duration_seconds"));

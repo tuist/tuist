@@ -70,6 +70,7 @@ const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
+const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
@@ -88,6 +89,7 @@ const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
 const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 0;
+const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
@@ -124,6 +126,7 @@ pub struct Config {
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
     pub replication_bandwidth_limit_bytes_per_second: u64,
+    pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
@@ -699,6 +702,17 @@ impl Config {
             },
         )
         .unwrap_or(DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND);
+        let replication_public_latency_target_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -1162,6 +1176,7 @@ impl Config {
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
             replication_bandwidth_limit_bytes_per_second,
+            replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
@@ -1426,6 +1441,7 @@ mod tests {
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
         assert_eq!(config.replication_bandwidth_limit_bytes_per_second, 0);
+        assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(config.sentry_dsn, None);
     }
 
@@ -1457,6 +1473,7 @@ mod tests {
                 KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
                 "10485760",
             ),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1502,6 +1519,7 @@ mod tests {
             config.replication_bandwidth_limit_bytes_per_second,
             10_485_760
         );
+        assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1592,6 +1610,7 @@ mod tests {
             (KURA_METADATA_STORE_WRITE_BUFFER_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_WRITE_BUFFERS, "invalid"),
             (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1619,6 +1638,7 @@ mod tests {
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_WRITE_BUFFERS));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
+        assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
     }
 
     #[test]

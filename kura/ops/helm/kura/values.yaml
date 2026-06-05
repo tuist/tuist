@@ -123,9 +123,12 @@ config:
     maxBackgroundJobs: 4
   replication:
     # 0 disables application-level peer artifact body throttling.
-    # Positive values are adaptive ceilings: Kura divides the configured
-    # bytes/second by public_inflight + 1.
+    # Positive values are adaptive ceilings: Kura lowers the effective sync
+    # rate under public inflight load or elevated public request latency.
     bandwidthLimitBytesPerSecond: 0
+    # Public request latency target used to further back off peer sync traffic.
+    # Set to 0 to disable latency-based pressure.
+    publicLatencyTargetMs: 100
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production
