@@ -1,0 +1,39 @@
+# Phase 3: the runtime OCI image, assembled by rules_oci with no Docker daemon, Buildx,
+# or QEMU. The kura binary is cross-compiled per arch (see //bazel/toolchains/cc), so a
+# multi-arch image can be built from a single host.
+#
+# Build a single arch by picking the target platform, e.g. from the Linux dev container:
+#   bazel build //bazel/oci:image --platforms=//bazel/platforms:linux_arm64 -c opt
+# `bazel build //bazel/oci:load` produces a docker-loadable tarball (`docker load -i`).
+#
+# This is SHADOW only: it does not push to any registry and changes nothing in the
+# production release path. Base-content parity with the production Dockerfile (tini,
+# curl, geoip) and oci_push/release wiring are later Phase 3 steps.
+
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+# The kura binary at the production path (/usr/local/bin/kura), mode 0755 so the image
+# entrypoint is executable. //:kura transitions to the target platform under --platforms.
+pkg_tar(
+    name = "kura_layer",
+    srcs = ["//:kura"],
+    mode = "0755",
+    package_dir = "/usr/local/bin",
+)
+
+oci_image(
+    name = "image",
+    base = "@distroless_cc",
+    entrypoint = ["/usr/local/bin/kura"],
+    exposed_ports = ["4000"],
+    tars = [":kura_layer"],
+    visibility = ["//visibility:public"],
+)
+
+oci_load(
+    name = "load",
+    image = ":image",
+    repo_tags = ["kura-bazel:oci"],
+    visibility = ["//visibility:public"],
+)

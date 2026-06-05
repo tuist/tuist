@@ -10,6 +10,7 @@
 # libstdc++) so either host can cross-compile the other arch — same toolchain as
 # the native build, matching the Bookworm runtime exactly. On each host one is the
 # real cross toolchain and the other is redundant. See docs/bazel-migration-plan.md.
+# python3 is required by rules_pkg's pkg_tar (used to build the OCI image layer).
 #
 # Build:  docker build -f bazel/linux-dev.Dockerfile -t kura-bazel-linux .
 # Use:    see bazel/linux-build.sh
@@ -23,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       clang \
       cmake \
       pkg-config \
+      python3 \
       crossbuild-essential-amd64 \
       crossbuild-essential-arm64 \
     && rm -rf /var/lib/apt/lists/*
