@@ -7146,6 +7146,127 @@ struct PackageInfoMapperTests {
         #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
         #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
     }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTestTargetOnlyDependsOnPluginTarget_keepsPrebuiltProductAsSourceDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Tests/PluginTests"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                origin: .local,
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(name: "Plugin", type: .plugin),
+                        .test(
+                            name: "PluginTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "Plugin", condition: nil),
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "PluginTests" }))
+        #expect(target.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenPrebuiltProductDependencyHasUnsupportedCondition_skipsDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: .init(platformNames: [], config: "debug")
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(target.dependencies.isEmpty)
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -7326,11 +7447,12 @@ extension ProjectDescription.Target {
         case let .custom(list):
             sources = list
         case .default:
-            // swiftlint:disable:next force_try
+            guard let defaultSourcesPath = try? RelativePath(validating: "\(packageName)/Sources/\(name)/**") else {
+                fatalError("Invalid default sources path")
+            }
             sources =
                 .sourceFilesList(globs: [
-                    basePath.appending(try! RelativePath(validating: "\(packageName)/Sources/\(name)/**"))
-                        .pathString,
+                    basePath.appending(defaultSourcesPath).pathString,
                 ])
         }
 

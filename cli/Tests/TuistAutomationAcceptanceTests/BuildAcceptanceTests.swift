@@ -391,6 +391,35 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
     }
 }
 
+struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
+    @Test(
+        .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(5))
+    )
+    func app_with_swiftpm_prebuilt_macro_dependency() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App",
+                "--platform",
+                "macos",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                derivedDataPath.pathString,
+                "--",
+                "-skipMacroValidation",
+            ]
+        )
+    }
+}
+
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
     @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {

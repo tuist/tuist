@@ -601,7 +601,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         func isHostOnlyTarget(_ targetName: String) -> Bool {
             switch targetsByName[targetName]?.type {
-            case .macro, .plugin:
+            case .macro:
                 return true
             default:
                 return false
@@ -646,23 +646,23 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return visited
         }
 
-        let macroOrPluginTargets = Set(packageInfo.targets.compactMap { target in
+        let macroTargets = Set(packageInfo.targets.compactMap { target in
             switch target.type {
-            case .macro, .plugin:
+            case .macro:
                 target.name
             default:
                 nil
             }
         })
 
-        let macroOrPluginClosure = dependencyClosure(from: macroOrPluginTargets, includeHostOnlyTargets: true)
+        let macroClosure = dependencyClosure(from: macroTargets, includeHostOnlyTargets: true)
         let macroTestTargets = Set<String>(packageInfo.targets.compactMap { target in
             guard target.type == .test else { return nil }
             return dependencyClosure(from: [target.name], includeHostOnlyTargets: true)
-                .isDisjoint(with: macroOrPluginClosure) ? nil : target.name
+                .isDisjoint(with: macroClosure) ? nil : target.name
         })
 
-        let hostRoots = macroOrPluginTargets.union(macroTestTargets)
+        let hostRoots = macroTargets.union(macroTestTargets)
         let hostReachableTargets = dependencyClosure(from: hostRoots, includeHostOnlyTargets: true)
         let nonHostReachableTargets = dependencyClosure(
             from: allTargetNames.subtracting(hostRoots),
@@ -974,7 +974,12 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return nil
         }
 
-        _ = try ProjectDescription.PlatformCondition.from(condition)
+        do {
+            _ = try ProjectDescription.PlatformCondition.from(condition)
+        } catch {
+            return nil
+        }
+
         return packageType.prebuilt(targetPackage: targetPackage, product: name)
     }
 
