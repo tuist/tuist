@@ -97,11 +97,30 @@ defmodule Tuist.TailscaleJIT.Approvals do
           Repo.rollback({:invalid_status, status})
 
         %Request{} = req ->
-          if req.requester_slack_id == actor_slack_id and
-               not Policy.self_approval_allowed?(actor_email, req.target_group) do
-            Repo.rollback(:cannot_self_approve)
-          else
-            do_approve(req, actor_slack_id, actor_email)
+          cond do
+            # The approval window (`@approval_window_seconds`) is the
+            # deadline by which a second human must click Approve.
+            # The Slack card displays it; until this check existed,
+            # the bot wasn't actually enforcing it, so a stale
+            # button payload from hours/days ago would still grant
+            # access. Transition the request to `expired` (NOT a
+            # rollback — we want the status update + Slack card flip
+            # to stick) and surface the error up the case below.
+            DateTime.compare(req.expires_at, DateTime.utc_now()) == :lt ->
+              {:ok, expired} =
+                req
+                |> Request.transition_changeset(%{status: "expired"})
+                |> Repo.update()
+
+              notify_closed(expired, "expired")
+              {:expired, expired}
+
+            req.requester_slack_id == actor_slack_id and
+                not Policy.self_approval_allowed?(actor_email, req.target_group) ->
+              Repo.rollback(:cannot_self_approve)
+
+            true ->
+              do_approve(req, actor_slack_id, actor_email)
           end
       end
     end
@@ -109,6 +128,9 @@ defmodule Tuist.TailscaleJIT.Approvals do
     |> case do
       {:ok, {:already_approved, req, elev}} ->
         {:ok, req, elev}
+
+      {:ok, {:expired, _req}} ->
+        {:error, :approval_expired}
 
       {:ok, {req, elev}} ->
         {:ok, req, elev}
@@ -206,12 +228,15 @@ defmodule Tuist.TailscaleJIT.Approvals do
         # we want to fire NOW collides with the TTL-deferred job that
         # `do_approve` enqueued at approval time. Without `replace:`,
         # Oban returns the existing (still-scheduled-for-TTL) job
-        # unchanged and the manual revoke silently no-ops. Pulling
-        # `scheduled_at` forward on the existing scheduled job is the
-        # right behaviour: same job, runs now instead of at TTL.
+        # unchanged and the manual revoke silently no-ops. The
+        # `replace:` option belongs on `Worker.new/2` (NOT on
+        # `Oban.insert/2`), telling Oban: if the conflicting job is
+        # in `:scheduled` state, replace its `scheduled_at` with our
+        # new value (which `schedule_in: 0` sets to ~now). Same job,
+        # uniqueness preserved, runs immediately.
         case %{elevation_id: elev.id}
-             |> RevertWorker.new(schedule_in: 0)
-             |> Oban.insert(replace: [scheduled: [:scheduled_at]]) do
+             |> RevertWorker.new(schedule_in: 0, replace: [scheduled: [:scheduled_at]])
+             |> Oban.insert() do
           {:ok, _} -> {:ok, elev}
           {:error, reason} -> {:error, reason}
         end

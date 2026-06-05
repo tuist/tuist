@@ -138,6 +138,15 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
 
             send_resp(conn, 200, "")
 
+          {:error, :approval_expired} ->
+            SlackClient.ephemeral(
+              channel_id,
+              actor_slack_id,
+              ":hourglass: This elevation request has expired. Run `/elevate` again to create a fresh one."
+            )
+
+            send_resp(conn, 200, "")
+
           {:error, reason} ->
             SlackClient.ephemeral(channel_id, actor_slack_id, "Approval failed: #{human_error(reason)}")
             send_resp(conn, 200, "")

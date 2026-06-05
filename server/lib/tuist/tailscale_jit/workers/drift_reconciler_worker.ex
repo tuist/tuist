@@ -18,6 +18,7 @@ defmodule Tuist.TailscaleJIT.Workers.DriftReconcilerWorker do
 
   alias Tuist.Repo
   alias Tuist.TailscaleJIT.ACLMutation
+  alias Tuist.TailscaleJIT.Approvals
   alias Tuist.TailscaleJIT.Elevation
   alias Tuist.TailscaleJIT.TailscaleClient
 
@@ -37,6 +38,15 @@ defmodule Tuist.TailscaleJIT.Workers.DriftReconcilerWorker do
       # in. No-op everywhere else.
       :ok
     else
+      # First, kick the normal RevertWorker path for any
+      # `:active` Elevation rows that have outlived their TTL.
+      # Covers the "scheduled Oban job was lost or never inserted"
+      # case so the DB row transitions to `:reverted` and the
+      # Slack card flips, via the same code path as a timely
+      # revert. The ACL-side drift reap below catches anything
+      # the worker can't fix in time.
+      Approvals.re_enqueue_expired_active_elevations()
+
       case TailscaleClient.get_acl() do
         {:ok, doc, _etag} ->
           reconcile(doc)
@@ -61,8 +71,18 @@ defmodule Tuist.TailscaleJIT.Workers.DriftReconcilerWorker do
   end
 
   defp active_membership do
+    # Gate on `expires_at > now` in addition to status. The drift
+    # reconciler is the authoritative reaper; if it accepts every
+    # `:active` row regardless of TTL, it can't catch the case
+    # where the scheduled RevertWorker was lost and the row stayed
+    # `:active` past its expiry. Treating expired-active as "no
+    # longer legitimate backing" reaps the matching ACL member on
+    # the current tick (the DB row is separately re-enqueued for
+    # the normal RevertWorker path in `perform/1` above).
+    now = DateTime.utc_now()
+
     from(e in Elevation,
-      where: e.status == "active",
+      where: e.status == "active" and e.expires_at > ^now,
       select: {e.target_group, e.requester_email}
     )
     |> Repo.all()
