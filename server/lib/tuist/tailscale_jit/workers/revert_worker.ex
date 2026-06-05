@@ -1,13 +1,24 @@
 defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
   @moduledoc """
-  Reverts a single elevation: removes the requester from the
-  break-glass Tailscale group and marks the Elevation row
-  `reverted`. Idempotent on replay (set semantics on the ACL
-  group). Unique on `elevation_id` so a duplicate insertion (e.g.
-  from `revoke/2` racing the scheduled job) is a no-op.
+  Reverts a single elevation by flipping `tailscale_jit_elevations`
+  to `status="reverted"` and updating the Slack card. The Pomerium
+  ext_authz endpoint reads the same row at request time, so the
+  revert takes effect on the next kubectl call after this worker
+  runs (or earlier — the endpoint also filters by `expires_at`, so
+  TTL expiry alone is enough to deny new requests before this
+  worker even fires).
 
-  Runs on the `:tailscale_jit` queue at concurrency 1 so the bot
-  never has two writers racing the same tailnet ACL.
+  Idempotent on replay: if the row is already `reverted`, this is a
+  no-op. Unique on `elevation_id` across the available / scheduled
+  / executing / retryable states so a manual revoke insertion races
+  cleanly with the TTL-scheduled job (the `replace: [scheduled:
+  [:scheduled_at]]` on `Worker.new/2` in `Approvals.revoke/2`
+  pulls the scheduled job forward instead of creating a duplicate).
+
+  Runs on the `:tailscale_jit` queue at concurrency 1; the
+  concurrency cap is no longer load-bearing now that there's no
+  tailnet ACL writer to serialize, but it costs nothing and keeps
+  the Slack card update path single-writer.
   """
 
   use Oban.Worker,
@@ -21,12 +32,10 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
     max_attempts: 5
 
   alias Tuist.Repo
-  alias Tuist.TailscaleJIT.ACLMutation
   alias Tuist.TailscaleJIT.Elevation
   alias Tuist.TailscaleJIT.Request
   alias Tuist.TailscaleJIT.SlackBlocks
   alias Tuist.TailscaleJIT.SlackClient
-  alias Tuist.TailscaleJIT.TailscaleClient
 
   require Logger
 
@@ -47,50 +56,24 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
   end
 
   defp do_revert(elev) do
-    {:ok, elev} =
+    {:ok, reverted} =
       elev
-      |> Elevation.transition_changeset(%{status: "reverting"})
+      |> Elevation.transition_changeset(%{
+        status: "reverted",
+        reverted_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
       |> Repo.update()
 
-    result =
-      TailscaleClient.update_acl(fn doc ->
-        ACLMutation.remove_member(doc, elev.target_group, elev.requester_email)
-      end)
-
-    case result do
-      {:ok, _} ->
-        {:ok, reverted} =
-          elev
-          |> Elevation.transition_changeset(%{
-            status: "reverted",
-            reverted_at: DateTime.truncate(DateTime.utc_now(), :second)
-          })
-          |> Repo.update()
-
-        notify_slack_closed(reverted, "reverted")
-        :ok
-
-      {:error, reason} ->
-        {:ok, failed} =
-          elev
-          |> Elevation.transition_changeset(%{
-            status: "revert_failed",
-            revert_failure_reason: inspect(reason)
-          })
-          |> Repo.update()
-
-        notify_slack_closed(failed, "revert failed", "Reason: #{inspect(reason)}")
-        Logger.error("tailscale_jit: revert failed for elevation_id=#{elev.id}: #{inspect(reason)}")
-        # Raise so Oban retries with backoff.
-        {:error, reason}
-    end
+    notify_slack_closed(reverted, "reverted")
+    :ok
   end
 
   # Updates the original approval card to a terminal state so the
   # Slack thread reflects reality (no more stale "Active until ..."
   # card with a live Revoke button on an already-reverted elevation).
   # Best-effort: a failure here logs but does NOT fail the revert,
-  # since the underlying ACL mutation already succeeded.
+  # since the underlying DB transition already succeeded and the
+  # gateway will already deny new requests.
   defp notify_slack_closed(%Elevation{request_id: request_id}, label, detail \\ nil) do
     case Repo.get(Request, request_id) do
       %Request{slack_channel_id: channel, slack_message_ts: ts} = req

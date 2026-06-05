@@ -2,8 +2,6 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  import Ecto.Query
-
   alias Tuist.Repo
   alias Tuist.TailscaleJIT.Approvals
   alias Tuist.TailscaleJIT.Elevation
@@ -92,19 +90,15 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
       assert blocks |> List.first() |> get_in([:text, :text]) =~ "expired"
     end
 
-    test "does NOT mutate the Tailscale ACL when expired" do
+    test "does NOT create an Elevation row when expired" do
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
-
-      # If approve tried to elevate via the ACL, this would be
-      # called. The reject! ensures it isn't.
-      reject(&TailscaleClient.update_acl/1)
 
       req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), -3600, :second)})
 
       assert {:error, :approval_expired} =
                Approvals.approve(req.id, %{slack_id: "U_OTHER", email: "pedro@tuist.dev"})
 
-      # And no Elevation row should exist for this request.
+      # No Elevation row created when the expiry gate trips.
       assert Repo.get_by(Elevation, request_id: req.id) == nil
     end
   end
@@ -113,9 +107,6 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
     test "rejects a Member approving another engineer's production request" do
       stub_default_roles()
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
-      # If the request makes it past the role gate it would try the
-      # ACL mutation; reject! ensures we never get there.
-      reject(&TailscaleClient.update_acl/1)
 
       req =
         insert_request!(%{
@@ -140,7 +131,6 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
     test "rejects an off-tailnet approver for any env" do
       stub(TailscaleClient, :user_role, fn _ -> {:error, :not_found} end)
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
-      reject(&TailscaleClient.update_acl/1)
 
       req =
         insert_request!(%{
@@ -164,7 +154,6 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
       end)
 
       stub(SlackClient, :update_message, fn _, _, _ -> :ok end)
-      reject(&TailscaleClient.update_acl/1)
 
       req =
         insert_request!(%{
@@ -181,67 +170,4 @@ defmodule Tuist.TailscaleJIT.ApprovalsTest do
     end
   end
 
-  describe "re_enqueue_expired_active_elevations/0 — drift reconciler kick" do
-    test "enqueues a RevertWorker job for an :active elevation past its expiry" do
-      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
-
-      elev = insert_elevation!(req, %{expires_at: DateTime.add(DateTime.utc_now(), -120, :second)})
-
-      Approvals.re_enqueue_expired_active_elevations()
-
-      assert revert_worker_job_exists?(elev.id)
-    end
-
-    test "leaves still-fresh :active elevations alone" do
-      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
-
-      elev = insert_elevation!(req, %{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
-
-      Approvals.re_enqueue_expired_active_elevations()
-
-      refute revert_worker_job_exists?(elev.id)
-    end
-
-    test "leaves already-reverted elevations alone" do
-      req = insert_request!(%{expires_at: DateTime.add(DateTime.utc_now(), 600, :second)})
-
-      elev =
-        insert_elevation!(req, %{
-          expires_at: DateTime.add(DateTime.utc_now(), -120, :second),
-          status: "reverted"
-        })
-
-      Approvals.re_enqueue_expired_active_elevations()
-
-      refute revert_worker_job_exists?(elev.id)
-    end
-  end
-
-  defp insert_elevation!(%Request{} = req, overrides) do
-    base = %{
-      request_id: req.id,
-      requester_email: req.requester_email,
-      target_group: req.target_group,
-      expires_at: DateTime.add(DateTime.utc_now(), 600, :second)
-    }
-
-    {status, attrs} = Map.pop(overrides, :status, "active")
-
-    base
-    |> Map.merge(attrs)
-    |> Elevation.create_changeset()
-    |> Repo.insert!()
-    |> Elevation.transition_changeset(%{status: status})
-    |> Repo.update!()
-  end
-
-  defp revert_worker_job_exists?(elevation_id) do
-    Repo.exists?(
-      from(j in Oban.Job,
-        where:
-          j.worker == "Tuist.TailscaleJIT.Workers.RevertWorker" and
-            fragment("? @> ?", j.args, ^%{elevation_id: elevation_id})
-      )
-    )
-  end
 end

@@ -4,27 +4,29 @@ defmodule Tuist.TailscaleJIT.Approvals do
 
     * `request_elevation/1` — create a Request, post the Slack card,
       return the persisted Request.
-    * `approve/2` — second human says yes. Double-checks
-      approver_slack_id != requester_slack_id, mutates the
-      Tailscale ACL to add the requester to the break-glass group,
-      creates an Elevation, schedules a revert, updates Slack.
-    * `deny/2` — second human says no. Updates Slack, no ACL touch.
-    * `revoke/2` — early revert. Enqueues the revert worker now.
+    * `approve/2` — second human says yes. Gates self-approve via
+      `Policy.self_approval_allowed?/2` and the second-human path
+      via `Policy.approver_allowed?/2`, then creates an Elevation
+      row (status=active with TTL) and schedules a revert.
+    * `deny/2` — second human says no. Updates Slack, no elevation
+      row created.
+    * `revoke/2` — early revert. Pulls the scheduled RevertWorker
+      job forward to fire now.
 
-  All state transitions write the row before any side effect; ACL
-  mutation uses set semantics so retries are safe.
+  Elevation is a Postgres-side flag, not a tailnet ACL mutation.
+  The Pomerium gateway's ext_authz endpoint reads
+  `tailscale_jit_elevations` at request time to decide whether to
+  inject the elevated impersonation header on a given kubectl call.
+  No tailnet policy is written from this module; revocation is just
+  a DB status update.
   """
 
-  import Ecto.Query
-
   alias Tuist.Repo
-  alias Tuist.TailscaleJIT.ACLMutation
   alias Tuist.TailscaleJIT.Elevation
   alias Tuist.TailscaleJIT.Policy
   alias Tuist.TailscaleJIT.Request
   alias Tuist.TailscaleJIT.SlackBlocks
   alias Tuist.TailscaleJIT.SlackClient
-  alias Tuist.TailscaleJIT.TailscaleClient
   alias Tuist.TailscaleJIT.Workers.RevertWorker
 
   require Logger
@@ -154,43 +156,34 @@ defmodule Tuist.TailscaleJIT.Approvals do
     now = DateTime.truncate(DateTime.utc_now(), :second)
     elev_expires_at = DateTime.add(now, req.ttl_seconds, :second)
 
-    case mutate_acl_add(req.requester_email, req.target_group) do
-      {:ok, _} ->
-        {:ok, updated_req} =
-          req
-          |> Request.transition_changeset(%{
-            status: "approved",
-            approver_slack_id: approver_slack_id,
-            approver_email: approver_email,
-            approved_at: now
-          })
-          |> Repo.update()
+    # Elevation is a DB flag, not an ACL mutation. The Pomerium
+    # gateway's ext_authz endpoint checks `tailscale_jit_elevations`
+    # at request time to decide impersonation; no tailnet policy
+    # touch and no propagation delay.
+    {:ok, updated_req} =
+      req
+      |> Request.transition_changeset(%{
+        status: "approved",
+        approver_slack_id: approver_slack_id,
+        approver_email: approver_email,
+        approved_at: now
+      })
+      |> Repo.update()
 
-        {:ok, elev} =
-          %{
-            request_id: req.id,
-            requester_email: req.requester_email,
-            target_group: req.target_group,
-            expires_at: elev_expires_at
-          }
-          |> Elevation.create_changeset()
-          |> Repo.insert()
+    {:ok, elev} =
+      %{
+        request_id: req.id,
+        requester_email: req.requester_email,
+        target_group: req.target_group,
+        expires_at: elev_expires_at
+      }
+      |> Elevation.create_changeset()
+      |> Repo.insert()
 
-        schedule_revert(elev)
-        notify_active(updated_req, elev)
+    schedule_revert(elev)
+    notify_active(updated_req, elev)
 
-        {updated_req, elev}
-
-      {:error, reason} ->
-        # Mark the request as failed so the Slack thread reflects
-        # reality and the operator sees something went wrong.
-        {:ok, _} =
-          req
-          |> Request.transition_changeset(%{status: "failed", failure_reason: inspect(reason)})
-          |> Repo.update()
-
-        Repo.rollback({:acl_mutation_failed, reason})
-    end
+    {updated_req, elev}
   end
 
   @doc """
@@ -254,30 +247,6 @@ defmodule Tuist.TailscaleJIT.Approvals do
       %Elevation{status: status} ->
         {:error, {:invalid_status, status}}
     end
-  end
-
-  @doc """
-  Re-queues reverts for all `:active` elevations whose expiry has
-  already passed. Called from `Tuist.TailscaleJIT.Reconciler` on
-  boot to catch the gap between a missed Oban job and the next
-  cron tick.
-  """
-  def re_enqueue_expired_active_elevations do
-    now = DateTime.utc_now()
-
-    from(e in Elevation, where: e.status == "active" and e.expires_at <= ^now)
-    |> Repo.all()
-    |> Enum.each(fn elev ->
-      _ = %{elevation_id: elev.id} |> RevertWorker.new() |> Oban.insert()
-    end)
-  end
-
-  # Wraps the ACL mutation behind a single function so the worker
-  # and the approval flow share a single set-semantics path.
-  defp mutate_acl_add(member_email, target_group) do
-    TailscaleClient.update_acl(fn doc ->
-      ACLMutation.add_member(doc, target_group, member_email)
-    end)
   end
 
   defp schedule_revert(%Elevation{} = elev) do

@@ -33,11 +33,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
-    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
-    # Tailscale JIT drift reconciler. Cheap GET when there's no
-    # drift; worker self-skips on stag/can where the OAuth client
-    # credentials are not present.
-    {"*/5 * * * *", Tuist.TailscaleJIT.Workers.DriftReconcilerWorker}
+    {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
   ]
 
   @prod_like_envs [:prod, :stag, :can]

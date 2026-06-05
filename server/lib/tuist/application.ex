@@ -361,7 +361,6 @@ defmodule Tuist.Application do
         else: []
     )
     |> Kernel.++(kura_children())
-    |> Kernel.++(tailscale_jit_children())
     # Marketing.Stats polls ClickHouse on init. Skip it in test (tables
     # may not exist) and dev (noisy debug logs every 5 s).
     |> Kernel.++(
@@ -421,23 +420,6 @@ defmodule Tuist.Application do
     end
   end
 
-  # JIT elevation bot. Single writer for the tailnet ACL: prod web
-  # pods only, even though the bot code is loaded everywhere. The
-  # production cluster is the only one with the OAuth client + Slack
-  # app secrets wired in (see infra/helm/tuist/values-managed-production.yaml).
-  # The `tailscale_jit_force_enable?` env-var override exists so the
-  # supervisor can also boot on staging for end-to-end testing of the
-  # elevation flow before merging the prod path; remove the override
-  # once prod is the proven sole writer.
-  defp tailscale_jit_children do
-    eligible_env? = Environment.env() == :prod or Environment.tailscale_jit_force_enable?()
-
-    if Environment.web?() and eligible_env? and Environment.tuist_hosted?() do
-      [Tuist.TailscaleJIT.Supervisor]
-    else
-      []
-    end
-  end
 
   defp finch_pools do
     if Environment.test?() do

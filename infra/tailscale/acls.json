@@ -44,29 +44,16 @@
 	// console Users page) via Tailscale's built-in autogroups:
 	//   autogroup:owner  + autogroup:admin   → cluster admins
 	//   autogroup:member                     → engineers
-	// The JIT bot's policy module reads the same role from
-	// `GET /api/v2/tailnet/-/users` so the bot's authorization
-	// decisions track what's shown in the console UI; no email lists
-	// are kept in this file.
+	// No email lists are kept in this file; promoting someone in
+	// the console flips their access on the next session.
 	//
-	// The break-glass groups stay declared here because they hold
-	// transient, bot-managed membership (the JIT bot adds the
-	// requester for the elevation TTL and removes them when the
-	// session ends).
-	"groups": {
-		// Per-env break-glass groups. Empty by default; membership is
-		// managed by the JIT-elevation Slack bot which adds the
-		// requester for the session (TTL ~60 min) after a second
-		// human approves in Slack. Each group is bound to `edit` on
-		// its cluster via accessBindings, so a member can write to
-		// the app namespaces for the session but cannot mutate RBAC
-		// or escalate to cluster-admin. Staging carries the same
-		// shape as canary/prod so the elevation workflow can be
-		// exercised end-to-end on staging.
-		"group:tuist-staging-write": [],
-		"group:tuist-canary-write":  [],
-		"group:tuist-prod-write":    [],
-	},
+	// This document is the **view-tier** policy only. Elevated
+	// access (writes) flows through a separate Pomerium gateway
+	// that gates per-request on a Tuist DB flag — no Tailscale
+	// policy mutation. So there are no "break-glass" groups
+	// declared here, and the ACL itself is humans-only, edited
+	// through code review.
+	"groups": {},
 
 	"tagOwners": {
 		"tag:tuist-mgmt":              ["autogroup:admin"],
@@ -178,33 +165,14 @@
 			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-eng"]}}]},
 		},
 
-		// Per-env break-glass impersonation. Each grant lets a member
-		// of the env's break-glass group reach the matching cluster's
-		// API server proxy and impersonate the matching Kubernetes
-		// group, which is bound to `edit` via accessBindings. The
-		// proxy sets Impersonate-Group: <env>-write alongside the
-		// caller's existing tuist-eng / tuist-admins membership, so
-		// RBAC takes the union and the caller's effective tier is
-		// `edit` for the session. Membership is empty by default and
-		// is managed by the JIT-elevation Slack bot.
-		{
-			"src": ["group:tuist-staging-write"],
-			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:443"],
-			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-staging-write"]}}]},
-		},
-		{
-			"src": ["group:tuist-canary-write"],
-			"dst": ["tag:tuist-k8s-canary"],
-			"ip":  ["tcp:443"],
-			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-canary-write"]}}]},
-		},
-		{
-			"src": ["group:tuist-prod-write"],
-			"dst": ["tag:tuist-k8s-production"],
-			"ip":  ["tcp:443"],
-			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-prod-write"]}}]},
-		},
+		// Elevated (`edit`) access for writes does NOT live here.
+		// It flows through the Pomerium gateway (see
+		// `infra/helm/pomerium/`), which authenticates callers via
+		// Tuist's OIDC IdP, looks up the active elevation in the
+		// Tuist DB per request, and injects the Impersonate-Group
+		// header that maps to the env's elevated ClusterRole. The
+		// tailnet ACL stays read-only and static — no runtime
+		// mutation, no break-glass groups.
 	],
 
 	// Tailscale SSH (distinct from "grants") permits humans into

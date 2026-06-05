@@ -1,11 +1,12 @@
 defmodule Tuist.TailscaleJIT.Elevation do
   @moduledoc """
-  A runtime grant: a person has been added to a break-glass
-  Tailscale group for a bounded session. Lifecycle:
-  `active → reverting → reverted | revert_failed`. The
-  `RevertWorker` flips `active → reverted` at `expires_at`; the
-  `DriftReconcilerWorker` is the authoritative reaper that catches
-  anything Oban missed.
+  A bounded-time grant: a person is authorized for elevated
+  impersonation on a specific cluster env. The row IS the JIT
+  authorization (no tailnet ACL mutation; the Pomerium ext_authz
+  endpoint reads this table at request time). Lifecycle:
+  `active → reverted`. The `RevertWorker` flips the row at
+  `expires_at`; `expires_at` is also enforced at the ext_authz
+  endpoint so the row going stale never grants access.
 
   Backed by [priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs](priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs).
   """
