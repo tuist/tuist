@@ -446,9 +446,14 @@ defmodule Tuist.Runners.JobLogs do
   end
 
   @doc """
-  Pub/Sub topic carrying live log chunks for a job. The ingest
-  endpoint broadcasts newly appended lines here; the job detail
-  LiveView subscribes for the live tail.
+  Pub/Sub topic carrying log-lifecycle events for a job.
+
+  `FetchLogsWorker` broadcasts `:runner_job_logs_ready` once it
+  finishes streaming a job's captured log into ClickHouse;
+  `ArchiveLogsWorker` broadcasts `:runner_job_log_archived` once it
+  stamps `log_archived_at`. The job detail LiveView subscribes so the
+  empty state flips to the loaded view, and the "Download logs"
+  button appears, without the user having to refresh.
   """
   def topic(workflow_job_id) when is_integer(workflow_job_id), do: "runner_job_logs:#{workflow_job_id}"
 end

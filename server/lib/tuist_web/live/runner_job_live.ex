@@ -49,6 +49,11 @@ defmodule TuistWeb.RunnerJobLive do
         log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
         oldest_line = oldest_line_number(log_lines)
 
+        # Subscribe only on the connected mount so the disconnected
+        # first render doesn't open a stray subscription that gets
+        # leaked when the LiveSocket connects.
+        if connected?(socket), do: Tuist.PubSub.subscribe(JobLogs.topic(job.workflow_job_id))
+
         {:ok,
          socket
          |> assign(:head_title, head_title)
@@ -221,6 +226,30 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def step_duration_ms(_), do: nil
+
+  # FetchLogsWorker finished ingesting the job's captured log. Reload
+  # the tail and reset the stream so the empty state ("No logs have
+  # been captured for this job yet.") flips to the loaded view without
+  # the user having to refresh.
+  @impl true
+  def handle_info({:runner_job_logs_ready, _payload}, socket) do
+    workflow_job_id = socket.assigns.job.workflow_job_id
+    log_lines = JobLogs.recent(workflow_job_id, @page_size)
+    oldest_line = oldest_line_number(log_lines)
+
+    {:noreply,
+     socket
+     |> assign(:has_logs, log_lines != [])
+     |> assign(:oldest_line, oldest_line)
+     |> assign(:has_older, JobLogs.has_older?(workflow_job_id, oldest_line))
+     |> stream(:log_lines, Enum.map(log_lines, &log_stream_item/1), reset: true)}
+  end
+
+  # ArchiveLogsWorker stamped `log_archived_at`. Update the assign so
+  # the download button's `:if={@job.log_archived_at}` flips on.
+  def handle_info({:runner_job_log_archived, %{archived_at: archived_at}}, socket) do
+    {:noreply, assign(socket, :job, %{socket.assigns.job | log_archived_at: archived_at})}
+  end
 
   @impl true
   def handle_event("toggle_step", %{"number" => number}, socket) do

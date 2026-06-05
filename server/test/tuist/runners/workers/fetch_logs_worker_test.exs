@@ -138,6 +138,36 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_003})
     end
 
+    test "broadcasts :runner_job_logs_ready so the LiveView refreshes without a manual reload" do
+      account = account_fixture()
+      enqueue(account, 9_910_020)
+      stub_gh_installation_token()
+
+      :ok = Tuist.PubSub.subscribe(JobLogs.topic(9_910_020))
+
+      stub_req_stream("2026-06-02T15:31:03.111111Z hi\n")
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_020, account.id)})
+
+      assert_receive {:runner_job_logs_ready, %{workflow_job_id: 9_910_020}}, 1_000
+    end
+
+    test "does not broadcast when the log came back empty" do
+      account = account_fixture()
+      enqueue(account, 9_910_021)
+      stub_gh_installation_token()
+
+      :ok = Tuist.PubSub.subscribe(JobLogs.topic(9_910_021))
+
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, private: %{}}}
+      end)
+
+      assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_021, account.id)})
+
+      refute_receive {:runner_job_logs_ready, _}, 100
+    end
+
     test "strips the UTF-8 BOM that prefixes GitHub's Logs API response" do
       account = account_fixture()
       enqueue(account, 9_910_010)

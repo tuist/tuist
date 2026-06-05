@@ -144,5 +144,48 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorkerTest do
                  args: %{"workflow_job_id" => 9_900_003, "account_id" => -1}
                })
     end
+
+    test "broadcasts :runner_job_log_archived after stamping log_archived_at" do
+      account = account_fixture()
+      enqueue(account, 9_900_020)
+
+      :ok =
+        JobLogs.append([
+          %{
+            workflow_job_id: 9_900_020,
+            account_id: account.id,
+            line_number: 1,
+            ts: ~U[2026-05-28 12:00:00.000000Z],
+            message: "hi"
+          }
+        ])
+
+      :ok = Tuist.PubSub.subscribe(JobLogs.topic(9_900_020))
+      stub(Storage, :upload, fn _, _, _ -> :ok end)
+
+      assert :ok =
+               ArchiveLogsWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => 9_900_020, "account_id" => account.id}
+               })
+
+      assert_receive {:runner_job_log_archived,
+                      %{workflow_job_id: 9_900_020, archived_at: %DateTime{}}},
+                     1_000
+    end
+
+    test "does not broadcast when the job has no captured log lines" do
+      account = account_fixture()
+      enqueue(account, 9_900_021)
+
+      :ok = Tuist.PubSub.subscribe(JobLogs.topic(9_900_021))
+      reject(&Storage.upload/3)
+
+      assert :ok =
+               ArchiveLogsWorker.perform(%Oban.Job{
+                 args: %{"workflow_job_id" => 9_900_021, "account_id" => account.id}
+               })
+
+      refute_receive {:runner_job_log_archived, _}, 100
+    end
   end
 end

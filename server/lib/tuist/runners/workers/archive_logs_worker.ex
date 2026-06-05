@@ -1,23 +1,24 @@
 defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
   @moduledoc """
-  Builds a job's downloadable log archive once its stream closes.
+  Builds a job's downloadable log archive after `FetchLogsWorker`
+  finishes ingesting the captured log.
 
   ## Why
 
-  The live Logs view reads `runner_job_logs` directly — that table is
-  the source of truth for tailing, per-step slicing, and search. But
-  serving a "Download logs" click by re-streaming the whole job out of
-  ClickHouse (chunked, line by line) scales poorly: every download
-  re-scans the job's partition. GitHub sidesteps this by storing the
-  finished log as a single object and handing the browser a URL to it.
+  The Logs view reads `runner_job_logs` directly — that table is the
+  source of truth for per-step slicing and search. But serving a
+  "Download logs" click by re-streaming the whole job out of ClickHouse
+  scales poorly: every download re-scans the job's partition. GitHub
+  sidesteps this by storing the finished log as a single object and
+  handing the browser a URL to it.
 
-  This worker does the same. When the shipper closes a job's stream
-  (`done: true`), the ingest endpoint enqueues this job; it folds the
-  full log into the plain-text download format, gzips it, uploads it to
-  S3, and records the object key on the `runner_jobs` row. The download
-  endpoint then redirects to a presigned URL instead of streaming
-  ClickHouse — and falls back to the chunked stream for the window
-  before the archive lands.
+  This worker does the same. `FetchLogsWorker` enqueues it once the
+  last line is in CH; it folds the full log into the plain-text
+  download format, gzips it, uploads it to S3, and stamps
+  `log_archived_at` on the `runner_jobs` row. The download endpoint
+  reads that timestamp: present → redirect to a presigned URL on the
+  archive; absent → 404 (the LiveView hides the button during that
+  window).
 
   ## Idempotency
 
@@ -81,10 +82,10 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
       end
 
     if line_count == 0 do
-      # The job's stream closed without ever emitting a line (a runner
-      # that died before its first output, say). The gzip would still
-      # contain a header + trailer; there's nothing worth serving from
-      # an archive, and the chunked CH fallback handles the empty case.
+      # The job never emitted a line (a runner that died before its
+      # first output, say). The gzip would still contain a header +
+      # trailer; there's nothing worth serving, so we don't stamp the
+      # row and the download endpoint stays 404.
       :ok
     else
       key = archive_key(account.id, workflow_job_id)
@@ -93,9 +94,23 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
       |> File.stream!(@upload_chunk_bytes)
       |> Storage.upload(key, account)
 
-      Jobs.set_log_archived_at(workflow_job_id, DateTime.utc_now())
+      archived_at = DateTime.utc_now()
+      Jobs.set_log_archived_at(workflow_job_id, archived_at)
+      broadcast_archived(workflow_job_id, archived_at)
       :ok
     end
+  end
+
+  # Notify the job detail LiveView that the archive landed so the
+  # "Download logs" button can appear without a page refresh.
+  defp broadcast_archived(workflow_job_id, archived_at) do
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: workflow_job_id, archived_at: archived_at},
+      JobLogs.topic(workflow_job_id),
+      :runner_job_log_archived
+    )
+
+    :ok
   end
 
   defp stream_into_deflate(z, file, workflow_job_id) do

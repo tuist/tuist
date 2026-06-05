@@ -192,6 +192,86 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "compiling project"
   end
 
+  test "refreshes the Logs tab when FetchLogsWorker broadcasts :runner_job_logs_ready",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_610,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_100,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316100/jobs/31610?tab=logs")
+    assert html =~ "No logs have been captured for this job yet."
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_610,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "after-broadcast line"
+        }
+      ])
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_610},
+      Tuist.Runners.JobLogs.topic(31_610),
+      :runner_job_logs_ready
+    )
+
+    html = render(lv)
+    assert html =~ "after-broadcast line"
+    refute html =~ "No logs have been captured for this job yet."
+  end
+
+  test "shows the Download logs button after ArchiveLogsWorker broadcasts :runner_job_log_archived",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_620,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_200,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_620,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "hi"
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316200/jobs/31620?tab=logs")
+    refute html =~ "Download logs"
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_620, archived_at: DateTime.utc_now()},
+      Tuist.Runners.JobLogs.topic(31_620),
+      :runner_job_log_archived
+    )
+
+    assert render(lv) =~ "Download logs"
+  end
+
   test "expanding a step reveals only that step's logs", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{

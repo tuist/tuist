@@ -129,6 +129,8 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
           |> consume_remainder()
           |> flush_batch()
 
+        broadcast_ready(workflow_job_id, state.line_number)
+
         {:ok, state.line_number}
 
       # 404 happens for ~30 s after completion while GitHub finalises
@@ -192,6 +194,21 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   defp flush_batch(%{batch: batch} = state) do
     :ok = JobLogs.append(batch)
     %{state | batch: [], batch_count: 0}
+  end
+
+  # Notify the job detail LiveView that the captured log is now
+  # readable. Zero-line jobs (a runner that died before any output)
+  # don't fire — the UI would refresh to the same empty state.
+  defp broadcast_ready(_workflow_job_id, 0), do: :ok
+
+  defp broadcast_ready(workflow_job_id, _line_number) do
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: workflow_job_id},
+      JobLogs.topic(workflow_job_id),
+      :runner_job_logs_ready
+    )
+
+    :ok
   end
 
   defp parse_chunk(chunk, state) do
