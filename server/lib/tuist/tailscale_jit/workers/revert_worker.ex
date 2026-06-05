@@ -23,6 +23,9 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
   alias Tuist.Repo
   alias Tuist.TailscaleJIT.ACLMutation
   alias Tuist.TailscaleJIT.Elevation
+  alias Tuist.TailscaleJIT.Request
+  alias Tuist.TailscaleJIT.SlackBlocks
+  alias Tuist.TailscaleJIT.SlackClient
   alias Tuist.TailscaleJIT.TailscaleClient
 
   require Logger
@@ -56,26 +59,53 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
 
     case result do
       {:ok, _} ->
-        elev
-        |> Elevation.transition_changeset(%{
-          status: "reverted",
-          reverted_at: DateTime.truncate(DateTime.utc_now(), :second)
-        })
-        |> Repo.update()
+        {:ok, reverted} =
+          elev
+          |> Elevation.transition_changeset(%{
+            status: "reverted",
+            reverted_at: DateTime.truncate(DateTime.utc_now(), :second)
+          })
+          |> Repo.update()
 
+        notify_slack_closed(reverted, "reverted")
         :ok
 
       {:error, reason} ->
-        elev
-        |> Elevation.transition_changeset(%{
-          status: "revert_failed",
-          revert_failure_reason: inspect(reason)
-        })
-        |> Repo.update()
+        {:ok, failed} =
+          elev
+          |> Elevation.transition_changeset(%{
+            status: "revert_failed",
+            revert_failure_reason: inspect(reason)
+          })
+          |> Repo.update()
 
+        notify_slack_closed(failed, "revert failed", "Reason: #{inspect(reason)}")
         Logger.error("tailscale_jit: revert failed for elevation_id=#{elev.id}: #{inspect(reason)}")
         # Raise so Oban retries with backoff.
         {:error, reason}
+    end
+  end
+
+  # Updates the original approval card to a terminal state so the
+  # Slack thread reflects reality (no more stale "Active until ..."
+  # card with a live Revoke button on an already-reverted elevation).
+  # Best-effort: a failure here logs but does NOT fail the revert,
+  # since the underlying ACL mutation already succeeded.
+  defp notify_slack_closed(%Elevation{request_id: request_id}, label, detail \\ nil) do
+    case Repo.get(Request, request_id) do
+      %Request{slack_channel_id: channel, slack_message_ts: ts} = req
+      when is_binary(channel) and is_binary(ts) ->
+        case SlackClient.update_message(channel, ts, SlackBlocks.closed(req, label, detail)) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("tailscale_jit: slack card update failed for request_id=#{request_id}: #{inspect(reason)}")
+            :ok
+        end
+
+      _ ->
+        :ok
     end
   end
 end
