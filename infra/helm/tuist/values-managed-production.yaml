@@ -373,7 +373,7 @@ runnersFleetLinux:
   # default shape keeps the warm floor the legacy pool used to carry,
   # since it absorbs both `tuist-default` traffic and the `linux`
   # default-profile (`tuist-linux`) jobs that route through it.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3e24a1ac38657a092dfe1f27a385ac1087142a7c19208b51a01d700b3d71c0e3"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:c3661219d7a0ac9669b321b3d80e09ec8f43e20e464e4c16a90e2193db71b02e"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in linux-runner-image@0.5.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* runner job steps + log capture (live tail, per-step) ([#10985](https://github.com/tuist/tuist/pull/10985))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/linux-runner-image@0.4.0...linux-runner-image@0.5.0
+
 ## What's Changed in linux-runner-image@0.4.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

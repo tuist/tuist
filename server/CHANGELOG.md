@@ -1,13 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in server@1.206.0<!-- RELEASE NOTES START -->
+## What's Changed in server@1.207.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* gate production on an oldest-supported-CLI acceptance suite ([#11097](https://github.com/tuist/tuist/pull/11097))
+* runner job steps + log capture (live tail, per-step) ([#10985](https://github.com/tuist/tuist/pull/10985))
+* Module Cache breakdown for local Xcode builds ([#11087](https://github.com/tuist/tuist/pull/11087))
 * gate runner availability solely on the :runners feature flag ([#11090](https://github.com/tuist/tuist/pull/11090))
 ### 🐛 Bug Fixes
 
+* aggregate Kura usage by region ([#11092](https://github.com/tuist/tuist/pull/11092))
+* configure STS region for IRSA ([#11111](https://github.com/tuist/tuist/pull/11111))
+* Prefer ready Kura cache endpoints ([#11089](https://github.com/tuist/tuist/pull/11089))
 * add id tiebreaker to test case runs pagination ([#11045](https://github.com/tuist/tuist/pull/11045))
 * derive module name for UI test bundles in xcresult parser ([#11073](https://github.com/tuist/tuist/pull/11073))
 * reap orphaned owner-stamped runner pods to prevent fleet wedge ([#11060](https://github.com/tuist/tuist/pull/11060))
@@ -20,7 +26,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.206.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.207.0
 
 ## What's Changed in server@1.205.0<!-- RELEASE NOTES START -->
 

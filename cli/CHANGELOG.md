@@ -1,8 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.195.17<!-- RELEASE NOTES START -->
+## What's Changed in 4.196.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* Module Cache breakdown for local Xcode builds ([#11087](https://github.com/tuist/tuist/pull/11087))
 ### 🐛 Bug Fixes
 
 * stream xcodebuild test output with NSUnbufferedIO ([#11046](https://github.com/tuist/tuist/pull/11046))
@@ -20,7 +23,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.195.17
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.196.0
 
 ## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
 
