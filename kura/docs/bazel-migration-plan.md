@@ -364,13 +364,20 @@ to any registry. Production is untouched until the final flip.
 - **3.3 — geoip layer (todo).** The current Dockerfile downloads a time-dependent DB-IP
   dump; make it a pinned `http_file` (by digest) added as an image layer, or a deliberate
   non-Bazel step — `GeoIp::open()` is optional, so the image runs without it meanwhile.
-- **3.4 — base-content parity (todo, decision).** The distroless/cc base differs from the
-  production `debian:bookworm-slim` + `tini` + `curl` + `libstdc++6`. Decide: keep
-  distroless (smaller, no shell/curl → needs a healthcheck rethink) vs. reproduce the
-  bookworm runtime hermetically (e.g. `rules_distroless` apt layer for tini/curl). This
-  gates a clean e2e (the compose healthcheck uses `curl`).
+- **3.4 — base-content parity. ✅ Done.** Decision: **match production** (not distroless).
+  Base switched to the same `debian:bookworm-slim` (pinned by digest) and the extra
+  runtime packages the prod Dockerfile installs — `tini`, `curl`, `libstdc++6`,
+  `ca-certificates` — are layered on hermetically via `rules_distroless` (apt manifest +
+  sha256-pinned lock under `//bazel/oci`; 37 pkgs/arch incl. curl's TLS closure).
+  Entrypoint is `tini -- /usr/local/bin/kura`; `cacerts()` regenerates
+  `/etc/ssl/certs/ca-certificates.crt` (the postinst-generated bundle rules_distroless
+  doesn't produce). Verified on host docker: tini 0.19.0, curl 7.88.1, the cert bundle,
+  and a clean empty-env run under tini. (Local bzlmod gotcha: the apt extension caches an
+  empty result if the lock doesn't exist at first eval — needs `bazel clean --expunge`;
+  CI's clean cache reads the committed lock fine.)
 - **3.5 — e2e + shadow CI (todo).** Run `spec/e2e` against the Bazel image
-  (`KURA_IMAGE`), and add a non-pushing OCI build to shadow CI.
+  (`KURA_IMAGE`), and add a non-pushing OCI build (multi-arch index + native-arch smoke)
+  to shadow CI.
 - **3.6 — oci_push + release flip (deferred — the only production change).** `oci_push`
   to `ghcr.io` `:<version>`/`:latest` with `--stamp`/`workspace_status`; then replace
   `release-kura-docker`. NOT in scope while "no production change" holds.
