@@ -735,6 +735,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
                     .external(name: "Crypto"),
+                    .external(name: "SwifterPMCore"),
                 ]
             case .kit:
                 [
@@ -1624,6 +1625,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
+                    .external(name: "SwifterPMCore"),
                 ]
             case .har:
                 [

@@ -208,20 +208,6 @@ checksum = "sha256:bb17d4f507aa3dc0f8964c77e9139a33739118ada1a088295e95094740721
 url = "https://github.com/tuist/blick/releases/download/0.8.0/blick-0.8.0-x86_64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/tuist/blick/releases/assets/412682236"
 
-[[tools."github:tuist/swifterpm"]]
-version = "0.5.1"
-backend = "github:tuist/swifterpm"
-
-[tools."github:tuist/swifterpm"."platforms.macos-arm64"]
-checksum = "sha256:8d1ceafe819732d191c7783418f65c6cdc5a64b4ec64bc5eeb51ea231cac657e"
-url = "https://github.com/tuist/swifterpm/releases/download/0.5.1/swifterpm-0.5.1-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/439272236"
-
-[tools."github:tuist/swifterpm"."platforms.macos-x64"]
-checksum = "sha256:b516fe4b8a410767848095f9d4e8c80e6672b314253759cee6c49bf53fdd9cee"
-url = "https://github.com/tuist/swifterpm/releases/download/0.5.1/swifterpm-0.5.1-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/tuist/swifterpm/releases/assets/439272231"
-
 [[tools.gradle]]
 version = "8.12.1"
 backend = "aqua:gradle/gradle"

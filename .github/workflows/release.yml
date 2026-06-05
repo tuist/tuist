@@ -114,7 +114,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "tuist git-cliff 1password-cli github:tuist/swifterpm"
+          install_args: "tuist git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -2111,7 +2111,7 @@ jobs:
 
       - name: Update mise.lock
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
-        run: mise lock tuist github:tuist/swifterpm --platform linux-x64,macos-arm64,macos-x64
+        run: mise lock tuist --platform linux-x64,macos-arm64,macos-x64
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success' && needs.release-ios.result == 'success' && needs.release-android.result == 'success'
