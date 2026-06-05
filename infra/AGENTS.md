@@ -26,7 +26,7 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
-Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and the API server proxy in auth mode for human kubectl access. In auth mode the proxy impersonates the caller's tailnet identity; tailnet ACL grants in [`tailscale/acls.json`](tailscale/acls.json) authorize impersonation and `accessBindings` maps the impersonated group to a built-in ClusterRole (staging/canary `edit`, production `view`, founders `cluster-admin`). The proxy is additive: the public apiserver endpoint and the CI deployer kubeconfig are unaffected.
+Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and the API server proxy in auth mode for human kubectl access. In auth mode the proxy impersonates the caller's tailnet identity; tailnet ACL grants in [`tailscale/acls.json`](tailscale/acls.json) authorize impersonation and `accessBindings` maps the impersonated group to a built-in `ClusterRole`. Default tier on every env is **`view` for everyone (founders and engineers alike)**; writes go through the per-env `tuist-<env>-write` break-glass group managed by the JIT bot (see [Cluster access for agents](#cluster-access-for-agents) below). The proxy is additive: the public apiserver endpoint and the CI deployer kubeconfig are unaffected.
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
@@ -62,6 +62,40 @@ Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives
 - Editing files directly in the repo is also supported: after merge, Grafana pulls on its sync interval (60s) or via webhook.
 - **Adding a new dashboard:** create it in the `Tuist Dashboards` folder in Grafana Cloud (or move an existing unmanaged dashboard into it). The save dialog opens a PR with the wrapped file; merging it provisions the dashboard back.
 - **Self-host use:** self-hosters who just want to import one of these into their own Grafana should extract the `spec` first (e.g. `jq '.spec' cache-service.json > dashboard.json`), since the Grafana Import UI expects raw dashboard JSON rather than the resource wrapper.
+
+## Cluster access for agents
+
+This section is normative for agents (Claude, Codex, anything driving `kubectl` on a teammate's behalf). The cluster-access design has a specific shape *because* of the agent threat model — read it before reaching for any escalation path.
+
+### Default: read-only is always allowed, no setup needed
+
+The team's tailnet identity carries through to every workload cluster via the Tailscale operator's API server proxy. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. RBAC binds the impersonated identity to `view`, which **excludes `Secret`s** — that's deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
+
+For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely.
+
+### Writes: never escalate without explicit human approval
+
+Every mutating operation (`delete pod`, `apply -f`, `scale deployment`, `patch`, `create` of any kind) returns `403 Forbidden` by default. This is the agent-containment property the design protects — an agent with a teammate's tailnet identity cannot wreck a cluster silently.
+
+The bot's `/elevate <env> [duration] <intent>` Slack flow is the path to write access. **It is not an agent-driven path.** The `Tuist.TailscaleJIT.Policy` module currently allows founders to self-approve any env and engineers to self-approve non-prod, but that policy assumes the click comes from a human at a keyboard. An agent that drives both `/elevate` and the Approve click via the same workstation's Slack token has defeated the entire design. Don't do it.
+
+Concrete rules for agents:
+
+- **Do not invoke `/elevate` autonomously.** If you think a write is needed, surface that to the human ("this would require elevation; can you run `/elevate ...` and grant the access?") and let them drive both the request and the approval.
+- **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
+- **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
+- **If the human has elevated themselves and you're now running inside that window**, mutating operations through the proxy will work — the elevation widens the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+
+### Forensic trail
+
+Every elevation produces records in four independent stores (Slack thread, the bot's Postgres tables, Tailscale's ACL audit log, the operator proxy's per-call access log in Grafana Cloud Loki). [`k8s/jit-elevation-audit.md`](k8s/jit-elevation-audit.md) is the runbook for joining them when something needs to be reconstructed.
+
+### Where the bot lives
+
+- Service code: [`server/lib/tuist/tailscale_jit/`](../server/lib/tuist/tailscale_jit/).
+- Policy (admin / engineer lists, env-allowance matrix): `Tuist.TailscaleJIT.Policy`.
+- ACL source of truth: [`tailscale/acls.json`](tailscale/acls.json). The bot's `@admin_emails` and `@eng_emails` are kept in sync with this file by hand; if you edit `acls.json`'s `group:tuist-admins` or `group:tuist-eng` membership, update `Policy` too (the bot is strictly more restrictive when they diverge — fail-safe direction).
+- Per-cluster RBAC: `accessBindings` in `helm/tailscale-operator/values-{staging,canary,production}.yaml`.
 
 ## Deployment
 
