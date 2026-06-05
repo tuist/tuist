@@ -14,9 +14,11 @@ bazel_dep(name = "rules_cc", version = "0.2.17")
 bazel_dep(name = "platforms", version = "1.0.0")
 
 # Phase 3: build the runtime OCI image with rules_oci (no Docker daemon / Buildx / QEMU).
-# rules_pkg's pkg_tar packages the kura binary into an image layer.
+# rules_pkg's pkg_tar packages the kura binary into an image layer; rules_distroless
+# resolves the extra Debian runtime packages (tini/curl/...) hermetically as a layer.
 bazel_dep(name = "rules_oci", version = "2.3.0")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_distroless", version = "0.8.0")
 
 # Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
 # extra_target_triples enables cross-compilation between the two Linux arches.
@@ -85,24 +87,32 @@ crate.from_cargo(
 )
 use_repo(crate, "crates")
 
-# Base image for the runtime layer. distroless/cc-debian12 is Debian Bookworm-based
-# (glibc 2.36, matching the build) and ships libstdc++/libgcc/glibc + ca-certificates,
-# which is all the (mostly-static) kura binary needs at runtime. Pinned by digest and
-# fetched for both arches so a multi-arch image index can be assembled from one host.
-# NOTE: this differs from the production Dockerfile's debian:bookworm-slim + tini/curl;
-# reconciling base contents (tini init, curl healthcheck, geoip) is tracked for the
-# Phase 3 cutover and changes nothing in production yet.
+# Runtime base image: the same debian:bookworm-slim the production Dockerfile uses, pinned
+# by index digest and fetched for both arches so a multi-arch index builds from one host.
+# arm64 is published as the v8 variant (must be spelled out or the manifest match fails);
+# the @debian_bookworm_slim alias still selects it for our variant-less
+# //bazel/platforms:linux_arm64 (it keys on cpu:arm64).
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 oci.pull(
-    name = "distroless_cc",
-    digest = "sha256:aa0b7af67fa8211751ea6e00baa8373ba56cc1417ffc986ec9619bd0e1556b56",
-    image = "gcr.io/distroless/cc-debian12",
+    name = "debian_bookworm_slim",
+    digest = "sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb",
+    image = "docker.io/library/debian",
     platforms = [
         "linux/amd64",
-        # distroless publishes arm64 as the v8 variant; the variant must be spelled out
-        # or the manifest match fails. The @distroless_cc alias still selects this repo
-        # for our variant-less //bazel/platforms:linux_arm64 (it keys on cpu:arm64).
         "linux/arm64/v8",
     ],
 )
-use_repo(oci, "distroless_cc", "distroless_cc_linux_amd64", "distroless_cc_linux_arm64_v8")
+use_repo(oci, "debian_bookworm_slim", "debian_bookworm_slim_linux_amd64", "debian_bookworm_slim_linux_arm64_v8")
+
+# Extra runtime packages layered on bookworm-slim to match the production Dockerfile
+# (tini init, curl for healthchecks, libstdc++6 for the C++ deps, ca-certificates),
+# resolved hermetically by rules_distroless and added as an image layer. The lockfile
+# pins each .deb by sha256. Regenerate it after editing the manifest:
+#   bazel run @bookworm_apt//:lock
+apt = use_extension("@rules_distroless//apt:extensions.bzl", "apt")
+apt.install(
+    name = "bookworm_apt",
+    lock = "//bazel/oci:bookworm_apt.lock.json",
+    manifest = "//bazel/oci:bookworm_apt.yaml",
+)
+use_repo(apt, "bookworm_apt")

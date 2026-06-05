@@ -7,11 +7,20 @@
 # `bazel build //bazel/oci:load` produces a docker-loadable tarball (`docker load -i`).
 #
 # This is SHADOW only: it does not push to any registry and changes nothing in the
-# production release path. Base-content parity with the production Dockerfile (tini,
-# curl, geoip) and oci_push/release wiring are later Phase 3 steps.
+# production release path. geoip layer and oci_push/release wiring are later Phase 3 steps.
 
+load("@rules_distroless//distroless:defs.bzl", "cacerts")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+# The ca-certificates .deb ships individual certs but the bundled
+# /etc/ssl/certs/ca-certificates.crt is produced by its postinst (update-ca-certificates),
+# which rules_distroless does not run. cacerts() generates that bundle so outbound TLS
+# (analytics, peer/object-store HTTPS) verifies — matching what apt produces in production.
+cacerts(
+    name = "cacerts",
+    package = "@bookworm_apt//ca-certificates:data",
+)
 
 # The kura binary at the production path (/usr/local/bin/kura), mode 0755 so the image
 # entrypoint is executable. //:kura transitions to the target platform under --platforms.
@@ -22,12 +31,25 @@ pkg_tar(
     package_dir = "/usr/local/bin",
 )
 
+# Runtime image matching the production Dockerfile: debian:bookworm-slim base + the
+# extra-packages layer (tini/curl/libstdc++6/ca-certificates) + the binary, with tini as
+# the init entrypoint. @bookworm_apt//:flat is a per-arch tar selected by the build
+# platform, so it composes with the multi-arch index below.
 oci_image(
     name = "image",
-    base = "@distroless_cc",
-    entrypoint = ["/usr/local/bin/kura"],
+    base = "@debian_bookworm_slim",
+    entrypoint = [
+        "/usr/bin/tini",
+        "--",
+        "/usr/local/bin/kura",
+    ],
+    env = {"RUST_LOG": "info"},
     exposed_ports = ["4000"],
-    tars = [":kura_layer"],
+    tars = [
+        "@bookworm_apt//:flat",
+        ":cacerts",
+        ":kura_layer",
+    ],
     visibility = ["//visibility:public"],
 )
 
