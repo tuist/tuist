@@ -1,16 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in runners-controller@0.8.0<!-- RELEASE NOTES START -->
+## What's Changed in runners-controller@0.9.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* enable PSI + add CPU-busy% for Linux runner vitals ([#11108](https://github.com/tuist/tuist/pull/11108))
 * own macOS+Xcode base image ([#10834](https://github.com/tuist/tuist/pull/10834))
 * mirror runner Docker Hub pulls through mirror.gcr.io ([#11096](https://github.com/tuist/tuist/pull/11096))
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/runners-controller@0.7.0...runners-controller@0.8.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/runners-controller@0.7.0...runners-controller@0.9.0
 
 ## What's Changed in runners-controller@0.7.0<!-- RELEASE NOTES START -->
 

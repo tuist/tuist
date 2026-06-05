@@ -255,7 +255,7 @@ runnersFleetLinux:
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero; the default shape keeps a warm floor since it
   # absorbs `tuist-default` + `linux` default-profile traffic.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:a0f5ba39d5ccff7b5e2dfcad61696895cf9631d282991a212818ba70948f876e"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:3e24a1ac38657a092dfe1f27a385ac1087142a7c19208b51a01d700b3d71c0e3"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true
