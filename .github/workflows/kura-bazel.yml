@@ -113,14 +113,24 @@ jobs:
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
-      # See the bazel-linux job for the caching rationale.
-      - name: Cache Bazel (disk + repos)
-        uses: actions/cache@v4
+      # See the bazel-linux job for the caching rationale. This job is split into
+      # restore + save (vs. the plain cache action) for two reasons:
+      #   1. Save on failure. The plain action only saves on a clean job, but this
+      #      OCI job stays red while the runtime is debugged — so the expensive C
+      #      compilation would never get cached. The save step runs `if: always()`.
+      #   2. Seed from the binary job's cache. Bazel's disk_cache is content-
+      #      addressed, and the x86_64 (and cross-arm64) compile actions are
+      #      identical between the binary build and the image build, so falling
+      #      back to `bazel-linux-x86_64-` warms the first OCI run for free.
+      - name: Restore Bazel cache (disk + repos)
+        id: bazel-cache
+        uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}/bazel-cache
           key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
           restore-keys: |
             bazel-oci-
+            bazel-linux-x86_64-
 
       - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
         run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
@@ -133,30 +143,38 @@ jobs:
             kura-bazel-dev \
             bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-oci.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
 
-      # The native amd64 image runs fine when built cross + loaded (classic or
-      # containerd store) + run emulated on a dev machine, but the runner's
-      # native load+run fails every binary with ENOENT (missing-loader signature).
-      # This step localizes it: engine/store, the tarball's own layer digests
-      # (to compare against a cross-built reference), and — decisively — whether
-      # the base files actually materialize in the flattened rootfs on the runner.
+      # PARADOX from the previous run: `docker export` shows /usr/bin/tini and
+      # /lib64/ld-linux-x86-64.so.2 are present in the flattened rootfs, yet
+      # `docker run` fails `exec /usr/bin/tini: no such file or directory` (the
+      # missing-ELF-interpreter signature). The base+apt layer digests are
+      # byte-identical to a tarball that runs fine under overlay2 emulated, so the
+      # only remaining variable is native-amd64 vs emulated exec. This step gets
+      # native ground truth: the interpreter the binaries actually request, and —
+      # decisively — a native chroot exec of docker's own flattened rootfs, with
+      # no docker/overlay in the path. chroot works => docker/overlay issue;
+      # chroot fails => the binary/loader itself.
       - name: Diagnose image load on the runner
         working-directory: kura
         run: |
           set -x
-          docker version
-          docker info --format 'driver={{.Driver}} version={{.ServerVersion}} storage={{.DriverStatus}}'
-          echo "=== tarball entries (manifest + layer blobs) ==="
-          tar -tf bazel-dist/kura-oci.tar
-          echo "=== tarball manifest.json ==="
-          tar -xOf bazel-dist/kura-oci.tar manifest.json
+          docker info --format 'driver={{.Driver}} version={{.ServerVersion}}'
           docker load -i bazel-dist/kura-oci.tar
           docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
-          echo "=== flattened rootfs: do base + runtime files materialize? ==="
           cid="$(docker create kura-bazel:oci)"
-          docker export "$cid" | tar -tf - \
-            | grep -E '(^|/)(bin/ls|usr/bin/tini|usr/bin/curl|usr/local/bin/kura)$|ld-linux-x86-64' \
-            || echo '!!! base/runtime files NOT present in flattened rootfs !!!'
+          sudo rm -rf /tmp/rootfs && sudo mkdir -p /tmp/rootfs
+          docker export "$cid" | sudo tar -C /tmp/rootfs -xf -
           docker rm "$cid" >/dev/null
+          echo "=== interpreter requested by the binaries ==="
+          file /tmp/rootfs/usr/bin/tini /tmp/rootfs/usr/local/bin/kura
+          readelf -l /tmp/rootfs/usr/bin/tini      | grep -i interpreter || true
+          readelf -l /tmp/rootfs/usr/local/bin/kura | grep -i interpreter || true
+          echo "=== loader paths present in rootfs ==="
+          ls -ld /tmp/rootfs/lib64 /tmp/rootfs/lib /tmp/rootfs/bin 2>&1 || true
+          ls -l  /tmp/rootfs/lib64/ld-linux-x86-64.so.2 /tmp/rootfs/usr/lib64/ld-linux-x86-64.so.2 2>&1 || true
+          echo "=== NATIVE exec via chroot (no docker/overlay in the path) ==="
+          echo "--- tini -- kura ---"; sudo chroot /tmp/rootfs /usr/bin/tini -- /usr/local/bin/kura 2>&1 | head -3 || true
+          echo "--- kura direct ---";  sudo chroot /tmp/rootfs /usr/local/bin/kura 2>&1 | head -3 || true
+          echo "--- ls ---";          sudo chroot /tmp/rootfs /bin/ls -l /usr/bin/tini 2>&1 | head -3 || true
 
       - name: Smoke-test the image (clean startup via tini)
         run: |
@@ -170,3 +188,12 @@ jobs:
           KURA_IMAGE: kura-bazel:oci
           KURA_E2E_SKIP_BUILD: "1"
         run: mise exec -- shellspec spec/e2e/cluster_spec.sh
+
+      # Save even when an earlier step failed (the job is red while the runtime is
+      # debugged), and skip only on an exact-key hit to avoid pointless re-uploads.
+      - name: Save Bazel cache (disk + repos)
+        if: always() && steps.bazel-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/bazel-cache
+          key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
