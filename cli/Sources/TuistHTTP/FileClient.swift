@@ -79,25 +79,21 @@ import Path
             do {
                 let (localUrl, response) = try await session.download(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    throw FileClientError.invalidResponse(request, nil)
+                    let error = FileClientError.invalidResponse(request, nil)
+                    await Self.recordDownloadError(request: request, error: error)
+                    throw error
                 }
-                Task.detached(priority: .background) {
-                    await Self.recordDownload(request: request, response: httpResponse)
-                }
+                await Self.recordDownload(request: request, response: httpResponse)
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return try AbsolutePath(validating: localUrl.path)
                 } else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
+            } catch let error as FileClientError {
+                throw error
             } catch {
-                Task.detached(priority: .background) {
-                    await Self.recordDownloadError(request: request, error: error)
-                }
-                if error is FileClientError {
-                    throw error
-                } else {
-                    throw FileClientError.urlSessionError(request, error, nil)
-                }
+                await Self.recordDownloadError(request: request, error: error)
+                throw FileClientError.urlSessionError(request, error, nil)
             }
         }
 
@@ -112,25 +108,21 @@ import Path
             do {
                 let (_, response) = try await session.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    throw FileClientError.invalidResponse(request, file)
+                    let error = FileClientError.invalidResponse(request, file)
+                    await Self.recordUploadError(request: request, error: error, requestBodySize: Int(fileSize))
+                    throw error
                 }
-                Task.detached(priority: .background) {
-                    await Self.recordUpload(request: request, response: httpResponse, requestBodySize: Int(fileSize))
-                }
+                await Self.recordUpload(request: request, response: httpResponse, requestBodySize: Int(fileSize))
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return true
                 } else {
                     throw FileClientError.serverSideError(request, httpResponse, file)
                 }
+            } catch let error as FileClientError {
+                throw error
             } catch {
-                Task.detached(priority: .background) {
-                    await Self.recordUploadError(request: request, error: error, requestBodySize: Int(fileSize))
-                }
-                if error is FileClientError {
-                    throw error
-                } else {
-                    throw FileClientError.urlSessionError(request, error, file)
-                }
+                await Self.recordUploadError(request: request, error: error, requestBodySize: Int(fileSize))
+                throw FileClientError.urlSessionError(request, error, file)
             }
         }
 
