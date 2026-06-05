@@ -219,9 +219,8 @@ jobs:
   # gates production alongside acceptance-tests.
   #
   # MIN_SUPPORTED_TUIST_VERSION is the source of truth for the oldest supported
-  # release (3-month window). Bump it as the window slides forward, and update
-  # the version stated in the Compatibility reference at
-  # server/priv/docs/en/cli/compatibility.md.
+  # release (3-month window). Bump it as the window slides forward - see the
+  # Compatibility reference at server/priv/docs/en/cli/compatibility.md.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
