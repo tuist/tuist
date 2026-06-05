@@ -223,8 +223,7 @@ jobs:
   #
   # MIN_SUPPORTED_TUIST_VERSION is the source of truth for the oldest supported
   # release (3-month window). Bump it as the window slides forward - see
-  # handbook/handbook/engineering/standard-practices.md. Keep the smoke workflow
-  # (.github/workflows/backward-compat-e2e-smoke.yml) default in sync with it.
+  # handbook/handbook/engineering/standard-practices.md.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
