@@ -6,12 +6,13 @@ defmodule TuistWeb.WarningsHeaderPlug do
   """
   use TuistWeb, :controller
 
+  alias Tuist.CLIVersions
   alias Tuist.GitHub.Releases
   alias TuistWeb.Headers
 
   @assign_key :warnings
 
-  @minimum_supported_cli_version Version.parse!("4.118.1")
+  @minimum_supported_cli_version Version.parse!(CLIVersions.minimum_supported_version())
 
   def init(opts), do: opts
 
