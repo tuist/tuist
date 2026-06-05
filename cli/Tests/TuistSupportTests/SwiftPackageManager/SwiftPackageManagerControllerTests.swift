@@ -1,7 +1,7 @@
 import Command
 import Foundation
-import Synchronization
 import SwifterPMCore
+import Synchronization
 import TSCUtility
 import TuistCore
 import TuistTesting

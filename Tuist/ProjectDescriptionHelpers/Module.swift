@@ -1625,7 +1625,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
-                    .external(name: "SwifterPMCore"),
                 ]
             case .har:
                 [
@@ -1648,6 +1647,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
+                    .external(name: "SwifterPMCore"),
                 ]
             case .projectDescription:
                 [
