@@ -548,13 +548,6 @@ defmodule Tuist.Environment do
   # synced to a Kubernetes Secret by ESO and mounted via envFrom.
   # Unset in dev/test/self-host: the bot supervisor only starts
   # when these and the prod-env gate are both satisfied.
-  def tailscale_jit_client_id, do: System.get_env("TAILSCALE_JIT_CLIENT_ID")
-  def tailscale_jit_client_secret, do: System.get_env("TAILSCALE_JIT_CLIENT_SECRET")
-  def tailscale_jit_tailnet, do: System.get_env("TAILSCALE_JIT_TAILNET") || "-"
-  def tailscale_jit_slack_signing_secret, do: System.get_env("TAILSCALE_JIT_SLACK_SIGNING_SECRET")
-  def tailscale_jit_slack_bot_token, do: System.get_env("TAILSCALE_JIT_SLACK_BOT_TOKEN")
-  def tailscale_jit_approvals_channel_id, do: System.get_env("TAILSCALE_JIT_APPROVALS_CHANNEL_ID")
-  def tailscale_jit_alerts_channel_id, do: System.get_env("TAILSCALE_JIT_ALERTS_CHANNEL_ID")
 
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)

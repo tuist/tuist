@@ -1,4 +1,4 @@
-defmodule Tuist.TailscaleJIT.Approvals do
+defmodule TuistJit.Approvals do
   @moduledoc """
   Public API for the JIT elevation bot. Four operations:
 
@@ -21,13 +21,13 @@ defmodule Tuist.TailscaleJIT.Approvals do
   a DB status update.
   """
 
-  alias Tuist.Repo
-  alias Tuist.TailscaleJIT.Elevation
-  alias Tuist.TailscaleJIT.Policy
-  alias Tuist.TailscaleJIT.Request
-  alias Tuist.TailscaleJIT.SlackBlocks
-  alias Tuist.TailscaleJIT.SlackClient
-  alias Tuist.TailscaleJIT.Workers.RevertWorker
+  alias TuistJit.Repo
+  alias TuistJit.Elevation
+  alias TuistJit.Policy
+  alias TuistJit.Request
+  alias TuistJit.SlackBlocks
+  alias TuistJit.SlackClient
+  alias TuistJit.Workers.RevertWorker
 
   require Logger
 

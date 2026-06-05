@@ -1,4 +1,4 @@
-defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
+defmodule TuistJit.Workers.RevertWorker do
   @moduledoc """
   Reverts a single elevation by flipping `tailscale_jit_elevations`
   to `status="reverted"` and updating the Slack card. The Pomerium
@@ -22,7 +22,7 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
   """
 
   use Oban.Worker,
-    queue: :tailscale_jit,
+    queue: :revert,
     unique: [
       period: :infinity,
       fields: [:args],
@@ -31,11 +31,11 @@ defmodule Tuist.TailscaleJIT.Workers.RevertWorker do
     ],
     max_attempts: 5
 
-  alias Tuist.Repo
-  alias Tuist.TailscaleJIT.Elevation
-  alias Tuist.TailscaleJIT.Request
-  alias Tuist.TailscaleJIT.SlackBlocks
-  alias Tuist.TailscaleJIT.SlackClient
+  alias TuistJit.Repo
+  alias TuistJit.Elevation
+  alias TuistJit.Request
+  alias TuistJit.SlackBlocks
+  alias TuistJit.SlackClient
 
   require Logger
 

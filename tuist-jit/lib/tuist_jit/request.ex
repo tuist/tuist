@@ -1,12 +1,12 @@
-defmodule Tuist.TailscaleJIT.Request do
+defmodule TuistJit.Request do
   @moduledoc """
-  A Slack-side elevation request: someone asked to be added to a
-  break-glass Tailscale group for a bounded session, and the
-  approval lifecycle for that ask. Goes through:
+  A Slack-side elevation request: someone asked to elevate to a
+  cluster env for a bounded session, and the approval lifecycle
+  for that ask. Goes through:
   `pending → approved | denied | expired | failed | cancelled`.
 
-  An approved request spawns a `Tuist.TailscaleJIT.Elevation`; the
-  request row is not touched after approval, the elevation owns the
+  An approved request spawns a `TuistJit.Elevation`; the request
+  row is not touched after approval, the elevation owns the
   runtime state.
 
   Backed by [priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs](priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs).

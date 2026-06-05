@@ -1,4 +1,4 @@
-defmodule Tuist.TailscaleJIT.SlackBlocks do
+defmodule TuistJit.SlackBlocks do
   @moduledoc """
   Block Kit message builders for the JIT elevation flow. Three
   states the approval card moves through: pending (Approve / Deny
@@ -9,15 +9,15 @@ defmodule Tuist.TailscaleJIT.SlackBlocks do
   any state transition.
   """
 
-  alias Tuist.TailscaleJIT.Elevation
-  alias Tuist.TailscaleJIT.Request
+  alias TuistJit.Elevation
+  alias TuistJit.Request
 
   @doc """
   Pending-approval card. Visible at request time.
 
   `opts[:self_approval_allowed?]` controls the wording of the
   expiry hint: when self-approval is allowed for this requester +
-  env combination (per `Tuist.TailscaleJIT.Policy`), the "second
+  env combination (per `TuistJit.Policy`), the "second
   human" hint is suppressed so the card doesn't lie. Default
   `false` keeps the strictest hint when the caller doesn't pass
   the flag.

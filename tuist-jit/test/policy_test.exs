@@ -1,9 +1,9 @@
-defmodule Tuist.TailscaleJIT.PolicyTest do
+defmodule TuistJit.PolicyTest do
   use ExUnit.Case, async: true
   use Mimic
 
-  alias Tuist.TailscaleJIT.Policy
-  alias Tuist.TailscaleJIT.TailscaleClient
+  alias TuistJit.Policy
+  alias TuistJit.TailscaleClient
 
   setup :verify_on_exit!
 

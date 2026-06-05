@@ -1,4 +1,4 @@
-defmodule Tuist.Repo.Migrations.CreateTailscaleJitTables do
+defmodule TuistJit.Repo.Migrations.CreateTailscaleJitTables do
   use Ecto.Migration
 
   # Backing tables for the Tailscale JIT elevation Slack bot. Two

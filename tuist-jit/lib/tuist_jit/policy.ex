@@ -1,8 +1,8 @@
-defmodule Tuist.TailscaleJIT.Policy do
+defmodule TuistJit.Policy do
   @moduledoc """
   Authorization policy for the JIT elevation flow. Two decisions
   the bot needs to make and one source of truth (the tailnet role,
-  fetched via `Tuist.TailscaleJIT.TailscaleClient.user_role/1`):
+  fetched via `TuistJit.TailscaleClient.user_role/1`):
 
     * `self_approval_allowed?/2` — can the requester approve their
       own elevation? Owner/Admin roles can self-approve any env;
@@ -14,16 +14,10 @@ defmodule Tuist.TailscaleJIT.Policy do
       always requires an Owner/Admin to click Approve, regardless of
       whether the requester is the same person or someone else.
 
-  The two functions deliberately answer different questions: the
-  first protects the "two humans" property by gating *who* gets the
-  shortcut to self-approve; the second adds a *minimum trust tier*
-  on the approver side so an engineer can't approve another
-  engineer's production write.
-
   Source of truth = the Tailscale tailnet role (`Owner`, `Admin`,
   `Member` etc. as shown in the admin console Users page). Nothing
-  in the bot hardcodes email lists; new humans on the tailnet
-  inherit policy by virtue of their assigned role.
+  hardcodes email lists; new humans on the tailnet inherit policy
+  by virtue of their assigned role.
 
   Unknown emails (not on the tailnet) and roles outside
   Owner/Admin/Member default to deny — admin-flavor roles like
@@ -31,8 +25,12 @@ defmodule Tuist.TailscaleJIT.Policy do
   approver power because they're not engineering identities.
   """
 
-  alias Tuist.TailscaleJIT.TailscaleClient
+  alias TuistJit.TailscaleClient
 
+  # Maps the env shorthand used in the request to the policy
+  # decision matrix. `target_group` retains the `group:tuist-*-write`
+  # naming from the original ACL-mutation design for back-compat
+  # with the existing DB rows; semantically it's just an env tag now.
   @group_to_env %{
     "group:tuist-staging-write" => "staging",
     "group:tuist-canary-write" => "canary",
@@ -64,12 +62,7 @@ defmodule Tuist.TailscaleJIT.Policy do
   human on the request — i.e. their tailnet role is high enough
   for the env they're approving. Used in the "second-human" path
   (`actor != requester`) to keep an engineer from approving
-  another engineer's production write. Unknown target groups
-  default to deny.
-
-  The function does NOT check `approver != requester`; the caller
-  is responsible for routing self-approval requests through
-  `self_approval_allowed?/2` instead.
+  another engineer's production write.
   """
   def approver_allowed?(approver_email, target_group) when is_binary(approver_email) and is_binary(target_group) do
     with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
@@ -81,6 +74,23 @@ defmodule Tuist.TailscaleJIT.Policy do
   end
 
   def approver_allowed?(_approver_email, _target_group), do: false
+
+  @doc """
+  Returns the env name (`"staging" | "canary" | "production"`) for a
+  given target_group, or `nil` for unknown groups. Used by the
+  Pomerium ext_authz endpoint to derive the env from a request's
+  declared target.
+  """
+  def env_for(target_group), do: Map.get(@group_to_env, target_group)
+
+  @doc """
+  Returns `{:ok, env}` if the role is allowed to operate on the env,
+  `:deny` otherwise. Used by the Pomerium ext_authz endpoint when
+  deciding whether to inject the elevated impersonation header.
+  """
+  def env_access(role, env) when is_atom(role) and is_binary(env) do
+    if allow_for_env?(role, env), do: {:ok, env}, else: :deny
+  end
 
   # Owner/Admin → any env. Member → staging + canary. Everything
   # else (Auditor, Billing admin, etc., and unrecognized roles)

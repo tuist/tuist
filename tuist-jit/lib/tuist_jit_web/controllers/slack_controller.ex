@@ -1,38 +1,40 @@
-defmodule TuistWeb.Webhooks.TailscaleJITController do
+defmodule TuistJitWeb.SlackController do
   @moduledoc """
   HTTP-side of the JIT elevation bot. Two POST endpoints, both
-  Slack-signed (verified by `TuistWeb.Plugs.SlackWebhookPlug`
+  Slack-signed (verified by `TuistJitWeb.Plugs.SlackWebhookPlug`
   before the controller sees the request):
 
-    * `/webhooks/tailscale-jit/slash` — receives the `/elevate`
-      slash command. Parses `<env> [duration] <intent...>` from
-      the `text` field and creates a Request via
-      `Tuist.TailscaleJIT.Approvals.request_elevation/1`. Responds
+    * `/webhooks/slack/slash` — receives the `/elevate` slash
+      command. Parses `<env> [duration] <intent...>` from the
+      `text` field and creates a Request via
+      `TuistJit.Approvals.request_elevation/1`. Responds
       ephemerally to the requester.
 
-    * `/webhooks/tailscale-jit/interactive` — receives Block Kit
-      button callbacks (`approve`, `deny`, `revoke`). Parses the
-      action_id + button value, enforces approver != requester for
-      Approve (the matching check inside the transaction is the
-      authoritative one), and routes to the right Approvals
-      function.
+    * `/webhooks/slack/interactive` — receives Block Kit button
+      callbacks (`approve`, `deny`, `revoke`). Parses the action_id
+      + button value and routes to the right Approvals function;
+      the policy gate inside the DB transaction is the
+      authoritative check.
 
   Slack expects a 200 response within 3 seconds. The work the
-  controller dispatches (ACL mutation + Slack updates) happens
-  inline here; if any operation grows past the 3s budget, move it
-  into an Oban job and reply early.
+  controller dispatches (DB writes + Slack updates) happens inline
+  here; if any operation grows past the 3s budget, move it into an
+  Oban job and reply early.
   """
 
-  use TuistWeb, :controller
+  use TuistJitWeb, :controller
 
-  alias Tuist.TailscaleJIT.Approvals
-  alias Tuist.TailscaleJIT.SlackBlocks
-  alias Tuist.TailscaleJIT.SlackClient
+  alias TuistJit.Approvals
+  alias TuistJit.Environment
+  alias TuistJit.SlackBlocks
+  alias TuistJit.SlackClient
 
   require Logger
 
-  # Maps the env shorthand a user types in Slack to the matching
-  # break-glass group bound by accessBindings on each cluster.
+  # Maps the env shorthand a user types in Slack to the target
+  # group identifier persisted on the Request row. The group
+  # string is opaque to the gateway path; the Policy module
+  # decodes it back to an env name when needed.
   @env_to_group %{
     "staging" => "group:tuist-staging-write",
     "canary" => "group:tuist-canary-write",
@@ -43,7 +45,7 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   @valid_envs Map.keys(@env_to_group)
 
   # ----------------------------------------------------------------
-  # Slash command: POST /webhooks/tailscale-jit/slash
+  # Slash command: POST /webhooks/slack/slash
   # ----------------------------------------------------------------
 
   def slash(conn, %{"text" => raw_text} = params) do
@@ -65,7 +67,7 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
       })
     else
       {:error, reason} ->
-        Logger.warning("tailscale_jit slash failed: #{inspect(reason)}")
+        Logger.warning("tuist_jit slash failed: #{inspect(reason)}")
         json(conn, %{response_type: "ephemeral", text: human_error(reason)})
     end
   end
@@ -75,7 +77,7 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   end
 
   # ----------------------------------------------------------------
-  # Interactive callback: POST /webhooks/tailscale-jit/interactive
+  # Interactive callback: POST /webhooks/slack/interactive
   # ----------------------------------------------------------------
 
   def interactive(conn, %{"payload" => payload_json}) do
@@ -105,7 +107,7 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
         do_revoke(conn, value, user_slack_id, user_email)
 
       other ->
-        Logger.warning("tailscale_jit: unknown action #{inspect(other)}")
+        Logger.warning("tuist_jit: unknown action #{inspect(other)}")
         send_resp(conn, 200, "")
     end
   end
@@ -117,13 +119,6 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   defp do_approve(conn, value, actor_slack_id, actor_email, channel_id) do
     case SlackBlocks.decode_value(value) do
       {:ok, request_id, _requester_slack_id} ->
-        # Single source of truth: Approvals.approve runs the policy
-        # check inside the DB transaction. If self-approval is not
-        # allowed for this requester + env, the transaction rolls
-        # back with :cannot_self_approve and we surface that as an
-        # ephemeral. Engineers requesting prod, plus anyone outside
-        # the configured admin list requesting their own elevation
-        # outside non-prod, end up here.
         case Approvals.approve(request_id, %{slack_id: actor_slack_id, email: actor_email}) do
           {:ok, _req, _elev} ->
             send_resp(conn, 200, "")
@@ -259,15 +254,15 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   # `users:read` + `users:read.email` scopes. Assumes Slack
   # workspace email == tailnet login email, which is true for our
   # team (everyone uses tuist.dev for both). Failures return nil
-  # so the caller can reject the request rather than mutate the
-  # ACL for a phantom identity.
+  # so the caller can reject the request rather than mutate state
+  # for a phantom identity.
   defp slack_user_to_email(slack_user_id) when is_binary(slack_user_id) do
     case SlackClient.user_email(slack_user_id) do
       {:ok, email} ->
         email
 
       {:error, reason} ->
-        Logger.warning("tailscale_jit: failed to resolve Slack user #{slack_user_id} email: #{inspect(reason)}")
+        Logger.warning("tuist_jit: failed to resolve Slack user #{slack_user_id} email: #{inspect(reason)}")
         nil
     end
   end
@@ -275,6 +270,6 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
   defp slack_user_to_email(_), do: nil
 
   defp approvals_channel do
-    Tuist.Environment.tailscale_jit_approvals_channel_id() || "#tailscale-jit-approvals"
+    Environment.approvals_channel_id() || "#tailscale-jit-approvals"
   end
 end

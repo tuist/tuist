@@ -1,9 +1,9 @@
-defmodule Tuist.TailscaleJIT.SlackBlocksTest do
+defmodule TuistJit.SlackBlocksTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.TailscaleJIT.Elevation
-  alias Tuist.TailscaleJIT.Request
-  alias Tuist.TailscaleJIT.SlackBlocks
+  alias TuistJit.Elevation
+  alias TuistJit.Request
+  alias TuistJit.SlackBlocks
 
   describe "encode_value/1 + decode_value/1" do
     test "round-trips request id + requester slack id" do

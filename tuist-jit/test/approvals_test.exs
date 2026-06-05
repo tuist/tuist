@@ -1,13 +1,13 @@
-defmodule Tuist.TailscaleJIT.ApprovalsTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+defmodule TuistJit.ApprovalsTest do
+  use TuistJit.DataCase, async: true
   use Mimic
 
-  alias Tuist.Repo
-  alias Tuist.TailscaleJIT.Approvals
-  alias Tuist.TailscaleJIT.Elevation
-  alias Tuist.TailscaleJIT.Request
-  alias Tuist.TailscaleJIT.SlackClient
-  alias Tuist.TailscaleJIT.TailscaleClient
+  alias TuistJit.Repo
+  alias TuistJit.Approvals
+  alias TuistJit.Elevation
+  alias TuistJit.Request
+  alias TuistJit.SlackClient
+  alias TuistJit.TailscaleClient
 
   setup :verify_on_exit!
 

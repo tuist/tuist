@@ -197,18 +197,5 @@ defmodule Tuist do
       Runners.PromExPlugin,
       Runners.Telemetry,
       Kubernetes.Client,
-      # Tailscale JIT elevation Slack bot. Elevation itself runs
-      # through the Pomerium gateway against a Tuist DB flag, not by
-      # mutating the tailnet ACL; this list is the data-only shape
-      # the supervision tree references (modules with state, schemas,
-      # workers — no separate JIT supervisor required).
-      TailscaleJIT.Approvals,
-      TailscaleJIT.Elevation,
-      TailscaleJIT.Policy,
-      TailscaleJIT.Request,
-      TailscaleJIT.SlackBlocks,
-      TailscaleJIT.SlackClient,
-      TailscaleJIT.TailscaleClient,
-      TailscaleJIT.Workers.RevertWorker
     ]
 end

@@ -1,16 +1,15 @@
-defmodule Tuist.TailscaleJIT.SlackClient do
+defmodule TuistJit.SlackClient do
   @moduledoc """
   Thin Slack API wrapper for the JIT elevation bot. Only the calls
   the bot actually needs (chat.postMessage, chat.update,
   chat.postEphemeral) so the surface is small and the credentials
   pass-through is obvious.
 
-  The shared `Tuist.Slack.Client.post_message/3` exists but is
-  tightly coupled to the notification-destinations flow; keeping
-  the bot's Slack calls here avoids growing that module sideways.
+  Slack calls live here rather than a shared client because this
+  service has no other Slack use case.
   """
 
-  alias Tuist.Environment
+  alias TuistJit.Environment
 
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
   @chat_update_url "https://slack.com/api/chat.update"
@@ -106,7 +105,7 @@ defmodule Tuist.TailscaleJIT.SlackClient do
 
   defp headers do
     [
-      {"Authorization", "Bearer #{Environment.tailscale_jit_slack_bot_token()}"},
+      {"Authorization", "Bearer #{Environment.slack_bot_token()}"},
       {"Content-Type", "application/json; charset=utf-8"}
     ]
   end

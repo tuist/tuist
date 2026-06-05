@@ -1,11 +1,10 @@
-defmodule Tuist.TailscaleJIT.TailscaleClient do
+defmodule TuistJit.TailscaleClient do
   @moduledoc """
   Tailscale API client. The bot reads tailnet user metadata (role +
-  identity) to make policy decisions; we do NOT write to the
-  tailnet ACL from the bot. The ACL is a static document edited
-  through code review in `infra/tailscale/acls.json`, and runtime
-  elevation is handled by the Pomerium gateway against a Tuist DB
-  flag, not by mutating policy.
+  identity) to make policy decisions; this app never writes to the
+  tailnet ACL. The ACL is a static document edited through code
+  review in `infra/tailscale/acls.json`, and runtime elevation is
+  handled per-request by Pomerium against this app's DB.
 
   Two surfaces:
 
@@ -18,7 +17,7 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   bot caches it in `:persistent_term` until expiry.
   """
 
-  alias Tuist.Environment
+  alias TuistJit.Environment
 
   @api_base "https://api.tailscale.com/api/v2"
   @token_url @api_base <> "/oauth/token"
@@ -26,14 +25,13 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   @users_cache_key {__MODULE__, :users}
 
   # Only `users:read` is required after the Pomerium pivot. The
-  # bot no longer writes the tailnet ACL, so `policy_file:write`
-  # is intentionally absent — the OAuth client should be created
-  # with `users:read` only as a least-privilege measure.
+  # bot does NOT write the tailnet ACL, so this is least-privilege.
   @oauth_scopes "users:read"
 
   # Cache the tailnet users list briefly. Role changes are
   # infrequent and a stale-by-30s read is fine; this avoids a HTTP
-  # round-trip on every Slack interactive click.
+  # round-trip on every Slack interactive click and every Pomerium
+  # ext_authz call.
   @users_cache_ttl_seconds 30
 
   @doc """
@@ -42,7 +40,7 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
   `:member`, or `{:error, :not_found}` if `email` is not on the
   tailnet. Role-from-tailnet is the source of truth the JIT policy
   uses to decide who can self-approve and who can act as the second
-  human; see `Tuist.TailscaleJIT.Policy` for the mapping.
+  human; see `TuistJit.Policy` for the mapping.
   """
   def user_role(email) when is_binary(email) do
     with {:ok, users} <- list_users() do
@@ -167,7 +165,7 @@ defmodule Tuist.TailscaleJIT.TailscaleClient do
 
   defp bearer(token), do: [{"Authorization", "Bearer #{token}"}]
 
-  defp client_id, do: Environment.tailscale_jit_client_id()
-  defp client_secret, do: Environment.tailscale_jit_client_secret()
-  defp tailnet, do: Environment.tailscale_jit_tailnet() || "-"
+  defp client_id, do: Environment.tailscale_client_id()
+  defp client_secret, do: Environment.tailscale_client_secret()
+  defp tailnet, do: Environment.tailscale_tailnet() || "-"
 end

@@ -1,4 +1,4 @@
-defmodule Tuist.TailscaleJIT.Elevation do
+defmodule TuistJit.Elevation do
   @moduledoc """
   A bounded-time grant: a person is authorized for elevated
   impersonation on a specific cluster env. The row IS the JIT
@@ -14,7 +14,7 @@ defmodule Tuist.TailscaleJIT.Elevation do
 
   import Ecto.Changeset
 
-  alias Tuist.TailscaleJIT.Request
+  alias TuistJit.Request
 
   @statuses ~w(active reverting reverted revert_failed)
 
