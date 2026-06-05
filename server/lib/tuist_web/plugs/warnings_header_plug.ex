@@ -6,20 +6,13 @@ defmodule TuistWeb.WarningsHeaderPlug do
   """
   use TuistWeb, :controller
 
+  alias Tuist.CLIVersions
   alias Tuist.GitHub.Releases
   alias TuistWeb.Headers
 
   @assign_key :warnings
 
-  @minimum_supported_cli_version Version.parse!("4.155.0")
-
-  @doc """
-  The oldest CLI version the server supports (a rolling ~3-month window).
-  Clients below this receive a deprecation warning. This is the single source
-  of truth consumed by the docs (the Compatibility page) and the
-  backward-compatibility acceptance gate, so bump it here only.
-  """
-  def minimum_supported_cli_version, do: Version.to_string(@minimum_supported_cli_version)
+  @minimum_supported_cli_version Version.parse!(CLIVersions.minimum_supported_version())
 
   def init(opts), do: opts
 

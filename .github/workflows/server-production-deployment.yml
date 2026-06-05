@@ -219,10 +219,10 @@ jobs:
   # gates production alongside acceptance-tests.
   #
   # The oldest supported release (3-month window) has a single source of truth:
-  # @minimum_supported_cli_version in
-  # server/lib/tuist_web/plugs/warnings_header_plug.ex. This job derives
-  # MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning enforces it, and
-  # the docs Compatibility page renders it. Bump it there as the window slides.
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex.
+  # This job derives MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning
+  # enforces it, and the docs Compatibility page renders it. Bump it there as the
+  # window slides.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
@@ -245,13 +245,13 @@ jobs:
           ref: ${{ inputs.commit_sha || github.sha }}
           submodules: false
       - name: Resolve oldest supported CLI version
-        # Single source of truth: the server's @minimum_supported_cli_version,
+        # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
         # which also drives the deprecation warning and the docs Compatibility page.
         run: |
-          file=server/lib/tuist_web/plugs/warnings_header_plug.ex
-          version="$(grep -E '@minimum_supported_cli_version Version.parse' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          file=server/lib/tuist/cli_versions.ex
+          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
           if [ -z "$version" ]; then
-            echo "Could not resolve @minimum_supported_cli_version from $file" >&2
+            echo "Could not resolve @minimum_supported_version from $file" >&2
             exit 1
           fi
           echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"

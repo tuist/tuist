@@ -166,7 +166,7 @@ defmodule Tuist.Docs.Loader do
     |> String.replace("{{webhook_events_table}}", webhook_events_table())
     |> String.replace(
       "{{minimum_supported_cli_version}}",
-      TuistWeb.WarningsHeaderPlug.minimum_supported_cli_version()
+      Tuist.CLIVersions.minimum_supported_version()
     )
   end
 
