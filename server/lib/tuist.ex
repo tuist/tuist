@@ -22,6 +22,9 @@ defmodule Tuist do
       Docs.Paths,
       Docs.Redirects,
       Locale,
+      # Single source of truth for the oldest supported CLI version, referenced by
+      # the deprecation warning plug (TuistWeb), the docs, and the gate.
+      CLIVersions,
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.Changelog.OgImage,
