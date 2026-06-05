@@ -260,7 +260,9 @@ jobs:
         run: mise run --no-deps format --check
   esbuild:
     name: esbuild
-    runs-on: tuist-linux
+    # The Noora static asset build plus esbuild check can starve the
+    # 2 vCPU / 8 GB runner until GitHub marks it as lost.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
