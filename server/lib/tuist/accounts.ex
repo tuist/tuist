@@ -1950,30 +1950,36 @@ defmodule Tuist.Accounts do
   """
   def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      case get_account_by_handle(account_handle) do
-        %Account{} = account ->
-          case kura_cache_endpoint_urls(account) do
-            [] ->
-              account
-              |> custom_cache_endpoints()
-              |> case do
-                [] -> CacheEndpoints.active_endpoint_urls()
-                endpoints -> Enum.map(endpoints, & &1.url)
-              end
-
-            endpoints ->
-              endpoints
-          end
-
-        _ ->
-          CacheEndpoints.active_endpoint_urls()
-      end
+      hosted_cache_endpoints_for_handle(account_handle)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
   def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+
+  defp hosted_cache_endpoints_for_handle(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account -> cache_endpoint_urls(account)
+      _ -> CacheEndpoints.active_endpoint_urls()
+    end
+  end
+
+  defp cache_endpoint_urls(%Account{} = account) do
+    case kura_cache_endpoint_urls(account) do
+      [] -> custom_cache_endpoint_urls(account)
+      endpoints -> endpoints
+    end
+  end
+
+  defp custom_cache_endpoint_urls(%Account{} = account) do
+    account
+    |> custom_cache_endpoints()
+    |> case do
+      [] -> CacheEndpoints.active_endpoint_urls()
+      endpoints -> Enum.map(endpoints, & &1.url)
+    end
+  end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
