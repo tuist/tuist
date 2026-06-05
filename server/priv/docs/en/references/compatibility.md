@@ -8,7 +8,7 @@
 
 # Compatibility {#compatibility}
 
-The Tuist CLI talks to the Tuist server for features such as the cache, build and test insights, previews, and the registry. Your team and CI rarely upgrade the CLI on the same cadence the server ships on, so the server keeps working with older CLI releases for a defined window.
+The Tuist CLI talks to the Tuist server for features such as the cache, build and test insights, previews, and the registry. The server ships continuously and independently of when you upgrade the CLI, so a server change must not break the CLI version you are running. To guarantee that, the server stays compatible with recent CLI releases for a defined window.
 
 ## Support window {#support-window}
 
