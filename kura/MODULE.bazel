@@ -109,10 +109,22 @@ use_repo(oci, "debian_bookworm_slim", "debian_bookworm_slim_linux_amd64", "debia
 # resolved hermetically by rules_distroless and added as an image layer. The lockfile
 # pins each .deb by sha256. Regenerate it after editing the manifest:
 #   bazel run @bookworm_apt//:lock
+#
+# mergedusr = True is REQUIRED here. The bookworm-slim base is merged-/usr: it ships
+# /lib and /lib64 as symlinks to /usr/lib and /usr/lib64. By default rules_distroless
+# flattens the .debs with real /lib and /lib64 directories, which collide with the
+# base's symlinks. overlay2 (the GitHub runner's storage driver) resolves that
+# symlink-vs-directory collision by routing the layer's /lib/* through the base
+# symlink, which drops /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 — leaving the ELF
+# interpreter symlink dangling, so every binary fails `exec ...: no such file or
+# directory` natively. (Docker Desktop's driver merges it differently, which is why
+# it only reproduced on the native amd64 runner.) mergedusr keeps the layer's paths
+# under /usr with matching symlinks, so it composes cleanly with the base.
 apt = use_extension("@rules_distroless//apt:extensions.bzl", "apt")
 apt.install(
     name = "bookworm_apt",
     lock = "//bazel/oci:bookworm_apt.lock.json",
     manifest = "//bazel/oci:bookworm_apt.yaml",
+    mergedusr = True,
 )
 use_repo(apt, "bookworm_apt")
