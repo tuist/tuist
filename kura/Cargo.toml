@@ -40,6 +40,7 @@ tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread", "si
 tokio-stream = { version = "0.1.17", features = ["net"] }
 tokio-util = { version = "0.7.17", features = ["io"] }
 tonic = { version = "0.14.2", features = ["tls-ring"] }
+tower = { version = "0.5.2", features = ["util"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
@@ -51,4 +52,3 @@ tikv-jemallocator = "0.6.0"
 [dev-dependencies]
 rcgen = "0.14.5"
 tempfile = "3.23.0"
-tower = { version = "0.5.2", features = ["util"] }
