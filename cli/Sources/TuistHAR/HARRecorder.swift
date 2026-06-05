@@ -22,9 +22,29 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         "x-amz-credential",
     ]
 
+    private final class State: @unchecked Sendable {
+        private let lock = NSLock()
+        private var finished = false
+
+        var isFinished: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return finished
+        }
+
+        func markFinished() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+
+            guard !finished else { return false }
+            finished = true
+            return true
+        }
+    }
+
+    private nonisolated let state = State()
     private var log: HAR.Log
     private let filePath: AbsolutePath?
-    private var isFinished = false
 
     /// Creates a new HAR recorder.
     /// - Parameters:
@@ -60,7 +80,9 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     }
 
     public nonisolated func recordDetached(_ action: @escaping @Sendable (HARRecorder) async -> Void) {
+        guard !state.isFinished else { return }
         Task.detached(priority: .background) {
+            guard !self.state.isFinished else { return }
             await action(self)
         }
     }
@@ -68,15 +90,14 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     /// Records a new entry to the HAR log.
     /// - Parameter entry: The entry to record.
     public func record(_ entry: HAR.Entry) {
-        guard !isFinished else { return }
+        guard !state.isFinished else { return }
         log.entries.append(entry)
     }
 
     /// Stops accepting new HAR entries and persists the entries recorded so far.
-    public func finish() {
-        guard !isFinished else { return }
-        isFinished = true
-        persist()
+    public nonisolated func finish() async {
+        guard state.markFinished() else { return }
+        await persist()
     }
 
     /// Records an HTTP request and response.
@@ -97,7 +118,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) {
-        guard !isFinished else { return }
+        guard !state.isFinished else { return }
         let entry = buildEntry(
             url: url,
             method: method,
@@ -166,7 +187,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) {
-        guard !isFinished else { return }
+        guard !state.isFinished else { return }
         let entry = buildErrorEntry(
             url: url,
             method: method,
