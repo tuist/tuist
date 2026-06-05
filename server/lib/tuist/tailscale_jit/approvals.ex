@@ -20,6 +20,7 @@ defmodule Tuist.TailscaleJIT.Approvals do
   alias Tuist.Repo
   alias Tuist.TailscaleJIT.ACLMutation
   alias Tuist.TailscaleJIT.Elevation
+  alias Tuist.TailscaleJIT.Policy
   alias Tuist.TailscaleJIT.Request
   alias Tuist.TailscaleJIT.SlackBlocks
   alias Tuist.TailscaleJIT.SlackClient
@@ -54,7 +55,12 @@ defmodule Tuist.TailscaleJIT.Approvals do
       |> Request.create_changeset()
 
     with {:ok, request} <- Repo.insert(changeset),
-         {:ok, ts} <- SlackClient.post_message(request.slack_channel_id, SlackBlocks.pending(request)) do
+         self_approval = Policy.self_approval_allowed?(request.requester_email, request.target_group),
+         {:ok, ts} <-
+           SlackClient.post_message(
+             request.slack_channel_id,
+             SlackBlocks.pending(request, self_approval_allowed?: self_approval)
+           ) do
       request
       |> Request.transition_changeset(%{slack_message_ts: ts})
       |> Repo.update()
@@ -90,15 +96,13 @@ defmodule Tuist.TailscaleJIT.Approvals do
         %Request{status: status} when status != "pending" ->
           Repo.rollback({:invalid_status, status})
 
-        %Request{requester_slack_id: ^actor_slack_id} ->
-          # Defence-in-depth: the controller already checks this
-          # from the button value, but enforce again inside the
-          # transaction so a buggy or skipped pre-check still fails
-          # closed.
-          Repo.rollback(:cannot_self_approve)
-
         %Request{} = req ->
-          do_approve(req, actor_slack_id, actor_email)
+          if req.requester_slack_id == actor_slack_id and
+               not Policy.self_approval_allowed?(actor_email, req.target_group) do
+            Repo.rollback(:cannot_self_approve)
+          else
+            do_approve(req, actor_slack_id, actor_email)
+          end
       end
     end
     |> Repo.transaction()

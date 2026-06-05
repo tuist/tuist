@@ -14,8 +14,24 @@ defmodule Tuist.TailscaleJIT.SlackBlocks do
 
   @doc """
   Pending-approval card. Visible at request time.
+
+  `opts[:self_approval_allowed?]` controls the wording of the
+  expiry hint: when self-approval is allowed for this requester +
+  env combination (per `Tuist.TailscaleJIT.Policy`), the "second
+  human" hint is suppressed so the card doesn't lie. Default
+  `false` keeps the strictest hint when the caller doesn't pass
+  the flag.
   """
-  def pending(%Request{} = req) do
+  def pending(%Request{} = req, opts \\ []) do
+    expiry_unix = DateTime.to_unix(req.expires_at)
+
+    hint =
+      if Keyword.get(opts, :self_approval_allowed?, false) do
+        "Approval expires <!date^#{expiry_unix}^{date_short_pretty} at {time}|soon>."
+      else
+        "Approval expires <!date^#{expiry_unix}^{date_short_pretty} at {time}|soon>. The requester cannot approve their own request."
+      end
+
     [
       %{
         type: "section",
@@ -35,8 +51,7 @@ defmodule Tuist.TailscaleJIT.SlackBlocks do
         elements: [
           %{
             type: "mrkdwn",
-            text:
-              "Approval expires <!date^#{DateTime.to_unix(req.expires_at)}^{date_short_pretty} at {time}|soon>. The requester cannot approve their own request."
+            text: hint
           }
         ]
       },

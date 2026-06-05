@@ -116,26 +116,26 @@ defmodule TuistWeb.Webhooks.TailscaleJITController do
 
   defp do_approve(conn, value, actor_slack_id, actor_email, channel_id) do
     case SlackBlocks.decode_value(value) do
-      {:ok, _request_id, requester_slack_id} when requester_slack_id == actor_slack_id ->
-        # Pre-DB guard: the transaction enforces this again as
-        # defence-in-depth, but bouncing the click here means the
-        # Slack message is never confusingly updated and the bot
-        # never touches the ACL.
-        SlackClient.ephemeral(
-          channel_id,
-          actor_slack_id,
-          ":no_entry: You cannot approve your own elevation request. A second human has to click Approve."
-        )
-
-        send_resp(conn, 200, "")
-
-      {:ok, request_id, _} ->
+      {:ok, request_id, _requester_slack_id} ->
+        # Single source of truth: Approvals.approve runs the policy
+        # check inside the DB transaction. If self-approval is not
+        # allowed for this requester + env, the transaction rolls
+        # back with :cannot_self_approve and we surface that as an
+        # ephemeral. Engineers requesting prod, plus anyone outside
+        # the configured admin list requesting their own elevation
+        # outside non-prod, end up here.
         case Approvals.approve(request_id, %{slack_id: actor_slack_id, email: actor_email}) do
           {:ok, _req, _elev} ->
             send_resp(conn, 200, "")
 
           {:error, :cannot_self_approve} ->
-            SlackClient.ephemeral(channel_id, actor_slack_id, ":no_entry: Approver must not be the requester.")
+            SlackClient.ephemeral(
+              channel_id,
+              actor_slack_id,
+              ":no_entry: A second human has to click Approve for this env. " <>
+                "(Production writes always require a second approver, even for engineers.)"
+            )
+
             send_resp(conn, 200, "")
 
           {:error, reason} ->

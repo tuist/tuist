@@ -31,6 +31,18 @@ defmodule Tuist.TailscaleJIT.SlackBlocksTest do
       assert Enum.any?(elements, &(&1.action_id == "approve"))
       assert Enum.any?(elements, &(&1.action_id == "deny"))
     end
+
+    test "shows the 'cannot self-approve' hint by default" do
+      [_, %{elements: [%{text: hint}]}, _] = SlackBlocks.pending(sample_request())
+      assert hint =~ "cannot approve their own request"
+    end
+
+    test "suppresses the 'cannot self-approve' hint when policy allows it" do
+      [_, %{elements: [%{text: hint}]}, _] =
+        SlackBlocks.pending(sample_request(), self_approval_allowed?: true)
+
+      refute hint =~ "cannot approve their own request"
+    end
   end
 
   describe "active/2" do

@@ -202,6 +202,7 @@ defmodule Tuist do
       # Application respectively.
       TailscaleJIT.Approvals,
       TailscaleJIT.Elevation,
+      TailscaleJIT.Policy,
       TailscaleJIT.Reconciler,
       TailscaleJIT.Request,
       TailscaleJIT.SlackBlocks,
