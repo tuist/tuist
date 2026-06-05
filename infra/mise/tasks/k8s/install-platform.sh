@@ -2,6 +2,7 @@
 #MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, metrics-server, and optionally ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
 #USAGE arg "<cluster_name>" help="Cluster name, used for the external-dns owner ID and, for app clusters, the ingress LoadBalancer name"
+#USAGE arg "[provider]" help="Cloud provider for provider-specific platform values: hetzner or vultr (default: hetzner)"
 
 # Brings a workload cluster to the desired state of the platform chart
 # at HEAD: cert-manager + ClusterIssuer + external-dns +
@@ -19,6 +20,7 @@ set -euo pipefail
 
 WL_KUBECONFIG="$1"
 CLUSTER_NAME="$2"
+PROVIDER="${3:-hetzner}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHART_PATH="$REPO_ROOT/infra/helm/platform"
 IS_KURA_REGIONAL_CLUSTER=false
@@ -26,6 +28,14 @@ IS_KURA_REGIONAL_CLUSTER=false
 if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
   IS_KURA_REGIONAL_CLUSTER=true
 fi
+
+case "$PROVIDER" in
+  hetzner|vultr) ;;
+  *)
+    echo "ERROR: unsupported platform provider '$PROVIDER' (expected hetzner or vultr)" >&2
+    exit 64
+    ;;
+esac
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -45,22 +55,26 @@ derive_region_from_ingress_service() {
     -o jsonpath='{.metadata.annotations.load-balancer\.hetzner\.cloud/location}' 2>/dev/null || true
 }
 
-# HCCM stamps hcloud-backed nodes with topology.kubernetes.io/region
-# (e.g. ash, hil, fsn1). Mixed clusters can also carry bare-metal
-# runner nodes that do not have that label, so scan all nodes instead
-# of assuming `.items[0]` is an hcloud VM.
-REGION="$(derive_region_from_nodes)"
-if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
-  REGION="$(derive_region_from_ingress_service)"
+REGION=""
+if [ "$PROVIDER" = "hetzner" ]; then
+  # HCCM stamps hcloud-backed nodes with topology.kubernetes.io/region
+  # (e.g. ash, hil, fsn1). Mixed clusters can also carry bare-metal
+  # runner nodes that do not have that label, so scan all nodes instead
+  # of assuming `.items[0]` is an hcloud VM.
+  REGION="$(derive_region_from_nodes)"
+  if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
+    REGION="$(derive_region_from_ingress_service)"
+  fi
+  if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
+    echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on any node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
+    exit 1
+  fi
 fi
-if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
-  echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on any node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
-  exit 1
-fi
+
 if [ -n "$REGION" ]; then
-  log "Platform install for $CLUSTER_NAME (region $REGION)"
+  log "Platform install for $CLUSTER_NAME (provider $PROVIDER, region $REGION)"
 else
-  log "Platform install for $CLUSTER_NAME"
+  log "Platform install for $CLUSTER_NAME (provider $PROVIDER)"
 fi
 
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
@@ -80,13 +94,13 @@ unset CLOUDFLARE_API_TOKEN
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
 )
-HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
+HELM_VALUES_ARGS=(-f "$CHART_PATH/values-${PROVIDER}.yaml")
 CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"
 
 if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
   log "Regional Kura cluster detected; skipping ingress-nginx install"
   HELM_VALUES_ARGS+=(-f "$CHART_PATH/values-kura-region.yaml")
-else
+elif [ "$PROVIDER" = "hetzner" ]; then
   HELM_SET_ARGS+=(
     --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
     --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"

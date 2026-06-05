@@ -32,6 +32,11 @@ helm dependency update infra/helm/platform
 helm upgrade --install platform infra/helm/platform \
   -n platform \
   -f infra/helm/platform/values-hetzner.yaml
+
+# Vultr-backed clusters use:
+helm upgrade --install platform infra/helm/platform \
+  -n platform \
+  -f infra/helm/platform/values-vultr.yaml
 ```
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
@@ -100,6 +105,6 @@ connections should use the new gateway once the policy is re-applied.
 
 ## Notes
 
-- The ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Adjust `ingress-nginx.controller.service.annotations` when the cluster lands on a different provider.
+- The ingress-nginx LoadBalancer provider details live in `values-<provider>.yaml` overlays. Kura regional clusters layer `values-kura-region.yaml`, which disables ingress-nginx because each `KuraInstance` owns its own LoadBalancer Service.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

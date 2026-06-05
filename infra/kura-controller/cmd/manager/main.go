@@ -35,6 +35,7 @@ func main() {
 	var grpcClusterIssuer string
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var loadBalancerProvider string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -43,12 +44,19 @@ func main() {
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
+	flag.StringVar(&loadBalancerProvider, "load-balancer-provider", string(controllers.LoadBalancerProviderHetzner), "Cloud LoadBalancer provider used for Kura public Services: hetzner or vultr")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	parsedLoadBalancerProvider, err := controllers.ParseLoadBalancerProvider(loadBalancerProvider)
+	if err != nil {
+		setupLog.Error(err, "invalid load balancer provider", "provider", loadBalancerProvider)
+		os.Exit(1)
+	}
 
 	managerOptions := ctrl.Options{
 		Scheme:                 scheme,
@@ -70,11 +78,12 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		GRPCClusterIssuer:  grpcClusterIssuer,
-		OTLPTracesEndpoint: otlpTracesEndpoint,
-		Environment:        deploymentEnvironment,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		GRPCClusterIssuer:    grpcClusterIssuer,
+		OTLPTracesEndpoint:   otlpTracesEndpoint,
+		Environment:          deploymentEnvironment,
+		LoadBalancerProvider: parsedLoadBalancerProvider,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)

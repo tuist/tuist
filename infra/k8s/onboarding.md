@@ -68,13 +68,13 @@ mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
 # e.g. mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-us-east-1"
 ```
 
-On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. App clusters use the default `kubeconfig: tuist-<env>` title. Production Kura regional clusters pass explicit titles matching the product cluster IDs: `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`.
+On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. App clusters use the default `kubeconfig: tuist-<env>` title. Production Kura regional clusters pass explicit titles matching the product cluster IDs, such as `kubeconfig: kura-us-east-1`, `kubeconfig: kura-us-west-1`, or a Vultr-backed `kubeconfig: kura-au-southeast-1`.
 
 ## 5. Wire the GitHub Actions deployer
 
 CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
 
-Skip this section for production Kura regional clusters. The production server deploy workflow reads `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` from the production 1Password vault, syncs them into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly.
+Skip this section for production Kura regional clusters. The production server deploy workflow currently syncs the enabled regional kubeconfigs listed in the workflow into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly. When enabling a new Vultr VKE region, add its `TUIST_KURA_KUBECONFIG_<CLUSTER_ID>` key to that sync step and use the same `kubeconfig: kura-<cluster-id>` 1Password document convention. Vultr clusters are provisioned in Vultr rather than through the Hetzner CAPI manifests in this directory.
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml

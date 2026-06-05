@@ -160,6 +160,7 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --watch-namespace={{ $namespace }}
+            - --load-balancer-provider={{ .Values.kuraController.loadBalancer.provider | default "hetzner" }}
             {{- if $tlsClusterIssuer }}
             - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
             {{- end }}

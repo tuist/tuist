@@ -35,6 +35,9 @@ server:
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     # Exposes the managed Kura regions in account settings. Each region
     # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    # Vultr-backed au-southeast and br-south are cataloged there too,
+    # but keep them disabled here until their kubeconfigs are synced and
+    # their regional controllers are deployed with provider=vultr.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west
     # Kubeconfigs for regional Kura clusters. CI syncs this Secret from

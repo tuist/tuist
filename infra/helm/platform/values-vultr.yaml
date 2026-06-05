@@ -1,0 +1,12 @@
+# Vultr-specific overlay for the platform chart.
+# Layer on top of the base values:
+#   helm upgrade --install platform infra/helm/platform \
+#     -n platform --create-namespace \
+#     -f infra/helm/platform/values-vultr.yaml
+
+ingress-nginx:
+  controller:
+    config:
+      use-proxy-protocol: "false"
+    service:
+      annotations: {}

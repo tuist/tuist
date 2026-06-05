@@ -727,6 +727,105 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcileUsesVultrLoadBalancerAnnotations(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-au-southeast-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "tuist",
+			TenantID:       "tuist",
+			Region:         "au-southeast",
+			Image:          "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:     "tuist-au-southeast-1.kura.tuist.dev",
+			GRPCPublicHost: "grpc.tuist-au-southeast-1.kura.tuist.dev",
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:               fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:               scheme,
+		LoadBalancerProvider: LoadBalancerProviderVultr,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); err != nil {
+		t.Fatal(err)
+	}
+	if got := service.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "tuist-au-southeast-1.kura.tuist.dev" {
+		t.Fatalf("expected external-dns hostname, got %q", got)
+	}
+	if got := service.Annotations["service.beta.kubernetes.io/vultr-loadbalancer-label"]; got != instance.Name {
+		t.Fatalf("expected Vultr LB label, got %q", got)
+	}
+	if got := service.Annotations["service.beta.kubernetes.io/vultr-loadbalancer-protocol"]; got != "tcp" {
+		t.Fatalf("expected Vultr LB tcp protocol, got %q", got)
+	}
+	if got := service.Annotations["service.beta.kubernetes.io/vultr-loadbalancer-backend-protocol"]; got != "tcp" {
+		t.Fatalf("expected Vultr LB tcp backend protocol, got %q", got)
+	}
+	if got := service.Annotations["service.beta.kubernetes.io/vultr-loadbalancer-healthcheck-protocol"]; got != "tcp" {
+		t.Fatalf("expected Vultr LB tcp health check protocol, got %q", got)
+	}
+	if _, ok := service.Annotations["load-balancer.hetzner.cloud/protocol"]; ok {
+		t.Fatal("expected Hetzner LB annotations to be omitted for Vultr")
+	}
+
+	grpcService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcService); err != nil {
+		t.Fatal(err)
+	}
+	if got := grpcService.Annotations["service.beta.kubernetes.io/vultr-loadbalancer-label"]; got != grpcServiceName(instance) {
+		t.Fatalf("expected gRPC Vultr LB label, got %q", got)
+	}
+	if got := grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "grpc.tuist-au-southeast-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC external-dns hostname, got %q", got)
+	}
+}
+
+func TestParseLoadBalancerProvider(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    LoadBalancerProvider
+		wantErr bool
+	}{
+		{name: "empty defaults to Hetzner", value: "", want: LoadBalancerProviderHetzner},
+		{name: "Hetzner is normalized", value: " HETZNER ", want: LoadBalancerProviderHetzner},
+		{name: "Vultr is normalized", value: "vultr", want: LoadBalancerProviderVultr},
+		{name: "unknown provider errors", value: "aws", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseLoadBalancerProvider(tt.value)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
 func TestKuraInstanceReconcilePreservesExplicitOTLPTracesEndpoint(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()

@@ -45,11 +45,19 @@ optional Hetzner Cloud Network config, optional placement groups.
 
 Managed Kura region mapping is:
 
-| Product region | Cluster ID | CAPI Cluster | Hetzner location |
+| Product region | Cluster ID | Cluster | Provider location |
 |---|---|---|---|
-| `eu-central` | `eu-central-1` | `tuist` | `fsn1` |
-| `us-east` | `us-east-1` | `tuist-kura-us-east` | `ash` |
-| `us-west` | `us-west-1` | `tuist-kura-us-west` | `hil` |
+| `eu-central` | `eu-central-1` | `tuist` | Hetzner `fsn1` |
+| `us-east` | `us-east-1` | `tuist-kura-us-east` | Hetzner `ash` |
+| `us-west` | `us-west-1` | `tuist-kura-us-west` | Hetzner `hil` |
+| `au-southeast` | `au-southeast-1` | external VKE cluster | Vultr `syd` |
+| `br-south` | `br-south-1` | external VKE cluster | Vultr `sao` |
+
+The Hetzner rows above are declared as CAPI `Cluster` CRs in this
+directory. The Vultr rows are intentionally not represented here because
+VKE owns the Kubernetes control plane and node pools. For those regions,
+upload a scoped kubeconfig to 1Password under `kubeconfig: kura-<cluster-id>`
+and deploy the Kura controller with `kuraController.loadBalancer.provider=vultr`.
 
 ## Image strategy
 

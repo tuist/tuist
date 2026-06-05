@@ -39,6 +39,28 @@ defmodule Tuist.Kura.RegionsTest do
       refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
     end
 
+    test "exposes Vultr-backed managed regions" do
+      assert %Regions{provisioner: KubernetesController, provisioner_config: au_config} =
+               Regions.get("au-southeast")
+
+      assert au_config.cluster_id == "au-southeast-1"
+      assert au_config.provider == :vultr
+      assert au_config.vultr_region == "syd"
+      assert au_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "au-southeast-1"]
+      assert au_config.storage_class == "vultr-block-storage"
+      assert au_config.node_selector == %{"kubernetes.io/os" => "linux"}
+
+      assert %Regions{provisioner: KubernetesController, provisioner_config: br_config} =
+               Regions.get("br-south")
+
+      assert br_config.cluster_id == "br-south-1"
+      assert br_config.provider == :vultr
+      assert br_config.vultr_region == "sao"
+      assert br_config.kubernetes_client == [mode: :kubeconfig, cluster_id: "br-south-1"]
+      assert br_config.storage_class == "vultr-block-storage"
+      assert br_config.node_selector == %{"kubernetes.io/os" => "linux"}
+    end
+
     test "exposes a local controller-backed region for kind smoke tests" do
       assert %Regions{
                id: "local-controller",
@@ -149,6 +171,8 @@ defmodule Tuist.Kura.RegionsTest do
       assert Regions.exists?("eu-central")
       assert Regions.exists?("us-east")
       assert Regions.exists?("us-west")
+      assert Regions.exists?("au-southeast")
+      assert Regions.exists?("br-south")
       assert Regions.exists?("local-controller")
       refute Regions.exists?("local")
       refute Regions.exists?("nope")

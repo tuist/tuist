@@ -31,6 +31,10 @@ kuraController:
   # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
   # not break while the controller flag is still named grpc-cluster-issuer.
   grpcClusterIssuer: ""
+  loadBalancer:
+    # Cloud LoadBalancer provider for controller-managed public Services.
+    # Supported values: hetzner, vultr.
+    provider: hetzner
   telemetry:
     # Default OTLP traces endpoint for controller-managed Kura pods.
     # Leave empty to disable controller-injected tracing, or override
