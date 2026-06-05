@@ -13,10 +13,10 @@ Tuist repositories follow [trunk-based development](<https://en.wikipedia.org/wi
 
 ## CLI backward-compatibility window
 
-We support the Tuist CLI releases from the last **6 months** against the production server. Customers do not all upgrade on our cadence, so a server change that breaks an older but still-supported CLI is a production regression for them, not just a stale client.
+We support the Tuist CLI releases from the last **3 months** against the production server. Customers do not all upgrade on our cadence, so a server change that breaks an older but still-supported CLI is a production regression for them, not just a stale client.
 
 This is not theoretical. The server once stopped attaching the cryptographic signature to cache-artifact downloads. Newer CLIs had already stopped requiring it, but older CLIs still ran the signature verifier and rejected every cache response, dropping affected customers' cache hit rate to 0% and wiping out their CI until they could upgrade.
 
 To guard against this, every production deployment runs a backward-compatibility acceptance suite against the freshly-deployed canary using the **oldest CLI version we still support**, not just the CLI built from `main`. It exercises the module cache pull path (the one the signature incident broke) and blocks promotion to production if it fails.
 
-The authoritative pin for the oldest supported release is the `MIN_SUPPORTED_TUIST_VERSION` env var in [`server-production-deployment.yml`](https://github.com/tuist/tuist/blob/main/.github/workflows/server-production-deployment.yml). Bump it as the 6-month window slides forward. The suite itself lives in `e2e/module_cache_backward_compat.bats`.
+The authoritative pin for the oldest supported release is the `MIN_SUPPORTED_TUIST_VERSION` env var in [`server-production-deployment.yml`](https://github.com/tuist/tuist/blob/main/.github/workflows/server-production-deployment.yml). Bump it as the 3-month window slides forward. The suite itself lives in `e2e/module_cache_backward_compat.bats`.

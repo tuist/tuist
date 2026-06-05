@@ -12,6 +12,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
+        # Mirror MIN_SUPPORTED_TUIST_VERSION in server-production-deployment.yml
+        # so this smoke validates the exact version the production gate runs.
         description: tuist version to test
         default: "4.155.0"
 

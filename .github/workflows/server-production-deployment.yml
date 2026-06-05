@@ -222,8 +222,9 @@ jobs:
   # This job pins that floor and gates production alongside acceptance-tests.
   #
   # MIN_SUPPORTED_TUIST_VERSION is the source of truth for the oldest supported
-  # release (6-month window). Bump it as the window slides forward - see
-  # handbook/handbook/engineering/standard-practices.md.
+  # release (3-month window). Bump it as the window slides forward - see
+  # handbook/handbook/engineering/standard-practices.md. Keep the smoke workflow
+  # (.github/workflows/backward-compat-e2e-smoke.yml) default in sync with it.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
@@ -235,7 +236,7 @@ jobs:
       contents: read
       id-token: write
     env:
-      MIN_SUPPORTED_TUIST_VERSION: "4.111.1"
+      MIN_SUPPORTED_TUIST_VERSION: "4.155.0"
       MISE_TASK_RUN_AUTO_INSTALL: 0
       TUIST_URL: https://canary.tuist.dev
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
