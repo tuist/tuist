@@ -98,9 +98,8 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
 
-# Docker Hub pull-through cache — enabled on staging to validate the
-# component end-to-end before any production rollout. Reuses the staging
-# object-storage bucket under a `docker-mirror` prefix.
+# Docker Hub pull-through cache. Reuses the staging object-storage bucket
+# under a `docker-mirror` prefix.
 registryCache:
   enabled: true
   s3:
