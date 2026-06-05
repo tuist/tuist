@@ -454,6 +454,7 @@ defmodule Tuist.Docs.Sidebar do
         label: "References",
         items: [
           %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
+          %Item{label: "Compatibility", slug: "/en/references/compatibility"},
           %Item{
             label: "Project description",
             url: "https://projectdescription.tuist.dev/documentation/projectdescription"
