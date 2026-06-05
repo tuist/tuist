@@ -159,14 +159,21 @@ jobs:
       - name: Start cache server
         working-directory: cache
         run: |
-          MIX_ENV=dev mix phx.server &
+          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/cache-server.log 2>&1 &
+          disown
           cache_port="${TUIST_CACHE_PORT:-8087}"
-          for i in {1..30}; do
+          for i in {1..180}; do
             if nc -z localhost "$cache_port" 2>/dev/null; then
-              echo "Cache server is ready"
+              echo "Cache server is listening on :${cache_port} after ${i} attempts"
               break
             fi
-            echo "Waiting for cache server... ($i/30)"
+            if [ "$i" = "180" ]; then
+              echo "Cache server never came up on :${cache_port}" >&2
+              echo "--- cache-server.log tail ---" >&2
+              tail -50 /tmp/cache-server.log >&2
+              exit 1
+            fi
+            echo "Waiting for cache server... ($i/180)"
             sleep 2
           done
       - name: Run Gradle cache acceptance test
