@@ -215,15 +215,12 @@ jobs:
   # Backward-compatibility acceptance - runs the OLDEST CLI version we still
   # support against the freshly-deployed canary. The acceptance-tests job above
   # always uses the CLI built from HEAD, so it can never catch a server change
-  # that breaks an older CLI - which is exactly the class of regression behind
-  # the cache-signature incident (the server stopped signing cache downloads and
-  # older CLIs running SignatureVerifierMiddleware rejected every artifact,
-  # zeroing out the cache hit rate for customers pinned to an older release).
-  # This job pins that floor and gates production alongside acceptance-tests.
+  # that breaks an older but still-supported CLI. This job pins that floor and
+  # gates production alongside acceptance-tests.
   #
   # MIN_SUPPORTED_TUIST_VERSION is the source of truth for the oldest supported
-  # release (3-month window). Bump it as the window slides forward - see
-  # handbook/handbook/engineering/standard-practices.md.
+  # release (3-month window). Bump it as the window slides forward - see the
+  # Compatibility reference at server/priv/docs/en/references/compatibility.md.
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
