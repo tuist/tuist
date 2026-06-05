@@ -328,6 +328,15 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
 	}
 
+	// Mirror the actions/runner diagnostic log (_diag) to the runner
+	// container's stdout so it reaches Loki through the pod-log pipeline.
+	// The runner's ReturnCode enum only spans 0-7 and run-helper.sh folds
+	// unknown codes to exit 0, so a runner that terminates abnormally
+	// (e.g. the microVM is torn down mid-job) writes no reason to stdout —
+	// its _diag log is the only record, and it dies with the reaped Pod.
+	// Streaming _diag makes that exit reason durable.
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        podName,

@@ -130,6 +130,27 @@ k8s-monitoring:
     enabled: true
     collector: alloy-logs
 
+  # Node journald → Loki. The in-guest runner vitals probe is blind to a
+  # host-side microVM teardown (kata-shim/qemu kill, containerd restart,
+  # kernel OOM/segfault) — those land only in the worker node's journal,
+  # which nothing shipped before this. Assigned to alloy-logs because that
+  # DaemonSet already tolerates the bare-metal runner taint (see the
+  # collector block below), so it runs on the runner nodes where the
+  # microVMs live and a runner that vanishes mid-job leaves a host trail.
+  nodeLogs:
+    enabled: true
+    collector: alloy-logs
+    journal:
+      maxAge: "4h"
+      # Container runtime + kubelet units, plus kernel messages. The keep
+      # rule matches __journal__systemd_unit, but kernel lines carry no
+      # unit, so "^$" (empty unit) is kept too — that's where the
+      # OOM/segfault/qemu-kill evidence for a microVM teardown shows up.
+      units:
+        - "^$"
+        - "containerd.service"
+        - "kubelet.service"
+
   # Picks up any Pod/Service annotated with prometheus.io/scrape=true.
   # Upstream defaults to the k8s.grafana.com/* annotation namespace; we
   # override to prometheus.io/* so the same annotations work for both
@@ -364,14 +385,19 @@ k8s-monitoring:
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
       presets: [filesystem-log-reader]
-      # Tolerate the bare-metal runner taint so the log DaemonSet also
-      # lands on the runner-tier nodes and tails the Linux runner Pods.
-      # Without this, runner Pod logs (including RUNNER_VITALS) never
-      # reach Loki: those nodes repel everything but runner Pods, so the
-      # default-toleration DaemonSet skips them. Tolerations live under
-      # `controller` (the Alloy CR's controller spec); a top-level
-      # `tolerations` here renders to spec.tolerations and is ignored.
       controller:
+        # The nodeLogs feature validation requires the assigned collector
+        # to be an explicit DaemonSet (it does not infer this from the
+        # filesystem-log-reader preset), and a DaemonSet is what we want
+        # anyway: journald is per-node, so one Alloy per node.
+        type: daemonset
+        # Tolerate the bare-metal runner taint so the log DaemonSet also
+        # lands on the runner-tier nodes and tails the Linux runner Pods.
+        # Without this, runner Pod logs (including RUNNER_VITALS) never
+        # reach Loki: those nodes repel everything but runner Pods, so the
+        # default-toleration DaemonSet skips them. Tolerations live under
+        # `controller` (the Alloy CR's controller spec); a top-level
+        # `tolerations` here renders to spec.tolerations and is ignored.
         tolerations:
           - key: tuist.dev/runner-tier
             operator: Equal
