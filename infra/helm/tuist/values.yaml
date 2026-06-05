@@ -1284,10 +1284,11 @@ postgresql:
     # endpoint, managed connection front door); in-cluster the `-rw` Service
     # is already the native session endpoint with primary failover, so we
     # connect the web tier straight to it. Both are session-mode, so the
-    # app's connection shape is identical either way. Activation is a
-    # two-step operator action (see infra/cnpg/README.md): run the
-    # auth-query bootstrap SQL, THEN flip `enabled: true` — enabling it
-    # without the bootstrap leaves the processor unable to authenticate.
+    # app's connection shape is identical either way. Enabling is just a
+    # flag flip: with no custom cert secrets below, CNPG's built-in
+    # PgBouncer integration manages auth itself (it creates the
+    # cnpg_pooler_pgbouncer role + user_search function in the `postgres`
+    # database on reconcile). See infra/cnpg/README.md.
     pooler:
       enabled: false
       instances: 1

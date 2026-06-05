@@ -8,7 +8,6 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
-- [`cnpg-pooler-auth.sql`](./cnpg-pooler-auth.sql) — creates the `cnpg_pooler_pgbouncer` auth-query role and the `user_search` function PgBouncer needs. Only required when the `postgresql.cnpg.pooler` is in use (see Connection pooler below). Run it **before** flipping `pooler.enabled: true`.
 
 ## When to run
 
@@ -56,22 +55,17 @@ On Supabase the web tier does go through a pooler: Supavisor in **session** mode
 
 The web tier's connection budget is therefore sized at the cluster via `max_connections` (see [`MIGRATION.md`](./MIGRATION.md) → "Connection budget"), not by a pooler.
 
-Activation is a two-step operator action, because enabling the Pooler in the chart without the auth bootstrap leaves PgBouncer unable to authenticate the application role (the processor would fail to connect):
+### Activation
 
-```bash
-ENV=staging  # or canary | production
-NAMESPACE=tuist-$ENV
-CLUSTER=tuist-tuist-pg
+No manual SQL bootstrap is needed. The chart's `Pooler` does not set custom certificate secrets, so CNPG's built-in PgBouncer integration manages authentication itself: on reconcile it creates the `cnpg_pooler_pgbouncer` role and the `user_search` lookup function in the **`postgres`** database, issues the pooler's TLS certificate, and configures PgBouncer with `auth_user = cnpg_pooler_pgbouncer` and `auth_dbname = postgres`. (Providing custom cert secrets would *disable* that built-in integration and hand you full responsibility for auth — so don't.)
 
-# 1. Bootstrap the auth-query role/function (once per fresh cluster).
-kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
-  < infra/cnpg/cnpg-pooler-auth.sql
+To activate:
 
-# 2. Set `postgresql.cnpg.pooler.enabled: true` in the env values and
-#    deploy. CNPG creates the `<cluster>-pooler-rw` Deployment + Service;
-#    wait for the pooler pods to be Ready, then confirm the processor
-#    reconnected (its DATABASE_URL now resolves to `-pooler-rw`).
-```
+1. Set `postgresql.cnpg.pooler.enabled: true` in the env values and deploy.
+2. CNPG creates the `<cluster>-pooler-rw` Deployment + Service. Wait for the pooler pods to be Ready.
+3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
+
+There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
 
 ## Password rotation
 

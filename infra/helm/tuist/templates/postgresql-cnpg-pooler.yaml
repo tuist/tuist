@@ -14,11 +14,11 @@
   failover. So the web tier connects straight to `-rw`; both are
   session-mode, so the app's connection shape is identical.
 
-  Activation is a two-step operator action (see infra/cnpg/README.md):
-  run infra/cnpg/cnpg-pooler-auth.sql against the cluster to create the
-  `cnpg_pooler_pgbouncer` auth-query role, THEN flip `enabled: true`.
-  Enabling without the bootstrap leaves PgBouncer unable to authenticate
-  the application role, so the processor cannot connect.
+  Enabling is just a flag flip: because this Pooler sets no custom
+  certificate secrets, CNPG's built-in PgBouncer integration manages
+  authentication itself (it creates the `cnpg_pooler_pgbouncer` role and
+  the `user_search` function in the `postgres` database on reconcile and
+  issues the pooler's TLS cert). See infra/cnpg/README.md.
 */}}
 {{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.pooler.enabled }}
 apiVersion: postgresql.cnpg.io/v1
