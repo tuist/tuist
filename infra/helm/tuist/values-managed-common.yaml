@@ -252,12 +252,8 @@ macosFleet:
 runnersController:
   image:
     repository: ghcr.io/tuist/tuist-runners-controller
-    # Held at 0.7.0. 0.8.0 shipped the dind `--registry-mirror` flag,
-    # which changed the runner pod template and churned the fleet;
-    # the new pods couldn't bring up docker-in-runner (no
-    # /var/run/docker.sock), taking CI docker down fleet-wide. Don't
-    # bump until the mirror reships with the containerd-layer
-    # `docker:28-dind` pull covered.
+    # SHA-tagged build from the runners-controller-image.yml
+    # workflow.
     tag: "0.7.0"
 
 # Everything below = external. The managed deployment never runs embedded
