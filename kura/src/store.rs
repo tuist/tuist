@@ -2712,6 +2712,7 @@ mod tests {
             rocksdb_write_buffer_size_bytes: 8 * 1024 * 1024,
             rocksdb_max_write_buffer_number: 4,
             outbox_max_depth: 100_000,
+            replication_bandwidth_limit_bytes_per_second: 0,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
             bootstrap_timeout_ms: 30 * 60 * 1000,

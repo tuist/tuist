@@ -44,6 +44,8 @@ pub struct Metrics {
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
+    replication_bandwidth_configured_limit_bytes_per_second: Gauge,
+    replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
@@ -56,6 +58,7 @@ pub struct Metrics {
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
     http_inflight_requests: Gauge,
+    public_http_inflight_requests: Gauge,
     grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -152,6 +155,8 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
+        let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
+        let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
@@ -170,6 +175,7 @@ impl Metrics {
         let file_descriptor_waiting = Gauge::default();
         let file_descriptor_capacity = Gauge::default();
         let http_inflight_requests = Gauge::default();
+        let public_http_inflight_requests = Gauge::default();
         let grpc_inflight_requests = Gauge::default();
         let segment_handles_cached = Gauge::default();
         let segment_handle_cache_capacity = Gauge::default();
@@ -323,6 +329,16 @@ impl Metrics {
             replication_apply_results.clone(),
         );
         registry.register(
+            "kura_replication_bandwidth_configured_limit_bytes_per_second",
+            "Configured aggregate byte-per-second ceiling for peer artifact body transfers where 0 disables throttling",
+            replication_bandwidth_configured_limit_bytes_per_second.clone(),
+        );
+        registry.register(
+            "kura_replication_bandwidth_effective_limit_bytes_per_second",
+            "Current aggregate byte-per-second limit for peer artifact body transfers after public-load adaptation",
+            replication_bandwidth_effective_limit_bytes_per_second.clone(),
+        );
+        registry.register(
             "kura_multipart_parts_total",
             "Multipart part uploads by result",
             multipart_parts.clone(),
@@ -381,6 +397,11 @@ impl Metrics {
             "kura_http_inflight_requests",
             "HTTP requests currently in flight across public and internal listeners",
             http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_public_http_inflight_requests",
+            "Public non-probe HTTP requests currently in flight",
+            public_http_inflight_requests.clone(),
         );
         registry.register(
             "kura_grpc_inflight_requests",
@@ -688,6 +709,8 @@ impl Metrics {
             replication_requests,
             replication_request_duration,
             replication_apply_results,
+            replication_bandwidth_configured_limit_bytes_per_second,
+            replication_bandwidth_effective_limit_bytes_per_second,
             multipart_parts,
             node_info,
             node_geo,
@@ -700,6 +723,7 @@ impl Metrics {
             file_descriptor_waiting,
             file_descriptor_capacity,
             http_inflight_requests,
+            public_http_inflight_requests,
             grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -916,6 +940,17 @@ impl Metrics {
             .inc();
     }
 
+    pub fn update_replication_bandwidth_limits(
+        &self,
+        configured_bytes_per_second: u64,
+        effective_bytes_per_second: u64,
+    ) {
+        self.replication_bandwidth_configured_limit_bytes_per_second
+            .set(configured_bytes_per_second as i64);
+        self.replication_bandwidth_effective_limit_bytes_per_second
+            .set(effective_bytes_per_second as i64);
+    }
+
     pub fn record_multipart_part(&self, result: &str) {
         self.multipart_parts
             .get_or_create(&MultipartLabels {
@@ -976,6 +1011,10 @@ impl Metrics {
 
     pub fn update_http_inflight(&self, count: usize) {
         self.http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_public_http_inflight(&self, count: usize) {
+        self.public_http_inflight_requests.set(count as i64);
     }
 
     pub fn update_grpc_inflight(&self, count: usize) {
@@ -1573,11 +1612,13 @@ mod tests {
         );
         metrics.record_replication_apply("replication", "artifact", "applied");
         metrics.record_replication_apply("bootstrap", "namespace_delete", "ignored_older");
+        metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880);
         metrics.record_multipart_part("ok");
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
         metrics.update_http_inflight(2);
+        metrics.update_public_http_inflight(1);
         metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
@@ -1665,6 +1706,7 @@ mod tests {
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
         assert!(rendered.contains("kura_http_inflight_requests"));
+        assert!(rendered.contains("kura_public_http_inflight_requests"));
         assert!(rendered.contains("kura_grpc_inflight_requests"));
         assert!(rendered.contains("kura_segment_handles_cached"));
         assert!(rendered.contains("kura_segment_handle_cache_capacity"));
@@ -1687,6 +1729,8 @@ mod tests {
         assert!(rendered.contains("kura_bootstrap_runs_total"));
         assert!(rendered.contains("kura_bootstrap_duration_seconds"));
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
+        assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
+        assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));
         assert!(rendered.contains("kura_analytics_events_total"));
         assert!(rendered.contains("kura_analytics_batches_total"));
         assert!(rendered.contains("kura_analytics_batch_duration_seconds"));

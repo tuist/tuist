@@ -121,6 +121,11 @@ config:
   metadataStore:
     maxOpenFiles: 1024
     maxBackgroundJobs: 4
+  replication:
+    # 0 disables application-level peer artifact body throttling.
+    # Positive values are adaptive ceilings: Kura divides the configured
+    # bytes/second by public_inflight + 1.
+    bandwidthLimitBytesPerSecond: 0
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

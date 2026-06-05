@@ -47,6 +47,7 @@ pub struct RuntimeState {
     serving: AtomicBool,
     writer_lock_owned: AtomicBool,
     http_inflight: AtomicUsize,
+    public_http_inflight: AtomicUsize,
     grpc_inflight: AtomicUsize,
     outbox_depth: AtomicUsize,
     inflight_changed: Notify,
@@ -59,6 +60,7 @@ impl RuntimeState {
             serving: AtomicBool::new(false),
             writer_lock_owned: AtomicBool::new(true),
             http_inflight: AtomicUsize::new(0),
+            public_http_inflight: AtomicUsize::new(0),
             grpc_inflight: AtomicUsize::new(0),
             outbox_depth: AtomicUsize::new(0),
             inflight_changed: Notify::new(),
@@ -111,8 +113,16 @@ impl RuntimeState {
         self.http_inflight.load(Ordering::SeqCst)
     }
 
+    pub fn public_http_inflight(&self) -> usize {
+        self.public_http_inflight.load(Ordering::SeqCst)
+    }
+
     pub fn grpc_inflight(&self) -> usize {
         self.grpc_inflight.load(Ordering::SeqCst)
+    }
+
+    pub fn public_inflight(&self) -> usize {
+        self.public_http_inflight() + self.grpc_inflight()
     }
 
     pub fn total_inflight(&self) -> usize {
@@ -123,11 +133,25 @@ impl RuntimeState {
         self.inflight_changed.notified()
     }
 
-    pub fn start_http_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
+    pub fn start_http_request(
+        self: &Arc<Self>,
+        metrics: &Metrics,
+        traffic_class: HttpTrafficClass,
+    ) -> InflightGuard {
         let count = self.http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
         metrics.update_http_inflight(count);
+        if traffic_class.contributes_to_public_load() {
+            let count = self.public_http_inflight.fetch_add(1, Ordering::SeqCst) + 1;
+            metrics.update_public_http_inflight(count);
+        }
         self.inflight_changed.notify_waiters();
-        InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Http)
+        InflightGuard::new(
+            self.clone(),
+            metrics.clone(),
+            InflightKind::Http {
+                public_load: traffic_class.contributes_to_public_load(),
+            },
+        )
     }
 
     pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
@@ -138,9 +162,21 @@ impl RuntimeState {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpTrafficClass {
+    Public,
+    Background,
+}
+
+impl HttpTrafficClass {
+    fn contributes_to_public_load(self) -> bool {
+        matches!(self, Self::Public)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum InflightKind {
-    Http,
+    Http { public_load: bool },
     Grpc,
 }
 
@@ -169,10 +205,18 @@ impl Drop for InflightGuard {
         }
         self.active = false;
         match self.kind {
-            InflightKind::Http => {
+            InflightKind::Http { public_load } => {
                 let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
                 self.metrics
                     .update_http_inflight(previous.saturating_sub(1));
+                if public_load {
+                    let previous = self
+                        .runtime
+                        .public_http_inflight
+                        .fetch_sub(1, Ordering::SeqCst);
+                    self.metrics
+                        .update_public_http_inflight(previous.saturating_sub(1));
+                }
             }
             InflightKind::Grpc => {
                 let previous = self.runtime.grpc_inflight.fetch_sub(1, Ordering::SeqCst);
@@ -284,7 +328,7 @@ mod tests {
     async fn inflight_change_notification_resolves_on_request_completion() {
         let runtime = RuntimeState::new();
         let metrics = Metrics::new("region".into(), "tenant".into());
-        let guard = runtime.start_http_request(&metrics);
+        let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
 
         let notified = runtime.inflight_changed();
         drop(guard);
@@ -292,5 +336,28 @@ mod tests {
         timeout(Duration::from_secs(1), notified)
             .await
             .expect("request completion should wake inflight waiters");
+    }
+
+    #[test]
+    fn public_http_inflight_excludes_background_http_requests() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+
+        let background = runtime.start_http_request(&metrics, HttpTrafficClass::Background);
+        assert_eq!(runtime.http_inflight(), 1);
+        assert_eq!(runtime.public_http_inflight(), 0);
+
+        let public = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+        assert_eq!(runtime.http_inflight(), 2);
+        assert_eq!(runtime.public_http_inflight(), 1);
+        assert_eq!(runtime.public_inflight(), 1);
+
+        drop(public);
+        assert_eq!(runtime.http_inflight(), 1);
+        assert_eq!(runtime.public_http_inflight(), 0);
+
+        drop(background);
+        assert_eq!(runtime.http_inflight(), 0);
+        assert_eq!(runtime.public_http_inflight(), 0);
     }
 }

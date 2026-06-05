@@ -16,6 +16,7 @@ use tracing::{Instrument, info, warn};
 
 use crate::{
     analytics::Analytics,
+    bandwidth::BandwidthLimiter,
     config::Config,
     extension::ExtensionEngine,
     geoip::GeoIp,
@@ -116,6 +117,12 @@ async fn run_with_config(
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
     let client = build_peer_client(&config).await?;
+    let runtime = RuntimeState::new();
+    let replication_bandwidth_limiter = BandwidthLimiter::new(
+        config.replication_bandwidth_limit_bytes_per_second,
+        runtime.clone(),
+    )
+    .map(Arc::new);
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
@@ -126,12 +133,13 @@ async fn run_with_config(
         io,
         memory,
         metrics,
-        runtime: RuntimeState::new(),
+        runtime,
         extension,
         analytics,
         usage,
         geoip,
         client,
+        replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
@@ -810,7 +818,9 @@ mod tests {
     #[tokio::test]
     async fn wait_for_inflight_drain_returns_when_requests_finish() {
         let context = test_context(|_| {}).await;
-        let guard = context.state.start_http_request();
+        let guard = context
+            .state
+            .start_http_request(crate::runtime::HttpTrafficClass::Public);
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),

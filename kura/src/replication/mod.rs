@@ -414,6 +414,9 @@ async fn stream_response_to_temp(
                 "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
             ));
         }
+        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            limiter.acquire(chunk.len()).await;
+        }
         destination
             .write_all(&chunk)
             .await
@@ -633,7 +636,18 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 url_encode(content_type),
                 version_ms,
             );
-            let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
+            let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
+            let body_stream = ReaderStream::new(file).then(move |item| {
+                let bandwidth_limiter = bandwidth_limiter.clone();
+                async move {
+                    if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref())
+                    {
+                        limiter.acquire(chunk.len()).await;
+                    }
+                    item
+                }
+            });
+            let body = reqwest::Body::wrap_stream(body_stream);
             let request_span = tracing::info_span!(
                 "replication.request",
                 otel.name = "PUT /_internal/replicate/artifact",
