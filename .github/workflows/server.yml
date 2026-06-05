@@ -339,6 +339,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Docker build
         run: |
+          log_file=/tmp/server-docker-build.log
           docker buildx build \
             --progress=plain \
             --file "$GITHUB_WORKSPACE/server/Dockerfile" \
@@ -351,7 +352,23 @@ jobs:
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
             --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
             --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
-            "$GITHUB_WORKSPACE"
+            "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            echo "Waiting for Docker build..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$build_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- server-docker-build.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Docker build completed"
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"

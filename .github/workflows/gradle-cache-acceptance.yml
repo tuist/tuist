@@ -121,13 +121,30 @@ jobs:
           # below: on a cold _build cache this does a full compile, and at 4
           # workers the in-flight module copies OOM the runner from inside the
           # guest ("lost communication").
+          log_file=/tmp/setup-main-server.log
           ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix do \
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \
             ecto.load, \
             ecto.migrate, \
-            run priv/repo/seeds.exs
+            run priv/repo/seeds.exs > "$log_file" 2>&1 &
+          setup_pid=$!
+          while kill -0 "$setup_pid" 2>/dev/null; do
+            echo "Waiting for main server setup..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$setup_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- setup-main-server.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Main server setup completed"
       - name: Start main server
         working-directory: server
         run: |
