@@ -60,9 +60,7 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    # Gettext extraction is memory-sensitive enough to make the self-hosted
-    # Linux runner lose communication under fleet load.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -189,9 +187,11 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    # The test compile + ClickHouse + Postgres workload repeatedly drops the
-    # self-hosted large runner under sustained load.
-    runs-on: ubuntu-latest
+    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
+    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
+    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
+    # headroom this job had before the default was downsized (#11052).
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
@@ -260,9 +260,7 @@ jobs:
         run: mise run --no-deps format --check
   esbuild:
     name: esbuild
-    # The Noora static asset build plus esbuild check can starve the
-    # self-hosted Linux runner until GitHub marks it as lost.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -328,9 +326,9 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # The server image build does an Elixir release compile inside Docker and
-    # repeatedly drops the self-hosted large runner under sustained load.
-    runs-on: ubuntu-latest
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
@@ -407,9 +405,10 @@ jobs:
   #         fi
   seed:
     name: Seed
-    # Database setup is heavy enough to be flaky on the self-hosted Linux pool
-    # when the fleet is under load.
-    runs-on: ubuntu-latest
+    # Bigger shape: database setup (migrations + seeds) is too slow on the
+    # 2 vCPU default and overruns the 15m timeout under fleet load. The
+    # 4 vCPU / 16 GB shape restores the headroom from before #11052.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
