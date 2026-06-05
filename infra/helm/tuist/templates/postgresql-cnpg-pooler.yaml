@@ -1,0 +1,38 @@
+{{/*
+  Render a CNPG Pooler (PgBouncer) in front of the cluster's primary
+  when `postgresql.cnpg.pooler.enabled` is true. It mirrors the Supabase
+  topology: the processor connects through a transaction-mode pooler
+  (prepare: :unnamed, no session features), while the web tier keeps its
+  direct session connections to `-rw` because Oban's PG notifier and
+  Postgres-peer leader election rely on a stable session.
+
+  Activation is a two-step operator action (see infra/cnpg/README.md):
+  run infra/cnpg/cnpg-pooler-auth.sql against the cluster to create the
+  `cnpg_pooler_pgbouncer` auth-query role, THEN flip `enabled: true`.
+  Enabling without the bootstrap leaves PgBouncer unable to authenticate
+  the application role, so the processor cannot connect.
+*/}}
+{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.pooler.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ include "tuist.cnpgServicePooler" . }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  cluster:
+    name: {{ include "tuist.cnpgClusterName" . }}
+  # `rw` targets the primary: the processor writes oban_jobs, so it can't
+  # be served from a read-only replica.
+  type: rw
+  instances: {{ .Values.postgresql.cnpg.pooler.instances }}
+  pgbouncer:
+    poolMode: {{ .Values.postgresql.cnpg.pooler.poolMode }}
+    {{- with .Values.postgresql.cnpg.pooler.parameters }}
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+{{- end }}

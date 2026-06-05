@@ -8,6 +8,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- [`cnpg-pooler-auth.sql`](./cnpg-pooler-auth.sql) — creates the `cnpg_pooler_pgbouncer` auth-query role and the `user_search` function PgBouncer needs. Only required when the `postgresql.cnpg.pooler` is in use (see Connection pooler below). Run it **before** flipping `pooler.enabled: true`.
 
 ## When to run
 
@@ -42,6 +43,29 @@ Each file ends with a sanity-check `SELECT … information_schema.role_table_gra
 ## Why not an Ecto migration
 
 Same three reasons as the old [`infra/supabase/`](../supabase/) directory — `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the future operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
+
+## Connection pooler (PgBouncer)
+
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It mirrors the Supabase topology: the **processor** connects through the transaction-mode pooler (so its `prepare: :unnamed` connection shape stays constant across the Supabase→CNPG cutover), while the **web tier keeps direct session connections** to `-rw` — the web pods run Oban, whose PG notifier and Postgres-peer leader election (session advisory locks) do not survive transaction pooling.
+
+The web tier's connection budget is sized at the cluster instead (see [`MIGRATION.md`](./MIGRATION.md) → "Connection budget"); the pooler is not what keeps the web tier under `max_connections`.
+
+Activation is a two-step operator action, because enabling the Pooler in the chart without the auth bootstrap leaves PgBouncer unable to authenticate the application role (the processor would fail to connect):
+
+```bash
+ENV=staging  # or canary | production
+NAMESPACE=tuist-$ENV
+CLUSTER=tuist-tuist-pg
+
+# 1. Bootstrap the auth-query role/function (once per fresh cluster).
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
+  < infra/cnpg/cnpg-pooler-auth.sql
+
+# 2. Set `postgresql.cnpg.pooler.enabled: true` in the env values and
+#    deploy. CNPG creates the `<cluster>-pooler-rw` Deployment + Service;
+#    wait for the pooler pods to be Ready, then confirm the processor
+#    reconnected (its DATABASE_URL now resolves to `-pooler-rw`).
+```
 
 ## Password rotation
 

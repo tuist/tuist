@@ -103,13 +103,19 @@ spec:
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
             # Required because DATABASE_URL below points at Supavisor on 6543.
-            # CNPG-mode dials the cluster's `-rw` Service directly (session
-            # mode), so this flag stays off.
             - name: TUIST_DATABASE_POOLED
               value: "1"
             {{- else }}
-            # Match the server / migration pods: the in-cluster `-rw` Service
-            # is reached over plaintext. Without this, TUIST_USE_SSL_FOR_DATABASE
+            {{- if .Values.postgresql.cnpg.pooler.enabled }}
+            # Routed through the CNPG transaction-mode Pooler (PgBouncer), so
+            # use the same connection shape as the Supabase pooler path:
+            # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
+            # DATABASE_URL below points at the `-pooler-rw` Service.
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            {{- end }}
+            # Match the server / migration pods: the in-cluster Service is
+            # reached over plaintext. Without this, TUIST_USE_SSL_FOR_DATABASE
             # defaults to "1" (runtime.exs) and only the processor would dial
             # CNPG with SSL, diverging from the rest of the app's connection
             # shape.
