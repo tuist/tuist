@@ -379,9 +379,21 @@ to any registry. Production is untouched until the final flip.
   (`bazel/ci-oci.sh`): builds the multi-arch index + the native-arch tarball in the dev
   container (no daemon), `docker load`s it on the runner, smoke-tests tini/curl/clean
   startup, and runs `spec/e2e/cluster_spec.sh` against it with `KURA_IMAGE` +
-  `KURA_E2E_SKIP_BUILD=1`. Still shadow only — no `oci_push`. Verified locally: the real
-  Bazel bookworm image passes `cluster_spec` (6 examples, 0 failures), exercising the
-  curl healthcheck and cross-region cache replication end-to-end.
+  `KURA_E2E_SKIP_BUILD=1`. Still shadow only — no `oci_push`. Green on the native amd64
+  runner: smoke + `cluster_spec` (6 examples, 0 failures), exercising the curl healthcheck
+  and cross-region cache replication end-to-end. `bazel/local-ci.sh` runs the same flow in
+  the dev container against the host's native arch, so the arm64-host path is validatable
+  without waiting on GitHub.
+  - **merged-`/usr` gotcha (required `apt.install(mergedusr = True)`).** bookworm-slim is
+    merged-`/usr` (`/lib`, `/lib64` are symlinks into `/usr`). rules_distroless by default
+    flattens the `.debs` with *real* `/lib`/`/lib64` dirs, which collide with the base
+    symlinks. overlay2 (the GitHub runner) resolves the collision by routing the layer's
+    `/lib/*` through the base symlink, dropping `/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2`
+    and leaving the interpreter symlink dangling → `exec …: no such file or directory` for
+    every binary. Docker Desktop merges it differently, so it only reproduced on the native
+    amd64 runner (not arm64-native or amd64-emulated). `mergedusr = True` keeps the layer's
+    paths under `/usr` with matching symlinks, composing cleanly with the base. Guarded by
+    the smoke step's `docker run` (a native exec on the runner).
 - **3.6 — oci_push + release flip (deferred — the only production change).** `oci_push`
   to `ghcr.io` `:<version>`/`:latest` with `--stamp`/`workspace_status`; then replace
   `release-kura-docker`. NOT in scope while "no production change" holds.
@@ -398,8 +410,17 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   a host dir into the dev container and points Bazel at it via a CI-only `~/.bazelrc`
   (`common --disk_cache` + `common --repository_cache`), persisted with `actions/cache`
   keyed on the lockfiles. The native `-sys` crates (rocksdb/jemalloc/aws-lc/lua) compile
-  once per lockfile-state instead of every run, cutting cold ~70 min runs to ~10 min on
-  cache hits. `actions/cache` saves even on failure, so a red run still warms the next.
+  once per lockfile-state instead of every run, cutting cold ~70 min runs to ~3 min on
+  cache hits. Two caveats learned the hard way:
+  - **Save on failure.** The plain `actions/cache` only saves on a *clean* job, so the
+    `oci` job (red while the runtime was debugged) never persisted its cache and rebuilt
+    from scratch every run. The `oci` job uses `actions/cache/restore` + `actions/cache/save`
+    with `if: always()` so red runs still warm the next.
+  - **Cross-job seeding.** Each cache key prefix is its own namespace, so the `oci` job
+    can't see the `bazel-linux-*` caches by default. It adds `bazel-linux-x86_64-` as a
+    `restore-key`; because `disk_cache` is content-addressed and the x86_64/cross-arm64
+    compile actions are identical between the binary and image builds, the first `oci` run
+    is seeded for free.
   A true shared remote cache (Kura-backed) is the later, cross-runner step.
 
 ## Open questions / risks
