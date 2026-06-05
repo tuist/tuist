@@ -28,7 +28,7 @@ on:
       cache_host:
         description: In-cluster cache host:port
         required: false
-        default: tuist-registry-cache.tuist-staging.svc.cluster.local:5000
+        default: tuist-tuist-registry-cache.tuist-staging.svc.cluster.local:5000
       image:
         description: Docker Hub repository to pull through
         required: false
