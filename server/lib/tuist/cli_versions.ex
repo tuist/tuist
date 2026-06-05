@@ -9,7 +9,7 @@ defmodule Tuist.CLIVersions do
   compile-time cycle).
   """
 
-  @minimum_supported_version "4.155.0"
+  @minimum_supported_version "4.150.0"
 
   @doc """
   The oldest CLI version the server supports (a rolling ~3-month window).

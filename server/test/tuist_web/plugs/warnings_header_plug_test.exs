@@ -84,7 +84,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
              ]
     end
 
-    test "it returns a deprecation warning if the version is lower than 4.155.0" do
+    test "it returns a deprecation warning if the version is lower than 4.150.0" do
       # Given
       Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
 
@@ -106,14 +106,14 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
              ]
     end
 
-    test "it doesn't return a deprecation warning if the version is higher or equal than 4.155.0" do
+    test "it doesn't return a deprecation warning if the version is higher or equal than 4.150.0" do
       # Given
       Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
 
       conn =
         :get
         |> conn("/")
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.155.0")
+        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.150.0")
 
       # When
       got = WarningsHeaderPlug.call(conn, %{})
