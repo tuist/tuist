@@ -37,6 +37,9 @@ pub struct Metrics {
     artifact_writes: Family<ArtifactOpLabels, Counter>,
     artifact_read_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_write_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_refreshes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -139,6 +142,12 @@ impl Metrics {
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_duration =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
         let segment_refreshes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_refresh_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_refresh_duration =
@@ -286,6 +295,21 @@ impl Metrics {
             "kura_artifact_write_bytes_total",
             "Artifact write throughput by producer and result",
             artifact_write_bytes.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_completions_total",
+            "Artifact response body stream completions by producer and result",
+            artifact_egress_completions.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_bytes_total",
+            "Bytes yielded by artifact response body streams by producer and result",
+            artifact_egress_bytes.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_duration_seconds",
+            "Time from artifact response body creation until stream completion, error, or drop",
+            artifact_egress_duration.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
@@ -681,6 +705,9 @@ impl Metrics {
             artifact_writes,
             artifact_read_bytes,
             artifact_write_bytes,
+            artifact_egress_completions,
+            artifact_egress_bytes,
+            artifact_egress_duration,
             segment_refreshes,
             segment_refresh_bytes,
             segment_refresh_duration,
@@ -841,6 +868,32 @@ impl Metrics {
                 .get_or_create(&labels)
                 .inc_by(bytes);
         }
+    }
+
+    pub fn record_artifact_egress(
+        &self,
+        producer: ArtifactProducer,
+        result: &str,
+        bytes: u64,
+        duration: Duration,
+    ) {
+        let labels = ArtifactOpLabels {
+            producer: producer.as_str().to_owned(),
+            result: result.to_owned(),
+        };
+        self.artifact_egress_completions
+            .get_or_create(&labels)
+            .inc();
+        if bytes > 0 {
+            self.artifact_egress_bytes
+                .get_or_create(&labels)
+                .inc_by(bytes);
+        }
+        self.artifact_egress_duration
+            .get_or_create(&ArtifactRouteLabels {
+                producer: producer.as_str().to_owned(),
+            })
+            .observe(duration.as_secs_f64());
     }
 
     pub fn record_segment_refresh(
@@ -1563,6 +1616,12 @@ mod tests {
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
         metrics.record_artifact_write(ArtifactProducer::Module, "ok", 10);
+        metrics.record_artifact_egress(
+            ArtifactProducer::Module,
+            "ok",
+            10,
+            Duration::from_millis(30),
+        );
         metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
@@ -1648,6 +1707,9 @@ mod tests {
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
+        assert!(rendered.contains("kura_artifact_egress_completions_total"));
+        assert!(rendered.contains("kura_artifact_egress_bytes_total"));
+        assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
         assert!(rendered.contains("kura_segment_refreshes_total"));
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_replication_requests_total"));

@@ -1,6 +1,9 @@
 use std::{
     collections::{BTreeMap, HashMap},
     net::IpAddr,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Instant,
 };
 
 use axum::{
@@ -13,7 +16,7 @@ use axum::{
     routing::{delete, get, head, post, put},
 };
 use bytes::Bytes;
-use futures_util::stream;
+use futures_util::{Stream, stream};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
@@ -27,6 +30,7 @@ use crate::{
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
     memory::MemoryPressure,
+    metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
     state::SharedState,
@@ -35,7 +39,8 @@ use crate::{
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
-const RESPONSE_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
+const READER_RESPONSE_CHUNK_BYTES: usize = 256 * 1024;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -2117,7 +2122,8 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
-            let mut response = Response::new(Body::from_stream(bytes_chunks(bytes)));
+            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes));
+            let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
             response
@@ -2141,7 +2147,8 @@ async fn serve_file_reader(
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
-            let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
+            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = instrument_artifact_stream(state, manifest, stream);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
@@ -2154,13 +2161,91 @@ async fn serve_file_reader(
     }
 }
 
+fn instrument_artifact_stream<S>(
+    state: &SharedState,
+    manifest: &ArtifactManifest,
+    stream: S,
+) -> InstrumentedArtifactStream
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+{
+    InstrumentedArtifactStream::new(state.metrics.clone(), manifest.producer, stream)
+}
+
+struct InstrumentedArtifactStream {
+    inner: Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>,
+    metrics: Metrics,
+    producer: ArtifactProducer,
+    started_at: Instant,
+    yielded_bytes: u64,
+    recorded: bool,
+}
+
+impl InstrumentedArtifactStream {
+    fn new<S>(metrics: Metrics, producer: ArtifactProducer, stream: S) -> Self
+    where
+        S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+    {
+        Self {
+            inner: Box::pin(stream),
+            metrics,
+            producer,
+            started_at: Instant::now(),
+            yielded_bytes: 0,
+            recorded: false,
+        }
+    }
+
+    fn record_once(&mut self, result: &str) {
+        if self.recorded {
+            return;
+        }
+
+        self.recorded = true;
+        self.metrics.record_artifact_egress(
+            self.producer,
+            result,
+            self.yielded_bytes,
+            self.started_at.elapsed(),
+        );
+    }
+}
+
+impl Stream for InstrumentedArtifactStream {
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        match self.inner.as_mut().poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                self.yielded_bytes = self.yielded_bytes.saturating_add(bytes.len() as u64);
+                Poll::Ready(Some(Ok(bytes)))
+            }
+            Poll::Ready(Some(Err(error))) => {
+                self.record_once("error");
+                Poll::Ready(Some(Err(error)))
+            }
+            Poll::Ready(None) => {
+                self.record_once("ok");
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl Drop for InstrumentedArtifactStream {
+    fn drop(&mut self) {
+        self.record_once("aborted");
+    }
+}
+
 fn bytes_chunks(bytes: Bytes) -> impl futures_util::Stream<Item = Result<Bytes, std::io::Error>> {
     stream::unfold((bytes, 0), |(bytes, offset)| async move {
         if offset >= bytes.len() {
             return None;
         }
         let end = offset
-            .saturating_add(RESPONSE_STREAM_CHUNK_BYTES)
+            .saturating_add(MMAP_RESPONSE_CHUNK_BYTES)
             .min(bytes.len());
         let chunk = bytes.slice(offset..end);
         Some((Ok(chunk), (bytes, end)))
@@ -2816,7 +2901,7 @@ mod tests {
     async fn bytes_chunks_reassembles_multi_chunk_payloads() {
         use futures_util::StreamExt;
 
-        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
         let payload = Bytes::from(
             (0..len)
                 .map(|index| (index % 251) as u8)
@@ -2830,8 +2915,8 @@ mod tests {
         }
 
         assert_eq!(chunks.len(), 3);
-        assert_eq!(chunks[0].len(), RESPONSE_STREAM_CHUNK_BYTES);
-        assert_eq!(chunks[1].len(), RESPONSE_STREAM_CHUNK_BYTES);
+        assert_eq!(chunks[0].len(), MMAP_RESPONSE_CHUNK_BYTES);
+        assert_eq!(chunks[1].len(), MMAP_RESPONSE_CHUNK_BYTES);
         assert_eq!(chunks[2].len(), 7);
         assert_eq!(chunks.concat(), payload.to_vec());
     }
@@ -2841,7 +2926,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
 
-        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
         let payload: Vec<u8> = (0..len).map(|index| (index % 251) as u8).collect();
 
         let put_response = app
@@ -2895,6 +2980,12 @@ mod tests {
             .expect("failed to collect reader body")
             .to_bytes();
         assert_eq!(reader_body.as_ref(), payload.as_slice());
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("kura_artifact_egress_completions_total"));
+        assert!(metrics.contains("producer=\"xcode\""));
+        assert!(metrics.contains("result=\"ok\""));
+        assert!(metrics.contains(&format!("{}", payload.len() * 2)));
     }
 
     #[tokio::test]
