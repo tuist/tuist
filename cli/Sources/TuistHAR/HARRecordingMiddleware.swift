@@ -32,43 +32,47 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                 contentType: responseContentType
             )
 
-            let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
-            let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
+            Task.detached(priority: .background) {
+                let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
+                let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
 
-            await recorder.recordRequest(
-                url: fullURL,
-                method: request.method.rawValue,
-                requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
-                requestBody: requestBodyData,
-                responseStatusCode: response.status.code,
-                responseStatusText: response.status.reasonPhrase ?? "",
-                responseHeaders: response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
-                responseBody: responseBodyData,
-                startTime: harMetadata.startTime,
-                endTime: harMetadata.endTime,
-                timings: harMetadata.timings,
-                httpVersion: harMetadata.httpVersion,
-                requestHeadersSize: harMetadata.requestHeadersSize,
-                responseHeadersSize: harMetadata.responseHeadersSize
-            )
+                await recorder.recordRequest(
+                    url: fullURL,
+                    method: request.method.rawValue,
+                    requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    requestBody: requestBodyData,
+                    responseStatusCode: response.status.code,
+                    responseStatusText: response.status.reasonPhrase ?? "",
+                    responseHeaders: response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    responseBody: responseBodyData,
+                    startTime: harMetadata.startTime,
+                    endTime: harMetadata.endTime,
+                    timings: harMetadata.timings,
+                    httpVersion: harMetadata.httpVersion,
+                    requestHeadersSize: harMetadata.requestHeadersSize,
+                    responseHeadersSize: harMetadata.responseHeadersSize
+                )
+            }
 
             return (response, responseBodyForNext)
         } catch {
-            let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
-            let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
+            Task.detached(priority: .background) {
+                let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
+                let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
 
-            await recorder.recordError(
-                url: fullURL,
-                method: request.method.rawValue,
-                requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
-                requestBody: requestBodyData,
-                error: error,
-                startTime: harMetadata.startTime,
-                endTime: harMetadata.endTime,
-                timings: harMetadata.timings,
-                httpVersion: harMetadata.httpVersion,
-                requestHeadersSize: harMetadata.requestHeadersSize
-            )
+                await recorder.recordError(
+                    url: fullURL,
+                    method: request.method.rawValue,
+                    requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    requestBody: requestBodyData,
+                    error: error,
+                    startTime: harMetadata.startTime,
+                    endTime: harMetadata.endTime,
+                    timings: harMetadata.timings,
+                    httpVersion: harMetadata.httpVersion,
+                    requestHeadersSize: harMetadata.requestHeadersSize
+                )
+            }
 
             throw error
         }

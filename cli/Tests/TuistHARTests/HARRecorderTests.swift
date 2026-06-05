@@ -173,7 +173,7 @@ struct HARRecorderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func record_persistsToFile() async throws {
+    func finish_persistsToFile() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let harFilePath = temporaryDirectory.appending(component: "network.har")
 
@@ -183,6 +183,7 @@ struct HARRecorderTests {
 
         // When
         await recorder.record(entry)
+        await recorder.finish()
 
         // Then
         let fileSystem = FileSystem()
@@ -191,6 +192,20 @@ struct HARRecorderTests {
         let data = try Data(contentsOf: URL(fileURLWithPath: harFilePath.pathString))
         let log = try HAR.decode(from: data)
         #expect(log.entries.count == 1)
+    }
+
+    @Test
+    func finish_ignoresEntriesRecordedAfterFinishing() async {
+        // Given
+        let recorder = HARRecorder(filePath: nil)
+
+        // When
+        await recorder.finish()
+        await recorder.record(makeTestEntry())
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.isEmpty)
     }
 
     @Test

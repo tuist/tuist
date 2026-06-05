@@ -10,7 +10,7 @@ import Testing
 
 struct HARRecordingMiddlewareTests {
     @Test(.inTemporaryDirectory)
-    func intercept_recordsResponseBeforeReturning() async throws {
+    func intercept_recordsResponseInDetachedTask() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let harFilePath = temporaryDirectory.appending(component: "network.har")
         let recorder = HARRecorder(filePath: harFilePath)
@@ -36,11 +36,13 @@ struct HARRecordingMiddlewareTests {
             let bodyData = try await Data(collecting: body, upTo: responseBody.count)
             #expect(bodyData == responseBody)
 
-            let entries = await recorder.getEntries()
+            let entries = try await waitForEntries(recorder, count: 1)
             #expect(entries.count == 1)
             #expect(entries[0].request.method == "POST")
             #expect(entries[0].request.url == "https://api.example.com/v1/projects?filter=owned")
             #expect(entries[0].response.status == 201)
+
+            await recorder.finish()
         }
 
         let data = try Data(contentsOf: URL(fileURLWithPath: harFilePath.pathString))
@@ -69,10 +71,21 @@ struct HARRecordingMiddlewareTests {
             }
         }
 
-        let entries = await recorder.getEntries()
+        let entries = try await waitForEntries(recorder, count: 1)
         #expect(entries.count == 1)
         #expect(entries[0].request.method == "GET")
         #expect(entries[0].request.url == "https://api.example.com/v1/projects")
         #expect(entries[0].response.status == 0)
+    }
+
+    private func waitForEntries(_ recorder: HARRecorder, count: Int) async throws -> [HAR.Entry] {
+        for _ in 0 ..< 100 {
+            let entries = await recorder.getEntries()
+            if entries.count >= count {
+                return entries
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return await recorder.getEntries()
     }
 }

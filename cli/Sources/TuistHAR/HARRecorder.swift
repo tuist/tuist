@@ -24,6 +24,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
 
     private var log: HAR.Log
     private let filePath: AbsolutePath?
+    private var isFinished = false
 
     /// Creates a new HAR recorder.
     /// - Parameters:
@@ -44,8 +45,14 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     /// Records a new entry to the HAR log.
     /// - Parameter entry: The entry to record.
     public func record(_ entry: HAR.Entry) async {
+        guard !isFinished else { return }
         log.entries.append(entry)
-        await persist()
+    }
+
+    /// Stops accepting new HAR entries and persists the entries recorded so far.
+    public func finish() async {
+        isFinished = true
+        persist()
     }
 
     /// Records an HTTP request and response.
@@ -66,6 +73,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         responseHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) async {
+        guard !isFinished else { return }
         let entry = buildEntry(
             url: url,
             method: method,
@@ -134,6 +142,7 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
         requestHeadersSize: Int? = nil,
         requestBodySize: Int? = nil
     ) async {
+        guard !isFinished else { return }
         let entry = buildErrorEntry(
             url: url,
             method: method,
@@ -201,8 +210,8 @@ public actor HARRecorder { // swiftlint:disable:this type_body_length
     }
 
     /// Persists the current HAR log to disk if a file path was provided.
-    private func persist() async {
-        guard let filePath else { return }
+    private func persist() {
+        guard let filePath, !log.entries.isEmpty else { return }
         do {
             let data = try HAR.encode(log)
             try data.write(to: URL(fileURLWithPath: filePath.pathString), options: .atomic)

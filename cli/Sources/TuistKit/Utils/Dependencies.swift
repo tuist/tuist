@@ -45,10 +45,17 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
                 try await Noora.$current.withValue(initNoora()) {
                     try await Logger.$current.withValue(logger) {
                         try await HARRecorder.$current.withValue(harRecorder) {
-                            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                    try await action(sessionPaths)
-                                }
+                            do {
+                                try await ServerCredentialsStore.$current
+                                    .withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                            try await action(sessionPaths)
+                                        }
+                                    }
+                                await harRecorder.finish()
+                            } catch {
+                                await harRecorder.finish()
+                                throw error
                             }
                         }
                     }
