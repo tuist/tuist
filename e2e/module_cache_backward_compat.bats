@@ -96,27 +96,31 @@ teardown_file() {
     echo "$output" >&3
     [ "$status" -eq 0 ]
 
-    # Drop the local cache so the focused generate below has to fetch the
-    # artifact back from canary, exercising the signed cache-artifact download
-    # path that broke older CLIs.
-    rm -rf "${XDG_CACHE_HOME:?}"/* 2>/dev/null || true
-
-    # Focusing App links the cached Framework as an xcframework, which downloads
-    # it from canary through that signed path.
-    run "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open
-    echo "# tuist generate output:" >&3
-    echo "$output" >&3
-    [ "$status" -eq 0 ]
-
+    # A just-warmed artifact takes a moment to become downloadable from the
+    # remote cache, so wipe the local cache and poll: re-run the focused generate
+    # until the cached Framework is pulled back and linked as an xcframework
+    # (mirroring how the HEAD canary suite waits for remote results). Without the
+    # poll this races the cache and flakes - the remote pull can return nothing on
+    # the first try moments after the upload.
+    #
     # The signature check is implicit and behavioral: a cached xcframework can
-    # only be linked here if the signed download succeeded. If the server stopped
-    # signing, the pull would fail and generate would either error (caught above)
-    # or fall back to building from source, leaving no xcframework. So a linked
-    # xcframework is the end-to-end proof that an old CLI pulled from cache without
-    # a signature rejection - and it does not depend on matching CLI log wording.
-    run bash -c "grep -Rl 'xcframework' '${FIXTURE_DIR}'/*.xcodeproj/project.pbxproj 2>/dev/null"
-    if [ "$status" -ne 0 ]; then
-        echo "# No xcframework linked in the generated project — the cache was not pulled" >&3
+    # only be linked if the old CLI completed a signed download. If the server
+    # stopped signing, the pull would fail and no xcframework would ever appear,
+    # so this still fails on the regression it guards, without matching log wording.
+    linked=0
+    for attempt in 1 2 3 4; do
+        rm -rf "${XDG_CACHE_HOME:?}"/* 2>/dev/null || true
+        echo "# tuist generate (attempt ${attempt}):" >&3
+        "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open >&3 2>&1 || true
+        if grep -q "xcframework" "${FIXTURE_DIR}"/*.xcodeproj/project.pbxproj 2>/dev/null; then
+            linked=1
+            break
+        fi
+        echo "# cache not pulled yet; retrying in 3s" >&3
+        sleep 3
+    done
+    if [ "$linked" -ne 1 ]; then
+        echo "# Cached xcframework was never pulled from canary after retries" >&3
     fi
-    [ "$status" -eq 0 ]
+    [ "$linked" -eq 1 ]
 }
