@@ -63,8 +63,13 @@ server:
     # plus the MASTER_KEY ESO secret pick the runtime deployment target.
     - name: TUIST_DEPLOY_ENV
       value: can
+    # Single web replica shares this pool between request handling and the
+    # in-node Oban queues (default: 10). Sized well above the default-queue
+    # concurrency so the steady AlertEvaluationWorker load can't starve web
+    # checkouts. Comfortably under CNPG max_connections (100): 30 web + 10
+    # processor + replication/monitoring/superuser overhead.
     - name: TUIST_DATABASE_POOL_SIZE
-      value: "15"
+      value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
