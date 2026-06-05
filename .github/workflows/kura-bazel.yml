@@ -4,11 +4,14 @@ name: Kura Bazel
 # compare -> flip"). Non-gating: it builds and validates the Bazel-produced Linux
 # binaries alongside the existing Cargo/Docker release path, without touching it.
 #
-# Each runner builds BOTH Linux arches inside the Debian Bookworm dev container: the
-# arch matching the host is native, the other is cross-compiled (Debian cross GCC, no
-# QEMU). Running on both an x86_64 and an arm64 runner exercises both cross directions
-# of the symmetric toolchains — in particular it gives the arm64-from-x86_64 cross
-# build (which can't be validated on an Apple-silicon dev machine) a real x86_64 host.
+# `bazel-linux`: each runner builds BOTH Linux arches inside the Debian Bookworm dev
+# container: the arch matching the host is native, the other is cross-compiled (Debian
+# cross GCC, no QEMU). Running on both an x86_64 and an arm64 runner exercises both cross
+# directions of the symmetric toolchains — in particular it gives the arm64-from-x86_64
+# cross build (which can't be validated on an Apple-silicon dev machine) a real x86_64 host.
+#
+# `oci`: builds the runtime OCI image with rules_oci (multi-arch index, no QEMU/Buildx)
+# and runs the e2e suite against the native image. Still shadow only — no oci_push.
 
 on:
   push:
@@ -31,6 +34,10 @@ permissions:
 concurrency:
   group: kura-bazel-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
 
 jobs:
   bazel-linux:
@@ -72,3 +79,49 @@ jobs:
             kura/bazel-dist/kura-aarch64.sha256
           if-no-files-found: error
           retention-days: 7
+
+  # Builds the runtime OCI image with rules_oci (multi-arch index, no QEMU) and runs the
+  # e2e suite against it. SHADOW only — no oci_push; production paths are untouched. On
+  # the x86_64 runner the native image is loaded and the cluster suite runs against it,
+  # exercising the real bookworm runtime (tini/curl/certs) end-to-end.
+  oci:
+    name: Bazel OCI image + e2e (x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "shellspec"
+          working_directory: kura
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
+
+      - name: Build the OCI image (multi-arch index + native tarball)
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            kura-bazel-dev \
+            bash bazel/ci-oci.sh
+
+      - name: Load the native image into Docker
+        run: docker load -i kura/bazel-dist/kura-oci.tar
+
+      - name: Smoke-test the image (tini / curl / clean startup)
+        run: |
+          docker run --rm --entrypoint /usr/bin/tini kura-bazel:oci --version
+          docker run --rm --entrypoint /usr/bin/curl kura-bazel:oci --version | head -1
+          out="$(docker run --rm kura-bazel:oci 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly"; exit 1; }
+
+      - name: Run e2e (cluster_spec) against the Bazel image
+        working-directory: kura
+        env:
+          KURA_IMAGE: kura-bazel:oci
+          KURA_E2E_SKIP_BUILD: "1"
+        run: mise exec -- shellspec spec/e2e/cluster_spec.sh

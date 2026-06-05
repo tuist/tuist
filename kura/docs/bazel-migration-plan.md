@@ -375,9 +375,13 @@ to any registry. Production is untouched until the final flip.
   and a clean empty-env run under tini. (Local bzlmod gotcha: the apt extension caches an
   empty result if the lock doesn't exist at first eval — needs `bazel clean --expunge`;
   CI's clean cache reads the committed lock fine.)
-- **3.5 — e2e + shadow CI (todo).** Run `spec/e2e` against the Bazel image
-  (`KURA_IMAGE`), and add a non-pushing OCI build (multi-arch index + native-arch smoke)
-  to shadow CI.
+- **3.5 — e2e + shadow CI. ✅ Done.** Added an `oci` job to `.github/workflows/kura-bazel.yml`
+  (`bazel/ci-oci.sh`): builds the multi-arch index + the native-arch tarball in the dev
+  container (no daemon), `docker load`s it on the runner, smoke-tests tini/curl/clean
+  startup, and runs `spec/e2e/cluster_spec.sh` against it with `KURA_IMAGE` +
+  `KURA_E2E_SKIP_BUILD=1`. Still shadow only — no `oci_push`. Verified locally: the real
+  Bazel bookworm image passes `cluster_spec` (6 examples, 0 failures), exercising the
+  curl healthcheck and cross-region cache replication end-to-end.
 - **3.6 — oci_push + release flip (deferred — the only production change).** `oci_push`
   to `ghcr.io` `:<version>`/`:latest` with `--stamp`/`workspace_status`; then replace
   `release-kura-docker`. NOT in scope while "no production change" holds.
