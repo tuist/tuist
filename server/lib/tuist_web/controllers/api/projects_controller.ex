@@ -125,7 +125,9 @@ defmodule TuistWeb.API.ProjectsController do
           {:ok, project} ->
             conn
             |> put_status(:ok)
-            |> json(project_response(project, Projects.get_project_slug_from_id(project.id), include_repository_url: true))
+            |> json(
+              project_response(project, Projects.get_project_slug_from_id(project.id), include_repository_url: true)
+            )
 
           {:error, %Ecto.Changeset{} = changeset} ->
             message =
