@@ -55,7 +55,7 @@ The web tier is the dominant term, and it scales with replica count:
 
 Raising `max_connections` costs roughly 5–10 MiB of shared memory per connection, so keep it proportionate to the instance's memory limit (200 connections ≈ ~2 GiB, comfortable inside production's 16 GiB).
 
-Optionally, a CNPG `Pooler` (PgBouncer) can front the cluster for the **processor** only, mirroring the Supabase topology (processor transaction-pooled, web tier direct). See [`README.md`](./README.md) → "Connection pooler (PgBouncer)" for why the web tier stays direct and for the activation sequence.
+Optionally, a CNPG `Pooler` (PgBouncer) can front the cluster for the **processor** only, in transaction mode — matching the processor's Supabase Supavisor `:6543` path so its `prepare: :unnamed` shape is unchanged across cutover. The web tier connects straight to `-rw` instead. Note this differs from Supabase, where the web tier rides Supavisor in *session* mode (`:5432`); we skip that hop because `-rw` is already a native session endpoint with failover and a session pooler would not change the budget. See [`README.md`](./README.md) → "Connection pooler (PgBouncer)" for the full rationale and the activation sequence.
 
 ## Per-env migration (repeat for each)
 

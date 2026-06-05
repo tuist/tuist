@@ -1275,12 +1275,18 @@ postgresql:
     parameters:
       max_connections: "100"
     # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
-    # Mirrors the Supabase topology: the processor connects through a
-    # transaction-mode pooler (prepare: :unnamed) while the web tier stays
-    # on direct sessions (it runs Oban, whose PG notifier + Postgres-peer
-    # advisory locks need a session connection). Activation is a two-step
-    # operator action (see infra/cnpg/README.md): run the auth-query
-    # bootstrap SQL on the cluster, THEN flip `enabled: true` — enabling it
+    # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
+    # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier and
+    # Postgres-peer leader election don't survive *transaction* pooling). On
+    # Supabase the web tier still rides Supavisor in *session* mode (:5432),
+    # but that pooler exists for Supabase-platform reasons (IPv4-only direct
+    # endpoint, managed connection front door); in-cluster the `-rw` Service
+    # is already the native session endpoint with primary failover, so we
+    # connect the web tier straight to it. Both are session-mode, so the
+    # app's connection shape is identical either way. Activation is a
+    # two-step operator action (see infra/cnpg/README.md): run the
+    # auth-query bootstrap SQL, THEN flip `enabled: true` — enabling it
     # without the bootstrap leaves the processor unable to authenticate.
     pooler:
       enabled: false

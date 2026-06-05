@@ -1,10 +1,18 @@
 {{/*
-  Render a CNPG Pooler (PgBouncer) in front of the cluster's primary
-  when `postgresql.cnpg.pooler.enabled` is true. It mirrors the Supabase
-  topology: the processor connects through a transaction-mode pooler
-  (prepare: :unnamed, no session features), while the web tier keeps its
-  direct session connections to `-rw` because Oban's PG notifier and
-  Postgres-peer leader election rely on a stable session.
+  Render a CNPG Pooler (PgBouncer) in front of the cluster's primary when
+  `postgresql.cnpg.pooler.enabled` is true. It is a transaction-mode
+  pooler for the PROCESSOR only, matching the processor's Supabase
+  Supavisor :6543 path (prepare: :unnamed).
+
+  The web tier is intentionally not routed through it. It runs Oban,
+  whose PG notifier and Postgres-peer leader election need a session, so
+  *transaction* pooling is off-limits — a *session* pooler would be fine.
+  On Supabase the web tier rides Supavisor session mode (:5432), but that
+  hop exists for Supabase-platform reasons (IPv4-only direct endpoint,
+  managed connection front door) that don't apply in-cluster, where the
+  `-rw` Service is already the native session endpoint with primary
+  failover. So the web tier connects straight to `-rw`; both are
+  session-mode, so the app's connection shape is identical.
 
   Activation is a two-step operator action (see infra/cnpg/README.md):
   run infra/cnpg/cnpg-pooler-auth.sql against the cluster to create the
