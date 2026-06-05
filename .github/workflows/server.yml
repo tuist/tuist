@@ -215,6 +215,7 @@ jobs:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
@@ -448,6 +449,7 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database
