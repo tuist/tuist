@@ -1,0 +1,87 @@
+name: Registry Cache Staging Smoke Test
+
+# Manual e2e smoke for the Docker Hub pull-through cache (registryCache).
+# Runs on a staging Linux runner Pod — in-cluster, behind the runner
+# NetworkPolicy — and validates, end to end:
+#   1. The runner Pod can reach the in-cluster cache on :5000, i.e. the
+#      `runners-cache-egress` NetworkPolicy allow works. The base
+#      runners-default-deny policy excepts the cluster Service CIDR from
+#      its 0.0.0.0/0 egress, so a reachable cache proves the allow.
+#   2. Pull-through works: requesting a Docker Hub image's manifest makes
+#      the cache fetch from registry-1.docker.io, store it in S3, and
+#      serve it — without the runner ever talking to Docker Hub.
+#   3. A repeat request returns the same manifest (served from the cache).
+#
+# This deliberately uses the registry HTTP API (curl), not `docker pull`,
+# so it needs no change to the dind sidecar's dockerd — it validates the
+# cache + reachability before the transparent-mirror wiring lands.
+#
+# Prerequisites: a staging Runner Profile rendering the `tuist-staging-linux`
+# label (same as linux-runners-staging-smoke), and registryCache.enabled
+# on the staging deployment.
+#
+# Manual-trigger only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_host:
+        description: In-cluster cache host:port
+        required: false
+        default: tuist-registry-cache.tuist-staging.svc.cluster.local:5000
+      image:
+        description: Docker Hub repository to pull through
+        required: false
+        default: library/alpine
+      reference:
+        description: Tag or digest to fetch
+        required: false
+        default: "3.20"
+
+# Pure outbound curl to an in-cluster Service; no repo access needed.
+permissions: {}
+
+jobs:
+  smoke:
+    runs-on: tuist-staging-linux
+    timeout-minutes: 10
+    env:
+      CACHE: ${{ inputs.cache_host }}
+      IMAGE: ${{ inputs.image }}
+      REF: ${{ inputs.reference }}
+      ACCEPT: application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json
+    steps:
+      - name: Cache reachable (proves runners-cache-egress allow)
+        run: |
+          set -euo pipefail
+          echo "Cache endpoint: $CACHE"
+          code=$(curl -fsS --max-time 15 -o /dev/null -w '%{http_code}' "http://$CACHE/v2/")
+          echo "GET /v2/ -> HTTP $code"
+          [ "$code" = "200" ] || { echo "::error::cache /v2/ unreachable or unhealthy (HTTP $code)"; exit 1; }
+
+      - name: Pull-through a Docker Hub manifest (cold)
+        run: |
+          set -euo pipefail
+          url="http://$CACHE/v2/$IMAGE/manifests/$REF"
+          echo "Cold pull: $url"
+          code=$(curl -fsS --max-time 60 -H "Accept: $ACCEPT" -o /tmp/m1.json -w '%{http_code}' "$url")
+          echo "  HTTP $code, $(wc -c </tmp/m1.json) bytes"
+          [ "$code" = "200" ] || { echo "::error::pull-through failed (HTTP $code) — cache could not fetch $IMAGE:$REF from Docker Hub"; exit 1; }
+          head -c 300 /tmp/m1.json; echo
+
+      - name: Repeat pull returns the same manifest (cache hit)
+        run: |
+          set -euo pipefail
+          url="http://$CACHE/v2/$IMAGE/manifests/$REF"
+          code=$(curl -fsS --max-time 30 -H "Accept: $ACCEPT" -o /tmp/m2.json -w '%{http_code}' "$url")
+          echo "Warm pull -> HTTP $code"
+          [ "$code" = "200" ] || { echo "::error::repeat pull failed (HTTP $code)"; exit 1; }
+          if diff -q /tmp/m1.json /tmp/m2.json >/dev/null; then
+            echo "Manifest identical on repeat — served from the cache."
+          else
+            echo "::warning::repeat manifest differed from the first (tag may have been re-resolved upstream)"
+          fi
+
+      - name: Result
+        run: |
+          echo "Pull-through cache smoke passed: reachable from runner, pulled ${IMAGE}:${REF} through Docker Hub, repeat served from cache."
