@@ -133,15 +133,33 @@ jobs:
             kura-bazel-dev \
             bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-oci.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
 
-      - name: Load the native image into Docker
-        run: docker load -i kura/bazel-dist/kura-oci.tar
+      # The native amd64 image runs fine when built cross + loaded (classic or
+      # containerd store) + run emulated on a dev machine, but the runner's
+      # native load+run fails every binary with ENOENT (missing-loader signature).
+      # This step localizes it: engine/store, the tarball's own layer digests
+      # (to compare against a cross-built reference), and — decisively — whether
+      # the base files actually materialize in the flattened rootfs on the runner.
+      - name: Diagnose image load on the runner
+        working-directory: kura
+        run: |
+          set -x
+          docker version
+          docker info --format 'driver={{.Driver}} version={{.ServerVersion}} storage={{.DriverStatus}}'
+          echo "=== tarball entries (manifest + layer blobs) ==="
+          tar -tf bazel-dist/kura-oci.tar
+          echo "=== tarball manifest.json ==="
+          tar -xOf bazel-dist/kura-oci.tar manifest.json
+          docker load -i bazel-dist/kura-oci.tar
+          docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
+          echo "=== flattened rootfs: do base + runtime files materialize? ==="
+          cid="$(docker create kura-bazel:oci)"
+          docker export "$cid" | tar -tf - \
+            | grep -E '(^|/)(bin/ls|usr/bin/tini|usr/bin/curl|usr/local/bin/kura)$|ld-linux-x86-64' \
+            || echo '!!! base/runtime files NOT present in flattened rootfs !!!'
+          docker rm "$cid" >/dev/null
 
       - name: Smoke-test the image (clean startup via tini)
         run: |
-          docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
-          echo "--- runtime files (tini / curl / kura) ---"
-          docker run --rm --entrypoint /bin/ls kura-bazel:oci -l /usr/bin/tini /usr/bin/curl /usr/local/bin/kura || true
-          echo "--- default entrypoint (tini -- kura), empty env ---"
           out="$(docker run --rm kura-bazel:oci 2>&1 || true)"
           echo "$out"
           echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly under tini"; exit 1; }
