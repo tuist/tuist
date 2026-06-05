@@ -420,6 +420,28 @@ func TestBuild_MacOSHasNoPollerOrTokenVolume(t *testing.T) {
 	}
 }
 
+func TestBuild_RunnerMirrorsDiagLogToStdout(t *testing.T) {
+	// ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1 streams the actions/runner
+	// _diag log to the runner's stdout so an abnormal exit's reason
+	// survives in Loki after the Pod is reaped. It belongs on the runner
+	// container in every shape, since that's where the runner binary runs.
+	for _, os := range []string{"linux", ""} {
+		pod := build(t, basePool(os))
+		runner := containerByName(t, pod, "runner")
+		if got := envValue(runner.Env, "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT"); got != "1" {
+			t.Errorf("os=%q: runner ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT = %q, want \"1\"; env %+v", os, got, runner.Env)
+		}
+	}
+
+	// The poller runs dispatch-poll.sh, not the runner binary, so it must
+	// not carry the flag.
+	pod := build(t, basePool("linux"))
+	poller := initContainerByName(t, pod, "poller")
+	if got := envValue(poller.Env, "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT"); got != "" {
+		t.Errorf("poller must not carry ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT; got %q", got)
+	}
+}
+
 func containerByName(t *testing.T, pod *corev1.Pod, name string) corev1.Container {
 	t.Helper()
 	for _, c := range pod.Spec.Containers {
