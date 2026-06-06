@@ -119,8 +119,18 @@ kuraController:
 # climbs faster than expected. Backups land in the
 # `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 3
+    # Route the processor through the transaction-mode PgBouncer pooler.
+    # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
+    # that wouldn't benefit from session-mode bouncing); the processor's
+    # short, ingestion-burst connections get pooled. Flipped on at the
+    # same moment as `mode: cnpg` so the processor doesn't transiently
+    # land on `-rw` (session / `prepare: :named`) for one rollout before
+    # we move it onto the pooler — see MIGRATION.md §6e.
+    pooler:
+      enabled: true
     # The web tier autoscales to 5 replicas, each holding a direct pool of
     # TUIST_DATABASE_POOL_SIZE (15): 5 x 15 = 75, plus the processor, the
     # migration job, and replication/monitoring/superuser overhead. The
