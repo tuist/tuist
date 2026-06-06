@@ -2192,7 +2192,7 @@ fn instrument_artifact_stream<S>(
     stream: S,
 ) -> InstrumentedArtifactStream<S>
 where
-    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin + 'static,
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
 {
     InstrumentedArtifactStream::new(state.metrics.clone(), manifest.producer, stream)
 }
@@ -2253,22 +2253,26 @@ where
 
 impl<S> Stream for InstrumentedArtifactStream<S>
 where
-    S: Stream<Item = Result<Bytes, std::io::Error>> + Unpin,
+    S: Stream<Item = Result<Bytes, std::io::Error>>,
 {
     type Item = Result<Bytes, std::io::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match Pin::new(&mut self.inner).poll_next(cx) {
+        // The wrapper never moves `inner` after being pinned; this only projects
+        // the pinned field so non-`Unpin` streams can stay unboxed.
+        let this = unsafe { self.as_mut().get_unchecked_mut() };
+        let inner = unsafe { Pin::new_unchecked(&mut this.inner) };
+        match inner.poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
-                self.yielded_bytes = self.yielded_bytes.saturating_add(bytes.len() as u64);
+                this.yielded_bytes = this.yielded_bytes.saturating_add(bytes.len() as u64);
                 Poll::Ready(Some(Ok(bytes)))
             }
             Poll::Ready(Some(Err(error))) => {
-                self.record_once("error");
+                this.record_once("error");
                 Poll::Ready(Some(Err(error)))
             }
             Poll::Ready(None) => {
-                self.record_once("ok");
+                this.record_once("ok");
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,
