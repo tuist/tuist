@@ -162,7 +162,12 @@ postgresql:
       effective_cache_size: "12GB"
       work_mem: "32MB"
       maintenance_work_mem: "512MB"
-      shared_preload_libraries: "pg_stat_statements"
+    # `shared_preload_libraries` is a fixed parameter managed by the CNPG
+    # operator and rejected by the admission webhook if listed under
+    # `parameters` above — extra libs go in this list instead and the
+    # chart renders them to `spec.postgresql.shared_preload_libraries`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
     storage:
       # Sized for the Supabase → CNPG initial COPY: per-table sync workers
       # each pin WAL until their COPY commits, so peak disk during the

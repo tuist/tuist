@@ -52,8 +52,18 @@ spec:
   #
   # `parameters` sets server-level Postgres settings (notably
   # max_connections, which must clear the aggregate connection budget).
-  {{- if or .Values.postgresql.cnpg.parameters (gt (int .Values.postgresql.cnpg.instances) 1) }}
+  # `sharedPreloadLibraries` is a separate list on the CR rather than
+  # a parameter map entry because CNPG's admission webhook treats
+  # `shared_preload_libraries` as a fixed parameter (the operator
+  # manages its own required entries) and rejects it under `parameters`.
+  {{- if or .Values.postgresql.cnpg.parameters .Values.postgresql.cnpg.sharedPreloadLibraries (gt (int .Values.postgresql.cnpg.instances) 1) }}
   postgresql:
+    {{- with .Values.postgresql.cnpg.sharedPreloadLibraries }}
+    shared_preload_libraries:
+      {{- range . }}
+      - {{ . | quote }}
+      {{- end }}
+    {{- end }}
     {{- with .Values.postgresql.cnpg.parameters }}
     parameters:
       {{- range $key, $value := . }}
