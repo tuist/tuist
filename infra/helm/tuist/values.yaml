@@ -1274,6 +1274,13 @@ postgresql:
     # silently hit the ceiling. See infra/cnpg/MIGRATION.md for the budget.
     parameters:
       max_connections: "100"
+    # Extra Postgres libraries to preload via shared_preload_libraries.
+    # Kept separate from `parameters` because CNPG's admission webhook
+    # rejects shared_preload_libraries set there — it's a fixed
+    # parameter the operator manages internally. The chart renders this
+    # list to `spec.postgresql.shared_preload_libraries` on the Cluster
+    # CR, the supported path.
+    sharedPreloadLibraries: []
     # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
     # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
     # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
