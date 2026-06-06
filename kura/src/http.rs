@@ -16,7 +16,7 @@ use axum::{
     routing::{delete, get, head, post, put},
 };
 use bytes::Bytes;
-use futures_util::{Stream, stream};
+use futures_util::Stream;
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
@@ -2165,15 +2165,15 @@ fn instrument_artifact_stream<S>(
     state: &SharedState,
     manifest: &ArtifactManifest,
     stream: S,
-) -> InstrumentedArtifactStream
+) -> InstrumentedArtifactStream<S>
 where
-    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + Unpin + 'static,
 {
     InstrumentedArtifactStream::new(state.metrics.clone(), manifest.producer, stream)
 }
 
-struct InstrumentedArtifactStream {
-    inner: Pin<Box<dyn Stream<Item = Result<Bytes, std::io::Error>> + Send>>,
+struct InstrumentedArtifactStream<S> {
+    inner: S,
     metrics: Metrics,
     producer: ArtifactProducer,
     started_at: Instant,
@@ -2181,13 +2181,10 @@ struct InstrumentedArtifactStream {
     recorded: bool,
 }
 
-impl InstrumentedArtifactStream {
-    fn new<S>(metrics: Metrics, producer: ArtifactProducer, stream: S) -> Self
-    where
-        S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
-    {
+impl<S> InstrumentedArtifactStream<S> {
+    fn new(metrics: Metrics, producer: ArtifactProducer, stream: S) -> Self {
         Self {
-            inner: Box::pin(stream),
+            inner: stream,
             metrics,
             producer,
             started_at: Instant::now(),
@@ -2211,11 +2208,14 @@ impl InstrumentedArtifactStream {
     }
 }
 
-impl Stream for InstrumentedArtifactStream {
+impl<S> Stream for InstrumentedArtifactStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Unpin,
+{
     type Item = Result<Bytes, std::io::Error>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match self.inner.as_mut().poll_next(cx) {
+        match Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
                 self.yielded_bytes = self.yielded_bytes.saturating_add(bytes.len() as u64);
                 Poll::Ready(Some(Ok(bytes)))
@@ -2233,23 +2233,37 @@ impl Stream for InstrumentedArtifactStream {
     }
 }
 
-impl Drop for InstrumentedArtifactStream {
+impl<S> Drop for InstrumentedArtifactStream<S> {
     fn drop(&mut self) {
         self.record_once("aborted");
     }
 }
 
-fn bytes_chunks(bytes: Bytes) -> impl futures_util::Stream<Item = Result<Bytes, std::io::Error>> {
-    stream::unfold((bytes, 0), |(bytes, offset)| async move {
-        if offset >= bytes.len() {
-            return None;
+struct BytesChunks {
+    bytes: Bytes,
+    offset: usize,
+}
+
+impl Stream for BytesChunks {
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.offset >= self.bytes.len() {
+            return Poll::Ready(None);
         }
-        let end = offset
+
+        let end = self
+            .offset
             .saturating_add(MMAP_RESPONSE_CHUNK_BYTES)
-            .min(bytes.len());
-        let chunk = bytes.slice(offset..end);
-        Some((Ok(chunk), (bytes, end)))
-    })
+            .min(self.bytes.len());
+        let chunk = self.bytes.slice(self.offset..end);
+        self.offset = end;
+        Poll::Ready(Some(Ok(chunk)))
+    }
+}
+
+fn bytes_chunks(bytes: Bytes) -> BytesChunks {
+    BytesChunks { bytes, offset: 0 }
 }
 
 fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
