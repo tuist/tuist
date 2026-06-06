@@ -250,12 +250,20 @@ kubectl cnpg psql -n tuist-$ENV tuist-tuist-pg -- -d tuist \
   -c "ALTER SUBSCRIPTION tuist_migration DISABLE;"
 
 # 6e. Land the cutover PR that flips `postgresql.mode` to `cnpg` in
-# the env overlay (`values-managed-$ENV.yaml`). The chart's
-# server-deployment / processor-external-secrets / server-migration-job
-# templates then inject DATABASE_URL from the CNPG `<cluster>-app`
-# Secret and from the `tuist_processor` ESO secret. No change to
-# priv/secrets/<env>.yml.enc is needed — the chart env var takes
-# precedence over the encrypted-bundle DATABASE_URL.
+# the env overlay (`values-managed-$ENV.yaml`). In the SAME change, set
+# `postgresql.cnpg.pooler.enabled: true` so the processor moves straight
+# from Supabase's transaction pooler (Supavisor :6543) onto the CNPG
+# transaction pooler (`-pooler-rw`), keeping its `prepare: :unnamed`
+# shape. Enabling the pooler only *after* cutover would briefly land the
+# processor on `-rw` directly (session / `prepare: :named`) and then flip
+# its shape a second time — so flip both together. (staging and canary
+# already run with the pooler on, so for them only `mode` changes here;
+# production is the env that flips both.) The chart's server-deployment /
+# processor-external-secrets / server-migration-job templates then inject
+# DATABASE_URL from the CNPG `<cluster>-app` Secret and from the
+# `tuist_processor` ESO secret. No change to priv/secrets/<env>.yml.enc
+# is needed — the chart env var takes precedence over the
+# encrypted-bundle DATABASE_URL.
 gh workflow run server-deployment.yml -f environment=$ENV
 
 # 6f. Resume Oban queues.
