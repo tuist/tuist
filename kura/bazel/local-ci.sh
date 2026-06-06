@@ -37,6 +37,8 @@
 #   KURA_DATA_HOST      host folder for Kura's persistent node storage
 #   KURA_BAZEL_NETWORK  shared Docker network name (default kura-bazel-net)
 #   KURA_HOST_GRPC_PORT / KURA_HOST_HTTP_PORT   host ports published for the cache (debug)
+#   KURA_FD_POOL        cache FD-pool size (default 4096; absorbs Bazel's upload burst)
+#   KURA_NOFILE         cache container nofile ulimit (default 16384)
 #
 # Usage:  bazel/local-ci.sh
 set -euo pipefail
@@ -61,6 +63,14 @@ KURA_GRPC_PORT_INTERNAL=50051
 KURA_HTTP_PORT_INTERNAL=4000
 KURA_HOST_GRPC_PORT="${KURA_HOST_GRPC_PORT:-5599}"
 KURA_HOST_HTTP_PORT="${KURA_HOST_HTTP_PORT:-4599}"
+# Kura's file-descriptor pool must absorb Bazel's bursty concurrent blob uploads. A cargo
+# build script with a large directory output (librocksdb-sys emits ~339 .o files) uploads
+# them in parallel via ByteStream; with the default pool the permits exhaust, writes fail
+# with "fd_pool_exhausted", the action result is never stored, and rocksdb never caches
+# (it recompiles every run). Size the pool generously and raise the container's nofile
+# ceiling to match. (Separate from, and in addition to, the ByteStream flush fix #11129.)
+KURA_FD_POOL="${KURA_FD_POOL:-4096}"
+KURA_NOFILE="${KURA_NOFILE:-16384}"
 # The dev/build container reaches Kura by container name over the shared network.
 REMOTE_CACHE_URL="grpc://${CACHE_CONTAINER}:${KURA_GRPC_PORT_INTERNAL}"
 
@@ -91,8 +101,10 @@ start_remote_cache() {
   echo "==> starting Kura remote cache ($CACHE_CONTAINER) on network $NETWORK"
   echo "    data dir (persistent): $KURA_DATA_HOST"
   docker run -d --name "$CACHE_CONTAINER" --network "$NETWORK" \
+    --ulimit "nofile=${KURA_NOFILE}:${KURA_NOFILE}" \
     -p "${KURA_HOST_HTTP_PORT}:${KURA_HTTP_PORT_INTERNAL}" \
     -p "${KURA_HOST_GRPC_PORT}:${KURA_GRPC_PORT_INTERNAL}" \
+    -e KURA_FILE_DESCRIPTOR_POOL_SIZE="$KURA_FD_POOL" \
     -e KURA_PORT="$KURA_HTTP_PORT_INTERNAL" \
     -e KURA_GRPC_PORT="$KURA_GRPC_PORT_INTERNAL" \
     -e KURA_INTERNAL_PORT=7443 \
