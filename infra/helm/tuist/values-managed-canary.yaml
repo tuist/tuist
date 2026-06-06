@@ -114,6 +114,22 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
+    # otherwise leaves Postgres on its 128 MiB shared_buffers default,
+    # which wastes the headroom; match the production tuning shape.
+    #   - shared_buffers ≈ 25% of memory limit
+    #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
+    #   - work_mem 32 MB; 100 connections × 32 MB peak (~3.2 GiB) fits the
+    #     8 GiB limit comfortably
+    #   - pg_stat_statements preloaded so the same per-query telemetry
+    #     production has is available in canary too — this is where we'd
+    #     catch a regression after a chart change before it reaches prod
+    parameters:
+      shared_buffers: "2GB"
+      effective_cache_size: "6GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+      shared_preload_libraries: "pg_stat_statements"
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in

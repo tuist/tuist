@@ -119,6 +119,21 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # PostgreSQL config sized against the 4 GiB memory limit below. CNPG
+    # otherwise leaves Postgres on its 128 MiB shared_buffers default,
+    # which wastes the headroom; match the production tuning shape.
+    #   - shared_buffers ≈ 25% of memory limit
+    #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
+    #   - work_mem kept conservative at 16 MB so 100 connections × 16 MB
+    #     stays well under the 4 GiB limit when several sorts run hot
+    #   - pg_stat_statements preloaded so the same per-query telemetry
+    #     production has is available in staging too
+    parameters:
+      shared_buffers: "1GB"
+      effective_cache_size: "3GB"
+      work_mem: "16MB"
+      maintenance_work_mem: "256MB"
+      shared_preload_libraries: "pg_stat_statements"
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
