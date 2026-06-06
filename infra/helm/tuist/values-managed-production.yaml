@@ -119,16 +119,50 @@ kuraController:
 # climbs faster than expected. Backups land in the
 # `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 3
+    # Route the processor through the transaction-mode PgBouncer pooler.
+    # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
+    # that wouldn't benefit from session-mode bouncing); the processor's
+    # short, ingestion-burst connections get pooled. Flipped on at the
+    # same moment as `mode: cnpg` so the processor doesn't transiently
+    # land on `-rw` (session / `prepare: :named`) for one rollout before
+    # we move it onto the pooler — see MIGRATION.md §6e.
+    pooler:
+      enabled: true
+    # PostgreSQL config sized against the 16 GiB memory limit below. The
+    # CNPG operator otherwise leaves Postgres on its 128 MiB shared_buffers
+    # default, which on a 16 GiB instance means ~99% of the page cache
+    # lives in the Linux file cache instead of Postgres's own buffer pool.
+    # That's functional (the kernel still caches hot pages) but it leaves
+    # Postgres's query planner pessimistic and wastes the headroom; match
+    # the upstream Supabase defaults so we don't regress on cutover.
+    #   - shared_buffers ≈ 25% of memory limit (Postgres rule of thumb)
+    #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
+    #   - work_mem sized so 200 connections × work_mem stays << memory
+    #     limit even when several sorts run concurrently (here 200 × 32 MB
+    #     = 6.4 GB max footprint, comfortably below 16 GB)
+    #   - maintenance_work_mem bumped from the 64 MB default so VACUUM
+    #     and index rebuilds aren't artificially slow
+    #
     # The web tier autoscales to 5 replicas, each holding a direct pool of
     # TUIST_DATABASE_POOL_SIZE (15): 5 x 15 = 75, plus the processor, the
     # migration job, and replication/monitoring/superuser overhead. The
     # operator default max_connections of 100 is too tight for that at peak
     # (and during a deploy surge). Raise it so the direct topology fits with
     # headroom; ~200 connections cost ~2 GiB, well inside the 16Gi limit.
+    #
+    # pg_stat_statements is preloaded so we get the same per-query latency
+    # observability the Supabase env has today (queries grouped by
+    # parameterized fingerprint, with calls / mean / stddev / max).
     parameters:
       max_connections: "200"
+      shared_buffers: "4GB"
+      effective_cache_size: "12GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+      shared_preload_libraries: "pg_stat_statements"
     storage:
       # Sized for the Supabase → CNPG initial COPY: per-table sync workers
       # each pin WAL until their COPY commits, so peak disk during the

@@ -271,11 +271,38 @@ kubectl -n tuist-$ENV exec deploy/tuist-tuist-server -- \
   /app/bin/tuist eval 'Oban.resume_all_queues(Oban)'
 ```
 
-### 7. Reverse replication for rollback (14 days)
+### 7. Rollback strategy (14 days, fix-forward by default)
 
-For the next 14 days, replicate CNPG → Supabase so a rollback is a flip of DATABASE_URL back to Supabase, not a multi-hour data-export. Same `CREATE PUBLICATION` / `CREATE SUBSCRIPTION` pattern in the opposite direction.
+After cutover the rollback path is **fix-forward on CNPG**, not flip-back-to-Supabase. The Supabase project stays live but unused as a frozen pre-cutover snapshot for 14 days, then is decommissioned.
 
-After 14 days of clean operation, drop the reverse subscription and decommission the Supabase project for that env.
+We chose this over continuous CNPG → Supabase reverse replication after weighing the trade-offs. Reverse replication would buy ~5-minute rollback at the cost of: a public-facing Hetzner LB exposing CNPG (extra attack surface even with source-IP ACLs), a second logical replication slot with the same `statement_timeout` / `max_slot_wal_keep_size` / slot-invalidation failure modes we hit during the forward COPY (now failing silently and discovered on the day rollback is needed), a `tuist_replicator` role on CNPG with REPLICATION privilege, and chart additions for `pg_hba` injection + managed role declaration. That's a lot of net-new operational surface to protect against scenarios where rolling back to Supabase doesn't actually help — Supabase wouldn't have the post-cutover writes anyway, so any rollback past hour-1 would require manual data reconciliation either way, and every realistic CNPG failure mode (data corruption, performance regression, ops gap) is recoverable on CNPG via the existing safety nets.
+
+#### Safety nets already in place
+
+- Base backups to Tigris (`tuist-<env>-pg-backups`), daily via `ScheduledBackup`.
+- Continuous WAL archive to the same bucket → point-in-time recovery to any second within the retention window.
+- Restore-validation drill has been proven end-to-end against the staging cluster.
+- The Supabase project for the env stays running, untouched, as a frozen snapshot for 14 days.
+
+#### Emergency rollback in the first 24h
+
+If a problem surfaces inside the first day and we need to genuinely flip back to Supabase:
+
+1. Pause writes (Maintenance mode toggle on `/ops/db`, or scale the server to 0).
+2. Identify the small write delta on CNPG since cutover (timestamp-bounded `pg_dump --data-only --table=...` for the high-write tables, or a row-count diff against Supabase).
+3. Apply the delta to Supabase as the superuser (`op://Development/Tuist <Env> Database (Supabase)`).
+4. Open a one-line revert PR flipping `postgresql.mode` and `postgresql.cnpg.pooler.enabled` back to `external` / `false` for the env.
+5. Merge + deploy. Server switches back to Supabase.
+
+Wall-time depends on the delta size, but a same-day rollback is on the order of one operator-hour, not the multi-hour COPY a fresh forward migration would take.
+
+#### Beyond the first 24h
+
+Fix-forward on CNPG. Drift between CNPG and Supabase grows monotonically and we'd be reconciling manually anyway — at that point a "rollback" is really a from-scratch migration in the reverse direction, the same operation we just did forward.
+
+#### Day-14 decommission
+
+Drop the Supabase project for the env and remove any remaining references (1Password items, processor `database.host` overlay value, pg_dump scripts pointing at it).
 
 ## Per-environment soak gates
 
