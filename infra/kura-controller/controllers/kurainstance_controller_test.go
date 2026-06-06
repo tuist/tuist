@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -803,4 +804,145 @@ func secretDataEqual(left, right map[string][]byte) bool {
 		}
 	}
 	return true
+}
+
+func kuraPod(instanceName, namespace string, ordinal int, ready bool) *corev1.Pod {
+	status := corev1.ConditionFalse
+	if ready {
+		status = corev1.ConditionTrue
+	}
+	podName := fmt.Sprintf("%s-%d", instanceName, ordinal)
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":             "kura",
+				"app.kubernetes.io/instance":         instanceName,
+				"statefulset.kubernetes.io/pod-name": podName,
+			},
+		},
+		Status: corev1.PodStatus{
+			Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}},
+		},
+	}
+}
+
+func TestChoosePrimaryPod(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	type podSpec struct {
+		ordinal int
+		ready   bool
+	}
+	cases := []struct {
+		title   string
+		current string
+		pods    []podSpec
+		want    string
+	}{
+		{"defaults to ordinal 0 before any pod is ready", "", nil, name + "-0"},
+		{"picks the lowest ready ordinal", "", []podSpec{{0, true}, {1, true}, {2, true}}, name + "-0"},
+		{"sticks to the current primary while it stays ready", name + "-1", []podSpec{{0, true}, {1, true}, {2, true}}, name + "-1"},
+		{"fails over to the lowest ready pod when the current primary is unready", name + "-0", []podSpec{{0, false}, {1, true}, {2, true}}, name + "-1"},
+		{"keeps the current primary when nothing is ready", name + "-1", []podSpec{{0, false}, {1, false}}, name + "-1"},
+		{"orders ordinals numerically, not lexically", "", []podSpec{{2, true}, {10, true}}, name + "-2"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.title, func(t *testing.T) {
+			pods := make([]corev1.Pod, 0, len(tc.pods))
+			for _, spec := range tc.pods {
+				pods = append(pods, *kuraPod(name, "kura", spec.ordinal, spec.ready))
+			}
+			if got := choosePrimaryPod(tc.current, name, pods); got != tc.want {
+				t.Fatalf("choosePrimaryPod(%q) = %q, want %q", tc.current, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestKuraInstanceReconcilePinsPublicServicesToPrimaryPod(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "1"},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+		instance,
+		sharedSecret,
+		kuraPod(instance.Name, instance.Namespace, 0, true),
+		kuraPod(instance.Name, instance.Namespace, 1, true),
+		kuraPod(instance.Name, instance.Namespace, 2, true),
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-0")
+	assertServiceRoutesTo(t, reconciler, grpcServiceName(instance), instance.Namespace, instance.Name+"-0")
+
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, false)
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
+	assertServiceRoutesTo(t, reconciler, grpcServiceName(instance), instance.Namespace, instance.Name+"-1")
+
+	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, true)
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
+}
+
+func assertServiceRoutesTo(t *testing.T, r *KuraInstanceReconciler, name, namespace, wantPod string) {
+	t.Helper()
+	service := &corev1.Service{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, service); err != nil {
+		t.Fatalf("get service %s: %v", name, err)
+	}
+	if got := service.Spec.Selector[podNameLabel]; got != wantPod {
+		t.Fatalf("expected service %s to route to %q, got %q", name, wantPod, got)
+	}
+	if got := service.Spec.Selector["app.kubernetes.io/instance"]; got != name && service.Spec.Selector["app.kubernetes.io/name"] != "kura" {
+		t.Fatalf("expected service %s to keep the instance selector labels, got %v", name, service.Spec.Selector)
+	}
+}
+
+func setPodReady(t *testing.T, r *KuraInstanceReconciler, name, namespace string, ready bool) {
+	t.Helper()
+	pod := &corev1.Pod{}
+	if err := r.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, pod); err != nil {
+		t.Fatalf("get pod %s: %v", name, err)
+	}
+	status := corev1.ConditionFalse
+	if ready {
+		status = corev1.ConditionTrue
+	}
+	pod.Status.Conditions = []corev1.PodCondition{{Type: corev1.PodReady, Status: status}}
+	if err := r.Status().Update(context.Background(), pod); err != nil {
+		t.Fatalf("update pod %s: %v", name, err)
+	}
 }
