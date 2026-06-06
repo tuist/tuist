@@ -387,6 +387,7 @@ defmodule TuistWeb.API.CacheController do
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
+      conflict: {"The multipart upload is no longer active", "application/json", Error},
       payment_required: {"The account has an invalid plan", "application/json", Error}
     }
   )
@@ -665,17 +666,22 @@ defmodule TuistWeb.API.CacheController do
       cache_category: cache_category
     }
 
-    :ok =
-      Storage.multipart_complete_upload(
-        get_object_key(item),
-        upload_id,
-        Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-          {part_number, etag}
-        end),
-        selected_project.account
-      )
+    case Storage.multipart_complete_upload(
+           get_object_key(item),
+           upload_id,
+           Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+             {part_number, etag}
+           end),
+           selected_project.account
+         ) do
+      :ok ->
+        json(conn, %{status: "success", data: %{}})
 
-    json(conn, %{status: "success", data: %{}})
+      {:error, :multipart_upload_not_found} ->
+        conn
+        |> put_status(:conflict)
+        |> json(%{message: "The multipart upload is no longer active. Start a new upload and retry."})
+    end
   end
 
   def multipart_complete(conn, _params) do
