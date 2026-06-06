@@ -1,13 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.196.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.196.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
 * Module Cache breakdown for local Xcode builds ([#11087](https://github.com/tuist/tuist/pull/11087))
 ### 🐛 Bug Fixes
 
+* tolerate Kura cache propagation in canary caching acceptance test ([#11119](https://github.com/tuist/tuist/pull/11119))
+* HAR recording shutdown crash ([#11116](https://github.com/tuist/tuist/pull/11116))
 * stream xcodebuild test output with NSUnbufferedIO ([#11046](https://github.com/tuist/tuist/pull/11046))
 * preserve active session logs during cleanup ([#11083](https://github.com/tuist/tuist/pull/11083))
 * move framework search path setup into a graph mapper ([#11054](https://github.com/tuist/tuist/pull/11054))
@@ -23,7 +25,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.196.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.196.1
 
 ## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
 
