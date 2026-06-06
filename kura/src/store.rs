@@ -3,21 +3,20 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{Arc, Mutex as StdMutex},
+    task::{Context, Poll},
     time::{Duration, Instant},
 };
 
 use bytes::Bytes;
-use futures_util::stream;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, IteratorMode, Options,
     WriteBatch, WriteBufferManager, WriteOptions,
 };
 use serde::{Deserialize, Serialize};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncWriteExt, ReadBuf},
     sync::Mutex,
 };
-use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
 use crate::{
@@ -86,6 +85,32 @@ pub struct StoreSnapshot {
     pub rocksdb_block_cache_capacity_bytes: u64,
     pub rocksdb_write_buffer_usage_bytes: u64,
     pub rocksdb_write_buffer_capacity_bytes: u64,
+}
+
+pub enum ArtifactReader {
+    Inline { bytes: Bytes, offset: usize },
+    FileRange(SegmentReader),
+}
+
+impl AsyncRead for ArtifactReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            Self::Inline { bytes, offset } => {
+                if *offset >= bytes.len() {
+                    return Poll::Ready(Ok(()));
+                }
+                let copy_len = (bytes.len() - *offset).min(buf.remaining());
+                buf.put_slice(&bytes[*offset..*offset + copy_len]);
+                *offset += copy_len;
+                Poll::Ready(Ok(()))
+            }
+            Self::FileRange(reader) => Pin::new(reader).poll_read(cx, buf),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -551,7 +576,7 @@ impl Store {
     pub async fn open_artifact_reader(
         &self,
         manifest: &ArtifactManifest,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
     }
@@ -595,12 +620,8 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
-            let file = self
-                .io
-                .open_persistent_read_file(Path::new(blob_path))
-                .await
-                .map_err(|error| format!("failed to open blob {blob_path} for mmap: {error}"))?;
-            let Some(bytes) = map_file_region(file.as_std(), 0, manifest.size, permit)? else {
+            let handle = self.blob_handle(blob_path).await?;
+            let Some(bytes) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
                 return Ok(None);
             };
             self.note_artifact_exists(&manifest.artifact_id);
@@ -641,15 +662,12 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
-            let file = self
-                .io
-                .open_persistent_read_file(Path::new(blob_path))
-                .await
-                .map_err(|error| format!("failed to open blob {blob_path} for read: {error}"))?;
+            let handle = self.blob_handle(blob_path).await?;
             let size = manifest.size;
-            let bytes = tokio::task::spawn_blocking(move || read_bytes_at(file.as_std(), 0, size))
-                .await
-                .map_err(|error| format!("failed to join blob read task: {error}"))??;
+            let bytes =
+                tokio::task::spawn_blocking(move || read_bytes_at(handle.as_std(), 0, size))
+                    .await
+                    .map_err(|error| format!("failed to join blob read task: {error}"))??;
             self.hit_failpoint(FailpointName::AfterReadArtifactBytesBeforeReturn)
                 .await?;
             self.note_artifact_exists(&manifest.artifact_id);
@@ -664,7 +682,7 @@ impl Store {
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, read_offset, read_limit)
             .await
     }
@@ -672,7 +690,7 @@ impl Store {
     async fn open_manifest_reader(
         &self,
         manifest: &ArtifactManifest,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
     }
@@ -682,7 +700,7 @@ impl Store {
         manifest: &ArtifactManifest,
         read_offset: u64,
         read_limit: Option<u64>,
-    ) -> Result<Pin<Box<dyn AsyncRead + Send>>, String> {
+    ) -> Result<ArtifactReader, String> {
         if read_offset > manifest.size {
             return Err(format!(
                 "requested read offset {read_offset} exceeds artifact size {}",
@@ -698,9 +716,11 @@ impl Store {
             let start = read_offset as usize;
             let end = start.saturating_add(limit as usize).min(bytes.len());
             let chunk = Bytes::from(bytes).slice(start..end);
-            let stream = stream::once(async move { Ok::<Bytes, std::io::Error>(chunk) });
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(StreamReader::new(stream)));
+            return Ok(ArtifactReader::Inline {
+                bytes: chunk,
+                offset: 0,
+            });
         }
 
         if let Some(segment_id) = &manifest.segment_id {
@@ -709,7 +729,7 @@ impl Store {
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
             let handle = self.segment_handle(segment_id).await?;
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(SegmentReader::new(
+            return Ok(ArtifactReader::FileRange(SegmentReader::new(
                 handle,
                 offset + read_offset,
                 limit,
@@ -717,16 +737,13 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
-            let mut file = self
-                .io
-                .open_file(Path::new(blob_path))
-                .await
-                .map_err(|error| format!("failed to open blob {blob_path} for read: {error}"))?;
-            file.seek(std::io::SeekFrom::Start(read_offset))
-                .await
-                .map_err(|error| format!("failed to seek blob {blob_path}: {error}"))?;
+            let handle = self.blob_handle(blob_path).await?;
             self.note_artifact_exists(&manifest.artifact_id);
-            return Ok(Box::pin(file.take(limit)));
+            return Ok(ArtifactReader::FileRange(SegmentReader::new(
+                handle,
+                read_offset,
+                limit,
+            )));
         }
 
         Err("manifest does not have a readable storage location".to_string())
@@ -1126,7 +1143,26 @@ impl Store {
     }
 
     async fn segment_handle(&self, segment_id: &str) -> Result<Arc<PersistentFile>, String> {
-        let cache_key = segment_handle_cache_key(segment_id);
+        let path = self.segment_path(segment_id);
+        self.persistent_file_handle(segment_handle_cache_key(segment_id), &path, "segment")
+            .await
+    }
+
+    async fn blob_handle(&self, blob_path: &str) -> Result<Arc<PersistentFile>, String> {
+        self.persistent_file_handle(
+            blob_handle_cache_key(blob_path),
+            Path::new(blob_path),
+            "blob",
+        )
+        .await
+    }
+
+    async fn persistent_file_handle(
+        &self,
+        cache_key: String,
+        path: &Path,
+        storage_kind: &'static str,
+    ) -> Result<Arc<PersistentFile>, String> {
         if let Some(handle) = self.segment_handle_cache_get(&cache_key).await {
             self.io.metrics().record_segment_handle_cache_lookup("hit");
             return Ok(handle);
@@ -1135,8 +1171,14 @@ impl Store {
 
         let handle = Arc::new(
             self.io
-                .open_persistent_read_file(&self.segment_path(segment_id))
-                .await?,
+                .open_persistent_read_file(path)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "failed to open {storage_kind} persistent file {}: {error}",
+                        path.display()
+                    )
+                })?,
         );
         let mut cache = self.segment_handles.lock().await;
         if let Some(existing) = cache.touch(&cache_key) {
@@ -1153,15 +1195,23 @@ impl Store {
     }
 
     async fn remove_segment_handle(&self, segment_id: &str) {
+        self.remove_cached_file_handle(&segment_handle_cache_key(segment_id), "segment_eviction")
+            .await;
+    }
+
+    async fn remove_blob_handle(&self, blob_path: &str) {
+        self.remove_cached_file_handle(&blob_handle_cache_key(blob_path), "blob_delete")
+            .await;
+    }
+
+    async fn remove_cached_file_handle(&self, cache_key: &str, reason: &str) {
         let mut cache = self.segment_handles.lock().await;
-        let removed = cache.remove(&segment_handle_cache_key(segment_id));
+        let removed = cache.remove(cache_key);
         let cached = cache.len();
         drop(cache);
         self.io.metrics().update_segment_handles_cached(cached);
         if removed {
-            self.io
-                .metrics()
-                .record_segment_handle_evictions("segment_eviction", 1);
+            self.io.metrics().record_segment_handle_evictions(reason, 1);
         }
     }
 
@@ -1438,7 +1488,7 @@ impl Store {
                     batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes());
                 }
                 if let Some(blob_path) = manifest.blob_path {
-                    blob_paths.push(PathBuf::from(blob_path));
+                    blob_paths.push(blob_path);
                 }
                 if let Some(segment_id) = manifest.segment_id {
                     batch.delete_cf(
@@ -1466,7 +1516,8 @@ impl Store {
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
-            self.io.remove_file_if_exists(&path).await;
+            self.remove_blob_handle(&path).await;
+            self.io.remove_file_if_exists(Path::new(&path)).await;
         }
 
         self.hit_failpoint(FailpointName::AfterApplyReplicatedTombstone)
@@ -1643,14 +1694,22 @@ impl Store {
                 .parts
                 .get(part_number)
                 .ok_or(MultipartError::PartsMismatch)?;
-            let bytes = self
+            let mut part_file = self
                 .io
-                .read(Path::new(&part.path))
+                .open_file(Path::new(&part.path))
                 .await
                 .map_err(MultipartError::Other)?;
-            assembled.write_all(&bytes).await.map_err(|error| {
-                MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
-            })?;
+            let copied = tokio::io::copy(&mut part_file, &mut assembled)
+                .await
+                .map_err(|error| {
+                    MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
+                })?;
+            if copied != part.size {
+                return Err(MultipartError::Other(format!(
+                    "multipart part {part_number} expected {} bytes but copied {copied}",
+                    part.size
+                )));
+            }
         }
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
@@ -2585,7 +2644,11 @@ impl SegmentHandleCache {
 }
 
 fn segment_handle_cache_key(segment_id: &str) -> String {
-    segment_id.to_owned()
+    format!("segment:{segment_id}")
+}
+
+fn blob_handle_cache_key(blob_path: &str) -> String {
+    format!("blob:{blob_path}")
 }
 
 fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
@@ -3251,6 +3314,82 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[tokio::test]
+    async fn blob_handle_cache_is_bounded_and_dropped_before_namespace_delete() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.segment_handle_cache_size = 1;
+        });
+        let blob_path = config.data_dir.join("blobs").join("legacy-blob");
+        std::fs::write(&blob_path, b"legacy-blob-payload").expect("failed to write blob");
+        let blob_path_string = blob_path.to_string_lossy().into_owned();
+        let artifact_id = artifact_storage_id(
+            ArtifactProducer::Module,
+            &config.tenant_id,
+            "ios",
+            "legacy-key",
+        );
+        let manifest = ArtifactManifest {
+            artifact_id: artifact_id.clone(),
+            producer: ArtifactProducer::Module,
+            namespace_id: "ios".to_owned(),
+            key: "legacy-key".to_owned(),
+            content_type: "application/octet-stream".to_owned(),
+            inline: false,
+            blob_path: Some(blob_path_string.clone()),
+            segment_id: None,
+            segment_offset: None,
+            size: b"legacy-blob-payload".len() as u64,
+            version_ms: 100,
+            created_at_ms: 100,
+        };
+
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_MANIFESTS),
+                artifact_id.as_bytes(),
+                encode_manifest_record(&manifest).expect("manifest should encode"),
+            )
+            .expect("failed to persist manifest");
+        store
+            .db
+            .put_cf(
+                store.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
+                namespace_artifact_index_key("ios", &artifact_id).as_bytes(),
+                [],
+            )
+            .expect("failed to persist namespace index");
+
+        assert_eq!(
+            read_manifest_bytes(&store, &manifest).await,
+            b"legacy-blob-payload"
+        );
+        {
+            let cache = store.segment_handles.lock().await;
+            assert_eq!(cache.len(), 1);
+            assert!(
+                cache
+                    .entries
+                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+            );
+        }
+
+        store
+            .delete_namespace("ios")
+            .await
+            .expect("failed to delete namespace");
+
+        {
+            let cache = store.segment_handles.lock().await;
+            assert!(
+                !cache
+                    .entries
+                    .contains_key(&blob_handle_cache_key(&blob_path_string))
+            );
+        }
+        assert!(!blob_path.exists());
     }
 
     #[tokio::test]

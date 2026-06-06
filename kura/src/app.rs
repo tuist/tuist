@@ -35,7 +35,10 @@ use crate::{
 };
 
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
-const HTTP2_MAX_FRAME_SIZE: u32 = 16 * 1024;
+const HTTP2_INITIAL_STREAM_WINDOW_BYTES: u32 = 1024 * 1024;
+const HTTP2_INITIAL_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -339,9 +342,12 @@ fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .header_read_timeout(Some(Duration::from_secs(30)));
     builder
         .http2()
+        .initial_stream_window_size(Some(HTTP2_INITIAL_STREAM_WINDOW_BYTES))
+        .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
         .adaptive_window(true)
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
+        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());

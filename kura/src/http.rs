@@ -40,7 +40,7 @@ use crate::{
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
-const READER_RESPONSE_CHUNK_BYTES: usize = 256 * 1024;
+const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";

@@ -42,7 +42,7 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
-const REAPI_READ_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 
 #[derive(Clone)]
