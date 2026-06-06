@@ -736,6 +736,18 @@ impl ByteStream for ReapiService {
             ));
         }
 
+        // Flush tokio's internal write buffer to the OS and close the write handle before
+        // the blob is persisted. persist_artifact_from_path re-opens this path on a
+        // separate descriptor to stat and copy it into a segment; without an explicit
+        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
+        // append fails with "appended N bytes, expected M" — which silently breaks remote
+        // caching of any action that uploads many blobs concurrently (e.g. cargo build
+        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
+        tokio::io::AsyncWriteExt::flush(&mut temp_file)
+            .await
+            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+        drop(temp_file);
+
         let targets = replication_targets(&self.state).await;
         let manifest = self
             .state
@@ -1171,6 +1183,113 @@ mod tests {
         failpoints::{FailpointAction, FailpointName},
         test_support::test_context,
     };
+
+    // Regression test for the missing flush in the ByteStream `write` handler. The
+    // handler streams chunks into a temp file with `write_all` and then persists it by
+    // re-opening the path on a separate descriptor (stat + copy into a segment).
+    // `tokio::fs::File` buffers writes and flushes lazily, so without an explicit flush
+    // the persist read races the flush and intermittently fails with
+    // "appended N bytes, expected M" — which silently broke remote caching of every
+    // action that uploads many blobs concurrently (notably cargo build scripts' directory
+    // outputs, e.g. librocksdb-sys). This drives the real gRPC handler with many
+    // concurrent multi-chunk uploads and asserts each persists and reads back intact.
+    #[tokio::test]
+    async fn bytestream_writes_persist_completely_under_concurrency() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let concurrency = 24u32;
+        let chunk_size = 32 * 1024;
+        let mut writers = Vec::new();
+        for index in 0..concurrency {
+            let mut client = ByteStreamClient::new(channel.clone());
+            writers.push(tokio::spawn(async move {
+                // Per-blob-distinct, multi-chunk content so each upload spans many
+                // `write_all` calls (leaving buffered bytes for the flush to race).
+                let blob: Vec<u8> = (0..384 * 1024u32)
+                    .map(|byte| byte.wrapping_mul(31).wrapping_add(index) as u8)
+                    .collect();
+                let hash = hex::encode(Sha256::digest(&blob));
+                let resource = format!("uploads/upload-{index}/blobs/{hash}/{}", blob.len());
+                let mut requests = Vec::new();
+                let mut offset = 0usize;
+                while offset < blob.len() {
+                    let end = (offset + chunk_size).min(blob.len());
+                    requests.push(bytestream::WriteRequest {
+                        resource_name: if offset == 0 {
+                            resource.clone()
+                        } else {
+                            String::new()
+                        },
+                        write_offset: offset as i64,
+                        finish_write: end == blob.len(),
+                        data: blob[offset..end].to_vec(),
+                    });
+                    offset = end;
+                }
+                let committed = client
+                    .write(tokio_stream::iter(requests))
+                    .await
+                    .expect("concurrent ByteStream write should persist")
+                    .into_inner()
+                    .committed_size;
+                assert_eq!(committed as usize, blob.len());
+                (hash, blob)
+            }));
+        }
+
+        let mut reader = ByteStreamClient::new(channel.clone());
+        for writer in writers {
+            let (hash, blob) = writer.await.expect("write task should not panic");
+            let mut stream = reader
+                .read(bytestream::ReadRequest {
+                    resource_name: format!("blobs/{hash}/{}", blob.len()),
+                    read_offset: 0,
+                    read_limit: 0,
+                })
+                .await
+                .expect("blob should be readable back")
+                .into_inner();
+            let mut roundtrip = Vec::new();
+            while let Some(chunk) = stream.message().await.expect("read chunk") {
+                roundtrip.extend_from_slice(&chunk.data);
+            }
+            assert_eq!(roundtrip, blob, "persisted blob must match the upload");
+        }
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
 
     #[test]
     fn parses_read_resource_names_with_and_without_instance_names() {
