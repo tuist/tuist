@@ -49,12 +49,23 @@ spec:
   # guarantee under replica loss — writes wait rather than fall back to
   # async. With 2 standbys (canary/production) one being down still
   # satisfies the quorum; a 1-standby cluster (staging) can stall.
-  {{- if gt (int .Values.postgresql.cnpg.instances) 1 }}
+  #
+  # `parameters` sets server-level Postgres settings (notably
+  # max_connections, which must clear the aggregate connection budget).
+  {{- if or .Values.postgresql.cnpg.parameters (gt (int .Values.postgresql.cnpg.instances) 1) }}
   postgresql:
+    {{- with .Values.postgresql.cnpg.parameters }}
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+    {{- if gt (int .Values.postgresql.cnpg.instances) 1 }}
     synchronous:
       method: any
       number: 1
       dataDurability: required
+    {{- end }}
   {{- end }}
 
   bootstrap:

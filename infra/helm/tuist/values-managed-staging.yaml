@@ -119,6 +119,13 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # Route the processor through the transaction-mode PgBouncer pooler so
+    # this soak env matches production's post-CNPG-cutover topology
+    # (processor pooled, web tier direct on -rw). CNPG's built-in
+    # integration manages the PgBouncer auth — no manual bootstrap; see
+    # infra/cnpg/README.md.
+    pooler:
+      enabled: true
     storage:
       size: "10Gi"
     resources:

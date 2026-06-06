@@ -29,6 +29,34 @@ Per [the RFC](https://community.tuist.dev/t/moving-postgres-in-cluster/986), thr
   ```
 - Tigris bucket created per env (`tuist-stag-pg-backups`, `tuist-can-pg-backups`, `tuist-prod-pg-backups`). The CNPG `barmanObjectStore` writes a directory tree under the path; no extra prefix needed.
 
+## Connection budget
+
+The CNPG cluster's `max_connections` is set explicitly via `postgresql.cnpg.parameters.max_connections` (the operator default is 100). Unlike Supabase, a CNPG cluster has no managed pooler in front by default, so the app's connections land on Postgres directly and the cluster must be sized for the aggregate:
+
+```
+max_connections  ≳  (web replicas × TUIST_DATABASE_POOL_SIZE)
+                   + processor pool
+                   + migration job (pool 1, transient)
+                   + pooler backend pool (if the Pooler is enabled)
+                   + ~15 for replication walsenders, monitoring, and
+                     superuser_reserved_connections (3)
+                   + headroom for a deploy surge (maxSurge adds a replica)
+```
+
+The web tier is the dominant term, and it scales with replica count:
+
+| Env        | Web replicas (max) | Pool | Web peak | `max_connections` |
+|------------|--------------------|------|----------|-------------------|
+| staging    | 1                  | 15   | 15       | 100 (default)     |
+| canary     | 1                  | 30   | 30       | 100 (default)     |
+| production | 5 (autoscaled)     | 15   | 75       | **200**           |
+
+**Do not raise the per-replica pool on a multi-replica env to match canary's 30.** Canary can afford a 30-connection pool because it is a single replica (30 < 100). On production, 5 replicas × 30 = 150 would blow past `max_connections` and surface as Postgres-side `remaining connection slots` / `too many clients` refusals — a different and worse failure than app-side pool pressure. Scale the web tier's connection pressure with replicas, not with a fat per-replica pool, and keep `max_connections` ahead of the peak.
+
+Raising `max_connections` costs roughly 5–10 MiB of shared memory per connection, so keep it proportionate to the instance's memory limit (200 connections ≈ ~2 GiB, comfortable inside production's 16 GiB).
+
+Optionally, a CNPG `Pooler` (PgBouncer) can front the cluster for the **processor** only, in transaction mode — matching the processor's Supabase Supavisor `:6543` path so its `prepare: :unnamed` shape is unchanged across cutover. The web tier connects straight to `-rw` instead. Note this differs from Supabase, where the web tier rides Supavisor in *session* mode (`:5432`); we skip that hop because `-rw` is already a native session endpoint with failover and a session pooler would not change the budget. See [`README.md`](./README.md) → "Connection pooler (PgBouncer)" for the full rationale and the activation sequence.
+
 ## Per-env migration (repeat for each)
 
 ### 1. Provision the CNPG cluster ahead of cutover
@@ -222,12 +250,20 @@ kubectl cnpg psql -n tuist-$ENV tuist-tuist-pg -- -d tuist \
   -c "ALTER SUBSCRIPTION tuist_migration DISABLE;"
 
 # 6e. Land the cutover PR that flips `postgresql.mode` to `cnpg` in
-# the env overlay (`values-managed-$ENV.yaml`). The chart's
-# server-deployment / processor-external-secrets / server-migration-job
-# templates then inject DATABASE_URL from the CNPG `<cluster>-app`
-# Secret and from the `tuist_processor` ESO secret. No change to
-# priv/secrets/<env>.yml.enc is needed — the chart env var takes
-# precedence over the encrypted-bundle DATABASE_URL.
+# the env overlay (`values-managed-$ENV.yaml`). In the SAME change, set
+# `postgresql.cnpg.pooler.enabled: true` so the processor moves straight
+# from Supabase's transaction pooler (Supavisor :6543) onto the CNPG
+# transaction pooler (`-pooler-rw`), keeping its `prepare: :unnamed`
+# shape. Enabling the pooler only *after* cutover would briefly land the
+# processor on `-rw` directly (session / `prepare: :named`) and then flip
+# its shape a second time — so flip both together. (staging and canary
+# already run with the pooler on, so for them only `mode` changes here;
+# production is the env that flips both.) The chart's server-deployment /
+# processor-external-secrets / server-migration-job templates then inject
+# DATABASE_URL from the CNPG `<cluster>-app` Secret and from the
+# `tuist_processor` ESO secret. No change to priv/secrets/<env>.yml.enc
+# is needed — the chart env var takes precedence over the
+# encrypted-bundle DATABASE_URL.
 gh workflow run server-deployment.yml -f environment=$ENV
 
 # 6f. Resume Oban queues.
