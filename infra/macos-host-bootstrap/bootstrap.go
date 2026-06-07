@@ -1455,6 +1455,12 @@ sudo chmod 0755 /usr/local/bin/host-tcp-forwarder
 	// keep running. We list every dev.tuist.host-tcp-forwarder.*
 	// plist on the host, subtract the names we're about to install,
 	// and `bootout` + delete each leftover.
+	//
+	// `find` rather than a shell glob because the SSH login shell on
+	// macOS is zsh, and zsh's default NO_NOMATCH treats a glob with
+	// no matches as a fatal error before the `[ -e ]` guard inside
+	// the loop ever runs — `set -e` then bombs the whole script the
+	// first time around, when no plists exist yet.
 	desired := make([]string, 0, len(cfg.HostTCPForwards))
 	for _, fwd := range cfg.HostTCPForwards {
 		desired = append(desired, fwd.Name)
@@ -1462,19 +1468,19 @@ sudo chmod 0755 /usr/local/bin/host-tcp-forwarder
 	pruneScript := fmt.Sprintf(`set -euo pipefail
 KEEP=%q
 DIR=/Library/LaunchDaemons
-for plist in "$DIR"/dev.tuist.host-tcp-forwarder.*.plist; do
-  [ -e "$plist" ] || continue
-  name=$(basename "$plist" .plist)
-  short=${name#dev.tuist.host-tcp-forwarder.}
-  keep=0
-  for k in $KEEP; do
-    if [ "$k" = "$short" ]; then keep=1; break; fi
+find "$DIR" -maxdepth 1 -name 'dev.tuist.host-tcp-forwarder.*.plist' -print0 | \
+  while IFS= read -r -d '' plist; do
+    name=$(basename "$plist" .plist)
+    short=${name#dev.tuist.host-tcp-forwarder.}
+    keep=0
+    for k in $KEEP; do
+      if [ "$k" = "$short" ]; then keep=1; break; fi
+    done
+    if [ "$keep" -eq 0 ]; then
+      sudo launchctl bootout system "$plist" 2>/dev/null || true
+      sudo rm -f "$plist"
+    fi
   done
-  if [ "$keep" -eq 0 ]; then
-    sudo launchctl bootout system "$plist" 2>/dev/null || true
-    sudo rm -f "$plist"
-  fi
-done
 `, strings.Join(desired, " "))
 	if err := RunCommand(ctx, client, pruneScript); err != nil {
 		return fmt.Errorf("prune stale forwards: %w", err)
