@@ -53,6 +53,11 @@ spec:
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
               protocol: TCP
+            {{- if .Values.config.acceleratedFileServing.enabled }}
+            - name: accel-http
+              containerPort: {{ .Values.service.acceleratedFileServingPort }}
+              protocol: TCP
+            {{- end }}
           env:
             - name: POD_NAME
               valueFrom:
@@ -116,6 +121,16 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.replication.bandwidthLimitBytesPerSecond) | quote }}
             - name: KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS
               value: {{ printf "%d" (int64 .Values.config.replication.publicLatencyTargetMs) | quote }}
+            {{- if .Values.config.acceleratedFileServing.enabled }}
+            - name: KURA_ACCELERATED_FILE_SERVING_PORT
+              value: {{ printf "%d" (int .Values.service.acceleratedFileServingPort) | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_MODE
+              value: {{ .Values.config.acceleratedFileServing.mode | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT
+              value: {{ printf "%d" (int .Values.config.acceleratedFileServing.maxConcurrent) | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES
+              value: {{ printf "%d" (int .Values.config.acceleratedFileServing.chunkBytes) | quote }}
+            {{- end }}
             {{- if .Values.config.telemetry.otlpTracesEndpoint }}
             - name: KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
               value: {{ .Values.config.telemetry.otlpTracesEndpoint | quote }}

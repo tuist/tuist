@@ -27,4 +27,9 @@ spec:
       port: {{ .Values.service.grpcPort }}
       targetPort: grpc
       protocol: TCP
-
+    {{- if .Values.config.acceleratedFileServing.enabled }}
+    - name: accel-http
+      port: {{ .Values.service.acceleratedFileServingPort }}
+      targetPort: accel-http
+      protocol: TCP
+    {{- end }}

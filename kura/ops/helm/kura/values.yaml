@@ -37,6 +37,7 @@ service:
   externalTrafficPolicy: ""
   httpPort: 4000
   grpcPort: 50051
+  acceleratedFileServingPort: 8081
 
 peerTls:
   enabled: false
@@ -129,6 +130,13 @@ config:
     # Public request latency target used to further back off peer sync traffic.
     # Set to 0 to disable latency-based pressure.
     publicLatencyTargetMs: 100
+  acceleratedFileServing:
+    enabled: false
+    # Linux-only HTTP/1 plaintext artifact data-plane experiment.
+    # Keep disabled unless the port is exposed through an internal-only path.
+    mode: splice
+    maxConcurrent: 32
+    chunkBytes: 1048576
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

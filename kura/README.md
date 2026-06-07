@@ -231,6 +231,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
 | `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` | Aggregate per-node byte-per-second ceiling for peer artifact body transfers. Kura dynamically divides this ceiling by the larger of `public_inflight + 1` and recent public request latency pressure, so sync traffic backs off while public HTTP or gRPC cache work is active or slow; `0` disables throttling. | Yes | `0` |
 | `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` | Public HTTP/gRPC request latency target used to adapt peer artifact body bandwidth. If recent public latency exceeds the target, sync traffic backs off proportionally; `0` disables latency-based pressure. | Yes | `100` |
+| `KURA_ACCELERATED_FILE_SERVING_PORT` | Enables the experimental Linux-only HTTP/1 plaintext artifact file-serving listener on this port. Leave unset unless the port is exposed through an internal-only benchmark path. | Yes | disabled |
+| `KURA_ACCELERATED_FILE_SERVING_MODE` | Kernel-assisted transfer mode used by the accelerated file-serving listener: `splice` or `sendfile`. | Yes | `splice` |
+| `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum active accelerated file transfers. Each transfer holds one app request slot plus socket/file descriptors, and `splice` also holds one pipe pair. | Yes | `8` |
+| `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum bytes passed to each kernel transfer syscall, similar to nginx `sendfile_max_chunk`, so one fast connection cannot monopolize a worker. | Yes | `1048576` |
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |

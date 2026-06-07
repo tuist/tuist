@@ -15,6 +15,7 @@ use tokio::{task::JoinHandle, time::Instant};
 use tracing::{Instrument, info, warn};
 
 use crate::{
+    accelerated_file_serving,
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
     config::Config,
@@ -179,11 +180,28 @@ async fn run_with_config(
     } else {
         info!("Kura internal HTTP service listening on {internal_address}");
     }
+    let accelerated_address = state
+        .config
+        .accelerated_file_serving
+        .as_ref()
+        .map(|config| SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port)));
+    if let (Some(address), Some(config)) = (
+        accelerated_address,
+        state.config.accelerated_file_serving.as_ref(),
+    ) {
+        info!(
+            mode = config.mode.as_str(),
+            max_concurrent = config.max_concurrent,
+            chunk_bytes = config.chunk_bytes,
+            "Kura accelerated HTTP/1 file serving configured on {address}"
+        );
+    }
 
     let grpc_listener = tokio::net::TcpListener::bind(grpc_address)
         .await
         .map_err(|error| format!("failed to bind gRPC listener: {error}"))?;
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(None::<ShutdownBudget>);
+    let (accelerated_shutdown_tx, accelerated_shutdown_rx) = tokio::sync::watch::channel(false);
     let (shutdown_budget_tx, shutdown_budget_rx) = oneshot::channel::<ShutdownBudget>();
     let grpc_shutdown_rx = shutdown_rx.clone();
     let grpc_state = state.clone();
@@ -275,6 +293,30 @@ async fn run_with_config(
         ))
     };
 
+    let accelerated_handle = if let (Some(address), Some(config)) = (
+        accelerated_address,
+        state.config.accelerated_file_serving.clone(),
+    ) {
+        let accelerated_state = state.clone();
+        Some(tokio::spawn(
+            async move {
+                if let Err(error) = accelerated_file_serving::serve(
+                    address,
+                    config,
+                    accelerated_state,
+                    accelerated_shutdown_rx,
+                )
+                .await
+                {
+                    tracing::error!("accelerated file serving failed: {error}");
+                }
+            }
+            .in_current_span(),
+        ))
+    } else {
+        None
+    };
+
     let router = http::public_router(state.clone());
     let public_handle = Handle::new();
     let https_handle = Handle::new();
@@ -290,6 +332,7 @@ async fn run_with_config(
             public_shutdown_state.sync_runtime_metrics().await;
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
+            let _ = accelerated_shutdown_tx.send(true);
         }
         .in_current_span(),
     );
@@ -338,6 +381,14 @@ async fn run_with_config(
     }
     if let Some(https_handle_task) = https_handle_task {
         wait_for_task_shutdown(https_handle_task, "public HTTPS", shutdown_budget).await;
+    }
+    if let Some(accelerated_handle) = accelerated_handle {
+        wait_for_task_shutdown(
+            accelerated_handle,
+            "accelerated file serving",
+            shutdown_budget,
+        )
+        .await;
     }
 
     Ok(())
