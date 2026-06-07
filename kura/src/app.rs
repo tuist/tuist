@@ -10,11 +10,12 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, Semaphore, oneshot};
+use tokio::sync::{Notify, Semaphore, oneshot, watch};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{Instrument, info, warn};
 
 use crate::{
+    accelerated_file_serving,
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
     config::Config,
@@ -281,6 +282,7 @@ async fn run_with_config(
     let public_shutdown_handle = public_handle.clone();
     let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
+    let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -288,6 +290,7 @@ async fn run_with_config(
             let _ = shutdown_budget_tx.send(budget);
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
+            let _ = public_plain_shutdown_tx.send(true);
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
         }
@@ -312,12 +315,24 @@ async fn run_with_config(
         None
     };
 
-    let mut public_server = axum_server::bind(address).handle(public_handle);
-    configure_public_http_builder(public_server.http_builder());
-    public_server
-        .serve(router.into_make_service())
+    if state.config.accelerated_file_serving.enabled {
+        accelerated_file_serving::serve_public_http(
+            address,
+            router,
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            public_plain_shutdown_rx,
+        )
         .await
         .map_err(|error| format!("server error: {error}"))?;
+    } else {
+        let mut public_server = axum_server::bind(address).handle(public_handle);
+        configure_public_http_builder(public_server.http_builder());
+        public_server
+            .serve(router.into_make_service())
+            .await
+            .map_err(|error| format!("server error: {error}"))?;
+    }
     let shutdown_budget = shutdown_budget_rx.await.unwrap_or_else(|_| {
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)

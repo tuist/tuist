@@ -10,7 +10,7 @@ use tokio::time::Instant;
 use crate::{
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
-    config::Config,
+    config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
     extension::SharedExtension,
     io::IoController,
     memory::MemoryController,
@@ -56,6 +56,12 @@ where
         grpc_tls: None,
         public_tls: None,
         https_port: 0,
+        accelerated_file_serving: AcceleratedFileServingConfig {
+            enabled: true,
+            mode: AcceleratedFileServingMode::Splice,
+            max_concurrent: 32,
+            chunk_bytes: 1024 * 1024,
+        },
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,

@@ -1371,6 +1371,8 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
+ "httparse",
+ "hyper",
  "hyper-util",
  "jsonwebtoken",
  "libc",

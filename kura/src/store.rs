@@ -92,6 +92,15 @@ pub enum ArtifactReader {
     FileRange(SegmentReader),
 }
 
+#[derive(Clone)]
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub struct AcceleratedArtifactFile {
+    pub handle: Arc<PersistentFile>,
+    pub offset: u64,
+    pub size: u64,
+    pub content_type: String,
+}
+
 impl AsyncRead for ArtifactReader {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -579,6 +588,42 @@ impl Store {
     ) -> Result<ArtifactReader, String> {
         self.open_manifest_reader_with_range(manifest, 0, None)
             .await
+    }
+
+    pub async fn open_accelerated_artifact_file(
+        &self,
+        manifest: &ArtifactManifest,
+    ) -> Result<Option<AcceleratedArtifactFile>, String> {
+        if manifest.inline {
+            return Ok(None);
+        }
+
+        if let Some(segment_id) = &manifest.segment_id {
+            let offset = manifest
+                .segment_offset
+                .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let handle = self.segment_handle(segment_id).await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(AcceleratedArtifactFile {
+                handle,
+                offset,
+                size: manifest.size,
+                content_type: manifest.content_type.clone(),
+            }));
+        }
+
+        if let Some(blob_path) = &manifest.blob_path {
+            let handle = self.blob_handle(blob_path).await?;
+            self.note_artifact_exists(&manifest.artifact_id);
+            return Ok(Some(AcceleratedArtifactFile {
+                handle,
+                offset: 0,
+                size: manifest.size,
+                content_type: manifest.content_type.clone(),
+            }));
+        }
+
+        Ok(None)
     }
 
     /// Opportunistically maps an artifact's bytes for zero-copy serving.
@@ -2727,7 +2772,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::{
-        config::Config,
+        config::{AcceleratedFileServingConfig, AcceleratedFileServingMode, Config},
         failpoints::{FailpointAction, FailpointName},
         io::IoController,
         memory::MemoryController,
@@ -2760,6 +2805,12 @@ mod tests {
             grpc_tls: None,
             public_tls: None,
             https_port: 0,
+            accelerated_file_serving: AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            },
             file_descriptor_pool_size: 32,
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,

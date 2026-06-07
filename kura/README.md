@@ -218,6 +218,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
+| `KURA_ACCELERATED_FILE_SERVING_ENABLED` | Enables the same-port Linux file serving accelerator for eligible plaintext HTTP/1 public artifact downloads. Non-Linux builds, HTTPS, HTTP/2, non-GET requests, inline artifacts, unsupported routes, and denied extension decisions use the normal Axum/Hyper path. | Yes | `true` |
+| `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
+| `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum number of concurrent accelerated transfers per node. Requests above the limit fall back to the normal Axum/Hyper path before any request bytes are consumed. | Yes | `32` |
+| `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
 | `KURA_MANIFEST_CACHE_MAX_BYTES` | Maximum size of the in-memory manifest hot cache. | Yes | auto |
@@ -251,6 +255,7 @@ Kura also enforces a few hard-coded budgets that are not configurable:
 
 - Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
 - Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
+- Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator after the request has been parsed, matched to a known artifact route, authorized through the extension hook, and resolved to a local file. The accelerator owns only a bounded pool of blocking transfer workers and falls back to the normal Axum/Hyper serving path whenever classification is incomplete or unsafe.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
 - Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.
 - On startup, the soft `RLIMIT_NOFILE` is raised to the hard limit so the FD pool, RocksDB file descriptors, and socket budget all share the maximum the container runtime allows.
@@ -271,7 +276,7 @@ Auto-derived defaults currently follow these rules:
 - `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` follows the same `memory_limit_bytes / 32` rule as the metadata-store read cache.
 - `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / 4`, rounded down to MiB boundaries and clamped to `[4 MiB, 32 MiB]`.
 - `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / KURA_METADATA_STORE_WRITE_BUFFER_BYTES`, clamped to `[2, 8]`.
-- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`, `KURA_DRAIN_COMPLETION_TIMEOUT_MS` defaults to `240000`, `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` defaults to `0` (disabled), and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` defaults to `100`.
+- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`, `KURA_DRAIN_COMPLETION_TIMEOUT_MS` defaults to `240000`, `KURA_ACCELERATED_FILE_SERVING_ENABLED` defaults to `true`, `KURA_ACCELERATED_FILE_SERVING_MODE` defaults to `splice`, `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` defaults to `32`, `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` defaults to `1048576`, `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` defaults to `0` (disabled), and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` defaults to `100`.
 
 A minimal direct-binary deployment still looks like:
 

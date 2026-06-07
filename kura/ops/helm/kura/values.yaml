@@ -111,6 +111,11 @@ config:
     poolSize: 128
     acquireTimeoutMs: 5000
     segmentHandleCacheSize: 32
+  acceleratedFileServing:
+    enabled: true
+    mode: splice
+    maxConcurrent: 32
+    chunkBytes: 1048576
   memory:
     softLimitBytes: 536870912
     hardLimitBytes: 805306368

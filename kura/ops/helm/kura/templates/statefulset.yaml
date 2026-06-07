@@ -100,6 +100,14 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.shutdown.drainCompletionTimeoutMs) | quote }}
             - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
               value: {{ printf "%d" (int .Values.config.fileDescriptors.segmentHandleCacheSize) | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_ENABLED
+              value: {{ ternary "true" "false" .Values.config.acceleratedFileServing.enabled | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_MODE
+              value: {{ .Values.config.acceleratedFileServing.mode | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT
+              value: {{ printf "%d" (int .Values.config.acceleratedFileServing.maxConcurrent) | quote }}
+            - name: KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES
+              value: {{ printf "%d" (int64 .Values.config.acceleratedFileServing.chunkBytes) | quote }}
             - name: KURA_MEMORY_SOFT_LIMIT_BYTES
               value: {{ printf "%d" (int64 .Values.config.memory.softLimitBytes) | quote }}
             - name: KURA_MEMORY_HARD_LIMIT_BYTES
