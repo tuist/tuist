@@ -1504,10 +1504,13 @@ find "$DIR" -maxdepth 1 -name 'dev.tuist.host-tcp-forwarder.*.plist' -print0 | \
 		label := "dev.tuist.host-tcp-forwarder." + fwd.Name
 		plistPath := "/Library/LaunchDaemons/" + label + ".plist"
 		logPath := "/var/log/host-tcp-forwarder-" + fwd.Name + ".log"
-		// Listen + Target go into XML `<string>` ProgramArguments —
-		// pattern-validated above, so unescaped + unquoted is safe.
-		// Paths flow through shellQuote because they're bash command
-		// arguments, not XML content.
+		// Listen + Target + the bare log path go into XML `<string>`
+		// elements unquoted: launchd reads the XML literally and
+		// `'…'` would be parsed as part of the path / argument
+		// (it's not a shell). Paths flow through shellQuote where
+		// they're bash command arguments — the two distinct usages
+		// are spelled out below so a future addition doesn't trip
+		// over the same bug we hit on the first deploy.
 		script := fmt.Sprintf(`set -euo pipefail
 sudo tee %[1]s >/dev/null <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1549,14 +1552,14 @@ done
 if [ "$state" != "running" ]; then
   echo "host-tcp-forwarder %[2]s did not reach state=running (state=$state)" >&2
   sudo launchctl print system/%[2]s 2>&1 | head -40 >&2
-  echo "--- recent stderr from %[5]s ---" >&2
-  sudo tail -n 40 %[5]s 2>/dev/null || true
+  echo "--- recent stderr from %[6]s ---" >&2
+  sudo tail -n 40 %[6]s 2>/dev/null || true
   exit 1
 fi
 `,
 			shellQuote(plistPath), label,
 			fwd.Listen, fwd.Target,
-			shellQuote(logPath))
+			logPath, shellQuote(logPath))
 		if err := RunCommand(ctx, client, script); err != nil {
 			return fmt.Errorf("load forward %q: %w", fwd.Name, err)
 		}
