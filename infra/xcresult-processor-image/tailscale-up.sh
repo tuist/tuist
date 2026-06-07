@@ -35,12 +35,14 @@ fi
 # Mac mini host's vmnet slot) gets a fresh registration rather than
 # inheriting the previous boot's state. `--accept-dns=true` is the
 # default but stamp it explicitly so MagicDNS works for the pooler
-# proxy hostname the BEAM dials next. `--ssh=false` because we don't
-# want to expose Tailscale SSH on the VM.
+# proxy hostname the BEAM dials next. `--ssh=true` exposes Tailscale
+# SSH (ACL-gated, op-only) so operators can shell into a VM via
+# tailnet without ever touching the host or the tart CLI — diagnostic
+# parity with what every other tailnet device offers.
 if ! /opt/homebrew/bin/tailscale up \
     --authkey="${TAILSCALE_AUTH_KEY}" \
     --reset \
-    --ssh=false \
+    --ssh=true \
     --accept-dns=true \
     ${HOSTNAME_FLAG}; then
   echo "tailscale-up: tailscale up failed" >&2
@@ -50,14 +52,41 @@ fi
 # Block until tailscaled has assigned a tailnet IPv4 — `tailscale up`
 # can return 0 before MagicDNS / netmap propagate, and Postgrex's first
 # dial would otherwise race the daemon's startup.
+TAILNET_IP=""
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   TAILNET_IP="$(/opt/homebrew/bin/tailscale ip -4 2>/dev/null | head -1 || true)"
   if [ -n "${TAILNET_IP}" ]; then
     echo "tailscale-up: tailnet IP ${TAILNET_IP}"
-    exit 0
+    break
   fi
   sleep 2
 done
 
+if [ -z "${TAILNET_IP}" ]; then
+  echo "tailscale-up: timed out waiting for tailscale ip -4" >&2
+  exit 1
+fi
+
+# Diagnostic dump — captured in /var/log/xcresult-processor/stdout.log
+# alongside the BEAM's own stdout. Cheap one-shot snapshot at boot
+# time so an operator who SSHes in after the fact can see the
+# tailnet state, routes, and reach test against the pooler proxy
+# without re-running anything. Failures here don't gate the BEAM —
+# the boot continues into `tuist start` regardless.
+{
+  echo "==== tailscale-up: diagnostics ===="
+  echo "-- tailscale status --"
+  /opt/homebrew/bin/tailscale status || true
+  echo "-- tailscale netcheck --"
+  /opt/homebrew/bin/tailscale netcheck 2>/dev/null | head -30 || true
+  echo "-- ifconfig (tailscale interfaces) --"
+  /sbin/ifconfig | awk '/^utun|^lo/ { keep=1 } /^[a-z]/ { if (!/^utun|^lo/) keep=0 } keep' || true
+  echo "-- netstat -rn (default + tailnet routes) --"
+  /usr/sbin/netstat -rn | head -40 || true
+  echo "-- scutil DNS state --"
+  /usr/sbin/scutil --dns 2>/dev/null | head -40 || true
+} || true
+
 echo "tailscale-up: timed out waiting for tailscale ip -4" >&2
 exit 1
+
