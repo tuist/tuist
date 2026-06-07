@@ -599,8 +599,8 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     booted in all 3 `-kura` jobs, **0 persist/fd errors** on both arches, all three
     `kura-data-*` caches saved. Warm re-run, `bazel-linux-kura` **x86_64: exact-key restore →
     `797 remote cache hit, 0 sandbox` → ~46 min cold dropped to ~1.8 min** (criteria 1–4
-    met). Two follow-ups surfaced, both orthogonal to 4c's wiring, both **root-caused and
-    fixed** (awaiting a warm CI run to confirm):
+    met). Two follow-ups surfaced, both orthogonal to 4c's wiring, both **root-caused, fixed,
+    and confirmed in CI** (run `27107012825` + warm rerun, commit `9f9d092e41`):
     - **arm64 warm = partial miss → fixed: stop Kura gracefully before snapshotting.** Root
       cause was *not* build-script non-determinism. The arm64 job re-executed the
       x86_64-cross `librocksdb-sys` build script (~16 min) because its **action-cache index
@@ -613,7 +613,10 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
       can't. Fix: `stop` now does `docker stop -t 60` (SIGTERM) and checks for a clean exit
       (verified locally: SIGTERM → exit 0 + flush; SIGKILL → exit 137). x86_64 got lucky (its
       writes had already flushed). Note for prod: k8s sends SIGTERM then SIGKILL after a grace
-      period, so the termination grace must exceed Kura's drain+flush time.
+      period, so the termination grace must exceed Kura's drain+flush time. **Confirmed:**
+      after deleting the stale (pre-fix) `kura-data-arm64` cache, the cold rebuild stopped with
+      `Kura exit code: 0` and re-saved a complete cache; the warm rerun then hit
+      `799 remote cache hit, 0 sandbox` with **0** librocksdb recompiles — ~41 min → ~2.2 min.
     - **OCI e2e flaked on a GitHub API 403 rate limit → fixed.** Both `oci` and `oci-kura`
       failed at `Run e2e` because `mise exec -- shellspec` re-resolved unrelated root-repo
       tools (`aube`/`blick`/`opencode-ai`) and hammered the API on the back-to-back re-run
