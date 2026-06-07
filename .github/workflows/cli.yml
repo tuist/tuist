@@ -286,6 +286,8 @@ jobs:
       - name: Build tests
         id: shard
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-cli-acceptance-tests
 
   cli-acceptance-tests:
     name: Acceptance Tests
@@ -347,6 +349,7 @@ jobs:
         run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-cli-acceptance-tests
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
