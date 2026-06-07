@@ -12,6 +12,14 @@ name: Kura Bazel
 #
 # `oci`: builds the runtime OCI image with rules_oci (multi-arch index, no QEMU/Buildx)
 # and runs the e2e suite against the native image. Still shadow only — no oci_push.
+#
+# `*-kura` jobs (Phase 4c): the same builds, but instead of Bazel's --disk_cache they point
+# Bazel at a Kura node (the published ghcr.io/tuist/kura image) over a Docker network and
+# persist *Kura's data dir* with actions/cache. This dogfoods Kura's REAPI + on-disk format
+# as the real build cache — the surface a production Kura-backed cache would use. They run
+# ALONGSIDE the --disk_cache jobs on purpose, so one run yields both warm-build numbers for a
+# direct comparison; once 4c is trusted the --disk_cache jobs (bazel-linux, oci) can be
+# dropped. See docs/bazel-migration-plan.md, Phase 4c.
 
 on:
   push:
@@ -173,3 +181,209 @@ jobs:
         with:
           path: ${{ runner.temp }}/bazel-cache
           key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+
+  # ---------------------------------------------------------------------------------------
+  # Phase 4c — dogfood Kura itself as the Bazel remote cache.
+  #
+  # Same binaries/image as the jobs above, but the *action* cache lives in a Kura node
+  # (ghcr.io/tuist/kura) reached over a Docker network, and we persist Kura's data dir with
+  # actions/cache instead of Bazel's --disk_cache. Bazel's --repository_cache (downloaded
+  # crate sources, geoip — not served by Kura's REAPI) is still persisted separately. The FD
+  # pool is sized for Bazel's bursty uploads (#11132); the node start/stop lifecycle lives in
+  # bazel/ci-kura-cache.sh (shared with the same wiring local-ci.sh uses).
+  # ---------------------------------------------------------------------------------------
+  bazel-linux-kura:
+    name: Bazel Linux + Kura cache (${{ matrix.host_arch }} host)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            host_arch: x86_64
+          - runner: ubuntu-24.04-arm
+            host_arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      # The action cache now lives in Kura; persist Kura's data dir (not a Bazel disk_cache).
+      # Restore/save split so a red run still warms the next (the plain action only saves on
+      # a clean job). Keyed on the lockfiles like the --disk_cache jobs.
+      - name: Restore Kura cache (data dir)
+        id: kura-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-data-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            kura-data-${{ matrix.host_arch }}-
+
+      # Bazel's repository cache (downloaded crate sources, geoip) is not served by Kura's
+      # REAPI action cache, so it is persisted separately.
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel-repo
+          key: bazel-repo-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            bazel-repo-${{ matrix.host_arch }}-
+
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
+
+      - name: Start Kura as the Bazel remote cache
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh start
+
+      # Same ci-validate.sh as the --disk_cache job, but the CI-only ~/.bazelrc points Bazel
+      # at the Kura node (by container name over the shared network) instead of a disk_cache.
+      # --repository_cache stays on disk; --remote_download_outputs=all materializes outputs
+      # so ci-validate.sh can install the binaries off disk.
+      - name: Cross-build and validate both Linux binaries (Kura remote cache)
+        run: |
+          docker run --rm \
+            --network kura-bazel-ci-net \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-repo:/bazelrepo" \
+            kura-bazel-dev \
+            bash -c '
+              mkdir -p /bazelrepo
+              {
+                echo "common --repository_cache=/bazelrepo"
+                echo "common --http_timeout_scaling=8"
+                echo "common --remote_cache=grpc://kura-bazel-ci-cache:50051"
+                echo "common --remote_instance_name=kura-bazel-ci"
+                echo "common --remote_upload_local_results=true"
+                echo "common --remote_download_outputs=all"
+              } > /root/.bazelrc
+              bash bazel/ci-validate.sh; ec=$?
+              chmod -R a+rX /bazelrepo 2>/dev/null || true
+              exit $ec'
+
+      - name: Stop Kura and surface cache errors
+        if: always()
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh stop
+
+      - name: Save Kura cache (data dir)
+        if: always() && steps.kura-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-data-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+
+      - name: Upload Bazel-built Linux binaries (Kura cache)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kura-bazel-linux-kura-from-${{ matrix.host_arch }}
+          path: |
+            kura/bazel-dist/kura-x86_64
+            kura/bazel-dist/kura-aarch64
+            kura/bazel-dist/kura-x86_64.sha256
+            kura/bazel-dist/kura-aarch64.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  oci-kura:
+    name: Bazel OCI image + e2e + Kura cache (x86_64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "shellspec"
+          working_directory: kura
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      # Kura's data dir is content-addressed at the CAS layer, so — like the --disk_cache
+      # oci job seeds from bazel-linux-x86_64- — this seeds from a prior run's
+      # kura-data-x86_64- cache: the x86_64/cross-arm64 compile actions are identical between
+      # the binary and image builds, so the first oci-kura run is warmed for free.
+      - name: Restore Kura cache (data dir)
+        id: kura-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-data-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            kura-data-oci-
+            kura-data-x86_64-
+
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel-repo
+          key: bazel-repo-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+          restore-keys: |
+            bazel-repo-oci-
+            bazel-repo-x86_64-
+
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
+
+      - name: Start Kura as the Bazel remote cache
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh start
+
+      - name: Build the OCI image (multi-arch index + native tarball, Kura remote cache)
+        run: |
+          docker run --rm \
+            --network kura-bazel-ci-net \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-repo:/bazelrepo" \
+            kura-bazel-dev \
+            bash -c '
+              mkdir -p /bazelrepo
+              {
+                echo "common --repository_cache=/bazelrepo"
+                echo "common --http_timeout_scaling=8"
+                echo "common --remote_cache=grpc://kura-bazel-ci-cache:50051"
+                echo "common --remote_instance_name=kura-bazel-ci"
+                echo "common --remote_upload_local_results=true"
+                echo "common --remote_download_outputs=all"
+              } > /root/.bazelrc
+              bash bazel/ci-oci.sh; ec=$?
+              chmod -R a+rX /bazelrepo 2>/dev/null || true
+              exit $ec'
+
+      - name: Stop Kura and surface cache errors
+        if: always()
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh stop
+
+      - name: Save Kura cache (data dir)
+        if: always() && steps.kura-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-data-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
+
+      - name: Load the native image into Docker
+        run: docker load -i kura/bazel-dist/kura-oci.tar
+
+      - name: Smoke-test the image (clean startup via tini)
+        run: |
+          docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
+          docker run --rm --entrypoint /bin/ls kura-bazel:oci -l /usr/bin/tini /usr/bin/curl /usr/local/bin/kura
+          out="$(docker run --rm kura-bazel:oci 2>&1 || true)"
+          echo "$out"
+          echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly under tini"; exit 1; }
+
+      - name: Run e2e (cluster_spec) against the Bazel image
+        working-directory: kura
+        env:
+          KURA_IMAGE: kura-bazel:oci
+          KURA_E2E_SKIP_BUILD: "1"
+        run: mise exec -- shellspec spec/e2e/cluster_spec.sh

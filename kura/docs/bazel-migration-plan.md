@@ -559,25 +559,34 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   personal build `ghcr.io/esnunes/kura-fixed:cache` is no longer needed). The cross-runner
   shared remote cache (CI + dev) remains future work.
 
-- **4c — CI: dogfood Kura as the remote cache, persisting Kura's data dir (planned;
-  pre-cutover).** Evolve 4a's mechanism in `kura-bazel.yml`: instead of mounting Bazel's
-  `--disk_cache`/`--repository_cache` folder and persisting *that* with `actions/cache`, run
-  a Kura node in the workflow, point Bazel at it (`--remote_cache=grpc://…`), and persist
-  **Kura's data dir** (`KURA_DATA_DIR`) with `actions/cache`. CI then exercises Kura's REAPI
-  and on-disk format as the actual build cache — the same surface production would rely on —
-  rather than only Bazel's local cache. (`bazel/local-ci.sh` already does this locally;
-  4c brings it to CI.)
-  - **Unblocked:** PR #11129 is on `main` (`122a5c77a5`) and the official
-    `ghcr.io/tuist/kura:latest` has been rebuilt with the fix, so 4c can proceed. (The
-    prerequisite was that flush fix: without it cargo build scripts (rocksdb, jemalloc, …)
-    fail to store their action results → **every CI build re-runs them**, i.e. effective
-    cache invalidation on every build, which would have made 4c look broken.)
-  - Also size the CI Kura node's FD pool for Bazel's bursty uploads
-    (`KURA_FILE_DESCRIPTOR_POOL_SIZE` + `nofile` ulimit; see 4b and #11132), or those
-    uploads will exhaust it and fail.
-  - Keep it shadow/non-gating first and compare warm-cache build times against 4a before
-    committing. Land **before** the Phase 3.6 production cutover so the cutover inherits a
-    proven Kura-backed CI cache.
+- **4c — CI: dogfood Kura as the remote cache, persisting Kura's data dir. ✅ Implemented
+  (shadow, coexists with 4a).** `kura-bazel.yml` now has `bazel-linux-kura` (x86_64 + arm64
+  matrix) and `oci-kura` (x86_64) jobs that mirror the 4a jobs but, instead of mounting a
+  Bazel `--disk_cache`, run a Kura node (`ghcr.io/tuist/kura:latest`) over a Docker network,
+  point Bazel at it (`--remote_cache=grpc://kura-bazel-ci-cache:50051`,
+  `--remote_instance_name=kura-bazel-ci`, `--remote_upload_local_results`,
+  `--remote_download_outputs=all`), and persist **Kura's data dir** (`KURA_DATA_DIR`) with
+  `actions/cache`. CI thus exercises Kura's REAPI and on-disk format as the actual build
+  cache — the same surface production would rely on — not just Bazel's local cache.
+  - The node start/stop/teardown lifecycle is `bazel/ci-kura-cache.sh` (shared wiring with
+    `local-ci.sh`): it sizes the FD pool for Bazel's bursty uploads
+    (`KURA_FILE_DESCRIPTOR_POOL_SIZE=4096` + `--ulimit nofile=16384`, see 4b and #11132),
+    waits for `/up`, on `stop` greps the node log for `fd_pool_exhausted`/persist errors and
+    emits a `::warning::` if any (so an incomplete cache doesn't silently skew the
+    comparison), then `chmod`s the root-written data dir so `actions/cache` can archive it.
+  - Bazel's `--repository_cache` (downloaded crate sources, geoip — not served by Kura's
+    REAPI) is persisted separately, and the `oci-kura` job seeds its Kura data dir from the
+    `kura-data-x86_64-` cache (CAS digests are identical between the binary and image builds),
+    mirroring how the 4a `oci` job seeds from `bazel-linux-x86_64-`.
+  - **Unblocked by** PR #11129 (`main` `122a5c77a5`) + the official image rebuild — without
+    the flush fix, cargo build scripts (rocksdb, jemalloc, …) fail to store their action
+    results, so **every CI build re-runs them** (effective cache invalidation every build),
+    which would have made 4c look broken.
+  - **Runs alongside 4a on purpose** (non-gating) so one push yields both warm-build numbers
+    for a direct comparison. Once 4c is trusted, drop the `--disk_cache` jobs (`bazel-linux`,
+    `oci`). Land/keep before the Phase 3.6 production cutover so the cutover inherits a proven
+    Kura-backed CI cache. **Still to do:** push a run, confirm cold→warm hits in CI, compare
+    times vs 4a.
 
 ## Open questions / risks
 
