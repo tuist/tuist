@@ -56,7 +56,6 @@ where
         grpc_tls: None,
         public_tls: None,
         https_port: 0,
-        accelerated_file_serving: None,
         file_descriptor_pool_size: 32,
         file_descriptor_acquire_timeout_ms: 5_000,
         drain_completion_timeout_ms: 240_000,

@@ -1,4 +1,3 @@
-mod accelerated_file_serving;
 mod analytics;
 mod app;
 mod artifact;

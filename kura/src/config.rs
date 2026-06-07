@@ -28,11 +28,6 @@ const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
-const KURA_ACCELERATED_FILE_SERVING_PORT: &str = "KURA_ACCELERATED_FILE_SERVING_PORT";
-const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
-const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
-    "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
-const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -115,7 +110,6 @@ pub struct Config {
     pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
     pub https_port: u16,
-    pub accelerated_file_serving: Option<AcceleratedFileServingConfig>,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -174,29 +168,6 @@ pub struct GrpcTlsConfig {
 pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AcceleratedFileServingConfig {
-    pub port: u16,
-    pub mode: AcceleratedFileServingMode,
-    pub max_concurrent: usize,
-    pub chunk_bytes: usize,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AcceleratedFileServingMode {
-    Sendfile,
-    Splice,
-}
-
-impl AcceleratedFileServingMode {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Sendfile => "sendfile",
-            Self::Splice => "splice",
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -393,68 +364,6 @@ impl Config {
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        let accelerated_file_serving_port = optional_parsed_value(
-            &mut lookup,
-            KURA_ACCELERATED_FILE_SERVING_PORT,
-            &mut invalid,
-            |value| {
-                value.parse::<u16>().map_err(|_| {
-                    format!("{KURA_ACCELERATED_FILE_SERVING_PORT} must be a valid u16")
-                })
-            },
-        );
-        let accelerated_file_serving_mode =
-            lookup(KURA_ACCELERATED_FILE_SERVING_MODE).unwrap_or_else(|| "splice".to_owned());
-        let accelerated_file_serving_mode = match accelerated_file_serving_mode.as_str() {
-            "sendfile" => Some(AcceleratedFileServingMode::Sendfile),
-            "splice" => Some(AcceleratedFileServingMode::Splice),
-            _ => {
-                invalid.push(format!(
-                    "{KURA_ACCELERATED_FILE_SERVING_MODE} must be either sendfile or splice"
-                ));
-                None
-            }
-        };
-        let accelerated_file_serving_max_concurrent = optional_parsed_value(
-            &mut lookup,
-            KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT,
-            &mut invalid,
-            |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be a valid usize")
-                })
-            },
-        )
-        .unwrap_or(8);
-        if accelerated_file_serving_max_concurrent == 0 {
-            invalid.push(format!(
-                "{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be greater than 0"
-            ));
-        }
-        let accelerated_file_serving_chunk_bytes = optional_parsed_value(
-            &mut lookup,
-            KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES,
-            &mut invalid,
-            |value| {
-                value.parse::<usize>().map_err(|_| {
-                    format!("{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be a valid usize")
-                })
-            },
-        )
-        .unwrap_or(1024 * 1024);
-        if accelerated_file_serving_chunk_bytes == 0 {
-            invalid.push(format!(
-                "{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be greater than 0"
-            ));
-        }
-        let accelerated_file_serving = accelerated_file_serving_port.and_then(|port| {
-            accelerated_file_serving_mode.map(|mode| AcceleratedFileServingConfig {
-                port,
-                mode,
-                max_concurrent: accelerated_file_serving_max_concurrent,
-                chunk_bytes: accelerated_file_serving_chunk_bytes,
-            })
-        });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -1251,7 +1160,6 @@ impl Config {
             grpc_tls,
             public_tls,
             https_port,
-            accelerated_file_serving,
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -1593,7 +1501,6 @@ mod tests {
         assert_eq!(config.discovery_dns_name, None);
         assert_eq!(config.peer_tls, None);
         assert_eq!(config.grpc_tls, None);
-        assert_eq!(config.accelerated_file_serving, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
         assert_eq!(config.drain_completion_timeout_ms, 120000);
@@ -1625,38 +1532,6 @@ mod tests {
             config.geoip_refresh_interval_secs,
             DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
         );
-    }
-
-    #[test]
-    fn from_lookup_parses_accelerated_file_serving() {
-        let config = config_from(&[
-            (KURA_ACCELERATED_FILE_SERVING_PORT, "8081"),
-            (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
-            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "12"),
-            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "524288"),
-        ])
-        .expect("expected accelerated file serving config to parse");
-
-        assert_eq!(
-            config.accelerated_file_serving,
-            Some(AcceleratedFileServingConfig {
-                port: 8081,
-                mode: AcceleratedFileServingMode::Sendfile,
-                max_concurrent: 12,
-                chunk_bytes: 524_288,
-            })
-        );
-    }
-
-    #[test]
-    fn from_lookup_rejects_invalid_accelerated_file_serving_mode() {
-        let error = config_from(&[
-            (KURA_ACCELERATED_FILE_SERVING_PORT, "8081"),
-            (KURA_ACCELERATED_FILE_SERVING_MODE, "copy"),
-        ])
-        .expect_err("expected invalid accelerated file serving mode to fail");
-
-        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
     }
 
     #[test]
