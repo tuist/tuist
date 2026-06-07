@@ -599,18 +599,29 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     booted in all 3 `-kura` jobs, **0 persist/fd errors** on both arches, all three
     `kura-data-*` caches saved. Warm re-run, `bazel-linux-kura` **x86_64: exact-key restore →
     `797 remote cache hit, 0 sandbox` → ~46 min cold dropped to ~1.8 min** (criteria 1–4
-    met). Two follow-ups surfaced, both orthogonal to 4c's wiring:
-    - **arm64 warm = partial miss (criterion 5 not yet met).** The x86_64-**cross** leg's
-      `librocksdb-sys` build script re-executed (~16 min) instead of hitting, while
-      x86_64-native hit perfectly — likely build-script action-key non-determinism on the
-      cross path (would also affect 4a's `--disk_cache`). Still green/correct, but arm64 warm
-      time isn't comparable yet. Investigate before trusting arm64 warm caching.
-    - **OCI e2e flaked on a GitHub API 403 rate limit** (both 4a `oci` and `oci-kura`, same
-      `Run e2e` step) — `mise exec -- shellspec` re-resolves unrelated root-repo tools
-      (`aube`/`blick`/`opencode-ai`) and hammered the API on the back-to-back re-run. Not a
-      4c issue (image built/loaded/smoked fine; passed in the cold run). Pre-existing: the
-      e2e step should not re-resolve tools it doesn't need. Avoid immediate re-runs; a real
-      warm comparison should come from an organic later push.
+    met). Two follow-ups surfaced, both orthogonal to 4c's wiring, both **root-caused and
+    fixed** (awaiting a warm CI run to confirm):
+    - **arm64 warm = partial miss → fixed: stop Kura gracefully before snapshotting.** Root
+      cause was *not* build-script non-determinism. The arm64 job re-executed the
+      x86_64-cross `librocksdb-sys` build script (~16 min) because its **action-cache index
+      was lost**, while the CAS blobs were intact (797 hits, 0 persist errors) — i.e. a
+      GetActionResult miss, not a blob miss. The AC index lives in RocksDB; `ci-kura-cache.sh
+      stop` was `docker rm -f` (**SIGKILL**), which skips Kura's SIGTERM shutdown path, so
+      RocksDB's memtable never flushed and the last-written entries (the big cross result)
+      were missing when `actions/cache` tarred the dir. It doesn't reproduce locally because
+      the live bind mount lets RocksDB replay its own WAL on reopen; a tar of an unflushed DB
+      can't. Fix: `stop` now does `docker stop -t 60` (SIGTERM) and checks for a clean exit
+      (verified locally: SIGTERM → exit 0 + flush; SIGKILL → exit 137). x86_64 got lucky (its
+      writes had already flushed). Note for prod: k8s sends SIGTERM then SIGKILL after a grace
+      period, so the termination grace must exceed Kura's drain+flush time.
+    - **OCI e2e flaked on a GitHub API 403 rate limit → fixed.** Both `oci` and `oci-kura`
+      failed at `Run e2e` because `mise exec -- shellspec` re-resolved unrelated root-repo
+      tools (`aube`/`blick`/`opencode-ai`) and hammered the API on the back-to-back re-run
+      (image built/loaded/smoked fine; passed cold). Fixes: set `GITHUB_TOKEN` at workflow
+      level (authenticated quota, not anonymous 60/hr), scope the step to
+      `mise exec shellspec -- …` so it stops resolving tools it doesn't need, and pass the
+      token into the build containers. Still: avoid immediate re-runs; prefer an organic push
+      for a clean warm comparison.
 
 ## Open questions / risks
 

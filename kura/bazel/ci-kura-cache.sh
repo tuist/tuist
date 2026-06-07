@@ -77,6 +77,22 @@ case "$CMD" in
     ;;
   stop)
     if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+      # Stop GRACEFULLY (SIGTERM), not `docker rm -f` (SIGKILL): Kura installs a SIGTERM
+      # handler (src/app.rs) whose shutdown path returns from main, dropping the store so
+      # RocksDB flushes its memtable to disk. The CAS blobs (segments/, blobs/) are plain
+      # files that survive a hard kill, but the action-cache INDEX lives in RocksDB — on
+      # SIGKILL its unflushed memtable is lost, so the most-recently-cached actions are
+      # missing after actions/cache snapshots the dir. On restore those actions miss and
+      # re-execute (seen as the x86_64-cross librocksdb-sys build script recompiling on the
+      # arm64 runner, run 27104501258). A live bind mount masks this locally because RocksDB
+      # reopens and replays its own WAL; the tar snapshot of an unflushed DB does not.
+      echo "==> stopping Kura gracefully (SIGTERM) so RocksDB flushes before the snapshot"
+      docker stop -t 60 "$CONTAINER" >/dev/null 2>&1 || true
+      code="$(docker inspect -f '{{.State.ExitCode}}' "$CONTAINER" 2>/dev/null || echo unknown)"
+      echo "Kura exit code: ${code} (0 = clean shutdown + flush; 137 = SIGKILL, flush skipped)"
+      if [ "$code" != "0" ]; then
+        echo "::warning title=Kura ungraceful shutdown::exit ${code} — RocksDB may not have flushed; the restored cache could miss recent action results"
+      fi
       # Surface the defects that silently break caching of directory outputs: the ByteStream
       # flush race (#11129, fixed) and FD-pool exhaustion (#11132). A non-zero count means
       # the comparison numbers are not trustworthy — warn loudly but don't fail the shadow job.
