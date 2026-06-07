@@ -551,10 +551,13 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   build (~5s, no recompile); a full `local-ci.sh` run is green across all four stages.
 
   **Image note:** #11129 is merged and the official multi-arch `ghcr.io/tuist/kura:latest`
-  has been rebuilt with the fix (image `created` postdates the merge), so `local-ci.sh`
-  defaults `KURA_REMOTE_IMAGE` back to `ghcr.io/tuist/kura:latest` (the patched personal
-  build `ghcr.io/esnunes/kura-fixed:cache` is no longer needed). The cross-runner shared
-  remote cache (CI + dev) remains future work.
+  has been rebuilt with the fix and **functionally validated** as a Bazel remote cache: a
+  cold compile uploaded 797 actions (including librocksdb-sys' directory output) into a fresh
+  empty Kura with **zero** `fd_pool_exhausted`/persist errors, and two independent fresh
+  output-base builds each got **797/797 remote cache hits** (no rocksdb recompile). So
+  `local-ci.sh` defaults `KURA_REMOTE_IMAGE` back to `ghcr.io/tuist/kura:latest` (the patched
+  personal build `ghcr.io/esnunes/kura-fixed:cache` is no longer needed). The cross-runner
+  shared remote cache (CI + dev) remains future work.
 
 - **4c — CI: dogfood Kura as the remote cache, persisting Kura's data dir (planned;
   pre-cutover).** Evolve 4a's mechanism in `kura-bazel.yml`: instead of mounting Bazel's
