@@ -54,6 +54,40 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   exiting anyway, and the delete is idempotent). A `@grace_seconds`
   floor on Pod age is belt-and-suspenders against clock skew and
   keeps brand-new Pods out of scope.
+
+  ## Live-execution guard
+
+  The stamp-then-no-claim signature was treated as unambiguous proof
+  of a wedge above — "an owner-stamped Pod should always have a
+  matching claim." That invariant breaks if anything releases the
+  PG claim *after* dispatch already delivered the JIT to the Pod
+  and the runner started executing a job. `release_safely/3` is the
+  documented trigger: it fires from `serve_claim/5`'s `with`-else
+  on any post-stamp error (mint blip, `mark_running` PG error,
+  `record_running_safe` CH hiccup). The dispatch fails closed and
+  the JIT never reaches the Pod, so reaping is correct. But any
+  *other* path that reaches `Claims.release`/`Claims.complete`
+  while the runner is mid-job (a stale webhook, an orphan-worker
+  false positive, future code that touches the claim table) would
+  surface here as "stamped, no claim" and force-delete a live
+  customer Pod — observable from GitHub's side as a runner that
+  "lost communication with the server."
+
+  The Kubernetes pod itself carries the ground truth for "did this
+  Pod actually start executing a job": the `runner` container's
+  status. In the Linux token-isolation shape the `runner` container
+  is gated behind the `poller` init container, so it only starts
+  once the poller successfully claimed *and* staged a JIT — exactly
+  the transition that means "JIT was delivered, the runner is or
+  was executing a customer job." We refuse to reap any Pod whose
+  `runner` container has reached `started=true` or `terminated`,
+  even when the claim is missing. The orphan signature this worker
+  was built for (poller poll-loops forever without ever receiving a
+  JIT) still trips the reap because the `runner` container never
+  leaves `waiting`. The check is intentionally conservative: it
+  prefers leaking a Pod for one more reconcile cycle (the Pool
+  reconciler will eventually reap it once the runner exits) over
+  killing a live build.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -115,7 +149,35 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
 
     is_binary(name) and
       not MapSet.member?(live, name) and
-      created_before?(pod, cutoff)
+      created_before?(pod, cutoff) and
+      not runner_started?(pod)
+  end
+
+  # True if the Pod's `runner` container has begun executing — i.e.,
+  # the poller staged a JIT and the runner container started, OR the
+  # runner has already executed and terminated. In the token-isolation
+  # shape this is unambiguous proof that a JIT was delivered and the
+  # Pod is or was running a customer job; reaping it would kill (or
+  # has just killed) a live build. See the "Live-execution guard"
+  # section of the moduledoc.
+  defp runner_started?(pod) do
+    pod
+    |> get_in(["status", "containerStatuses"])
+    |> List.wrap()
+    |> Enum.find(&(&1["name"] == "runner"))
+    |> case do
+      nil ->
+        false
+
+      status ->
+        # `started: true` flips on once the container is up; it can
+        # flip back to false on termination, so also accept a present
+        # `state.terminated` or `lastState.terminated` as proof the
+        # runner already executed.
+        Map.get(status, "started") == true or
+          not is_nil(get_in(status, ["state", "terminated"])) or
+          not is_nil(get_in(status, ["lastState", "terminated"]))
+    end
   end
 
   defp created_before?(pod, cutoff) do
