@@ -2541,6 +2541,72 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenPublicHeaderImportsSamePackageModule_addsTargetDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let firebaseCoreHeadersPath = basePath
+            .appending(try RelativePath(validating: "Package/Sources/FirebaseCore/Public/FirebaseCore"))
+        let firebaseCoreExtensionHeadersPath = basePath
+            .appending(try RelativePath(validating: "Package/Sources/FirebaseCore/Extension"))
+
+        try await fileSystem.makeDirectory(at: firebaseCoreHeadersPath)
+        try await fileSystem.makeDirectory(at: firebaseCoreExtensionHeadersPath)
+        try await fileSystem.writeText("", at: firebaseCoreHeadersPath.appending(component: "FIRApp.h"))
+        try await fileSystem.writeText(
+            """
+            #import <FirebaseCore/FIRApp.h>
+            """,
+            at: firebaseCoreExtensionHeadersPath.appending(component: "FirebaseCoreInternal.h")
+        )
+
+        let project = try #require(
+            try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "FirebaseCore", type: .library(.automatic), targets: ["FirebaseCore"]),
+                            .init(
+                                name: "FirebaseCoreExtension",
+                                type: .library(.automatic),
+                                targets: ["FirebaseCoreExtension"]
+                            ),
+                        ],
+                        targets: [
+                            .test(
+                                name: "FirebaseCore",
+                                path: "Sources/FirebaseCore",
+                                publicHeadersPath: "Public"
+                            ),
+                            .test(
+                                name: "FirebaseCoreExtension",
+                                path: "Sources/FirebaseCore/Extension",
+                                publicHeadersPath: "."
+                            ),
+                        ],
+                        platforms: [.ios],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
+                    ),
+                ]
+            )
+        )
+
+        let firebaseCoreExtensionTarget = try #require(
+            project.targets.first(where: { $0.name == "FirebaseCoreExtension" })
+        )
+        #expect(
+            firebaseCoreExtensionTarget.dependencies.contains(
+                ProjectDescription.TargetDependency.target(name: "FirebaseCore")
+            )
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenDependencyHasHeaders_addsThemToHeaderSearchPath() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let dependencyHeadersPath = basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/include"))
