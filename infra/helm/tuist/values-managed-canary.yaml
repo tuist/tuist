@@ -195,6 +195,8 @@ xcresultProcessor:
   replicaCount: 1
   # Tailnet-fronted URL key — see values-managed-production.yaml.
   databaseUrlSecretKey: xcresult-processor-database-url
+  tailscale:
+    enabled: true
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the
@@ -221,12 +223,6 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
-  # See values-managed-production.yaml — same shape, canary's
-  # Tailscale-exposed pooler hostname.
-  hostTCPForwards:
-    - name: pg-pooler
-      listen: "0.0.0.0:5432"
-      target: tuist-pg-pooler-canary:5432
   controlPlane:
     host: api-canary.tuist.dev
 

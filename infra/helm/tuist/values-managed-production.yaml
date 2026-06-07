@@ -284,12 +284,18 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
-  # Opt these pods into the Tailscale-fronted URL the processor's
-  # ExternalSecret renders when postgresql.cnpg.pooler.tailscale.enabled
-  # is true. Tart VM pods have no route to the in-cluster pooler
-  # ClusterIP (their only network is Tailnet); the Linux processor
-  # keeps the direct in-cluster URL via the default key.
+  # Opt into the Tailscale-fronted URL the processor's ExternalSecret
+  # renders when postgresql.cnpg.pooler.tailscale.enabled is true.
+  # Linux processors keep the direct in-cluster URL via the default
+  # key.
   databaseUrlSecretKey: xcresult-processor-database-url
+  # Join each Tart VM to the production tailnet so it can dial the
+  # operator-managed pooler proxy at
+  # `postgresql.cnpg.pooler.tailscale.hostname`. The auth key reuses
+  # the macOS-fleet TAILSCALE item (same `tag:tuist-macmini-production`
+  # ACL binding the bootstrap uses for the Mac mini hosts).
+  tailscale:
+    enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
@@ -307,16 +313,6 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
-  # Tart VM → tailnet bridge for the xcresult-processor. The CAPI
-  # bootstrap installs the host-tcp-forwarder binary + one launchd
-  # plist per entry; the Tart VM dials its vmnet gateway on :5432 and
-  # the host relays via tailscale0 to the CNPG pooler proxy. See
-  # macosFleet.hostTCPForwards in values.yaml and
-  # macos-host-bootstrap/bootstrap.go:installHostTCPForwarder.
-  hostTCPForwards:
-    - name: pg-pooler
-      listen: "0.0.0.0:5432"
-      target: tuist-pg-pooler-production:5432
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.

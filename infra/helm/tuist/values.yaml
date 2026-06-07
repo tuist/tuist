@@ -413,16 +413,26 @@ xcresultProcessor:
   # that point at a different Secret.
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
-  # Host the Tart VM dials for its Postgres URL when the chart
-  # renders the `xcresult-processor-database-url` Secret key (i.e.
-  # when `postgresql.cnpg.pooler.tailscale.enabled` is true). The Tart
-  # VM has no tailnet identity; it can't reach the pooler proxy
-  # directly. It dials its vmnet gateway here, which is the host-side
-  # host-tcp-forwarder's bind address. Tart's vmnet shared-NAT mode
-  # uses 192.168.64.0/24 with .1 as the gateway by default, so the
-  # default works for the standard Tart configuration. Override per
-  # env only if you've changed Tart's vmnet subnet on the host.
-  vmnetGatewayHost: "192.168.64.1"
+  # Tailscale identity for each Tart VM. When enabled the VM image's
+  # tailscale-up.sh runs at boot (before the BEAM) and joins the
+  # tailnet using the auth key sourced from this Secret. The chart's
+  # `xcresult-processor-database-url` rendering points at the
+  # operator-managed pooler proxy hostname; the VM resolves it via
+  # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # Off by default — self-hosters without a tailnet, and any
+  # deployment that hasn't shipped the tailscale-enabled VM image
+  # yet, leaves this off and the chart skips the env injection.
+  tailscale:
+    enabled: false
+    # Name of the Secret holding the per-env Tailscale pre-auth key
+    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # operator's --tailscale-auth-key-secret-name flag). Empty falls
+    # back to the chart-default
+    # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
+    # macOS-fleet ExternalSecret syncs from 1Password.
+    authKeySecretName: ""
+    authKeySecretKey: "auth-key"
   extraEnv: []
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
