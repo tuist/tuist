@@ -950,7 +950,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         return importPatterns.reduce(into: Set<String>()) { modules, pattern in
             guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return }
 
-            let range = NSRange(headerWithoutComments.startIndex..<headerWithoutComments.endIndex, in: headerWithoutComments)
+            let range = NSRange(headerWithoutComments.startIndex ..< headerWithoutComments.endIndex, in: headerWithoutComments)
             for match in regularExpression.matches(in: headerWithoutComments, range: range) {
                 guard let moduleRange = Range(match.range(at: 1), in: headerWithoutComments) else { continue }
                 modules.insert(String(headerWithoutComments[moduleRange]))
@@ -2010,12 +2010,12 @@ extension PackageInfo.Platform {
     }
 }
 
-private extension String {
-    func strippingCComments() -> String {
+extension String {
+    fileprivate func strippingCComments() -> String {
         let pattern = #"/\*[\s\S]*?\*/|//.*"#
         guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return self }
 
-        let range = NSRange(startIndex..<endIndex, in: self)
+        let range = NSRange(startIndex ..< endIndex, in: self)
         return regularExpression.stringByReplacingMatches(in: self, range: range, withTemplate: "")
     }
 }
