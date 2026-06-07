@@ -410,8 +410,9 @@ to any registry. Production is untouched until the final flip.
 #### 3.6 — Cutover plan
 
 **Prerequisite:** land **4c** first (CI dogfooding Kura as the remote cache, with Kura's data
-dir persisted), which itself depends on PR #11129 being on `main`. The cutover should inherit
-a proven Kura-backed CI cache rather than introduce it at the same time as the production flip.
+dir persisted). Its own dependency — PR #11129 on `main` — is now satisfied (`122a5c77a5`),
+so 4c is unblocked. The cutover should inherit a proven Kura-backed CI cache rather than
+introduce it at the same time as the production flip.
 
 **Production surfaces being replaced** (all currently Cargo/Docker):
 
@@ -527,13 +528,13 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   outputs — the `-sys` crates (rocksdb, jemalloc, aws-lc, lua). File-output actions (rustc
   rlibs) cache fine and masked both.
 
-  1. **ByteStream upload not flushed (fixed — PR #11129).** The REAPI ByteStream `write`
-     handler wrote chunks to a temp file but never flushed before persist re-opened the
-     path on a separate fd to stat + copy into a segment; `tokio::fs::File`'s lazy flush
-     raced that read → `INTERNAL: failed to persist CAS blob: appended N bytes …, expected
-     M`. Fix on branch `fix/kura-reapi-bytestream-flush` (`src/reapi/mod.rs`: flush + drop
-     before persist, mirroring the HTTP path) + a regression test. Necessary but **not
-     sufficient** for rocksdb.
+  1. **ByteStream upload not flushed (fixed — PR #11129, merged to `main` `122a5c77a5`).**
+     The REAPI ByteStream `write` handler wrote chunks to a temp file but never flushed
+     before persist re-opened the path on a separate fd to stat + copy into a segment;
+     `tokio::fs::File`'s lazy flush raced that read → `INTERNAL: failed to persist CAS blob:
+     appended N bytes …, expected M`. Fix in `src/reapi/mod.rs` (flush + drop before persist,
+     mirroring the HTTP path) + a regression test. Necessary but **not sufficient** for
+     rocksdb.
 
   2. **FD-pool exhaustion under bursty uploads (config-mitigated; Kura fix pending).**
      rocksdb's build script emits ~339 `.o` files that Bazel uploads concurrently; Kura's
@@ -549,10 +550,11 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   output bases against the patched image is **145/145 remote cache hits** on the second
   build (~5s, no recompile); a full `local-ci.sh` run is green across all four stages.
 
-  **Image note:** until #11129 merges and the official `ghcr.io/tuist/kura` rebuilds,
-  `local-ci.sh` defaults `KURA_REMOTE_IMAGE` to a patched personal build
-  (`ghcr.io/esnunes/kura-fixed:cache`, public, arm64); revert to `ghcr.io/tuist/kura:latest`
-  afterward. The cross-runner shared remote cache (CI + dev) remains future work.
+  **Image note:** #11129 is merged and the official multi-arch `ghcr.io/tuist/kura:latest`
+  has been rebuilt with the fix (image `created` postdates the merge), so `local-ci.sh`
+  defaults `KURA_REMOTE_IMAGE` back to `ghcr.io/tuist/kura:latest` (the patched personal
+  build `ghcr.io/esnunes/kura-fixed:cache` is no longer needed). The cross-runner shared
+  remote cache (CI + dev) remains future work.
 
 - **4c — CI: dogfood Kura as the remote cache, persisting Kura's data dir (planned;
   pre-cutover).** Evolve 4a's mechanism in `kura-bazel.yml`: instead of mounting Bazel's
@@ -562,11 +564,11 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   and on-disk format as the actual build cache — the same surface production would rely on —
   rather than only Bazel's local cache. (`bazel/local-ci.sh` already does this locally;
   4c brings it to CI.)
-  - **Blocked on PR #11129 landing on `main`** (and the official `ghcr.io/tuist/kura` image
-    rebuilding with the fix). Until the ByteStream flush lands, cargo build scripts (rocksdb,
-    jemalloc, …) fail to store their action results, so **every CI build re-runs them** —
-    effectively cache invalidation on every build, which would make 4c look broken. Do not
-    start 4c before #11129 is on `main`.
+  - **Unblocked:** PR #11129 is on `main` (`122a5c77a5`) and the official
+    `ghcr.io/tuist/kura:latest` has been rebuilt with the fix, so 4c can proceed. (The
+    prerequisite was that flush fix: without it cargo build scripts (rocksdb, jemalloc, …)
+    fail to store their action results → **every CI build re-runs them**, i.e. effective
+    cache invalidation on every build, which would have made 4c look broken.)
   - Also size the CI Kura node's FD pool for Bazel's bursty uploads
     (`KURA_FILE_DESCRIPTOR_POOL_SIZE` + `nofile` ulimit; see 4b and #11132), or those
     uploads will exhaust it and fail.

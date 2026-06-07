@@ -13,10 +13,9 @@
 #
 # Chicken-and-egg: the Kura we run as the cache is a published server image
 # (KURA_REMOTE_IMAGE), NOT a Bazel-built artifact — so the cache exists before we build the
-# thing it caches. The default pins ghcr.io/esnunes/kura-fixed:cache, a patched arm64 build
-# carrying the REAPI ByteStream flush fix (PR #11129) — without it, cargo build scripts
-# (e.g. librocksdb-sys) never remote-cache and recompile every run. Once #11129 merges and
-# the official image rebuilds, revert this to ghcr.io/tuist/kura:latest. Override
+# thing it caches. The default is the official multi-arch ghcr.io/tuist/kura:latest, which
+# since PR #11129 carries the REAPI ByteStream flush fix — without it, cargo build scripts
+# (e.g. librocksdb-sys) never remote-cache and recompile every run. Override
 # KURA_REMOTE_IMAGE to pin any other tag.
 #
 # Kura's node storage (KURA_DATA_DIR) is bind-mounted to a host folder (KURA_DATA_HOST,
@@ -32,7 +31,7 @@
 #
 # Environment overrides:
 #   KURA_REMOTE_IMAGE   server image to run as the cache
-#                       (default ghcr.io/esnunes/kura-fixed:cache — patched, see note above)
+#                       (default ghcr.io/tuist/kura:latest — see note above)
 #   KURA_REMOTE_PULL    "always" to re-pull the image each run; default pulls only if absent
 #   KURA_DATA_HOST      host folder for Kura's persistent node storage
 #   KURA_BAZEL_NETWORK  shared Docker network name (default kura-bazel-net)
@@ -55,7 +54,7 @@ esac
 REPO_CACHE_VOLUME="kura-bazel-cache-${ARCH}"
 
 # Kura remote-cache settings (all overridable).
-KURA_REMOTE_IMAGE="${KURA_REMOTE_IMAGE:-ghcr.io/esnunes/kura-fixed:cache}"
+KURA_REMOTE_IMAGE="${KURA_REMOTE_IMAGE:-ghcr.io/tuist/kura:latest}"
 NETWORK="${KURA_BAZEL_NETWORK:-kura-bazel-net}"
 CACHE_CONTAINER="${KURA_CACHE_CONTAINER:-kura-bazel-remote-cache}"
 KURA_DATA_HOST="${KURA_DATA_HOST:-$HOME/.cache/kura-bazel-remote-cache}"
