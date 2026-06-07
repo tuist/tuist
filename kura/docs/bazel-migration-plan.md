@@ -409,6 +409,10 @@ to any registry. Production is untouched until the final flip.
 
 #### 3.6 — Cutover plan
 
+**Prerequisite:** land **4c** first (CI dogfooding Kura as the remote cache, with Kura's data
+dir persisted), which itself depends on PR #11129 being on `main`. The cutover should inherit
+a proven Kura-backed CI cache rather than introduce it at the same time as the production flip.
+
 **Production surfaces being replaced** (all currently Cargo/Docker):
 
 | Surface | File / job | Today |
@@ -549,6 +553,26 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   `local-ci.sh` defaults `KURA_REMOTE_IMAGE` to a patched personal build
   (`ghcr.io/esnunes/kura-fixed:cache`, public, arm64); revert to `ghcr.io/tuist/kura:latest`
   afterward. The cross-runner shared remote cache (CI + dev) remains future work.
+
+- **4c — CI: dogfood Kura as the remote cache, persisting Kura's data dir (planned;
+  pre-cutover).** Evolve 4a's mechanism in `kura-bazel.yml`: instead of mounting Bazel's
+  `--disk_cache`/`--repository_cache` folder and persisting *that* with `actions/cache`, run
+  a Kura node in the workflow, point Bazel at it (`--remote_cache=grpc://…`), and persist
+  **Kura's data dir** (`KURA_DATA_DIR`) with `actions/cache`. CI then exercises Kura's REAPI
+  and on-disk format as the actual build cache — the same surface production would rely on —
+  rather than only Bazel's local cache. (`bazel/local-ci.sh` already does this locally;
+  4c brings it to CI.)
+  - **Blocked on PR #11129 landing on `main`** (and the official `ghcr.io/tuist/kura` image
+    rebuilding with the fix). Until the ByteStream flush lands, cargo build scripts (rocksdb,
+    jemalloc, …) fail to store their action results, so **every CI build re-runs them** —
+    effectively cache invalidation on every build, which would make 4c look broken. Do not
+    start 4c before #11129 is on `main`.
+  - Also size the CI Kura node's FD pool for Bazel's bursty uploads
+    (`KURA_FILE_DESCRIPTOR_POOL_SIZE` + `nofile` ulimit; see 4b and #11132), or those
+    uploads will exhaust it and fail.
+  - Keep it shadow/non-gating first and compare warm-cache build times against 4a before
+    committing. Land **before** the Phase 3.6 production cutover so the cutover inherits a
+    proven Kura-backed CI cache.
 
 ## Open questions / risks
 
