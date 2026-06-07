@@ -241,13 +241,13 @@ macosFleet:
     # SHA-tagged build that the standalone
     # capi-provider-scaleway-applesilicon-image.yml workflow pushed.
     #
-    # `ec6c9838` is the workflow_dispatch build of this PR's HEAD —
+    # `eaf39005` is the workflow_dispatch build of this PR's HEAD —
     # the operator binary at that tag understands the new
     # `--host-tcp-forwards` flag the chart now passes, where the
     # previous 0.8.2 image's stdlib flag.Parse would os.Exit(2) on
     # the unknown flag and CrashLoopBackOff. release-capi-scaleway
     # will replace this with the next semver tag on merge to main.
-    tag: "ec6c9838"
+    tag: "eaf39005"
   # MagicDNSSuffix is a tailnet-account-level constant — same
   # across all three envs because they share one Tuist tailnet.
   # Read once from `tailscale status --json | .MagicDNSSuffix` on
