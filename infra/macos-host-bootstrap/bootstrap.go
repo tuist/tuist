@@ -1408,6 +1408,14 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.p
 // to an arbitrary file system path.
 var hostTCPForwardNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 
+// hostTCPForwardEndpointPattern matches Listen and Target values. We
+// drop the values verbatim into the launchd plist's <string>
+// elements as ProgramArguments — no XML escaping, no shell quoting.
+// Limiting to `host:port` shape (DNS labels + IPv4 + port) keeps a
+// misconfigured controller from injecting XML or argv past the
+// `--bind` / `--target` slot.
+var hostTCPForwardEndpointPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+:[0-9]{1,5}$`)
+
 // installHostTCPForwarder uploads the darwin/arm64 forwarder binary
 // to /usr/local/bin/host-tcp-forwarder and renders one supervised
 // launchd plist per Config.HostTCPForwards entry. Each entry becomes
@@ -1432,8 +1440,11 @@ func installHostTCPForwarder(ctx context.Context, client *ssh.Client, cfg Config
 		if !hostTCPForwardNamePattern.MatchString(fwd.Name) {
 			return fmt.Errorf("host tcp forward name %q does not match %s", fwd.Name, hostTCPForwardNamePattern)
 		}
-		if fwd.Listen == "" || fwd.Target == "" {
-			return fmt.Errorf("host tcp forward %q: Listen and Target are required", fwd.Name)
+		if !hostTCPForwardEndpointPattern.MatchString(fwd.Listen) {
+			return fmt.Errorf("host tcp forward %q: Listen %q does not match %s", fwd.Name, fwd.Listen, hostTCPForwardEndpointPattern)
+		}
+		if !hostTCPForwardEndpointPattern.MatchString(fwd.Target) {
+			return fmt.Errorf("host tcp forward %q: Target %q does not match %s", fwd.Name, fwd.Target, hostTCPForwardEndpointPattern)
 		}
 	}
 
@@ -1493,6 +1504,10 @@ find "$DIR" -maxdepth 1 -name 'dev.tuist.host-tcp-forwarder.*.plist' -print0 | \
 		label := "dev.tuist.host-tcp-forwarder." + fwd.Name
 		plistPath := "/Library/LaunchDaemons/" + label + ".plist"
 		logPath := "/var/log/host-tcp-forwarder-" + fwd.Name + ".log"
+		// Listen + Target go into XML `<string>` ProgramArguments —
+		// pattern-validated above, so unescaped + unquoted is safe.
+		// Paths flow through shellQuote because they're bash command
+		// arguments, not XML content.
 		script := fmt.Sprintf(`set -euo pipefail
 sudo tee %[1]s >/dev/null <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1518,9 +1533,29 @@ sudo chown root:wheel %[1]s
 sudo chmod 0644 %[1]s
 sudo launchctl bootout system %[1]s 2>/dev/null || true
 sudo launchctl bootstrap system %[1]s
+
+# Verify the daemon actually started — bootstrap returns 0 even when
+# the daemon crashes on launch (KeepAlive + ThrottleInterval keep it
+# in a retry loop, never reaching state=running). Without this check
+# the same misconfiguration we saw on the first deploy (single-quote
+# escaping leaking into argv) would land silently again.
+for i in 1 2 3 4 5; do
+  state=$(sudo launchctl print system/%[2]s 2>/dev/null | awk '/^[[:space:]]*state = /{print $3; exit}' || true)
+  if [ "$state" = "running" ]; then
+    break
+  fi
+  sleep 1
+done
+if [ "$state" != "running" ]; then
+  echo "host-tcp-forwarder %[2]s did not reach state=running (state=$state)" >&2
+  sudo launchctl print system/%[2]s 2>&1 | head -40 >&2
+  echo "--- recent stderr from %[5]s ---" >&2
+  sudo tail -n 40 %[5]s 2>/dev/null || true
+  exit 1
+fi
 `,
 			shellQuote(plistPath), label,
-			shellQuote(fwd.Listen), shellQuote(fwd.Target),
+			fwd.Listen, fwd.Target,
 			shellQuote(logPath))
 		if err := RunCommand(ctx, client, script); err != nil {
 			return fmt.Errorf("load forward %q: %w", fwd.Name, err)
