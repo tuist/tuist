@@ -4,7 +4,7 @@ use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use bazel_remote_apis::{
@@ -147,10 +147,21 @@ where
     }
 
     fn call(&mut self, request: http::Request<TonicBody>) -> Self::Future {
+        let started_at = Instant::now();
+        let route = request.uri().path().to_owned();
         let guard = self.state.start_grpc_request();
+        let state = self.state.clone();
         let future = self.inner.call(request);
         Box::pin(async move {
             let response = future.await?;
+            // Sample latency once the response is ready, before the body
+            // streams, so long ByteStream reads do not inflate the signal.
+            state.runtime.record_public_request_latency(
+                &state.metrics,
+                "grpc",
+                &route,
+                started_at.elapsed(),
+            );
             Ok(response.map(|body| {
                 body.map_frame(move |frame| {
                     let _guard = &guard;

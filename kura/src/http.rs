@@ -535,9 +535,15 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
+    let elapsed = start.elapsed();
+    if traffic_class == HttpTrafficClass::Public {
+        state
+            .runtime
+            .record_public_request_latency(&state.metrics, "http", &route, elapsed);
+    }
     state
         .metrics
-        .record_http(route, response.status(), client_country, start.elapsed());
+        .record_http(route, response.status(), client_country, elapsed);
 
     response
 }

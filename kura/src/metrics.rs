@@ -32,6 +32,7 @@ pub struct Metrics {
     http_requests: Family<HttpRequestLabels, Counter>,
     http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
+    public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
     artifact_writes: Family<ArtifactOpLabels, Counter>,
@@ -40,6 +41,7 @@ pub struct Metrics {
     artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
     artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
+    artifact_egress_throughput: Family<ArtifactRouteLabels, Histogram>,
     segment_refreshes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -142,6 +144,10 @@ impl Metrics {
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
         let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
+        let public_request_latency =
+            Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
@@ -152,6 +158,10 @@ impl Metrics {
         let artifact_egress_duration =
             Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
+        let artifact_egress_throughput =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(1024.0, 4.0, 12))
             });
         let segment_refreshes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_refresh_bytes = Family::<ArtifactOpLabels, Counter>::default();
@@ -282,6 +292,11 @@ impl Metrics {
             http_request_duration.clone(),
         );
         registry.register(
+            "kura_public_request_latency_seconds",
+            "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding",
+            public_request_latency.clone(),
+        );
+        registry.register(
             "kura_http_exceptions_total",
             "HTTP exceptions by route and class",
             http_exceptions.clone(),
@@ -320,6 +335,11 @@ impl Metrics {
             "kura_artifact_egress_duration_seconds",
             "Time from artifact response body creation until stream completion, error, or drop",
             artifact_egress_duration.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_throughput_bytes_per_second",
+            "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding",
+            artifact_egress_throughput.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
@@ -735,6 +755,7 @@ impl Metrics {
             http_requests,
             http_client_requests,
             http_request_duration,
+            public_request_latency,
             http_exceptions,
             artifact_reads,
             artifact_writes,
@@ -743,6 +764,7 @@ impl Metrics {
             artifact_egress_completions,
             artifact_egress_bytes,
             artifact_egress_duration,
+            artifact_egress_throughput,
             segment_refreshes,
             segment_refresh_bytes,
             segment_refresh_duration,
@@ -932,6 +954,28 @@ impl Metrics {
         self.artifact_egress_duration
             .get_or_create(&ArtifactRouteLabels {
                 producer: producer.as_str().to_owned(),
+            })
+            .observe(duration.as_secs_f64());
+        let seconds = duration.as_secs_f64();
+        if bytes > 0 && seconds > 0.0 {
+            self.artifact_egress_throughput
+                .get_or_create(&ArtifactRouteLabels {
+                    producer: producer.as_str().to_owned(),
+                })
+                .observe(bytes as f64 / seconds);
+        }
+    }
+
+    pub fn observe_public_request_latency(
+        &self,
+        transport: &str,
+        route: &str,
+        duration: Duration,
+    ) {
+        self.public_request_latency
+            .get_or_create(&PublicRequestLatencyLabels {
+                transport: transport.to_owned(),
+                route: route.to_owned(),
             })
             .observe(duration.as_secs_f64());
     }
@@ -1469,6 +1513,12 @@ struct HttpExceptionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct PublicRequestLatencyLabels {
+    transport: String,
+    route: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactOpLabels {
     producer: String,
     result: String,
@@ -1703,6 +1753,11 @@ mod tests {
         metrics.update_http_inflight(2);
         metrics.update_public_http_inflight(1);
         metrics.update_public_request_latency_ewma(Duration::from_millis(42));
+        metrics.observe_public_request_latency(
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(12),
+        );
         metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
@@ -1776,6 +1831,9 @@ mod tests {
         assert!(rendered.contains("kura_artifact_egress_completions_total"));
         assert!(rendered.contains("kura_artifact_egress_bytes_total"));
         assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
+        assert!(rendered.contains("kura_artifact_egress_throughput_bytes_per_second"));
+        assert!(rendered.contains("kura_public_request_latency_seconds"));
+        assert!(rendered.contains("transport=\"http\""));
         assert!(rendered.contains("kura_segment_refreshes_total"));
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_replication_requests_total"));

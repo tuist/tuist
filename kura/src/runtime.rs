@@ -6,7 +6,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(test)]
@@ -207,7 +207,21 @@ impl RuntimeState {
         InflightGuard::new(self.clone(), metrics.clone(), InflightKind::Grpc)
     }
 
-    fn record_public_request_latency(&self, metrics: &Metrics, duration: Duration) {
+    /// Records the time to first response byte for a completed public request.
+    ///
+    /// Callers invoke this once the response is ready to start streaming, not
+    /// when the body finishes, so the signal stays responsiveness-focused and
+    /// large downloads do not masquerade as latency in the adaptation EWMA or
+    /// the `kura_public_request_latency_seconds` histogram.
+    pub fn record_public_request_latency(
+        &self,
+        metrics: &Metrics,
+        transport: &str,
+        route: &str,
+        duration: Duration,
+    ) {
+        metrics.observe_public_request_latency(transport, route, duration);
+
         let sample_micros = duration.as_micros().min(u64::MAX as u128) as u64;
         if sample_micros == 0 {
             return;
@@ -263,7 +277,6 @@ pub struct InflightGuard {
     runtime: Arc<RuntimeState>,
     metrics: Metrics,
     kind: InflightKind,
-    started_at: Instant,
     active: bool,
 }
 
@@ -273,7 +286,6 @@ impl InflightGuard {
             runtime,
             metrics,
             kind,
-            started_at: Instant::now(),
             active: true,
         }
     }
@@ -285,10 +297,6 @@ impl Drop for InflightGuard {
             return;
         }
         self.active = false;
-        let public_load = matches!(
-            self.kind,
-            InflightKind::Http { public_load: true } | InflightKind::Grpc
-        );
         match self.kind {
             InflightKind::Http { public_load } => {
                 let previous = self.runtime.http_inflight.fetch_sub(1, Ordering::SeqCst);
@@ -308,10 +316,6 @@ impl Drop for InflightGuard {
                 self.metrics
                     .update_grpc_inflight(previous.saturating_sub(1));
             }
-        }
-        if public_load {
-            self.runtime
-                .record_public_request_latency(&self.metrics, self.started_at.elapsed());
         }
         self.runtime.inflight_changed.notify_waiters();
     }
@@ -464,7 +468,12 @@ mod tests {
 
         assert_eq!(runtime.public_latency_pressure_divisor(100), 1);
 
-        runtime.record_public_request_latency(&metrics, Duration::from_millis(250));
+        runtime.record_public_request_latency(
+            &metrics,
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(250),
+        );
 
         assert_eq!(
             runtime.public_request_latency_ewma(),

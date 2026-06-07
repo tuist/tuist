@@ -39,6 +39,7 @@ use crate::{
 const MAX_HEADER_BYTES: usize = 16 * 1024;
 const HEADER_TIMEOUT: Duration = Duration::from_secs(30);
 const IO_TIMEOUT: Duration = Duration::from_secs(120);
+const KEEP_ALIVE_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_INITIAL_STREAM_WINDOW_BYTES: u32 = 1024 * 1024;
 const HTTP2_INITIAL_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
@@ -107,36 +108,108 @@ async fn serve_connection(
     config: AcceleratedFileServingConfig,
     semaphore: Arc<Semaphore>,
 ) -> std::io::Result<()> {
-    match classify(&stream, &state).await {
-        ClassifiedRequest::Accelerate(candidate) => {
-            let Ok(_permit) = semaphore.try_acquire_owned() else {
-                return serve_hyper(stream, router).await;
+    loop {
+        // Bound the wait for the next request so idle keep-alive connections do
+        // not pin a task and file descriptor forever.
+        let classified =
+            match tokio::time::timeout(KEEP_ALIVE_IDLE_TIMEOUT, classify_route(&stream, &state))
+                .await
+            {
+                Ok(classified) => classified,
+                Err(_) => return Ok(()),
             };
-            consume_headers(&mut stream, candidate.header_len).await?;
-            serve_accelerated(stream, state, config, candidate).await
+
+        // Match the route from a non-destructive peek before doing any access or
+        // store work. Anything that is not an accelerable artifact GET, including
+        // a pipelined follow-up on a reused connection, or anything that arrives
+        // once the accelerator is at capacity, falls through to the normal
+        // Axum/Hyper path before request bytes are consumed and without
+        // re-evaluating access twice. The peek does not consume bytes, so Hyper
+        // re-reads the request from the start.
+        let Some((parsed, artifact)) = classified else {
+            return serve_hyper(stream, router).await;
+        };
+        let keep_alive = request_wants_keep_alive(&parsed);
+        let request_started_at = Instant::now();
+        let Ok(permit) = semaphore.clone().try_acquire_owned() else {
+            return serve_hyper(stream, router).await;
+        };
+        match authorize_and_open(&state, parsed, artifact).await {
+            ClassifiedRequest::Accelerate(candidate) => {
+                consume_headers(&mut stream, candidate.header_len).await?;
+                let reuse = serve_accelerated(
+                    stream,
+                    &state,
+                    &config,
+                    candidate,
+                    request_started_at,
+                    keep_alive,
+                )
+                .await;
+                drop(permit);
+                match reuse? {
+                    Some(reused) => {
+                        stream = reused;
+                        continue;
+                    }
+                    None => return Ok(()),
+                }
+            }
+            ClassifiedRequest::Deny(denial) => {
+                drop(permit);
+                consume_headers(&mut stream, denial.header_len).await?;
+                let headers = BTreeMap::new();
+                let result = write_response(
+                    &mut stream,
+                    denial.status,
+                    denial.reason,
+                    "text/plain",
+                    &headers,
+                    denial.body.as_bytes(),
+                )
+                .await;
+                state.metrics.record_http(
+                    denial.route.to_owned(),
+                    StatusCode::from_u16(denial.status)
+                        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                    None,
+                    Duration::ZERO,
+                );
+                return result;
+            }
+            ClassifiedRequest::Fallback => {
+                drop(permit);
+                return serve_hyper(stream, router).await;
+            }
         }
-        ClassifiedRequest::Deny(denial) => {
-            consume_headers(&mut stream, denial.header_len).await?;
-            let headers = BTreeMap::new();
-            let result = write_response(
-                &mut stream,
-                denial.status,
-                denial.reason,
-                "text/plain",
-                &headers,
-                denial.body.as_bytes(),
-            )
-            .await;
-            state.metrics.record_http(
-                denial.route.to_owned(),
-                StatusCode::from_u16(denial.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
-                None,
-                Duration::ZERO,
-            );
-            result
-        }
-        ClassifiedRequest::Fallback => serve_hyper(stream, router).await,
     }
+}
+
+fn request_wants_keep_alive(parsed: &ParsedRequest) -> bool {
+    // Only HTTP/1.1 GETs reach here. Default to keep-alive unless the client
+    // asked to close, or the request carries a body we did not consume, which
+    // would desync a reused connection.
+    if parsed
+        .headers
+        .get("connection")
+        .map(|value| {
+            value
+                .split(',')
+                .any(|token| token.trim().eq_ignore_ascii_case("close"))
+        })
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    if parsed.headers.contains_key("transfer-encoding") {
+        return false;
+    }
+    if let Some(length) = parsed.headers.get("content-length")
+        && length.trim() != "0"
+    {
+        return false;
+    }
+    true
 }
 
 async fn serve_hyper(stream: TcpStream, router: Router) -> std::io::Result<()> {
@@ -213,29 +286,39 @@ struct ArtifactRequest {
     namespace_id: String,
     key: String,
     analytics_key: Option<String>,
+    artifact_hash: Option<String>,
     route: &'static str,
     path: String,
     query: BTreeMap<String, String>,
 }
 
-async fn classify(stream: &TcpStream, state: &SharedState) -> ClassifiedRequest {
+async fn classify_route(
+    stream: &TcpStream,
+    state: &SharedState,
+) -> Option<(ParsedRequest, ArtifactRequest)> {
     if !cfg!(target_os = "linux") || state.runtime.is_draining() {
-        return ClassifiedRequest::Fallback;
+        return None;
     }
     let parsed = match peek_request(stream).await {
         Ok(Some(parsed)) => parsed,
-        Ok(None) => return ClassifiedRequest::Fallback,
+        Ok(None) => return None,
         Err(error) => {
             tracing::debug!("failed to classify request for acceleration: {error}");
-            return ClassifiedRequest::Fallback;
+            return None;
         }
     };
     if parsed.version != 1 || parsed.method != "GET" {
-        return ClassifiedRequest::Fallback;
+        return None;
     }
-    let Some(artifact) = artifact_request(&parsed.target, &state.config.tenant_id) else {
-        return ClassifiedRequest::Fallback;
-    };
+    let artifact = artifact_request(&parsed.target, &state.config.tenant_id)?;
+    Some((parsed, artifact))
+}
+
+async fn authorize_and_open(
+    state: &SharedState,
+    parsed: ParsedRequest,
+    artifact: ArtifactRequest,
+) -> ClassifiedRequest {
     let access_context = extension_context(state, &parsed, &artifact, None);
     let principal = if let Some(extension) = state.extension.as_ref() {
         match extension.evaluate_access(&access_context).await {
@@ -350,45 +433,72 @@ async fn consume_headers(stream: &mut TcpStream, header_len: usize) -> std::io::
 
 async fn serve_accelerated(
     stream: TcpStream,
-    state: SharedState,
-    config: AcceleratedFileServingConfig,
+    state: &SharedState,
+    config: &AcceleratedFileServingConfig,
     candidate: AcceleratedCandidate,
-) -> std::io::Result<()> {
-    let started_at = Instant::now();
+    request_started_at: Instant,
+    keep_alive: bool,
+) -> std::io::Result<Option<TcpStream>> {
+    let transfer_started_at = Instant::now();
     let _request_guard = state.start_http_request(HttpTrafficClass::Public);
     let file = candidate.file.clone();
     let producer = candidate.artifact.producer;
-    let tenant_id = candidate.artifact.tenant_id.clone();
+    // Accelerated requests are always for this node's tenant: cross-tenant
+    // requests fall back to the Axum path during classification. Attribute
+    // usage and analytics to the configured tenant so the numbers match the
+    // Axum handlers, which key off the node tenant rather than the per-request
+    // namespace tenant alias.
+    let tenant_id = state.config.tenant_id.clone();
     let namespace_id = candidate.artifact.namespace_id.clone();
     let analytics_key = candidate.artifact.analytics_key.clone();
     let route = candidate.artifact.route.to_owned();
     let extension_headers = candidate.extension_response_headers.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        let mut stream = stream.into_std()?;
-        stream.set_nonblocking(false)?;
-        stream.set_write_timeout(Some(IO_TIMEOUT))?;
-        write_headers(
-            &mut stream,
-            200,
-            "OK",
-            &file.content_type,
-            file.size,
-            &extension_headers,
-        )?;
-        transfer_file(&mut stream, &file, config.mode, config.chunk_bytes)
-    })
+    let content_type = sanitized_content_type(&file.content_type);
+    let mode = config.mode;
+    let chunk_bytes = config.chunk_bytes;
+    let result = tokio::task::spawn_blocking(
+        move || -> std::io::Result<(std::net::TcpStream, u64, Duration)> {
+            let mut stream = stream.into_std()?;
+            stream.set_nonblocking(false)?;
+            stream.set_write_timeout(Some(IO_TIMEOUT))?;
+            write_headers(
+                &mut stream,
+                200,
+                "OK",
+                &content_type,
+                file.size,
+                &extension_headers,
+                keep_alive,
+            )?;
+            // Time to first byte is measured once the headers are on the wire,
+            // before the body transfer, so large downloads do not inflate the
+            // responsiveness signal.
+            let time_to_first_byte = request_started_at.elapsed();
+            let bytes = transfer_file(&mut stream, &file, mode, chunk_bytes)?;
+            Ok((stream, bytes, time_to_first_byte))
+        },
+    )
     .await
     .map_err(std::io::Error::other)?;
 
     match result {
-        Ok(bytes) => {
+        Ok((std_stream, bytes, time_to_first_byte)) => {
+            state.runtime.record_public_request_latency(
+                &state.metrics,
+                "http",
+                &route,
+                time_to_first_byte,
+            );
             state
                 .metrics
-                .record_http(route, StatusCode::OK, None, started_at.elapsed());
+                .record_http(route, StatusCode::OK, None, time_to_first_byte);
             state.metrics.record_artifact_read(producer, "ok", bytes);
-            state
-                .metrics
-                .record_artifact_egress(producer, "ok", bytes, started_at.elapsed());
+            state.metrics.record_artifact_egress(
+                producer,
+                "ok",
+                bytes,
+                transfer_started_at.elapsed(),
+            );
             record_usage(
                 state.usage.as_ref(),
                 producer,
@@ -404,19 +514,24 @@ async fn serve_accelerated(
                 analytics_key.as_deref(),
                 bytes,
             );
-            Ok(())
+            if keep_alive {
+                std_stream.set_nonblocking(true)?;
+                Ok(Some(TcpStream::from_std(std_stream)?))
+            } else {
+                Ok(None)
+            }
         }
         Err(error) => {
             state.metrics.record_http(
                 route,
                 StatusCode::INTERNAL_SERVER_ERROR,
                 None,
-                started_at.elapsed(),
+                transfer_started_at.elapsed(),
             );
             state.metrics.record_artifact_read(producer, "error", 0);
             state
                 .metrics
-                .record_artifact_egress(producer, "error", 0, started_at.elapsed());
+                .record_artifact_egress(producer, "error", 0, transfer_started_at.elapsed());
             Err(error)
         }
     }
@@ -486,6 +601,7 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
             namespace_id: NX_NAMESPACE_ID.to_owned(),
             key: hash.to_owned(),
             analytics_key: None,
+            artifact_hash: Some(hash.to_owned()),
             route: "/v1/cache/{hash}",
             path: path.to_owned(),
             query: params,
@@ -498,6 +614,7 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
             namespace_id: METRO_NAMESPACE_ID.to_owned(),
             key: cache_key.to_owned(),
             analytics_key: None,
+            artifact_hash: Some(cache_key.to_owned()),
             route: "/api/metro/cache/{cache_key}",
             path: path.to_owned(),
             query: params,
@@ -511,6 +628,7 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
             namespace_id,
             key: blob_key(id),
             analytics_key: Some(id.to_owned()),
+            artifact_hash: Some(id.to_owned()),
             route: "/api/cache/cas/{id}",
             path: path.to_owned(),
             query: params,
@@ -524,6 +642,7 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
             namespace_id,
             key: cache_key.to_owned(),
             analytics_key: Some(cache_key.to_owned()),
+            artifact_hash: Some(cache_key.to_owned()),
             route: "/api/cache/gradle/{cache_key}",
             path: path.to_owned(),
             query: params,
@@ -543,6 +662,7 @@ fn artifact_request(target: &str, tenant_id: &str) -> Option<ArtifactRequest> {
             namespace_id,
             key: module_key(&category, hash, name),
             analytics_key: None,
+            artifact_hash: Some(hash.to_owned()),
             route: "/api/cache/module/{id}",
             path: path.to_owned(),
             query: params,
@@ -571,7 +691,7 @@ fn extension_context(
         },
         producer: Some(artifact.producer.as_str().to_owned()),
         artifact_key: Some(artifact.key.clone()),
-        artifact_hash: artifact.analytics_key.clone(),
+        artifact_hash: artifact.artifact_hash.clone(),
         headers: parsed.headers.clone(),
         query: artifact.query.clone(),
         status_code,
@@ -652,10 +772,12 @@ fn write_headers(
     content_type: &str,
     content_length: u64,
     headers: &BTreeMap<String, String>,
+    keep_alive: bool,
 ) -> std::io::Result<()> {
+    let connection = if keep_alive { "keep-alive" } else { "close" };
     write!(
         stream,
-        "HTTP/1.1 {status} {reason}\r\ncontent-length: {content_length}\r\ncontent-type: {content_type}\r\nconnection: close\r\n"
+        "HTTP/1.1 {status} {reason}\r\ncontent-length: {content_length}\r\ncontent-type: {content_type}\r\nconnection: {connection}\r\n"
     )?;
     append_headers(stream, headers)?;
     stream.write_all(b"\r\n")
@@ -672,6 +794,14 @@ fn append_headers(
         write!(output, "{name}: {value}\r\n")?;
     }
     Ok(())
+}
+
+fn sanitized_content_type(content_type: &str) -> String {
+    if axum::http::HeaderValue::from_str(content_type).is_ok() {
+        content_type.to_owned()
+    } else {
+        "application/octet-stream".to_owned()
+    }
 }
 
 fn reason_for_status(status: u16) -> &'static str {
@@ -841,7 +971,56 @@ fn ensure_complete_transfer(operation: &str, sent: u64, expected: u64) -> std::i
 mod tests {
     use crate::artifact::producer::ArtifactProducer;
 
-    use super::{artifact_request, parse_request};
+    use super::{
+        ParsedRequest, artifact_request, parse_request, request_wants_keep_alive,
+        sanitized_content_type,
+    };
+
+    fn parsed_with_headers(headers: &[(&str, &str)]) -> ParsedRequest {
+        ParsedRequest {
+            method: "GET".to_owned(),
+            target: "/api/cache/cas/hash".to_owned(),
+            version: 1,
+            header_len: 0,
+            headers: headers
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn keep_alive_defaults_on_and_disables_for_close_or_unconsumed_body() {
+        assert!(request_wants_keep_alive(&parsed_with_headers(&[(
+            "host",
+            "localhost"
+        )])));
+        assert!(request_wants_keep_alive(&parsed_with_headers(&[(
+            "connection",
+            "keep-alive"
+        )])));
+        assert!(request_wants_keep_alive(&parsed_with_headers(&[(
+            "content-length",
+            "0"
+        )])));
+
+        assert!(!request_wants_keep_alive(&parsed_with_headers(&[(
+            "connection",
+            "close"
+        )])));
+        assert!(!request_wants_keep_alive(&parsed_with_headers(&[(
+            "connection",
+            "keep-alive, close"
+        )])));
+        assert!(!request_wants_keep_alive(&parsed_with_headers(&[(
+            "content-length",
+            "10"
+        )])));
+        assert!(!request_wants_keep_alive(&parsed_with_headers(&[(
+            "transfer-encoding",
+            "chunked"
+        )])));
+    }
 
     #[test]
     fn parses_xcode_artifact_request() {
@@ -854,6 +1033,7 @@ mod tests {
         assert_eq!(request.producer, ArtifactProducer::Xcode);
         assert_eq!(request.namespace_id, "ios");
         assert_eq!(request.key, "blob/hash");
+        assert_eq!(request.artifact_hash.as_deref(), Some("hash"));
     }
 
     #[test]
@@ -867,6 +1047,26 @@ mod tests {
         assert_eq!(request.producer, ArtifactProducer::Module);
         assert_eq!(request.namespace_id, "ios");
         assert_eq!(request.key, "builds/abc/App");
+        assert_eq!(request.artifact_hash.as_deref(), Some("abc"));
+    }
+
+    #[test]
+    fn module_nx_and_metro_requests_carry_extension_artifact_hash() {
+        let nx = artifact_request("/v1/cache/nx-hash", "acme").expect("nx request should parse");
+        assert_eq!(nx.artifact_hash.as_deref(), Some("nx-hash"));
+
+        let metro = artifact_request("/api/metro/cache/metro-key", "acme")
+            .expect("metro request should parse");
+        assert_eq!(metro.artifact_hash.as_deref(), Some("metro-key"));
+    }
+
+    #[test]
+    fn sanitizes_content_type_with_unsafe_characters() {
+        assert_eq!(sanitized_content_type("application/zip"), "application/zip");
+        assert_eq!(
+            sanitized_content_type("text/plain\r\nset-cookie: x=y"),
+            "application/octet-stream"
+        );
     }
 
     #[test]
