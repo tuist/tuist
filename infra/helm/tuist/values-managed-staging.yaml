@@ -139,6 +139,14 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
+      # See values-managed-production.yaml for the rationale. Staging
+      # has its own tailnet, so the tag is the staging-scoped one
+      # (`tag:tuist-k8s-staging`) — the operator's OAuth client there
+      # is only allowed to mint nodes with that tag.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-staging
+        tags: tag:tuist-k8s-staging
     storage:
       size: "10Gi"
     resources:
@@ -198,6 +206,8 @@ xcresultProcessor:
   # Single replica in staging, matching macosFleet.replicas=1.
   enabled: true
   replicaCount: 1
+  # Tailnet-fronted URL key — see values-managed-production.yaml.
+  databaseUrlSecretKey: xcresult-processor-database-url
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the

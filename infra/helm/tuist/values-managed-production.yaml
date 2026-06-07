@@ -131,6 +131,17 @@ postgresql:
     # we move it onto the pooler — see MIGRATION.md §6e.
     pooler:
       enabled: true
+      # Stand up a Tailscale operator-managed proxy in front of the
+      # pooler so the xcresult-processor (macOS Tart VMs whose only
+      # interface is Tailscale) can reach the in-cluster pooler without
+      # routing the K8s service CIDR through the existing subnet router.
+      # The processor's ExternalSecret renders an additional URL key
+      # for that hostname; xcresultProcessor.databaseUrlSecretKey below
+      # opts the Tart VM Deployment into using it.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-production
+        tags: tag:tuist-k8s-production
     # PostgreSQL config sized against the 16 GiB memory limit below. The
     # CNPG operator otherwise leaves Postgres on its 128 MiB shared_buffers
     # default, which on a 16 GiB instance means ~99% of the page cache
@@ -273,6 +284,12 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  # Opt these pods into the Tailscale-fronted URL the processor's
+  # ExternalSecret renders when postgresql.cnpg.pooler.tailscale.enabled
+  # is true. Tart VM pods have no route to the in-cluster pooler
+  # ClusterIP (their only network is Tailnet); the Linux processor
+  # keeps the direct in-cluster URL via the default key.
+  databaseUrlSecretKey: xcresult-processor-database-url
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod

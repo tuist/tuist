@@ -1303,6 +1303,24 @@ postgresql:
       parameters:
         default_pool_size: "20"
         max_client_conn: "100"
+      # Annotate the Pooler's Service so the Tailscale operator stands up
+      # a userspace proxy on the tailnet, exposing the in-cluster pooler
+      # ClusterIP at a stable MagicDNS hostname. The processor's
+      # ExternalSecret then renders a second URL keyed off that hostname
+      # for clients whose only network interface is Tailnet — namely the
+      # macOS Tart VM xcresult-processor pods, which can't reach
+      # ClusterIPs through the K8s overlay. Linux processors keep using
+      # the direct in-cluster pooler hostname (no detour).
+      tailscale:
+        enabled: false
+        # tailscale.com/hostname annotation. Must be unique on the tailnet
+        # — by convention, "tuist-pg-pooler-<env>".
+        hostname: ""
+        # tailscale.com/tags annotation override. The operator's
+        # PROXY_TAGS default ("tag:k8s") is platform-wide and the
+        # tailnet's ACL only permits Tuist-scoped tags; set this to the
+        # env's permitted tag (e.g. "tag:tuist-k8s-production").
+        tags: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"
