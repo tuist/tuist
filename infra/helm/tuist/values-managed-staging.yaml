@@ -247,6 +247,12 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-staging"]
+  # See values-managed-production.yaml — same shape, staging's
+  # Tailscale-exposed pooler hostname.
+  hostTCPForwards:
+    - name: pg-pooler
+      listen: "0.0.0.0:5432"
+      target: tuist-pg-pooler-staging:5432
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight

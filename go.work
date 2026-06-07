@@ -16,6 +16,7 @@ go 1.25.0
 use (
 	./infra/cluster-api-provider-scaleway-applesilicon
 	./infra/hetzner-robot-controller
+	./infra/host-tcp-forwarder
 	./infra/kura-controller
 	./infra/macos-host-bootstrap
 	./infra/runners-controller

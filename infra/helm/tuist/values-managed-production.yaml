@@ -307,6 +307,16 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-production"]
+  # Tart VM → tailnet bridge for the xcresult-processor. The CAPI
+  # bootstrap installs the host-tcp-forwarder binary + one launchd
+  # plist per entry; the Tart VM dials its vmnet gateway on :5432 and
+  # the host relays via tailscale0 to the CNPG pooler proxy. See
+  # macosFleet.hostTCPForwards in values.yaml and
+  # macos-host-bootstrap/bootstrap.go:installHostTCPForwarder.
+  hostTCPForwards:
+    - name: pg-pooler
+      listen: "0.0.0.0:5432"
+      target: tuist-pg-pooler-production:5432
   # Claim pre-ordered Mac minis from the shared `tuist-pool-`
   # pool. The CAPI controller has no auto-order path; operators
   # pre-order capacity in the Scaleway console.

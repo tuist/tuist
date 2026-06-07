@@ -221,6 +221,12 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-canary"]
+  # See values-managed-production.yaml — same shape, canary's
+  # Tailscale-exposed pooler hostname.
+  hostTCPForwards:
+    - name: pg-pooler
+      listen: "0.0.0.0:5432"
+      target: tuist-pg-pooler-canary:5432
   controlPlane:
     host: api-canary.tuist.dev
 

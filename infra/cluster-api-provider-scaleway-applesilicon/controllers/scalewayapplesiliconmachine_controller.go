@@ -104,6 +104,22 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// of mistake we don't want a chart-level toggle to make easy).
 	NodeExporterBinary []byte
 
+	// HostTCPForwarderBinary is the darwin/arm64 host-tcp-forwarder
+	// binary (cross-compiled in the operator image from
+	// infra/host-tcp-forwarder). Installed on each Mac mini and
+	// supervised by launchd; bridges Tart VM outbound traffic to
+	// tailnet-exposed cluster Services via the host's tailscale0
+	// interface. See bootstrap.installHostTCPForwarder. Empty
+	// disables the step.
+	HostTCPForwarderBinary []byte
+
+	// HostTCPForwards is the fleet-wide set of forwards installed on
+	// every Mac mini when HostTCPForwarderBinary is non-empty. Today
+	// every Mac mini in a given fleet gets the same set; if a future
+	// need calls for per-machine forwards, this field stays as the
+	// default and the Machine CR's spec can carry an override.
+	HostTCPForwards []bootstrap.HostTCPForward
+
 	// TailscaleTags are the Tailscale ACL tags every Mac mini in
 	// the fleet advertises at `tailscale up` time (e.g.
 	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
@@ -550,8 +566,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			TailscaleBinaries:    r.TailscaleBinaries,
 			TailscaleAuthKey:     tailscaleAuthKey,
 			TailscaleTags:        r.TailscaleTags,
-			NodeExporterBinary:   r.NodeExporterBinary,
-			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			NodeExporterBinary:     r.NodeExporterBinary,
+			HostTCPForwarderBinary: r.HostTCPForwarderBinary,
+			HostTCPForwards:        r.HostTCPForwards,
+			HostCPU:                hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
@@ -656,8 +674,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// node_exporter silently skip on every drift update —
 			// installNodeExporter short-circuits when its binary is
 			// empty.
-			NodeExporterBinary:   r.NodeExporterBinary,
-			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
+			NodeExporterBinary:     r.NodeExporterBinary,
+			HostTCPForwarderBinary: r.HostTCPForwarderBinary,
+			HostTCPForwards:        r.HostTCPForwards,
+			HostCPU:                hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),

@@ -413,6 +413,16 @@ xcresultProcessor:
   # that point at a different Secret.
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
+  # Host the Tart VM dials for its Postgres URL when the chart
+  # renders the `xcresult-processor-database-url` Secret key (i.e.
+  # when `postgresql.cnpg.pooler.tailscale.enabled` is true). The Tart
+  # VM has no tailnet identity; it can't reach the pooler proxy
+  # directly. It dials its vmnet gateway here, which is the host-side
+  # host-tcp-forwarder's bind address. Tart's vmnet shared-NAT mode
+  # uses 192.168.64.0/24 with .1 as the gateway by default, so the
+  # default works for the standard Tart configuration. Override per
+  # env only if you've changed Tart's vmnet subnet on the host.
+  vmnetGatewayHost: "192.168.64.1"
   extraEnv: []
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
@@ -656,6 +666,25 @@ macosFleet:
       item: TAILSCALE
       fields:
         authKey: auth-key
+  # Host-side TCP forwards installed on every Mac mini the operator
+  # reconciles. Each entry is bridged by a launchd-supervised
+  # host-tcp-forwarder process: a Tart VM connects to the host's vmnet
+  # gateway on `listen`, the host relays the stream through tailscale0
+  # to `target`. This is how Tart VMs reach tailnet-exposed cluster
+  # Services — they have no tailnet identity of their own and vmnet's
+  # NAT routes outbound through the host's public-internet uplink, not
+  # through tailscale0.
+  #
+  # Per-env values populate this. Production wires
+  # `pg-pooler=0.0.0.0:5432=tuist-pg-pooler-production:5432` so the
+  # xcresult-processor Tart VM reaches the CNPG pooler via the
+  # tailnet proxy `postgresql.cnpg.pooler.tailscale.hostname`
+  # registers. Empty list installs no forwards.
+  hostTCPForwards: []
+    # - name: pg-pooler          # launchd label suffix; [a-z0-9-]
+    #   listen: "0.0.0.0:5432"   # host bind (0.0.0.0 catches the VM-gateway path)
+    #   target: "tuist-pg-pooler-production:5432"  # MagicDNS hostname or IP
+
   # Tailscale egress Services. When enabled, the CAPI operator
   # creates one ExternalName Service per Mac mini in
   # `.namespace` (matching the tailscale-operator wrapper chart's
