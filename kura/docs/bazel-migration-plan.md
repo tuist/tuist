@@ -583,10 +583,18 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     results, so **every CI build re-runs them** (effective cache invalidation every build),
     which would have made 4c look broken.
   - **Runs alongside 4a on purpose** (non-gating) so one push yields both warm-build numbers
-    for a direct comparison. Once 4c is trusted, drop the `--disk_cache` jobs (`bazel-linux`,
-    `oci`). Land/keep before the Phase 3.6 production cutover so the cutover inherits a proven
-    Kura-backed CI cache. **Still to do:** push a run, confirm cold→warm hits in CI, compare
-    times vs 4a.
+    for a direct comparison. Land/keep before the Phase 3.6 production cutover so the cutover
+    inherits a proven Kura-backed CI cache.
+  - **Cleanup — full removal, no disk_cache fallback (decided).** Once 4c is trusted, delete
+    the `--disk_cache` jobs (`bazel-linux`, `oci`) outright rather than keeping one as a
+    fallback: the `-kura` jobs are a functional superset (same binaries, image, smoke, e2e),
+    and a Kura-cache failure degrades to *slow* CI (cache miss → recompile), not *broken* CI,
+    so a fallback buys little. Exit criteria before deleting them (hold for ~a week of pushes):
+    (1) cold→warm proven in CI (first run uploads, next run hits, fast); (2) the `Stop Kura`
+    step's `::warning::` stays at **0** persist/fd errors every run; (3) both arches green
+    (multi-arch pull + cross builds + the Linux chmod); (4) `actions/cache` save/restore of
+    the data dir is stable and the `oci-kura` cross-job seeding actually hits; (5) warm times
+    comparable to 4a.
 
 ## Open questions / risks
 
