@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in xcresult-processor-image@0.12.0<!-- RELEASE NOTES START -->
+## What's Changed in xcresult-processor-image@0.12.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
 * track Kura node usage and add Usage dashboard ([#10979](https://github.com/tuist/tuist/pull/10979))
 ### 🐛 Bug Fixes
 
+* stop canary 500s from web-pool/Oban contention on create_project ([#11107](https://github.com/tuist/tuist/pull/11107))
+* lower minimum CLI version ([#11120](https://github.com/tuist/tuist/pull/11120))
 * aggregate Kura usage by region ([#11092](https://github.com/tuist/tuist/pull/11092))
 * configure STS region for IRSA ([#11111](https://github.com/tuist/tuist/pull/11111))
 * Prefer ready Kura cache endpoints ([#11089](https://github.com/tuist/tuist/pull/11089))
@@ -40,7 +42,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.9.2...xcresult-processor-image@0.12.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.9.2...xcresult-processor-image@0.12.1
 
 ## What's Changed in xcresult-processor-image@0.9.2<!-- RELEASE NOTES START -->
 

@@ -529,9 +529,12 @@ async fn serve_accelerated(
                 transfer_started_at.elapsed(),
             );
             state.metrics.record_artifact_read(producer, "error", 0);
-            state
-                .metrics
-                .record_artifact_egress(producer, "error", 0, transfer_started_at.elapsed());
+            state.metrics.record_artifact_egress(
+                producer,
+                "error",
+                0,
+                transfer_started_at.elapsed(),
+            );
             Err(error)
         }
     }

@@ -1265,6 +1265,44 @@ postgresql:
     owner: tuist_app
     # Initial database created on bootstrap.
     database: tuist
+    # Server-level Postgres parameters merged into the Cluster CR's
+    # spec.postgresql.parameters. max_connections must cover the aggregate
+    # direct-connection budget: web replicas x TUIST_DATABASE_POOL_SIZE +
+    # processor + pooler backend pool + replication/monitoring/superuser
+    # overhead. The operator default is 100; set it explicitly so a
+    # multi-replica env (production autoscales the web tier to 5) doesn't
+    # silently hit the ceiling. See infra/cnpg/MIGRATION.md for the budget.
+    parameters:
+      max_connections: "100"
+    # Extra Postgres libraries to preload via shared_preload_libraries.
+    # Kept separate from `parameters` because CNPG's admission webhook
+    # rejects shared_preload_libraries set there — it's a fixed
+    # parameter the operator manages internally. The chart renders this
+    # list to `spec.postgresql.shared_preload_libraries` on the Cluster
+    # CR, the supported path.
+    sharedPreloadLibraries: []
+    # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
+    # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
+    # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier and
+    # Postgres-peer leader election don't survive *transaction* pooling). On
+    # Supabase the web tier still rides Supavisor in *session* mode (:5432),
+    # but that pooler exists for Supabase-platform reasons (IPv4-only direct
+    # endpoint, managed connection front door); in-cluster the `-rw` Service
+    # is already the native session endpoint with primary failover, so we
+    # connect the web tier straight to it. Both are session-mode, so the
+    # app's connection shape is identical either way. Enabling is just a
+    # flag flip: with no custom cert secrets below, CNPG's built-in
+    # PgBouncer integration manages auth itself (it creates the
+    # cnpg_pooler_pgbouncer role + user_search function in the `postgres`
+    # database on reconcile). See infra/cnpg/README.md.
+    pooler:
+      enabled: false
+      instances: 1
+      poolMode: transaction
+      parameters:
+        default_pool_size: "20"
+        max_client_conn: "100"
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"

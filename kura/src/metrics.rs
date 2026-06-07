@@ -966,12 +966,7 @@ impl Metrics {
         }
     }
 
-    pub fn observe_public_request_latency(
-        &self,
-        transport: &str,
-        route: &str,
-        duration: Duration,
-    ) {
+    pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
         self.public_request_latency
             .get_or_create(&PublicRequestLatencyLabels {
                 transport: transport.to_owned(),
