@@ -595,6 +595,22 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     (multi-arch pull + cross builds + the Linux chmod); (4) `actions/cache` save/restore of
     the data dir is stable and the `oci-kura` cross-job seeding actually hits; (5) warm times
     comparable to 4a.
+  - **First CI results (run `27104501258`, 2026-06-07).** Cold run: all 6 jobs green, Kura
+    booted in all 3 `-kura` jobs, **0 persist/fd errors** on both arches, all three
+    `kura-data-*` caches saved. Warm re-run, `bazel-linux-kura` **x86_64: exact-key restore →
+    `797 remote cache hit, 0 sandbox` → ~46 min cold dropped to ~1.8 min** (criteria 1–4
+    met). Two follow-ups surfaced, both orthogonal to 4c's wiring:
+    - **arm64 warm = partial miss (criterion 5 not yet met).** The x86_64-**cross** leg's
+      `librocksdb-sys` build script re-executed (~16 min) instead of hitting, while
+      x86_64-native hit perfectly — likely build-script action-key non-determinism on the
+      cross path (would also affect 4a's `--disk_cache`). Still green/correct, but arm64 warm
+      time isn't comparable yet. Investigate before trusting arm64 warm caching.
+    - **OCI e2e flaked on a GitHub API 403 rate limit** (both 4a `oci` and `oci-kura`, same
+      `Run e2e` step) — `mise exec -- shellspec` re-resolves unrelated root-repo tools
+      (`aube`/`blick`/`opencode-ai`) and hammered the API on the back-to-back re-run. Not a
+      4c issue (image built/loaded/smoked fine; passed in the cold run). Pre-existing: the
+      e2e step should not re-resolve tools it doesn't need. Avoid immediate re-runs; a real
+      warm comparison should come from an organic later push.
 
 ## Open questions / risks
 
