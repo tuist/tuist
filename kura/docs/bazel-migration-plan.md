@@ -115,7 +115,7 @@ only surfaces in production.
 | **1b — Linux arm64 tarball (cross)** | The Bookworm cross sysroot for `aarch64`. | Yes (per-target flip) | arm64 binary cross-built from x86, verified on real arm hardware and inside Bookworm. |
 | **2 — macOS tarballs** | Bazel on `tuist-macos` for both darwin targets. | Optional / deferrable | macOS isn't on the image critical path; may stay on Cargo indefinitely. |
 | **3 — OCI image (the win)** | `rules_oci` wrapping the Phase 1 Linux binaries, `oci_image_index`, `oci_push`. geoip becomes a pinned layer. Delete QEMU / Buildx / `build-push-action`. | Yes | Image runs on both arches, e2e green, then flip tags. |
-| **4 — Remote cache** | Point Bazel at a remote cache (ideally Kura itself — dogfooding). | Yes | Pure optimization; toggle freely. |
+| **4 — Remote cache** | Point Bazel at a remote cache (ideally Kura itself — dogfooding). | Yes | Speeds rebuilds; **dogfooding Kura surfaced two REAPI bugs** (see 4b) — not purely optional. |
 
 ### Phase 0 — Foundation + rocksdb spike
 
@@ -512,6 +512,43 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     compile actions are identical between the binary and image builds, the first `oci` run
     is seeded for free.
   A true shared remote cache (Kura-backed) is the later, cross-runner step.
+
+- **4b — Kura-backed remote cache (local dogfooding). ✅ Working (with caveats).**
+  `bazel/local-ci.sh` now runs a single Kura node as the Bazel `--remote_cache` for the
+  full local validation flow: a shared Docker network so the dev/build container reaches it
+  by name, node storage bind-mounted to a host folder so the cache persists across runs,
+  action caching through Kura (no `--disk_cache`), `--repository_cache` kept for downloaded
+  inputs. This is the first real exercise of Kura's REAPI surface as a build cache, and it
+  surfaced **two Kura defects** that both block caching cargo build-script (directory)
+  outputs — the `-sys` crates (rocksdb, jemalloc, aws-lc, lua). File-output actions (rustc
+  rlibs) cache fine and masked both.
+
+  1. **ByteStream upload not flushed (fixed — PR #11129).** The REAPI ByteStream `write`
+     handler wrote chunks to a temp file but never flushed before persist re-opened the
+     path on a separate fd to stat + copy into a segment; `tokio::fs::File`'s lazy flush
+     raced that read → `INTERNAL: failed to persist CAS blob: appended N bytes …, expected
+     M`. Fix on branch `fix/kura-reapi-bytestream-flush` (`src/reapi/mod.rs`: flush + drop
+     before persist, mirroring the HTTP path) + a regression test. Necessary but **not
+     sufficient** for rocksdb.
+
+  2. **FD-pool exhaustion under bursty uploads (config-mitigated; Kura fix pending).**
+     rocksdb's build script emits ~339 `.o` files that Bazel uploads concurrently; Kura's
+     FD pool (auto-derived from `RLIMIT_NOFILE`) runs out of permits and **fails** the
+     write after a 5s timeout (`ByteStream/Write` → `fd_pool_exhausted`), so the action
+     result is never stored → every later build misses → rocksdb recompiles. Mitigated by
+     starting the cache node with `KURA_FILE_DESCRIPTOR_POOL_SIZE=4096` +
+     `--ulimit nofile=16384` (wired into `local-ci.sh`). **Not yet fixed in Kura** — for a
+     production Kura-backed cache, size the pool for client upload concurrency or give Kura
+     write backpressure (wait/queue) instead of failing. Tracked as a follow-up.
+
+  **Validation:** with both in place, a rocksdb build-script round-trip across fresh Bazel
+  output bases against the patched image is **145/145 remote cache hits** on the second
+  build (~5s, no recompile); a full `local-ci.sh` run is green across all four stages.
+
+  **Image note:** until #11129 merges and the official `ghcr.io/tuist/kura` rebuilds,
+  `local-ci.sh` defaults `KURA_REMOTE_IMAGE` to a patched personal build
+  (`ghcr.io/esnunes/kura-fixed:cache`, public, arm64); revert to `ghcr.io/tuist/kura:latest`
+  afterward. The cross-runner shared remote cache (CI + dev) remains future work.
 
 ## Open questions / risks
 
