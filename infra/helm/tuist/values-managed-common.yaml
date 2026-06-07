@@ -215,9 +215,11 @@ xcresultProcessor:
     # Pinned to the workflow_dispatch build of this PR's HEAD —
     # carries tailscale + tailscaled + tailscale-up.sh + the chained
     # launchd plist that joins the VM to the tailnet before the BEAM
-    # boots. release-xcresult-processor-image rewrites this with the
-    # next semver tag on merge to main.
-    tag: "9c3e4878"
+    # boots, plus Tailscale SSH and a boot-time diagnostic dump so
+    # operators can shell in via `tailscale ssh` when the BEAM's
+    # Postgrex pool stays empty. release-xcresult-processor-image
+    # rewrites this with the next semver tag on merge to main.
+    tag: "958ad548"
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
