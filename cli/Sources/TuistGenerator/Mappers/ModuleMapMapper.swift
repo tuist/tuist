@@ -13,6 +13,10 @@ import XcodeGraph
 /// To avoid "Argument list too long" errors for targets with many transitive dependencies, this mapper generates a single
 /// combined module map file per target using `extern module` declarations, rather than adding individual
 /// `-fmodule-map-file` flags for each dependency.
+///
+/// This mirrors SwiftPM's package PIF builder, which propagates custom and generated module maps to clients
+/// with `-fmodule-map-file`:
+/// https://github.com/swiftlang/swift-package-manager/blob/ff05594c1267137ed5ee2c0076dfaf78f0289877/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L440-L459
 public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
@@ -64,6 +68,34 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
+                    if let moduleMapPath = Self.moduleMapPath(
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        projectPath: project.path
+                    ),
+                        target.product.isFramework
+                    {
+                        // swift-build gives ExtractAPI dependency module maps explicitly and models framework module maps
+                        // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.
+                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
+                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1197-L1200
+                        target.scripts.append(
+                            TargetScript(
+                                name: "Copy Module Map",
+                                order: .post,
+                                script: .embedded(
+                                    """
+                                    set -eu
+                                    mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
+                                    cp '\(Self.shellEscaped(moduleMapPath.pathString))' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                    """
+                                ),
+                                inputPaths: [moduleMapPath.pathString],
+                                outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
+                                showEnvVarsInLog: false,
+                                basedOnDependencyAnalysis: true
+                            )
+                        )
+                    }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
@@ -131,6 +163,24 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         })
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
+
+    private static func moduleMapPath(
+        from value: SettingsDictionary.Value?,
+        projectPath: AbsolutePath
+    ) -> AbsolutePath? {
+        guard case let .string(moduleMap) = value else { return nil }
+
+        return try? AbsolutePath(
+            validating: moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath.pathString)
+                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
+        )
+    }
+
+    private static func shellEscaped(_ value: String) -> String {
+        value.replacingOccurrences(of: "'", with: "'\\''")
+    }
 
     /// The `tuist-derived/` directory for an external SPM-generated project, or `nil` for local projects.
     /// Used as a gating condition for `referenceString` to decide whether a referenced path is one Tuist owns

@@ -752,7 +752,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 }
             }
 
-            dependencies = try linkerDependencies + target.dependencies.compactMap {
+            let targetDependencies = try await target.dependencies + samePackageTargetDependenciesImportedByPublicHeaders(
+                for: target,
+                packageInfo: packageInfo,
+                packageFolder: packageFolder
+            )
+
+            dependencies = try linkerDependencies + targetDependencies.compactMap {
                 switch $0 {
                 case let .product(name: name, package: package, moduleAliases: moduleAliases, condition: condition):
                     try mapDependency(
@@ -836,6 +842,120 @@ public struct PackageInfoMapper: PackageInfoMapping {
             settings: settings,
             metadata: .metadata(tags: metadataTags)
         )
+    }
+
+    private func samePackageTargetDependenciesImportedByPublicHeaders(
+        for target: PackageInfo.Target,
+        packageInfo: PackageInfo,
+        packageFolder: AbsolutePath
+    ) async throws -> [PackageInfo.Target.Dependency] {
+        // SwiftPM relies on manifest-declared target dependencies and does not add these edges by scanning
+        // public headers. This is limited to concrete public `#import` and `#include` statements to support
+        // packages such as Firebase that document, but do not declare, a same-package target dependency:
+        // https://github.com/firebase/firebase-ios-sdk/blob/1fc52ab0e172e7c5a961f975a76c2611f4f22852/Package.swift#L213-L225
+        guard target.type == .regular else { return [] }
+
+        let publicHeadersPath = try await target.publicHeadersPath(packageFolder: packageFolder)
+        guard try await fileSystem.exists(publicHeadersPath) else { return [] }
+
+        let importedModules = try await importedModules(inPublicHeadersAt: publicHeadersPath)
+        guard !importedModules.isEmpty else { return [] }
+
+        let declaredDependencyNames = Set(target.dependencies.map(\.name))
+        return packageInfo.targets
+            .filter { $0.name != target.name && !declaredDependencyNames.contains($0.name) }
+            .filter { $0.type == .regular }
+            .filter {
+                !packageTarget(
+                    named: $0.name,
+                    dependsOn: target.name,
+                    packageInfo: packageInfo
+                )
+            }
+            .filter {
+                moduleNameCandidates(targetName: $0.name).contains(where: importedModules.contains)
+            }
+            .map { .target(name: $0.name, condition: nil) }
+    }
+
+    private func packageTarget(
+        named targetName: String,
+        dependsOn dependencyName: String,
+        packageInfo: PackageInfo
+    ) -> Bool {
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+        let productsByName = Dictionary(uniqueKeysWithValues: packageInfo.products.map { ($0.name, $0) })
+        var targetsToVisit = [targetName]
+        var visitedTargets = Set<String>()
+
+        while let currentTargetName = targetsToVisit.popLast() {
+            guard !visitedTargets.contains(currentTargetName),
+                  let currentTarget = targetsByName[currentTargetName]
+            else { continue }
+            visitedTargets.insert(currentTargetName)
+
+            for dependency in currentTarget.dependencies {
+                switch dependency {
+                case let .target(name: name, _):
+                    if name == dependencyName { return true }
+                    targetsToVisit.append(name)
+                case let .byName(name: name, _):
+                    if name == dependencyName { return true }
+                    if targetsByName[name] != nil {
+                        targetsToVisit.append(name)
+                    } else if let product = productsByName[name] {
+                        if product.targets.contains(dependencyName) { return true }
+                        targetsToVisit.append(contentsOf: product.targets)
+                    }
+                case let .product(name: name, package: package, _, _):
+                    guard package == nil || package == packageInfo.name,
+                          let product = productsByName[name]
+                    else { continue }
+                    if product.targets.contains(dependencyName) { return true }
+                    targetsToVisit.append(contentsOf: product.targets)
+                }
+            }
+        }
+
+        return false
+    }
+
+    private func importedModules(inPublicHeadersAt publicHeadersPath: AbsolutePath) async throws -> Set<String> {
+        let headerPaths = try await fileSystem
+            .glob(directory: publicHeadersPath, include: ["**/*.{h,hh,hpp,hxx}", "*.{h,hh,hpp,hxx}"])
+            .collect()
+
+        var modules = Set<String>()
+        for headerPath in headerPaths {
+            let contents = try await fileSystem.readTextFile(at: headerPath)
+            modules.formUnion(PackageInfoMapper.importedModules(inHeader: contents))
+        }
+
+        return modules
+    }
+
+    private func moduleNameCandidates(targetName: String) -> Set<String> {
+        [
+            targetName,
+            PackageInfoMapper.sanitize(targetName: targetName),
+        ]
+    }
+
+    private static func importedModules(inHeader header: String) -> Set<String> {
+        let headerWithoutComments = header.strippingCComments()
+        let importPatterns = [
+            #"#\s*(?:import|include)\s+<([A-Za-z_][A-Za-z0-9_]*)/"#,
+        ]
+
+        return importPatterns.reduce(into: Set<String>()) { modules, pattern in
+            guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return }
+
+            let range = NSRange(headerWithoutComments.startIndex..<headerWithoutComments.endIndex, in: headerWithoutComments)
+            for match in regularExpression.matches(in: headerWithoutComments, range: range) {
+                guard let moduleRange = Range(match.range(at: 1), in: headerWithoutComments) else { continue }
+                modules.insert(String(headerWithoutComments[moduleRange]))
+            }
+        }
     }
 
     private func mapDependency(
@@ -1887,6 +2007,16 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+private extension String {
+    func strippingCComments() -> String {
+        let pattern = #"/\*[\s\S]*?\*/|//.*"#
+        guard let regularExpression = try? NSRegularExpression(pattern: pattern) else { return self }
+
+        let range = NSRange(startIndex..<endIndex, in: self)
+        return regularExpression.stringByReplacingMatches(in: self, range: range, withTemplate: "")
     }
 }
 
