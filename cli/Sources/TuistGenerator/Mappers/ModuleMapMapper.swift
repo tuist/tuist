@@ -85,6 +85,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.
                         // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
                         // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1197-L1200
+                        let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
                         target.scripts.append(
                             TargetScript(
                                 name: "Copy Module Map",
@@ -93,7 +94,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                     """
                                     set -eu
                                     mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp '\(Self.shellEscaped(moduleMapPath.pathString))' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                    cp '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                     """
                                 ),
                                 inputPaths: [moduleMapPath.pathString],
