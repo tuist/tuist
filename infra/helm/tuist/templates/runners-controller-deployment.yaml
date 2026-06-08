@@ -191,7 +191,10 @@ spec:
             # In-cluster pull-through cache the dind dockerd mirrors
             # docker.io through. Gated on the controller binary
             # recognising --registry-mirror-url (see features.registryMirror).
-            - --registry-mirror-url={{ .Values.runnersController.registryMirror }}
+            # Defaults to this release's registry-cache Service, so an env
+            # only flips the feature gate; override registryMirror to point
+            # elsewhere.
+            - --registry-mirror-url={{ .Values.runnersController.registryMirror | default (printf "http://%s.%s.svc.cluster.local:5000" (include "tuist.componentName" (dict "root" . "component" "registry-cache")) .Release.Namespace) }}
             {{- end }}
             # Pod-lifecycle reconciler reports terminal-phase
             # transitions to the server's RunnerSessions store so
