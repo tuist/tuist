@@ -1,17 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in kura@0.7.3<!-- RELEASE NOTES START -->
+## What's Changed in kura@0.7.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* stabilize peer discovery and primary routing ([#11151](https://github.com/tuist/tuist/pull/11151))
+* derive FD pool from process capacity ([#11148](https://github.com/tuist/tuist/pull/11148))
 * key ByteStream CAS blobs with the blob/ prefix so FindMissingBlobs sees them ([#11141](https://github.com/tuist/tuist/pull/11141))
 * reconcile expanded storage without StatefulSet mutation ([#11139](https://github.com/tuist/tuist/pull/11139))
 * optimize artifact response streaming ([#11124](https://github.com/tuist/tuist/pull/11124))
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.3
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.4
 
 ## What's Changed in kura@0.7.1<!-- RELEASE NOTES START -->
 
