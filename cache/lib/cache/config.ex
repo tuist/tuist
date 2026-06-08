@@ -26,6 +26,14 @@ defmodule Cache.Config do
     end
   end
 
+  def bool_env(name, default) when is_binary(name) do
+    case System.get_env(name) do
+      value when value in ["1", "true", "TRUE", "yes", "YES"] -> true
+      value when value in ["0", "false", "FALSE", "no", "NO"] -> false
+      _ -> default
+    end
+  end
+
   @doc """
   Returns true if analytics/usage reporting is enabled (API key is configured).
   """
@@ -148,6 +156,10 @@ defmodule Cache.Config do
   end
 
   def server_url, do: Application.get_env(:cache, :server_url)
+
+  def xcode_database_interactions_enabled? do
+    Application.get_env(:cache, :xcode_database_interactions_enabled, true)
+  end
 
   @default_orphan_scan_max_dirs 50
   def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)

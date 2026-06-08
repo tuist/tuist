@@ -7,4 +7,5 @@ env:
     SERVER_URL: https://canary.tuist.dev
     SENTRY_ENV: can
     DEPLOY_ENV: can
+    XCODE_DATABASE_INTERACTIONS_ENABLED: "false"
     REGISTRY_SYNC_ALLOWLIST: alamofire/alamofire
