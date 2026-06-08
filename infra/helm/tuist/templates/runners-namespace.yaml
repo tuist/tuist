@@ -306,15 +306,20 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/component: server
-{{- end }}
 {{- if .Values.registryCache.enabled }}
 ---
 # Cache-egress policy: lets a runner Pod reach the in-cluster Docker
 # Hub pull-through cache (registry-cache) on :5000 so its dind dockerd
 # can mirror docker.io through it. The base runners-default-deny policy
 # excepts the cluster Service CIDR from its 0.0.0.0/0 allow, so without
-# this the cache's ClusterIP is unreachable from a runner Pod — same
+# this the cache's ClusterIP is unreachable from a runner Pod, same
 # reason the dispatch endpoint needs its own allow above.
+#
+# MUST stay inside the networkPolicy.enabled guard with the base
+# policies: any egress NetworkPolicy selecting a runner Pod makes its
+# egress default-deny, so this policy alone (without runners-default-deny)
+# would isolate the Pod to only the cache and break DNS, GitHub, and
+# dispatch.
 #
 # Unlike dispatch-egress this is NOT idle-only: a mid-job Pod pulls
 # images during the job, so owned Pods need it too. Safe because the
@@ -346,5 +351,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5000
+{{- end }}
 {{- end }}
 {{- end }}

@@ -1255,6 +1255,11 @@ registryCache:
       # (still one cache client, not N runners). Enable once a Docker Hub
       # token lives in 1Password to lift the cold-fill ceiling.
       enabled: false
+      # Where the username/password Secret comes from when auth is on:
+      # the chart's ExternalSecret (externalSecret.enabled, below), or an
+      # operator-managed Secret named here when externalSecret.enabled is
+      # false. With auth on and neither set, the chart fails to render.
+      existingSecret: ""
       externalSecret:
         enabled: true
         refreshInterval: 1h

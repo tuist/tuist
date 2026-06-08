@@ -58,15 +58,27 @@ spec:
             # Authenticated upstream: the cache becomes a single
             # authenticated Docker Hub client, lifting the anonymous
             # per-IP ceiling that otherwise bounds the cold-cache fill.
+            # The Secret (username/password keys) comes from the chart's
+            # ExternalSecret when externalSecret.enabled, else from an
+            # operator-managed Secret named in proxy.auth.existingSecret.
+            # Fail closed rather than reference a Secret nothing creates.
+            {{- $upstreamSecret := "" }}
+            {{- if .Values.registryCache.proxy.auth.externalSecret.enabled }}
+            {{- $upstreamSecret = include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+            {{- else if .Values.registryCache.proxy.auth.existingSecret }}
+            {{- $upstreamSecret = .Values.registryCache.proxy.auth.existingSecret }}
+            {{- else }}
+            {{- fail "registryCache.proxy.auth.enabled requires registryCache.proxy.auth.externalSecret.enabled, or proxy.auth.existingSecret naming a Secret with username/password keys" }}
+            {{- end }}
             - name: REGISTRY_PROXY_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+                  name: {{ $upstreamSecret }}
                   key: username
             - name: REGISTRY_PROXY_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+                  name: {{ $upstreamSecret }}
                   key: password
             {{- end }}
             {{- with .Values.registryCache.httpSecret }}
