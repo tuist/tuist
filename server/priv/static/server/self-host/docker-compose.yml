@@ -122,7 +122,6 @@ services:
 
   tuist:
     image: ${TUIST_IMAGE:-ghcr.io/tuist/tuist:latest}
-    platform: ${TUIST_PLATFORM:-linux/amd64}
     restart: unless-stopped
     env_file:
       - .env
