@@ -575,9 +575,14 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     emits a `::warning::` if any (so an incomplete cache doesn't silently skew the
     comparison), then `chmod`s the root-written data dir so `actions/cache` can archive it.
   - Bazel's `--repository_cache` (downloaded crate sources, geoip — not served by Kura's
-    REAPI) is persisted separately, and the `oci-kura` job seeds its Kura data dir from the
-    `kura-data-x86_64-` cache (CAS digests are identical between the binary and image builds),
-    mirroring how the 4a `oci` job seeds from `bazel-linux-x86_64-`.
+    REAPI) is persisted separately (and *does* share across jobs — downloads are
+    config-independent). **Correction (verified in CI):** the `oci` job's Kura *action* cache
+    does **not** seed from `kura-data-x86_64-`. The OCI build compiles the binary under a
+    rules_oci platform transition (`//bazel/oci:index` / `:load`), so its action keys differ
+    from the `bazel-linux` job's `//:kura` build — restoring `kura-data-x86_64-` into the OCI
+    job gave **0 remote hits**. The OCI job therefore keeps its **own** `kura-data-oci` cache
+    (warm on repeat runs; the `kura-data-oci-` prefix still rolls a new-lockfile run forward
+    from the previous OCI cache). The misleading `kura-data-x86_64-` restore-key was removed.
   - **Unblocked by** PR #11129 (`main` `122a5c77a5`) + the official image rebuild — without
     the flush fix, cargo build scripts (rocksdb, jemalloc, …) fail to store their action
     results, so **every CI build re-runs them** (effective cache invalidation every build),
@@ -591,8 +596,9 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     CI, so a fallback bought little. The soak was waived because all the technical exit criteria
     were already met and confirmed in CI — (1) cold→warm hit on **both** arches (x86_64
     46→1.8 min, arm64 41→2.2 min); (2) **0** persist/fd warnings every run; (3) both arches
-    green; (4) stable save/restore + `oci` cross-job seeding from `kura-data-x86_64-`; (5) warm
-    times comparable to the old disk_cache jobs (~2 min). Cache keys were kept byte-identical
+    green; (4) stable save/restore (the `oci` job uses its own `kura-data-oci`, not the
+    linux cache — see the correction above); (5) warm times comparable to the old disk_cache
+    jobs (~2 min). Cache keys were kept byte-identical
     through the rename so the validated warm caches still hit. `kura-bazel.yml` now has exactly
     two jobs, both Kura-backed.
   - **First CI results (run `27104501258`, 2026-06-07).** Cold run: all 6 jobs green, Kura

@@ -170,9 +170,11 @@ jobs:
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
-      # Kura's CAS is content-addressed, so this seeds from the binary job's kura-data-x86_64-
-      # cache: the x86_64/cross-arm64 compile actions are identical between the binary and image
-      # builds, so the first OCI run after a dep change is warmed for free.
+      # The OCI build (//bazel/oci:index, //bazel/oci:load) compiles the binary under a
+      # rules_oci platform transition, so its actions DON'T match the bazel-linux job's
+      # //:kura build — seeding from kura-data-x86_64- gives 0 remote hits (verified), so this
+      # job keeps its OWN action cache. The kura-data-oci- prefix still lets a new-lockfile run
+      # seed from the previous OCI cache for the deps that didn't change.
       - name: Restore Kura cache (data dir)
         id: kura-cache
         uses: actions/cache/restore@v4
@@ -181,7 +183,6 @@ jobs:
           key: kura-data-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
           restore-keys: |
             kura-data-oci-
-            kura-data-x86_64-
 
       - name: Cache Bazel repository downloads
         uses: actions/cache@v4
