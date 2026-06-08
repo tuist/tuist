@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runner-image@0.3.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* tailnet-expose CNPG pooler for xcresult-processor ([#11134](https://github.com/tuist/tuist/pull/11134))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.0...runner-image@0.3.1
+
 ## What's Changed in runner-image@0.3.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
