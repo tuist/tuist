@@ -102,13 +102,13 @@ spec:
             {{- if ne .Values.postgresql.mode "cnpg" }}
             # Tells runtime.exs to use transaction-mode pooler settings:
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
-            # Required because DATABASE_URL below points at Supavisor on 6543.
+            # Required because DATABASE_URL below points at an external
+            # transaction-mode pooler.
             - name: TUIST_DATABASE_POOLED
               value: "1"
             {{- else }}
             {{- if .Values.postgresql.cnpg.pooler.enabled }}
-            # Routed through the CNPG transaction-mode Pooler (PgBouncer), so
-            # use the same connection shape as the Supabase pooler path:
+            # Routed through the CNPG transaction-mode Pooler (PgBouncer):
             # `prepare: :unnamed` and no tcp_keepalives_* startup parameters.
             # DATABASE_URL below points at the `-pooler-rw` Service.
             - name: TUIST_DATABASE_POOLED

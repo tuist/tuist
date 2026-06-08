@@ -95,7 +95,7 @@ expects:
 | `TUIST_DEPLOY_ENV` | Pod env (chart) | `prod` / `can` / `stag` — picks which encrypted bundle to decrypt |
 | `TUIST_XCRESULT_PROCESSOR_MODE` | Pod env (chart) | `1` — narrows Oban to `:process_xcresult` only |
 | `TUIST_WEB` | Pod env (chart) | `0` — skips Phoenix endpoint |
-| `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — Supavisor transaction-mode pooler compatibility |
+| `TUIST_DATABASE_POOLED` | Pod env (chart) | `1` — transaction-mode pooler compatibility |
 | `TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY` | Pod env (chart) | per-pod Oban concurrency |
 
 `inject-env.sh` materialises that as `/etc/tuist.env` on first boot; the

@@ -1730,7 +1730,7 @@ msgstr ""
 
 #: lib/tuist_web/live/ops_database_live.html.heex:285
 #, elixir-autogen, elixir-format
-msgid "Single-instance cluster, or replicas have not connected. The Supabase→CNPG migration's zero-lag soak window relies on this view."
+msgid "Single-instance cluster, or replicas have not connected."
 msgstr ""
 
 #: lib/tuist_web/live/ops_database_live.html.heex:83

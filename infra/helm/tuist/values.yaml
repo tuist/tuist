@@ -301,8 +301,9 @@ processor:
   # `database:` values below. When false, the full URL must be provided
   # via `databaseUrl` for self-hosted installs.
   managedSecrets: false
-  # Full DATABASE_URL for self-hosted installs pointing at the Postgres role
-  # provisioned via infra/supabase/tuist-processor-role.sql. Used as-is when
+  # Full DATABASE_URL for self-hosted installs pointing at a least-privilege
+  # Postgres role for the processor (see `postgresql.cnpg.roles.processor`
+  # for the grant surface CNPG-managed installs use). Used as-is when
   # managedSecrets is false; ignored when managedSecrets is true (the URL is
   # composed from `database:` + the ESO-synced password instead).
   databaseUrl: ""
@@ -310,15 +311,15 @@ processor:
   # DATABASE_URL when `managedSecrets: true`. Kept out of 1P on purpose so
   # rotation is a single-item update.
   database:
-    # Supabase project pooler hostname — per-env, set in values-managed-<env>.yaml.
+    # External Postgres hostname — only relevant under `postgresql.mode:
+    # external`. Per-env override in values-managed-<env>.yaml.
     host: ""
-    # 6543 for Supavisor (transaction mode, recommended). 5432 for direct
-    # sessions (required if the worker uses SET / advisory locks).
+    # Pooler port. Use 5432 for direct sessions (required if the worker
+    # uses SET / advisory locks).
     port: 6543
     name: postgres
     username: tuist_processor
-    # Query params appended to the URL; sslmode=require + channel_binding
-    # matches Supabase defaults. No secrets here either.
+    # Query params appended to the URL. No secrets here either.
     params: "sslmode=require"
   externalSecrets:
     refreshInterval: "1h"
@@ -1228,11 +1229,10 @@ cache:
 
 postgresql:
   # `embedded` runs a single-replica Postgres StatefulSet (templates/postgresql.yaml).
-  # `external` points DATABASE_URL at a managed Postgres (Supabase, RDS, etc.).
+  # `external` points DATABASE_URL at any managed Postgres (RDS, Cloud SQL, etc.).
   # `cnpg` provisions a CloudNativePG-managed in-cluster Postgres cluster
-  # (templates/postgresql-cnpg.yaml) — used by managed envs after the
-  # Supabase→CNPG migration. Requires the cloudnative-pg operator to
-  # be installed cluster-wide first.
+  # (templates/postgresql-cnpg.yaml) — used by the Tuist-managed envs.
+  # Requires the cloudnative-pg operator to be installed cluster-wide first.
   mode: embedded
   external:
     host: ""
@@ -1255,14 +1255,13 @@ postgresql:
         - ReadWriteOnce
       size: 20Gi
     resources: {}
-  # CloudNativePG settings. Two toggles to support the Supabase→CNPG
-  # migration as a phased rollout:
+  # CloudNativePG settings. Two toggles for a phased rollout:
   #
   #   * `cnpg.enabled` — when true, the chart renders the Cluster +
   #     ScheduledBackup + ESO secrets. The cloudnative-pg operator
   #     provisions the cluster; server pods stay on whatever
-  #     `postgresql.mode` points at. Use this during the soak window
-  #     to bring CNPG up in parallel with Supabase.
+  #     `postgresql.mode` points at. Use this to bring CNPG up alongside
+  #     an existing Postgres while soak-testing.
   #
   #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
   #     processor, and migration-job pods all read DATABASE_URL from
@@ -1291,7 +1290,7 @@ postgresql:
     # processor + pooler backend pool + replication/monitoring/superuser
     # overhead. The operator default is 100; set it explicitly so a
     # multi-replica env (production autoscales the web tier to 5) doesn't
-    # silently hit the ceiling. See infra/cnpg/MIGRATION.md for the budget.
+    # silently hit the ceiling.
     parameters:
       max_connections: "100"
     # Extra Postgres libraries to preload via shared_preload_libraries.
@@ -1302,20 +1301,19 @@ postgresql:
     # CR, the supported path.
     sharedPreloadLibraries: []
     # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
-    # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
-    # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
-    # NOT pooled here: it needs a session connection (Oban's PG notifier and
-    # Postgres-peer leader election don't survive *transaction* pooling). On
-    # Supabase the web tier still rides Supavisor in *session* mode (:5432),
-    # but that pooler exists for Supabase-platform reasons (IPv4-only direct
-    # endpoint, managed connection front door); in-cluster the `-rw` Service
-    # is already the native session endpoint with primary failover, so we
-    # connect the web tier straight to it. Both are session-mode, so the
-    # app's connection shape is identical either way. Enabling is just a
-    # flag flip: with no custom cert secrets below, CNPG's built-in
-    # PgBouncer integration manages auth itself (it creates the
-    # cnpg_pooler_pgbouncer role + user_search function in the `postgres`
-    # database on reconcile). See infra/cnpg/README.md.
+    # Transaction-mode pooler for the PROCESSOR only (matching its
+    # `prepare: :unnamed` connection shape). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier
+    # and Postgres-peer leader election don't survive *transaction*
+    # pooling). The `-rw` Service is already the native session endpoint
+    # with primary failover, so the web tier connects straight to it —
+    # session-mode pooling in front would add a hop without freeing any
+    # backend slots.
+    #
+    # Enabling is just a flag flip: with no custom cert secrets below,
+    # CNPG's built-in PgBouncer integration manages auth itself (it
+    # creates the cnpg_pooler_pgbouncer role + user_search function in
+    # the `postgres` database on reconcile). See infra/cnpg/README.md.
     pooler:
       enabled: false
       instances: 1
