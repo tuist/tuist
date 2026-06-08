@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in server@1.207.1<!-- RELEASE NOTES START -->
+## What's Changed in server@1.207.2<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,6 +11,9 @@ All notable changes to this project will be documented in this file.
 * gate runner availability solely on the :runners feature flag ([#11090](https://github.com/tuist/tuist/pull/11090))
 ### 🐛 Bug Fixes
 
+* stop OrphanedStampedPodsWorker from killing live runner pods ([#11133](https://github.com/tuist/tuist/pull/11133))
+* handle GitHub log redirects manually ([#11126](https://github.com/tuist/tuist/pull/11126))
+* stop leaking component release titles into the CLI deprecation warning ([#11122](https://github.com/tuist/tuist/pull/11122))
 * stop canary 500s from web-pool/Oban contention on create_project ([#11107](https://github.com/tuist/tuist/pull/11107))
 * use a version below the floor in the lower-than-floor deprecation test ([#11121](https://github.com/tuist/tuist/pull/11121))
 * lower minimum CLI version ([#11120](https://github.com/tuist/tuist/pull/11120))
@@ -29,7 +32,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.207.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.207.2
 
 ## What's Changed in server@1.205.0<!-- RELEASE NOTES START -->
 

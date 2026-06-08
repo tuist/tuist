@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in kura@0.7.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* optimize artifact response streaming ([#11124](https://github.com/tuist/tuist/pull/11124))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.2
+
 ## What's Changed in kura@0.7.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
