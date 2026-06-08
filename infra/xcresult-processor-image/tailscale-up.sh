@@ -68,24 +68,56 @@ if [ -z "${TAILNET_IP}" ]; then
 fi
 
 # Diagnostic dump — captured in /var/log/xcresult-processor/stdout.log
-# alongside the BEAM's own stdout. Cheap one-shot snapshot at boot
-# time so an operator who SSHes in after the fact can see the
-# tailnet state, routes, and reach test against the pooler proxy
-# without re-running anything. Failures here don't gate the BEAM —
-# the boot continues into `tuist start` regardless.
+# alongside the BEAM's own stdout. tart-kubelet doesn't proxy `kubectl
+# logs` through the K8s API (the apiserver can't DNS-resolve Mac mini
+# hostnames), and the Tailscale SSH ACL doesn't yet permit
+# subnet-router→VM SSH, so we publish the diag dump over plain HTTP
+# at <vm-tailnet-ip>:8000/diagnostics.log instead. Anyone on the
+# tailnet can `wget` it; the wide-open `grants` rule covers the
+# port. Removable once kubectl logs / Tailscale SSH is wired.
+DIAG_FILE=/var/log/xcresult-processor/diagnostics.log
+sudo mkdir -p "$(dirname "${DIAG_FILE}")"
+sudo chown admin:staff "$(dirname "${DIAG_FILE}")"
 {
-  echo "==== tailscale-up: diagnostics ===="
+  echo "==== tailscale-up: diagnostics ($(date)) ===="
   echo "-- tailscale status --"
   /opt/homebrew/bin/tailscale status || true
   echo "-- tailscale netcheck --"
   /opt/homebrew/bin/tailscale netcheck 2>/dev/null | head -30 || true
-  echo "-- ifconfig (tailscale interfaces) --"
-  /sbin/ifconfig | awk '/^utun|^lo/ { keep=1 } /^[a-z]/ { if (!/^utun|^lo/) keep=0 } keep' || true
-  echo "-- netstat -rn (default + tailnet routes) --"
-  /usr/sbin/netstat -rn | head -40 || true
+  echo "-- ifconfig (utun + en* + lo) --"
+  /sbin/ifconfig | awk '/^utun|^en|^lo/ { keep=1 } /^[a-z]/ { if (!/^utun|^en|^lo/) keep=0 } keep' || true
+  echo "-- netstat -rn --"
+  /usr/sbin/netstat -rn || true
   echo "-- scutil DNS state --"
-  /usr/sbin/scutil --dns 2>/dev/null | head -40 || true
-} || true
+  /usr/sbin/scutil --dns 2>/dev/null | head -60 || true
+  echo "-- pf state --"
+  echo 'admin' | sudo -S /sbin/pfctl -s rules 2>&1 | head -20 || true
+  echo "-- DATABASE_URL host probe --"
+  if [ -n "${DATABASE_URL:-}" ]; then
+    # Parse host:port from the URL (postgres://user:pass@host:port/db).
+    HOSTPORT=$(echo "${DATABASE_URL}" | sed -E 's|^[a-z]+://[^@]+@([^/]+).*|\1|')
+    HOST=$(echo "${HOSTPORT}" | sed -E 's|:.*||')
+    PORT=$(echo "${HOSTPORT}" | sed -E 's|.*:||')
+    echo "URL host=${HOST} port=${PORT}"
+    echo "-- nslookup ${HOST} --"
+    /usr/bin/nslookup "${HOST}" 2>&1 | head -10 || true
+    echo "-- nc -vz ${HOST} ${PORT} (10s) --"
+    /usr/bin/nc -vz -w 10 "${HOST}" "${PORT}" 2>&1 || true
+    echo "-- route get ${HOST} --"
+    /sbin/route -n get "${HOST}" 2>&1 | head -15 || true
+  else
+    echo "DATABASE_URL not set"
+  fi
+} 2>&1 | sudo tee "${DIAG_FILE}" >/dev/null || true
+
+# Start a tiny HTTP file server in the log directory so an operator
+# on the tailnet can `wget http://<vm-tailnet-ip>:8000/diagnostics.log`
+# or `…/stdout.log` to read the BEAM's boot output. Forks into the
+# background; failures are non-fatal. macOS ships python3 (Command
+# Line Tools), no extra deps. Bound to 0.0.0.0 because the VM's
+# tailscale0 carries the only routable interface for tailnet clients.
+nohup /usr/bin/python3 -m http.server --bind 0.0.0.0 --directory /var/log/xcresult-processor 8000 >/dev/null 2>&1 &
+disown 2>/dev/null || true
 
 echo "tailscale-up: timed out waiting for tailscale ip -4" >&2
 exit 1
