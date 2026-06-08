@@ -158,11 +158,6 @@ postgresql:
       destinationPath: s3://tuist-can-pg-backups/
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`.
-  database:
-    host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1
   podDisruptionBudget:
     enabled: false

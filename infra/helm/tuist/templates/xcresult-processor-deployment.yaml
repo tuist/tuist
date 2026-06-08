@@ -107,8 +107,7 @@ spec:
             # binds Phoenix on :8080, runs license validation, and
             # generally claims a wider Oban queue set than it can
             # actually serve under the tuist_processor DB role —
-            # leaving ProcessXcresultWorker's queue starved while
-            # legacy consumers on the same Supabase win the race.
+            # leaving ProcessXcresultWorker's queue starved.
             - name: TUIST_MODE
               value: "xcresult_processor"
             - name: TUIST_HOSTED
@@ -117,10 +116,10 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
               value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
-            # Supabase Supavisor (transaction mode) for Postgres. Same
-            # tuist_processor role + same connection params the build
-            # processor uses — provisioned via
-            # infra/supabase/tuist-processor-role.sql.
+            # Route Postgres through the transaction-mode pooler. Same
+            # tuist_processor role + connection params the build processor
+            # uses (see `postgresql.cnpg.roles.processor` for the role's
+            # grant surface).
             - name: TUIST_DATABASE_POOLED
               value: "1"
             - name: DATABASE_URL

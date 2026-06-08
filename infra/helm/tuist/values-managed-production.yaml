@@ -125,10 +125,7 @@ postgresql:
     # Route the processor through the transaction-mode PgBouncer pooler.
     # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
     # that wouldn't benefit from session-mode bouncing); the processor's
-    # short, ingestion-burst connections get pooled. Flipped on at the
-    # same moment as `mode: cnpg` so the processor doesn't transiently
-    # land on `-rw` (session / `prepare: :named`) for one rollout before
-    # we move it onto the pooler — see MIGRATION.md §6e.
+    # short, ingestion-burst connections get pooled.
     pooler:
       enabled: true
       # Stand up a Tailscale operator-managed proxy in front of the
@@ -147,8 +144,8 @@ postgresql:
     # default, which on a 16 GiB instance means ~99% of the page cache
     # lives in the Linux file cache instead of Postgres's own buffer pool.
     # That's functional (the kernel still caches hot pages) but it leaves
-    # Postgres's query planner pessimistic and wastes the headroom; match
-    # the upstream Supabase defaults so we don't regress on cutover.
+    # Postgres's query planner pessimistic and wastes the headroom; pick
+    # sizes that fit the instance.
     #   - shared_buffers ≈ 25% of memory limit (Postgres rule of thumb)
     #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
     #   - work_mem sized so 200 connections × work_mem stays << memory
@@ -164,9 +161,9 @@ postgresql:
     # (and during a deploy surge). Raise it so the direct topology fits with
     # headroom; ~200 connections cost ~2 GiB, well inside the 16Gi limit.
     #
-    # pg_stat_statements is preloaded so we get the same per-query latency
-    # observability the Supabase env has today (queries grouped by
-    # parameterized fingerprint, with calls / mean / stddev / max).
+    # pg_stat_statements is preloaded for per-query latency observability:
+    # queries grouped by parameterized fingerprint, with calls / mean /
+    # stddev / max.
     parameters:
       max_connections: "200"
       shared_buffers: "4GB"
@@ -180,12 +177,9 @@ postgresql:
     sharedPreloadLibraries:
       - pg_stat_statements
     storage:
-      # Sized for the Supabase → CNPG initial COPY: per-table sync workers
-      # each pin WAL until their COPY commits, so peak disk during the
-      # one-time migration is data + indexes + accumulated WAL — for
-      # cache_events (6 secondary indexes, 6-10× WAL amplification per
-      # insert) that runs ~5× the source data size. Steady-state usage
-      # after the COPY commits and slots release is ~30-40 GiB.
+      # Steady-state usage is ~30-40 GiB; oversized to absorb WAL spikes
+      # during large background operations (REINDEX, VACUUM FULL, bulk
+      # imports) without bumping pvc size mid-flight.
       size: "250Gi"
     # Requests sized to fit three instances under hard pod anti-affinity
     # alongside the rest of the pool tenants; limits left generous so
@@ -216,11 +210,6 @@ cache:
     registryBucket: tuist-registry
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`.
-  database:
-    host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
     # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.

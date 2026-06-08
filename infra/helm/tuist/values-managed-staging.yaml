@@ -160,13 +160,6 @@ postgresql:
       destinationPath: s3://tuist-stag-pg-backups/
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`. After cutover, the
-  # processor-external-secrets template ignores `database.host` and
-  # composes against the in-cluster `<cluster>-rw` Service instead.
-  database:
-    host: db.inzgspjesrhqhleomvkb.supabase.co
   # Single replica on staging — 2-replica redundancy isn't needed for a
   # pre-prod env, and a second pod doesn't fit on the 2-worker cluster
   # alongside the server pod + system DaemonSets. PDB stays off too;
