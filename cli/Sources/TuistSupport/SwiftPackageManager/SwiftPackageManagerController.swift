@@ -292,8 +292,8 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
         var request: SwifterPMResolutionRequest
         switch (command, parsedCommand) {
-        case ("resolve", .resolve(let parsedRequest)),
-             ("update", .update(let parsedRequest)):
+        case let ("resolve", .resolve(parsedRequest)),
+             let ("update", .update(parsedRequest)):
             request = parsedRequest
         default:
             throw SwiftPackageManagerControllerError.unexpectedSwifterPMCommand(command)
@@ -312,8 +312,8 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 }
 
-private extension [String] {
-    var containsPackagePathArgument: Bool {
+extension [String] {
+    fileprivate var containsPackagePathArgument: Bool {
         contains { argument in
             argument == "--package-path" || argument.hasPrefix("--package-path=")
         }
