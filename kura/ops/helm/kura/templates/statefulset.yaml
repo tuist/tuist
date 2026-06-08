@@ -92,14 +92,18 @@ spec:
             - name: KURA_INTERNAL_TLS_KEY_PATH
               value: {{ printf "/etc/kura/peer-tls/%s" .Values.peerTls.keyFileName | quote }}
             {{- end }}
+            {{- with .Values.config.fileDescriptors.poolSize }}
             - name: KURA_FILE_DESCRIPTOR_POOL_SIZE
-              value: {{ printf "%d" (int .Values.config.fileDescriptors.poolSize) | quote }}
+              value: {{ printf "%d" (int .) | quote }}
+            {{- end }}
             - name: KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS
               value: {{ printf "%d" (int64 .Values.config.fileDescriptors.acquireTimeoutMs) | quote }}
             - name: KURA_DRAIN_COMPLETION_TIMEOUT_MS
               value: {{ printf "%d" (int64 .Values.config.shutdown.drainCompletionTimeoutMs) | quote }}
+            {{- with .Values.config.fileDescriptors.segmentHandleCacheSize }}
             - name: KURA_SEGMENT_HANDLE_CACHE_SIZE
-              value: {{ printf "%d" (int .Values.config.fileDescriptors.segmentHandleCacheSize) | quote }}
+              value: {{ printf "%d" (int .) | quote }}
+            {{- end }}
             - name: KURA_ACCELERATED_FILE_SERVING_ENABLED
               value: {{ ternary "true" "false" .Values.config.acceleratedFileServing.enabled | quote }}
             - name: KURA_ACCELERATED_FILE_SERVING_MODE

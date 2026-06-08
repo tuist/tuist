@@ -270,8 +270,8 @@ impl DerivedRuntimeDefaults {
             .file_descriptor_limit
             .saturating_sub(reserved_fds.max(64))
             .max(256);
-        let file_descriptor_pool_size = clamp_usize(usable_fds / 8, 64, 256);
-        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 4, 16, 64)
+        let file_descriptor_pool_size = clamp_usize(usable_fds / 2, 128, 4096);
+        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 8, 16, 256)
             .min(file_descriptor_pool_size.saturating_sub(1).max(1));
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
@@ -1507,10 +1507,10 @@ mod tests {
             config.peers,
             vec!["http://kura.example.com:7443".to_owned()]
         );
-        assert_eq!(config.file_descriptor_pool_size, 256);
+        assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
-        assert_eq!(config.segment_handle_cache_size, 64);
+        assert_eq!(config.segment_handle_cache_size, 224);
         assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
@@ -1548,6 +1548,19 @@ mod tests {
             }
         );
         assert_eq!(config.sentry_dsn, None);
+    }
+
+    #[test]
+    fn derived_file_descriptor_defaults_scale_with_high_process_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 16_384,
+            memory_limit_bytes: 1024 * 1024 * 1024,
+            cpu_count: 6,
+        });
+
+        assert_eq!(defaults.file_descriptor_pool_size, 4096);
+        assert_eq!(defaults.segment_handle_cache_size, 256);
+        assert_eq!(defaults.file_descriptor_acquire_timeout_ms, 5_000);
     }
 
     #[test]

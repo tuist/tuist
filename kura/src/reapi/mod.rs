@@ -48,6 +48,7 @@ use crate::{
     config::GrpcTlsConfig,
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
+    io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
     utils::{action_cache_key, blob_key, temp_file_path},
@@ -835,7 +836,15 @@ impl ByteStream for ReapiService {
                 &targets,
             )
             .await
-            .map_err(|error| Status::internal(format!("failed to persist CAS blob: {error}")))?;
+            .map_err(|error| {
+                if is_fd_pool_exhausted_error(&error) {
+                    Status::resource_exhausted(format!(
+                        "file descriptor pool exhausted while persisting CAS blob: {error}"
+                    ))
+                } else {
+                    Status::internal(format!("failed to persist CAS blob: {error}"))
+                }
+            })?;
         self.state.notify.notify_one();
         self.state
             .metrics
