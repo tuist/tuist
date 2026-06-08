@@ -134,7 +134,7 @@ async fn serve_connection(
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
             return serve_hyper(stream, router).await;
         };
-        match authorize_and_open(&state, parsed, artifact).await {
+        match open_and_authorize(&state, parsed, artifact).await {
             ClassifiedRequest::Accelerate(candidate) => {
                 consume_headers(&mut stream, candidate.header_len).await?;
                 let reuse = serve_accelerated(
@@ -314,11 +314,23 @@ async fn classify_route(
     Some((parsed, artifact))
 }
 
-async fn authorize_and_open(
+async fn open_and_authorize(
     state: &SharedState,
     parsed: ParsedRequest,
     artifact: ArtifactRequest,
 ) -> ClassifiedRequest {
+    let manifest = match state
+        .store
+        .fetch_artifact_for_serving(artifact.producer, &artifact.namespace_id, &artifact.key)
+        .await
+    {
+        Ok(Some(manifest)) => manifest,
+        _ => return ClassifiedRequest::Fallback,
+    };
+    let file = match state.store.open_accelerated_artifact_file(&manifest).await {
+        Ok(Some(file)) => file,
+        _ => return ClassifiedRequest::Fallback,
+    };
     let access_context = extension_context(state, &parsed, &artifact, None);
     let principal = if let Some(extension) = state.extension.as_ref() {
         match extension.evaluate_access(&access_context).await {
@@ -335,19 +347,6 @@ async fn authorize_and_open(
         }
     } else {
         None
-    };
-
-    let manifest = match state
-        .store
-        .fetch_artifact_for_serving(artifact.producer, &artifact.namespace_id, &artifact.key)
-        .await
-    {
-        Ok(Some(manifest)) => manifest,
-        _ => return ClassifiedRequest::Fallback,
-    };
-    let file = match state.store.open_accelerated_artifact_file(&manifest).await {
-        Ok(Some(file)) => file,
-        _ => return ClassifiedRequest::Fallback,
     };
     let extension_response_headers = if let Some(extension) = state.extension.as_ref() {
         extension

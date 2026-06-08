@@ -35,7 +35,7 @@ use crate::{
     metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
-    runtime::HttpTrafficClass,
+    runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::is_disk_full_error,
     telemetry::{attach_parent_context, record_trace_context},
@@ -1731,6 +1731,7 @@ async fn internal_bootstrap_artifact(
                 StatusCode::OK,
                 &manifest,
                 state.replication_bandwidth_limiter.clone(),
+                false,
             )
             .await
         }
@@ -2151,20 +2152,20 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
-            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes));
+            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest, None).await,
+        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None).await
+            serve_file_reader(state, status, manifest, None, true).await
         }
     }
 }
@@ -2174,12 +2175,13 @@ async fn serve_file_reader(
     status: StatusCode,
     manifest: &ArtifactManifest,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    hold_public_inflight: bool,
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
             let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
             let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(state, manifest, stream);
+            let stream = instrument_artifact_stream(state, manifest, stream, hold_public_inflight);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
@@ -2196,28 +2198,43 @@ fn instrument_artifact_stream<S>(
     state: &SharedState,
     manifest: &ArtifactManifest,
     stream: S,
+    hold_public_inflight: bool,
 ) -> InstrumentedArtifactStream<S>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
 {
-    InstrumentedArtifactStream::new(state.metrics.clone(), manifest.producer, stream)
+    let request_guard =
+        hold_public_inflight.then(|| state.start_http_request(HttpTrafficClass::Public));
+    InstrumentedArtifactStream::new(
+        state.metrics.clone(),
+        manifest.producer,
+        stream,
+        request_guard,
+    )
 }
 
 struct InstrumentedArtifactStream<S> {
     inner: S,
     metrics: Metrics,
     producer: ArtifactProducer,
+    _request_guard: Option<InflightGuard>,
     started_at: Instant,
     yielded_bytes: u64,
     recorded: bool,
 }
 
 impl<S> InstrumentedArtifactStream<S> {
-    fn new(metrics: Metrics, producer: ArtifactProducer, stream: S) -> Self {
+    fn new(
+        metrics: Metrics,
+        producer: ArtifactProducer,
+        stream: S,
+        request_guard: Option<InflightGuard>,
+    ) -> Self {
         Self {
             inner: stream,
             metrics,
             producer,
+            _request_guard: request_guard,
             started_at: Instant::now(),
             yielded_bytes: 0,
             recorded: false,
@@ -3833,6 +3850,24 @@ mod tests {
             .await
             .expect("get request failed");
         assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn instrumented_artifact_stream_holds_public_inflight_until_body_drops() {
+        let context = test_context(|_| {}).await;
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
+
+        let stream = futures_util::stream::pending::<Result<Bytes, std::io::Error>>();
+        let instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            stream,
+            Some(context.state.start_http_request(HttpTrafficClass::Public)),
+        );
+
+        assert_eq!(context.state.runtime.public_http_inflight(), 1);
+        drop(instrumented);
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
     }
 
     #[derive(Clone, Debug)]
