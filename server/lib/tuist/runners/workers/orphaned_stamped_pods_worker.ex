@@ -73,21 +73,36 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   customer Pod — observable from GitHub's side as a runner that
   "lost communication with the server."
 
-  The Kubernetes pod itself carries the ground truth for "did this
-  Pod actually start executing a job": the `runner` container's
-  status. In the Linux token-isolation shape the `runner` container
-  is gated behind the `poller` init container, so it only starts
-  once the poller successfully claimed *and* staged a JIT — exactly
-  the transition that means "JIT was delivered, the runner is or
-  was executing a customer job." We refuse to reap any Pod whose
-  `runner` container has reached `started=true` or `terminated`,
-  even when the claim is missing. The orphan signature this worker
-  was built for (poller poll-loops forever without ever receiving a
-  JIT) still trips the reap because the `runner` container never
-  leaves `waiting`. The check is intentionally conservative: it
-  prefers leaking a Pod for one more reconcile cycle (the Pool
-  reconciler will eventually reap it once the runner exits) over
-  killing a live build.
+  The Kubernetes Pod's `runner` container state is the ground truth
+  for "did this Pod actually start executing a job" — but only in
+  the **Linux split-container shape**. There the `runner` container
+  is gated behind the `poller` init container, so it reaches
+  `started=true` only once the poller successfully claimed *and*
+  staged a JIT — exactly the transition that means "JIT was
+  delivered, the runner is or was executing a customer job." We
+  refuse to reap any Linux Pod whose `runner` container has reached
+  `started=true` or `terminated`, even when the claim is missing.
+  The wedge signature this worker was built for (poller poll-loops
+  forever without ever receiving a JIT) still trips the reap
+  because the `runner` container never leaves `waiting`.
+
+  The macOS Pod shape is single-container: the same `runner`
+  container runs the poll loop inside the Tart VM and execs
+  `./run.sh` in place on a successful claim. `started=true` is true
+  the moment the VM boots — long before any dispatch — so it is
+  NOT a signal that a customer job began. The guard is therefore
+  scoped to Pods that carry a `poller` init container (the
+  discriminator), preserving the wedge cleanup the worker exists
+  for on macOS. A `release_safely/3`-induced silent delete on a
+  live macOS job is a known gap of this fix; closing it requires a
+  signal that distinguishes "macOS polling" from "macOS executing"
+  (e.g., a server-confirmed live `RunnerSession`), which is left
+  for a follow-up.
+
+  The check is intentionally conservative: it prefers leaking a
+  Pod for one more reconcile cycle (the Pool reconciler will
+  eventually reap it once the runner exits) over killing a live
+  build.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -150,17 +165,50 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
     is_binary(name) and
       not MapSet.member?(live, name) and
       created_before?(pod, cutoff) and
-      not runner_started?(pod)
+      not linux_runner_executing?(pod)
   end
 
-  # True if the Pod's `runner` container has begun executing — i.e.,
-  # the poller staged a JIT and the runner container started, OR the
-  # runner has already executed and terminated. In the token-isolation
-  # shape this is unambiguous proof that a JIT was delivered and the
-  # Pod is or was running a customer job; reaping it would kill (or
-  # has just killed) a live build. See the "Live-execution guard"
-  # section of the moduledoc.
-  defp runner_started?(pod) do
+  # True if the Pod is a Linux split-container runner whose `runner`
+  # container has begun executing a job — i.e., the `poller` init
+  # container successfully staged a JIT and kubelet started the
+  # `runner` container, OR the runner has already executed and
+  # terminated.
+  #
+  # ## Why this is Linux-only
+  #
+  # The Linux Pod shape isolates dispatch from execution across two
+  # containers: a `poller` init container holds the SA token and
+  # polls for a claim; only after it stages a JIT does kubelet start
+  # the credential-free `runner` container that runs `./run.sh`. So
+  # the `runner` container reaching `started=true` is unambiguous
+  # proof that a JIT was delivered and the Pod is or was running a
+  # customer job.
+  #
+  # The macOS Pod shape is single-container: the same `runner`
+  # container runs the poll loop (`dispatch-poll.sh`) inside the
+  # Tart VM and, on a successful claim, execs `./run.sh` in place.
+  # That means `started=true` is true the moment the VM boots — long
+  # before any dispatch has happened — so it is NOT a signal that a
+  # customer job has begun. Applying the guard to macOS would turn
+  # the worker into a no-op for that shape: a stamped/no-claim macOS
+  # Pod (the exact wedge `release_safely/3` can produce) would be
+  # protected indefinitely, and the macOS poll loop's
+  # retry-on-5xx-forever behaviour would never get cleaned up.
+  #
+  # We discriminate by spec: only the Linux shape carries a `poller`
+  # init container.
+  defp linux_runner_executing?(pod) do
+    linux_split_container?(pod) and runner_container_started?(pod)
+  end
+
+  defp linux_split_container?(pod) do
+    pod
+    |> get_in(["spec", "initContainers"])
+    |> List.wrap()
+    |> Enum.any?(&(&1["name"] == "poller"))
+  end
+
+  defp runner_container_started?(pod) do
     pod
     |> get_in(["status", "containerStatuses"])
     |> List.wrap()

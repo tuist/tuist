@@ -13,12 +13,31 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
   @namespace "tuist-runners"
   @owner_label "tuist.dev/runner-pool-owner"
 
-  defp pod(name, created_at, container_statuses \\ []) do
+  # Linux split-container shape: a `poller` init container is the
+  # discriminator the worker uses to decide whether the runner-
+  # container `started=true` signal means "executing a job."
+  defp linux_pod(name, created_at, container_statuses \\ []) do
     %{
       "metadata" => %{"name" => name, "creationTimestamp" => created_at},
+      "spec" => %{"initContainers" => [%{"name" => "poller"}]},
       "status" => %{"containerStatuses" => container_statuses}
     }
   end
+
+  # macOS single-container shape: no `poller` init container. The
+  # runner container is `started=true` while merely polling, so the
+  # guard must NOT treat that as proof of execution on this shape.
+  defp macos_pod(name, created_at, container_statuses \\ []) do
+    %{
+      "metadata" => %{"name" => name, "creationTimestamp" => created_at},
+      "spec" => %{"initContainers" => []},
+      "status" => %{"containerStatuses" => container_statuses}
+    }
+  end
+
+  # Default to Linux shape in the legacy tests that don't care about
+  # the container-status guard (they predate it).
+  defp pod(name, created_at, container_statuses \\ []), do: linux_pod(name, created_at, container_statuses)
 
   # The wedge state this worker exists to clean up: poller poll-loops
   # forever without claiming a JIT, so the `runner` container never
@@ -139,7 +158,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
 
-    test "leaves a stamped pod whose runner container is executing, even when the claim is missing" do
+    test "leaves a Linux stamped pod whose runner container is executing, even when the claim is missing" do
       # The class of incident this guard exists for: dispatch stamped
       # the label, the JIT was delivered to the Pod, the runner started
       # executing a customer job — and then *something* released the
@@ -148,9 +167,11 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       # guard this worker would force-delete the running Pod and the
       # job would surface on GitHub as "lost communication with the
       # server." With the guard we trust the `started=true` signal on
-      # the runner container and skip the reap.
+      # the runner container (gated by a `poller` init container, the
+      # discriminator for the Linux split-container shape) and skip
+      # the reap.
       expect(K8sClient, :list_pods, fn @namespace, _selector ->
-        {:ok, [pod("runner-live-build", aged(), runner_executing())]}
+        {:ok, [linux_pod("runner-live-build", aged(), runner_executing())]}
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
@@ -160,13 +181,13 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
 
-    test "leaves a stamped pod whose runner container has already terminated" do
+    test "leaves a Linux stamped pod whose runner container has already terminated" do
       # Narrow window: the runner exited, the Pod is in cleanup, the
       # Pool reconciler hasn't reaped it yet. `started` flips back to
       # false on termination — the guard reads `state.terminated`
       # instead so we don't delete the Pod twice.
       expect(K8sClient, :list_pods, fn @namespace, _selector ->
-        {:ok, [pod("runner-finished", aged(), runner_terminated())]}
+        {:ok, [linux_pod("runner-finished", aged(), runner_terminated())]}
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
@@ -176,12 +197,12 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
 
-    test "still reaps a stamped pod whose runner container is waiting on the poller" do
+    test "still reaps a Linux stamped pod whose runner container is waiting on the poller" do
       # The original wedge signature: the poller never claimed a JIT,
       # so the runner container stays in `waiting`. `started=false`
       # AND no `terminated` state — guard does not apply, reap fires.
       expect(K8sClient, :list_pods, fn @namespace, _selector ->
-        {:ok, [pod("runner-wedged", aged(), runner_waiting())]}
+        {:ok, [linux_pod("runner-wedged", aged(), runner_waiting())]}
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
@@ -198,7 +219,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       # legitimate early-lifecycle Pods, so any Pod past the grace
       # window with no runner status is a real orphan.
       expect(K8sClient, :list_pods, fn @namespace, _selector ->
-        {:ok, [pod("runner-prestart", aged())]}
+        {:ok, [linux_pod("runner-prestart", aged())]}
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
@@ -208,19 +229,59 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
 
-    test "reaps only the wedged orphan in a mixed batch with live and finished runners" do
+    test "reaps a macOS stamped pod with no live claim even when its runner container is started" do
+      # macOS Pod shape is single-container: the runner container runs
+      # the poll loop inside the Tart VM and `started=true` is true
+      # the moment the VM boots — long before any dispatch. Applying
+      # the Linux `started=true` guard here would protect a wedged
+      # stamped/no-claim macOS Pod indefinitely (the macOS dispatch
+      # script retries 5xx forever, so it never exits on its own).
+      # The guard must be scoped to the Linux split-container shape;
+      # macOS Pods fall back to the historical reap-on-stamp-no-claim
+      # behaviour the worker was originally built for.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [macos_pod("runner-macos-leak", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+
+      expect(K8sClient, :delete_runner, fn @namespace, "runner-macos-leak" -> :ok end)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "still leaves a macOS stamped pod that holds a live claim" do
+      # The claim-based protection still applies for macOS: a busy
+      # macOS Pod with a claim row must not be reaped regardless of
+      # container-status shape.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [macos_pod("runner-macos-busy", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new(["runner-macos-busy"]) end)
+
+      reject(&K8sClient.delete_runner/2)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "reaps wedged Linux + macOS orphans in a mixed batch while protecting the live Linux runner" do
       expect(K8sClient, :list_pods, fn @namespace, _selector ->
         {:ok,
          [
-           pod("runner-wedged", aged(), runner_waiting()),
-           pod("runner-live-build", aged(), runner_executing()),
-           pod("runner-finished", aged(), runner_terminated())
+           linux_pod("runner-wedged", aged(), runner_waiting()),
+           linux_pod("runner-live-build", aged(), runner_executing()),
+           linux_pod("runner-finished", aged(), runner_terminated()),
+           macos_pod("runner-macos-leak", aged(), runner_executing())
          ]}
       end)
 
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
 
-      expect(K8sClient, :delete_runner, fn @namespace, "runner-wedged" -> :ok end)
+      expect(K8sClient, :delete_runner, 2, fn @namespace, name ->
+        assert name in ["runner-wedged", "runner-macos-leak"]
+        :ok
+      end)
 
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
