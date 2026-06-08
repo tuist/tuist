@@ -32,6 +32,13 @@ rules:
   - apiGroups: [apiextensions.k8s.io]
     resources: [customresourcedefinitions]
     verbs: [get, list, watch]
+  # The fleet-aware autoscaler sums allocatable memory across the
+  # bare-metal Linux node pool to bin-pack shape replicas against real
+  # host capacity. Nodes are cluster-scoped, so this read can't live in
+  # the namespaced Role below.
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -164,7 +171,29 @@ spec:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
             - --namespace={{ $namespace }}
+            # External dispatch URL for macOS Tart VMs (vmnet
+            # bypasses CNI; they reach the public ingress directly).
             - --dispatch-url={{ .Values.server.appUrl }}/api/internal/runners/dispatch
+            # In-cluster dispatch URL for Linux Pods (CNI-attached;
+            # Hetzner Cloud LB has no hairpin, so they can't reach
+            # the public ingress from inside the cluster).
+            - --dispatch-internal-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/dispatch
+            # Autoscaler reconciler runs in the cluster; always use
+            # the in-cluster Service URL for the same reason.
+            - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- if .Values.runnersController.features.dindImage }}
+            # dockerd sidecar image stamped on every Linux runner Pod.
+            # Gated on the controller binary recognising the flag —
+            # see `runnersController.features.dindImage` in values.yaml.
+            - --dind-image={{ .Values.runnersController.dindImage }}
+            {{- end }}
+            # Pod-lifecycle reconciler reports terminal-phase
+            # transitions to the server's RunnerSessions store so
+            # billing closes off K8s-authoritative timestamps
+            # instead of the flaky `workflow_job.completed`
+            # webhook. In-cluster Service URL — same path used by
+            # the autoscaler.
+            - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
           ports:
             - name: metrics
               containerPort: 8080

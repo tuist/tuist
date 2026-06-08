@@ -107,7 +107,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "up{cluster=\"kura-tuist\", instance=~\"${instance:regex}\"}",
+            "expr": "up{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "instant": true,
             "legendFormat": "{{instance}}",
             "range": false,
@@ -170,7 +170,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "instant": true,
             "legendFormat": "req/s",
             "range": false,
@@ -236,7 +236,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\", status=~\"5..\"}[$__rate_interval]))",
+            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "instant": true,
             "legendFormat": "errors/s",
             "range": false,
@@ -302,7 +302,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(kura_http_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "instant": true,
             "legendFormat": "p95",
             "range": false,
@@ -399,7 +399,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (instance) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -465,7 +465,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "topk(10, sum by (route) (rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\", route=~\"${route:regex}\"}[$__rate_interval])))",
+            "expr": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"$route\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "{{route}}",
             "refId": "A"
           }
@@ -531,7 +531,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (status) (rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\", status=~\"${status:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"$status\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{status}}",
             "refId": "A"
           }
@@ -597,21 +597,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(kura_http_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(kura_http_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(kura_http_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])))",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -690,7 +690,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) (rate(kura_artifact_reads_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -756,7 +756,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) (rate(kura_artifact_writes_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
+            "expr": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -822,7 +822,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) (rate(kura_artifact_reads_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -888,7 +888,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) (rate(kura_artifact_writes_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval])) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
+            "expr": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -967,7 +967,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (outcome, instance) (rate(kura_replication_apply_results_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))",
+            "expr": "sum by (outcome, instance) ((rate(kura_replication_apply_results_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}} {{outcome}}",
             "refId": "A"
           }
@@ -1033,21 +1033,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(kura_replication_request_duration_seconds_bucket{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}[$__rate_interval]))) or on() vector(0)",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -1113,7 +1113,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance, route, status) (rate(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\", route=~\"/_internal/.*\"}[$__rate_interval]))",
+            "expr": "sum by (instance, route, status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route=~\"/_internal/.*\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}} {{route}} {{status}}",
             "refId": "A"
           }
@@ -1192,21 +1192,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}} usage",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}} pinned",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_capacity_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}} capacity",
             "refId": "C"
           }
@@ -1272,14 +1272,14 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}} usage",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_write_buffer_capacity_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}} capacity",
             "refId": "B"
           }
@@ -1338,7 +1338,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "(kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "instant": true,
             "legendFormat": "{{instance}}",
             "range": false,
@@ -1399,7 +1399,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}",
+            "expr": "(kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "instant": true,
             "legendFormat": "{{instance}}",
             "range": false,
@@ -1480,7 +1480,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
+            "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1546,7 +1546,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - ((node_memory_MemAvailable_bytes and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})) / (node_memory_MemTotal_bytes and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})))",
+            "expr": "1 - ((node_memory_MemAvailable_bytes and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) / (node_memory_MemTotal_bytes and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1620,7 +1620,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - ((node_filesystem_avail_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})) / (node_filesystem_size_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})))",
+            "expr": "1 - ((node_filesystem_avail_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) / (node_filesystem_size_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1686,14 +1686,14 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
+            "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}} rx",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}))",
+            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{instance}} tx",
             "refId": "B"
           }
@@ -1759,7 +1759,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "node_filefd_allocated and on (instance) max by (instance) (kura_node_info{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"})",
+            "expr": "node_filefd_allocated and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
             "legendFormat": "{{instance}}",
             "refId": "A"
           }
@@ -1861,12 +1861,288 @@
         "targets": [
           {
             "datasource": "$logs_datasource",
-            "expr": "{namespace=\"kura\", container=\"kura\", app_kubernetes_io_instance=~\"${instance:regex}\"} | json",
+            "expr": "{cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\", pod=~\"$pod\"} |~ \"\\\"kura\\\\.tenant_id\\\":\\\"($tenant)\\\"\" | json",
             "refId": "A"
           }
         ],
         "title": "Kura Logs",
         "type": "logs"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 110
+        },
+        "id": 54,
+        "panels": [],
+        "title": "Geography",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Request origins for the selected tenant over the selected time range, alongside the tenant's serving regions.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "blue",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 14,
+          "w": 24,
+          "x": 0,
+          "y": 111
+        },
+        "id": 55,
+        "options": {
+          "basemap": {
+            "config": {},
+            "name": "Layer 0",
+            "type": "default"
+          },
+          "controls": {
+            "mouseWheelZoom": true,
+            "showAttribution": true,
+            "showDebug": false,
+            "showMeasure": false,
+            "showScale": false,
+            "showZoom": true
+          },
+          "layers": [
+            {
+              "config": {
+                "showLegend": true,
+                "style": {
+                  "color": {
+                    "fixed": "#1d4ed8"
+                  },
+                  "opacity": 0.8,
+                  "rotation": {
+                    "fixed": 0,
+                    "max": 360,
+                    "min": -360,
+                    "mode": "mod"
+                  },
+                  "size": {
+                    "field": "Value",
+                    "fixed": 12,
+                    "max": 18,
+                    "min": 10
+                  },
+                  "symbol": {
+                    "fixed": "img/icons/marker/circle.svg",
+                    "mode": "fixed"
+                  },
+                  "symbolAlign": {
+                    "horizontal": "center",
+                    "vertical": "center"
+                  },
+                  "text": {
+                    "field": "region",
+                    "fixed": "",
+                    "mode": "field"
+                  },
+                  "textConfig": {
+                    "fontSize": 11,
+                    "offsetX": 0,
+                    "offsetY": -14,
+                    "textAlign": "center",
+                    "textBaseline": "middle"
+                  }
+                }
+              },
+              "filterData": {
+                "id": "byRefId",
+                "options": "A"
+              },
+              "location": {
+                "gazetteer": "public/gazetteer/usa-states.json",
+                "lookup": "lookup",
+                "mode": "lookup"
+              },
+              "name": "US regions",
+              "tooltip": true,
+              "type": "markers"
+            },
+            {
+              "config": {
+                "showLegend": true,
+                "style": {
+                  "color": {
+                    "fixed": "#60a5fa"
+                  },
+                  "opacity": 0.8,
+                  "rotation": {
+                    "fixed": 0,
+                    "max": 360,
+                    "min": -360,
+                    "mode": "mod"
+                  },
+                  "size": {
+                    "field": "Value",
+                    "fixed": 12,
+                    "max": 18,
+                    "min": 10
+                  },
+                  "symbol": {
+                    "fixed": "img/icons/marker/circle.svg",
+                    "mode": "fixed"
+                  },
+                  "symbolAlign": {
+                    "horizontal": "center",
+                    "vertical": "center"
+                  },
+                  "text": {
+                    "field": "region",
+                    "fixed": "",
+                    "mode": "field"
+                  },
+                  "textConfig": {
+                    "fontSize": 11,
+                    "offsetX": 0,
+                    "offsetY": -14,
+                    "textAlign": "center",
+                    "textBaseline": "middle"
+                  }
+                }
+              },
+              "filterData": {
+                "id": "byRefId",
+                "options": "B"
+              },
+              "location": {
+                "gazetteer": "public/gazetteer/countries.json",
+                "lookup": "lookup",
+                "mode": "lookup"
+              },
+              "name": "Global regions",
+              "tooltip": true,
+              "type": "markers"
+            },
+            {
+              "config": {
+                "showLegend": true,
+                "style": {
+                  "color": {
+                    "fixed": "#d97706"
+                  },
+                  "opacity": 0.7,
+                  "rotation": {
+                    "fixed": 0,
+                    "max": 360,
+                    "min": -360,
+                    "mode": "mod"
+                  },
+                  "size": {
+                    "field": "Value",
+                    "fixed": 8,
+                    "max": 32,
+                    "min": 6
+                  },
+                  "symbol": {
+                    "fixed": "img/icons/marker/circle.svg",
+                    "mode": "fixed"
+                  },
+                  "symbolAlign": {
+                    "horizontal": "center",
+                    "vertical": "center"
+                  },
+                  "text": {
+                    "fixed": "",
+                    "mode": "fixed"
+                  },
+                  "textConfig": {
+                    "fontSize": 11,
+                    "offsetX": 0,
+                    "offsetY": -12,
+                    "textAlign": "center",
+                    "textBaseline": "middle"
+                  }
+                }
+              },
+              "filterData": {
+                "id": "byRefId",
+                "options": "C"
+              },
+              "location": {
+                "gazetteer": "public/gazetteer/countries.json",
+                "lookup": "lookup",
+                "mode": "lookup"
+              },
+              "name": "Request origins",
+              "tooltip": true,
+              "type": "markers"
+            }
+          ],
+          "tooltip": {
+            "mode": "details"
+          },
+          "view": {
+            "allLayers": true,
+            "id": "coords",
+            "lat": 24,
+            "lon": 10,
+            "zoom": 1.2
+          }
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (region, country, subdivision, lookup) (label_replace(kura_node_geo_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\", country=\"US\", subdivision=~\"US-.*\"}, \"lookup\", \"$1\", \"subdivision\", \"US-(.*)\"))",
+            "format": "table",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (region, country, subdivision, lookup) (label_replace(kura_node_geo_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\", country!=\"unknown\", country!=\"US\"}, \"lookup\", \"$1\", \"country\", \"(.*)\"))",
+            "format": "table",
+            "instant": true,
+            "range": false,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "label_replace(sum by (client_country) ((increase(kura_http_client_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", client_country!=\"unknown\"}[$__range])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), \"lookup\", \"$1\", \"client_country\", \"(.*)\")",
+            "format": "table",
+            "instant": true,
+            "range": false,
+            "refId": "C"
+          }
+        ],
+        "title": "Tenant Geography",
+        "type": "geomap"
       }
     ],
     "refresh": "",
@@ -1930,14 +2206,37 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\"}, tenant_id)",
+          "definition": "label_values(kura_node_info, cluster)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Cluster",
+          "multi": true,
+          "name": "cluster",
+          "query": {
+            "query": "label_values(kura_node_info, cluster)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(kura_node_info{cluster=~\"$cluster\"}, tenant_id)",
           "hide": 0,
           "includeAll": true,
           "label": "Tenant",
           "multi": true,
           "name": "tenant",
           "query": {
-            "query": "label_values(kura_node_info{cluster=\"kura-tuist\"}, tenant_id)",
+            "query": "label_values(kura_node_info{cluster=~\"$cluster\"}, tenant_id)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1953,14 +2252,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, instance)",
+          "definition": "label_values(kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\"}, instance)",
           "hide": 0,
           "includeAll": true,
           "label": "Instance",
           "multi": true,
           "name": "instance",
           "query": {
-            "query": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, instance)",
+            "query": "label_values(kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\"}, instance)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1976,14 +2275,38 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, region)",
+          "definition": "label_values(kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\"}, region)",
           "hide": 0,
           "includeAll": true,
           "label": "Region",
           "multi": true,
           "name": "region",
           "query": {
-            "query": "label_values(kura_node_info{cluster=\"kura-tuist\", tenant_id=~\"${tenant:regex}\"}, region)",
+            "query": "label_values(kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\"}, region)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": "$logs_datasource",
+          "definition": "label_values({cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Pod",
+          "multi": true,
+          "name": "pod",
+          "query": {
+            "qryType": 1,
+            "query": "label_values({cluster=~\"$cluster\", namespace=\"kura\", container=\"kura\"}, pod)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -1999,14 +2322,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, route)",
+          "definition": "label_values(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}, route)",
           "hide": 0,
           "includeAll": true,
           "label": "Route",
           "multi": true,
           "name": "route",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, route)",
+            "query": "label_values(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}, route)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,
@@ -2022,14 +2345,14 @@
             "value": "$__all"
           },
           "datasource": "$datasource",
-          "definition": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, status)",
+          "definition": "label_values(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}, status)",
           "hide": 0,
           "includeAll": true,
           "label": "Status",
           "multi": true,
           "name": "status",
           "query": {
-            "query": "label_values(kura_http_requests_total_total{cluster=\"kura-tuist\", instance=~\"${instance:regex}\", region=~\"${region:regex}\"}, status)",
+            "query": "label_values(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}, status)",
             "refId": "PrometheusVariableQueryEditor-VariableQuery"
           },
           "refresh": 1,

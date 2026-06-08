@@ -447,6 +447,88 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "retry_server/2" do
+    test "flips the failed row back to :provisioning and appends a new deployment" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, failed} = Kura.fail_server(server)
+
+      assert {:ok, %Server{id: id, status: :provisioning, region: "local-controller"} = retried} =
+               Kura.retry_server(failed, "0.5.3")
+
+      assert id == server.id
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
+
+      image_tags =
+        retried.deployments
+        |> Enum.map(& &1.image_tag)
+        |> Enum.sort()
+
+      assert image_tags == ["0.5.2", "0.5.3"]
+    end
+
+    test "broadcasts :updated for the retried row" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      :ok = Kura.subscribe_to_account(account.id)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      assert_receive {:kura_server, :created, _}
+
+      {:ok, failed} = Kura.fail_server(server)
+      {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
+
+      assert_receive {:kura_server, :updated, %{id: id, status: :provisioning}}
+      assert id == server.id
+    end
+
+    test "refuses to retry a previously-active server" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      {:ok, server} = Kura.fail_server(server)
+
+      assert {:error, :not_retryable} = Kura.retry_server(server, "0.5.3")
+      assert %Server{status: :failed, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+    end
+
+    test "refuses to retry a server that's not in :failed state" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      assert {:error, :not_retryable} = Kura.retry_server(server, "0.5.3")
+    end
+  end
+
   describe "subscribe_to_account/1" do
     test "broadcasts created/updated/destroyed events to the account topic" do
       user = AccountsFixtures.user_fixture()

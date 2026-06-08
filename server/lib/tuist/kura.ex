@@ -83,8 +83,12 @@ defmodule Tuist.Kura do
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
       nil -> {:ok, []}
-      image_tag -> schedule_version_deployments(image_tag)
+      image_tag -> schedule_runtime_image_deployments(image_tag)
     end
+  end
+
+  defp schedule_runtime_image_deployments(image_tag) do
+    schedule_version_deployments(image_tag)
   end
 
   defp runtime_image_tag do
@@ -367,7 +371,13 @@ defmodule Tuist.Kura do
         %Server{} = server ->
           with {:ok, server} <-
                  server
-                 |> Server.status_changeset(%{status: :active, url: url, current_image_tag: image_tag})
+                 |> Server.observation_changeset(%{
+                   status: :active,
+                   url: url,
+                   current_image_tag: image_tag,
+                   observed_image_tag: image_tag,
+                   last_observed_at: now_truncated()
+                 })
                  |> Repo.update(),
                :ok <- ensure_cache_endpoint(account, url) do
             server
@@ -378,7 +388,14 @@ defmodule Tuist.Kura do
     end)
   end
 
-  @doc "Marks a server as `:failed` after an unrecoverable rollout error."
+  @doc """
+  Fast-path hint that the latest rollout attempt failed, so the UI
+  reflects the failure within the same tick instead of waiting for the
+  next projection. Not authoritative: `reconcile_observed_servers`
+  re-derives `status` from observed cluster state every tick and will
+  heal this back to `:active` once the backing resource recovers, so
+  `:failed` is never a sticky terminal sink.
+  """
   def fail_server(%Server{} = server) do
     case Repo.transaction(fn ->
            case lock_server(server.id, server.account_id) do
@@ -390,6 +407,43 @@ defmodule Tuist.Kura do
 
              %Server{} = server ->
                {:ok, server} = server |> Server.status_changeset(%{status: :failed}) |> Repo.update()
+               {:updated, server}
+           end
+         end) do
+      {:ok, {:updated, server}} ->
+        broadcast_server(server, :updated)
+        {:ok, server}
+
+      {:ok, {:ignored, server}} ->
+        {:ok, server}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Records the reconciler's observation of a server into Postgres: the
+  derived `status` plus the observed-state columns. This is the only
+  writer of the projection besides `activate_server/2` (which records
+  the ready observation as part of activation).
+
+  Intent is never overridden: a server the operator is destroying or
+  has destroyed is left untouched so a stale observation can't resurrect
+  it. `attrs` must include `:status` and `:last_observed_at`; it may
+  include `:observed_image_tag` and `:observed_ready_at`.
+  """
+  def record_observation(%Server{} = server, attrs) when is_map(attrs) do
+    case Repo.transaction(fn ->
+           case lock_server(server.id, server.account_id) do
+             nil ->
+               Repo.rollback(:not_found)
+
+             %Server{status: status} = server when status in [:destroying, :destroyed] ->
+               {:ignored, server}
+
+             %Server{} = server ->
+               {:ok, server} = server |> Server.observation_changeset(attrs) |> Repo.update()
                {:updated, server}
            end
          end) do
@@ -430,6 +484,44 @@ defmodule Tuist.Kura do
     end
   end
 
+  @doc """
+  Retries a failed first-time deploy in place: flips the `Server` back
+  to `:provisioning` and appends a fresh `Deployment` so the
+  reconciler picks the retry up on its next tick.
+
+  Only failed servers that never reached `:active` are eligible.
+  Retrying a drift failure on a previously-active server would
+  trample the cache endpoint that's still serving the old image,
+  so the operator has to explicitly destroy those instead.
+
+  The server row, ID, and `provisioner_node_ref` stay the same; the
+  prior failed `Deployment` rows stay attached so the failure
+  history is visible in /ops alongside the retry.
+  """
+  def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
+    with {:ok, region} <- Regions.fetch(server.region) do
+      case Repo.transaction(fn ->
+             with {:ok, server} <-
+                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
+               server
+             else
+               {:error, reason} -> Repo.rollback(reason)
+             end
+           end) do
+        {:ok, server} ->
+          server = Repo.preload(server, :deployments, force: true)
+          broadcast_server(server, :updated)
+          {:ok, server}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
+
   @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do
     {:ok, server} =
@@ -438,6 +530,8 @@ defmodule Tuist.Kura do
     broadcast_server(server, :destroyed)
     {:ok, server}
   end
+
+  defp ensure_cache_endpoint(_account, nil), do: :ok
 
   defp ensure_cache_endpoint(account, url) do
     # Kura URLs are deterministic for `(account, region)`, so this

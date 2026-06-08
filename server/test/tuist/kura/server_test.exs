@@ -191,6 +191,7 @@ defmodule Tuist.Kura.ServerTest do
         {:active, :failed},
         {:active, :destroying},
         {:failed, :failed},
+        {:failed, :provisioning},
         {:failed, :active},
         {:failed, :destroying},
         {:destroying, :destroying},
@@ -210,7 +211,8 @@ defmodule Tuist.Kura.ServerTest do
       transitions = [
         {:provisioning, :destroyed},
         {:active, :provisioning},
-        {:failed, :provisioning},
+        {:active, :destroyed},
+        {:failed, :destroyed},
         {:destroying, :active},
         {:destroyed, :active}
       ]

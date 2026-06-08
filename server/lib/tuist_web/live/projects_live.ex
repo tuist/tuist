@@ -29,7 +29,6 @@ defmodule TuistWeb.ProjectsLive do
     {:ok,
      socket
      |> assign(:form, form)
-     |> assign(:selected_tab, "projects")
      |> assign(:selected_build_system, "xcode")
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
@@ -121,6 +120,7 @@ defmodule TuistWeb.ProjectsLive do
   def render(assigns) do
     ~H"""
     <div id="projects">
+      <h1 data-part="page-title">{@selected_account.name}</h1>
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
         <.create_project_form
@@ -341,9 +341,11 @@ defmodule TuistWeb.ProjectsLive do
           <.button
             :if={@source == "header"}
             variant="primary"
-            label={dgettext("dashboard_projects", "New project")}
+            label={dgettext("dashboard_projects", "New Project")}
             {attrs}
-          />
+          >
+            <:icon_left><.plus /></:icon_left>
+          </.button>
           <.button
             :if={@source == "empty-state"}
             variant="secondary"

@@ -27,14 +27,25 @@ defmodule TuistWeb.RunnersController do
   def dispatch(conn, _params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{jit: jit, account: account}} <- Runners.dispatch_for_sa(ns, sa_name) do
+         {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id}} <-
+           Runners.dispatch_for_sa(ns, sa_name) do
       json(conn, %{
         encoded_jit_config: jit,
-        owner: account.name
+        owner: account.name,
+        workflow_job_id: workflow_job_id
       })
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
+
+      {:error, :drain} ->
+        # 410 Gone: the polling Pod's image no longer matches its
+        # RunnerPool's spec.image. dispatch-poll.sh on the Pod side
+        # treats this as a clean-exit signal — exits 0, the EXIT
+        # trap halts the VM, tart-kubelet transitions the Pod to
+        # Succeeded, and the runner-pool reconciler replaces it
+        # with one on the current image.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
 
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
@@ -67,6 +78,56 @@ defmodule TuistWeb.RunnersController do
         Logger.error("runners: dispatch failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
     end
+  end
+
+  @doc """
+  Returns the raw scaling signals the runners-controller's
+  autoscaler reconciler uses to compute the desired replica count
+  for a given fleet:
+
+      GET /api/internal/runners/desired_replicas?fleet=<name>
+      → 200 { fleet, claimed, queued, p95_concurrent_last_hour }
+
+  Authentication: same SA-token + TokenReview path as the dispatch
+  endpoint. Anyone with a valid in-cluster SA token can read —
+  the values are aggregate counts (not per-customer detail), and
+  the controller's SA holds no pool label so we cannot gate by
+  pool membership the way `dispatch` does.
+
+  The controller composes the response into a desired replicas
+  value using `minWarmPoolFloor` + `maxReplicas` from the
+  per-pool `spec.autoscaling` block; keeping the policy knobs on
+  the controller side means a chart-only tuning change doesn't
+  need a server deploy.
+  """
+  def desired_replicas(conn, %{"fleet" => fleet}) when is_binary(fleet) and fleet != "" do
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, _} <- K8sClient.create_controller_token_review(token) do
+      signals = Runners.scaling_signals_for_fleet(fleet)
+      json(conn, signals)
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      {:error, :unauthenticated} ->
+        Logger.warning("runners: tokenreview rejected token on desired_replicas")
+        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+
+      {:error, :not_service_account} ->
+        Logger.warning("runners: tokenreview principal is not an SA on desired_replicas")
+        conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+
+      {:error, :not_in_cluster} ->
+        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+
+      {:error, reason} ->
+        Logger.error("runners: desired_replicas failed", reason: inspect(reason))
+        conn |> put_status(:internal_server_error) |> json(%{error: "scaling signals failed"})
+    end
+  end
+
+  def desired_replicas(conn, _params) do
+    conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
   end
 
   defp bearer_token(conn) do

@@ -28,8 +28,10 @@ old ones.
 
 CI: `.github/workflows/xcresult-processor-image.yml` runs on every push to
 `main` that touches `server/lib/**`, the xcresult NIF, or this directory.
-Builds on the bare-metal `vm-image-builder` Mac mini (Tart needs a live
-GUI session for Virtualization.framework — hosted runners can't do this).
+Builds on the bare-metal `vm-image-builder` Mac mini fleet (Tart
+needs a live GUI session for Virtualization.framework, so hosted
+runners can't do this). Builder fleet operator runbook:
+[`../vm-image-builder.md`](../vm-image-builder.md).
 
 Locally:
 
@@ -41,8 +43,43 @@ The local build:
 1. Compiles the xcresult Swift NIF (macOS host needs Xcode + Erlang).
 2. Builds the server release with `MIX_ENV=prod mix release tuist`.
 3. Packages the release as a tarball.
-4. Calls Packer with the tarball as a `release_tarball` var.
+4. Calls Packer with the tarball as `release_tarball`.
 5. Bakes the result into a Tart image named `tuist-xcresult-processor`.
+
+## Layer 1 dependency
+
+This is **Layer 2** on top of
+`ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
+`infra/macos-xcode-image`). Xcode itself lives in Layer 1 because
+the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+ships in full Xcode (not the Command Line Tools).
+
+Unlike `infra/runner-image` (where customers pin a specific runner
+profile to a specific Xcode), the xcresult-processor is a
+**singleton backend service** that has to parse .xcresult bundles
+produced by every customer runner profile. xcresulttool's JSON
+schema changes across Xcode majors, so the processor should run on
+at least as new an Xcode as any active runner-image profile.
+
+The Xcode version is declared inline in `.github/workflows/release.yml`'s
+`release-xcresult-processor-image.Build image` step (current value is
+the `XCODE_VERSION` env var on that step). Bump it alongside the
+runner-image matrix when promoting a new Xcode to the fleet:
+
+1. Publish a Layer 1 image with the new Xcode — first run
+   `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
+   the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
+   `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
+   See `infra/macos-xcode-image/AGENTS.md` for the runbook.
+2. Update the runner-image active matrix and this image's
+   `XCODE_VERSION` env var in `release.yml` in the same commit so
+   the processor never lags an active runner profile. Merge with
+   a `feat(xcresult-processor-image): bump to Xcode 26.X.Y` message;
+   check-releases picks it up from `infra/xcresult-processor-image/**`.
+
+To rebuild against a different Xcode without bumping the inline
+version (e.g. testing a 26.X.Y release candidate), dispatch
+`xcresult-processor-image.yml` with `-f xcode_version=26.X.Y`.
 
 ## Env injection at runtime
 

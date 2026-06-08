@@ -6,6 +6,22 @@ import TuistLogging
 import TuistSupport
 import XcodeGraph
 
+public struct AnalyticsCommandMetadata: Equatable, Sendable {
+    public let name: String
+    public let subcommand: String?
+    public let commandArguments: [String]
+
+    public init(
+        name: String,
+        subcommand: String?,
+        commandArguments: [String]
+    ) {
+        self.name = name
+        self.subcommand = subcommand
+        self.commandArguments = commandArguments
+    }
+}
+
 /// Storage for run metadata, such as binary cache.
 public actor RunMetadataStorage {
     @TaskLocal public static var current: RunMetadataStorage = .init()
@@ -17,7 +33,9 @@ public actor RunMetadataStorage {
     }
 
     /// A unique ID associated with a specific run
-    public var runId: String { Environment.current.processId }
+    public var runId: String {
+        Environment.current.processId
+    }
 
     /// Graph associated with the current run
     public private(set) var graph: Graph?
@@ -76,6 +94,14 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
+    /// The generate command event's id, minted client-side. `tuist generate` sends it as the command
+    /// event id (so the server stores the graph under it) and persists it; a later local Xcode build
+    /// references it so the build page can resolve the generation's graph for its Module Cache breakdown.
+    public private(set) var generationId: String?
+    public func update(generationId: String?) {
+        self.generationId = generationId
+    }
+
     /// The URL of the uploaded build run.
     public private(set) var buildRunURL: URL?
     public func update(buildRunURL: URL?) {
@@ -86,6 +112,12 @@ public actor RunMetadataStorage {
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {
         self.cacheEndpoint = cacheEndpoint
+    }
+
+    /// Canonical command metadata derived during command execution.
+    public private(set) var resolvedCommandMetadata: AnalyticsCommandMetadata?
+    public func update(resolvedCommandMetadata: AnalyticsCommandMetadata?) {
+        self.resolvedCommandMetadata = resolvedCommandMetadata
     }
 
     /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`

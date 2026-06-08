@@ -8,6 +8,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     :founded_date,
     :body,
     :slug,
+    :story_url,
     :og_image_path,
     :excerpt
   ]
@@ -20,6 +21,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     :onboarded_date,
     :body,
     :slug,
+    :story_url,
     :og_image_path,
     :excerpt,
     translations: %{},
@@ -33,6 +35,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
     title = String.trim_trailing(attrs["title"], ".")
     basename = Path.basename(filename, ".md")
     slug = "/customers/#{basename}"
+    story_url = attrs["story_url"] || slug
     og_image_path = attrs["og_image_path"] || default_og_image_path(basename)
     excerpt = attrs["excerpt"]
 
@@ -45,6 +48,7 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
       onboarded_date: parse_onboarded_date(attrs["onboarded_date"]),
       body: body,
       slug: slug,
+      story_url: story_url,
       og_image_path: og_image_path,
       excerpt: excerpt,
       translations: normalize_translations(attrs["translations"] || %{}),
@@ -71,6 +75,15 @@ defmodule Tuist.Marketing.Customers.CaseStudy do
   end
 
   def localize(%__MODULE__{} = case_study, _locale), do: case_study
+
+  def href(%__MODULE__{story_url: story_url}), do: story_url
+
+  def external?(%__MODULE__{story_url: story_url}) do
+    uri = URI.parse(story_url)
+    not is_nil(uri.scheme) or not is_nil(uri.host)
+  end
+
+  def local_page?(%__MODULE__{} = case_study), do: not external?(case_study)
 
   defp default_og_image_path(basename) do
     case_study_og_image_path = "/marketing/images/og/customers/#{basename}.jpg"

@@ -1,0 +1,59 @@
+{{- if .Values.kataContainers.enabled }}
+# Kata Containers + QEMU RuntimeClass for Linux runner Pods.
+#
+# Each runner Pod becomes a microVM: separate kernel, real per-tenant
+# kernel isolation. The `kata-qemu` RuntimeClass below is what
+# `pools[].runtimeClass: kata-qemu` in `values-*.yaml` resolves to,
+# and what the runners-controller's podtemplate stamps onto
+# `Pod.spec.runtimeClassName` for linux pools.
+#
+# Why QEMU and not Firecracker: Firecracker has no 9pfs / virtio-fs
+# support, so kata-fc requires a block-device snapshotter (nydus +
+# nydusd) to deliver the container rootfs to the microVM. Kata-qemu
+# uses virtio-fs / 9pfs against the host's default overlayfs
+# snapshotter directly — no extra packaging. AKS Confidential
+# Containers, IBM Cloud sandboxed containers, and OpenShift
+# sandboxed containers all ship Kata + QEMU; the FC variant is
+# rarely used in production k8s. Per-Pod overhead is ~50 MiB vs FC's
+# ~5 MiB, negligible against the 4 GiB workload allocation of a CI
+# runner Pod.
+#
+# Install model: Kata 3.30 is baked into the bare-metal Node at OS
+# install time via the `postInstallScript` in
+# `infra/k8s/clusters/bare-metal-staging.yaml`. The script runs
+# chrooted in the freshly-installed Ubuntu image before any reboot,
+# unpacks `kata-static` under `/opt/kata` (which bundles
+# `qemu-system-x86_64`), writes the kata-qemu containerd drop-in to
+# `/etc/containerd/conf.d/`, and seeds `/etc/containerd/config.toml`
+# to import drop-ins. When the Node boots, containerd starts with
+# the kata-qemu handler already registered — no runtime DaemonSet,
+# no containerd restart, no disruption to Cilium / CNI.
+#
+# The `katacontainers.io/kata-runtime=true` label below is applied to
+# the Node by `postKubeadmCommands` in the bare-metal worker
+# `KubeadmConfigTemplate`, so the RuntimeClass scheduling rule binds
+# immediately after kubeadm-join. Nodes without the label never
+# match this RuntimeClass and fail to schedule kata-qemu Pods (the
+# correct behavior — fail loud rather than silently fall back to runc
+# when an operator asked for microVM isolation).
+#
+# To disable Kata cluster-wide (e.g. dev environments without bare
+# metal), set `kataContainers.enabled: false` in values. The
+# `runtimeClass` field on a pool resolves to nil at the controller
+# and Pods fall back to the cluster default runtime.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-qemu
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kata-containers
+handler: kata-qemu
+scheduling:
+  nodeSelector:
+    katacontainers.io/kata-runtime: "true"
+overhead:
+  podFixed:
+    cpu: "50m"
+    memory: "100Mi"
+{{- end }}

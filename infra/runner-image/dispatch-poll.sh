@@ -13,7 +13,9 @@
 #   POST <url> with header `Authorization: Bearer <sa_token>`
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "..." }
 #       -> exec ./run.sh --jitconfig <jit> --disableupdate
+#     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
+#     403  -> server-side authz refused the SA, abort
 #     5xx  -> transient; sleep + retry
 #
 # Once the runner exits, the EXIT trap halts the VM. tart-kubelet
@@ -34,7 +36,7 @@ exec >>"${LOG}" 2>&1
 # refilling. The trap fires once on EXIT so the happy path
 # (clean ./run.sh exit) and every error path halt the VM the
 # same way.
-trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
+trap '_rc=$?; echo "$(date -u +%FT%TZ) dispatch-poll: exiting (rc=${_rc}); halting VM"; sudo /sbin/shutdown -h now || true; exit "${_rc}"' EXIT
 
 if [ ! -f /etc/tuist.env ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: /etc/tuist.env missing; aborting"
@@ -98,7 +100,7 @@ while true; do
         continue
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
-      cd /opt/actions-runner
+      cd /Users/runner/actions-runner
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -110,6 +112,11 @@ while true; do
       # cold boot. The EXIT trap above halts the VM regardless of
       # rc — the trap is what tart-kubelet ultimately observes, so
       # both clean and crash paths refill the warm pool the same way.
+      #
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
+      # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       exit $?
       ;;
@@ -126,6 +133,16 @@ while true; do
     401|403)
       echo "$(date -u +%FT%TZ) dispatch-poll: ${http} unauthorized; aborting"
       exit 1
+      ;;
+    410)
+      # Server signalled drain — this Pod's image no longer matches
+      # the RunnerPool's spec.image (chart digest-pin rolled). Exit
+      # cleanly so the EXIT trap halts the VM and tart-kubelet flips
+      # the Pod to Succeeded; the reconciler then replaces it with
+      # one on the current image. The check only runs on idle polls,
+      # so in-flight customer work is never interrupted.
+      echo "$(date -u +%FT%TZ) dispatch-poll: 410 drain — stale image, exiting cleanly"
+      exit 0
       ;;
     *)
       echo "$(date -u +%FT%TZ) dispatch-poll: HTTP ${http} (attempt=${attempt}); retrying"

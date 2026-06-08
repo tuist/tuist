@@ -63,9 +63,7 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      # Using fork with client disconnect detection during body read timeouts
-      # PR: https://github.com/mtrudel/bandit/pull/564
-      {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
+      {:bandit, "~> 1.11.1", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
@@ -106,7 +104,11 @@ defmodule Tuist.MixProject do
       {:decorator, "~> 1.4"},
       {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
-      {:cachex, "~> 4.0.4"},
+      # Pinned to the open PR `whitfin/cachex#433` (TBK145/cachex@patch-1),
+      # which renames cachex's internal `@type record` so it stops colliding
+      # with Elixir 1.19's new builtin `record/0` type. Revert to a hex
+      # version once the PR lands upstream.
+      {:cachex, github: "TBK145/cachex", ref: "72822750eacef403135ad7413f654d40719fbd9f", override: true},
       {:excellent_migrations, "~> 0.1.8"},
       {:ex_aws_sts, "~> 2.2"},
       {:qr_code, "~> 3.2.0"},

@@ -1630,6 +1630,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
                 ]
             case .tuistFixtureGenerator:
                 [

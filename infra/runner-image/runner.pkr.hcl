@@ -22,28 +22,62 @@ packer {
 #  4. Once the server returns 200 with `encoded_jit_config`, the
 #     script writes the JIT to a temp file and execs
 #     `./run.sh --jitconfig $JIT` against the GitHub Actions
-#     runner under /opt/actions-runner.
+#     runner under /Users/runner/actions-runner.
 #  5. The runner accepts a single queued job (JIT config implies
 #     ephemeral=true), runs the workflow, and exits.
 #  6. tart-kubelet observes the VM stop, transitions the Pod to
 #     Completed, and the next reconcile tick creates a fresh Pod.
 #
-# Image layout:
-#   /opt/actions-runner/        <- GitHub Actions runner binary
-#   /opt/tuist/dispatch-poll.sh <- the dispatch poll loop
-#   /opt/tuist/inject-env.sh    <- reads kubelet env mount → /etc/tuist.env
-#   /Library/LaunchDaemons/dev.tuist.runner.plist
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
+# certs all live in the macos-tahoe-xcode base; this build just adds
+# the GitHub Actions runner agent, the dispatch loop, and the runner
+# user / launchd wiring. Splitting the slow Xcode install out means
+# a rebuild on every runner-image commit costs ~2 min instead of
+# ~30 min.
+#
+# Active Xcode versions baked per release are listed in
+# `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml`. `release.yml`'s
+# `runner-image-build` job fans out across those versions, publishing
+# one `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag
+# per profile that each managed env's chart references via
+# `runnersFleet.runnerImageSemver`.
+#
+# Image layout (mirrors GitHub-hosted macOS paths so on-disk
+# artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
+# Xcode DerivedData, `actions/cache` payloads — work interchangeably
+# between hosted and self-hosted runs without per-environment cache
+# keys):
+#   /Users/runner/                              <- runtime user
+#   /Users/runner/actions-runner/               <- GitHub Actions runner binary
+#   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
+#   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
+#   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#   /Applications/Xcode_<version>.app           <- inherited from the base
+#
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
+# with a `/Users/runner` symlink to `/Users/admin` plus a configured
+# `~/.zprofile` (brew shellenv, mise, rbenv init). Our flow creates
+# a real `runner` user that *also* points at `/Users/runner` —
+# sysadminctl can't overwrite the existing path, so it assigns a
+# fresh UID against the symlinked home. Both users end up sharing
+# `.zprofile`, which is how the runner's login shell sees the
+# brew-installed tools from the base.
 #
 # Note that the runner is registered with GitHub at *job* time,
 # not image-build time — the image carries the runner binary but
 # no credentials. The JIT config delivered via dispatch is the
 # only piece that authenticates this VM as a runner for any
-# specific repo.
+# specific repo. The matching `Tuist.Runners.mint_jit` call passes
+# `work_folder: "/Users/runner/work"` so the agent's workspace
+# lands at the same absolute path GitHub-hosted runners use.
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Cirrus Labs ships macOS images with Xcode preinstalled, which is what most iOS/macOS workflows expect."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4.1"
+  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
 variable "output_image" {
@@ -61,7 +95,7 @@ variable "runner_version" {
   # Renovate watches actions/runner releases (see renovate.json's
   # custom regex manager keyed off the marker comment below) and
   # opens `fix(runner-image): …` PRs which release-runner-image
-  # picks up to rebuild + bump the digest pin. Renovate PRs
+  # picks up to rebuild + bump the chart's image pin. Renovate PRs
   # auto-merge on green CI, same flow we use for other external
   # deps; falling more than ~1 release behind would re-introduce
   # the v2.328-style deprecation risk so the cadence is
@@ -103,50 +137,83 @@ source "tart-cli" "runner" {
   memory_gb    = var.memory_gb
   ssh_username = "admin"
   ssh_password = "admin"
-  ssh_timeout  = "120s"
+  # First boot of a freshly-cloned Tart base image runs macOS first-time
+  # setup (kextcache rebuild, Spotlight indexing, APFS expansion,
+  # AssetCacheLocator, first-run launchd jobs) which can take 10+ min
+  # to reach an SSH-ready state. Cached re-clones (the state of long-
+  # lived builder hosts) skip that work and answer in ~30s, which is why
+  # tight values held for years on the original Mac mini but timed out
+  # on newly-onboarded hosts. 15m gives headroom for the cold path on a
+  # cirruslabs Tahoe base; the warm path returns long before then.
+  ssh_timeout  = "15m"
   headless     = true
 }
 
 build {
   sources = ["source.tart-cli.runner"]
 
-  provisioner "shell" {
-    inline = [
-      "echo 'admin' | sudo -S mkdir -p /opt/actions-runner /opt/tuist /etc/tuist",
-      "echo 'admin' | sudo -S chown admin:staff /opt/actions-runner /opt/tuist"
-    ]
-  }
-
-  # GitHub's actions/runner-images exposes each Xcode under BOTH
-  # the full and the major-minor path (see images/macos/macos-26-
-  # arm64-Readme.md#xcode) so customer workflows that pin
-  # `.xcode-version=26.4` work the same as ones pinning
-  # `.xcode-version=26.4.1`. Mirror that here so repos don't have
-  # to switch their `.xcode-version` file each time the patch
-  # component rolls.
+  # Create the `runner` user. macos-tahoe-base (inherited via
+  # the macos-tahoe-xcode base) ships with `admin` as its working
+  # user but pre-stages
+  # `/Users/runner` as a placeholder carrying ACLs / flags that
+  # survive `chown -R`. If we leave it in place, `sysadminctl
+  # -addUser runner` logs `Directory at path:/Users/runner already
+  # exists` and skips home creation, so the new user never owns
+  # its own home and runtime mkdirs like `~/.local/share/mise`
+  # blow up with EACCES the first time any step tries to create a
+  # top-level subdir we didn't pre-chown.
   #
-  # The Cirrus :26.4.1 image ships the real bundle at
-  # `/Applications/Xcode_26.4.app` (major-minor only, no patch);
-  # `/Applications/Xcode_26.4.1.app` doesn't exist on the base.
-  # Verified by probing the base image — see PR #10808 body for
-  # the run output. Symlink the patch-form alias at the real
-  # bundle so workflows pinning `.xcode-version=26.4.1` find Xcode.
+  # Wipe the placeholder before sysadminctl so it creates a fresh
+  # home from scratch with the correct POSIX ownership and the
+  # default macOS-user ACLs — no base-image residue to fight.
+  #
+  # `-admin` adds the user to the admin GROUP, which is what
+  # `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
+  # file ownership reference. Password "runner" is encoded into
+  # /etc/kcpassword below so the auto-login flow can unlock the
+  # account at boot.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "echo 'admin' | sudo -S ln -sfn /Applications/Xcode_26.4.app /Applications/Xcode_26.4.1.app",
-      "test -d /Applications/Xcode_26.4.app",
-      "test -d /Applications/Xcode_26.4.1.app"
+      "echo 'admin' | sudo -S rm -rf /Users/runner",
+      "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
+      "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
     ]
   }
 
+  # Install the Actions runner agent under runner's home so the
+  # binary, its `_diag` logs, and any side data it writes land
+  # under `/Users/runner/...` — matching GitHub-hosted's layout
+  # (their agent installs at `/Users/runner/runners/<version>/`).
+  # `--work` for the workspace is set at JIT-generation time
+  # (`work_folder: "/Users/runner/work"`), so the actual checkout
+  # ends up at the GH-parity path regardless of the agent's home.
+  #
+  # Defensively wipe `/Users/runner/actions-runner` before
+  # repopulating: macos-tahoe-base's install-actions-runner.sh
+  # script may have installed an unpinned runner version under
+  # the placeholder /Users/runner that survives the rm -rf above
+  # if anything has changed the inheritance order. Removing the
+  # dir before recreating it lands an empty, runner-owned tree
+  # that the tar extract can populate without fighting any
+  # leftover.
+  #
+  # Create the subdirectories as root + chown to runner instead of
+  # `sudo -u runner mkdir` — see the runner-user creation block
+  # for why mkdir directly under a freshly-created /Users/runner
+  # can fail even after a recursive chown.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "cd /opt/actions-runner",
-      "curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
-      "tar xzf actions-runner.tar.gz",
-      "rm actions-runner.tar.gz",
+      "sudo rm -rf /Users/runner/actions-runner",
+      "sudo mkdir -p /Users/runner/actions-runner /Users/runner/work",
+      "sudo chown runner:staff /Users/runner/actions-runner /Users/runner/work",
+      "cd /Users/runner/actions-runner",
+      "sudo -u runner rm -rf ./*",
+      "sudo -u runner curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
+      "sudo -u runner tar xzf actions-runner.tar.gz",
+      "sudo -u runner rm actions-runner.tar.gz",
       # Sanity check: configure script exists. We don't run
       # ./config.sh — JIT config is provided at runtime.
       "test -x ./run.sh"
@@ -171,18 +238,86 @@ build {
     ]
   }
 
+  # Passwordless sudo for runner. The agent runs as the `runner`
+  # user in a real desktop session (LaunchAgent + auto-login),
+  # not as root, so the few privileged operations the agent needs
+  # — installing /etc/tuist.env from the kubelet env mount,
+  # halting the VM at job exit — go through sudo. Passwordless
+  # because the VM is ephemeral and single-tenant; the entire OS
+  # is the customer's job environment.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S sh -c 'echo \"runner ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/runner-nopasswd'",
+      "echo 'admin' | sudo -S chmod 0440 /etc/sudoers.d/runner-nopasswd",
+      "echo 'admin' | sudo -S chown root:wheel /etc/sudoers.d/runner-nopasswd",
+      "sudo -u runner sudo -n true"
+    ]
+  }
+
+  # Auto-login as runner so a desktop session exists at boot and
+  # loginwindow loads /Users/runner/Library/LaunchAgents agents.
+  # macOS implements auto-login via /etc/kcpassword (XOR-encoded
+  # password using Apple's well-known key) + the autoLoginUser
+  # preference. The encoded payload for password "runner" is the
+  # 6 password bytes followed by 6 zero-pad bytes, each XOR'd
+  # against the 12-byte Apple key — total 12 bytes (one full
+  # key-length block).
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\xb5' > /tmp/kcpassword",
+      "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
+      "rm -f /tmp/kcpassword",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner"
+    ]
+  }
+
   provisioner "file" {
     source      = "${path.root}/launchd.plist"
     destination = "/tmp/dev.tuist.runner.plist"
   }
 
+  # Install as a LaunchAgent under runner's home so it loads
+  # inside runner's user session (auto-login above guarantees the
+  # session exists at boot). User-owned (runner:staff, 0644) per
+  # Apple's LaunchAgent ownership rules.
+  #
+  # Same root-create + chown pattern as the actions-runner block:
+  # `/Users/runner/Library` is part of the placeholder home and
+  # rejects writes from the runner UID even after `chown -R`.
   provisioner "shell" {
     inline = [
-      "echo 'admin' | sudo -S install -m 0644 /tmp/dev.tuist.runner.plist /Library/LaunchDaemons/dev.tuist.runner.plist",
+      "set -euo pipefail",
+      "sudo mkdir -p /Users/runner/Library/LaunchAgents",
+      "sudo chown runner:staff /Users/runner/Library /Users/runner/Library/LaunchAgents",
+      "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
       "rm -f /tmp/dev.tuist.runner.plist",
-      "echo 'admin' | sudo -S chown root:wheel /Library/LaunchDaemons/dev.tuist.runner.plist",
-      "echo 'admin' | sudo -S mkdir -p /var/log/tuist-runner",
-      "echo 'admin' | sudo -S chown admin:staff /var/log/tuist-runner"
+      "sudo mkdir -p /var/log/tuist-runner",
+      "sudo chown runner:staff /var/log/tuist-runner"
+    ]
+  }
+
+  # Sanity check: tools customers expect on a GitHub-parity macOS
+  # runner have to be reachable from the agent's runtime
+  # environment. The agent wraps its entrypoint in `zsh -lc`, so
+  # ~/.zprofile is sourced (Homebrew shellenv, mise, rbenv init,
+  # PATH additions for the macos-tahoe-xcode base's pre-installed
+  # tools). A future base-image bump that moves Homebrew's prefix
+  # or drops a formula would silently make tools unreachable from
+  # step shells; resolve each tool against the same login-shell
+  # environment so image-build CI fails loudly instead of customer
+  # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
+  # explicit `xcrun xcresulttool version` below doubles as proof
+  # that the base's Xcode install + `xcode-select -s` propagated.
+  #
+  # Tuist itself isn't in the list — customer workflows install it
+  # via mise / brew so they own the version pin.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
     ]
   }
 }

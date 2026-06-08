@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
 import Path
+import TuistConfig
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistLoader
@@ -13,21 +15,37 @@ import XCTest
 final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
     private var subject: StaticXCFrameworkModuleMapGraphMapper!
     private var manifestFilesLocator: MockManifestFilesLocating!
+    private var configLoader: MockConfigLoading!
 
     override func setUp() {
         super.setUp()
 
         manifestFilesLocator = MockManifestFilesLocating()
+        configLoader = MockConfigLoading()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(project: .generated(.test()))
+            )
         subject = StaticXCFrameworkModuleMapGraphMapper(
-            manifestFilesLocator: manifestFilesLocator
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader
         )
     }
 
     override func tearDown() {
         manifestFilesLocator = nil
+        configLoader = nil
         subject = nil
 
         super.tearDown()
+    }
+
+    private func makeSubject(configLoader: MockConfigLoading? = nil) -> StaticXCFrameworkModuleMapGraphMapper {
+        StaticXCFrameworkModuleMapGraphMapper(
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader ?? self.configLoader
+        )
     }
 
     func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework() async throws {
@@ -257,6 +275,157 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
+    func test_map_when_static_xcframework_library_linked_via_dynamic_xcframework_with_custom_scratch_directory()
+        async throws
+    {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        let customScratchDirectory = projectPath.parentDirectory
+            .appending(components: "CustomScratch")
+        let customConfigLoader = MockConfigLoading()
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+        given(customConfigLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .generated(
+                        .test(
+                            installOptions: .test(
+                                passthroughSwiftPackageManagerArguments: [
+                                    "--scratch-path",
+                                    customScratchDirectory.pathString,
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
+        let subject = makeSubject(configLoader: customConfigLoader)
+        let googleMapsPath = projectPath
+            .parentDirectory
+            .appending(component: "GoogleMaps.xcframework")
+        let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
+        try await fileSystem.makeDirectory(at: googleMapsHeadersPath)
+        try await fileSystem.writeText(
+            "modulemap",
+            at: googleMapsHeadersPath.appending(component: "module.modulemap")
+        )
+        try await fileSystem.writeText(
+            """
+            #import <GoogleMaps/GMSIndoorBuilding.h>
+            #import <GoogleMaps/GMSIndoorLevel.h>
+            """,
+            at: googleMapsHeadersPath.appending(component: "GoogleMaps.h")
+        )
+
+        let derivedDirectory = customScratchDirectory.appending(
+            components: [
+                Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesXCFrameworkDirectory,
+            ]
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .testXCFramework(
+                        path: try temporaryPath()
+                            .appending(component: "DynamicFramework.xcframework")
+                    ),
+                ],
+                .testXCFramework(
+                    path: try temporaryPath()
+                        .appending(component: "DynamicFramework.xcframework")
+                ): [
+                    .testXCFramework(
+                        path: googleMapsPath,
+                        infoPlist: .test(
+                            libraries: [
+                                .test(
+                                    path: try RelativePath(validating: "GoogleMaps.a")
+                                ),
+                            ]
+                        ),
+                        linking: .static,
+                        moduleMaps: [
+                            googleMapsHeadersPath.appending(component: "module.modulemap"),
+                        ]
+                    ),
+                ],
+            ]
+        )
+
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(
+                            base: [
+                                "OTHER_SWIFT_FLAGS": [
+                                    "-Xcc",
+                                    "-fmodule-map-file=\"$(SRCROOT)/../CustomScratch/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
+                                ],
+                                "OTHER_C_FLAGS": [
+                                    "-fmodule-map-file=\"$(SRCROOT)/../CustomScratch/tuist-derived/XCFrameworks/GoogleMaps/Headers/module.modulemap\"",
+                                ],
+                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../GoogleMaps.xcframework/ios-arm64/Headers\""],
+                            ]
+                        )
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertBetterEqual(expectedGraph, gotGraph)
+        XCTAssertBetterEqual(
+            [
+                .directory(
+                    DirectoryDescriptor(path: derivedDirectory.appending(components: "GoogleMaps", "Headers"))
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "GoogleMaps", "Headers", "module.modulemap"),
+                        contents: "modulemap".data(using: .utf8)
+                    )
+                ),
+                .file(
+                    FileDescriptor(
+                        path: derivedDirectory.appending(components: "GoogleMaps", "Headers", "GoogleMaps.h"),
+                        contents: """
+                        #import <GMSIndoorBuilding.h>
+                        #import <GMSIndoorLevel.h>
+                        """.data(using: .utf8)
+                    )
+                ),
+            ],
+            gotSideEffects
+        )
+    }
+
     // MARK: - Regression: device vs simulator slice selection (tuist/tuist#9723)
 
     func test_map_when_static_xcframework_framework_with_device_and_simulator_slices(
@@ -370,6 +539,122 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             graph: graph,
             environment: MapperEnvironment()
         )
+
+        // Then
+        XCTAssertBetterEqual(
+            expectedGraph,
+            gotGraph
+        )
+        XCTAssertEmpty(gotSideEffects)
+    }
+
+    func test_map_when_static_swift_xcframework_is_reached_through_multiple_paths_deduplicates_search_paths(
+    ) async throws {
+        // Given
+        let projectPath = try temporaryPath()
+            .appending(component: "Project")
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                projectPath.appending(components: Constants.tuistDirectoryName, Constants.SwiftPackageManager.packageSwiftName)
+            )
+
+        let dynamicXCFrameworkPath = projectPath
+            .parentDirectory
+            .appending(component: "DynamicFramework.xcframework")
+        let staticSwiftXCFrameworkPath = projectPath
+            .parentDirectory
+            .appending(component: "StaticSwift.xcframework")
+        let dynamicXCFramework: GraphDependency = .testXCFramework(
+            path: dynamicXCFrameworkPath,
+            linking: .dynamic
+        )
+        let staticSwiftXCFramework: GraphDependency = .testXCFramework(
+            path: staticSwiftXCFrameworkPath,
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        identifier: "ios-arm64",
+                        path: try RelativePath(validating: "StaticSwift.framework/StaticSwift")
+                    ),
+                ]
+            ),
+            linking: .static,
+            swiftModules: [
+                staticSwiftXCFrameworkPath.appending(
+                    components: "ios-arm64",
+                    "StaticSwift.framework",
+                    "Modules",
+                    "StaticSwift.swiftmodule"
+                ),
+            ]
+        )
+
+        let graph: Graph = .test(
+            name: "App",
+            path: projectPath,
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(
+                            name: "App"
+                        ),
+                        .test(
+                            name: "Feature"
+                        ),
+                        .test(
+                            name: "Leaf"
+                        ),
+                    ]
+                ),
+            ],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "Feature", path: projectPath),
+                    .target(name: "Leaf", path: projectPath),
+                ],
+                .target(name: "Feature", path: projectPath): [
+                    .target(name: "Leaf", path: projectPath),
+                ],
+                .target(name: "Leaf", path: projectPath): [
+                    dynamicXCFramework,
+                ],
+                dynamicXCFramework: [
+                    staticSwiftXCFramework,
+                ],
+            ]
+        )
+
+        let expectedSettings: SettingsDictionary = [
+            "FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]": [
+                "$(inherited)",
+                "\"$(SRCROOT)/../StaticSwift.xcframework/ios-arm64\"",
+            ],
+        ]
+        var expectedGraph = graph
+        expectedGraph.projects = [
+            projectPath: .test(
+                path: projectPath,
+                targets: [
+                    .test(
+                        name: "App",
+                        settings: .test(base: expectedSettings)
+                    ),
+                    .test(
+                        name: "Feature",
+                        settings: .test(base: expectedSettings)
+                    ),
+                    .test(
+                        name: "Leaf",
+                        settings: .test(base: expectedSettings)
+                    ),
+                ]
+            ),
+        ]
+
+        // When
+        let (gotGraph, gotSideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertBetterEqual(
@@ -1525,6 +1810,39 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
                         "-enable-experimental-feature", "StrictConcurrency",
                         "-enable-experimental-feature", "TypedThrows",
+                    ]
+                ),
+            ]
+        )
+    }
+
+    func test_removeOtherSwiftDuplicates_when_conditioned_key() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS[sdk=iphoneos*]": .array(
+                [
+                    "-Xcc", "value-one",
+                    "-Xcc", "value-one",
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "value-two",
+                    "value-two",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS[sdk=iphoneos*]": .array(
+                    [
+                        "-Xcc", "value-one",
+                        "-enable-upcoming-feature", "DeprecateApplicationMain",
+                        "value-two",
                     ]
                 ),
             ]

@@ -21,14 +21,12 @@ defmodule TuistWeb.App do
         Accounts.get_user_by_session_token(session["user_token"], preload: [:account])
       end
 
-    TuistWeb.Authorization.require_user_can_read_project(%{
-      user: user,
-      account_handle: owner_handle,
-      project_handle: project_handle
-    })
-
     project =
-      Projects.get_project_by_account_and_project_handles(owner_handle, project_handle)
+      TuistWeb.Authorization.require_user_can_read_project(%{
+        user: user,
+        account_handle: owner_handle,
+        project_handle: project_handle
+      })
 
     projects =
       if is_nil(user) do

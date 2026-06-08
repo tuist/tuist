@@ -49,6 +49,11 @@ public final class MockEnvironment: Environmenting, @unchecked Sendable {
         baseDirectory.appending(component: "DerivedData")
     }
 
+    public var derivedDataLocationStub: DerivedDataLocation?
+    public func derivedDataLocation() async throws -> DerivedDataLocation {
+        derivedDataLocationStub ?? .default
+    }
+
     public var stubbedArchitecture: MacArchitecture = .arm64
     public func architecture() async throws -> MacArchitecture {
         stubbedArchitecture

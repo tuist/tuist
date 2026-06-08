@@ -17,7 +17,7 @@ use tracing::{Span, field, warn};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::config::Config;
+use crate::{config::Config, node_location::NodeLocation};
 
 pub struct TelemetryGuards {
     tracer_provider: Option<SdkTracerProvider>,
@@ -36,7 +36,7 @@ impl TelemetryGuards {
     }
 }
 
-pub fn init_tracing(config: &Config) -> TelemetryGuards {
+pub fn init_tracing(config: &Config, node_location: &NodeLocation) -> TelemetryGuards {
     global::set_text_map_propagator(TraceContextPropagator::new());
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -50,7 +50,7 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
     let sentry_guard = init_sentry(config);
 
     let tracer_result = match config.otlp_traces_endpoint.as_deref() {
-        Some(endpoint) => build_tracer_provider(config, endpoint),
+        Some(endpoint) => build_tracer_provider(config, endpoint, node_location),
         None => Err("OTLP tracing disabled (no endpoint configured)".to_owned()),
     };
 
@@ -101,6 +101,8 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
                 deployment.environment.name = %config.otel_deployment_environment,
                 kura.region = %config.region,
                 kura.tenant_id = %config.tenant_id,
+                geo.country.iso_code = node_location.country.as_deref().unwrap_or("unknown"),
+                geo.region.iso_code = node_location.subdivision.as_deref().unwrap_or("unknown"),
                 service.instance.id = %config.node_url,
                 "OTLP tracing not active"
             );
@@ -109,7 +111,7 @@ pub fn init_tracing(config: &Config) -> TelemetryGuards {
     }
 }
 
-pub fn log_context_span(config: &Config) -> Span {
+pub fn log_context_span(config: &Config, node_location: &NodeLocation) -> Span {
     let span = tracing::info_span!(
         "kura.runtime",
         service.name = %config.otel_service_name,
@@ -118,10 +120,18 @@ pub fn log_context_span(config: &Config) -> Span {
         deployment.environment.name = %config.otel_deployment_environment,
         kura.region = %config.region,
         kura.tenant_id = %config.tenant_id,
+        geo.country.iso_code = field::Empty,
+        geo.region.iso_code = field::Empty,
         service.instance.id = %config.node_url,
         trace_id = field::Empty,
         span_id = field::Empty,
     );
+    if let Some(country) = node_location.country.as_deref() {
+        span.record("geo.country.iso_code", country);
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        span.record("geo.region.iso_code", subdivision);
+    }
     record_trace_context(&span);
     span
 }
@@ -151,28 +161,33 @@ fn init_sentry(config: &Config) -> Option<ClientInitGuard> {
     }))
 }
 
-fn build_tracer_provider(config: &Config, endpoint: &str) -> Result<SdkTracerProvider, String> {
-    let exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_http()
-        .with_endpoint(endpoint)
-        .with_protocol(Protocol::HttpBinary)
-        .with_timeout(Duration::from_secs(3))
-        .build()
-        .map_err(|error| format!("failed to build OTLP exporter: {error}"))?;
+fn build_tracer_provider(
+    config: &Config,
+    endpoint: &str,
+    node_location: &NodeLocation,
+) -> Result<SdkTracerProvider, String> {
+    let exporter = build_span_exporter(endpoint)?;
 
+    let mut attributes = vec![
+        KeyValue::new("service.name", config.otel_service_name.clone()),
+        KeyValue::new("service.namespace", "kura"),
+        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        KeyValue::new(
+            "deployment.environment.name",
+            config.otel_deployment_environment.clone(),
+        ),
+        KeyValue::new("kura.region", config.region.clone()),
+        KeyValue::new("kura.tenant_id", config.tenant_id.clone()),
+        KeyValue::new("service.instance.id", config.node_url.clone()),
+    ];
+    if let Some(country) = node_location.country.as_deref() {
+        attributes.push(KeyValue::new("geo.country.iso_code", country.to_owned()));
+    }
+    if let Some(subdivision) = node_location.subdivision.as_deref() {
+        attributes.push(KeyValue::new("geo.region.iso_code", subdivision.to_owned()));
+    }
     let resource = Resource::builder_empty()
-        .with_attributes([
-            KeyValue::new("service.name", config.otel_service_name.clone()),
-            KeyValue::new("service.namespace", "kura"),
-            KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-            KeyValue::new(
-                "deployment.environment.name",
-                config.otel_deployment_environment.clone(),
-            ),
-            KeyValue::new("kura.region", config.region.clone()),
-            KeyValue::new("kura.tenant_id", config.tenant_id.clone()),
-            KeyValue::new("service.instance.id", config.node_url.clone()),
-        ])
+        .with_attributes(attributes)
         .build();
 
     Ok(SdkTracerProvider::builder()
@@ -182,6 +197,60 @@ fn build_tracer_provider(config: &Config, endpoint: &str) -> Result<SdkTracerPro
         .with_resource(resource)
         .with_batch_exporter(exporter)
         .build())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OtlpTraceProtocol {
+    Grpc,
+    HttpBinary,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct OtlpTraceExporterConfig {
+    endpoint: String,
+    protocol: OtlpTraceProtocol,
+}
+
+fn build_span_exporter(endpoint: &str) -> Result<opentelemetry_otlp::SpanExporter, String> {
+    let exporter = otlp_trace_exporter_config(endpoint)?;
+
+    match exporter.protocol {
+        OtlpTraceProtocol::Grpc => opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(exporter.endpoint)
+            .with_timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|error| format!("failed to build OTLP gRPC exporter: {error}")),
+        OtlpTraceProtocol::HttpBinary => opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(exporter.endpoint)
+            .with_protocol(Protocol::HttpBinary)
+            .with_timeout(Duration::from_secs(3))
+            .build()
+            .map_err(|error| format!("failed to build OTLP HTTP exporter: {error}")),
+    }
+}
+
+fn otlp_trace_exporter_config(endpoint: &str) -> Result<OtlpTraceExporterConfig, String> {
+    let url = reqwest::Url::parse(endpoint)
+        .map_err(|error| format!("OTLP traces endpoint must be a valid URL: {error}"))?;
+
+    let (protocol, endpoint) = match url.scheme() {
+        "grpc" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpc://", "http://", 1),
+        ),
+        "grpcs" => (
+            OtlpTraceProtocol::Grpc,
+            endpoint.replacen("grpcs://", "https://", 1),
+        ),
+        _ if url.path().is_empty() || url.path() == "/" => {
+            (OtlpTraceProtocol::Grpc, url.to_string())
+        }
+        _ => (OtlpTraceProtocol::HttpBinary, url.to_string()),
+    };
+
+    Ok(OtlpTraceExporterConfig { endpoint, protocol })
 }
 
 struct RequestHeaderExtractor<'a>(&'a HeaderMap);
@@ -227,5 +296,45 @@ pub fn inject_current_trace_context(headers: &mut reqwest::header::HeaderMap) {
 pub fn attach_parent_context(span: &Span, headers: &HeaderMap) {
     if let Err(error) = span.set_parent(extract_parent_context(headers)) {
         warn!("failed to attach propagated trace context: {error:?}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OtlpTraceProtocol, otlp_trace_exporter_config};
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_http_for_signal_paths() {
+        let config = otlp_trace_exporter_config("http://collector:4318/v1/traces")
+            .expect("expected OTLP HTTP endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::HttpBinary);
+        assert_eq!(config.endpoint, "http://collector:4318/v1/traces");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_uses_grpc_for_root_endpoint() {
+        let config = otlp_trace_exporter_config("http://collector:4317")
+            .expect("expected OTLP gRPC endpoint to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "http://collector:4317/");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_supports_grpc_scheme_shorthand() {
+        let config = otlp_trace_exporter_config("grpcs://collector.internal:443")
+            .expect("expected explicit gRPC scheme to parse");
+
+        assert_eq!(config.protocol, OtlpTraceProtocol::Grpc);
+        assert_eq!(config.endpoint, "https://collector.internal:443");
+    }
+
+    #[test]
+    fn otlp_trace_exporter_config_rejects_invalid_urls() {
+        let error =
+            otlp_trace_exporter_config("not-a-url").expect_err("expected invalid endpoint to fail");
+
+        assert!(error.contains("must be a valid URL"));
     }
 }

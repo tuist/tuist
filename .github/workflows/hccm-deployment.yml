@@ -44,7 +44,7 @@ jobs:
             region: fsn1
           - environment: production
             region: fsn1
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ matrix.environment }}
     # Hold the same lane as server-deployment.yml's deploy + observability

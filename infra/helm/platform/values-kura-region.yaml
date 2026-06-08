@@ -1,0 +1,5 @@
+# Kura regional clusters do not serve traffic through ingress-nginx.
+# Each KuraInstance gets its own LoadBalancer Service and external-dns
+# hostname directly from the Kura controller.
+ingress-nginx:
+  enabled: false

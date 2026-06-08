@@ -168,6 +168,12 @@
         patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
       />
       <.tab_menu_horizontal_item
+        :if={@has_binary_cache_data}
+        label={dgettext("dashboard_builds", "Module Cache")}
+        selected={@selected_tab == "module-cache"}
+        patch={"?#{Query.put(@uri.query, "tab", "module-cache")}"}
+      />
+      <.tab_menu_horizontal_item
         :if={@run.cacheable_tasks_count > 0}
         label={dgettext("dashboard_builds", "Xcode Cache")}
         selected={@selected_tab == "xcode-cache"}
@@ -1624,6 +1630,21 @@
           </.card_section>
         </.card>
       </div>
+    <% end %>
+    <%= if @selected_tab == "module-cache" and @run.status != "processing" and @has_binary_cache_data do %>
+      <.module_cache_tab
+        binary_cache_analytics={@binary_cache_analytics}
+        binary_cache_filter={@binary_cache_filter}
+        binary_cache_page={@binary_cache_page}
+        binary_cache_page_count={@binary_cache_page_count}
+        binary_cache_sort_by={@binary_cache_sort_by}
+        binary_cache_sort_order={@binary_cache_sort_order}
+        expanded_target_names={@expanded_target_names}
+        uri={@uri}
+        run={@binary_cache_command_event}
+        available_filters={@binary_cache_available_filters}
+        binary_cache_active_filters={@binary_cache_active_filters}
+      />
     <% end %>
     <%= if @selected_tab == "machine-metrics" do %>
       <.machine_metrics_charts metrics={@machine_metrics} />

@@ -19,12 +19,14 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Organization memberships and roles (user, organization, role, and timestamps)
 - Account billing information and subscriptions
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata only; token values and hashes are excluded)
-- Custom cache endpoint configurations
+- Agent registration audit records (`agent_registrations`, `agent_registration_events`, and `agent_auth_jtis` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and OTP expiry timestamps, claim request / completion IP metadata, claimed user relationship, linked account-token id or JWT id, ID-JAG issuer/subject/audience/client metadata, replay-protection `jti` records, append-only state-change events (`created`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event IP metadata, event metadata, and timestamps. The claim token hash, claim-view token hash, OTP hash, issued API key value, and signed JWT value are excluded from exports as authentication secrets.
+- Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints and active regional Kura endpoint mirrors. Legacy account-level Kura global endpoint rows matching `https://<lowercase-account-handle>.kura.tuist.dev` are no longer stored separately; they are removed by the Kura global-endpoint cleanup migration.
 - Organization SSO configuration metadata, including the configured SSO provider, provider URL, and full OAuth2 endpoint URLs
-- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, and status
+- Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status, and the observed-state projection (`observed_image_tag`, `last_observed_at`) recording which image the backing cluster reports running and when it was last observed
 - Kura deployment history (`kura_deployments` table): rollout attempts for the account's Kura servers including image tag, status, error messages, and start/finish timestamps
 - GitHub App installation metadata (`github_app_installations` table): the installation ID GitHub assigned, the GitHub instance the App lives on (`client_url`, e.g. `https://github.com` or a customer's GitHub Enterprise Server host), the App's `app_id`/`app_slug`/`client_id`, and the GitHub-side management `html_url`. The accompanying `client_secret`, `private_key` (PEM), and `webhook_secret` are stored encrypted at rest and are excluded from exports as authentication secrets.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
+- Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for DB-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage.
 
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
@@ -45,9 +47,14 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Automation alert events (`automation_alert_events` table): per-test-case trigger and recovery records produced by automation alerts (alert id, test case id, status, timestamps).
 
 ### Managed GitHub Actions Runners
-- **Per-account configuration** (Postgres `accounts.runner_max_concurrent`): the customer's account-wide concurrent runner budget. `0` means runners are disabled for the account; `N > 0` is the active cap.
-- **Active claim coordination** (Postgres `runner_claims`): one row per currently-claimed workflow_job. Columns: `workflow_job_id` (GitHub's job id, PK), `account_id`, `fleet_name` (the RunnerPool name the claim is bound to), `pod_name` (the SA / Pod that won the claim), `claimed_at`. Rows are deleted on completion / release / stale recovery; steady-state size is bounded by the number of in-flight runners.
-- **Workflow_job lifecycle** (ClickHouse `runner_jobs`, ReplacingMergeTree on `workflow_job_id`): one logical row per workflow_job carrying the full lifecycle from `queued` → `claimed` → `running` → `completed`. Columns include the GitHub correlation fields (`workflow_job_id`, `workflow_run_id`, `run_attempt`, `job_name`, `head_branch`, `head_sha`, `repo`), lifecycle state (`status`, `conclusion`), timestamps (`enqueued_at`, `claimed_at`, `started_at`, `completed_at`, `updated_at`), and binding (`pod_name`, `runner_name`). Powers the customer-facing "queued / running / recent runs" surfaces.
+- **Per-account availability**: whether runners are enabled for an account is gated solely by the `:runners` feature flag (`Tuist.FeatureFlags.runners_enabled?/1`), not by any column on the account. No per-account runner configuration is stored as customer data.
+- **Runner profiles** (Postgres `runner_profiles`): account-scoped named bundles that customers reference from `runs-on:` as `tuist-<name>`. Columns: `id` (PK), `account_id`, `name`, `platform` (enum `linux | macos` — the runner OS the profile dispatches to), `vcpus`, `memory_gb`, `xcode_version` (string, macOS-only; pins the runner image's Xcode tag), `protected` (boolean), `inserted_at`, `updated_at`. The dispatch path resolves `(account, requested-label)` through these rows to the matching shape pool. The shape pool itself is operator-managed in Kubernetes and not customer data. Every account is auto-bootstrapped at sign-up with one protected `linux` row and one protected `macos` row; protected rows cannot be deleted, but their shape (and the macOS row's Xcode version) remains customer-editable.
+- **Active claim coordination** (Postgres `runner_claims`): one row per currently-claimed workflow_job. Columns: `workflow_job_id` (GitHub's job id, PK), `account_id`, `fleet_name` (the RunnerPool name the claim is bound to), `pod_name` (the SA / Pod that won the claim), `claimed_at`, `lifecycle_state` (`claimed` during the JIT-mint window, `running` once the runner has registered with GitHub), and `runner_name` (the GitHub-side runner label, populated when `lifecycle_state` flips to `running`). Rows are deleted on completion / release / stale recovery; steady-state size is bounded by the number of in-flight runners.
+- **Runner billing sessions** (Postgres `runner_sessions`): append-only record of every runner Pod we provisioned, keyed off the Pod lifecycle rather than the workflow_job's GitHub-reported runtime. Columns: `id` (PK), `account_id`, `workflow_job_id`, `fleet_name`, `pod_name`, `runner_name`, `repository` (denormalized `owner/name` handle from the workflow_job for billing-page scope filters), `workflow_name` (denormalized for the same), `started_at` (claim-win — proxy for Pod creation), `ended_at` (set by the runners-controller via `POST /api/internal/runners/pods/stopped` when it observes the Pod's container terminate; NULL while still in flight). Drives metered-compute invoicing via `Tuist.Runners.Billing`. Retries (`Jobs.record_queued/1`) produce additional rows so the customer is billed for every Pod they actually held.
+- **Workflow_job lifecycle** (ClickHouse `runner_jobs`, ReplacingMergeTree on `workflow_job_id`): one logical row per workflow_job carrying the full lifecycle from `queued` → `claimed` → `running` → `completed`. Columns include the GitHub correlation fields (`workflow_job_id`, `workflow_run_id`, `run_attempt`, `workflow_name`, `job_name`, `head_branch`, `head_sha`, `repository`), lifecycle state (`status`, `conclusion`), timestamps (`enqueued_at`, `claimed_at`, `started_at`, `completed_at`, `updated_at`), binding (`pod_name`, `runner_name`), and the downloadable-archive marker (`log_archived_at`, set once the gzipped log archive is uploaded — see the runner job log archives entry below). Per-step data lives in `runner_job_steps`. Powers the customer-facing "queued / running / recent runs" surfaces.
+- **Runner job steps** (ClickHouse `runner_job_steps`, ReplacingMergeTree on `(workflow_job_id, number)`): one row per workflow_job step, captured from the `workflow_job.completed` webhook. Columns: `workflow_job_id`, `account_id`, `number` (the step's 1-based position), `name`, `status`, `conclusion`, `started_at`, `completed_at`, and `inserted_at` (the RMT version). Powers the job detail page's Steps card and step-level analytics (failure rates per step name, p95 of `Build` duration, slowest steps in a workflow).
+- **Runner job logs** (ClickHouse `runner_job_logs`, ReplacingMergeTree on `(workflow_job_id, line_number)`): the runner container's captured stdout, one row per line. Columns: `workflow_job_id`, `account_id`, `line_number`, `ts` (the per-line timestamp GitHub stamps in the log payload), `message` (the log text), and `inserted_at` (the RMT version). Populated by `Tuist.Runners.Workers.FetchLogsWorker`, which streams the job's log from GitHub's Actions Logs API after the `workflow_job.completed` webhook and inserts batched lines. Surfaced on the job detail page's Logs tab (per-step slicing via `##[group]Run` markers, full-log search). Retained for 90 days.
+- **Runner job log archives** (S3 `runners/{account_id}/{workflow_job_id}/runner.log.gz`): once `FetchLogsWorker` finishes ingesting a job's lines, `Tuist.Runners.Workers.ArchiveLogsWorker` stream-gzips them into a single object (multipart-uploaded so a large log never materialises in memory) and stamps `log_archived_at` on the `runner_jobs` row. The "Download logs" action redirects to a presigned URL for that object; the button is hidden while `log_archived_at` is `NULL`. Same content as `runner_job_logs`, rendered to plain text (`<ISO timestamp> <message>` per line). Retained for 90 days, matched to the row-level TTL by `Tuist.Runners.Workers.PruneArchivedLogsWorker` (a daily Oban cron) which both deletes the S3 object and clears `log_archived_at`.
 - **Kubernetes-side state** (`RunnerPool` CR + Pods / ServiceAccounts in the `tuist-runners` namespace): operational metadata only — pool name, dispatch label, image, replica count, owner labels on Pods. Reconciled by the runners-controller.
 - **JIT runner configs**: the GitHub-issued JIT credential the dispatch endpoint mints for each runner registration is an ephemeral authentication secret and is never persisted server-side. Only the resulting `runner_name` (the GitHub-side runner label) is recorded in `runner_jobs`.
 
@@ -55,6 +62,10 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Account-level Slack installation records (workspace id/name, bot user id; bot access tokens are excluded as authentication secrets)
 - Per-channel Slack webhook destinations stored on projects, alert rules, and project flaky-test settings (channel id, channel name; the encrypted webhook URL itself is excluded as an authentication secret)
 - Per-action Slack webhook destinations stored on automation alerts (channel id, channel name; the encrypted webhook URL embedded in the action payload is excluded as an authentication secret)
+
+### Outbound Webhooks
+- Webhook endpoints (`webhook_endpoints` table): per-account HTTPS destinations subscribed to Tuist events. Exports include endpoint name, subscribed event types (`test_case.created`, `test_case.updated`, `preview.created`, `preview.deleted`), and timestamps. The endpoint URL and signing secret are stored Vault-encrypted at rest and are excluded from exports as authentication material.
+- Webhook delivery attempts (`webhook_delivery_attempts` table, ClickHouse): per-attempt audit log generated by `Tuist.Webhooks.Workers.DeliveryWorker`. Exports include the event id and type, attempt number, delivery status (`delivered` / `failed`), the JSON payload Tuist sent (`request_body`), the response status / headers / body returned by the upstream, any error string, the duration in milliseconds, and the attempt timestamp. Stored in a MergeTree partitioned monthly; retained indefinitely so the dashboard can surface historical deliveries for debugging.
 
 ### Analytics Data (ClickHouse)
 The following data is stored in ClickHouse for analytics purposes:
@@ -82,11 +93,14 @@ The following data is stored in ClickHouse for analytics purposes:
 ### Non-Exportable Data
 - Encrypted passwords and authentication secrets
 - Account, SCIM-scoped account, and project token values and encrypted token hashes
+- Agent registration claim token hashes, claim-view token hashes, OTP hashes, issued API key values, and signed JWT values
 - Encrypted SSO client secrets for Okta and custom OAuth2 providers
 - Internal replication bookkeeping (e.g., `bundles.artifacts_replicated_to_ch`) used to drive the PG → ClickHouse artifacts backfill
 - Internal Kura shared secrets used by the control plane and Kura runtime extensions
+- Managed Kura operational traces retained in Tempo: service/resource metadata (including `kura.tenant_id`, `kura.region`, serving-node `geo.country.iso_code` / `geo.region.iso_code`) and request spans (including route, status, duration, and best-effort client `geo.country.iso_code` / `geo.region.iso_code`). This telemetry is used for platform observability and incident response, and is not part of the customer export archive today.
 - Encrypted GitHub App credentials (`client_secret`, `private_key`, `webhook_secret` on `github_app_installations`)
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
+- Outbound webhook endpoint URLs and signing secrets on `webhook_endpoints` (treated as bearer credentials — path/query tokens often appear in destination URLs)
 - GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
 
 ## Binary Files
@@ -95,6 +109,37 @@ All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`
+- **Runner job log archives**: gzipped runner logs stored at `runners/{account_id}/{workflow_job_id}/runner.log.gz`
+
+## Data Retention
+
+Stored artifact blobs are subject to plan-based retention. Once an artifact is
+older than its retention window, its binary is removed from object storage by a
+daily cleanup process; the associated metadata rows (build runs, test runs,
+preview records, shard plans) are kept so analytics and dashboards remain
+intact. Retention windows, in days, by plan:
+
+| Artifact | Air / Open Source | Pro | Enterprise |
+| --- | --- | --- | --- |
+| Cache artifacts (Xcode compilation, module, Gradle) | 14 | 30 | 90 |
+| App preview builds and icons | 60 | 180 | 365 |
+| Build archives | 30 | 90 | 365 |
+| Test run attachments | 30 | 90 | 365 |
+| Shard bundles | 7 | 14 | 30 |
+
+Retention status is computed when cleanup runs. Cache artifacts use the object
+storage `last_modified` timestamp, while previews, build archives, test
+attachments, and shard bundles use their database `inserted_at` timestamp. The
+active account plan determines the applicable window, with Air used when an
+account has no active subscription.
+
+Tuist stores per-account cleanup progress for DB-backed artifact families so
+daily retention jobs can resume after previously-purged metadata rows without
+issuing repeated object-storage deletes. This is not a per-artifact purge
+ledger; retention is still derived from the timestamps and account plan above.
+An export reflects the artifacts present at export time; binaries already
+purged under these windows are no longer available, though their metadata and
+the account-level cleanup cursor are still exported.
 
 ## Export Process
 

@@ -7,7 +7,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AutomationsFixtures
+
+  setup do
+    # By default, treat every triggered test case as validated on the default
+    # branch so the existing transition/recovery assertions are unaffected.
+    # Tests exercising the new-test exclusion override this stub.
+    stub(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch -> ids end)
+    :ok
+  end
 
   defp run(alert_id) do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id}})
@@ -353,6 +362,82 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
 
       reject(&Automations.update_alert/2)
+
+      assert :ok = run(automation.id)
+    end
+  end
+
+  describe "default-branch validation gate" do
+    test "skips trigger actions for a test case with no successful default-branch run" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+      new_test_id = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [new_test_id], all: [new_test_id]}
+      end)
+
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, [^new_test_id], _branch ->
+        []
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+      reject(&ActionExecutor.execute_actions/3)
+      reject(&Automations.create_alert_event/1)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "fires only for validated test cases when the triggered set mixes new and validated tests" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+      validated_id = Ecto.UUID.generate()
+      new_test_id = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [validated_id, new_test_id], all: [validated_id, new_test_id]}
+      end)
+
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, ids, _branch ->
+        assert validated_id in ids
+        assert new_test_id in ids
+        [validated_id]
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+      expected_entity = %{type: :test_case, id: validated_id}
+      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "baseline establishment excludes test cases not validated on the default branch" do
+      automation = AutomationsFixtures.automation_alert_fixture(baseline_established_at: nil)
+
+      validated_id = Ecto.UUID.generate()
+      new_test_id = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [validated_id, new_test_id], all: [validated_id, new_test_id]}
+      end)
+
+      expect(Tests, :test_case_ids_with_successful_default_branch_run, fn _project_id, _ids, _branch ->
+        [validated_id]
+      end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
+
+      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+        {:ok, automation}
+      end)
+
+      reject(&ActionExecutor.execute_actions/3)
 
       assert :ok = run(automation.id)
     end

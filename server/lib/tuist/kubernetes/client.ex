@@ -35,7 +35,7 @@ defmodule Tuist.Kubernetes.Client do
   def replace(path, body, opts \\ []) when is_binary(path) and is_map(body) do
     request(:put, path,
       opts: opts,
-      body: Jason.encode!(body),
+      body: JSON.encode!(body),
       headers: [{"content-type", "application/json"}]
     )
   end
@@ -43,7 +43,7 @@ defmodule Tuist.Kubernetes.Client do
   def patch(path, operations, opts \\ []) when is_binary(path) and is_list(operations) do
     request(:patch, path,
       opts: opts,
-      body: Jason.encode!(operations),
+      body: JSON.encode!(operations),
       headers: [{"content-type", "application/json-patch+json"}]
     )
   end
@@ -118,7 +118,7 @@ defmodule Tuist.Kubernetes.Client do
   """
   def create_token_review(token, opts \\ []) when is_binary(token) do
     body =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "apiVersion" => "authentication.k8s.io/v1",
         "kind" => "TokenReview",
         "spec" => %{
@@ -156,6 +156,51 @@ defmodule Tuist.Kubernetes.Client do
         # Apiserver omits `authenticated` when validation itself
         # fails (expired SA token, rotated signing key, malformed
         # JWT). Fail closed: treat as unauthenticated.
+        {:error, :unauthenticated}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  TokenReview variant for the runners-controller calling the
+  `desired_replicas` endpoint. Unlike `create_token_review/1`, this
+  does NOT require the `tuist-runners-dispatch` audience — the
+  controller mounts its SA token at the standard projected path
+  (default audience = kube-apiserver), not via a custom
+  audience-scoped projected volume the way tart-kubelet does for
+  runner Pods.
+
+  The audience filter is intentionally absent. The endpoint
+  returns aggregate scaling signals (claimed / queued / p95
+  counts) and is read-only, so accepting any valid in-cluster SA
+  token is a sane authentication bar — anyone with cluster-side
+  workload access could read the same data via the K8s API
+  anyway. The strict-audience pattern stays scoped to dispatch,
+  where the principal also gates JIT minting against a specific
+  customer's GitHub Actions runner.
+  """
+  def create_controller_token_review(token, opts \\ []) when is_binary(token) do
+    body =
+      JSON.encode!(%{
+        "apiVersion" => "authentication.k8s.io/v1",
+        "kind" => "TokenReview",
+        "spec" => %{"token" => token}
+      })
+
+    case request(:post, "/apis/authentication.k8s.io/v1/tokenreviews",
+           opts: opts,
+           body: body,
+           headers: [{"content-type", "application/json"}]
+         ) do
+      {:ok, %{"status" => %{"authenticated" => true, "user" => user}}} ->
+        parse_sa_principal(user)
+
+      {:ok, %{"status" => %{"authenticated" => false}}} ->
+        {:error, :unauthenticated}
+
+      {:ok, %{"status" => %{"error" => _}}} ->
         {:error, :unauthenticated}
 
       {:error, _} = err ->
@@ -207,6 +252,17 @@ defmodule Tuist.Kubernetes.Client do
   end
 
   @doc """
+  GETs a single Pod by name from `namespace`. The dispatch endpoint
+  reads `spec.containers[0].image` to compare the polling Pod's
+  image against the RunnerPool's spec.image — when the chart bumps
+  the digest pin, idle Running Pods on the old image return 410
+  Gone to drain themselves.
+  """
+  def get_pod(namespace, name) when is_binary(namespace) and is_binary(name) do
+    get("/api/v1/namespaces/#{namespace}/pods/#{name}")
+  end
+
+  @doc """
   Strategic-merge PATCHes a Pod. The dispatch endpoint uses this
   to stamp owner labels on a polling Pod at the moment it claims
   a queue entry, so subsequent `max_concurrent` counts include
@@ -214,10 +270,38 @@ defmodule Tuist.Kubernetes.Client do
   """
   def patch_pod(namespace, name, patch_body) when is_binary(namespace) and is_binary(name) and is_map(patch_body) do
     request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}",
-      body: Jason.encode!(patch_body),
+      body: JSON.encode!(patch_body),
       headers: [{"content-type", "application/strategic-merge-patch+json"}]
     )
   end
+
+  @doc """
+  Deletes a runner Pod and its same-named per-Pod ServiceAccount.
+  The runner-pool reconciler creates the two as RunnerPool siblings
+  sharing one name (not parent/child), so deleting the Pod alone
+  orphans the SA — mirror the controller's `reapRunner` and delete
+  both. Used by `OrphanedStampedPodsWorker` to reclaim a Pod the
+  reconciler can't scale down (it only reaps idle, un-stamped Pods,
+  so an owner-stamped Pod whose claim has been released is otherwise
+  pinned forever, holding its node's memory).
+
+  Idempotent: a 404 on either resource (already gone) counts as
+  success. Returns `:ok` when both deletes succeed or 404, otherwise
+  `{:error, {pod_result, sa_result}}`.
+  """
+  def delete_runner(namespace, name, opts \\ []) when is_binary(namespace) and is_binary(name) do
+    pod_result = delete("/api/v1/namespaces/#{namespace}/pods/#{name}", opts)
+    sa_result = delete("/api/v1/namespaces/#{namespace}/serviceaccounts/#{name}", opts)
+
+    case {ok_or_absent(pod_result), ok_or_absent(sa_result)} do
+      {:ok, :ok} -> :ok
+      _ -> {:error, {pod_result, sa_result}}
+    end
+  end
+
+  defp ok_or_absent(:ok), do: :ok
+  defp ok_or_absent({:error, :not_found}), do: :ok
+  defp ok_or_absent(other), do: other
 
   # ----- Manifest dispatch -----
 

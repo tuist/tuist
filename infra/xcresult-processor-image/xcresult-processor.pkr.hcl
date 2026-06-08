@@ -15,21 +15,28 @@ packer {
 # (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
 # draining the `:process_xcresult` Oban queue.
 #
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode lives in the base —
+# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+# ships in full Xcode (not the Command Line Tools), so the base
+# must carry the bundle. This build just lays the Erlang release
+# and the launchd unit on top.
+#
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
 #   /opt/tuist/inject-env.sh   <- reads kubelet env mount into /etc/tuist.env
 #   /Library/LaunchDaemons/dev.tuist.xcresult-processor.plist
+#   /Applications/Xcode_<version>.app <- inherited from the base
 #
-# Env injection: tart-kubelet stages the Pod's env vars (MASTER_KEY,
-# DATABASE_URL, TUIST_DEPLOY_ENV, ...) under `--dir env:<host-path>:ro`,
-# which the guest sees at /Volumes/My Shared Files/env/tuist.env.
-# inject-env.sh runs at boot, materializes /etc/tuist.env, and
-# launchd's plist sources it.
+# Env injection: tart-kubelet stages the Pod's env vars under
+# `--dir env:<host-path>:ro`, which the guest sees at
+# `/Volumes/My Shared Files/env/tuist.env`. inject-env.sh runs at boot,
+# materializes /etc/tuist.env, and launchd's plist sources it.
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image. Defaults to Cirrus Labs' macOS+Xcode image so xcresulttool is preinstalled."
-  default     = "ghcr.io/cirruslabs/macos-tahoe-xcode:26.4"
+  description = "Base Tart image, e.g. ghcr.io/tuist/macos-tahoe-xcode:26-5. The release workflow declares the Xcode version inline; the dispatch workflow and local mise task take it as input. Should be at least as new as the newest active runner-image profile (xcresulttool's JSON schema changes across Xcode majors)."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
 }
 
 variable "output_image" {
@@ -60,7 +67,15 @@ source "tart-cli" "xcresult_processor" {
   memory_gb    = var.memory_gb
   ssh_username = "admin"
   ssh_password = "admin"
-  ssh_timeout  = "120s"
+  # First boot of a freshly-cloned Tart base image runs macOS first-time
+  # setup (kextcache rebuild, Spotlight indexing, APFS expansion,
+  # AssetCacheLocator, first-run launchd jobs) which can take 10+ min
+  # to reach an SSH-ready state. Cached re-clones (the state of long-
+  # lived builder hosts) skip that work and answer in ~30s, which is why
+  # tight values held for years on the original Mac mini but timed out
+  # on newly-onboarded hosts. 15m gives headroom for the cold path on a
+  # cirruslabs Tahoe base; the warm path returns long before then.
+  ssh_timeout  = "15m"
   headless     = true
 }
 
@@ -71,6 +86,47 @@ build {
     inline = [
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown admin:staff /opt/tuist"
+    ]
+  }
+
+  # Install tailscale + tailscaled inside the VM. Homebrew's tailscale
+  # formula builds the open-source variant from upstream Go source (no
+  # GUI app, no .pkg postinstall scripts) — same headless-server shape
+  # the Mac mini host bootstrap uses, just compiled locally in the VM
+  # rather than cross-compiled in the operator image.
+  #
+  # tart-cri's vmnet networking gives the VM NAT-style outbound only;
+  # without tailscaled inside the VM there is no path from VM userspace
+  # to a tailnet CGNAT address (the Mac mini host's tailscaled lives
+  # outside the vmnet bridge). Putting tailscaled in the image makes
+  # each VM a first-class tailnet member that can dial the Tailscale
+  # operator-managed pooler proxy directly. Linux runner microVMs reach
+  # in-cluster Services the same way modulo network: their Kata CNI
+  # gives them an overlay identity, ours gives them a tailnet identity.
+  #
+  # `install-system-daemon` lays the canonical
+  # /Library/LaunchDaemons/com.tailscale.tailscaled.plist that the
+  # tailscaled binary itself ships and load. tailscale-up.sh (run from
+  # the xcresult-processor plist below) authenticates against the
+  # per-VM auth key the K8s Deployment injects via TAILSCALE_AUTH_KEY.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/opt/homebrew/bin/brew install tailscale",
+      "echo 'admin' | sudo -S /opt/homebrew/bin/tailscaled install-system-daemon",
+      "/opt/homebrew/bin/tailscale version"
+    ]
+  }
+
+  # Sanity check: xcresulttool has to be reachable before the
+  # processor ever calls it. The macos-tahoe-xcode base installs
+  # Xcode + xcode-select's it; a regression there would silently
+  # break ingestion at runtime. Fail loudly here so the image
+  # build catches it.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — macos-tahoe-xcode base image regression' >&2 && exit 1)"
     ]
   }
 
@@ -98,6 +154,18 @@ build {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "rm -f /tmp/inject-env.sh"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/tailscale-up.sh"
+    destination = "/tmp/tailscale-up.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tailscale-up.sh /opt/tuist/tailscale-up.sh",
+      "rm -f /tmp/tailscale-up.sh"
     ]
   }
 

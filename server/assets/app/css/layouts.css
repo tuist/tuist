@@ -1,10 +1,9 @@
-@import "./layouts/header_bar.css";
 @import "./layouts/account.css";
+@import "./layouts/header_bar.css";
 
 .layout {
   display: flex;
   flex-direction: column;
-  min-width: 100vw;
   min-height: 100vh;
 }
 
@@ -18,8 +17,8 @@
     position: sticky;
     top: 0;
     flex-shrink: 0;
-    align-self: flex-start;
-    margin-top: var(--noora-spacing-5);
+    align-self: stretch;
+    border-right: 1px solid light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
     max-height: 100vh;
     overflow-y: auto;
   }

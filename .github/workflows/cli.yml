@@ -67,7 +67,7 @@ concurrency:
 jobs:
   cli-lint:
     name: Lint
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -79,8 +79,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -111,7 +109,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -119,8 +117,6 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v4
         id: cache
         with:
@@ -148,7 +144,7 @@ jobs:
 
   cli-cache:
     name: Cache
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -161,8 +157,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -196,7 +190,7 @@ jobs:
 
   cli-unit-tests:
     name: Unit Tests
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: read
@@ -209,11 +203,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -241,7 +230,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -256,11 +245,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -295,7 +279,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:
@@ -312,11 +296,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -359,13 +338,11 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:

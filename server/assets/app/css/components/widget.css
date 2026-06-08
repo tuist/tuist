@@ -206,6 +206,47 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 }
 
+.tuist-widget [data-part="breakdown-item"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+
+  & > [data-part="dot"] {
+    flex-shrink: 0;
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+
+    &[data-color="secondary"] {
+      background-color: var(--noora-chart-secondary);
+    }
+
+    &[data-color="tertiary"] {
+      background-color: var(--noora-chart-tertiary);
+    }
+
+    &[data-color="destructive"] {
+      background-color: var(--noora-chart-destructive);
+    }
+  }
+
+  & > [data-part="label"],
+  & > [data-part="separator"],
+  & > [data-part="value"] {
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & > [data-part="label"],
+  & > [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+  }
+
+  & > [data-part="separator"] {
+    color: var(--noora-surface-label-secondary);
+  }
+}
+
 @keyframes tuist-widget-loading-pulse {
   0%,
   100% {

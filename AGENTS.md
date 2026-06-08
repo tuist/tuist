@@ -6,6 +6,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
@@ -17,11 +18,13 @@ This file provides guidance to AI agents when working with code in this reposito
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
 - `server/native/xcresult_nif/` - Swift NIF for xcresult parsing (macOS-only — uses `xcresulttool`). Baked into a Tart VM image (`infra/xcresult-processor-image/`) that runs as a k8s `Deployment` scheduled onto a Mac mini node via tart-cri.
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
+- `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
 - `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
 - `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that manages Scaleway Apple Silicon Mac minis declaratively. Watches `ScalewayAppleSiliconMachine` CRs, calls Scaleway's API to order/release machines, SSHes in to bootstrap kubelet + tart-cri. Scaling the fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
+- `infra/cnpg/` - CloudNativePG bootstrap SQL + Supabase→CNPG migration runbook for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true (provisioning + soak) or `postgresql.mode == "cnpg"` (cutover). See `infra/cnpg/README.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
@@ -38,6 +41,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
 - `noora` - Changes to the Noora web component library
@@ -55,6 +59,18 @@ Examples:
 - `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
+
+When creating pull requests, write descriptions that preserve the reasoning from the implementation work, not just the surface diff.
+
+Pull request descriptions should cover:
+- What changed
+- Why it changed
+- The root cause when the change is a fix
+- Why the chosen solution was selected over the obvious alternatives when that context matters
+- User or developer impact
+- The concrete validation that was run
+
+Avoid minimal PR descriptions that only restate the code diff. The goal is that a reviewer can understand the problem, the reasoning, and the validation without reopening the full agent session.
 
 # Tuist CLI (Swift)
 

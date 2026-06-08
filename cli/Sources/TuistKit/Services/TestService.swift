@@ -270,6 +270,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let mode = mode ?? TestProcessingMode.default(for: config.url)
 
+        let (mutedQuarantinedTests, skippedQuarantinedTests) = try await fetchQuarantinedTests(
+            skipQuarantine: skipQuarantine,
+            config: config
+        )
+        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
+
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
                 shardIndex: shardIndex,
@@ -290,6 +296,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 runId: runId,
                 shardReference: shardReference,
                 shardArchivePath: shardArchivePath,
+                quarantinedTests: mutedQuarantinedTests,
                 mode: mode
             )
             return
@@ -314,6 +321,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 runId: runId,
+                quarantinedTests: mutedQuarantinedTests,
                 mode: mode
             )
             return
@@ -351,35 +359,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if generateOnly {
             return
         }
-
-        let (mutedQuarantinedTests, skippedQuarantinedTests): ([TestIdentifier], [TestIdentifier])
-        if !skipQuarantine, let fullHandle = config.fullHandle {
-            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            async let mutedTask = testCaseListService.listTestCases(
-                fullHandle: fullHandle, serverURL: serverURL, state: .muted
-            )
-            async let skippedTask = testCaseListService.listTestCases(
-                fullHandle: fullHandle, serverURL: serverURL, state: .skipped
-            )
-            do {
-                (mutedQuarantinedTests, skippedQuarantinedTests) = try await (mutedTask, skippedTask)
-            } catch {
-                AlertController.current.warning(
-                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-                )
-                (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
-            }
-            let totalQuarantined = mutedQuarantinedTests.count + skippedQuarantinedTests.count
-            if totalQuarantined > 0 {
-                Logger.current.notice(
-                    "Found \(totalQuarantined) quarantined test(s): \(mutedQuarantinedTests.count) muted, \(skippedQuarantinedTests.count) skipped",
-                    metadata: .subsection
-                )
-            }
-        } else {
-            (mutedQuarantinedTests, skippedQuarantinedTests) = ([], [])
-        }
-        let skipTestTargets = skipTestTargets + skippedQuarantinedTests
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -611,6 +590,42 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
     }
 
+    // MARK: - Quarantine
+
+    private func fetchQuarantinedTests(
+        skipQuarantine: Bool,
+        config: Tuist
+    ) async throws -> (muted: [TestIdentifier], skipped: [TestIdentifier]) {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return ([], [])
+        }
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        async let mutedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .muted
+        )
+        async let skippedTask = testCaseListService.listTestCases(
+            fullHandle: fullHandle, serverURL: serverURL, state: .skipped
+        )
+        let muted: [TestIdentifier]
+        let skipped: [TestIdentifier]
+        do {
+            (muted, skipped) = try await (mutedTask, skippedTask)
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return ([], [])
+        }
+        let total = muted.count + skipped.count
+        if total > 0 {
+            Logger.current.notice(
+                "Found \(total) quarantined test(s): \(muted.count) muted, \(skipped.count) skipped",
+                metadata: .subsection
+            )
+        }
+        return (muted, skipped)
+    }
+
     // MARK: - Shard Execute
 
     // swiftlint:disable:next function_body_length function_parameter_count
@@ -633,6 +648,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         runId: String,
         shardReference: String?,
         shardArchivePath: AbsolutePath?,
+        quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode
     ) async throws {
         guard let fullHandle = config.fullHandle else {
@@ -702,7 +718,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let summary = mode == .local
-            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
@@ -758,6 +774,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         passthroughXcodeBuildArguments: [String],
         runId: String,
+        quarantinedTests: [TestIdentifier],
         mode: TestProcessingMode
     ) async throws {
         Logger.current.notice(
@@ -838,7 +855,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let summary = mode == .local
-            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: [])
+            ? await testSummary(resultBundlePath: resultBundlePath, quarantinedTests: quarantinedTests)
             : nil
         await uploadResultBundleIfNeeded(
             testSummary: summary,
@@ -1555,6 +1572,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         else {
+            if action == .build {
+                Logger.current.notice(
+                    "The scheme \(scheme.name) has no testable targets to build, skipping."
+                )
+                return
+            }
             throw TestServiceError.schemeWithoutTestableTargets(
                 scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan
             )

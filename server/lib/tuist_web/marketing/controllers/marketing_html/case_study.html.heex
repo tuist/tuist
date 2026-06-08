@@ -61,7 +61,16 @@
         <.link
           :for={related <- @related_case_studies}
           data-part="case"
-          href={TuistWeb.Marketing.MarketingHTML.localized_href(related.slug)}
+          href={
+            TuistWeb.Marketing.MarketingHTML.localized_href(
+              Tuist.Marketing.Customers.case_study_href(related)
+            )
+          }
+          target={if Tuist.Marketing.Customers.external_case_study?(related), do: "_blank"}
+          rel={
+            if Tuist.Marketing.Customers.external_case_study?(related),
+              do: "noopener noreferrer"
+          }
         >
           <img
             data-part="image"

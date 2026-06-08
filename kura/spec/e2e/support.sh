@@ -2,16 +2,76 @@
 
 PROJECT_ROOT="${KURA_PROJECT_ROOT:?missing KURA_PROJECT_ROOT}"
 
+# Detach stdin (`docker compose exec` attaches the caller's stdin by default, unlike
+# raw `docker exec`). Under shellspec the inherited stdin is wired into the
+# executor->reporter pipeline, so an attached `compose exec` corrupts the descriptor
+# the reporter reads from and crashes it ([reporter: 1]) even when examples pass.
+# No `dc` subcommand we use reads stdin, so redirecting from /dev/null is safe.
+#
+# `--env-file` supplies compose interpolation values and COMPOSE_PROJECT_NAME from a
+# per-suite file (populated via `suite_env`) instead of exported variables, so each
+# suite stays scoped and never leaks settings into the shell process that shellspec
+# shares across spec files.
 dc() {
-  docker compose "${COMPOSE_FILES[@]}" "$@"
+  docker compose --env-file "${COMPOSE_ENV_FILE}" "${COMPOSE_FILES[@]}" "$@" </dev/null
 }
 
 dc_container_id() {
   dc ps -q "$1"
 }
 
+compose_up() {
+  if [ "${KURA_E2E_SKIP_BUILD:-0}" = "1" ]; then
+    dc up -d "$@" >/dev/null 2>&1
+  else
+    dc up --build -d "$@" >/dev/null 2>&1
+  fi
+}
+
 setup_suite_tmpdir() {
   SUITE_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kura-e2e.XXXXXX")"
+  COMPOSE_ENV_FILE="${SUITE_TMP_DIR}/compose.env"
+  : >"${COMPOSE_ENV_FILE}"
+}
+
+# Set NAME=VALUE as a non-exported shell variable for in-shell use and record it in
+# the per-suite env file that `dc` feeds to `docker compose --env-file`. This replaces
+# the previous `export`/`unset` pattern: values reach both docker compose and the spec
+# body without leaking into the process environment shellspec shares across spec files,
+# so suites no longer have to unset state to avoid bleeding into one another.
+suite_env() {
+  printf -v "$1" '%s' "$2"
+  printf '%s=%s\n' "$1" "$2" >>"${COMPOSE_ENV_FILE}"
+}
+
+# Request ephemeral host ports for the given compose variables by recording each as 0
+# in the suite env file. docker compose then publishes those container ports on a free
+# host port chosen by the kernel, so parallel suites (`shellspec -j N`) can never clash
+# on `port is already allocated`. Read the actual ports back after startup with
+# resolve_http_node / resolve_host_port.
+ephemeral_ports() {
+  local name
+  for name in "$@"; do
+    suite_env "$name" 0
+  done
+}
+
+# Print the host port docker compose published for SERVICE's CONTAINER_PORT.
+# `docker compose port` prints e.g. "0.0.0.0:49153"; emit just the port number.
+resolve_host_port() {
+  dc port "$1" "$2" | head -n1 | sed 's/.*://'
+}
+
+# Resolve SERVICE's published HTTP port (CONTAINER_PORT, default 4000) into the shell
+# vars <PREFIX>_PORT and <PREFIX>_URL, e.g. `resolve_http_node KURA_US kura-us` sets
+# KURA_US_PORT and KURA_US_URL=http://localhost:<port>. Call it after every `dc up`,
+# `dc restart`, or `dc stop`+`dc up` of the service: an ephemeral host port is
+# re-allocated on each container start (recreate AND plain restart change it).
+resolve_http_node() {
+  local prefix="$1" service="$2" container_port="${3:-4000}" port
+  port="$(resolve_host_port "$service" "$container_port")"
+  printf -v "${prefix}_PORT" '%s' "$port"
+  printf -v "${prefix}_URL" 'http://localhost:%s' "$port"
 }
 
 compose_teardown() {
@@ -36,6 +96,43 @@ capture_into() {
 
 status_only() {
   curl -sS -o /dev/null -w "%{http_code}" "$@"
+}
+
+container_status() {
+  docker inspect --format '{{.State.Status}}' "$(dc_container_id "$1")"
+}
+
+container_restart_count() {
+  docker inspect --format '{{.RestartCount}}' "$(dc_container_id "$1")"
+}
+
+container_oom_killed() {
+  docker inspect --format '{{.State.OOMKilled}}' "$(dc_container_id "$1")"
+}
+
+run_parallel_http_gets() {
+  local url="$1"
+  local workers="$2"
+  local iterations="$3"
+  local failures=0
+  local pids=()
+
+  for worker in $(seq 1 "$workers"); do
+    (
+      for _ in $(seq 1 "$iterations"); do
+        curl -fsS --max-time 20 -o /dev/null "$url" || exit 1
+      done
+    ) &
+    pids+=("$!")
+  done
+
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then
+      failures=1
+    fi
+  done
+
+  return "$failures"
 }
 
 wait_for_http() {
@@ -71,6 +168,26 @@ wait_for_status() {
   done
 
   printf 'Timed out waiting for %s to return %s (last status %s)\n' "$url" "$expected_status" "${actual_status:-unknown}" >&2
+  return 1
+}
+
+wait_for_head_status() {
+  local url="$1"
+  local expected_status="$2"
+  local attempts="${3:-45}"
+  local sleep_seconds="${4:-2}"
+  local actual_status
+
+  for _ in $(seq 1 "$attempts"); do
+    actual_status="$(status_only -I "$url" 2>/dev/null || true)"
+    if [ "$actual_status" = "$expected_status" ]; then
+      printf '%s' "$actual_status"
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+
+  printf 'Timed out waiting for HEAD %s to return %s (last status %s)\n' "$url" "$expected_status" "${actual_status:-unknown}" >&2
   return 1
 }
 

@@ -73,7 +73,7 @@ tuist cache
 **Default:** `~/.local/state/tuist`
 
 **Used for:**
-- **Logs**: Log files (`logs/{uuid}.log`)
+- **Sessions**: Session logs and network recordings (`sessions/{uuid}/`)
 - **Locks**: Authentication lock files (`{handle}.sock`)
 
 **Example:**

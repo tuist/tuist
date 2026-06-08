@@ -34,21 +34,18 @@ defaults:
 jobs:
   build:
     name: Build
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     env:
       MIX_ENV: prod
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir node aube"
-          cache: "false"
+          cache: "true"
           working_directory: noora
       - name: Install Elixir dependencies
         run: mix deps.get
@@ -61,21 +58,18 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     env:
       MIX_ENV: dev
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "erlang elixir node aube"
-          cache: "false"
+          cache: "true"
           working_directory: noora
       - name: Install Elixir dependencies
         run: mix deps.get
@@ -88,19 +82,16 @@ jobs:
 
   test:
     name: Test
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "node aube"
-          cache: "false"
+          cache: "true"
           working_directory: noora
       - name: Install JS dependencies
         run: aube install
@@ -109,7 +100,7 @@ jobs:
 
   docker_build:
     name: Docker Build (Storybook)
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:

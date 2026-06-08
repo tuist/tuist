@@ -140,7 +140,7 @@ msgstr ""
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:833
+#: lib/tuist_web/live/project_automations_live.html.heex:839
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
 #: lib/tuist_web/live/project_notifications_live.html.heex:168
@@ -160,7 +160,7 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:351
+#: lib/tuist_web/live/projects_live.ex:353
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -272,7 +272,7 @@ msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:86
 #: lib/tuist_web/live/project_automations_live.html.heex:73
-#: lib/tuist_web/live/project_automations_live.html.heex:872
+#: lib/tuist_web/live/project_automations_live.html.heex:880
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
@@ -283,14 +283,9 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:516
 #: lib/tuist_web/live/project_notifications_live.html.heex:583
 #: lib/tuist_web/live/project_notifications_live.html.heex:755
-#: lib/tuist_web/live/projects_live.ex:360
+#: lib/tuist_web/live/projects_live.ex:362
 #, elixir-autogen, elixir-format
 msgid "Name"
-msgstr ""
-
-#: lib/tuist_web/live/projects_live.ex:344
-#, elixir-autogen, elixir-format
-msgid "New project"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_overview_live.html.heex:1032
@@ -350,7 +345,7 @@ msgstr ""
 msgid "Project name"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:34
+#: lib/tuist_web/live/projects_live.ex:33
 #: lib/tuist_web/live/projects_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Projects"
@@ -456,7 +451,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:23
+#: lib/tuist_web/live/project_automations_live.ex:24
 #: lib/tuist_web/live/project_bundle_settings_live.ex:15
 #: lib/tuist_web/live/project_notifications_live.ex:26
 #: lib/tuist_web/live/project_settings_live.ex:15
@@ -558,7 +553,7 @@ msgstr ""
 msgid "Never"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:843
+#: lib/tuist_web/live/project_automations_live.html.heex:849
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:358
 #: lib/tuist_web/live/project_notifications_live.html.heex:176
 #, elixir-autogen, elixir-format
@@ -627,9 +622,9 @@ msgstr ""
 msgid "Test duration"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:713
+#: lib/tuist_web/live/project_automations_live.ex:714
 #: lib/tuist_web/live/project_automations_live.html.heex:221
-#: lib/tuist_web/live/project_automations_live.html.heex:621
+#: lib/tuist_web/live/project_automations_live.html.heex:627
 #: lib/tuist_web/live/project_notifications_live.html.heex:392
 #: lib/tuist_web/live/project_notifications_live.html.heex:532
 #: lib/tuist_web/live/project_notifications_live.html.heex:715
@@ -699,8 +694,8 @@ msgstr ""
 msgid "Slack"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:432
-#: lib/tuist_web/live/project_automations_live.html.heex:738
+#: lib/tuist_web/live/project_automations_live.html.heex:438
+#: lib/tuist_web/live/project_automations_live.html.heex:744
 #: lib/tuist_web/live/project_notifications_live.html.heex:206
 #: lib/tuist_web/live/project_notifications_live.html.heex:216
 #: lib/tuist_web/live/project_notifications_live.html.heex:472
@@ -710,8 +705,8 @@ msgstr ""
 msgid "Select channel"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:431
-#: lib/tuist_web/live/project_automations_live.html.heex:737
+#: lib/tuist_web/live/project_automations_live.html.heex:437
+#: lib/tuist_web/live/project_automations_live.html.heex:743
 #: lib/tuist_web/live/project_notifications_live.html.heex:215
 #: lib/tuist_web/live/project_notifications_live.html.heex:471
 #: lib/tuist_web/live/project_notifications_live.html.heex:808
@@ -756,10 +751,10 @@ msgstr ""
 msgid "tests"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:844
+#: lib/tuist_web/live/project_automations_live.html.heex:850
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:499
-#: lib/tuist_web/live/projects_live.ex:391
+#: lib/tuist_web/live/projects_live.ex:393
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -805,7 +800,7 @@ msgstr ""
 msgid "No alert rules"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:29
+#: lib/tuist_web/live/project_automations_live.ex:30
 #: lib/tuist_web/live/project_automations_live.html.heex:20
 #: lib/tuist_web/live/project_automations_live.html.heex:32
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:20
@@ -816,13 +811,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:98
-#: lib/tuist_web/live/projects_live.ex:370
+#: lib/tuist_web/live/projects_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:92
-#: lib/tuist_web/live/projects_live.ex:364
+#: lib/tuist_web/live/projects_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
@@ -1020,12 +1015,12 @@ msgstr ""
 msgid "Select organization"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:305
+#: lib/tuist_web/live/project_automations_live.html.heex:311
 #, elixir-autogen, elixir-format
 msgid "Action"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:316
+#: lib/tuist_web/live/project_automations_live.html.heex:322
 #, elixir-autogen, elixir-format
 msgid "Add action"
 msgstr ""
@@ -1035,36 +1030,36 @@ msgstr ""
 msgid "Add automation"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:629
+#: lib/tuist_web/live/project_automations_live.ex:630
 #, elixir-autogen, elixir-format
 msgid "Add label"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:650
+#: lib/tuist_web/live/project_automations_live.ex:651
 #, elixir-autogen, elixir-format
 msgid "Add label: %{label}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:545
+#: lib/tuist_web/live/project_automations_live.html.heex:551
 #, elixir-autogen, elixir-format
 msgid "Add recovery action"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:486
-#: lib/tuist_web/live/project_automations_live.html.heex:792
+#: lib/tuist_web/live/project_automations_live.html.heex:492
+#: lib/tuist_web/live/project_automations_live.html.heex:798
 #, elixir-autogen, elixir-format
 msgid "Available variables:"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:627
-#: lib/tuist_web/live/project_automations_live.html.heex:326
-#: lib/tuist_web/live/project_automations_live.html.heex:555
+#: lib/tuist_web/live/project_automations_live.ex:628
+#: lib/tuist_web/live/project_automations_live.html.heex:332
+#: lib/tuist_web/live/project_automations_live.html.heex:561
 #, elixir-autogen, elixir-format
 msgid "Change state"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:380
-#: lib/tuist_web/live/project_automations_live.html.heex:686
+#: lib/tuist_web/live/project_automations_live.html.heex:386
+#: lib/tuist_web/live/project_automations_live.html.heex:692
 #, elixir-autogen, elixir-format
 msgid "Change state to"
 msgstr ""
@@ -1084,7 +1079,7 @@ msgstr ""
 msgid "Create automation"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:898
+#: lib/tuist_web/live/project_automations_live.html.heex:906
 #, elixir-autogen, elixir-format
 msgid "Delete this automation?"
 msgstr ""
@@ -1094,100 +1089,100 @@ msgstr ""
 msgid "Edit automation"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:619
+#: lib/tuist_web/live/project_automations_live.ex:620
 #, elixir-autogen, elixir-format
 msgid "Enable"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:624
-#: lib/tuist_web/live/project_automations_live.html.heex:406
-#: lib/tuist_web/live/project_automations_live.html.heex:694
+#: lib/tuist_web/live/project_automations_live.ex:625
+#: lib/tuist_web/live/project_automations_live.html.heex:412
+#: lib/tuist_web/live/project_automations_live.html.heex:700
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:478
-#: lib/tuist_web/live/project_automations_live.html.heex:784
+#: lib/tuist_web/live/project_automations_live.html.heex:484
+#: lib/tuist_web/live/project_automations_live.html.heex:790
 #, elixir-autogen, elixir-format
 msgid "Enter message template..."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:568
+#: lib/tuist_web/live/project_automations_live.ex:569
 #: lib/tuist_web/live/project_automations_live.html.heex:111
 #, elixir-autogen, elixir-format
 msgid "Flakiness rate"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:569
+#: lib/tuist_web/live/project_automations_live.ex:570
 #: lib/tuist_web/live/project_automations_live.html.heex:119
 #, elixir-autogen, elixir-format
 msgid "Flaky runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:343
-#: lib/tuist_web/live/project_automations_live.html.heex:589
+#: lib/tuist_web/live/project_automations_live.html.heex:349
+#: lib/tuist_web/live/project_automations_live.html.heex:595
 #, elixir-autogen, elixir-format
 msgid "Mark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:498
-#: lib/tuist_web/live/project_automations_live.html.heex:804
+#: lib/tuist_web/live/project_automations_live.html.heex:504
+#: lib/tuist_web/live/project_automations_live.html.heex:810
 #, elixir-autogen, elixir-format
 msgid "Mark test as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:456
-#: lib/tuist_web/live/project_automations_live.html.heex:762
+#: lib/tuist_web/live/project_automations_live.html.heex:462
+#: lib/tuist_web/live/project_automations_live.html.heex:768
 #, elixir-autogen, elixir-format
 msgid "Message template"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:860
+#: lib/tuist_web/live/project_automations_live.html.heex:868
 #, elixir-autogen, elixir-format
 msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:533
+#: lib/tuist_web/live/project_automations_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Recovery"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:630
+#: lib/tuist_web/live/project_automations_live.ex:631
 #, elixir-autogen, elixir-format
 msgid "Remove label"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:653
+#: lib/tuist_web/live/project_automations_live.ex:654
 #, elixir-autogen, elixir-format
 msgid "Remove label: %{label}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:536
+#: lib/tuist_web/live/project_automations_live.html.heex:542
 #, elixir-autogen, elixir-format
 msgid "Run actions when the conditions no longer hold"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:308
+#: lib/tuist_web/live/project_automations_live.html.heex:314
 #, elixir-autogen, elixir-format
 msgid "Run these actions for each test case that meets the condition"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:628
-#: lib/tuist_web/live/project_automations_live.html.heex:365
-#: lib/tuist_web/live/project_automations_live.html.heex:419
-#: lib/tuist_web/live/project_automations_live.html.heex:594
-#: lib/tuist_web/live/project_automations_live.html.heex:725
+#: lib/tuist_web/live/project_automations_live.ex:629
+#: lib/tuist_web/live/project_automations_live.html.heex:371
+#: lib/tuist_web/live/project_automations_live.html.heex:425
+#: lib/tuist_web/live/project_automations_live.html.heex:600
+#: lib/tuist_web/live/project_automations_live.html.heex:731
 #, elixir-autogen, elixir-format
 msgid "Send Slack notification"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:647
+#: lib/tuist_web/live/project_automations_live.ex:648
 #, elixir-autogen, elixir-format
 msgid "Slack: not configured"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:459
-#: lib/tuist_web/live/project_automations_live.html.heex:765
+#: lib/tuist_web/live/project_automations_live.html.heex:465
+#: lib/tuist_web/live/project_automations_live.html.heex:771
 #, elixir-autogen, elixir-format
 msgid "Supports Slack"
 msgstr ""
@@ -1197,7 +1192,7 @@ msgstr ""
 msgid "Test case automations"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:875
+#: lib/tuist_web/live/project_automations_live.html.heex:883
 #, elixir-autogen, elixir-format
 msgid "Trigger"
 msgstr ""
@@ -1207,24 +1202,24 @@ msgstr ""
 msgid "Trigger the automation when this condition is met"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:571
-#: lib/tuist_web/live/project_automations_live.ex:582
-#: lib/tuist_web/live/project_automations_live.ex:605
-#: lib/tuist_web/live/project_automations_live.ex:620
-#: lib/tuist_web/live/project_automations_live.ex:625
-#: lib/tuist_web/live/project_automations_live.ex:631
+#: lib/tuist_web/live/project_automations_live.ex:572
+#: lib/tuist_web/live/project_automations_live.ex:583
+#: lib/tuist_web/live/project_automations_live.ex:606
+#: lib/tuist_web/live/project_automations_live.ex:621
+#: lib/tuist_web/live/project_automations_live.ex:626
+#: lib/tuist_web/live/project_automations_live.ex:632
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:360
-#: lib/tuist_web/live/project_automations_live.html.heex:572
+#: lib/tuist_web/live/project_automations_live.html.heex:366
+#: lib/tuist_web/live/project_automations_live.html.heex:578
 #, elixir-autogen, elixir-format
 msgid "Unmark as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:502
-#: lib/tuist_web/live/project_automations_live.html.heex:808
+#: lib/tuist_web/live/project_automations_live.html.heex:508
+#: lib/tuist_web/live/project_automations_live.html.heex:814
 #, elixir-autogen, elixir-format
 msgid "Unmark test as flaky"
 msgstr ""
@@ -1234,7 +1229,7 @@ msgstr ""
 msgid "When"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:603
+#: lib/tuist_web/live/project_automations_live.html.heex:609
 #, elixir-autogen, elixir-format
 msgid "Without trigger for"
 msgstr ""
@@ -1244,32 +1239,32 @@ msgstr ""
 msgid "e.g. Auto-quarantine flaky tests"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:467
-#: lib/tuist_web/live/project_automations_live.html.heex:773
+#: lib/tuist_web/live/project_automations_live.html.heex:473
+#: lib/tuist_web/live/project_automations_live.html.heex:779
 #, elixir-autogen, elixir-format
 msgid "formatting."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:617
+#: lib/tuist_web/live/project_automations_live.ex:618
 #, elixir-autogen, elixir-format
 msgid "Mute"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:622
-#: lib/tuist_web/live/project_automations_live.html.heex:388
-#: lib/tuist_web/live/project_automations_live.html.heex:703
+#: lib/tuist_web/live/project_automations_live.ex:623
+#: lib/tuist_web/live/project_automations_live.html.heex:394
+#: lib/tuist_web/live/project_automations_live.html.heex:709
 #, elixir-autogen, elixir-format
 msgid "Muted"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:618
+#: lib/tuist_web/live/project_automations_live.ex:619
 #, elixir-autogen, elixir-format
 msgid "Skip"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:623
-#: lib/tuist_web/live/project_automations_live.html.heex:397
-#: lib/tuist_web/live/project_automations_live.html.heex:712
+#: lib/tuist_web/live/project_automations_live.ex:624
+#: lib/tuist_web/live/project_automations_live.html.heex:403
+#: lib/tuist_web/live/project_automations_live.html.heex:718
 #, elixir-autogen, elixir-format
 msgid "Skipped"
 msgstr ""
@@ -1279,64 +1274,64 @@ msgstr ""
 msgid "Comparison"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:614
+#: lib/tuist_web/live/project_automations_live.ex:615
 #, elixir-autogen, elixir-format
 msgid "Count"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:601
+#: lib/tuist_web/live/project_automations_live.ex:602
 #: lib/tuist_web/live/project_automations_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Greater or equal"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:602
+#: lib/tuist_web/live/project_automations_live.ex:603
 #: lib/tuist_web/live/project_automations_live.html.heex:157
 #, elixir-autogen, elixir-format
 msgid "Greater than"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:604
+#: lib/tuist_web/live/project_automations_live.ex:605
 #: lib/tuist_web/live/project_automations_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Less or equal"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:603
+#: lib/tuist_web/live/project_automations_live.ex:604
 #: lib/tuist_web/live/project_automations_live.html.heex:165
 #, elixir-autogen, elixir-format
 msgid "Less than"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:613
+#: lib/tuist_web/live/project_automations_live.ex:614
 #, elixir-autogen, elixir-format
 msgid "Percent"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:615
+#: lib/tuist_web/live/project_automations_live.ex:616
 #, elixir-autogen, elixir-format
 msgid "Threshold"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:661
+#: lib/tuist_web/live/project_automations_live.ex:662
 #, elixir-autogen, elixir-format
 msgid "When flakiness rate %{symbol} %{threshold}% over %{window}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:674
+#: lib/tuist_web/live/project_automations_live.ex:675
 #, elixir-autogen, elixir-format
 msgid "When flaky runs %{symbol} %{threshold} over %{window}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:253
-#: lib/tuist_web/live/project_automations_live.html.heex:655
+#: lib/tuist_web/live/project_automations_live.html.heex:259
+#: lib/tuist_web/live/project_automations_live.html.heex:661
 #, elixir-autogen, elixir-format
 msgid "Last N runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:714
+#: lib/tuist_web/live/project_automations_live.ex:715
 #: lib/tuist_web/live/project_automations_live.html.heex:213
-#: lib/tuist_web/live/project_automations_live.html.heex:611
+#: lib/tuist_web/live/project_automations_live.html.heex:617
 #, elixir-autogen, elixir-format
 msgid "Last days"
 msgstr ""
@@ -1346,89 +1341,94 @@ msgstr ""
 msgid "Over"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:235
-#: lib/tuist_web/live/project_automations_live.html.heex:637
+#: lib/tuist_web/live/project_automations_live.html.heex:238
+#: lib/tuist_web/live/project_automations_live.html.heex:643
 #, elixir-autogen, elixir-format
 msgid "Window"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:701
+#: lib/tuist_web/live/project_automations_live.ex:702
 #, elixir-autogen, elixir-format
 msgid "the last %{size} runs"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:747
+#: lib/tuist_web/live/project_automations_live.ex:748
 #, elixir-autogen, elixir-format
 msgid "1–%{max}"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:585
+#: lib/tuist_web/live/project_automations_live.ex:586
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is manually flagged as flaky."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:594
+#: lib/tuist_web/live/project_automations_live.ex:595
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is muted (still runs, failures ignored)."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:597
+#: lib/tuist_web/live/project_automations_live.ex:598
 #, elixir-autogen, elixir-format
 msgid "Fires when a test is skipped entirely."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:591
+#: lib/tuist_web/live/project_automations_live.ex:592
 #, elixir-autogen, elixir-format
 msgid "Fires when a test returns to the default enabled state."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:588
+#: lib/tuist_web/live/project_automations_live.ex:589
 #, elixir-autogen, elixir-format
 msgid "Fires when the flaky flag is manually removed."
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:573
+#: lib/tuist_web/live/project_automations_live.ex:574
 #, elixir-autogen, elixir-format
 msgid "Marked as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.html.heex:277
+#: lib/tuist_web/live/project_automations_live.html.heex:283
 #, elixir-autogen, elixir-format
 msgid "On these events"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:576
+#: lib/tuist_web/live/project_automations_live.ex:577
 #, elixir-autogen, elixir-format
 msgid "State changed to Enabled"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:578
+#: lib/tuist_web/live/project_automations_live.ex:579
 #, elixir-autogen, elixir-format
 msgid "State changed to Muted"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:580
+#: lib/tuist_web/live/project_automations_live.ex:581
 #, elixir-autogen, elixir-format
 msgid "State changed to Skipped"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:570
+#: lib/tuist_web/live/project_automations_live.ex:571
 #: lib/tuist_web/live/project_automations_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Test updated"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:574
+#: lib/tuist_web/live/project_automations_live.ex:575
 #, elixir-autogen, elixir-format
 msgid "Unmarked as flaky"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:688
+#: lib/tuist_web/live/project_automations_live.ex:689
 #, elixir-autogen, elixir-format
 msgid "When a test is updated"
 msgstr ""
 
-#: lib/tuist_web/live/project_automations_live.ex:692
+#: lib/tuist_web/live/project_automations_live.ex:693
 #, elixir-autogen, elixir-format
 msgid "When a test is updated: %{events}"
+msgstr ""
+
+#: lib/tuist_web/live/projects_live.ex:344
+#, elixir-autogen, elixir-format
+msgid "New Project"
 msgstr ""

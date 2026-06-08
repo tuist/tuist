@@ -32,16 +32,16 @@ public struct PackageInfoLoader: PackageInfoLoading {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
 
         printOutput ?
-            try await commandRunner.runAndPrint(arguments: command) :
-            try await commandRunner.runAndWait(arguments: command)
+            try await commandRunner.runAndPrint(arguments: command, workingDirectory: path) :
+            try await commandRunner.runAndWait(arguments: command, workingDirectory: path)
     }
 
     public func update(at path: AbsolutePath, printOutput: Bool) async throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
 
         printOutput ?
-            try await commandRunner.runAndPrint(arguments: command) :
-            try await commandRunner.runAndWait(arguments: command)
+            try await commandRunner.runAndPrint(arguments: command, workingDirectory: path) :
+            try await commandRunner.runAndWait(arguments: command, workingDirectory: path)
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: TSCUtility.Version) async throws {
@@ -49,7 +49,7 @@ public struct PackageInfoLoader: PackageInfoLoading {
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        try await commandRunner.runAndWait(arguments: command)
+        try await commandRunner.runAndWait(arguments: command, workingDirectory: path)
     }
 
     public func getToolsVersion(at path: AbsolutePath) async throws -> TSCUtility.Version {
@@ -57,7 +57,8 @@ public struct PackageInfoLoader: PackageInfoLoading {
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let rawVersion = try await commandRunner.capture(arguments: command).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawVersion = try await commandRunner.capture(arguments: command, workingDirectory: path)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return try Version(versionString: rawVersion)
     }
 
@@ -98,24 +99,29 @@ public struct PackageInfoLoader: PackageInfoLoading {
             arguments:
             buildCommand + [
                 arm64Target,
-            ]
+            ],
+            workingDirectory: packagePath
         )
         try await commandRunner.runAndWait(
             arguments:
             buildCommand + [
                 x64Target,
-            ]
+            ],
+            workingDirectory: packagePath
         )
 
         if try await !fileSystem.exists(outputPath) {
             try await fileSystem.makeDirectory(at: outputPath)
         }
 
-        try await commandRunner.runAndWait(arguments: [
-            "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
-            buildPath.appending(components: arm64Target, "release", product).pathString,
-            buildPath.appending(components: x64Target, "release", product).pathString,
-        ])
+        try await commandRunner.runAndWait(
+            arguments: [
+                "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
+                buildPath.appending(components: arm64Target, "release", product).pathString,
+                buildPath.appending(components: x64Target, "release", product).pathString,
+            ],
+            workingDirectory: packagePath
+        )
     }
 
     // MARK: - Helpers

@@ -30,18 +30,15 @@ env:
 jobs:
   translate:
     name: Translate
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "elixir erlang"
-          cache: "false"
+          cache: "true"
       - name: Install server dependencies
         working-directory: server
         run: mix deps.get

@@ -679,4 +679,180 @@ defmodule Tuist.GitHub.ClientTest do
       assert got == {:error, "Unexpected status code: 329 when getting contents."}
     end
   end
+
+  describe "list_app_hook_deliveries/1" do
+    setup do
+      stub(App, :get_jwt, fn _opts -> {:ok, "app-jwt"} end)
+      :ok
+    end
+
+    test "hits the App-wide endpoint with JWT auth and parses the metadata-only response" do
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://api.github.com/app/hook/deliveries?per_page=100"
+
+        headers = opts[:headers]
+        assert {"Authorization", "Bearer app-jwt"} in headers
+        assert {"Accept", "application/vnd.github+json"} in headers
+        # No status filter — see worker moduledoc / docs.
+        refute opts[:url] =~ "status="
+
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{},
+           body: [
+             %{
+               "id" => 7_001,
+               "guid" => "g-1",
+               "delivered_at" => "2026-05-21T10:00:00Z",
+               "redelivery" => false,
+               "status" => "Internal Server Error",
+               "status_code" => 500,
+               "event" => "workflow_job",
+               "action" => "queued",
+               "installation_id" => 42,
+               "repository_id" => 100
+             }
+           ]
+         }}
+      end)
+
+      assert {:ok, %{meta: %{next_url: nil}, deliveries: [d]}} = Client.list_app_hook_deliveries()
+
+      assert d.id == 7_001
+      assert d.guid == "g-1"
+      assert d.status_code == 500
+      assert d.event == "workflow_job"
+      assert d.action == "queued"
+      assert d.installation_id == 42
+      assert %DateTime{} = d.delivered_at
+    end
+
+    test "uses the GHES api_url and per-App credentials when supplied" do
+      ghes_creds = %{app_id: "ghes-app", private_key: "pk", client_id: "cid"}
+
+      expect(App, :get_jwt, fn opts ->
+        assert Keyword.get(opts, :credentials) == ghes_creds
+        assert Keyword.get(opts, :api_url) == "https://ghes.example.com/api/v3"
+        {:ok, "ghes-jwt"}
+      end)
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == "https://ghes.example.com/api/v3/app/hook/deliveries?per_page=100"
+        assert {"Authorization", "Bearer ghes-jwt"} in opts[:headers]
+
+        {:ok, %Req.Response{status: 200, headers: %{}, body: []}}
+      end)
+
+      assert {:ok, %{deliveries: []}} =
+               Client.list_app_hook_deliveries(
+                 credentials: ghes_creds,
+                 api_url: "https://ghes.example.com/api/v3"
+               )
+    end
+
+    test "surfaces the Link rel=\"next\" cursor for caller-driven pagination" do
+      expect(Req, :get, fn _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           headers: %{
+             "link" => [
+               "<https://api.github.com/app/hook/deliveries?cursor=v1_42>; rel=\"next\""
+             ]
+           },
+           body: []
+         }}
+      end)
+
+      assert {:ok, %{meta: %{next_url: next_url}}} = Client.list_app_hook_deliveries()
+      assert next_url == "https://api.github.com/app/hook/deliveries?cursor=v1_42"
+    end
+
+    test "passes :next_url straight through (caller-driven pagination)" do
+      cursor_url = "https://api.github.com/app/hook/deliveries?cursor=v1_99"
+
+      expect(Req, :get, fn opts ->
+        assert opts[:url] == cursor_url
+        {:ok, %Req.Response{status: 200, headers: %{}, body: []}}
+      end)
+
+      assert {:ok, _} = Client.list_app_hook_deliveries(next_url: cursor_url)
+    end
+
+    test "returns {:error, {:http, status, body}} on non-200" do
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 403, body: %{"message" => "forbidden"}}}
+      end)
+
+      assert {:error, {:http, 403, %{"message" => "forbidden"}}} = Client.list_app_hook_deliveries()
+    end
+
+    test "returns {:error, {:transport, _}} on transport failure" do
+      expect(Req, :get, fn _opts -> {:error, :timeout} end)
+
+      assert {:error, {:transport, :timeout}} = Client.list_app_hook_deliveries()
+    end
+
+    test "returns {:error, _} when the App has no credentials configured" do
+      expect(App, :get_jwt, fn _opts -> {:error, "GitHub App is not configured"} end)
+      reject(&Req.get/1)
+
+      assert {:error, _} = Client.list_app_hook_deliveries()
+    end
+  end
+
+  describe "redeliver_app_hook_delivery/2" do
+    setup do
+      stub(App, :get_jwt, fn _opts -> {:ok, "app-jwt"} end)
+      :ok
+    end
+
+    test "POSTs to the per-delivery attempts endpoint with JWT auth, treats 202 as success" do
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/app/hook/deliveries/12345/attempts"
+        assert {"Authorization", "Bearer app-jwt"} in opts[:headers]
+
+        {:ok, %Req.Response{status: 202, body: %{}}}
+      end)
+
+      assert :ok = Client.redeliver_app_hook_delivery(12_345)
+    end
+
+    test "uses the per-App credentials and api_url when supplied (GHES path)" do
+      ghes_creds = %{app_id: "ghes-app", private_key: "pk"}
+
+      expect(App, :get_jwt, fn opts ->
+        assert Keyword.get(opts, :credentials) == ghes_creds
+        {:ok, "ghes-jwt"}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://ghes.example.com/api/v3/app/hook/deliveries/777/attempts"
+        assert {"Authorization", "Bearer ghes-jwt"} in opts[:headers]
+
+        {:ok, %Req.Response{status: 202, body: %{}}}
+      end)
+
+      assert :ok =
+               Client.redeliver_app_hook_delivery(777,
+                 credentials: ghes_creds,
+                 api_url: "https://ghes.example.com/api/v3"
+               )
+    end
+
+    test "returns {:error, {:http, _, _}} on non-202 (e.g. 422 Validation Failed)" do
+      expect(Req, :post, fn _opts ->
+        {:ok, %Req.Response{status: 422, body: %{"message" => "Validation Failed"}}}
+      end)
+
+      assert {:error, {:http, 422, _}} = Client.redeliver_app_hook_delivery(1)
+    end
+
+    test "returns {:error, {:transport, _}} on transport failure" do
+      expect(Req, :post, fn _opts -> {:error, :econnrefused} end)
+
+      assert {:error, {:transport, :econnrefused}} = Client.redeliver_app_hook_delivery(1)
+    end
+  end
 end

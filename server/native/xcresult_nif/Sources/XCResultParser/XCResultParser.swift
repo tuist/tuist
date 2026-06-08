@@ -68,9 +68,28 @@ public struct XCResultParser: Sendable {
         return nil
     }
 
-    public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
+    /// - Parameters:
+    ///   - rootDirectory: base used to relativize failure file paths for
+    ///     display. This is the caller's *source* root (e.g. the project
+    ///     dir for CLI callers) and is only ever read from.
+    ///   - attachmentsDirectory: directory the parser exports test
+    ///     attachments into. The caller owns it and decides whether and
+    ///     when it's cleaned up, so pass a directory you manage (the server
+    ///     worker's per-run temp dir). When nil, a temporary directory is
+    ///     used — attachments are never written under `rootDirectory`,
+    ///     which for CLI callers is the user's project.
+    public func parse(
+        path: AbsolutePath,
+        rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath? = nil
+    ) async throws -> TestSummary? {
         let testOutput = try await loadTestOutput(path: path)
-        return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+        return try await parseTestOutput(
+            testOutput,
+            rootDirectory: rootDirectory,
+            attachmentsDirectory: attachmentsDirectory,
+            xcresultPath: path
+        )
     }
 
     public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
@@ -110,7 +129,7 @@ public struct XCResultParser: Sendable {
         module: String?,
         into results: inout [TestResultStatuses.TestCaseStatus]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         if node.nodeType == "Test Case", let name = node.name {
             results.append(
@@ -140,6 +159,7 @@ public struct XCResultParser: Sendable {
     private func parseTestOutput(
         _ output: XCResultTestOutput,
         rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath?,
         xcresultPath: AbsolutePath
     ) async throws -> TestSummary {
         let actionLog = try await actionLog(from: xcresultPath)
@@ -172,7 +192,10 @@ public struct XCResultParser: Sendable {
         suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
         moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
 
-        let extractedAttachments = await attachmentsByTestIdentifiers(from: xcresultPath)
+        let extractedAttachments = await attachmentsByTestIdentifiers(
+            from: xcresultPath,
+            attachmentsDirectory: attachmentsDirectory
+        )
 
         allTestCases = allTestCases.map { testCase in
             let testIdentifier = normalizeTestIdentifier(
@@ -222,7 +245,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) {
-        let currentModule = node.nodeType == "Unit test bundle" ? node.name : module
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
         captureSuiteDuration(from: node, into: &suiteDurations)
 
@@ -573,11 +596,39 @@ public struct XCResultParser: Sendable {
         }
     }
 
+    /// Resolves where to export attachments, given the caller's optional
+    /// attachments directory.
+    ///
+    /// Attachments are exported for the caller to consume *after* parse
+    /// returns (the server worker uploads them to S3), so they can't live
+    /// in an auto-cleaned `runInTemporaryDirectory` block like the other
+    /// xcresulttool scratch dirs.
+    ///
+    /// When the caller provides a directory — one it owns and cleans up
+    /// (the server worker's per-run temp dir) — we export into an
+    /// `xcresult-attachments` subdirectory of it so the caller's cleanup
+    /// reclaims the (potentially large) attachment files too. Callers that
+    /// don't manage one (the CLI, where the only directory in hand is the
+    /// user's project) get a process-wide temp dir instead, so we never
+    /// drop attachments into a source tree.
+    private func attachmentsExportDirectory(in attachmentsDirectory: AbsolutePath?) async throws -> AbsolutePath {
+        guard let attachmentsDirectory else {
+            return try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+        }
+
+        let directory = attachmentsDirectory.appending(component: "xcresult-attachments")
+        if try await !fileSystem.exists(directory) {
+            try await fileSystem.makeDirectory(at: directory)
+        }
+        return directory
+    }
+
     private func attachmentsByTestIdentifiers(
-        from xcresultPath: AbsolutePath
+        from xcresultPath: AbsolutePath,
+        attachmentsDirectory: AbsolutePath?
     ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
         do {
-            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+            let temporaryDirectory = try await attachmentsExportDirectory(in: attachmentsDirectory)
 
             _ = try await commandRunner.run(
                 arguments: [

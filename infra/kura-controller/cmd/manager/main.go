@@ -33,12 +33,16 @@ func main() {
 	var enableLeaderElection bool
 	var watchNamespace string
 	var grpcClusterIssuer string
+	var otlpTracesEndpoint string
+	var deploymentEnvironment string
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", true, "Single-leader election")
 	flag.StringVar(&watchNamespace, "watch-namespace", "", "Namespace to watch for KuraInstance resources")
 	flag.StringVar(&grpcClusterIssuer, "grpc-cluster-issuer", "", "cert-manager ClusterIssuer to use for gRPC TLS certificates (leaves gRPC plaintext when empty)")
+	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
+	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -66,9 +70,11 @@ func main() {
 	}
 
 	if err := (&controllers.KuraInstanceReconciler{
-		Client:            mgr.GetClient(),
-		Scheme:            mgr.GetScheme(),
-		GRPCClusterIssuer: grpcClusterIssuer,
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		GRPCClusterIssuer:  grpcClusterIssuer,
+		OTLPTracesEndpoint: otlpTracesEndpoint,
+		Environment:        deploymentEnvironment,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup KuraInstanceReconciler")
 		os.Exit(1)

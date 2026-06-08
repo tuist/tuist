@@ -32,7 +32,7 @@ env:
 jobs:
   build:
     name: Build and health check
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 10
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -40,7 +40,6 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: search
       - name: Build and verify health
         run: mise run test

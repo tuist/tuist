@@ -22,6 +22,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let simulatorController: SimulatorController
     private let commandRunner: CommandRunning
+    private static let showBuildSettingsTimeout: Duration = .seconds(20)
 
     public init() {
         self.init(
@@ -339,8 +340,13 @@ public struct XcodeBuildController: XcodeBuildControlling {
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
-        
-        for try await event in commandRunner.run(arguments: command, environment: Environment.current.variables) {
+
+        // With parallel testing enabled, xcodebuild checks isatty(stdout) and buffers all of its
+        // output until the process exits when stdout is a pipe, which makes CI runners hit their
+        // no-output timeout. NSUnbufferedIO makes it flush in real time.
+        var environment = Environment.current.variables
+        environment["NSUnbufferedIO"] = "YES"
+        for try await event in commandRunner.run(arguments: command, environment: environment) {
             switch event {
             case let .standardOutput(bytes):
                 log(bytes)
@@ -376,7 +382,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
             }
             
             let timeoutTask = Task {
-                try await Task.sleep(nanoseconds: 20_000_000)
+                try await Task.sleep(for: Self.showBuildSettingsTimeout)
                 commandTask.cancel()
             }
             

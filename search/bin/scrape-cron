@@ -1,7 +1,7 @@
 #!/bin/bash
 # Installs a systemd timer (daily at 04:00 UTC) on the remote server that
-# runs all indexers via docker exec on the TypeSense container:
-# DocSearch scrapers (docs + forum), DocC API indexer, and GitHub issues/PRs.
+# runs the DocSearch scrapers (docs + forum), DocC API indexer, and GitHub
+# issues/PR indexer against the live TypeSense container.
 set -euo pipefail
 
 TYPESENSE_API_KEY=$(op read "op://cache/TYPESENSE_API_KEY/password")
@@ -9,24 +9,42 @@ GITHUB_TOKEN=$(op read "op://cache/SEARCH_GITHUB_TOKEN/password" 2>/dev/null || 
 
 SERVER_HOST="91.99.179.13"
 SSH_USER="${SEARCH_SSH_USER:-root}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SEARCH_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Ensure host prerequisites and working directory.
+ssh ${SSH_USER}@${SERVER_HOST} "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
+ssh ${SSH_USER}@${SERVER_HOST} "command -v jq >/dev/null || (apt-get update && apt-get install -y jq)"
 
 # Store secrets on server (restricted permissions)
-ssh ${SSH_USER}@${SERVER_HOST} "mkdir -p /opt/docsearch && chmod 700 /opt/docsearch"
 echo "${TYPESENSE_API_KEY}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.api_key && chmod 600 /opt/docsearch/.api_key"
 echo "${GITHUB_TOKEN}" | ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/.github_token && chmod 600 /opt/docsearch/.github_token"
 
-# Create runner script that docker-execs into the TypeSense container
+# Sync configs and helper scripts to the host.
+scp "${SEARCH_ROOT}/config/docsearch.json" ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/docsearch.json
+scp "${SEARCH_ROOT}/config/docsearch-forum.json" ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/docsearch-forum.json
+scp "${SEARCH_ROOT}/bin/index-docc" ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-docc
+scp "${SEARCH_ROOT}/bin/index-github" ${SSH_USER}@${SERVER_HOST}:/opt/docsearch/index-github
+ssh ${SSH_USER}@${SERVER_HOST} "chmod 755 /opt/docsearch/index-docc /opt/docsearch/index-github"
+
+# Create runner script on the host.
 ssh ${SSH_USER}@${SERVER_HOST} "cat > /opt/docsearch/run.sh" << 'REMOTE_SCRIPT'
 #!/bin/bash
 set -euo pipefail
 CONTAINER=$(docker ps --filter label=service=tuist-search --filter label=role=web --format '{{.Names}}' | head -1)
+if [ -z "$CONTAINER" ]; then
+  echo "No running tuist-search container found" >&2
+  exit 1
+fi
+
 TYPESENSE_API_KEY=$(cat /opt/docsearch/.api_key)
 GITHUB_TOKEN=$(cat /opt/docsearch/.github_token 2>/dev/null || echo "")
+CONTAINER_IP=$(docker inspect "$CONTAINER" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
 
 # DocSearch scrapers (docs, forum) — runs as a separate container since it needs network/DNS access
 for config_file in docsearch.json docsearch-forum.json; do
   echo "==> Scraping with ${config_file}..."
-  CONFIG=$(docker exec "$CONTAINER" cat /opt/docsearch/${config_file})
+  CONFIG=$(cat "/opt/docsearch/${config_file}")
   docker run --rm --network kamal --dns 8.8.8.8 \
     -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
     -e TYPESENSE_HOST="$CONTAINER" \
@@ -39,19 +57,17 @@ done
 
 # DocC indexer (ProjectDescription API reference)
 echo "==> Indexing DocC (ProjectDescription)..."
-docker exec \
-  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
-  -e TYPESENSE_HOST="http://localhost:8108" \
-  "$CONTAINER" /opt/docsearch/index-docc
+TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+TYPESENSE_HOST="http://${CONTAINER_IP}:8108" \
+  /opt/docsearch/index-docc
 echo "==> Done with DocC indexer"
 
 # GitHub indexer (issues and PRs)
 echo "==> Indexing GitHub issues and PRs..."
-docker exec \
-  -e TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
-  -e TYPESENSE_HOST="http://localhost:8108" \
-  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
-  "$CONTAINER" /opt/docsearch/index-github
+TYPESENSE_API_KEY="$TYPESENSE_API_KEY" \
+TYPESENSE_HOST="http://${CONTAINER_IP}:8108" \
+GITHUB_TOKEN="$GITHUB_TOKEN" \
+  /opt/docsearch/index-github
 echo "==> Done with GitHub indexer"
 REMOTE_SCRIPT
 ssh ${SSH_USER}@${SERVER_HOST} "chmod 700 /opt/docsearch/run.sh"

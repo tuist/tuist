@@ -16,16 +16,16 @@ defmodule Tuist.Runners do
       each pool's Pods + per-Pod ServiceAccounts directly via
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
-    * **`accounts.runner_max_concurrent`** is the only per-customer
-      knob. 0 = runners disabled; N>0 = at most N concurrent
-      across all pools the customer reaches.
+    * **Runner availability is gated by the `:runners` feature
+      flag** (`Tuist.FeatureFlags.runners_enabled?/1`) — the only
+      per-customer switch. There's no concurrency cap.
     * **Two-store split for the workflow_job lifecycle.** Postgres
       `runner_claims` is the thin OLTP table — one row per
       currently-claimed workflow_job, used for atomic claim (`INSERT
-      … ON CONFLICT DO NOTHING` on the PK) and per-account cap
-      counting. ClickHouse `runner_jobs` is the customer-facing
-      view + history — `queued`, `claimed`, `running`, `completed`
-      state transitions recorded as RMT INSERTs. Every PG write is
+      … ON CONFLICT DO NOTHING` on the PK). ClickHouse `runner_jobs`
+      is the customer-facing view + history — `queued`, `claimed`,
+      `running`, `completed` state transitions recorded as RMT
+      INSERTs. Every PG write is
       paired with a CH INSERT so the customer surfaces stay in
       sync; CH is never queried for OLTP correctness.
 
@@ -56,6 +56,8 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
   alias Tuist.VCS
 
   require Logger
@@ -64,6 +66,54 @@ defmodule Tuist.Runners do
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
 
+  # The owner label gates dispatch egress: the runners-namespace
+  # NetworkPolicy admits only label-less (idle, polling) Pods to the
+  # churning dispatch policy, so a claimed Pod's egress isn't perturbed
+  # by a server rollout mid-job. A claimed Pod that never gets the
+  # label stays in the idle policy and loses that protection, so the
+  # stamp is retried to ride out a transient apiserver blip before
+  # falling back to best-effort.
+  @owner_label_stamp_attempts 3
+  @owner_label_stamp_retry_backoff_ms 100
+
+  # Drain stagger: stale Pods are partitioned into `@drain_slots`
+  # buckets keyed by `phash2(pod_name)`. Slot N becomes drain-
+  # eligible `N * @drain_interval_seconds` after the controller
+  # records the image roll. Total rollout time is
+  # `(@drain_slots - 1) * @drain_interval_seconds` (~3.5 min at
+  # the current values). Stateless and deterministic across
+  # server replicas — every instance computes the same slot for
+  # the same Pod without coordination.
+  @drain_slots 8
+  @drain_interval_seconds 30
+
+  @doc """
+  Returns the raw load signals the runners-controller's autoscaler
+  uses to compute the desired replica count for `fleet_name`:
+
+    * `claimed` — Pods currently running or in the process of
+      claiming (Postgres `runner_claims` grouped by `fleet_name`).
+    * `queued` — workflow_jobs still in `runner_jobs.status =
+      'queued'` for this fleet (ClickHouse).
+    * `p95_concurrent_last_hour` — rolling p95 of concurrent
+      claimed/running jobs over the last 60 one-minute buckets
+      (ClickHouse). Smooths out single-spike noise while keeping
+      the warm pool sized for typical peak load.
+
+  The controller composes these into a desired-replica value
+  using its CRD-bound knobs (`minWarmPoolFloor`, `maxReplicas`)
+  — keeping the policy on the controller side and the signal
+  source on the server side.
+  """
+  def scaling_signals_for_fleet(fleet_name) when is_binary(fleet_name) do
+    %{
+      fleet: fleet_name,
+      claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
+      queued: Jobs.queued_count_by_fleet(fleet_name),
+      p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
+    }
+  end
+
   @doc """
   Claims the next eligible queued workflow_job for the SA's fleet
   and mints a JIT for the workflow_job's account.
@@ -71,29 +121,35 @@ defmodule Tuist.Runners do
   Returns `{:ok, %{jit, account, runner_name}}` on success.
 
   Error cases the web layer translates to HTTP responses:
-    * `{:error, :no_work_yet}` — queue empty, all accounts at
-      cap, or we lost a claim race; warm Pod keeps polling.
+    * `{:error, :no_work_yet}` — queue empty or we lost a claim
+      race; warm Pod keeps polling.
     * `{:error, :not_found}` — SA gone (raced with GC).
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
       went away.
     * `{:error, :github_mint_failed}` — GitHub refused the JIT.
     * `{:error, :not_in_cluster}` — server not running in-cluster.
+    * `{:error, :drain}` — the polling Pod's image no longer
+      matches its RunnerPool's `spec.image`. The Pod is idle
+      and stale, so the web layer returns HTTP 410 to signal
+      the Pod's dispatch-poll script to exit cleanly; the
+      single-shot lifecycle then halts the VM and the runner-
+      pool reconciler replaces the Pod with one on the current
+      image. In-flight customer jobs are unaffected because
+      the check runs only on idle polls (before claim attempt).
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
-    with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
-         {:ok, fleet_name} <- pool_label(sa) do
-      # `ineligible_accounts/0` is a perf optimisation — skip
-      # candidates whose account already hit cap so we don't
-      # round-trip ClickHouse for a row we'd reject anyway. The
-      # authoritative gate is `Claims.attempt/4`, which re-checks
-      # the cap inside the same transaction as the INSERT and
-      # holds an advisory lock on the account for the duration.
-      # The pre-filter can be eventually-consistent without
-      # affecting correctness.
-      ineligible = ineligible_accounts()
+    :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
+      result = do_dispatch_for_sa(namespace, sa_name)
+      {result, %{outcome: dispatch_outcome(result)}}
+    end)
+  end
 
-      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, ineligible),
+  defp do_dispatch_for_sa(namespace, sa_name) do
+    with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
+         {:ok, fleet_name} <- pool_label(sa),
+         :ok <- check_not_stale(namespace, sa_name, fleet_name) do
+      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
            {:ok, claim} <-
              Claims.attempt(
                candidate.workflow_job_id,
@@ -107,7 +163,7 @@ defmodule Tuist.Runners do
         {:error, :empty} ->
           {:error, :no_work_yet}
 
-        {:error, reason} when reason in [:lost_race, :over_cap, :runners_disabled, :pod_in_use, :unknown_account] ->
+        {:error, reason} when reason in [:lost_race, :pod_in_use] ->
           # All transactional-claim outcomes that mean "this poll
           # gets nothing right now" — collapsed for the caller.
           # The candidate (if we had one) stays queued in CH for
@@ -131,16 +187,41 @@ defmodule Tuist.Runners do
     end
   end
 
+  defp dispatch_outcome({:ok, _}), do: "served"
+  defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
+  defp dispatch_outcome(_), do: "unknown"
+
   defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, dispatch_label} <- Dispatch.dispatch_label_for_pool(fleet_name),
+        with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
+               Dispatch.pool_summary_by_name(fleet_name),
+             dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label),
+             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
+          # Open the per-Pod billing session only after dispatch
+          # commits — JIT minted, PG marked running, CH state
+          # transitioned. Opening earlier (e.g. at claim-win in
+          # `Jobs.record_claimed/3`) leaks a session on every
+          # mid-dispatch failure since `release_safely/3` only
+          # re-queues the CH row and releases the PG claim — the
+          # session row would sit open and Billing would clamp it
+          # to the 6h max-lifetime.
+          RunnerSessions.open(%{
+            workflow_job_id: candidate.workflow_job_id,
+            account_id: candidate.account_id,
+            fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            pod_name: pod_name,
+            runner_name: runner_name,
+            repository: Map.get(candidate, :repository, ""),
+            workflow_name: Map.get(candidate, :workflow_name, ""),
+            started_at: claim.claimed_at
+          })
+
           Logger.info("runners: dispatched",
             account: account.name,
             sa: sa_name,
@@ -149,7 +230,13 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id
           )
 
-          {:ok, %{jit: jit, account: account, runner_name: runner_name}}
+          {:ok,
+           %{
+             jit: jit,
+             account: account,
+             runner_name: runner_name,
+             workflow_job_id: candidate.workflow_job_id
+           }}
         else
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
@@ -237,28 +324,6 @@ defmodule Tuist.Runners do
       end
   end
 
-  # Builds the at-cap account list for the candidate query. One
-  # indexed Postgres query across all fleets for the inflight
-  # counts (the cap is account-level, NOT fleet-level — a
-  # customer at cap=1 can't run one job per pool); a per-account
-  # lookup for the cap config.
-  defp ineligible_accounts do
-    Claims.counts_per_account()
-    |> Enum.filter(&at_cap?/1)
-    |> Enum.map(fn {account_id, _inflight} -> account_id end)
-  end
-
-  defp at_cap?({account_id, inflight}) do
-    case Accounts.get_account_by_id(account_id) do
-      {:ok, %{runner_max_concurrent: cap}} when is_integer(cap) and cap > 0 ->
-        inflight >= cap
-
-      _ ->
-        # No account row or cap=0 — treat as ineligible.
-        true
-    end
-  end
-
   defp stamp_owner_labels(namespace, pod_name, account) do
     patch = %{
       "metadata" => %{
@@ -269,24 +334,50 @@ defmodule Tuist.Runners do
       }
     }
 
+    patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
+
+  defp patch_pod_labels(namespace, pod_name, patch, attempts_left) do
     case K8sClient.patch_pod(namespace, pod_name, patch) do
       {:ok, _} ->
         :ok
 
-      {:error, reason} ->
-        Logger.warning("runners: pod label stamp failed; operational view may be wrong",
+      {:error, reason} when attempts_left > 1 ->
+        Logger.warning("runners: pod label stamp failed; retrying",
           pod: pod_name,
           reason: inspect(reason)
         )
 
-        # Continue — cap accounting reads from Postgres, the K8s
-        # labels are operational visibility only.
+        Process.sleep(@owner_label_stamp_retry_backoff_ms)
+        patch_pod_labels(namespace, pod_name, patch, attempts_left - 1)
+
+      {:error, reason} ->
+        Logger.warning(
+          "runners: pod label stamp failed after retries; Pod stays in the idle dispatch NetworkPolicy and a server rollout may perturb its egress",
+          pod: pod_name,
+          reason: inspect(reason)
+        )
+
+        # Non-fatal on purpose. The claim is already won here; failing
+        # dispatch would strand the job, and a sustained apiserver
+        # outage would block all dispatch. Degrade to "running without
+        # the label" rather than dropping the job. Per-account cap
+        # accounting reads from Postgres, not these labels.
         :ok
     end
   end
 
-  defp mint_jit(account, sa_name, dispatch_label) do
-    runner_name = "tuist-#{account.name}-#{sa_name}"
+  defp mint_jit(account, sa_name, dispatch_label, runner_labels) do
+    # GitHub's `create JIT config` API caps `name` at 64 characters.
+    # Earlier versions prefixed `tuist-<account.name>-` — for macOS
+    # pools that fit, but the Linux pool name is longer
+    # (`<release>-tuist-runner-pool-linux-ubuntu-22-04`), so the
+    # combined string overshoots and GitHub returns 422. The SA
+    # name is already unique within the cluster and contains the
+    # chart's release + pool prefix, and the runner is registered
+    # under `account.name` via the API URL — so dropping the
+    # redundant prefix is safe.
+    runner_name = sa_name
 
     # Resolve the full installation row (carries `installation_id`
     # AND `client_url`) instead of just the integer id. The JIT
@@ -294,11 +385,32 @@ defmodule Tuist.Runners do
     # — github.com for SaaS, the customer's GHES host otherwise.
     # Without this we'd silently mint a github.com runner for a
     # GHES org with the same login.
+    #
+    # `runner_labels` carries the OS/arch identification triple
+    # (e.g. `["self-hosted", "macOS", "ARM64"]` for the Mac fleet,
+    # `["self-hosted", "Linux", "X64"]` for the Hetzner Cloud
+    # fleet); `dispatch_label` is appended so the customer's
+    # `runs-on` matches and GitHub binds the workflow_job to this
+    # specific pool's runner.
+    # Match GitHub-hosted's workspace path so on-disk artifacts
+    # that bake absolute paths (SwiftPM `.build/checkouts/`,
+    # DerivedData, `actions/cache` payloads) work interchangeably
+    # between hosted and self-hosted runs. The runner images
+    # create a `runner` user with the corresponding HOME on each
+    # OS — `/Users/runner` on macOS, `/home/runner` on Linux.
+    work_folder =
+      if "macOS" in runner_labels do
+        "/Users/runner/work"
+      else
+        "/home/runner/work"
+      end
+
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
            GitHubClient.generate_jit_config(installation, account.name, %{
              name: runner_name,
-             labels: ["self-hosted", "macOS", "ARM64", dispatch_label]
+             labels: runner_labels ++ [dispatch_label],
+             work_folder: work_folder
            }) do
       {:ok, jit, runner_name}
     else
@@ -333,7 +445,111 @@ defmodule Tuist.Runners do
 
   defp pool_label(_), do: {:error, :no_pool_label}
 
+  # Profile-aware dispatch labelling: prefer the customer-facing
+  # label the workflow_job carried in `runs-on:` (e.g.
+  # `tuist-default`), which the webhook stored on the candidate's
+  # CH row. Fall back to the pool's internal `dispatchLabel`
+  # (e.g. `shape-linux-4vcpu-16gb`) only when the candidate's
+  # `requested_dispatch_label` is missing — that path only fires
+  # for legacy rows enqueued before the requested-label column
+  # existed.
+  defp pick_dispatch_label(candidate, pool_dispatch_label) do
+    case Map.get(candidate, :requested_dispatch_label, "") do
+      label when is_binary(label) and label != "" -> label
+      _ -> pool_dispatch_label
+    end
+  end
+
   # The polling Pod's name. The controller's podtemplate stamps
   # Pods + SAs with the same name, so the SA name IS the Pod name.
   defp pod_name_from_sa(sa_name), do: sa_name
+
+  # Compare the polling Pod's runner-container image to the
+  # RunnerPool's `spec.image`. When the chart bumps the digest pin,
+  # idle Running Pods that are still on the old image return
+  # `{:error, :drain}` here, which the web layer translates to HTTP
+  # 410. The Pod's `dispatch-poll.sh` handles 410 by exiting cleanly;
+  # the EXIT trap halts the VM and the runner-pool reconciler reaps
+  # the Pod and creates a replacement on the current image.
+  #
+  # Drains are staggered by a per-Pod time slot computed from
+  # `status.imageRolledAt` (recorded by the controller on every
+  # observed `spec.image` change) so the warm pool doesn't drop to
+  # zero on every digest bump. See `slot_active?/2`.
+  #
+  # Guarded by `K8sClient` lookups that may fail (Pod / RunnerPool
+  # gone, in-cluster client misconfigured). Any lookup failure is
+  # downgraded to `:ok` — refusing dispatch on a transient k8s blip
+  # would stall the whole pool. The drain check is opportunistic
+  # cleanup, not a correctness gate; the reconciler's
+  # Pending-stale path catches the unhappy long-tail.
+  defp check_not_stale(namespace, sa_name, fleet_name) do
+    pod_name = pod_name_from_sa(sa_name)
+
+    with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),
+         {:ok, pool_image} <- pool_image(pool),
+         {:ok, pod} <- K8sClient.get_pod(namespace, pod_name),
+         {:ok, pod_image} <- pod_image(pod) do
+      cond do
+        pod_image == pool_image ->
+          :ok
+
+        not slot_active?(pool, pod_name) ->
+          # Stale, but this Pod's drain slot hasn't opened yet.
+          # Let it keep polling — it'll receive 410 on a later
+          # tick once its slot becomes eligible.
+          :ok
+
+        true ->
+          Logger.info("runners: draining stale pod",
+            pod: pod_name,
+            fleet: fleet_name,
+            pod_image: pod_image,
+            pool_image: pool_image
+          )
+
+          {:error, :drain}
+      end
+    else
+      _ -> :ok
+    end
+  end
+
+  defp pool_image(%{"spec" => %{"image" => image}}) when is_binary(image) and image != "", do: {:ok, image}
+  defp pool_image(_), do: :error
+
+  defp pod_image(%{"spec" => %{"containers" => [%{"image" => image} | _]}}) when is_binary(image) and image != "",
+    do: {:ok, image}
+
+  defp pod_image(_), do: :error
+
+  # `slot_active?/2` returns true when enough time has elapsed
+  # since `status.imageRolledAt` for this specific Pod's drain
+  # slot to fire. Slot is `phash2(pod_name) rem @drain_slots`; the
+  # slot's drain window opens `slot * @drain_interval_seconds`
+  # after the roll. When the controller hasn't yet recorded a roll
+  # (status.imageRolledAt absent or unparseable), we defer the
+  # drain rather than fire eagerly — the controller catches up
+  # within one reconcile tick (≤60s) and the Pending-stale
+  # recycler in the controller covers the Pending half meanwhile.
+  defp slot_active?(pool, pod_name) do
+    case rolled_at(pool) do
+      {:ok, %DateTime{} = t} ->
+        slot = :erlang.phash2(pod_name, @drain_slots)
+        elapsed = DateTime.diff(Tuist.Time.utc_now(), t, :second)
+        elapsed >= slot * @drain_interval_seconds
+
+      :error ->
+        false
+    end
+  end
+
+  defp rolled_at(%{"status" => %{"imageRolledAt" => ts}}) when is_binary(ts) and ts != "" do
+    case DateTime.from_iso8601(ts) do
+      {:ok, dt, _} -> {:ok, dt}
+      _ -> :error
+    end
+  end
+
+  defp rolled_at(_), do: :error
 end

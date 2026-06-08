@@ -4,29 +4,25 @@ Describe 'peer mTLS'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-mtls"
-    export KURA_US_PORT=4501
-    export KURA_EU_PORT=4502
-    export KURA_AP_PORT=4503
-    export GRAFANA_PORT=3400
-    export PROMETHEUS_PORT=9290
-    export LOKI_PORT=3210
-    export TEMPO_PORT=3310
-    export OTLP_PORT=4425
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_EU_URL="http://localhost:${KURA_EU_PORT}"
-    export KURA_AP_URL="http://localhost:${KURA_AP_PORT}"
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/test/e2e/docker-compose.mtls.yml"
     )
     setup_suite_tmpdir
-    export KURA_MTLS_CERT_DIR="${SUITE_TMP_DIR}/mtls"
+
+    suite_env COMPOSE_PROJECT_NAME kura-mtls
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
+      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT \
+      GRAFANA_PORT PROMETHEUS_PORT LOKI_PORT TEMPO_PORT OTLP_PORT
+    suite_env KURA_MTLS_CERT_DIR "${SUITE_TMP_DIR}/mtls"
     generate_peer_tls_material
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc up --build -d >/dev/null 2>&1
+    compose_up || return 1
+
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"

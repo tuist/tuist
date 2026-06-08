@@ -217,7 +217,7 @@ defmodule Tuist.BundlesTest do
       assert bundle.type == :app
       assert bundle.supported_platforms == [:ios, :ios_simulator]
       assert %DateTime{} = bundle.inserted_at
-      # Second precision so Jason renders `2026-05-06T11:12:36Z` rather
+      # Second precision so JSON renders `2026-05-06T11:12:36Z` rather
       # than `2026-05-06T11:12:36.000000Z`. The Swift CLI's default
       # `ISO8601DateFormatter` rejects fractional seconds, so leaking
       # the CH `DateTime64(6)` precision into the API response broke

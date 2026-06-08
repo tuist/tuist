@@ -10,6 +10,12 @@ defmodule Tuist.Environment do
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
   @runtime_envs ~w(prod can stag)
+  @agent_auth_default_trusted_providers [
+    %{
+      "issuer" => "https://auth0.openai.com/",
+      "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
+    }
+  ]
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -175,6 +181,10 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
 
+  def kura_tuist_base_url do
+    System.get_env("TUIST_KURA_TUIST_BASE_URL")
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -207,10 +217,39 @@ defmodule Tuist.Environment do
     get([:redis_url], secrets)
   end
 
+  def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
+
+  def agent_auth_trusted_providers(secrets \\ secrets()) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") ||
+           get([:agent_auth, :trusted_providers], secrets) do
+      providers when is_list(providers) ->
+        providers
+
+      providers_json when is_binary(providers_json) and providers_json != "" ->
+        case JSON.decode(providers_json) do
+          {:ok, providers} when is_list(providers) -> providers
+          _ -> []
+        end
+
+      _ ->
+        agent_auth_default_trusted_providers()
+    end
+  end
+
   def cache_endpoints(secrets \\ secrets()) do
     case get([:cache, :endpoints], secrets) do
       endpoints when is_binary(endpoints) ->
-        endpoints |> String.split(",") |> Enum.map(&String.trim/1)
+        split_endpoints(endpoints)
+
+      _ ->
+        nil
+    end
+  end
+
+  def kura_endpoints(secrets \\ secrets()) do
+    case get([:kura, :endpoints], secrets) do
+      endpoints when is_binary(endpoints) ->
+        split_endpoints(endpoints)
 
       _ ->
         nil
@@ -437,6 +476,19 @@ defmodule Tuist.Environment do
     end
   end
 
+  def cache_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_S3_BUCKET_NAME") ||
+      System.get_env("S3_BUCKET") ||
+      get([:cache, :s3, :bucket], secrets)
+  end
+
+  def cache_xcode_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_XCODE_S3_BUCKET_NAME") ||
+      System.get_env("S3_XCODE_CACHE_BUCKET") ||
+      get([:cache, :s3, :xcode_cache_bucket], secrets) ||
+      cache_s3_bucket_name(secrets)
+  end
+
   def s3_endpoint(secrets \\ secrets()) do
     if dev_use_remote_storage?() do
       System.get_env("TUIST_S3_ENDPOINT") || get([:s3, :endpoint], secrets)
@@ -517,7 +569,7 @@ defmodule Tuist.Environment do
         prices
 
       is_binary(prices_base64_json) ->
-        prices_base64_json |> Base.decode64!() |> Jason.decode!(keys: :atoms)
+        prices_base64_json |> Base.decode64!() |> JSON.decode!()
 
       true ->
         nil
@@ -962,6 +1014,34 @@ defmodule Tuist.Environment do
       oauth_private_key(secrets) != nil
   end
 
+  # Kura-side env vars stay unprefixed so the implementation in Kura
+  # remains Tuist-agnostic. The server still falls back to the legacy
+  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
+  # so existing deployments and dev secrets keep working through the
+  # rename.
+  def kura_control_plane_client_id(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
+      get([:kura, :control_plane_client_id], secrets) ||
+      get([:kura, :introspection_client_id], secrets)
+  end
+
+  def kura_control_plane_client_secret(secrets \\ secrets()) do
+    System.get_env("KURA_CONTROL_PLANE_CLIENT_SECRET") ||
+      get([:kura, :control_plane_client_secret], secrets) ||
+      get([:kura, :introspection_client_secret], secrets)
+  end
+
+  def kura_control_plane_configured?(secrets \\ secrets()) do
+    kura_control_plane_client_id(secrets) != nil and
+      kura_control_plane_client_secret(secrets) != nil
+  end
+
+  def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
+
+  def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+
+  def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
+
   @doc """
   Returns the Namespace SSH private key used to establish secure SSH connections between the server and the Namespace runner.
   """
@@ -1015,6 +1095,63 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners")
   end
 
+  @doc """
+  Prefix the dispatch path prepends to a shape key when addressing a
+  Linux shape pool's `RunnerPool` CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+
+  Helm injects this from the same `tuist.componentName` helper that
+  names the CRs (`runner-pool.yaml`), so the server always resolves to
+  a pool a Pod actually polls regardless of the release name. The
+  default matches a chart whose fullname collapses to `tuist`; local
+  dev and tests (no real cluster) don't dispatch against it.
+  """
+  def runners_linux_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
+  Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
+  Helm renders the prefix into the `RunnerPool` CR names and injects it
+  here so the server's enqueue target stays identical to the rendered CR
+  name regardless of helm release. Default mirrors the Linux side, with
+  `-macos` substituted for `-linux`.
+  """
+  def runners_macos_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
+  end
+
+  @doc """
+  Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
+  CRs live — the chart sets it to the release namespace when CNPG is
+  enabled. `nil` when unset (dev, or CNPG not provisioned), which makes
+  the `/ops/db` Backups tab skip the Kubernetes API lookup.
+  """
+  def cnpg_namespace do
+    System.get_env("TUIST_CNPG_NAMESPACE")
+  end
+
+  @doc """
+  Namespace where the runners-controller's ServiceAccount lives —
+  used to gate `POST /api/internal/runners/pods/stopped` so only
+  the controller can close billing sessions. Defaults to `tuist`
+  (the typical chart release namespace); helm sets it explicitly
+  to `.Release.Namespace`.
+  """
+  def runners_controller_namespace do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_NAMESPACE", "tuist")
+  end
+
+  @doc """
+  Name of the runners-controller's ServiceAccount. Pairs with
+  `runners_controller_namespace/0` to identify the only principal
+  authorised to call the pod-lifecycle endpoints. Defaults to
+  `tuist-runners-controller` (chart-rendered name); helm overrides
+  via env when the release name differs.
+  """
+  def runners_controller_sa_name do
+    System.get_env("TUIST_RUNNERS_CONTROLLER_SA_NAME", "tuist-runners-controller")
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end
@@ -1052,6 +1189,13 @@ defmodule Tuist.Environment do
   end
 
   defp safe_get_in(_data, _keys), do: nil
+
+  defp split_endpoints(endpoints) do
+    endpoints
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
 
   def secrets do
     Application.get_env(:tuist, :secrets) || %{}

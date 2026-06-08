@@ -3,27 +3,27 @@
 Describe 'core cluster behaviour'
   Include spec/e2e/support.sh
 
-  setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-e2e"
-    export KURA_US_PORT=4201
-    export KURA_EU_PORT=4202
-    export KURA_AP_PORT=4203
-    export GRAFANA_PORT=3300
-    export PROMETHEUS_PORT=9190
-    export LOKI_PORT=3201
-    export TEMPO_PORT=3301
-    export OTLP_PORT=4418
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_EU_URL="http://localhost:${KURA_EU_PORT}"
-    export KURA_AP_URL="http://localhost:${KURA_AP_PORT}"
-    export GRAFANA_URL="http://localhost:${GRAFANA_PORT}"
-    export PROMETHEUS_URL="http://localhost:${PROMETHEUS_PORT}"
+  resolve_endpoints() {
+    resolve_http_node KURA_US kura-us
+    resolve_http_node KURA_EU kura-eu
+    resolve_http_node KURA_AP kura-ap
+    resolve_http_node GRAFANA grafana 3000
+    resolve_http_node PROMETHEUS prometheus 9090
+  }
 
+  setup_suite() {
     COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
     setup_suite_tmpdir
 
+    suite_env COMPOSE_PROJECT_NAME kura-e2e
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
+      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT \
+      GRAFANA_PORT PROMETHEUS_PORT LOKI_PORT TEMPO_PORT OTLP_PORT
+
     dc down -v --remove-orphans >/dev/null 2>&1 || true
-    dc up --build -d >/dev/null 2>&1
+    compose_up || return 1
+
+    resolve_endpoints
 
     wait_for_http "${KURA_US_URL}/up"
     wait_for_http "${KURA_EU_URL}/up"
@@ -40,6 +40,7 @@ Describe 'core cluster behaviour'
   }
 
   BeforeAll 'setup_suite'
+  Before 'resolve_endpoints'
   AfterAll 'teardown_suite'
 
   It 'syncs keyvalue entries across regions'
@@ -71,6 +72,7 @@ Describe 'core cluster behaviour'
     The variable body should eq 'xcode-binary'
 
     dc restart kura-eu >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_EU kura-eu
     wait_for_http "${KURA_EU_URL}/up" || return 1
     capture_into eu_up wait_for_contains "${KURA_EU_URL}/up" '"ring_members":3' || return 1
     The variable eu_up should include '"ring_members":3'
@@ -121,8 +123,10 @@ Describe 'core cluster behaviour'
       -d '{"parts":[1,2]}')"
     The variable complete_status should eq 204
 
-    head_status="$(status_only -I \
-      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")"
+    capture_into head_status \
+      wait_for_head_status \
+      "${KURA_EU_URL}/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds" \
+      204 || return 1
     The variable head_status should eq 204
 
     capture_into module_body \

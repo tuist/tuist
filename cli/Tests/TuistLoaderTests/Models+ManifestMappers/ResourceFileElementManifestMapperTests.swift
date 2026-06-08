@@ -367,6 +367,47 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_excluding_recursive_glob() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let resourcesFolder = temporaryPath.appending(component: "Resources")
+        let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
+        let includedResource = resourcesFolder.appending(component: "included.xib")
+        try await fileSystem.makeDirectory(at: resourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder)
+        try await fileSystem.makeDirectory(at: excludedResourcesFolder.appending(component: "Nested"))
+        try await fileSystem.writeText("", at: includedResource)
+        try await fileSystem.writeText(
+            "", at: excludedResourcesFolder.appending(component: "excluded.xib")
+        )
+        try await fileSystem.writeText(
+            "", at: excludedResourcesFolder.appending(components: "Nested", "excluded-too.xib")
+        )
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/**", excluding: ["Resources/Excluded/**/*"]
+        )
+
+        // When
+        let got = try await XcodeGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertBetterEqual(
+            got,
+            [
+                .file(path: includedResource, tags: []),
+            ]
+        )
+    }
+
     func test_excluding_glob_by_extension_does_not_exclude_siblings() async throws {
         // Given
         let temporaryPath = try temporaryPath()

@@ -9,6 +9,7 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.HTML
   alias Tuist.Docs.Page
   alias Tuist.Locale
+  alias Tuist.Webhooks.WebhookEndpoint
 
   # Live doc pages reference these modules from HEEx templates at compile time.
   require Noora.Alert
@@ -112,6 +113,7 @@ defmodule Tuist.Docs.Loader do
     contents = File.read!(source_path)
 
     {attrs, markdown} = parse_frontmatter(contents)
+    markdown = expand_compile_time_macros(markdown)
     {html, template, code_blocks} = render_markdown(markdown, source_path, locale, true)
 
     %Page{
@@ -152,6 +154,35 @@ defmodule Tuist.Docs.Loader do
       headings: extract_headings(markdown_with_link),
       last_modified: file_last_modified(readme_path)
     }
+  end
+
+  # Compile-time macros documentation pages can reference with
+  # `{{macro_name}}` placeholders. Keeps content that mirrors a code-level
+  # catalogue (event types, etc.) from drifting against the canonical
+  # source — touching the catalogue forces the docs page to recompile and
+  # re-substitute.
+  defp expand_compile_time_macros(markdown) do
+    markdown
+    |> String.replace("{{webhook_events_table}}", webhook_events_table())
+    |> String.replace(
+      "{{minimum_supported_cli_version}}",
+      Tuist.CLIVersions.minimum_supported_version()
+    )
+  end
+
+  defp webhook_events_table do
+    rows =
+      WebhookEndpoint.event_groups()
+      |> Enum.flat_map(& &1.events)
+      |> Enum.map_join("\n", fn %{type: type, description: description} ->
+        "| `#{type}` | #{description} |"
+      end)
+
+    """
+    | Type | When it fires |
+    | --- | --- |
+    #{rows}
+    """
   end
 
   defp render_markdown(markdown, source_path, locale, _live?) do
@@ -460,7 +491,7 @@ defmodule Tuist.Docs.Loader do
         attrs
 
       _ ->
-        case Jason.decode(frontmatter) do
+        case JSON.decode(frontmatter) do
           {:ok, attrs} when is_map(attrs) -> attrs
           _ -> %{}
         end

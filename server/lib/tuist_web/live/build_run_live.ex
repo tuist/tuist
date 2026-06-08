@@ -7,6 +7,7 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Components.EmptyTabStateBackground
   import TuistWeb.Components.MachineMetricsCharts
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -16,8 +17,11 @@ defmodule TuistWeb.BuildRunLive do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Tests
+  alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
+
+  @binary_cache_page_size 20
 
   @impl true
   def mount(params, session, %{assigns: %{selected_project: project}} = socket) when is_struct(project) do
@@ -72,9 +76,14 @@ defmodule TuistWeb.BuildRunLive do
       |> assign(:cacheable_tasks_active_filters, [])
       |> assign(:cas_outputs_available_filters, define_cas_outputs_filters())
       |> assign(:cas_outputs_active_filters, [])
+      |> assign(:binary_cache_available_filters, define_binary_cache_filters())
+      |> assign(:binary_cache_active_filters, [])
+      |> assign(:binary_cache_analytics, %{})
+      |> assign(:binary_cache_page_count, 0)
       |> assign(:selected_read_latency_type, "avg")
       |> assign(:selected_write_latency_type, "avg")
       |> assign(:expanded_task_keys, MapSet.new())
+      |> assign(:expanded_target_names, MapSet.new())
       |> assign(:task_cas_outputs_map, %{})
       |> assign_build_data(run)
 
@@ -100,8 +109,13 @@ defmodule TuistWeb.BuildRunLive do
     project = socket.assigns.selected_project
     run_id = run.id
 
+    binary_cache_command_event = binary_cache_command_event(run, command_event)
+    has_binary_cache_data = binary_cache_command_event != nil
+
     socket
     |> assign(:command_event, command_event)
+    |> assign(:binary_cache_command_event, binary_cache_command_event)
+    |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)
     |> assign(:cacheable_task_latency_metrics, cacheable_task_latency_metrics)
@@ -120,6 +134,26 @@ defmodule TuistWeb.BuildRunLive do
       storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
+  end
+
+  # The Module Cache breakdown lives on the command event that carries the xcode_graph.
+  # `tuist test`/`tuist xcodebuild build` builds have it on their own command event (linked by
+  # build_run_id). Builds made straight from Xcode have no such command event, so they point at the
+  # graph uploaded by the last `tuist generate` via `generation_id`, which is that generate command
+  # event's id. The project check guards against a build referencing another project's command event.
+  defp binary_cache_command_event(run, command_event) do
+    if command_event != nil and Xcode.has_binary_cache_data?(command_event) do
+      command_event
+    else
+      with generation_id when not is_nil(generation_id) <- run.generation_id,
+           {:ok, event} <- CommandEvents.get_command_event_by_id(generation_id),
+           true <- event.project_id == run.project_id,
+           true <- Xcode.has_binary_cache_data?(event) do
+        event
+      else
+        _ -> nil
+      end
+    end
   end
 
   @impl true
@@ -165,7 +199,9 @@ defmodule TuistWeb.BuildRunLive do
              cacheable_tasks_available_filters: cacheable_tasks_available_filters,
              cacheable_tasks_active_filters: cacheable_tasks_active_filters,
              cas_outputs_available_filters: cas_outputs_available_filters,
-             cas_outputs_active_filters: cas_outputs_active_filters
+             cas_outputs_active_filters: cas_outputs_active_filters,
+             binary_cache_available_filters: binary_cache_available_filters,
+             binary_cache_active_filters: binary_cache_active_filters
            }
          } = socket
        ) do
@@ -181,6 +217,7 @@ defmodule TuistWeb.BuildRunLive do
         {"overview", "module", _} -> module_breakdown_available_filters
         {"xcode-cache", _, "cacheable-tasks"} -> cacheable_tasks_available_filters
         {"xcode-cache", _, "cas-outputs"} -> cas_outputs_available_filters
+        {"module-cache", _, _} -> binary_cache_available_filters
         _ -> []
       end
 
@@ -190,6 +227,7 @@ defmodule TuistWeb.BuildRunLive do
         {"overview", "module", _} -> module_breakdown_active_filters
         {"xcode-cache", _, "cacheable-tasks"} -> cacheable_tasks_active_filters
         {"xcode-cache", _, "cas-outputs"} -> cas_outputs_active_filters
+        {"module-cache", _, _} -> binary_cache_active_filters
         _ -> []
       end
 
@@ -208,6 +246,7 @@ defmodule TuistWeb.BuildRunLive do
       |> assign_module_breakdown(params)
       |> assign_cacheable_tasks(params)
       |> assign_cas_outputs(params)
+      |> assign_binary_cache(params)
       |> assign(:selected_breakdown_tab, selected_breakdown_tab)
       |> assign(:selected_cache_tab, selected_cache_tab)
 
@@ -320,6 +359,36 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   def handle_event(
+        "search-binary-cache",
+        %{"search" => search},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project, run: run, uri: uri}} = socket
+      ) do
+    socket =
+      push_patch(
+        socket,
+        to:
+          "/#{selected_account.name}/#{selected_project.name}/builds/build-runs/#{run.id}?#{uri.query |> Query.put("binary-cache-filter", search) |> Query.put("binary-cache-page", "1")}"
+      )
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "toggle-expand",
+        %{"row-key" => row_key},
+        %{assigns: %{selected_tab: "module-cache", expanded_target_names: expanded_target_names}} = socket
+      ) do
+    updated_expanded_names =
+      if MapSet.member?(expanded_target_names, row_key) do
+        MapSet.delete(expanded_target_names, row_key)
+      else
+        MapSet.put(expanded_target_names, row_key)
+      end
+
+    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
+  end
+
+  def handle_event(
         "toggle-expand",
         %{"row-key" => task_key},
         %{assigns: %{expanded_task_keys: expanded_task_keys}} = socket
@@ -351,7 +420,10 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp handle_event_xcode("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> maybe_reset_filter_page(filter_id)
 
     {:noreply,
      socket
@@ -364,7 +436,10 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp handle_event_xcode("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> maybe_reset_filter_page(params["payload_filter_id"])
 
     {:noreply,
      socket
@@ -375,6 +450,9 @@ defmodule TuistWeb.BuildRunLive do
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
   end
+
+  defp maybe_reset_filter_page(params, "binary_cache_hit"), do: Map.put(params, "binary-cache-page", "1")
+  defp maybe_reset_filter_page(params, _filter_id), do: params
 
   defp file_breakdown_filters(run, params, available_filters, search) do
     base_filters =
@@ -1277,4 +1355,101 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp url?(_), do: false
+
+  defp define_binary_cache_filters do
+    [
+      %Filter.Filter{
+        id: "binary_cache_hit",
+        field: :binary_cache_hit,
+        display_name: dgettext("dashboard_builds", "Hit"),
+        type: :option,
+        options: [:local, :remote, :miss],
+        options_display_names: %{
+          remote: dgettext("dashboard_builds", "Remote"),
+          local: dgettext("dashboard_builds", "Local"),
+          miss: dgettext("dashboard_builds", "Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp assign_binary_cache(
+         %{
+           assigns: %{
+             selected_tab: "module-cache",
+             binary_cache_command_event: command_event,
+             binary_cache_available_filters: available_filters
+           }
+         } = socket,
+         params
+       )
+       when not is_nil(command_event) do
+    page = String.to_integer(params["binary-cache-page"] || "1")
+    sort_by = params["binary-cache-sort-by"] || "name"
+    sort_order = params["binary-cache-sort-order"] || "asc"
+    filter_text = params["binary-cache-filter"] || ""
+
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    flop_params = %{
+      filters: build_binary_cache_flop_filters(filter_text, filters),
+      page: page,
+      page_size: @binary_cache_page_size,
+      order_by: [ensure_binary_cache_sort_by(sort_by)],
+      order_directions: [String.to_atom(sort_order)]
+    }
+
+    {filtered_analytics, meta} = Xcode.binary_cache_analytics(command_event, flop_params)
+    counts = Xcode.binary_cache_counts(command_event)
+    analytics = Map.merge(filtered_analytics, counts)
+
+    socket
+    |> assign(:binary_cache_analytics, analytics)
+    |> assign(:binary_cache_page_count, meta.total_pages)
+    |> assign(:binary_cache_page, page)
+    |> assign(:binary_cache_sort_by, sort_by)
+    |> assign(:binary_cache_sort_order, sort_order)
+    |> assign(:binary_cache_filter, filter_text)
+    |> assign(:binary_cache_active_filters, filters)
+  end
+
+  defp assign_binary_cache(%{assigns: %{binary_cache_available_filters: available_filters}} = socket, params) do
+    filters = Filter.Operations.decode_filters_from_query(params, available_filters)
+
+    socket
+    |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
+    |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
+    |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, filters)
+  end
+
+  defp build_binary_cache_flop_filters(filter_text, filters) do
+    text_filters =
+      if filter_text == "" do
+        []
+      else
+        [%{field: :name, op: :=~, value: filter_text}]
+      end
+
+    filter_flop_filters =
+      filters
+      |> Enum.map(fn filter ->
+        case filter.id do
+          "binary_cache_hit" ->
+            %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
+
+          _ ->
+            filter
+        end
+      end)
+      |> Filter.Operations.convert_filters_to_flop()
+
+    text_filters ++ filter_flop_filters
+  end
+
+  defp ensure_binary_cache_sort_by("name"), do: :name
+  defp ensure_binary_cache_sort_by(_), do: :name
 end

@@ -1,0 +1,181 @@
+#ops-database {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      margin: var(--noora-spacing-0);
+      max-width: 72ch;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="metadata-grid"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata-row"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-body-medium);
+      word-break: break-word;
+
+      &[data-null="true"] {
+        color: var(--noora-surface-label-tertiary, var(--noora-surface-label-secondary));
+      }
+    }
+  }
+
+  & [data-part="ops-db-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="ops-db-form"] .noora-text-area textarea {
+    min-height: 180px;
+    font-size: 13px;
+    line-height: 1.55;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    tab-size: 2;
+  }
+
+  & [data-part="ops-db-actionbar"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="ops-db-hint"] {
+    margin: var(--noora-spacing-0);
+    max-width: 60ch;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="ops-db-kbd"] {
+    opacity: 0.55;
+    color: inherit;
+    font-weight: 400;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  & [data-part="ops-db-meta"] {
+    margin: var(--noora-spacing-0);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="ops-db-results-meta"] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="ops-db-results-toolbar"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+  }
+
+  & [data-part="ops-db-result-wrapper"] .noora-table td {
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: nowrap;
+  }
+
+  & [data-part="ops-db-result-wrapper"] [data-part="cell"][data-null="true"] [data-part="label"] {
+    color: var(--noora-surface-label-tertiary, var(--noora-surface-label-secondary));
+  }
+}
+
+#ops-database-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-3);
+
+    & > .noora-button {
+      margin-bottom: var(--noora-spacing-1);
+    }
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    & > [data-part="subtitle"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="ops-db-result-wrapper"] .noora-table td {
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    white-space: nowrap;
+  }
+
+  & [data-part="ops-db-result-wrapper"] [data-part="cell"][data-null="true"] [data-part="label"] {
+    color: var(--noora-surface-label-tertiary, var(--noora-surface-label-secondary));
+  }
+
+  & [data-part="ops-db-table-toolbar"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    margin-bottom: var(--noora-spacing-4);
+  }
+
+  & [data-part="ops-db-table-active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    margin-bottom: var(--noora-spacing-4);
+  }
+}

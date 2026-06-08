@@ -13,7 +13,8 @@ This doc is the runbook for onboarding **a new workload cluster** end-to-end. Th
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
-- A Cloudflare account with an API token scoped to `Zone.DNS:Edit` on `tuist.dev` (1Password: `cloudflare-tuist-dns`).
+- A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault; production Kura regional deploys also need the same item in `tuist-k8s-production` so CI and the Kura controller can read it.
+- The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
 - Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
@@ -59,7 +60,7 @@ kubectl -n org-tuist get cluster <name> -w
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it (Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test):
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it. App-serving clusters get the full path (Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test). Production Kura regional clusters install only the shared platform pieces they need, then upload the workload kubeconfig:
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
@@ -77,7 +78,7 @@ Skip this section for production Kura regional clusters. The production server d
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml
-APP_NS=tuist-<env>   # production uses tuist (no suffix)
+APP_NS=tuist-<env>   # production uses tuist (no suffix); preview uses preview-system
 
 sed "s/__NAMESPACE__/${APP_NS}/g" infra/k8s/mgmt/ci-service-account.yaml \
   | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
@@ -111,7 +112,39 @@ KUBECONFIG=/tmp/ci-kubeconfig.yaml kubectl -n "$APP_NS" get pods   # sanity-chec
 base64 < /tmp/ci-kubeconfig.yaml | gh secret set KUBECONFIG \
   --env server-k8s-<env> --repo tuist/tuist
 shred -u /tmp/ci-kubeconfig.yaml
+
+# If the workload cluster's control-plane endpoint changes later (for
+# example after a load-balancer recreation), re-run the minting flow
+# above and refresh the GitHub Environment secret. The kubeconfig
+# embeds `clusters[].cluster.server`, so it does not follow endpoint
+# changes automatically.
 ```
+
+## 5b. CAPI workload kubeconfig (Mac-mini fleets only)
+
+Skip this for clusters without a Mac-mini fleet (`macosFleet.enabled: false` and `runnersFleet.enabled: false`).
+
+The chart runs an in-cluster CAPI that manages the Mac minis as `Machine`/`MachineDeployment` objects in this same cluster. CAPI core's cluster cache reaches the cluster through a `<release>-capi-kubeconfig` Secret; the chart's [`capi-cluster.yaml`](../helm/tuist/templates/capi-cluster.yaml) sets a stub `controlPlaneEndpoint` (`127.0.0.1`), so that Secret has to be supplied. Without it CAPI can't bind Machines to Nodes, every fleet `MachineDeployment` stays unavailable, and the server deploy's `helm --wait` times out on them.
+
+The chart creates the identity (`capi-remote` SA + scoped `ClusterRole` + non-expiring token Secret) and an `ExternalSecret` that syncs the kubeconfig from 1Password (`capi.remoteKubeconfig.externalSecrets`, on for managed envs). You populate the 1Password item once.
+
+The kubeconfig's `server` **must be the in-cluster API endpoint** (the kubernetes Service ClusterIP). CAPI core's cluster cache ([`controllers/clustercache`](https://github.com/kubernetes-sigs/cluster-api/blob/v1.10.4/controllers/clustercache/cluster_accessor_client.go)) builds its REST config from this Secret and runs an initial reachability probe with the Secret's `server` *before* it overrides `Host`/`CAData` with the controller's own in-cluster config. So the `server` has to be reachable + TLS-valid from inside the cluster — the external control-plane LB IP is unroutable from a Pod (instant "no route"), and `kubernetes.default.svc` risks a cert-SAN mismatch. The ClusterIP is exactly what the controller's own client uses, so the probe is guaranteed to pass.
+
+```bash
+export KUBECONFIG=~/.kube/<cluster_name>.yaml
+NS=tuist-<env>   # production uses tuist
+APISERVER="https://$(kubectl -n default get svc kubernetes -o jsonpath='{.spec.clusterIP}'):443"
+TOKEN=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl -n "$NS" get secret tuist-tuist-capi-remote-token -o jsonpath='{.data.ca\.crt}')   # already base64
+KCFG=$(printf 'apiVersion: v1\nkind: Config\nclusters:\n- name: tuist-tuist-capi\n  cluster: { server: %s, certificate-authority-data: %s }\ncontexts:\n- name: tuist-tuist-capi\n  context: { cluster: tuist-tuist-capi, user: tuist-tuist-capi }\ncurrent-context: tuist-tuist-capi\nusers:\n- name: tuist-tuist-capi\n  user: { token: %s }\n' "$APISERVER" "$CA" "$TOKEN")
+op item create --vault tuist-k8s-<env> --category "Secure Note" --title capi-workload-kubeconfig "kubeconfig[password]=$KCFG"
+unset TOKEN KCFG
+```
+
+ESO then materializes `<release>-capi-kubeconfig` and CAPI binds the fleet. The `capi-remote-token` Secret is non-expiring, so this is a one-time step per cluster.
+
+> **Node `providerID`:** CAPI binds a Node to its Machine by matching `Node.spec.providerID` to `Machine.spec.providerID` (`scw-applesilicon://<zone>/<id>`). tart-kubelet does not yet set this, so a freshly-bootstrapped fleet node needs a one-time patch until that ships:
+> `kubectl patch node <node> --type merge -p '{"spec":{"providerID":"<machine providerID>"}}'`
 
 ## 6. First deploy
 
@@ -213,3 +246,111 @@ kubectl -n tuist-<env> describe externalsecret tuist-master-key
 kubectl -n tuist-<env> logs job/tuist-tuist-server-migrate-<revision>
 ```
 Usually database connectivity — confirm `DATABASE_URL` decrypts cleanly and the Postgres host is reachable.
+
+---
+
+## Workload-cluster incident recovery
+
+When the workload cluster (not the mgmt one) is misbehaving, work against its kubeconfig:
+
+```bash
+op document get "kubeconfig: tuist-<env>" --vault tuist-<env> > ~/.kube/tuist-<env>.yaml
+chmod 600 ~/.kube/tuist-<env>.yaml
+export KUBECONFIG=~/.kube/tuist-<env>.yaml
+```
+
+If 1Password is unhandy, CAPI also keeps a copy on the mgmt cluster:
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml kubectl -n org-tuist \
+  get secret tuist-<env>-kubeconfig -o jsonpath='{.data.value}' | base64 -d > ~/.kube/tuist-<env>.yaml
+```
+
+**Pods stuck `1/1 Running` but Deployment shows `0/N Available`**
+The Node went `NotReady` and kubelet hasn't confirmed pod state since. Kubernetes' default 300s `unreachable` toleration gets reset on every brief reconnect, so pods stay pinned for hours. Force them off:
+```bash
+# Strip finalizers off any Terminating pod in the namespace
+kubectl -n <ns> get pods -o jsonpath='{range .items[?(@.metadata.deletionTimestamp)]}{.metadata.name}{"\n"}{end}' \
+  | xargs -I{} kubectl -n <ns> patch pod {} -p '{"metadata":{"finalizers":[]}}' --type=merge
+# Force-delete any pod scheduled to an unreachable Node
+unreachable=$(kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints // [] | map(.key) | index("node.kubernetes.io/unreachable")) | .metadata.name')
+for n in $unreachable; do
+  kubectl -n <ns> get pods --field-selector spec.nodeName=$n -o name | xargs -r kubectl -n <ns> delete --grace-period=0 --force
+done
+kubectl -n <ns> rollout restart deployment --all
+```
+
+**Cloudflare returns 525 (origin TLS handshake fails)**
+Almost always the ingress LB targeting dead Node IPs. HCCM owns the target list; if it's wedged, kick it:
+```bash
+kubectl -n kube-system rollout restart deployment/hcloud-cloud-controller-manager
+# Trigger a fresh reconcile of the ingress Service:
+kubectl -n platform annotate svc platform-ingress-nginx-controller "tuist.dev/lb-refresh=$(date -u +%s)" --overwrite
+kubectl -n kube-system logs -l app.kubernetes.io/name=hcloud-cloud-controller-manager --tail=80
+```
+
+If HCCM logs `unable to parse server id: hcloud://nocloud` or `no matching server found for node`, a stale Node object is starving its reconcile queue:
+```bash
+# Bare-metal Nodes with the bad providerID (fixed at the source, but
+# old ones lying around still block HCCM):
+kubectl get nodes -o json | jq -r '.items[] | select(.spec.providerID=="hcloud://nocloud") | .metadata.name' \
+  | xargs -r kubectl delete node
+# Cloud-worker ghosts (Node exists, hcloud VM is gone):
+kubectl get nodes -o json | jq -r '.items[] | select(.spec.providerID | startswith("hcloud://")) | select(.status.conditions[] | select(.type=="Ready" and .status!="True")) | .metadata.name' \
+  | xargs -r -n1 -I{} sh -c 'kubectl get node {} -o json | jq -e ".spec.providerID | sub(\"hcloud://\";\"\") | tonumber" >/dev/null 2>&1 || echo {}'  # validate ID is numeric
+# Then `kubectl delete node` the ones whose VM is confirmed gone in
+# the Hetzner Cloud console.
+```
+
+Deleting a Node object is safe — CAPI re-creates it on the next reconcile if the underlying VM is still alive.
+
+## Rolling a bare-metal host
+
+When a chart bump changes `postInstallScript` (or any
+`KubeadmConfigTemplate` / `HetznerBareMetalMachineTemplate` field) and
+you need it to take effect before natural Node churn, force a
+re-install. Work against the **mgmt** kubeconfig:
+
+```bash
+export KUBECONFIG=~/.kube/tuist-mgmt.yaml
+CLUSTER=staging  # or canary / production
+
+# Find the HBM bound to the cluster's HBMM, and snapshot its
+# creationTimestamp — that's how we'll know the controller has
+# re-created it (the HBMM name stays the same on re-bind).
+HBMM=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+  -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+  -o jsonpath='{.items[0].metadata.name}')
+HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
+  -o jsonpath="{.items[?(@.spec.consumerRef.name=='$HBMM')].metadata.name}")
+OLD_TS=$(kubectl get hetznerbaremetalhost -n org-tuist $HBM \
+  -o jsonpath='{.metadata.creationTimestamp}')
+
+# Delete the HBM (NOT the HBMM): caph fast-rebinds a fresh HBMM to
+# an already-provisioned HBM without re-running installimage, so
+# only deleting the HBM forces caph to discard the OS state.
+kubectl delete hetznerbaremetalhost -n org-tuist $HBM --wait=false --timeout=2m
+# Strip caph's finalizer if the HBMM still references the HBM after
+# 2 min — otherwise the HBM lingers and `hetzner-robot-controller`
+# can't re-create it cleanly.
+kubectl patch hetznerbaremetalhost -n org-tuist $HBM \
+  -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+
+# Wait ~8–15 min for the full cycle:
+#   (empty) → preparing → registering → image-installing →
+#   ensure-provisioned → provisioned → kubeadm-joined
+# Watch for a fresh creationTimestamp AND HBMM Ready=true:
+while sleep 30; do
+  NEW=$(kubectl get hetznerbaremetalhost -n org-tuist -o jsonpath='{.items[0].metadata.creationTimestamp}')
+  READY=$(kubectl get hetznerbaremetalmachine -n org-tuist \
+    -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
+    -o jsonpath='{.items[0].status.ready}')
+  echo "$(date +%H:%M:%S) ts=$NEW ready=$READY"
+  [ "$NEW" != "$OLD_TS" ] && [ "$READY" = "true" ] && break
+done
+```
+
+Bare-metal Nodes carry `tuist.dev/runner-tier=bare-metal:NoSchedule`,
+so the only workload on them is idempotent runner Pods — no need to
+cordon/drain. The autoscaler reconverges replica count automatically
+after the new Node joins. Run a smoke afterward
+(`linux-runners-staging-smoke.yml`) to confirm the new bootstrap is healthy.

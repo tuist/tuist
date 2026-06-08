@@ -79,7 +79,7 @@ jobs:
             }
   app-build:
     name: Build
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -92,8 +92,6 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -139,7 +137,7 @@ jobs:
 
   app-test:
     name: Test
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -152,8 +150,6 @@ jobs:
       (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -188,7 +184,7 @@ jobs:
 
   app-device-build:
     name: Device Build
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     needs: [check-team-membership]
     permissions:
@@ -203,8 +199,6 @@ jobs:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation

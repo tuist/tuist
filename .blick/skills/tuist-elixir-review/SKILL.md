@@ -340,6 +340,13 @@ account/org feature flag, ops/admin-only access, or an explicit internal
 rollout path, it is not ready for the product changelog unless the PR
 also makes that behavior broadly available to customers.
 
+Do not request a product changelog for fix PRs. This includes fixes that
+add or adjust dashboard fields, copy, validation, or settings controls
+when those UI changes are part of making an already-announced or already
+shipped flow work correctly. Only ask for a changelog when the PR's
+primary purpose is to launch a new customer-facing capability, not when
+the PR is repairing or completing a broken flow.
+
 When suggesting a fix, ask for a short marketing changelog entry with
 frontmatter like `title`, `category: "Product"`, and `pull_request`.
 Mention an accompanying image under
@@ -353,6 +360,8 @@ description or internal release notes instead.
 ### Do not flag
 
 - Bug fixes with no new or materially changed user-facing behavior.
+- Fix PRs, even when the fix includes small user-facing UI changes needed
+  to make an already-shipped flow work correctly.
 - Refactors, performance work, infrastructure, ops/admin-only paths,
   internal jobs, telemetry-only changes, tests, fixtures, or schema-only
   plumbing whose effect is not directly visible to customers.
@@ -367,11 +376,68 @@ description or internal release notes instead.
 
 ---
 
+## 12. Changeset functions must have tests
+
+Ecto changeset functions in schema modules under `server/lib/tuist/`
+(`def changeset/N`, `def create_changeset/N`, `def update_changeset/N`,
+or any other `*_changeset/N`) encode validation and persistence
+contracts. New or materially changed changeset bodies that ship without
+tests regress silently: a deleted `validate_*`, a widened `cast` list,
+or a missing `unique_constraint` won't fail CI — the first signal is a
+production error or a malformed row.
+
+The convention in this repo is one `<schema>_test.exs` per schema module
+that asserts on `errors_on(changeset)` for invalid inputs and
+`changeset.valid?` for valid ones — see
+`server/test/tuist/projects/project_test.exs` and
+`server/test/tuist/cache_action_items/cache_action_item_test.exs` for
+canonical examples.
+
+### Flag (Severity: medium)
+
+- A new `def changeset(`, `def create_changeset(`, `def update_changeset(`,
+  or any `def *_changeset(` added in a `server/lib/tuist/**/*.ex` file
+  whose diff does **not** also add at least one test case calling that
+  function (e.g. `WebhookEndpoint.create_changeset(...)`,
+  `Project.update_changeset(...)`) in `server/test/tuist/**/*_test.exs`.
+- A materially changed changeset body — a new or modified `cast`,
+  `validate_required`, `validate_length`, `validate_format`,
+  `validate_inclusion`, `validate_change`, `unique_constraint`,
+  `foreign_key_constraint`, or `put_change` line in the diff — where
+  the change isn't exercised by a test added or modified in the same
+  diff.
+
+When flagging, name the schema module and point to a sibling
+`<schema>_test.exs` as the place to add coverage. If no such test file
+exists, request its creation alongside the changeset.
+
+### Do not flag
+
+- Trivial mechanical edits (renaming a field already covered by an
+  existing test, removing a single `cast` field, formatting-only churn,
+  reordering pipe steps inside an unchanged body).
+- Changeset functions in `server/test/support/` fixtures or
+  `server/priv/repo/seeds*.exs`.
+- Diffs that exercise the changeset indirectly through a higher-level
+  context test (e.g. `accounts_test.exs` calling
+  `Accounts.create_user/1`, which in turn invokes the changeset) — that
+  counts as coverage. Only flag when the diff has *no* test reference
+  to the schema module or its changeset functions.
+- Changeset edits that are purely a consequence of a column rename
+  already covered by a migration-level test or by an existing
+  `errors_on(changeset)` assertion that still passes against the new
+  field name.
+
+---
+
 ## Out of scope (handled elsewhere — do not flag)
 
 - Module / function naming, pipe-chain start, function ordering,
   parentheses-on-no-arg-calls → `mix format` + `credo` (`PipeChainStart`,
   `StrictModuleLayout`, `Nesting`, `UnsafeToAtom`, `ModuleDoc`).
+- Inline `import` / `alias` / `require` inside a `def`/`defp`/`test`/
+  `setup`/`describe` body → covered by the custom credo check
+  `Credo.Checks.DisallowDirectivesInFunction`.
 - Missing `@spec` / `@type` — this codebase intentionally avoids
   typespecs. Never suggest adding them.
 - Missing `@doc` / `@moduledoc` on internal helper modules.
@@ -382,7 +448,7 @@ description or internal release notes instead.
 For each finding, confirm:
 
 1. The `path:line` is real and the snippet appears in the diff.
-2. The category above is one of 1–11; if it isn't, downgrade to a
+2. The category above is one of 1–12; if it isn't, downgrade to a
    question (`uncertain: ...`) rather than asserting a finding.
 3. The severity is set: **critical** (auth bypass / cross-tenant read or
    write), **high** (likely security or correctness bug), **medium**

@@ -1,0 +1,29 @@
+# Overlay for the staging cluster's tailscale-operator install.
+# Matches the chart-default tag set in values.yaml — included
+# explicitly so the env-overlay shape is symmetric with canary +
+# production.
+
+tailscale-operator:
+  operatorConfig:
+    hostname: tuist-k8s-staging
+    defaultTags:
+      - "tag:tuist-k8s-staging"
+
+connector:
+  hostname: tuist-cluster-router-staging
+  tags:
+    - "tag:tuist-k8s-staging"
+
+macminiEgress:
+  enabled: true
+  proxyGroup:
+    tags:
+      - "tag:tuist-k8s-staging"
+  # Per-machine Services are created dynamically by the CAPI
+  # provider's ScalewayAppleSiliconMachine reconciler — see
+  # macosFleet.tailscaleEgress in the main tuist chart's
+  # values-managed-common.yaml. The `machines:` list below stays
+  # as an escape hatch for Mac minis that aren't managed by CAPI
+  # (e.g. a one-off bare-metal host on the tailnet); leave empty
+  # for the standard case.
+  machines: []

@@ -5,7 +5,9 @@ use tokio::fs;
 use crate::constants::{
     DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+    DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+    DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -26,6 +28,11 @@ const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+const KURA_ACCELERATED_FILE_SERVING_ENABLED: &str = "KURA_ACCELERATED_FILE_SERVING_ENABLED";
+const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
+const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
+    "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
+const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -52,7 +59,23 @@ const KURA_ANALYTICS_REQUEST_TIMEOUT_MS: &str = "KURA_ANALYTICS_REQUEST_TIMEOUT_
 const KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD: &str =
     "KURA_ANALYTICS_CIRCUIT_BREAKER_FAILURE_THRESHOLD";
 const KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS: &str = "KURA_ANALYTICS_CIRCUIT_BREAKER_OPEN_MS";
+const KURA_CONTROL_PLANE_URL: &str = "KURA_CONTROL_PLANE_URL";
+const KURA_CONTROL_PLANE_CLIENT_ID: &str = "KURA_CONTROL_PLANE_CLIENT_ID";
+const KURA_CONTROL_PLANE_CLIENT_SECRET: &str = "KURA_CONTROL_PLANE_CLIENT_SECRET";
+const KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL: &str = "KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID: &str = "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID";
+const KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: &str =
+    "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET";
+const KURA_USAGE_WINDOW_SECS: &str = "KURA_USAGE_WINDOW_SECS";
+const KURA_USAGE_FLUSH_INTERVAL_MS: &str = "KURA_USAGE_FLUSH_INTERVAL_MS";
+const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
+const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
+const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
+const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
+    "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
+const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
@@ -61,11 +84,17 @@ const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_T
 const KURA_OTEL_SERVICE_NAME: &str = "KURA_OTEL_SERVICE_NAME";
 const KURA_OTEL_DEPLOYMENT_ENVIRONMENT: &str = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT";
 const KURA_SENTRY_DSN: &str = "KURA_SENTRY_DSN";
+const KURA_GEOIP_REFRESH_INTERVAL_SECS: &str = "KURA_GEOIP_REFRESH_INTERVAL_SECS";
+const DEFAULT_GEOIP_REFRESH_INTERVAL_SECS: u64 = 86_400;
+const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
+const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
+const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 512 * BYTES_PER_MIB;
+const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
@@ -86,6 +115,7 @@ pub struct Config {
     pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
     pub https_port: u16,
+    pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -101,15 +131,30 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
+    pub replication_bandwidth_limit_bytes_per_second: u64,
+    pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
+    pub usage: Option<UsageConfig>,
     pub otlp_traces_endpoint: Option<String>,
     pub otel_service_name: String,
     pub otel_deployment_environment: String,
     pub sentry_dsn: Option<String>,
+    /// How often the in-process GeoIP database is refreshed against the
+    /// upstream DB-IP Lite dump. `0` disables background refresh — the
+    /// container-image copy is then used for the pod's lifetime.
+    pub geoip_refresh_interval_secs: u64,
+    /// Operator-provided ISO 3166-1 alpha-2 country code for the node.
+    /// When set, it short-circuits the egress-IP probe used to stamp
+    /// `geo.country.iso_code` on the OTel Resource.
+    pub node_country_override: Option<String>,
+    /// Operator-provided ISO 3166-2 subdivision code for the node (e.g.
+    /// `US-CA`). When set, it short-circuits the egress-IP probe used to
+    /// stamp `geo.region.iso_code` on the OTel Resource.
+    pub node_subdivision_override: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -132,6 +177,29 @@ pub struct PublicTlsConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceleratedFileServingConfig {
+    pub enabled: bool,
+    pub mode: AcceleratedFileServingMode,
+    pub max_concurrent: usize,
+    pub chunk_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcceleratedFileServingMode {
+    Sendfile,
+    Splice,
+}
+
+impl AcceleratedFileServingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Sendfile => "sendfile",
+            Self::Splice => "splice",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AnalyticsConfig {
     pub server_url: String,
     pub signing_key: String,
@@ -141,6 +209,19 @@ pub struct AnalyticsConfig {
     pub request_timeout_ms: u64,
     pub circuit_breaker_failure_threshold: usize,
     pub circuit_breaker_open_ms: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UsageConfig {
+    pub control_plane_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub window_secs: u64,
+    pub flush_interval_ms: u64,
+    pub delivery_interval_ms: u64,
+    pub batch_size: usize,
+    pub max_buckets: usize,
+    pub outbox_max_depth: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -312,6 +393,68 @@ impl Config {
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let accelerated_file_serving_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
+        let accelerated_file_serving_mode =
+            lookup(KURA_ACCELERATED_FILE_SERVING_MODE).unwrap_or_else(|| "splice".to_owned());
+        let accelerated_file_serving_mode = match accelerated_file_serving_mode.as_str() {
+            "sendfile" => Some(AcceleratedFileServingMode::Sendfile),
+            "splice" => Some(AcceleratedFileServingMode::Splice),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_ACCELERATED_FILE_SERVING_MODE} must be either sendfile or splice"
+                ));
+                None
+            }
+        };
+        let accelerated_file_serving_max_concurrent = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(32);
+        if accelerated_file_serving_max_concurrent == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving_chunk_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(1024 * 1024);
+        if accelerated_file_serving_chunk_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving =
+            accelerated_file_serving_mode.map(|mode| AcceleratedFileServingConfig {
+                enabled: accelerated_file_serving_enabled,
+                mode,
+                max_concurrent: accelerated_file_serving_max_concurrent,
+                chunk_bytes: accelerated_file_serving_chunk_bytes,
+            });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -637,6 +780,30 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
+        let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!(
+                        "{KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND} must be a valid u64"
+                    )
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND);
+        let replication_public_latency_target_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -832,6 +999,147 @@ impl Config {
                 None
             }
         };
+        let usage_window_secs =
+            optional_parsed_value(&mut lookup, KURA_USAGE_WINDOW_SECS, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_WINDOW_SECS} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_USAGE_WINDOW_SECS);
+        if usage_window_secs == 0 {
+            invalid.push(format!("{KURA_USAGE_WINDOW_SECS} must be greater than 0"));
+        }
+        let usage_flush_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_FLUSH_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_FLUSH_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_FLUSH_INTERVAL_MS);
+        if usage_flush_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_FLUSH_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_delivery_interval_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_DELIVERY_INTERVAL_MS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_USAGE_DELIVERY_INTERVAL_MS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_DELIVERY_INTERVAL_MS);
+        if usage_delivery_interval_ms == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_DELIVERY_INTERVAL_MS} must be greater than 0"
+            ));
+        }
+        let usage_batch_size =
+            optional_parsed_value(&mut lookup, KURA_USAGE_BATCH_SIZE, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_BATCH_SIZE} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_BATCH_SIZE);
+        if usage_batch_size == 0 {
+            invalid.push(format!("{KURA_USAGE_BATCH_SIZE} must be greater than 0"));
+        }
+        let usage_max_buckets =
+            optional_parsed_value(&mut lookup, KURA_USAGE_MAX_BUCKETS, &mut invalid, |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_MAX_BUCKETS} must be a valid usize"))
+            })
+            .unwrap_or(DEFAULT_USAGE_MAX_BUCKETS);
+        if usage_max_buckets == 0 {
+            invalid.push(format!("{KURA_USAGE_MAX_BUCKETS} must be greater than 0"));
+        }
+        let usage_outbox_max_depth = optional_parsed_value(
+            &mut lookup,
+            KURA_USAGE_OUTBOX_MAX_DEPTH,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_USAGE_OUTBOX_MAX_DEPTH} must be a valid usize"))
+            },
+        )
+        .unwrap_or(DEFAULT_USAGE_OUTBOX_MAX_DEPTH);
+        if usage_outbox_max_depth == 0 {
+            invalid.push(format!(
+                "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
+            ));
+        }
+        let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
+            .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
+            .map(|value| value.trim().trim_end_matches('/').to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_id = lookup(KURA_CONTROL_PLANE_CLIENT_ID)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let control_plane_client_secret = lookup(KURA_CONTROL_PLANE_CLIENT_SECRET)
+            .or_else(|| lookup(KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET))
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let usage = match (
+            control_plane_url,
+            control_plane_client_id,
+            control_plane_client_secret,
+        ) {
+            (None, None, None) => None,
+            (Some(control_plane_url), Some(client_id), Some(client_secret)) => {
+                match reqwest::Url::parse(&control_plane_url) {
+                    Ok(_) => Some(UsageConfig {
+                        control_plane_url,
+                        client_id,
+                        client_secret,
+                        window_secs: usage_window_secs,
+                        flush_interval_ms: usage_flush_interval_ms,
+                        delivery_interval_ms: usage_delivery_interval_ms,
+                        batch_size: usage_batch_size,
+                        max_buckets: usage_max_buckets,
+                        outbox_max_depth: usage_outbox_max_depth,
+                    }),
+                    Err(error) => {
+                        invalid.push(format!(
+                            "{KURA_CONTROL_PLANE_URL} must be a valid URL: {error}"
+                        ));
+                        None
+                    }
+                }
+            }
+            _ => {
+                invalid.push(format!(
+                    "{KURA_CONTROL_PLANE_URL}, {KURA_CONTROL_PLANE_CLIENT_ID}, and {KURA_CONTROL_PLANE_CLIENT_SECRET} must either all be set or all be unset"
+                ));
+                None
+            }
+        };
+        let geoip_refresh_interval_secs = optional_parsed_value(
+            &mut lookup,
+            KURA_GEOIP_REFRESH_INTERVAL_SECS,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_GEOIP_REFRESH_INTERVAL_SECS} must be a valid u64"))
+            },
+        )
+        .unwrap_or(DEFAULT_GEOIP_REFRESH_INTERVAL_SECS);
+        let node_country_override = lookup(KURA_NODE_COUNTRY)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let node_subdivision_override = lookup(KURA_NODE_SUBDIVISION)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let otlp_traces_endpoint = lookup(KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -943,6 +1251,8 @@ impl Config {
             grpc_tls,
             public_tls,
             https_port,
+            accelerated_file_serving: accelerated_file_serving
+                .expect("accelerated_file_serving should be present when configuration is valid"),
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -958,11 +1268,14 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
+            replication_bandwidth_limit_bytes_per_second,
+            replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             analytics,
+            usage,
             otlp_traces_endpoint,
             otel_service_name: otel_service_name
                 .expect("otel_service_name should be present when configuration is valid"),
@@ -970,6 +1283,9 @@ impl Config {
                 "otel_deployment_environment should be present when configuration is valid",
             ),
             sentry_dsn,
+            geoip_refresh_interval_secs,
+            node_country_override,
+            node_subdivision_override,
         })
     }
 
@@ -1217,6 +1533,20 @@ mod tests {
             (8 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            512 * BYTES_PER_MIB
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            }
+        );
         assert_eq!(config.sentry_dsn, None);
     }
 
@@ -1244,6 +1574,15 @@ mod tests {
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
             (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "false"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
+            (
+                KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+                "10485760",
+            ),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1285,6 +1624,20 @@ mod tests {
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: false,
+                mode: AcceleratedFileServingMode::Sendfile,
+                max_concurrent: 16,
+                chunk_bytes: 2 * 1024 * 1024,
+            }
+        );
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            10_485_760
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1293,6 +1646,60 @@ mod tests {
         assert_eq!(config.otel_service_name, "kura-eu");
         assert_eq!(config.otel_deployment_environment, "staging");
         assert_eq!(config.sentry_dsn, None);
+        assert_eq!(
+            config.geoip_refresh_interval_secs,
+            DEFAULT_GEOIP_REFRESH_INTERVAL_SECS
+        );
+    }
+
+    #[test]
+    fn from_lookup_parses_geoip_refresh_interval_override() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_GEOIP_REFRESH_INTERVAL_SECS, "3600"),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected geoip config to parse");
+
+        assert_eq!(config.geoip_refresh_interval_secs, 3_600);
+    }
+
+    #[test]
+    fn from_lookup_parses_node_location_overrides() {
+        let config = config_from(&[
+            (KURA_PORT, "4500"),
+            (KURA_GRPC_PORT, "5500"),
+            (KURA_TENANT_ID, "acme"),
+            (KURA_REGION, "eu_west"),
+            (KURA_TMP_DIR, "/tmp/kura"),
+            (KURA_DATA_DIR, "/tmp/kura-data"),
+            (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEERS, "http://kura-a.example.com:7443"),
+            (KURA_NODE_COUNTRY, " fr "),
+            (KURA_NODE_SUBDIVISION, " fr-idf "),
+            (
+                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+                "https://otel.example.com/v1/traces",
+            ),
+            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
+            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
+        ])
+        .expect("expected node location config to parse");
+
+        assert_eq!(config.node_country_override.as_deref(), Some("fr"));
+        assert_eq!(config.node_subdivision_override.as_deref(), Some("fr-idf"));
     }
 
     #[test]
@@ -1320,6 +1727,12 @@ mod tests {
             (KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES, "invalid"),
             (KURA_METADATA_STORE_WRITE_BUFFER_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_WRITE_BUFFERS, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
+            (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1346,6 +1759,24 @@ mod tests {
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_WRITE_BUFFERS));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_ENABLED));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
+        assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
+        assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_accelerated_file_serving_limits() {
+        let error = config_from(&[
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "0"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "0"),
+        ])
+        .expect_err("expected invalid accelerated file serving limits to fail");
+
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
     }
 
     #[test]

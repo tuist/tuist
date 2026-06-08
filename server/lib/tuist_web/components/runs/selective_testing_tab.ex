@@ -237,7 +237,8 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
     |> Enum.filter(&(&1.selective_testing_hash != nil))
     |> Enum.sort_by(& &1.name)
     |> Enum.map(&target_to_json_map/1)
-    |> Jason.encode!(pretty: true)
+    |> :json.format()
+    |> IO.iodata_to_binary()
   end
 
   defp target_to_json_map(target) do

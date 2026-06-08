@@ -148,10 +148,37 @@ jobs:
       - name: Audit dependencies
         run: env -u RUSTUP_TOOLCHAIN cargo audit
 
+  e2e-images:
+    name: E2E Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      COMPOSE_PROJECT_NAME: kura
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Docker tooling
+        run: docker compose version
+
+      - name: Prebuild Docker images
+        run: docker compose build
+
+      - name: Archive Docker images
+        run: docker save kura-kura-us kura-kura-eu kura-kura-ap | zstd -T0 -o kura-e2e-images.tar.zst
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kura-e2e-images
+          path: kura/kura-e2e-images.tar.zst
+          if-no-files-found: error
+          retention-days: 1
+
   e2e:
     name: E2E (${{ matrix.shard_name }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    needs: e2e-images
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     strategy:
       fail-fast: false
@@ -165,6 +192,8 @@ jobs:
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: extension-mtls
             specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+    env:
+      KURA_E2E_SKIP_BUILD: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -177,8 +206,21 @@ jobs:
       - name: Show Docker tooling
         run: docker compose version
 
-      - name: Prebuild Docker images
-        run: docker compose build
+      - uses: actions/download-artifact@v4
+        with:
+          name: kura-e2e-images
+          path: kura/prebuilt-images
+
+      - name: Load prebuilt Docker images
+        run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
+
+      - name: Retag prebuilt Docker images for every suite project
+        run: |
+          for project in kura-e2e kura-clients kura-discovery kura-faults kura-handoff kura-extension kura-mtls kura-rollout; do
+            for service in kura-us kura-eu kura-ap; do
+              docker tag "kura-${service}" "${project}-${service}"
+            done
+          done
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}

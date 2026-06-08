@@ -44,12 +44,13 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
             try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
                 try await Noora.$current.withValue(initNoora()) {
                     try await Logger.$current.withValue(logger) {
-                        try await HARRecorder.$current.withValue(harRecorder) {
-                            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                    try await action(sessionPaths)
+                        try await HARRecorder.withCurrent(harRecorder) {
+                            try await ServerCredentialsStore.$current
+                                .withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                                    try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                        try await action(sessionPaths)
+                                    }
                                 }
-                            }
                         }
                     }
                 }
@@ -59,13 +60,7 @@ public func initDependencies(_ action: (SessionPaths) async throws -> Void) asyn
 }
 
 public func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
-    #if canImport(TuistCacheEE)
-        try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
-            try await action()
-        }
-    #else
-        try await action()
-    #endif
+    try await action()
 }
 
 private func withInitializedManifestLoader(_ action: () async throws -> Void) async throws {
@@ -128,7 +123,9 @@ private func initSession() async throws -> (Logger, SessionPaths) {
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-    if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+    if MachineReadableOutput.isEnabled(arguments: Environment.current.arguments)
+        || MachineReadableOutput.isQuiet(arguments: Environment.current.arguments)
+    {
         Noora(
             standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
                 output: IgnoreOutputPipeline()

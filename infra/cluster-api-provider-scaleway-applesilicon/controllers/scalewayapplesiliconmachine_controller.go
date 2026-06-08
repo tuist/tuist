@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -28,10 +29,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
-	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
+	"github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 const (
@@ -84,6 +86,31 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// new Mac mini gets the operator-image-pinned Tart on bootstrap).
 	TartTarball []byte
 
+	// TailscaleBinaries is the gzipped tarball of darwin/arm64
+	// `tailscale` + `tailscaled` cross-built from upstream source at
+	// the operator-image-pinned tag (TAILSCALE_VERSION in the
+	// Dockerfile). Same drift policy as TartTarball: version bumps
+	// roll via operator-image replacement, not in-place updates of
+	// running hosts (the running tailnet connection doesn't tolerate
+	// a daemon swap mid-flight). Empty disables the Tailscale step.
+	TailscaleBinaries []byte
+
+	// NodeExporterBinary is the darwin/arm64 node_exporter binary,
+	// cross-compiled in the operator image. Installed on each Mac
+	// mini at bootstrap and supervised by launchd; scraped over the
+	// tailnet at <node-ip>:9100. Empty disables the host-metrics
+	// step (paired with TailscaleBinaries — node_exporter without
+	// Tailscale would bind to a public interface, which is the kind
+	// of mistake we don't want a chart-level toggle to make easy).
+	NodeExporterBinary []byte
+
+	// TailscaleTags are the Tailscale ACL tags every Mac mini in
+	// the fleet advertises at `tailscale up` time (e.g.
+	// `["tag:tuist-macmini"]`). Bound to the operator-namespace
+	// auth key — see acls.json's tagOwners block. Empty means the
+	// minis use whatever default tag the auth key carries.
+	TailscaleTags []string
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -98,14 +125,72 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// the manager binary; chart can override per env if needed.
 	TartKubeletMaxUpdateAttempts int32
 
+	// BootstrapRebootAfter is the consecutive-failure count at which
+	// the BootstrapFailed path asks Scaleway to reboot the host. The
+	// reboot clears volatile state (PAM lockouts, sshd throttling)
+	// without paying for a disk reinstall, and is a no-op when the
+	// host wasn't the problem. Fires once per host (gated on
+	// Status.BootstrapRebootIssued). Default 3.
+	BootstrapRebootAfter int32
+
+	// BootstrapMaxAttempts is the consecutive-failure count at which
+	// the controller gives up on the current host and returns it to
+	// the adopt pool — Scaleway's ReinstallServer then wipes the disk
+	// and the next reconcile claims a different mini. Without this
+	// cap, a mini stuck in an unrecoverable state (stale
+	// authorized_keys from a previous tenant, wedged sshd, OS
+	// corruption) gets retried indefinitely against the same broken
+	// host. Default 8.
+	BootstrapMaxAttempts int32
+
 	// MaxConcurrentReconciles is how many machines this controller
 	// reconciles in parallel. controller-runtime's default of 1
 	// serializes first-time fleet bring-up: each Mac mini's
-	// CreateServer + SSH bootstrap blocks the worker for ~50 min, so
+	// AdoptFromPool + SSH bootstrap blocks the worker for ~50 min, so
 	// N machines take N × that wall-clock. Reconciles for the same
 	// machine are still serialized by controller-runtime's per-key
 	// locking — bumping this only parallelizes across distinct CRs.
 	MaxConcurrentReconciles int
+
+	// DefaultAdoptPoolPrefix is the pool prefix reconcileDelete falls
+	// back to when a CR's Spec.AdoptPoolPrefix is empty. Spec now
+	// requires the field (MinLength=1), so this only covers legacy CRs
+	// created before that contract existed: without a fallback their
+	// delete skips the Scaleway release and strands the host. Empty
+	// preserves the skip behavior (no pool prefix to release into).
+	DefaultAdoptPoolPrefix string
+
+	// Tailscale egress Service materialisation. When EgressProxyGroup
+	// is non-empty, the reconciler maintains one ExternalName Service
+	// per Mac mini in EgressNamespace, annotated so the Tailscale K8s
+	// operator binds it to the named ProxyGroup. The Service lets
+	// alloy-metrics (and any other in-cluster Pod) scrape the Mac
+	// mini at its MagicDNS FQDN without joining the tailnet itself —
+	// see infra/helm/tailscale-operator/templates/macmini-egress.yaml
+	// for the ProxyGroup side.
+	//
+	// Empty EgressProxyGroup disables the whole behavior; the OSS /
+	// self-hosted shape (no tailnet) keeps working untouched.
+	//
+	// Cross-namespace OwnerRef isn't allowed, so reconcileDelete
+	// explicitly removes the Service rather than relying on cascade.
+	EgressNamespace      string
+	EgressProxyGroup     string
+	EgressMagicDNSSuffix string
+
+	// RunnerResolver turns a Machine's `Spec.GHActionsRunner` into a
+	// fully-populated `*bootstrap.GHActionsRunnerConfig` with a fresh
+	// short-lived registration token. Empty when no Machine in the
+	// cluster carries a GHActionsRunner spec (a pure-Node fleet);
+	// non-nil for clusters that include the buildersFleet or any
+	// future workload-on-host fleet.
+	//
+	// Lives behind an interface so the Scaleway-specific Machine
+	// reconciler doesn't import workload-credential-specific code.
+	// Production wires the GitHub-App-backed implementation in
+	// `cmd/manager/main.go`; tests inject a stub that returns a
+	// canned config without dialing GitHub or reading a Secret.
+	RunnerResolver runner.Resolver
 }
 
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayapplesiliconmachines,verbs=get;list;watch;create;update;patch;delete
@@ -117,6 +202,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,resourceNames=cluster-info,verbs=get
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;delete
 
 // Reconcile uses named returns so the deferred patchHelper.Patch can
@@ -125,8 +211,8 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // variable that Go has already evaluated for the return — the defer
 // would silently swallow the patch failure and the function would
 // report success, leaving Status.ServerID unpersisted after a
-// successful CreateServer and letting the next reconcile order a
-// second Mac mini.
+// successful AdoptFromPool and letting the next reconcile claim a
+// second Mac mini from the pool.
 func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	logger := log.FromContext(ctx).WithValues("machine", req.NamespacedName)
 	logger.Info("reconcile entry")
@@ -173,32 +259,61 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 		controllerutil.AddFinalizer(machine, MachineFinalizer)
 	}
 
-	if ownerMachine != nil {
-		// CAPI's Machine controller waits for the InfrastructureCluster's
-		// Status.Ready before stamping our CR's OwnerRef, but we still
-		// gate on the parent Machine's Cluster being ready before
-		// touching Scaleway — covers the brief window where a Machine
-		// exists but the cluster's not provisioned. Cluster.Spec.Paused
-		// also pauses us.
+	// Resolve parent Cluster (if any) for the readiness + pause gates.
+	// Standalone CRs (no owner Machine) skip the lookup but still
+	// honor a per-object pause annotation below.
+	var cluster *clusterv1.Cluster
+	if ownerMachine != nil && ownerMachine.Spec.ClusterName != "" {
+		cluster = &clusterv1.Cluster{}
 		clusterName := ownerMachine.Spec.ClusterName
-		if clusterName != "" {
-			cluster := &clusterv1.Cluster{}
-			if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
-				if apierrors.IsNotFound(err) {
-					logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
-					return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-				}
-				return ctrl.Result{}, err
-			}
-			if cluster.Spec.Paused {
-				logger.Info("parent Cluster paused; skipping reconcile")
-				return ctrl.Result{}, nil
-			}
-			if !cluster.Status.InfrastructureReady {
-				logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+		if err := r.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: clusterName}, cluster); err != nil {
+			if apierrors.IsNotFound(err) {
+				logger.Info("parent Cluster not found; requeueing", "cluster", clusterName)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
+			return ctrl.Result{}, err
 		}
+	}
+
+	// Pause gate. Respects both Cluster.Spec.Paused AND the standard
+	// CAPI cluster.x-k8s.io/paused annotation on the infra CR itself.
+	// The per-object annotation is the operator's safety latch for
+	// out-of-band cleanup: when manually clearing status.ServerID +
+	// spec.ProviderID before a `kubectl delete` (e.g. to release a CR
+	// without releasing its underlying Scaleway server — the
+	// duplicate-claim recovery dance), the reconciler must NOT see the
+	// transient "fresh CR" shape and run AdoptFromPool against the pool
+	// in between. Set the annotation first, patch second, delete
+	// third; the annotation latches reconcileNormal off until the
+	// DeletionTimestamp lands and reconcileDelete (which runs above,
+	// regardless of pause) takes over.
+	//
+	// annotations.IsPaused panics on nil cluster, so split the two
+	// signals — Cluster.Spec.Paused is only meaningful when a parent
+	// Cluster exists, and HasPaused covers the standalone case (and
+	// the owned case where the operator annotated just the CR).
+	//
+	// Evaluated BEFORE the InfrastructureReady check below: a paused
+	// CR whose parent Cluster is also infra-not-ready should go
+	// silent, not requeue every 30s. The pause signal is "operator
+	// wants me to stop"; honoring it has priority over readiness gating.
+	if cluster != nil && cluster.Spec.Paused {
+		logger.Info("parent Cluster paused; skipping reconcile")
+		return ctrl.Result{}, nil
+	}
+	if annotations.HasPaused(machine) {
+		logger.Info("Machine paused via annotation; skipping reconcile")
+		return ctrl.Result{}, nil
+	}
+
+	// CAPI's Machine controller waits for the InfrastructureCluster's
+	// Status.Ready before stamping our CR's OwnerRef, but we still
+	// gate on the parent Cluster being ready before touching
+	// Scaleway — covers the brief window where a Machine exists but
+	// the cluster's not provisioned.
+	if cluster != nil && !cluster.Status.InfrastructureReady {
+		logger.Info("parent Cluster InfrastructureReady=false; requeueing")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	return r.reconcileNormal(ctx, machine)
@@ -211,11 +326,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	logger := log.FromContext(ctx)
 
 	// Stage 0: ensure the per-fleet SSH key is registered with Scaleway
-	// BEFORE we order the Mac mini. Scaleway only injects project SSH
-	// keys at first-boot — keys registered after CreateServer are not
-	// auto-installed on the host, leaving us locked out of SSH and
-	// unable to bootstrap kubelet. Doing this first means the Mac mini
-	// comes up with our pubkey already in ~/.ssh/authorized_keys.
+	// BEFORE we adopt the Mac mini. Scaleway only injects project SSH
+	// keys at the host's first-boot — keys registered after the order
+	// are not auto-installed, leaving us locked out of SSH and unable
+	// to bootstrap kubelet. Doing this first means a freshly pre-
+	// ordered Mac mini comes up with our pubkey already in
+	// ~/.ssh/authorized_keys, ready for adoption.
 	fleet := machine.Spec.FleetName
 	if fleet == "" {
 		fleet = machine.Namespace + "-" + machine.Name
@@ -240,6 +356,14 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		machine.Status.ServerID = srv.ID
+		// New host adopted — the failure-tracking state from a
+		// previously-discarded host doesn't apply. (The
+		// BootstrapFailed path that called ReleaseToPool already
+		// resets these, but cover the case where ServerID flipped
+		// without going through that path — e.g., legacy CR or
+		// manual operator intervention.)
+		machine.Status.BootstrapAttempts = 0
+		machine.Status.BootstrapRebootIssued = false
 		machine.Status.Addresses = []clusterv1.MachineAddress{{
 			Type:    clusterv1.MachineExternalIP,
 			Address: srv.IP,
@@ -270,7 +394,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	}
 	if bootstrapCreds == nil {
 		// Stage 1 didn't write the Secret yet (fresh CR mid-reconcile,
-		// or operator pod that crashed between CreateServer + Secret
+		// or operator pod that crashed between AdoptFromPool + Secret
 		// write). Requeue.
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
@@ -293,6 +417,17 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Secret and proceed with bootstrap. Only surface
 	// MissingSudoPassword when even the refresh comes back empty (the
 	// host genuinely has no recoverable credentials).
+	//
+	// The same recovery applies when the Secret holds Scaleway's
+	// `<sealed>` placeholder — surfaced verbatim when macOS Tahoe
+	// seals the OS-level auto-login credential. The marker isn't a
+	// usable password (sudo rejects it as "Sorry, try again") but is
+	// non-empty so the bare `== ""` check would treat it as valid
+	// and skip the recovery path. Drop it the same way an empty
+	// value gets dropped.
+	if bootstrapCreds.SudoPassword == scaleway.SealedSecretMarker {
+		bootstrapCreds.SudoPassword = ""
+	}
 	if bootstrapCreds.SudoPassword == "" && machine.Status.ServerID != "" {
 		srv, refreshErr := r.ScalewayClient.GetServer(ctx, machine.Status.ServerID, machine.Spec.Zone)
 		switch {
@@ -380,20 +515,48 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			conditions.MarkFalse(machine, BootstrappedCondition, "TailscaleAuthKeyUnavailable",
+				clusterv1.ConditionSeverityWarning, "%v", err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
+		var ghRunner *bootstrap.GHActionsRunnerConfig
+		if machine.Spec.GHActionsRunner != nil {
+			if r.RunnerResolver == nil {
+				return ctrl.Result{}, fmt.Errorf("RunnerResolver not wired on reconciler; the manager binary must set it when any fleet carries a ghActionsRunner spec")
+			}
+			ghRunner, err = r.RunnerResolver.Resolve(ctx, machine.Namespace, machine.Spec.GHActionsRunner)
+			if err != nil {
+				conditions.MarkFalse(machine, BootstrappedCondition, "GHRunnerRegistrationTokenUnavailable",
+					clusterv1.ConditionSeverityWarning, "%v", err)
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "GHRunnerRegistrationTokenUnavailable",
+					"%v (will retry; check the github-app Secret + GitHub App reachability)", err)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+		}
+
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
 			IP:                   ip,
 			SSHUser:              bootstrapCreds.SSHUsername,
 			UserPassword:         bootstrapCreds.SudoPassword,
 			SSHPrivateKey:        sshKey,
 			NodeName:             machine.Name,
+			ProviderID:           providerIDOf(machine),
 			Kubeconfig:           kubeconfigYAML,
 			TartKubeletBinary:    r.TartKubeletBinary,
 			TartTarball:          r.TartTarball,
+			TailscaleBinaries:    r.TailscaleBinaries,
+			TailscaleAuthKey:     tailscaleAuthKey,
+			TailscaleTags:        r.TailscaleTags,
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
 			NodeLabels:           machineNodeLabels(machine),
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
+			GHActionsRunner:      ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
@@ -406,14 +569,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
-				clusterv1.ConditionSeverityWarning, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
-				"%v (will retry)", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			return handleBootstrapFailure(ctx, machine, err, r.ScalewayClient, r.CredentialsManager, r.Recorder, logger, r.BootstrapRebootAfter, r.BootstrapMaxAttempts), nil
 		}
 
 		conditions.MarkTrue(machine, BootstrappedCondition)
+		// Reset failure-tracking state — a long retry chain that
+		// finally succeeded is, from the cluster's perspective, the
+		// same shape as a first-try success.
+		machine.Status.BootstrapAttempts = 0
+		machine.Status.BootstrapRebootIssued = false
 		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Bootstrapped",
 			"Mac mini joined cluster as Node %s", machine.Name)
 		logger.Info("bootstrap complete", "host", ip)
@@ -459,13 +623,40 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		// On the drift-update path the auth key is read to drive the
+		// kubelet's --node-ip-source decision in the regenerated
+		// launchd plist — without it, a re-render would drop the
+		// `--node-ip-source=tailscale` arg and silently flip kubelet
+		// back to the public IP. Fetching the key here is the cheap
+		// way to keep the plist render correct.
+		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
+		if err != nil {
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			if machine.Status.FailureReason != nil {
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
 		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
-			IP:                   ip,
-			SSHUser:              bootstrapCreds.SSHUsername,
-			SSHPrivateKey:        sshKey,
-			NodeName:             machine.Name,
-			Kubeconfig:           kubeconfigYAML,
-			TartKubeletBinary:    r.TartKubeletBinary,
+			IP:                ip,
+			SSHUser:           bootstrapCreds.SSHUsername,
+			SSHPrivateKey:     sshKey,
+			NodeName:          machine.Name,
+			ProviderID:        providerIDOf(machine),
+			Kubeconfig:        kubeconfigYAML,
+			TartKubeletBinary: r.TartKubeletBinary,
+			TailscaleBinaries: r.TailscaleBinaries,
+			TailscaleAuthKey:  tailscaleAuthKey,
+			// node_exporter is re-installed on every drift-loop run,
+			// not just on first bootstrap, so a chart-driven binary
+			// bump (NODE_EXPORTER_VERSION ARG in the operator
+			// Dockerfile) lands on running minis the next time the
+			// tart-kubelet binary drifts. Forgetting this here made
+			// node_exporter silently skip on every drift update —
+			// installNodeExporter short-circuits when its binary is
+			// empty.
+			NodeExporterBinary:   r.NodeExporterBinary,
 			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:              r.TartKubeletMaxPods,
@@ -491,6 +682,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		logger.Info("rolled new tart-kubelet", "host", ip, "sha", r.TartKubeletBinarySHA)
 	}
 
+	// Stage 4: materialise the per-machine Tailscale egress Service
+	// (when wired by the chart). Doesn't gate on bootstrap success —
+	// the FQDN is deterministic (`<machine.Name>.<suffix>`), so the
+	// Service can exist before the host has joined the tailnet; the
+	// Tailscale operator pends the ExternalName rewrite until the
+	// FQDN resolves and reconciles transparently when it does.
+	if err := r.reconcileTailscaleEgressService(ctx, machine); err != nil {
+		// Conflicts are benign: the Tailscale operator and this
+		// reconciler write to the same Service (it owns the
+		// externalName rewrite + ts-condition annotations, we own
+		// the tailnet-fqdn + ports). When they race, one Update
+		// loses the resourceVersion check. Requeue immediately so
+		// the next reconcile reads the fresh version; don't log an
+		// error or surface an Event for the noise.
+		if apierrors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
+		// Don't fail the whole reconcile: bootstrap already succeeded
+		// and the egress Service is the scrape boundary, not the
+		// workload boundary. Surface the failure as an Event and
+		// requeue.
+		logger.Error(err, "reconcile tailscale egress Service; will retry")
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "EgressServiceFailed",
+			"reconcile tailscale egress Service: %v (will retry)", err)
+		return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+	}
+
 	// Mac mini is now running tart-kubelet and registering itself as a
 	// real Node. From CAPI's perspective the Machine is Ready as soon
 	// as bootstrap returns; whether the Node has reported Ready yet is
@@ -500,7 +718,6 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
-
 func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
@@ -508,20 +725,49 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
 
-	// Stage 1: release the Scaleway server. Skip if already released
-	// (mid-cleanup retry).
+	// Stage 1: release the Scaleway server back into the pool —
+	// rename + reinstall — so the host stays alive for the next
+	// adopt. Skip if already released (mid-cleanup retry).
+	//
+	// Legacy CRs predating the required-AdoptPoolPrefix contract may
+	// still exist with the field unset (the older chart only
+	// rendered `adoptPoolPrefix` when the value was non-empty, so
+	// fleets that didn't set it produced bare CRs). For those, fall
+	// back to the controller-level DefaultAdoptPoolPrefix so the host
+	// still returns to the pool. Only when neither the CR nor the
+	// controller default carries a prefix do we skip the Scaleway
+	// release (the client rejects an empty prefix to avoid orphaning a
+	// host outside the pool namespace), leave the host running, and
+	// let the orphan-reclaim sweep or an operator clean it up. Without
+	// this fallthrough, deleting a bare legacy CR would loop forever on
+	// a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleting",
-			"Releasing Scaleway server %s", machine.Status.ServerID)
-		if err := r.ScalewayClient.DeleteServer(ctx, machine.Status.ServerID, machine.Spec.Zone); err != nil {
-			logger.Error(err, "Scaleway delete failed; will retry")
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
-				"Scaleway DeleteServer: %v (will retry)", err)
-			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		poolPrefix := machine.Spec.AdoptPoolPrefix
+		if poolPrefix == "" {
+			poolPrefix = r.DefaultAdoptPoolPrefix
 		}
-		machine.Status.ServerID = ""
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Deleted",
-			"Scaleway server released")
+		switch {
+		case poolPrefix == "":
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
+				"No AdoptPoolPrefix on the CR and no controller default; skipping Scaleway release of %s — the orphan-reclaim sweep or an operator must return it to the pool",
+				machine.Status.ServerID)
+			logger.Info("no pool prefix available; skipping Scaleway release",
+				"serverID", machine.Status.ServerID)
+			machine.Status.ServerID = ""
+		default:
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
+				"Returning Scaleway server %s to pool %q (with reinstall)",
+				machine.Status.ServerID, poolPrefix)
+			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix); err != nil {
+				logger.Error(err, "Scaleway release-to-pool failed; will retry")
+				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+					"Scaleway ReleaseToPool: %v (will retry)", err)
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+			machine.Status.ServerID = ""
+			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Released",
+				"Scaleway server returned to pool; reinstall triggered")
+		}
 	}
 
 	// Stage 2: drop the per-machine kubelet identity. The token is
@@ -558,11 +804,103 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	// Stage 5: drop the per-machine Tailscale egress Service if the
+	// chart wired it up. Cross-namespace OwnerRef isn't allowed
+	// (Service lives in the tailscale-operator namespace, this CR
+	// lives in the operator's), so we delete explicitly.
+	if r.EgressProxyGroup != "" {
+		svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+			Name:      machine.Name,
+			Namespace: r.EgressNamespace,
+		}}
+		if err := r.Client.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
+			logger.Error(err, "delete egress Service; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "DeleteFailed",
+				"delete egress Service %s/%s: %v (will retry)", r.EgressNamespace, machine.Name, err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
 	controllerutil.RemoveFinalizer(machine, MachineFinalizer)
 	return ctrl.Result{}, nil
 }
 
 // === helpers ================================================================
+
+// reconcileTailscaleEgressService maintains one ExternalName Service
+// per Mac mini in the egress namespace. The Tailscale K8s operator
+// detects the `tailscale.com/tailnet-fqdn` annotation and rewrites
+// the Service's externalName to point at a ClusterIP fronting the
+// named ProxyGroup; from then on any cluster Pod that resolves the
+// Service DNS gets routed through the ProxyGroup's tailnet identity
+// to the Mac mini.
+//
+// Idempotent via CreateOrUpdate: a re-reconcile with no spec change
+// is a noop on the apiserver. Empty EgressProxyGroup short-circuits
+// the whole thing for OSS/self-hosted clusters.
+func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+) error {
+	if r.EgressProxyGroup == "" {
+		return nil
+	}
+	if r.EgressMagicDNSSuffix == "" {
+		return fmt.Errorf("EgressMagicDNSSuffix empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
+	}
+	if r.EgressNamespace == "" {
+		return fmt.Errorf("EgressNamespace empty but EgressProxyGroup=%q set", r.EgressProxyGroup)
+	}
+
+	// FQDN is the tailnet hostname (= machine.Name; see
+	// bootstrap.go's `tailscale up --hostname=$NodeName`) suffixed
+	// with the tailnet's MagicDNS domain (operator flag, set per
+	// env in the chart).
+	fqdn := machine.Name + "." + r.EgressMagicDNSSuffix
+
+	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name:      machine.Name,
+		Namespace: r.EgressNamespace,
+	}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		if svc.Labels == nil {
+			svc.Labels = map[string]string{}
+		}
+		// Label alloy-metrics' Service-role discovery filters on. The
+		// label values stay stable across reconciles so the same
+		// Service is reused; only its Spec/annotations get patched.
+		svc.Labels["app.kubernetes.io/managed-by"] = "capi-scaleway-applesilicon"
+		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
+		svc.Labels["tuist.dev/macmini-egress"] = "true"
+		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+
+		if svc.Annotations == nil {
+			svc.Annotations = map[string]string{}
+		}
+		svc.Annotations["tailscale.com/tailnet-fqdn"] = fqdn
+		svc.Annotations["tailscale.com/proxy-group"] = r.EgressProxyGroup
+
+		svc.Spec.Type = corev1.ServiceTypeExternalName
+		// On first create, seed externalName with a syntactically
+		// valid placeholder. The Tailscale operator rewrites it at
+		// admission time to a ClusterIP Service fronting the
+		// ProxyGroup; on re-reconcile we don't stamp it back, so the
+		// operator's rewrite sticks.
+		if svc.Spec.ExternalName == "" {
+			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
+		}
+		// Two named ports — alloy-metrics filters on port_name to
+		// dispatch each to the right scrape job (see
+		// infra/helm/k8s-monitoring/values.yaml's
+		// collectors.alloy-metrics.extraConfig).
+		svc.Spec.Ports = []corev1.ServicePort{
+			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
+			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+		}
+		return nil
+	})
+	return err
+}
 
 // recordUpdateFailure increments the drift-loop retry counter and,
 // once it crosses maxAttempts, flips the CR into a terminal Failed
@@ -594,71 +932,184 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
 }
 
-// acquireServer either claims a pre-ordered host from the pool
-// (when `Spec.AdoptPoolPrefix` is set) or orders a new one. The
-// adoption path returns (nil, requeue, nil) on
-// `ErrNoAvailableHost` — that's a transient "wait for operator
-// pre-order" state, not a failure; surfaces a `NoAvailableHost`
-// event so the operator sees the queue. On any other error the
-// caller requeues and the condition message carries the detail.
+// bootstrapRecoveryClient is the narrow Scaleway surface
+// handleBootstrapFailure needs. Tests can satisfy it with a tiny
+// in-memory stub; the production *scaleway.Client satisfies it
+// natively.
+type bootstrapRecoveryClient interface {
+	RebootServer(ctx context.Context, id, zone string) error
+	ReleaseToPool(ctx context.Context, id, zone, poolPrefix string) error
+}
+
+// bootstrapSecretCleaner wipes the per-machine bootstrap Secret that
+// holds the previous host's sudo password, SSH username, and TOFU
+// host fingerprint. The production *credentials.Manager satisfies it
+// via DeleteMachineBootstrap. Separating this from the Scaleway
+// surface keeps both interfaces narrow and lets tests stub the
+// concerns independently.
+type bootstrapSecretCleaner interface {
+	DeleteMachineBootstrap(ctx context.Context, machineName string) error
+}
+
+// handleBootstrapFailure records the bootstrap error on the machine
+// and runs tiered host recovery. Returns the ctrl.Result the caller
+// should propagate.
+//
+// Tier 1: at `rebootAfter` consecutive failures, ask Scaleway to
+// reboot the host once. Most BootstrapFailed errors observed in
+// production are host-volatile (PAM account lockouts from sudo
+// retries, sshd connection throttling, half-open SSH sessions) and
+// resolve after a clean boot. Gated on Status.BootstrapRebootIssued so
+// a long retry tail doesn't re-reboot the same host. If RebootServer
+// returns an error the flag stays false and the next reconcile retries
+// the reboot (the condition is `>=` rather than `==`).
+//
+// Tier 2: at `maxAttempts` consecutive failures, return the host to
+// the adopt pool. ReleaseToPool renames + triggers ReinstallServer
+// (full disk wipe + factory image), so the next reconcile claims a
+// different mini via AdoptFromPool. Status.ServerID is cleared so the
+// adoption stage re-runs; counter + reboot flag reset because they
+// describe the now-discarded host. The per-machine bootstrap Secret is
+// deleted so the next adopt rebuilds it from scratch — without that
+// step the previous host's TOFU fingerprint would survive and
+// SSH-verify against the replacement host's key, locking us into a
+// fingerprint-mismatch bootstrap failure on the new mini.
+// Outwardly-visible state tied to the discarded host (Status.Ready,
+// Status.Phase, Spec.ProviderID, Status.Addresses, ProvisionedCondition)
+// is reset to its pre-adoption shape so CAPI and operators don't
+// momentarily see a stale "Ready" Machine pointing at a server we no
+// longer control.
+//
+// Order matters: at the maxAttempts threshold the release branch must
+// win even if the reboot was never attempted (e.g., rebootAfter > 0
+// but RebootServer kept failing). The switch is evaluated top-down so
+// release is listed first.
+//
+// Either tier failing to call out to Scaleway (transient API error,
+// 5xx) is non-fatal — the machine stays in the BootstrapFailed
+// condition and the next reconcile retries the same tier on the next
+// attempt count.
+func handleBootstrapFailure(
+	ctx context.Context,
+	machine *infrav1.ScalewayAppleSiliconMachine,
+	err error,
+	client bootstrapRecoveryClient,
+	secrets bootstrapSecretCleaner,
+	recorder record.EventRecorder,
+	logger logr.Logger,
+	rebootAfter int32,
+	maxAttempts int32,
+) ctrl.Result {
+	machine.Status.BootstrapAttempts++
+	attempts := machine.Status.BootstrapAttempts
+
+	conditions.MarkFalse(machine, BootstrappedCondition, "BootstrapFailed",
+		clusterv1.ConditionSeverityWarning, "%v", err)
+	recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapFailed",
+		"%v (attempt %d, will retry)", err, attempts)
+
+	hostAdoptable := machine.Status.ServerID != "" && machine.Spec.AdoptPoolPrefix != ""
+	switch {
+	case maxAttempts > 0 && attempts >= maxAttempts && hostAdoptable:
+		if releaseErr := client.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); releaseErr != nil {
+			logger.Error(releaseErr, "release-to-pool after bootstrap exhaustion failed; will retry")
+			recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
+				"Scaleway ReleaseToPool after %d bootstrap failures: %v (will retry)",
+				attempts, releaseErr)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}
+		}
+		releasedID := machine.Status.ServerID
+		// Wipe the per-machine bootstrap Secret. The host fingerprint
+		// stored there is TOFU-pinned to the released mini's SSH key
+		// and would silently reject the replacement host's key on
+		// next bootstrap; nothing else in the Secret (sudo password,
+		// SSH username) survives meaningfully across hosts either.
+		if cleanErr := secrets.DeleteMachineBootstrap(ctx, machine.Name); cleanErr != nil {
+			// Non-fatal: surface the error and continue. The next
+			// adopt will overwrite the credentials, and the
+			// fingerprint guard tolerates an empty pin (TOFU
+			// captures fresh on first SSH). Failing the release here
+			// would leave the host already returned to Scaleway with
+			// no way to roll back.
+			logger.Error(cleanErr, "delete per-machine bootstrap Secret on release; next adopt will recreate it")
+			recorder.Eventf(machine, corev1.EventTypeWarning, "BootstrapSecretDeleteFailed",
+				"delete per-machine bootstrap Secret after release: %v (next adopt will overwrite)",
+				cleanErr)
+		}
+		recorder.Eventf(machine, corev1.EventTypeNormal, "BootstrapExhausted",
+			"Released Scaleway server %s after %d bootstrap failures; will claim a fresh host from the pool",
+			releasedID, attempts)
+		machine.Status.ServerID = ""
+		machine.Status.BootstrapAttempts = 0
+		machine.Status.BootstrapRebootIssued = false
+		machine.Status.Ready = false
+		machine.Status.Addresses = nil
+		machine.Status.Phase = "Pending"
+		machine.Spec.ProviderID = nil
+		conditions.MarkFalse(machine, ProvisionedCondition, "HostReleased",
+			clusterv1.ConditionSeverityWarning,
+			"released Scaleway server %s after %d bootstrap failures; awaiting fresh adopt",
+			releasedID, attempts)
+	case rebootAfter > 0 && attempts >= rebootAfter && !machine.Status.BootstrapRebootIssued && machine.Status.ServerID != "":
+		if rebootErr := client.RebootServer(ctx, machine.Status.ServerID, machine.Spec.Zone); rebootErr != nil {
+			logger.Error(rebootErr, "reboot for bootstrap recovery failed; will retry on next attempt")
+			recorder.Eventf(machine, corev1.EventTypeWarning, "RebootForRecoveryFailed",
+				"Scaleway RebootServer for %s after %d bootstrap failures: %v (will retry)",
+				machine.Status.ServerID, attempts, rebootErr)
+		} else {
+			machine.Status.BootstrapRebootIssued = true
+			recorder.Eventf(machine, corev1.EventTypeNormal, "RebootingForRecovery",
+				"Rebooting %s after %d bootstrap failures to clear volatile host state",
+				machine.Status.ServerID, attempts)
+		}
+	}
+
+	return ctrl.Result{RequeueAfter: 60 * time.Second}
+}
+
+// acquireServer claims a pre-ordered host from the pool. Returns
+// (nil, requeue, nil) on `ErrNoAvailableHost` — that's a transient
+// "wait for operator pre-order" state, not a failure; surfaces a
+// `NoAvailableHost` event so the operator sees the queue. On any
+// other error the caller requeues and the condition message carries
+// the detail.
 func (r *ScalewayAppleSiliconMachineReconciler) acquireServer(
 	ctx context.Context,
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) (*scaleway.Server, time.Duration, error) {
-	if machine.Spec.AdoptPoolPrefix != "" {
-		machine.Status.Phase = "Adopting"
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
-			"Searching pool %q for an unclaimed %s Mac mini in zone %s",
-			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
-		srv, err := r.ScalewayClient.AdoptByPrefix(
-			ctx,
-			machine.Name,
-			machine.Spec.Zone,
-			machine.Spec.Type,
-			machine.Spec.OS,
-			machine.Spec.AdoptPoolPrefix,
-		)
-		if errors.Is(err, scaleway.ErrNoAvailableHost) {
-			conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
-				clusterv1.ConditionSeverityWarning,
-				"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
-				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
-				"ready", machine.Spec.Zone)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
-				"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
-				machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
-			return nil, 60 * time.Second, nil
-		}
-		if err != nil {
-			conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
-				clusterv1.ConditionSeverityError, "%v", err)
-			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-				"Scaleway AdoptByPrefix: %v", err)
-			return nil, 30 * time.Second, err
-		}
-		r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
-			"Claimed Mac mini %s from pool %q (renamed to %s)",
-			srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
-		return srv, 0, nil
-	}
-
-	machine.Status.Phase = "Provisioning"
-	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Provisioning",
-		"Ordering %s Mac mini in zone %s", machine.Spec.Type, machine.Spec.Zone)
-	srv, err := r.ScalewayClient.CreateServer(
+	machine.Status.Phase = "Adopting"
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopting",
+		"Searching pool %q for an unclaimed %s Mac mini in zone %s",
+		machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.Zone)
+	srv, err := r.ScalewayClient.AdoptFromPool(
 		ctx,
 		machine.Name,
 		machine.Spec.Zone,
 		machine.Spec.Type,
 		machine.Spec.OS,
+		machine.Spec.AdoptPoolPrefix,
 	)
+	if errors.Is(err, scaleway.ErrNoAvailableHost) {
+		conditions.MarkFalse(machine, ProvisionedCondition, "NoAvailableHost",
+			clusterv1.ConditionSeverityWarning,
+			"no server with prefix %q matching %s/%s/%s in zone %s; pre-order more capacity",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS,
+			"ready", machine.Spec.Zone)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "NoAvailableHost",
+			"No pre-ordered Mac mini matching pool=%q type=%s os=%s zone=%s; waiting for operator to pre-order more capacity",
+			machine.Spec.AdoptPoolPrefix, machine.Spec.Type, machine.Spec.OS, machine.Spec.Zone)
+		return nil, 60 * time.Second, nil
+	}
 	if err != nil {
-		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayCreateFailed",
+		conditions.MarkFalse(machine, ProvisionedCondition, "ScalewayAdoptFailed",
 			clusterv1.ConditionSeverityError, "%v", err)
 		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ProvisioningFailed",
-			"Scaleway CreateServer: %v", err)
-		return nil, 60 * time.Second, err
+			"Scaleway AdoptFromPool: %v", err)
+		return nil, 30 * time.Second, err
 	}
+	r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Adopted",
+		"Claimed Mac mini %s from pool %q (renamed to %s)",
+		srv.ID, machine.Spec.AdoptPoolPrefix, machine.Name)
 	return srv, 0, nil
 }
 
@@ -705,6 +1156,17 @@ func machineIP(m *infrav1.ScalewayAppleSiliconMachine) string {
 		}
 	}
 	return ""
+}
+
+// providerIDOf returns the machine's providerID
+// (scw-applesilicon://<zone>/<id>), set once the server is ordered or
+// adopted. Empty until then — bootstrap renders no --provider-id flag
+// and a later reconcile re-renders the plist once it's known.
+func providerIDOf(m *infrav1.ScalewayAppleSiliconMachine) string {
+	if m.Spec.ProviderID == nil {
+		return ""
+	}
+	return *m.Spec.ProviderID
 }
 
 // hostCPUFor / hostMemoryMBFor select the per-Machine capacity
@@ -780,4 +1242,3 @@ func scalewayMachineForCAPIMachine(_ context.Context, o client.Object) []reconci
 		},
 	}}
 }
-

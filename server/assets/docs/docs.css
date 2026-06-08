@@ -28,6 +28,8 @@
 html {
   overflow-x: hidden;
   scroll-padding-top: var(--docs-nav-height);
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
+  scrollbar-width: thin;
 }
 
 body {

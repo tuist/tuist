@@ -1,5 +1,9 @@
 defmodule Tuist.Utilities.DateFormatter do
   @moduledoc false
+  use Gettext, backend: TuistWeb.Gettext
+
+  def from_now(nil), do: dgettext("dashboard", "None")
+
   def from_now(date) do
     case date |> Timex.from_now() |> String.split(" ") do
       [number, "month", relative] -> number <> "mo " <> relative
@@ -9,13 +13,23 @@ defmodule Tuist.Utilities.DateFormatter do
     end
   end
 
-  def format_duration_from_seconds(duration_ms, opts \\ []) do
-    format_duration_from_milliseconds(duration_ms * 1000, opts)
-  end
+  def format_duration_from_seconds(duration_seconds, opts \\ [])
+  def format_duration_from_seconds(nil, _opts), do: "None"
+
+  def format_duration_from_seconds(duration_seconds, opts) when is_number(duration_seconds),
+    do: format_duration_from_milliseconds(duration_seconds * 1000, opts)
+
+  def format_duration_from_seconds(_, _), do: "None"
+
+  def format_duration_from_milliseconds(duration_ms, opts \\ [])
+  def format_duration_from_milliseconds(nil, _opts), do: "None"
+
+  def format_duration_from_milliseconds(duration_ms, _opts) when is_number(duration_ms) and duration_ms < 0, do: "None"
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def format_duration_from_milliseconds(duration_ms, opts \\ []) do
+  def format_duration_from_milliseconds(duration_ms, opts) when is_number(duration_ms) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
+    fractional_seconds = Keyword.get(opts, :fractional_seconds, true)
     duration_ms = trunc(duration_ms)
 
     if duration_ms < 1000 do
@@ -44,6 +58,13 @@ defmodule Tuist.Utilities.DateFormatter do
           duration_ms > 60_000 and seconds > 0 ->
             parts ++ ["#{seconds}s"]
 
+          not fractional_seconds and seconds == 0 and parts != [] ->
+            # e.g. "6m" instead of "6m 0s" once fractions are dropped.
+            parts
+
+          not fractional_seconds ->
+            parts ++ ["#{seconds}s"]
+
           true ->
             parts ++ ["#{Float.round(seconds_with_ms, 1)}s"]
         end
@@ -51,6 +72,17 @@ defmodule Tuist.Utilities.DateFormatter do
       Enum.join(parts, " ")
     end
   end
+
+  def format_duration_from_milliseconds(_, _), do: dgettext("dashboard", "None")
+
+  @doc """
+  Milliseconds elapsed between `ts` and `DateTime.utc_now/0`. Pairs
+  with `format_duration_from_milliseconds/2` for "time since this
+  lifecycle event" callers. `nil` → 0 so consumers computing
+  cumulative durations don't need to guard separately.
+  """
+  def ms_since(nil), do: 0
+  def ms_since(%DateTime{} = ts), do: DateTime.diff(DateTime.utc_now(), ts, :millisecond)
 
   def format_duration_based_on_max(duration_ms, max_duration_ms) do
     cond do
@@ -93,7 +125,7 @@ defmodule Tuist.Utilities.DateFormatter do
     Timex.format!(datetime, "{WDshort} {D} {Mshort} {h24}:{m}:{s}")
   end
 
-  def format_full(_), do: "Unknown"
+  def format_full(_), do: dgettext("dashboard", "Unknown")
 
   @doc "Format datetime in ISO-like format (2024-01-15 14:30:25 UTC)"
   def format_iso(%DateTime{} = datetime) do
@@ -102,7 +134,7 @@ defmodule Tuist.Utilities.DateFormatter do
     "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}-#{String.pad_leading(to_string(datetime.day), 2, "0")} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:#{String.pad_leading(to_string(datetime.minute), 2, "0")}:#{String.pad_leading(to_string(datetime.second), 2, "0")} UTC"
   end
 
-  def format_iso(_), do: "Unknown"
+  def format_iso(_), do: dgettext("dashboard", "Unknown")
 
   @doc """
   Format datetime with timezone conversion.
@@ -150,7 +182,7 @@ defmodule Tuist.Utilities.DateFormatter do
 
   def format_with_timezone(_datetime, _timezone) do
     # Fallback for other types
-    "Unknown"
+    dgettext("dashboard", "Unknown")
   end
 
   @doc """
@@ -184,6 +216,6 @@ defmodule Tuist.Utilities.DateFormatter do
   end
 
   def format_with_timezone_short(_datetime, _timezone) do
-    "Unknown"
+    dgettext("dashboard", "Unknown")
   end
 end

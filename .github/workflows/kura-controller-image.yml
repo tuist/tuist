@@ -22,7 +22,8 @@ env:
 
 jobs:
   format:
-    runs-on: namespace-profile-default
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -39,7 +40,8 @@ jobs:
           fi
 
   test:
-    runs-on: namespace-profile-default
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -54,11 +56,9 @@ jobs:
         run: go vet ./...
 
   build:
-    needs:
-      - format
-      - test
+    needs: test
     if: github.event_name != 'pull_request'
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

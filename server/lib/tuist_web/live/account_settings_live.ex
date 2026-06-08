@@ -38,7 +38,6 @@ defmodule TuistWeb.AccountSettingsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "settings")
       |> assign(rename_account_form: rename_account_form)
       |> assign(delete_organization_form: delete_organization_form)
       |> assign(delete_user_form: delete_user_form)
@@ -285,6 +284,18 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event("destroy_kura_server", _params, socket), do: {:noreply, socket}
+
+  def handle_event("retry_kura_server", %{"id" => id}, %{assigns: %{kura_enabled: true}} = socket) do
+    with %Server{} = server <- Kura.get_server(socket.assigns.selected_account.id, id),
+         version when not is_nil(version) <- socket.assigns.latest_kura_version,
+         {:ok, _} <- Kura.retry_server(server, kura_version_image_tag(version)) do
+      {:noreply, load_kura_state(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("retry_kura_server", _params, socket), do: {:noreply, socket}
 
   def handle_event(
         "toggle_custom_cache_endpoints",
@@ -559,6 +570,16 @@ defmodule TuistWeb.AccountSettingsLive do
           </:col>
           <:col :let={row} label="">
             <.button
+              :if={kura_row_retry?(row)}
+              type="button"
+              label={dgettext("dashboard_account", "Retry")}
+              variant="primary"
+              size="small"
+              phx-click="retry_kura_server"
+              phx-value-id={row.server.id}
+              disabled={is_nil(@latest_kura_version)}
+            />
+            <.button
               :if={kura_row_server?(row) and row.server.status not in [:destroying, :destroyed]}
               type="button"
               label={dgettext("dashboard_account", "Destroy")}
@@ -612,6 +633,14 @@ defmodule TuistWeb.AccountSettingsLive do
   defp kura_row_available_region?(%{type: :available_region}), do: true
   defp kura_row_available_region?(_row), do: false
 
+  # Retry is offered only on first-time deploys that never reached
+  # `:active` (current_image_tag is nil): no traffic depends on the row,
+  # so atomically tombstoning it and starting fresh is safe. Drift
+  # failures on a previously-active server skip this — retrying would
+  # tear down the cache endpoint that's still serving the old image.
+  defp kura_row_retry?(%{type: :server, server: %{status: :failed, current_image_tag: nil}}), do: true
+  defp kura_row_retry?(_row), do: false
+
   defp kura_row_status_label(%{type: :server, server: server}), do: kura_display_status_label(server)
   defp kura_row_status_label(%{type: :available_region}), do: dgettext("dashboard_account", "Not deployed")
 
@@ -624,8 +653,13 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp kura_row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
+  # Prefer the image the cluster actually reports running
+  # (`observed_image_tag`) over the last activated image, so a rollout
+  # in flight or drift is visible; fall back while nothing has been
+  # observed yet.
   defp kura_row_version_label(%{type: :server, server: server}) do
-    kura_version_label(server.current_image_tag) || dgettext("dashboard_account", "Pending")
+    kura_version_label(server.observed_image_tag || server.current_image_tag) ||
+      dgettext("dashboard_account", "Pending")
   end
 
   defp kura_row_version_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")

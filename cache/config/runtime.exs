@@ -140,10 +140,12 @@ if config_env() == :prod do
     bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
     xcode_cache_bucket: System.get_env("S3_XCODE_CACHE_BUCKET"),
     registry_bucket: System.get_env("S3_REGISTRY_BUCKET"),
-    protocols: s3_protocol
+    protocols: s3_protocol,
+    ca_cert_pem: System.get_env("S3_CA_CERT_PEM") || System.get_env("TUIST_S3_CA_CERT_PEM")
 
   config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
+    server_ca_cert_pem: System.get_env("SERVER_CA_CERT_PEM") || System.get_env("TUIST_SERVER_CA_CERT_PEM"),
     storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 75.0),
     disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 60.0),

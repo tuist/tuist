@@ -16,57 +16,64 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  MISE_VERSION: "2026.4.18"
+  MISE_VERSION: "2026.5.15"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
   MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
   check-releases:
     name: Check for releasable changes
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    runs-on: tuist-linux
+    timeout-minutes: 5
     outputs:
-      cli-should-release: ${{ steps.cli-check.outputs.should-release }}
-      cli-next-version: ${{ steps.cli-check.outputs.next-version }}
-      cli-next-version-number: ${{ steps.cli-check.outputs.next-version-number }}
-      app-should-release: ${{ steps.app-check.outputs.should-release }}
-      app-next-version: ${{ steps.app-check.outputs.next-version }}
-      app-next-version-number: ${{ steps.app-check.outputs.next-version-number }}
-      server-should-release: ${{ steps.server-check.outputs.should-release }}
-      server-next-version: ${{ steps.server-check.outputs.next-version }}
-      server-next-version-number: ${{ steps.server-check.outputs.next-version-number }}
-      cache-should-release: ${{ steps.cache-check.outputs.should-release }}
-      cache-next-version: ${{ steps.cache-check.outputs.next-version }}
-      cache-next-version-number: ${{ steps.cache-check.outputs.next-version-number }}
-      kura-should-release: ${{ steps.kura-check.outputs.should-release }}
-      kura-next-version: ${{ steps.kura-check.outputs.next-version }}
-      kura-next-version-number: ${{ steps.kura-check.outputs.next-version-number }}
-      gradle-should-release: ${{ steps.gradle-check.outputs.should-release }}
-      gradle-next-version: ${{ steps.gradle-check.outputs.next-version }}
-      gradle-next-version-number: ${{ steps.gradle-check.outputs.next-version-number }}
-      skills-should-release: ${{ steps.skills-check.outputs.should-release }}
-      skills-next-version: ${{ steps.skills-check.outputs.next-version }}
-      skills-next-version-number: ${{ steps.skills-check.outputs.next-version-number }}
-      noora-should-release: ${{ steps.noora-check.outputs.should-release }}
-      noora-next-version: ${{ steps.noora-check.outputs.next-version }}
-      noora-next-version-number: ${{ steps.noora-check.outputs.next-version-number }}
-      helm-should-release: ${{ steps.helm-check.outputs.should-release }}
-      helm-next-version: ${{ steps.helm-check.outputs.next-version }}
-      helm-next-version-number: ${{ steps.helm-check.outputs.next-version-number }}
-      capi-scaleway-should-release: ${{ steps.capi-scaleway-check.outputs.should-release }}
-      capi-scaleway-next-version: ${{ steps.capi-scaleway-check.outputs.next-version }}
-      capi-scaleway-next-version-number: ${{ steps.capi-scaleway-check.outputs.next-version-number }}
-      xcresult-processor-image-should-release: ${{ steps.xcresult-processor-image-check.outputs.should-release }}
-      xcresult-processor-image-next-version: ${{ steps.xcresult-processor-image-check.outputs.next-version }}
-      xcresult-processor-image-next-version-number: ${{ steps.xcresult-processor-image-check.outputs.next-version-number }}
-      runner-image-should-release: ${{ steps.runner-image-check.outputs.should-release }}
-      runner-image-next-version: ${{ steps.runner-image-check.outputs.next-version }}
-      runner-image-next-version-number: ${{ steps.runner-image-check.outputs.next-version-number }}
-      runners-controller-should-release: ${{ steps.runners-controller-check.outputs.should-release }}
-      runners-controller-next-version: ${{ steps.runners-controller-check.outputs.next-version }}
-      runners-controller-next-version-number: ${{ steps.runners-controller-check.outputs.next-version-number }}
-      should-release-any: ${{ steps.check-any.outputs.should-release }}
+      cli-should-release: ${{ steps.check.outputs.cli-should-release }}
+      cli-next-version: ${{ steps.check.outputs.cli-next-version }}
+      cli-next-version-number: ${{ steps.check.outputs.cli-next-version-number }}
+      app-should-release: ${{ steps.check.outputs.app-should-release }}
+      app-next-version: ${{ steps.check.outputs.app-next-version }}
+      app-next-version-number: ${{ steps.check.outputs.app-next-version-number }}
+      server-should-release: ${{ steps.check.outputs.server-should-release }}
+      server-next-version: ${{ steps.check.outputs.server-next-version }}
+      server-next-version-number: ${{ steps.check.outputs.server-next-version-number }}
+      cache-should-release: ${{ steps.check.outputs.cache-should-release }}
+      cache-next-version: ${{ steps.check.outputs.cache-next-version }}
+      cache-next-version-number: ${{ steps.check.outputs.cache-next-version-number }}
+      kura-should-release: ${{ steps.check.outputs.kura-should-release }}
+      kura-next-version: ${{ steps.check.outputs.kura-next-version }}
+      kura-next-version-number: ${{ steps.check.outputs.kura-next-version-number }}
+      gradle-should-release: ${{ steps.check.outputs.gradle-should-release }}
+      gradle-next-version: ${{ steps.check.outputs.gradle-next-version }}
+      gradle-next-version-number: ${{ steps.check.outputs.gradle-next-version-number }}
+      skills-should-release: ${{ steps.check.outputs.skills-should-release }}
+      skills-next-version: ${{ steps.check.outputs.skills-next-version }}
+      skills-next-version-number: ${{ steps.check.outputs.skills-next-version-number }}
+      noora-should-release: ${{ steps.check.outputs.noora-should-release }}
+      noora-next-version: ${{ steps.check.outputs.noora-next-version }}
+      noora-next-version-number: ${{ steps.check.outputs.noora-next-version-number }}
+      helm-should-release: ${{ steps.check.outputs.helm-should-release }}
+      helm-next-version: ${{ steps.check.outputs.helm-next-version }}
+      helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
+      capi-scaleway-should-release: ${{ steps.check.outputs.capi-scaleway-should-release }}
+      capi-scaleway-next-version: ${{ steps.check.outputs.capi-scaleway-next-version }}
+      capi-scaleway-next-version-number: ${{ steps.check.outputs.capi-scaleway-next-version-number }}
+      xcresult-processor-image-should-release: ${{ steps.check.outputs.xcresult-processor-image-should-release }}
+      xcresult-processor-image-next-version: ${{ steps.check.outputs.xcresult-processor-image-next-version }}
+      xcresult-processor-image-next-version-number: ${{ steps.check.outputs.xcresult-processor-image-next-version-number }}
+      runner-image-should-release: ${{ steps.check.outputs.runner-image-should-release }}
+      runner-image-next-version: ${{ steps.check.outputs.runner-image-next-version }}
+      runner-image-next-version-number: ${{ steps.check.outputs.runner-image-next-version-number }}
+      linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
+      linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
+      linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
+      runners-controller-should-release: ${{ steps.check.outputs.runners-controller-should-release }}
+      runners-controller-next-version: ${{ steps.check.outputs.runners-controller-next-version }}
+      runners-controller-next-version-number: ${{ steps.check.outputs.runners-controller-next-version-number }}
+      hetzner-robot-controller-should-release: ${{ steps.check.outputs.hetzner-robot-controller-should-release }}
+      hetzner-robot-controller-next-version: ${{ steps.check.outputs.hetzner-robot-controller-next-version }}
+      hetzner-robot-controller-next-version-number: ${{ steps.check.outputs.hetzner-robot-controller-next-version-number }}
+      should-release-any: ${{ steps.check.outputs.should-release-any }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,826 +81,17 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "git-cliff jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Check CLI for releasable changes
-        id: cli-check
-        run: |
-          cd cli
-          # Get the latest CLI version tag dynamically
-          LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
-
-          # Check if there are any releasable changes by generating changelog
-          CHANGELOG=$(git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            NEXT_VERSION=$(git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-          else
-            NEXT_VERSION="$LATEST_VERSION"
-          fi
-
-          echo "Latest CLI version: $LATEST_VERSION"
-          echo "Next CLI version: $NEXT_VERSION"
-
-          # Validate that next version is actually newer
-          if [ "$NEXT_VERSION" = "$LATEST_VERSION" ]; then
-            echo "No CLI version change detected (versions are equal)"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-          elif [ "$(printf '%s\n' "$LATEST_VERSION" "$NEXT_VERSION" | sort -V | head -n1)" = "$NEXT_VERSION" ]; then
-            echo "ERROR: Next version ($NEXT_VERSION) is older than latest version ($LATEST_VERSION)"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-          else
-            echo "CLI version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check App for releasable changes
-        id: app-check
-        run: |
-          cd app
-
-          # Include paths for app release detection:
-          # app sources, mise tasks, and CLI modules the app depends on
-          INCLUDE_PATHS=(
-            --include-path "app/**/*"
-            --include-path "mise/tasks/app/**/*"
-            --include-path "cli/Sources/TuistSupport/**/*"
-            --include-path "cli/Sources/TuistCore/**/*"
-            --include-path "cli/Sources/TuistServer/**/*"
-            --include-path "cli/Sources/TuistHTTP/**/*"
-            --include-path "cli/Sources/TuistAutomation/**/*"
-            --include-path "cli/Sources/TuistSimulator/**/*"
-            --include-path "cli/Sources/TuistAndroid/**/*"
-            --include-path "cli/Sources/TuistLogging/**/*"
-            --include-path "cli/Sources/XcodeGraph/**/*"
-            --include-path "cli/Sources/TuistConstants/**/*"
-            --include-path "cli/Sources/TuistEnvironment/**/*"
-            --include-path "cli/Sources/TuistConfig/**/*"
-            --include-path "cli/Sources/TuistAlert/**/*"
-            --include-path "cli/Sources/TuistThreadSafe/**/*"
-            --include-path "cli/Sources/TuistOpener/**/*"
-            --include-path "cli/Sources/TuistUniqueIDGenerator/**/*"
-            --include-path "cli/Sources/TuistNooraExtension/**/*"
-          )
-
-          # Get the latest app version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#app@}"
-            else
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add app@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == app@* ]]; then
-            # If it already has app@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#app@}"
-            # Remove any additional app@ prefixes
-            while [[ "$VERSION_NUM" == app@* ]]; do
-              VERSION_NUM="${VERSION_NUM#app@}"
-            done
-            NEXT_VERSION="app@$VERSION_NUM"
-          else
-            NEXT_VERSION="app@$NEXT_VERSION"
-          fi
-
-          echo "Latest App version: ${LATEST_VERSION:-none}"
-          echo "Next App version: $NEXT_VERSION"
-
-          # Validate and compare versions
-          if [ -z "$LATEST_VERSION" ]; then
-            # No previous version, this is the first release
-            echo "First App release: $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#app@}" >> "$GITHUB_OUTPUT"
-          elif [ "$NEXT_VERSION" = "$LATEST_VERSION" ]; then
-            echo "No App version change detected (versions are equal)"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#app@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "App version bump detected: $LATEST_VERSION -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#app@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Server for releasable changes
-        id: server-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "server/**/*" --config server/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "server/**/*" --config server/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config server/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "server/**/*" --config server/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#server@}"
-            else
-              echo "No server tags or server-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add server@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == server@* ]]; then
-            # If it already has server@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#server@}"
-            # Remove any additional server@ prefixes
-            while [[ "$VERSION_NUM" == server@* ]]; do
-              VERSION_NUM="${VERSION_NUM#server@}"
-            done
-            NEXT_VERSION="server@$VERSION_NUM"
-          else
-            NEXT_VERSION="server@$NEXT_VERSION"
-          fi
-
-          echo "Latest Server version: ${LATEST_VERSION:-none}"
-          echo "Next Server version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Server version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#server@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Server version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#server@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Cache for releasable changes
-        id: cache-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get the latest cache version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^cache@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "cache/**/*" --config cache/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "cache/**/*" --config cache/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "cache/**/*" --config cache/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "cache/**/*" --config cache/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#cache@}"
-            else
-              echo "No cache tags or cache-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add cache@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == cache@* ]]; then
-            # If it already has cache@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#cache@}"
-            # Remove any additional cache@ prefixes
-            while [[ "$VERSION_NUM" == cache@* ]]; do
-              VERSION_NUM="${VERSION_NUM#cache@}"
-            done
-            NEXT_VERSION="cache@$VERSION_NUM"
-          else
-            NEXT_VERSION="cache@$NEXT_VERSION"
-          fi
-
-          echo "Latest Cache version: ${LATEST_VERSION:-none}"
-          echo "Next Cache version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Cache version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#cache@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Cache version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#cache@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Kura for releasable changes
-        id: kura-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get the latest kura version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^kura@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "kura/**/*" --config kura/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "kura/**/*" --config kura/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "kura/**/*" --config kura/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "kura/**/*" --config kura/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#kura@}"
-            else
-              echo "No kura tags or kura-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add kura@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == kura@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#kura@}"
-            while [[ "$VERSION_NUM" == kura@* ]]; do
-              VERSION_NUM="${VERSION_NUM#kura@}"
-            done
-            NEXT_VERSION="kura@$VERSION_NUM"
-          else
-            NEXT_VERSION="kura@$NEXT_VERSION"
-          fi
-
-          echo "Latest Kura version: ${LATEST_VERSION:-none}"
-          echo "Next Kura version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Kura version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#kura@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Kura version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#kura@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Gradle for releasable changes
-        id: gradle-check
-        run: |
-          # Get the latest gradle version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --config gradle/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --config gradle/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#gradle@}"
-            else
-              echo "No gradle tags or gradle-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add gradle@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == gradle@* ]]; then
-            # If it already has gradle@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#gradle@}"
-            # Remove any additional gradle@ prefixes
-            while [[ "$VERSION_NUM" == gradle@* ]]; do
-              VERSION_NUM="${VERSION_NUM#gradle@}"
-            done
-            NEXT_VERSION="gradle@$VERSION_NUM"
-          else
-            NEXT_VERSION="gradle@$NEXT_VERSION"
-          fi
-
-          echo "Latest Gradle version: ${LATEST_VERSION:-none}"
-          echo "Next Gradle version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Gradle version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#gradle@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Gradle version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#gradle@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Skills for releasable changes
-        id: skills-check
-        run: |
-          # Get the latest skills version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^skills@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#skills@}"
-            else
-              echo "No skills tags or skills-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add skills@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == skills@* ]]; then
-            # If it already has skills@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#skills@}"
-            # Remove any additional skills@ prefixes
-            while [[ "$VERSION_NUM" == skills@* ]]; do
-              VERSION_NUM="${VERSION_NUM#skills@}"
-            done
-            NEXT_VERSION="skills@$VERSION_NUM"
-          else
-            NEXT_VERSION="skills@$NEXT_VERSION"
-          fi
-
-          echo "Latest Skills version: ${LATEST_VERSION:-none}"
-          echo "Next Skills version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Skills version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#skills@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Skills version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#skills@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Noora for releasable changes
-        id: noora-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get the latest noora version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^noora@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#noora@}"
-            else
-              echo "No noora tags or noora-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.73.0"
-            fi
-          fi
-
-          # Add noora@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == noora@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#noora@}"
-            while [[ "$VERSION_NUM" == noora@* ]]; do
-              VERSION_NUM="${VERSION_NUM#noora@}"
-            done
-            NEXT_VERSION="noora@$VERSION_NUM"
-          else
-            NEXT_VERSION="noora@$NEXT_VERSION"
-          fi
-
-          echo "Latest Noora version: ${LATEST_VERSION:-none}"
-          echo "Next Noora version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Noora version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#noora@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Noora version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#noora@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check Helm for releasable changes
-        id: helm-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get the latest helm version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          # Check if there are any releasable changes by generating changelog
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          # Only bump version if there are actual release notes
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#helm@}"
-            else
-              echo "No helm tags or helm-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          # Add helm@ prefix if not present and remove any duplicate prefixes
-          if [[ "$NEXT_VERSION" == helm@* ]]; then
-            # If it already has helm@ prefix, extract just the version number and re-add single prefix
-            VERSION_NUM="${NEXT_VERSION#helm@}"
-            # Remove any additional helm@ prefixes
-            while [[ "$VERSION_NUM" == helm@* ]]; do
-              VERSION_NUM="${VERSION_NUM#helm@}"
-            done
-            NEXT_VERSION="helm@$VERSION_NUM"
-          else
-            NEXT_VERSION="helm@$NEXT_VERSION"
-          fi
-
-          echo "Latest Helm version: ${LATEST_VERSION:-none}"
-          echo "Next Helm version: $NEXT_VERSION"
-
-          # Compare versions to determine if release is needed
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "Helm version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#helm@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No Helm version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#helm@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check capi-scaleway for releasable changes
-        id: capi-scaleway-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # The capi-scaleway component spans three Go modules; they all
-          # ship together inside the operator's container image.
-          INCLUDE_PATHS=(
-            --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
-            --include-path "infra/macos-host-bootstrap/**/*"
-            --include-path "infra/tart-kubelet/**/*"
-          )
-
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-scaleway-applesilicon/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#capi-scaleway@}"
-            else
-              echo "No capi-scaleway tags or capi-scaleway-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          if [[ "$NEXT_VERSION" == capi-scaleway@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#capi-scaleway@}"
-            while [[ "$VERSION_NUM" == capi-scaleway@* ]]; do
-              VERSION_NUM="${VERSION_NUM#capi-scaleway@}"
-            done
-            NEXT_VERSION="capi-scaleway@$VERSION_NUM"
-          else
-            NEXT_VERSION="capi-scaleway@$NEXT_VERSION"
-          fi
-
-          echo "Latest capi-scaleway version: ${LATEST_VERSION:-none}"
-          echo "Next capi-scaleway version: $NEXT_VERSION"
-
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "capi-scaleway version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#capi-scaleway@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No capi-scaleway version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#capi-scaleway@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check xcresult-processor-image for releasable changes
-        id: xcresult-processor-image-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # The xcresult-processor image bakes in the server release;
-          # bumps come from changes to the image config or to the
-          # server pieces the BEAM under TUIST_MODE=xcresult_processor
-          # actually exercises.
-          INCLUDE_PATHS=(
-            --include-path "infra/xcresult-processor-image/**/*"
-            --include-path "server/lib/**/*"
-            --include-path "server/native/xcresult_nif/**/*"
-            --include-path "server/mix.exs"
-            --include-path "server/mix.lock"
-          )
-
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#xcresult-processor-image@}"
-            else
-              echo "No xcresult-processor-image tags or xcresult-processor-image-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          if [[ "$NEXT_VERSION" == xcresult-processor-image@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#xcresult-processor-image@}"
-            while [[ "$VERSION_NUM" == xcresult-processor-image@* ]]; do
-              VERSION_NUM="${VERSION_NUM#xcresult-processor-image@}"
-            done
-            NEXT_VERSION="xcresult-processor-image@$VERSION_NUM"
-          else
-            NEXT_VERSION="xcresult-processor-image@$NEXT_VERSION"
-          fi
-
-          echo "Latest xcresult-processor-image version: ${LATEST_VERSION:-none}"
-          echo "Next xcresult-processor-image version: $NEXT_VERSION"
-
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "xcresult-processor-image version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#xcresult-processor-image@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No xcresult-processor-image version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#xcresult-processor-image@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check runner-image for releasable changes
-        id: runner-image-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # The runner-image is the Tart VM hosting customer GitHub
-          # Actions runners. Bumps come from changes to the image
-          # config (Packer template, dispatch-poll, launchd plist,
-          # inject-env). The image bakes no server release — that's
-          # what distinguishes its release scope from
-          # xcresult-processor-image's.
-          INCLUDE_PATHS=(
-            --include-path "infra/runner-image/**/*"
-          )
-
-          LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runner-image/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#runner-image@}"
-            else
-              echo "No runner-image tags or runner-image-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          if [[ "$NEXT_VERSION" == runner-image@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#runner-image@}"
-            while [[ "$VERSION_NUM" == runner-image@* ]]; do
-              VERSION_NUM="${VERSION_NUM#runner-image@}"
-            done
-            NEXT_VERSION="runner-image@$VERSION_NUM"
-          else
-            NEXT_VERSION="runner-image@$NEXT_VERSION"
-          fi
-
-          echo "Latest runner-image version: ${LATEST_VERSION:-none}"
-          echo "Next runner-image version: $NEXT_VERSION"
-
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "runner-image version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#runner-image@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No runner-image version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#runner-image@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check runners-controller for releasable changes
-        id: runners-controller-check
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # The runners-controller image bundles the Go controller +
-          # the dispatch-poll script the runner-image executes; a
-          # contract change in either side needs a coordinated rollout.
-          INCLUDE_PATHS=(
-            --include-path "infra/runners-controller/**/*"
-          )
-
-          LATEST_VERSION=$(git tag -l | grep -E "^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD || echo "")
-          else
-            CHANGELOG=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." 2>/dev/null || echo "")
-          fi
-
-          if echo "$CHANGELOG" | sed -n '/<!-- RELEASE NOTES START -->/,/<!-- generated by git-cliff -->/p' | grep -qE '^\*'; then
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." --bumped-version 2>/dev/null -- ${LATEST_VERSION}..HEAD)
-            else
-              NEXT_VERSION=$(git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." --bumped-version 2>/dev/null)
-            fi
-          else
-            if [ -n "$LATEST_VERSION" ]; then
-              NEXT_VERSION="${LATEST_VERSION#runners-controller@}"
-            else
-              echo "No runners-controller tags or runners-controller-scoped commits found, defaulting to initial version"
-              NEXT_VERSION="0.1.0"
-            fi
-          fi
-
-          if [[ "$NEXT_VERSION" == runners-controller@* ]]; then
-            VERSION_NUM="${NEXT_VERSION#runners-controller@}"
-            while [[ "$VERSION_NUM" == runners-controller@* ]]; do
-              VERSION_NUM="${VERSION_NUM#runners-controller@}"
-            done
-            NEXT_VERSION="runners-controller@$VERSION_NUM"
-          else
-            NEXT_VERSION="runners-controller@$NEXT_VERSION"
-          fi
-
-          echo "Latest runners-controller version: ${LATEST_VERSION:-none}"
-          echo "Next runners-controller version: $NEXT_VERSION"
-
-          if [ "$LATEST_VERSION" != "$NEXT_VERSION" ]; then
-            echo "runners-controller version bump detected: ${LATEST_VERSION:-none} -> $NEXT_VERSION"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-            echo "next-version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${NEXT_VERSION#runners-controller@}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No runners-controller version change detected"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-            echo "next-version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-            echo "next-version-number=${LATEST_VERSION#runners-controller@}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check if any component needs release
-        id: check-any
-        run: |
-          if [ "${{ steps.cli-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.app-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.server-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.cache-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.kura-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.gradle-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.skills-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.noora-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.helm-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.capi-scaleway-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.xcresult-processor-image-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.runner-image-check.outputs.should-release }}" == "true" ] || \
-             [ "${{ steps.runners-controller-check.outputs.should-release }}" == "true" ]; then
-            echo "At least one component needs release"
-            echo "should-release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No components need release"
-            echo "should-release=false" >> "$GITHUB_OUTPUT"
-          fi
+      - id: check
+        run: mise run release:check
 
   release-cli:
     name: Release CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: namespace-profile-default-macos
+    runs-on: macos-26
     timeout-minutes: 50
     permissions:
       contents: write
@@ -945,7 +143,11 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: cli
-        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
+        # Use the authoritative version from check-releases via --tag instead of
+        # --bump. Full-history --bump can't anchor on CLI tags that landed on
+        # non-cli commits (it filters them out), so it froze the top heading at
+        # an old version while real releases advanced.
+        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cli-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
         run: mise run --no-deps cli:bundle
@@ -1014,7 +216,7 @@ jobs:
     name: Release App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: macos-26
+    runs-on: tuist-macos
     timeout-minutes: 50
     permissions:
       contents: write
@@ -1033,8 +235,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
       - uses: jdx/mise-action@v4.0.1
@@ -1079,15 +279,9 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: app
-        run: |
-          # Get the latest app version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        # Full-history regen with authoritative --tag. A ranged --bump with -o
+        # overwrites the file with only the latest release, dropping prior history.
+        run: git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.app-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle macOS app
         run: mise run --no-deps app:bundle
@@ -1116,7 +310,7 @@ jobs:
     name: Release iOS App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-macos-xcode-26
+    runs-on: tuist-macos
     timeout-minutes: 30
     permissions:
       contents: write
@@ -1128,8 +322,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -1164,7 +356,7 @@ jobs:
     name: Release Android App
     needs: check-releases
     if: needs.check-releases.outputs.app-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -1207,15 +399,20 @@ jobs:
           ./gradlew publishReleaseBundle
 
   release-server:
-    name: Release Server
+    name: Release Server (amd64)
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
+      image-digest: ${{ steps.build.outputs.digest }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
@@ -1245,18 +442,10 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: server
-        run: |
-          # Get the latest server version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^server@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "server/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.server-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -1265,21 +454,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push amd64 image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./server/Dockerfile
           target: runner
-          push: true
+          platforms: linux/amd64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
-          tags: |
-            ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}
-            ghcr.io/tuist/tuist:latest
 
       - name: Upload Server artifacts
         id: upload
@@ -1290,11 +478,80 @@ jobs:
             server/CHANGELOG.md
           retention-days: 1
 
+  release-server-arm64-image:
+    name: Release Server (arm64)
+    needs: check-releases
+    if: needs.check-releases.outputs.server-should-release == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push arm64 image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          platforms: linux/arm64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64,mode=max
+
+  release-server-manifest:
+    name: Release Server manifest
+    needs: [check-releases, release-server, release-server-arm64-image]
+    if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success' && needs.release-server-arm64-image.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      IMAGE: ghcr.io/tuist/tuist
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${{ needs.check-releases.outputs.server-next-version-number }}" \
+            --tag "${IMAGE}:latest" \
+            "${IMAGE}@${{ needs.release-server.outputs.image-digest }}" \
+            "${IMAGE}@${{ needs.release-server-arm64-image.outputs.image-digest }}"
+
+          docker buildx imagetools inspect "${IMAGE}:${{ needs.check-releases.outputs.server-next-version-number }}"
+
   release-cache:
     name: Release Cache
     needs: check-releases
     if: needs.check-releases.outputs.cache-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1329,18 +586,10 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: cache
-        run: |
-          # Get the latest cache version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^cache@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cache-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -1375,7 +624,7 @@ jobs:
     name: Release Kura Metadata
     needs: check-releases
     if: needs.check-releases.outputs.kura-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 20
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1416,15 +665,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: kura
-        run: |
-          # Get the latest kura version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^kura@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "kura/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.kura-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Upload Kura release metadata
         uses: actions/upload-artifact@v4
@@ -1450,9 +691,9 @@ jobs:
             target: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
-          - runner: namespace-profile-macos-xcode-26
+          - runner: tuist-macos
             target: x86_64-apple-darwin
-          - runner: namespace-profile-macos-xcode-26
+          - runner: tuist-macos
             target: aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v4
@@ -1498,24 +739,38 @@ jobs:
 
   release-kura-docker:
     name: Release Kura Docker Image
-    needs: [check-releases, release-kura-prepare]
+    needs: [check-releases, release-kura-prepare, release-kura-binaries]
     if: needs.check-releases.outputs.kura-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 45
+    runs-on: tuist-linux
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Kura release metadata
+      - name: Download Kura amd64 binary
         uses: actions/download-artifact@v4
         with:
-          name: kura-release-metadata
-          path: kura
+          name: kura-binary-x86_64-unknown-linux-gnu-artifacts
+          path: kura-binary-amd64
+
+      - name: Download Kura arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: kura-binary-aarch64-unknown-linux-gnu-artifacts
+          path: kura-binary-arm64
+
+      - name: Stage binaries for Docker build
+        working-directory: kura
+        run: |
+          mkdir -p bin/amd64 bin/arm64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-amd64/kura-x86_64-unknown-linux-gnu.tar.gz" -C bin/amd64
+          tar -xzf "$GITHUB_WORKSPACE/kura-binary-arm64/kura-aarch64-unknown-linux-gnu.tar.gz" -C bin/arm64
+          chmod +x bin/amd64/kura bin/arm64/kura
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -1528,9 +783,11 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./kura
-          file: ./kura/Dockerfile
+          file: ./kura/Dockerfile.release
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=kura-runtime
+          cache-to: type=gha,mode=max,scope=kura-runtime
           tags: |
             ghcr.io/tuist/kura:${{ needs.check-releases.outputs.kura-next-version-number }}
             ghcr.io/tuist/kura:latest
@@ -1539,7 +796,7 @@ jobs:
     name: Release Gradle Plugin
     needs: check-releases
     if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1586,15 +843,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: gradle
-        run: |
-          # Get the latest gradle version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.gradle-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Publish to Gradle Plugin Portal
         working-directory: gradle
@@ -1653,7 +902,7 @@ jobs:
     name: Release Skills
     needs: check-releases
     if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 15
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -1686,15 +935,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: skills
-        run: |
-          # Get the latest skills version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^skills@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.skills-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Push to tuist/agent-skills
         run: |
@@ -1726,7 +967,7 @@ jobs:
     name: Release Noora
     needs: check-releases
     if: needs.check-releases.outputs.noora-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1766,15 +1007,7 @@ jobs:
 
       - name: Update CHANGELOG.md
         working-directory: noora
-        run: |
-          # Get the latest noora version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^noora@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.noora-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Install dependencies
         working-directory: noora
@@ -1806,7 +1039,7 @@ jobs:
     name: Release Helm Chart
     needs: check-releases
     if: needs.check-releases.outputs.helm-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1832,9 +1065,9 @@ jobs:
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           else
-            git cliff --include-path "infra/helm/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
@@ -1842,18 +1075,12 @@ jobs:
         run: |
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
           sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
+          sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
-        run: |
-          # Get the latest helm version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff --include-path "infra/helm/**/*" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+        run: git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.helm-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -1861,11 +1088,15 @@ jobs:
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Package Helm chart
-        run: helm package infra/helm/tuist
+      - name: Package Helm charts
+        run: |
+          helm package infra/helm/tuist
+          helm package kura/ops/helm/kura
 
-      - name: Push Helm chart
-        run: helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+      - name: Push Helm charts
+        run: |
+          helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+          helm push kura-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
 
       - name: Upload Helm artifacts
         id: upload
@@ -1875,13 +1106,14 @@ jobs:
           path: |
             infra/helm/CHANGELOG.md
             infra/helm/tuist/Chart.yaml
+            kura/ops/helm/kura/Chart.yaml
           retention-days: 1
 
   release-capi-scaleway:
     name: Release CAPI operator
     needs: check-releases
     if: needs.check-releases.outputs.capi-scaleway-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1920,22 +1152,16 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/cluster-api-provider-scaleway-applesilicon
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/cluster-api-provider-scaleway-applesilicon/**/*"
             --include-path "infra/macos-host-bootstrap/**/*"
             --include-path "infra/tart-kubelet/**/*"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.capi-scaleway-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -1971,7 +1197,7 @@ jobs:
     name: Release runners-controller
     needs: check-releases
     if: needs.check-releases.outputs.runners-controller-should-release == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1981,14 +1207,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: mise
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
-          cache: "false"
+          cache: "true"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
       - name: Get release notes
@@ -2011,20 +1234,14 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runners-controller
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/runners-controller/**/*"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runners-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Set up Docker Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@v0
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
@@ -2054,6 +1271,86 @@ jobs:
           name: runners-controller-artifacts
           path: |
             infra/runners-controller/CHANGELOG.md
+          retention-days: 1
+
+  release-hetzner-robot-controller:
+    name: Release hetzner-robot-controller
+    needs: check-releases
+    if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^hetzner-robot-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/hetzner-robot-controller/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/hetzner-robot-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/hetzner-robot-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: infra/hetzner-robot-controller
+        run: |
+          INCLUDE_PATHS=(
+            --include-path "infra/hetzner-robot-controller/**/*"
+          )
+
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/hetzner-robot-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-hetzner-robot-controller:${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}
+            ghcr.io/tuist/tuist-hetzner-robot-controller:latest
+
+      - name: Upload hetzner-robot-controller artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          # The mgmt-cluster Deployment manifest's image pin is
+          # rewritten by commit-and-release against its own checkout
+          # (same shape as the other image pins), so we only ship
+          # the CHANGELOG here.
+          name: hetzner-robot-controller-artifacts
+          path: |
+            infra/hetzner-robot-controller/CHANGELOG.md
           retention-days: 1
 
   release-xcresult-processor-image:
@@ -2103,8 +1400,6 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/xcresult-processor-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
             --include-path "server/lib/**/*"
@@ -2113,11 +1408,7 @@ jobs:
             --include-path "server/mix.lock"
           )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Build server release for macOS
         id: release
@@ -2142,74 +1433,43 @@ jobs:
           tar -czf /tmp/release.tar.gz -C "${{ steps.release.outputs.dir }}" .
           ls -lh /tmp/release.tar.gz
 
-      - name: Update Tart
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. crane writes creds
+      # to ~/.docker/config.json, which Tart reads via the Docker
+      # credential-helper protocol for both the pull (this build's
+      # clone of the base) and the push at the end. See
+      # runner-image.yml's matching step for the long explanation.
+      - name: Log in to GHCR (crane)
         run: |
           set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
-          tart --version
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
 
       - name: Initialize Packer
         working-directory: infra/xcresult-processor-image
         run: packer init -upgrade xcresult-processor.pkr.hcl
 
-      # Keep the Cirrus base-image pull anonymous. Tart also consults
-      # Docker credential helpers, and this runner can have the macOS
-      # helper installed without the Docker CLI. Clear both stores
-      # before Packer clones ghcr.io/cirruslabs/*.
-      - name: Drop cached ghcr.io credentials
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
-
-      - name: Reclaim Tart disk
-        run: |
-          set -uo pipefail
-          tart list --format json || true
-          df -h /
-          tart stop tuist-xcresult-processor 2>/dev/null || true
-          tart delete tuist-xcresult-processor 2>/dev/null || true
-          tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
-          df -h /
+      - uses: ./.github/actions/reclaim-tart-disk
 
       - name: Build image
         working-directory: infra/xcresult-processor-image
+        # The processor parses .xcresult bundles from *all* customer
+        # runner profiles, so the Xcode here should be at least as new
+        # as the newest active runner-image profile (xcresulttool's
+        # JSON schema changes across Xcode majors). Promotion rule:
+        # when you bump the first matrix entry in runner-image-build
+        # above, bump this too.
+        env:
+          XCODE_VERSION: "26.5"
         run: |
           set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          echo "Base image: ${BASE_IMAGE}"
           env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
             -var "output_image=tuist-xcresult-processor" \
             -var "release_tarball=/tmp/release.tar.gz" \
             xcresult-processor.pkr.hcl
-
-      - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
 
       - name: Push image to GHCR
         env:
@@ -2241,18 +1501,161 @@ jobs:
           rm -f /tmp/release.tar.gz
           tart delete tuist-xcresult-processor 2>/dev/null || true
 
-  release-runner-image:
-    name: Release runner image
+  runner-image-build:
+    # One job per active profile, fanned out across whatever
+    # vm-image-builder hosts are available. GitHub schedules them
+    # respecting the label set — with 2 builders, 2 profiles build
+    # in parallel; adding more hosts scales linearly without any
+    # workflow change.
+    #
+    # The active-profile list is declared inline below. Keep it
+    # aligned with `runnersFleet.xcodeVersions` in
+    # values-managed-common.yaml — every Xcode that ships a pool
+    # needs a runner image published for it, and the post-job reads
+    # that file to build the Release notes image list.
+    #
+    # To refresh an out-of-rotation profile (one not in the matrix),
+    # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
+    # that path keeps publishing tags without going through the full
+    # release flow.
+    name: Build runner image (Xcode ${{ matrix.xcode }})
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
     timeout-minutes: 60
+    strategy:
+      # If any profile build fails, abort sibling builds so the chart
+      # pin doesn't move to a partially-published set.
+      fail-fast: true
+      matrix:
+        xcode: ["26.5", "26.4.1"]
     env:
-      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. `crane auth login`
+      # writes creds to ~/.docker/config.json, which Tart reads via
+      # the Docker credential-helper protocol for both pull (Packer's
+      # clone of the base) and push at the end. See runner-image.yml
+      # for the long explanation of why crane and not `tart login`.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build profile
+        id: build
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          XCODE="${{ matrix.xcode }}"
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Building profile ${PROFILE} from base ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ matrix.xcode }}
+        # See `runner-image.yml` for the rationale: packer-plugin-tart
+        # v1.20.0 sometimes drops `nvram.bin` from the built bundle,
+        # so the subsequent `tart push` fails after a successful disk
+        # upload. Restore the file from a fresh clone of the base.
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
+
+      - name: Push profile to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # See runner-image.yml's matching step for the rationale —
+          # tart's auto-prune races mid-push (cirruslabs/tart#860).
+          TART_NO_AUTO_PRUNE: "1"
+        # Direct tart push; same shape as `macos-xcode-image.yml`.
+        # Push both the immutable per-version tag and the rolling
+        # `:<profile>` tag so the chart's tag template stays valid
+        # without overrides while operators can still pin to a
+        # specific version when they need to roll back. 3× retry per
+        # tag — blob uploads are content-addressed so a re-push only
+        # re-uploads layers that didn't make it on the previous
+        # attempt.
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          PROFILE="${{ steps.build.outputs.profile }}"
+          for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
+            DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
+            for attempt in 1 2 3; do
+              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+              if tart push tuist-runner "$DST"; then
+                echo "Pushed ${DST} on attempt ${attempt}"
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "tart push failed three times for ${dest_tag}" >&2
+                exit 1
+              fi
+              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+              sleep 60
+            done
+          done
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
+
+  release-runner-image:
+    # Post-job: every active profile is now in GHCR with a fresh
+    # `:macos-<dashes>-<semver>` tag. Bump
+    # `runnersFleet.runnerImageSemver` in the managed-env values
+    # files so `runner-pool.yaml` re-renders every macOS pool's
+    # image in lockstep (one field, all pools refresh). Generate
+    # release notes + CHANGELOG, render the image list for the
+    # GitHub Release body, upload artifacts. Lightweight, runs on
+    # ubuntu. Downstream `release-*` jobs key off this job's
+    # outputs + result.
+    name: Release runner image
+    needs: [check-releases, runner-image-build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+      images: ${{ steps.images.outputs.images }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -2263,20 +1666,43 @@ jobs:
           version: ${{ env.MISE_VERSION }}
           install_args: "git-cliff"
 
-      - name: Ensure crane is installed
-        # `crane digest` resolves the just-pushed tag to its
-        # immutable @sha256:… form for the chart pin. Not on the
-        # bare-metal runner by default; brew is.
+      - name: Render active profile image refs
+        # `runnersFleet.xcodeVersions` lives in
+        # values-managed-common.yaml — the shared catalog every
+        # managed env layers `xcodeOverrides` on top of, and the same
+        # source `runner-pool.yaml` iterates over. The Release body
+        # lists exactly the tags the chart will render pools for.
+        # `yq` is preinstalled on ubuntu-latest.
+        id: images
         run: |
-          if ! command -v crane >/dev/null 2>&1; then
-            brew install crane
-          fi
+          set -euo pipefail
+          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
+          {
+            echo "images<<EOF"
+            yq -r '.runnersFleet.xcodeVersions[].xcodeVersion' \
+              infra/helm/tuist/values-managed-common.yaml |
+              while IFS= read -r v; do
+                tag=$(echo "$v" | tr '.' '-')
+                echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
+              done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get release notes
         id: release-notes
+        # Keep these include paths aligned with `runner-image` in
+        # `mise/tasks/release/components.json` — the active Xcode
+        # manifest is split across the Packer template and the
+        # chart's `runnersFleet.xcodeVersions` catalog, and a future
+        # commit that only promotes or removes an Xcode version
+        # should still trigger a runner-image release.
         run: |
           LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -2289,132 +1715,34 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runner-image
         run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/runner-image/**/*"
+            --include-path "infra/helm/tuist/values-managed-common.yaml"
+            --include-path ".github/workflows/release.yml"
+          )
 
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null -- ${LATEST_VERSION}..HEAD
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --bump -o CHANGELOG.md 2>/dev/null
-          fi
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 
-      - name: Update Tart
+      - name: Bump runner image semver in chart values
         run: |
-          set -euo pipefail
-          brew update
-          brew upgrade cirruslabs/cli/tart || brew install cirruslabs/cli/tart
-          tart --version
-
-      - name: Initialize Packer
-        working-directory: infra/runner-image
-        run: packer init -upgrade runner.pkr.hcl
-
-      - name: Drop cached ghcr.io credentials
-        # Same anonymous-pull dance as xcresult-processor-image: the
-        # bare-metal runner has tuist-bot creds cached for ghcr.io
-        # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
-        # consults Docker credential helpers, and this runner can have
-        # the macOS helper installed without the Docker CLI — clear
-        # both stores before Packer clones ghcr.io/cirruslabs/*.
-        run: |
-          tart logout ghcr.io || true
-          if command -v docker >/dev/null 2>&1; then
-            docker logout ghcr.io || true
-          fi
-          for helper in docker-credential-osxkeychain docker-credential-desktop; do
-            if command -v "$helper" >/dev/null 2>&1; then
-              printf 'ghcr.io' | "$helper" erase || true
-              printf 'https://ghcr.io' | "$helper" erase || true
-            fi
-          done
-
-      - name: Reclaim Tart disk
-        run: |
-          set -uo pipefail
-          tart list --format json || true
-          df -h /
-          tart stop tuist-runner 2>/dev/null || true
-          tart delete tuist-runner 2>/dev/null || true
-          tart prune --entries caches --older-than 0
-          tart prune --entries vms --older-than 1
-          df -h /
-
-      - name: Build image
-        working-directory: infra/runner-image
-        run: |
-          set -euo pipefail
-          docker_config="$HOME/.docker/config.json"
-          docker_config_backup=""
-          restore_docker_config() {
-            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
-              mkdir -p "$HOME/.docker"
-              mv "$docker_config_backup" "$docker_config"
-            fi
-          }
-          trap restore_docker_config EXIT
-
-          # Tart hardcodes ~/.docker/config.json when looking up Docker
-          # credential helpers. Move it aside so the public Cirrus image is
-          # pulled anonymously instead of through stale ghcr.io credentials.
-          if [ -f "$docker_config" ]; then
-            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
-            mv "$docker_config" "$docker_config_backup"
-          fi
-
-          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
-            -var "output_image=tuist-runner" \
-            runner.pkr.hcl
-
-      - name: Log in to GHCR (tart + crane)
-        # `tart` and `crane` keep their own credential stores, so
-        # both need a login here: tart to push, crane to read the
-        # manifest back via `crane digest`.
-        run: |
-          set -euo pipefail
-          echo "${{ secrets.GITHUB_TOKEN }}" | tart login ghcr.io --username tuist-bot --password-stdin
-          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
-
-      - name: Push image to GHCR + resolve digest
-        id: push
-        env:
-          TART_REGISTRY_HOSTNAME: ghcr.io
-          TART_REGISTRY_USERNAME: tuist-bot
-          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
+          # `runnersFleet.runnerImageSemver` is the single field the
+          # chart consumes — `runner-pool.yaml` constructs each macOS
+          # pool's image as
+          # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`
+          # so every active Xcode pool refreshes in lockstep when this
+          # value moves. GNU sed (-i without an argument) — this job
+          # runs on ubuntu.
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${VERSION}"
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:latest"
-          # The chart pins runners by digest, not tag (server-deployment.yaml
-          # `required` rejects non-digest values), so resolve the tag to its
-          # immutable @sha256:… form right after push.
-          DIGEST=$(crane digest "ghcr.io/tuist/tuist-runner:${VERSION}")
-          echo "Pushed ghcr.io/tuist/tuist-runner:${VERSION} (digest: ${DIGEST})"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-
-      - name: Bump runner image digest pin in chart values
-        run: |
-          # The runner image digest pin lives in each managed env's
-          # values file under runnersFleet.runnerImage. Anchor the
-          # substitution to the runnerImage line so we only touch
-          # that one (the values files carry several image refs).
-          DIGEST="${{ steps.push.outputs.digest }}"
           for f in \
             infra/helm/tuist/values-managed-staging.yaml \
             infra/helm/tuist/values-managed-canary.yaml \
             infra/helm/tuist/values-managed-production.yaml; do
-            # Only rewrite if the file already has a non-empty pin to the
-            # runner image — values-managed-{canary,production}.yaml ship
-            # with `runnerImage: ""` until those envs are flipped on, and
-            # we don't want to populate them silently from the release flow.
-            # The match accepts both pin styles the chart has used: a
-            # digest (`@sha256:...`) and a tag (`:<short-sha>` or
-            # `:<semver>`). Staging is on `:08e66c9b` during bring-up;
-            # narrowing the guard to `@sha256:` would skip it on every
-            # release and leave the only enabled env on the previous
-            # image.
-            if grep -qE '^\s*runnerImage:\s*"ghcr\.io/tuist/tuist-runner[@:]' "$f"; then
-              sed -i '' -E "s|^([[:space:]]*runnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-runner@${DIGEST}\2|" "$f"
+            # Only rewrite if the file declares a runnerImageSemver
+            # (managed envs that haven't enabled the macOS fleet yet
+            # would have an empty or absent value). Match accepts the
+            # current double-quoted form: `runnerImageSemver: "x.y.z"`.
+            if grep -qE '^\s*runnerImageSemver:\s*"[^"]*"' "$f"; then
+              sed -i -E "s|^([[:space:]]*runnerImageSemver:[[:space:]]*\")[^\"]*(\".*)|\1${VERSION}\2|" "$f"
             fi
           done
 
@@ -2429,9 +1757,107 @@ jobs:
             infra/helm/tuist/values-managed-production.yaml
           retention-days: 1
 
-      - name: Cleanup
-        if: always()
-        run: tart delete tuist-runner 2>/dev/null || true
+  release-linux-runner-image:
+    name: Release Linux runner image
+    needs: check-releases
+    if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: infra/linux-runner-image
+        run: |
+          INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
+
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          # Linux runners run on Hetzner bare-metal x86 nodes at v1.
+          # arm64 is a future option and can land as an additive
+          # `platforms:` entry.
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
+            ghcr.io/tuist/tuist-linux-runner:latest
+
+      - name: Bump linux runner image digest pin in chart values
+        run: |
+          # The linux runner image digest pin lives in each managed
+          # env's values file under runnersFleetLinux.shapeRunnerImage
+          # (the shape catalog is the whole Linux fleet; the legacy
+          # `pools[].runnerImage` was retired). Anchor the substitution
+          # to `shapeRunnerImage` + `tuist-linux-runner` so we don't
+          # touch the macOS `tuist-runner` pin under `runnersFleet`. The
+          # digest comes from the build-push-action's own output — no
+          # second registry round trip via crane needed.
+          DIGEST="${{ steps.build.outputs.digest }}"
+          for f in \
+            infra/helm/tuist/values-managed-staging.yaml \
+            infra/helm/tuist/values-managed-canary.yaml \
+            infra/helm/tuist/values-managed-production.yaml; do
+            # Only rewrite if the file already has a non-empty pin to
+            # the Linux runner image. The match accepts both pin styles
+            # the chart has used: a digest (`@sha256:...`) and a tag
+            # (`:<short-sha>` or `:<semver>`).
+            if grep -qE '^\s*shapeRunnerImage:\s*"ghcr\.io/tuist/tuist-linux-runner[@:]' "$f"; then
+              sed -i -E "s|^([[:space:]]*shapeRunnerImage:[[:space:]]*\")ghcr\.io/tuist/tuist-linux-runner[@:][^\"]*(\".*)|\1ghcr.io/tuist/tuist-linux-runner@${DIGEST}\2|" "$f"
+            fi
+          done
+
+      - name: Upload linux-runner-image artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-runner-image-artifacts
+          path: |
+            infra/linux-runner-image/CHANGELOG.md
+            infra/helm/tuist/values-managed-staging.yaml
+            infra/helm/tuist/values-managed-canary.yaml
+            infra/helm/tuist/values-managed-production.yaml
+          retention-days: 1
 
   commit-and-release:
     name: Commit and Release
@@ -2444,6 +1870,7 @@ jobs:
         release-ios,
         release-android,
         release-server,
+        release-server-manifest,
         release-cache,
         release-kura-prepare,
         release-kura-binaries,
@@ -2454,13 +1881,15 @@ jobs:
         release-helm,
         release-capi-scaleway,
         release-runners-controller,
+        release-hetzner-robot-controller,
         release-xcresult-processor-image,
         release-runner-image,
+        release-linux-runner-image,
       ]
     if: |
       always() &&
       needs.check-releases.outputs.should-release-any == 'true'
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     concurrency:
       group: commit-and-release-${{ github.run_id }}
@@ -2534,7 +1963,11 @@ jobs:
           path: cache
 
       - name: Download Kura release metadata
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-prepare.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-prepare.result == 'success' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.release-kura-docker.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-release-metadata
@@ -2636,6 +2069,17 @@ jobs:
           name: runners-controller-artifacts
           path: infra/runners-controller
 
+      - name: Download hetzner-robot-controller artifacts
+        # Same shape as runners-controller above — artifact carries
+        # only `infra/hetzner-robot-controller/CHANGELOG.md`. The
+        # mgmt-cluster Deployment manifest's image pin is rewritten
+        # by the chart-bump step below against this job's checkout.
+        if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true' && needs.release-hetzner-robot-controller.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: hetzner-robot-controller-artifacts
+          path: infra/hetzner-robot-controller
+
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: actions/download-artifact@v4
@@ -2669,6 +2113,16 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
+          if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
+            # The hetzner-robot-controller image pin lives in the
+            # mgmt-cluster raw manifest, not in values-managed-common
+            # (the controller runs on the mgmt cluster, not on the
+            # workload). Anchor the substitution on the
+            # `ghcr.io/tuist/tuist-hetzner-robot-controller:` prefix
+            # so we don't accidentally rewrite an unrelated line.
+            sed -i -E "s|(image: ghcr\.io/tuist/tuist-hetzner-robot-controller):[^\"[:space:]]+|\1:${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}|" \
+              infra/k8s/mgmt/hetzner-robot-controller.yaml
+          fi
 
       - name: Download runner-image artifacts
         # The artifact's least-common archive root is `infra`, covering
@@ -2677,6 +2131,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: runner-image-artifacts
+          path: infra
+
+      - name: Download linux-runner-image artifacts
+        # Same `infra` root as runner-image above: the artifact carries
+        # linux-runner-image/CHANGELOG.md and helm/tuist values files.
+        if: needs.check-releases.outputs.linux-runner-image-should-release == 'true' && needs.release-linux-runner-image.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-runner-image-artifacts
           path: infra
 
       - name: Create tags for successfully released components
@@ -2688,7 +2151,7 @@ jobs:
           if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.app-next-version }}
           fi
-          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.server-next-version }}
           fi
           if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
@@ -2709,11 +2172,17 @@ jobs:
           if [ "${{ needs.check-releases.outputs.runners-controller-should-release }}" == "true" ] && [ "${{ needs.release-runners-controller.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.runners-controller-next-version }}
           fi
+          if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
+            git tag ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}
+          fi
           if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
           fi
           if [ "${{ needs.check-releases.outputs.runner-image-should-release }}" == "true" ] && [ "${{ needs.release-runner-image.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.runner-image-next-version }}
+          fi
+          if [ "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" == "true" ] && [ "${{ needs.release-linux-runner-image.result }}" == "success" ]; then
+            git tag ${{ needs.check-releases.outputs.linux-runner-image-next-version }}
           fi
 
       - name: Create CLI GitHub Release
@@ -2753,7 +2222,7 @@ jobs:
             app/build/artifacts/Tuist.dmg
 
       - name: Create Server GitHub Release
-        if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
+        if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success' && needs.release-server-manifest.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
@@ -2813,7 +2282,9 @@ jobs:
           name: Helm Chart ${{ needs.check-releases.outputs.helm-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.helm-next-version }}
           body: |
-            OCI registry: `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            OCI registries:
+            - `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            - `oci://ghcr.io/tuist/charts/kura:${{ needs.check-releases.outputs.helm-next-version-number }}`
 
             ${{ needs.release-helm.outputs.release-notes }}
 
@@ -2843,6 +2314,19 @@ jobs:
 
             ${{ needs.release-runners-controller.outputs.release-notes }}
 
+      - name: Create hetzner-robot-controller GitHub Release
+        if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true' && needs.release-hetzner-robot-controller.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: Hetzner Robot Controller ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-hetzner-robot-controller:${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}`
+
+            ${{ needs.release-hetzner-robot-controller.outputs.release-notes }}
+
       - name: Create xcresult-processor-image GitHub Release
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: softprops/action-gh-release@v2
@@ -2865,9 +2349,23 @@ jobs:
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
-            Tart image: `ghcr.io/tuist/tuist-runner:${{ needs.check-releases.outputs.runner-image-next-version-number }}`
+            Active runner image tags:
+            ${{ needs.release-runner-image.outputs.images }}
 
             ${{ needs.release-runner-image.outputs.release-notes }}
+
+      - name: Create linux-runner-image GitHub Release
+        if: needs.check-releases.outputs.linux-runner-image-should-release == 'true' && needs.release-linux-runner-image.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          name: Linux Runner Image ${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.linux-runner-image-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}`
+
+            ${{ needs.release-linux-runner-image.outputs.release-notes }}
 
       - name: Trigger Homebrew Formula Update
         if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
@@ -2900,7 +2398,7 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
             git add server/CHANGELOG.md
             FILES_ADDED=true
           fi
@@ -2910,7 +2408,7 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
             git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock
             FILES_ADDED=true
           fi
@@ -2937,7 +2435,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.helm-should-release }}" == "true" ] && [ "${{ needs.release-helm.result }}" == "success" ]; then
-            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml
+            git add infra/helm/CHANGELOG.md infra/helm/tuist/Chart.yaml kura/ops/helm/kura/Chart.yaml
             FILES_ADDED=true
           fi
 
@@ -2948,6 +2446,17 @@ jobs:
 
           if [ "${{ needs.check-releases.outputs.runners-controller-should-release }}" == "true" ] && [ "${{ needs.release-runners-controller.result }}" == "success" ]; then
             git add infra/runners-controller/CHANGELOG.md infra/helm/tuist/values-managed-common.yaml
+            FILES_ADDED=true
+          fi
+
+          if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
+            # The hetzner-robot-controller image pin lives on the
+            # mgmt-cluster raw manifest, not values-managed-common,
+            # because the controller runs on the mgmt cluster (not
+            # alongside the Tuist server).
+            git add \
+              infra/hetzner-robot-controller/CHANGELOG.md \
+              infra/k8s/mgmt/hetzner-robot-controller.yaml
             FILES_ADDED=true
           fi
 
@@ -2970,6 +2479,20 @@ jobs:
             FILES_ADDED=true
           fi
 
+          if [ "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" == "true" ] && [ "${{ needs.release-linux-runner-image.result }}" == "success" ]; then
+            # Same shape as the macOS runner-image stage above: only
+            # the env files whose runnersFleetLinux.pools[].runnerImage
+            # already carries a non-empty pin (today: staging) get
+            # rewritten. canary/production come online once those envs
+            # have their pin seeded.
+            git add \
+              infra/linux-runner-image/CHANGELOG.md \
+              infra/helm/tuist/values-managed-staging.yaml \
+              infra/helm/tuist/values-managed-canary.yaml \
+              infra/helm/tuist/values-managed-production.yaml
+            FILES_ADDED=true
+          fi
+
           # Only commit if files were added
           if [ "$FILES_ADDED" = "true" ]; then
             # Check if there are actually changes to commit
@@ -2982,13 +2505,13 @@ jobs:
               if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist App ${{ needs.check-releases.outputs.app-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist Server ${{ needs.check-releases.outputs.server-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist Cache ${{ needs.check-releases.outputs.cache-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Kura ${{ needs.check-releases.outputs.kura-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
@@ -3009,11 +2532,17 @@ jobs:
               if [ "${{ needs.check-releases.outputs.runners-controller-should-release }}" == "true" ] && [ "${{ needs.release-runners-controller.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Runners Controller ${{ needs.check-releases.outputs.runners-controller-next-version }}"
               fi
+              if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG Hetzner Robot Controller ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}"
+              fi
               if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.runner-image-should-release }}" == "true" ] && [ "${{ needs.release-runner-image.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Runner Image ${{ needs.check-releases.outputs.runner-image-next-version }}"
+              fi
+              if [ "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" == "true" ] && [ "${{ needs.release-linux-runner-image.result }}" == "success" ]; then
+                COMMIT_MSG="$COMMIT_MSG Linux Runner Image ${{ needs.check-releases.outputs.linux-runner-image-next-version }}"
               fi
 
               git commit -m "$COMMIT_MSG"

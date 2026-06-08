@@ -14,6 +14,20 @@ defmodule Tuist.GitHub.App do
   alias Tuist.OAuth2.SSRFGuard
   alias Tuist.VCS
 
+  @doc """
+  Returns a short-lived (default 10 min) signed App JWT for calling
+  `/app/*` REST endpoints (installation token issuance, App-wide
+  webhook delivery introspection, etc.). Use this — not an
+  installation token — for endpoints that operate on the App
+  itself rather than on a specific installation.
+  """
+  def get_jwt(opts \\ []) do
+    case Keyword.get(opts, :credentials, VCS.github_app_credentials()) do
+      nil -> {:error, "GitHub App is not configured"}
+      creds -> {:ok, generate_app_jwt(creds, opts)}
+    end
+  end
+
   def get_installation_token(installation, opts \\ [])
 
   def get_installation_token(%{installation_id: installation_id} = installation, opts) when is_binary(installation_id) do
@@ -142,8 +156,7 @@ defmodule Tuist.GitHub.App do
       req_opts =
         [
           url: pinned_url,
-          headers: headers,
-          finch: Tuist.Finch
+          headers: headers
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
@@ -165,7 +178,11 @@ defmodule Tuist.GitHub.App do
 
   # Skip SSRF pinning for the canonical github.com REST host; pin every
   # GHES instance, since their hostnames are user-controlled.
-  defp pin_for_request(url, "https://api.github.com"), do: {:ok, url, []}
+  #
+  # github.com uses the shared `Tuist.Finch` pool. GHES uses Req's default
+  # pool because the per-host `:connect_options` (SNI / cert hostname) are
+  # mutually exclusive with a user-supplied `:finch` pool.
+  defp pin_for_request(url, "https://api.github.com"), do: {:ok, url, [finch: Tuist.Finch]}
 
   defp pin_for_request(url, _api_url) do
     case SSRFGuard.pin(url) do

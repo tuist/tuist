@@ -48,7 +48,7 @@ defmodule TuistWeb.API.AccountTokensController do
                description: "A scope string in format entity:object:access_level."
              },
              description: "The scopes for the new account token.",
-             example: ["project:cache:read", "project:builds:write"]
+             example: ["account:cache:write", "project:builds:write"]
            },
            name: %Schema{
              type: :string,

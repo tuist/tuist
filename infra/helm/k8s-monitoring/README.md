@@ -5,8 +5,9 @@ Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm)
 | Signal | Source |
 |---|---|
 | Server app metrics | Auto-discovered via `prometheus.io/scrape=true` annotation on the server pods |
-| Server traces | OTLP gRPC :4317 → Grafana Cloud Tempo |
+| Application traces | OTLP gRPC :4317 for server/processor and OTLP HTTP :4318 for managed Kura → Grafana Cloud Tempo |
 | Server logs | stdout tailed from `/var/log/pods` by a per-node Alloy DaemonSet → Grafana Cloud Loki |
+| Node logs | host journald (`containerd`, `kubelet`, kernel) read from `/var/log/journal` by the same DaemonSet → Grafana Cloud Loki |
 | kube-state-metrics | Deployed + scraped (workload / pod / deployment / replica state) |
 | node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
 | kubelet + cAdvisor | Scraped (container resource usage) |
@@ -16,7 +17,7 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 
 ## Install
 
-Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) — it runs before every server deploy and is idempotent, so the chart tracks whatever's committed on `main`. The first deploy against a new cluster brings it up; subsequent deploys are no-op upgrade checks.
+Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
 
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
@@ -41,15 +42,23 @@ Prerequisites:
 3. **Grafana Cloud endpoints / usernames** — baked into `values.yaml`. Sanity-check they match the stack before installing a fresh cluster.
 4. **Worker nodes sized for the footprint.** Four Alloy DaemonSets × 2 workers + kube-state-metrics + node-exporter want ~1.5 GB per node on top of the app. Staging/canary clusters run on `cpx31` (8 GB/node), production on `ccx23` (16 GB/node). `cpx22` (4 GB) is too small — a rolling server update can't fit a fresh pod alongside the old one while the Alloy DaemonSets are pinned to the node.
 
-## Server-side wiring
+## Workload-side wiring
 
-The managed Tuist server pushes OTLP spans to the `alloy-receiver` Service:
+The managed Tuist server and processor push OTLP gRPC spans to the `alloy-receiver` Service:
 
 ```
 http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 ```
 
 `infra/helm/tuist/values-managed-{staging,canary,production}.yaml` set `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` to this address.
+
+Managed Kura pods push OTLP HTTP spans to the same Service:
+
+```
+http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+```
+
+`infra/helm/tuist/values-managed-common.yaml` and `infra/helm/tuist/values-managed-kura-region.yaml` pass this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
@@ -58,9 +67,9 @@ Server pod metrics are discovered automatically: the server Deployment carries `
 Four Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
-- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`
+- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
 - `alloy-singleton` — cluster events (singleton so events aren't duplicated)
-- `alloy-receiver` — OTLP gRPC receiver for the server's traces
+- `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
 
 Plus the telemetry services themselves:
 
@@ -87,7 +96,7 @@ kubectl -n observability get alloy,statefulset,daemonset
 # Grafana Cloud token secret materialized
 kubectl -n observability get externalsecret,secret k8s-monitoring-grafana-cloud
 
-# Alloy-receiver is listening on :4317
+# Alloy-receiver is listening on :4317 and :4318
 kubectl -n observability get svc k8s-monitoring-alloy-receiver
 
 # Cluster metrics flowing (check from inside alloy-metrics pod)
@@ -110,7 +119,7 @@ Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset nam
 ## RBAC — what access does this chart get?
 
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
-- `alloy-logs` — node-local hostPath to `/var/log/pods`. A compromised pod can only read logs from the single node it runs on.
+- `alloy-logs` — node-local hostPath to `/var/log/pods` (pod logs) and `/var/log/journal` (host journald: `containerd` / `kubelet` / kernel). No extra Kubernetes API access; a compromised pod can still only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).

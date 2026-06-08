@@ -89,7 +89,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLive do
     query = ~s({namespace="kura", app_kubernetes_io_instance="#{ref}"})
 
     left =
-      Jason.encode!(%{
+      JSON.encode!(%{
         "datasource" => @grafana_logs_datasource,
         "queries" => [
           %{

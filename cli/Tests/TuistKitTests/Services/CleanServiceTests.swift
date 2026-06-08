@@ -40,6 +40,11 @@ final class CleanServiceTests: TuistUnitTestCase {
         cleanProjectCacheService = .init()
         getCacheEndpointsService = .init()
         serverAuthenticationController = .init()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(project: .generated(.test()))
+            )
 
         subject = CleanService(
             rootDirectoryLocator: rootDirectoryLocator,
@@ -67,6 +72,21 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverAuthenticationController = nil
         subject = nil
         super.tearDown()
+    }
+
+    private func makeSubject(configLoader: MockConfigLoading? = nil) -> CleanService {
+        CleanService(
+            rootDirectoryLocator: rootDirectoryLocator,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader ?? self.configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            cleanCacheService: cleanCacheService,
+            cleanProjectCacheService: cleanProjectCacheService,
+            getCacheEndpointsService: getCacheEndpointsService,
+            serverAuthenticationController: serverAuthenticationController,
+            fileSystem: FileSystem()
+        )
     }
 
     func test_run_with_category_cleans_category() async throws {
@@ -178,6 +198,57 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertTrue(localPathsExists[1])
     }
 
+    func test_run_with_dependencies_cleans_custom_scratch_directory() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let customScratchDirectory = rootDirectory.appending(components: "custom", "scratch")
+        let localPaths = try await createFiles([
+            "custom/scratch/file", "Tuist/ProjectDescriptionHelpers/File.swift",
+        ])
+        let customConfigLoader = MockConfigLoading()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                rootDirectory
+                    .appending(components: "Tuist", Constants.SwiftPackageManager.packageSwiftName)
+            )
+        given(customConfigLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .generated(
+                        .test(
+                            installOptions: .test(
+                                passthroughSwiftPackageManagerArguments: [
+                                    "--scratch-path",
+                                    customScratchDirectory.pathString,
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
+        let subject = makeSubject(configLoader: customConfigLoader)
+
+        // When
+        try await subject.run(
+            categories: [TuistCleanCategory.dependencies],
+            remote: false,
+            path: nil
+        )
+
+        // Then
+        let localPathsExists = try await localPaths.concurrentMap {
+            try await self.fileSystem.exists($0)
+        }
+        XCTAssertFalse(localPathsExists[0])
+        XCTAssertTrue(localPathsExists[1])
+    }
+
     func test_run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try await createFiles(["tuist/Manifests/hash"])
@@ -225,8 +296,9 @@ final class CleanServiceTests: TuistUnitTestCase {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
                 // Given
                 let url = URL(string: "https://cloud.com")!
+                let customConfigLoader = MockConfigLoading()
 
-                given(configLoader)
+                given(customConfigLoader)
                     .loadConfig(path: .any)
                     .willReturn(
                         Tuist.test(
@@ -257,6 +329,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
+                let subject = makeSubject(configLoader: customConfigLoader)
 
                 // When
                 try await subject.run(
@@ -281,8 +354,9 @@ final class CleanServiceTests: TuistUnitTestCase {
                 // Given
                 let serverURL = URL(string: "https://cloud.com")!
                 let cacheEndpoint = "https://cache1.cloud.com"
+                let customConfigLoader = MockConfigLoading()
 
-                given(configLoader)
+                given(customConfigLoader)
                     .loadConfig(path: .any)
                     .willReturn(
                         Tuist.test(
@@ -323,6 +397,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
+                let subject = makeSubject(configLoader: customConfigLoader)
 
                 // When
                 try await subject.run(

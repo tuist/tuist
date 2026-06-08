@@ -282,6 +282,10 @@ defmodule TuistWeb.API.TestCaseRunsController do
              is_ci: %Schema{type: :boolean, description: "Whether the run was on CI."},
              is_flaky: %Schema{type: :boolean, description: "Whether the run was flaky."},
              is_new: %Schema{type: :boolean, description: "Whether this was a new test case."},
+             is_quarantined: %Schema{
+               type: :boolean,
+               description: "Whether the test case was quarantined at the time of the run."
+             },
              scheme: %Schema{type: :string, nullable: true, description: "Build scheme."},
              git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
              git_commit_sha: %Schema{
@@ -391,6 +395,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
              :is_ci,
              :is_flaky,
              :is_new,
+             :is_quarantined,
              :failures,
              :repetitions,
              :attachments
@@ -423,6 +428,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
             is_ci: run.is_ci,
             is_flaky: run.is_flaky,
             is_new: run.is_new,
+            is_quarantined: run.is_quarantined,
             scheme: run.scheme,
             git_branch: run.git_branch,
             git_commit_sha: run.git_commit_sha,
@@ -465,8 +471,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
   defp render_test_case_runs(conn, filters, page, page_size) do
     options = %{
       filters: filters,
-      order_by: [:ran_at],
-      order_directions: [:desc],
+      order_by: [:ran_at, :id],
+      order_directions: [:desc, :asc],
       page: page,
       page_size: page_size
     }
@@ -486,6 +492,7 @@ defmodule TuistWeb.API.TestCaseRunsController do
             is_ci: run.is_ci,
             is_flaky: run.is_flaky,
             is_new: run.is_new,
+            is_quarantined: run.is_quarantined,
             scheme: run.scheme,
             git_branch: run.git_branch,
             git_commit_sha: run.git_commit_sha,

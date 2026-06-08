@@ -22,6 +22,9 @@ defmodule Tuist do
       Docs.Paths,
       Docs.Redirects,
       Locale,
+      # Single source of truth for the oldest supported CLI version, referenced by
+      # the deprecation warning plug (TuistWeb), the docs, and the gate.
+      CLIVersions,
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.Changelog.OgImage,
@@ -32,6 +35,8 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      # Read-only database inspection backing the /ops/db LiveView.
+      Ops.Database,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -48,6 +53,8 @@ defmodule Tuist do
       Kura,
       Kura.Deployment,
       Kura.Server,
+      Kura.Usage,
+      Kura.UsageEvent,
       Kura.Provisioner,
       Kura.Provisioner.KubernetesController,
       Kura.Regions,
@@ -69,6 +76,7 @@ defmodule Tuist do
       Tests,
       Tests.Test,
       Tests.TestCase,
+      Tests.TestRunQuery,
       Tests.TestRunDestination,
       Tests.Analytics,
       Tests.Workers.ProcessXcresultWorker,
@@ -120,6 +128,11 @@ defmodule Tuist do
       Alerts.Workers.AlertWorker,
       Automations,
       Automations.Alerts.Alert,
+      Webhooks,
+      Webhooks.Dispatcher,
+      Webhooks.Signature,
+      Webhooks.WebhookEndpoint,
+      Webhooks.Workers.DeliveryWorker,
       Slack,
       Slack.Client,
       Slack.Installation,
@@ -133,6 +146,7 @@ defmodule Tuist do
       # a good rule of thumb is to ask if they can work as a standalone library.
       Analytics,
       Environment,
+      FeatureFlags,
       Ecto.Utils,
       GitHub.Releases,
       Incidents,
@@ -156,6 +170,7 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
+      OAuth.Introspection,
       OAuth2.SSOClient,
       OAuth2.SSRFGuard,
       SCIM,
@@ -168,11 +183,30 @@ defmodule Tuist do
       # lifecycle via the RunnerPool CRD. Workflow_job lifecycle
       # rows live in ClickHouse (`runner_jobs`).
       Runners,
+      Runners.Analytics,
+      Runners.Billing,
+      Runners.Catalog,
       Runners.Dispatch,
+      Runners.Workers.DispatchWorker,
+      Runners.Workers.WebhookRedeliveryWorker,
+      Runners.Workers.ArchiveLogsWorker,
+      Runners.Workers.FetchLogsWorker,
+      Runners.Workers.PruneArchivedLogsWorker,
       Runners.Claims,
       Runners.Claim,
       Runners.Jobs,
       Runners.Job,
+      Runners.JobLogs,
+      Runners.JobLog,
+      Runners.LogFormatter,
+      Runners.JobSteps,
+      Runners.JobStep,
+      Runners.Profile,
+      Runners.Profiles,
+      Runners.RunnerSession,
+      Runners.RunnerSessions,
+      Runners.PromExPlugin,
+      Runners.Telemetry,
       Kubernetes.Client
     ]
 end

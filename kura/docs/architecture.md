@@ -56,6 +56,7 @@ Each node owns one persistent volume, runs one writer process, and exchanges tra
 | Traffic state, drain, single-writer fencing | `src/runtime.rs` |
 | Configuration + auto-derived defaults | `src/config.rs`, `src/constants.rs` |
 | Metrics, traces, logs, error reporting | `src/metrics.rs`, `src/telemetry.rs`, `src/analytics.rs` |
+| Usage metering | `src/usage.rs` |
 | Optional Lua extension hook | `src/extension.rs` |
 | Helm chart, rollout scripts, observability config | `ops/` |
 | End-to-end and shell-based tests | `test/e2e/`, `spec/e2e/` |
@@ -69,6 +70,23 @@ Kura splits durable state into two planes so that the hot path is simple and the
 
 The metadata store uses tunable RocksDB budgets (`KURA_METADATA_STORE_*`) that auto-derive from the host's memory and FD limits.
 
+Every public HTTP cache write and read is scoped by `tenant_id`, with an optional `namespace_id`. Namespace-scoped requests land in that namespace directly. Tenant-scoped requests omit `namespace_id` and Kura stores them under an internal empty namespace key, so policy hooks can still distinguish tenant-only traffic from project-like traffic without a special reserved namespace.
+
+## Memory Pressure And Shedding
+
+Kura treats memory as an admission-controlled shared resource, not just a set of independent caches:
+
+- **RocksDB** block cache and write buffers are explicitly budgeted from the host memory limit.
+- The in-process **manifest cache** is byte-bounded and trimmed more aggressively as memory pressure rises.
+- The **existence cache** and **segment handle cache** are bounded caches that also shed entries under pressure. The handle cache covers immutable segment and blob files, so repeated reads avoid reopening hot files while staying within the same configured FD budget.
+- Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator. The public listener first peeks and parses request headers with `httparse` without consuming bytes. Only known artifact GET routes that match the local tenant, pass extension access checks, and resolve to a file-backed local artifact are consumed by the accelerator. Everything else, including HTTPS, HTTP/2, non-GET requests, inline artifacts, cold misses, unsupported routes, saturated accelerator capacity, and non-Linux builds, falls through to the normal Axum/Hyper path. Accelerated transfers are bounded by `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` and use `splice` by default, with `sendfile` available as a runtime mode. Accelerated responses are framed with `content-length` and keep the connection alive, so a client can pipeline further requests on the same socket; the accelerator only forces `connection: close` when the client requests it or sends an unconsumed request body, and an idle reused connection is dropped after a bounded keep-alive timeout. A follow-up request that is not accelerable is handed back to the Axum/Hyper path mid-connection without consuming its bytes.
+- The normal Axum/Hyper path still serves public HTTPS and fallback HTTP traffic. It prefers mmap-backed `Bytes` chunks for file-backed artifacts only when a bounded memory budget is available **and the region is already resident in the page cache** (checked with `mincore`), so hot fallback responses avoid copying artifact bytes into heap buffers. Hot mmap responses are yielded in 1 MiB chunks to keep Hyper body overhead low. Cold or budget-constrained reads fall back to the streaming reader path, which isolates blocking reads with `spawn_blocking` and keeps each read at 512 KiB. REAPI ByteStream reads stay **streaming**, so they do not materialize whole artifacts in memory.
+- REAPI surfaces that must build whole responses in memory (`BatchReadBlobs`, `GetActionResult` inline expansions, action-cache proto loads) use two gates:
+  1. a **per-request materialization budget** that shrinks from normal → constrained → critical memory pressure
+  2. a **shared concurrent materialization pool** across the node, so many concurrent inline reads cannot oversubscribe memory together
+
+When a request would exceed either REAPI gate, Kura returns `RESOURCE_EXHAUSTED` instead of continuing toward an OOM path. Under **critical** pressure it also pauses optional background work, trims opportunistic caches to zero, and clears extension authz/authn caches because they are performance state, not correctness state.
+
 ## Replication Model
 
 Replication is **leaderless and eventually consistent**:
@@ -76,6 +94,9 @@ Replication is **leaderless and eventually consistent**:
 - Every node is a writer for its own clients.
 - A successful local write enqueues an `OutboxMessage` in RocksDB inside the same atomic batch as the metadata commit.
 - A background **outbox worker** drains the queue and PUTs each message to the corresponding peer over the internal plane. On success, the message is deleted; on failure it stays queued and the worker retries.
+- Large peer artifact body transfers can be application-throttled with `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND`. The limiter is shared per node across live replication uploads, replication ingests, and bootstrap artifact fetches/responses. The configured value is a ceiling; the effective sync rate is divided by the larger of `public_inflight + 1` and the recent public request latency EWMA over `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`. The latency EWMA is sampled at time-to-first-byte (when the response is ready to start streaming), not at body completion, so large but healthy downloads do not register as latency and over-throttle sync; their concurrency is already captured by `public_inflight`. Public inflight includes non-probe public HTTP requests plus gRPC cache RPCs. Internal replication and probe requests do not count as public load. This lets sync work use its full budget while the node is quiet and back off automatically when public cache traffic is active or slow.
+
+Two observability surfaces support capacity and sharding decisions: `kura_public_request_latency_seconds` is a histogram of time-to-first-byte for public requests across both transports (`transport` is `http` or `grpc`, labeled by `route`), and `kura_artifact_egress_throughput_bytes_per_second` is a histogram of achieved per-response egress throughput by `producer`. Together with the aggregate `kura_artifact_egress_bytes_total` rate they indicate when a region is bandwidth-bound and a good candidate for sharding across more primary pods.
 - Conflicts are resolved by `version_ms` (last-writer-wins per key); stale applies are rejected with `ArtifactApplyOutcome::IgnoredStale`.
 
 Newly joined nodes catch up by **bootstrapping from a peer**: paginated manifest and tombstone fetches followed by lazy artifact body fetches. Bootstrap re-uses the same apply paths as live replication, so the same conflict rules apply.
@@ -151,7 +172,11 @@ The rollout gate explicitly assumes only that it can fetch `/status/rollout` fro
 Each node exposes:
 
 - Prometheus metrics on `/metrics` (replication latency, FD pressure, manifest cache, RocksDB internals, outbox depth, traffic state, rollout-relevant counters).
+- HTTP request counters use bounded route-template and status labels, request methods stay on spans, client countries are counted separately on `kura_http_client_requests_total`, and `kura_http_request_duration_seconds` aggregates public non-probe latency without a route label to avoid multiplying route cardinality by histogram buckets.
 - OpenTelemetry traces for replication and request handling.
+- Control-plane usage metering for public cache traffic when configured through `KURA_CONTROL_PLANE_URL` and client credentials. Kura aggregates bytes and request counts into bounded in-memory windows, persists closed windows into a dedicated RocksDB usage outbox, and pushes batches to `/_internal/kura/usage`. Delivery pauses under critical memory pressure and is at least once, with deterministic event ids for control-plane deduplication.
+- Client geographic attribution sourced from the `X-Forwarded-For` / `X-Real-IP` headers and resolved against the DB-IP Lite City MMDB vendored into the container image at `/opt/geoip/dbip-city-lite.mmdb` (`src/geoip.rs`). Country (ISO 3166-1) lands on both the `kura_http_client_requests_total` metric (as the `client_country` label) and `http.request` spans (as `geo.country.iso_code`); subdivision (ISO 3166-2) lands on spans only (as `geo.region.iso_code`), deliberately kept off metrics to bound label cardinality. Span and Resource attributes follow the OpenTelemetry `geo.*` semantic conventions. On by default; soft-fails when the database file is absent. A background task refreshes the in-memory copy every `KURA_GEOIP_REFRESH_INTERVAL_SECS` seconds (default `86400`, `0` disables) with download/decompress sizes capped (128 MiB / 256 MiB) to stay within Kura's resource discipline.
+- Node geographic attribution: each pod resolves its own country and subdivision at startup (`src/node_location.rs`), probing the egress IP only when the operator overrides do not already cover the missing fields. Country falls back to an explicit mapping for the synthetic deployment labels we use today (`eu-central` -> `DE`, `us-east` / `us-west` -> `US`) or to a real country prefix already embedded in the region label (`fr-par` -> `FR`, `nl-ams` -> `NL`). The result stamps `geo.country.iso_code` and `geo.region.iso_code` on the OTel Resource (next to the unchanged `kura.region` cloud deployment region) so every span carries them, and also lands on the low-cardinality `kura_node_geo_info` metric for Grafana maps. Combined with the request-side `geo.country.iso_code` / `geo.region.iso_code`, traces have both endpoints needed to compute geographic distance.
 - Structured logs intended for Loki/Promtail.
 - Optional Sentry forwarding for panics and `tracing::error!` events.
 
@@ -164,6 +189,8 @@ All configuration is environment-driven (`src/config.rs`). The full table lives 
 - Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_GRPC_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
 - Peer plane: `KURA_PEERS`, `KURA_DISCOVERY_DNS_NAME`, optional `KURA_INTERNAL_TLS_*` for peer mTLS.
 - Resource budgets: file-descriptor pool, memory soft/hard limits, manifest cache, RocksDB write buffer pool, all with `auto` defaults derived from the host.
+- Peer sync bandwidth: `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` sets the aggregate peer artifact body traffic ceiling per node when set above `0`; Kura adapts the effective rate downward under public HTTP or gRPC load, and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` controls the latency target for additional backoff.
+- Same-port accelerated file serving: `KURA_ACCELERATED_FILE_SERVING_ENABLED`, `KURA_ACCELERATED_FILE_SERVING_MODE`, `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT`, and `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` bound the Linux plaintext HTTP/1 artifact fast path while preserving the Axum/Hyper fallback path on the same public port.
 - Drain timing: `KURA_DRAIN_COMPLETION_TIMEOUT_MS`.
 
 When budget vars are unset Kura inspects `RLIMIT_NOFILE`, the cgroup memory limit, and detected CPU count to pick safe defaults.

@@ -35,7 +35,7 @@ defmodule Tuist.Docs.Sidebar do
   translations =
     if File.exists?(en_path) do
       {:ok, en_content} = File.read(en_path)
-      {:ok, en_data} = Jason.decode(en_content)
+      {:ok, en_data} = JSON.decode(en_content)
       en_strings = extract_texts.(extract_texts, en_data, [])
 
       @strings_dir
@@ -45,7 +45,7 @@ defmodule Tuist.Docs.Sidebar do
       |> Map.new(fn path ->
         locale = Path.basename(path, ".json")
         {:ok, content} = File.read(path)
-        {:ok, data} = Jason.decode(content)
+        {:ok, data} = JSON.decode(content)
         locale_texts = extract_texts.(extract_texts, data, [])
 
         label_map =
@@ -357,6 +357,7 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
+          %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
           %Item{
             label: "Git forges",
             items: [
@@ -377,9 +378,8 @@ defmodule Tuist.Docs.Sidebar do
           %Item{
             label: "Self-hosting",
             items: [
-              %Item{label: "Installation", slug: "/en/guides/server/self-host/install"},
-              %Item{label: "Cache nodes", slug: "/en/guides/cache/self-host"},
-              %Item{label: "Cache architecture", slug: "/en/guides/cache/architecture"},
+              %Item{label: "Control plane", slug: "/en/guides/server/self-host/control-plane"},
+              %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
               %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
             ]
           }
@@ -485,6 +485,7 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
+          %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},
           %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}

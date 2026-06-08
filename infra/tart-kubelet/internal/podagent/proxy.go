@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -132,6 +133,7 @@ func NewForwarder(listenAddr string, resolve func() (string, error), opts Forwar
 			DialContext: (&net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 30 * time.Second,
+				Control:   bindDialToTargetInterface,
 			}).DialContext,
 			ResponseHeaderTimeout: 10 * time.Second,
 			IdleConnTimeout:       60 * time.Second,
@@ -221,9 +223,12 @@ func sourceCIDRFilter(allowed []*net.IPNet, next http.Handler) http.Handler {
 }
 
 // DefaultScrapeAllowedCIDRs is the safe baseline allowlist for the
-// metrics proxy: RFC1918 IPv4 ranges, IPv4 link-local, IPv4 loopback,
-// IPv6 unique-local, IPv6 link-local, and IPv6 loopback. This covers
-// every realistic cluster Pod / Node CIDR while clamping out the
+// metrics proxy: RFC1918 IPv4 ranges, the Tailscale CGNAT range
+// (100.64/10 — what tailnet clients dial in on when the cluster
+// reaches the Mac mini via Tailscale's subnet router), IPv4 link-
+// local, IPv4 loopback, IPv6 unique-local, IPv6 link-local, and
+// IPv6 loopback. Covers every realistic cluster Pod / Node CIDR and
+// the tailnet-traversing scraper path while clamping out the
 // public WAN. Operators on clusters that route Pod traffic through
 // public IPs (rare) need to override via --scrape-allowed-cidr.
 func DefaultScrapeAllowedCIDRs() []*net.IPNet {
@@ -231,6 +236,7 @@ func DefaultScrapeAllowedCIDRs() []*net.IPNet {
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
+		"100.64.0.0/10",
 		"169.254.0.0/16",
 		"127.0.0.0/8",
 		"fc00::/7",
@@ -293,3 +299,71 @@ func (c *cachedResolver) get() (string, error) {
 // Director uses to ferry resolution errors over to the
 // ErrorHandler.
 type resolveErrKey struct{}
+
+// bindDialToTargetInterface pins the forwarder's upstream connection to
+// the interface that owns the directly-connected route to the Tart VM.
+//
+// On a Scaleway Apple Silicon Mac mini the primary interface is the
+// public WAN (en0); the Tart VM lives on a vmnet bridge whose route the
+// macOS kernel marks IFSCOPE. With scoped routing on (the default,
+// net.inet.ip.scopedroute=1) an unscoped connect() — what Go's dialer
+// issues when no interface is set — resolves against the primary
+// interface's scope and fails with EHOSTUNREACH for the VM, even though
+// the bridge is up and a plain `curl` reaches it. Binding the socket to
+// the bridge interface forces the kernel to honour the scoped route.
+//
+// It's a no-op when the target isn't an IP literal or isn't on any
+// directly-connected interface (let normal routing handle it), and on
+// non-darwin platforms (setBoundInterface is a no-op there).
+func bindDialToTargetInterface(_, address string, c syscall.RawConn) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		host = address
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil
+	}
+	ifIndex, ok := directlyConnectedInterfaceIndex(ip)
+	if !ok {
+		return nil
+	}
+
+	var sockErr error
+	if err := c.Control(func(fd uintptr) {
+		sockErr = setBoundInterface(int(fd), ip, ifIndex)
+	}); err != nil {
+		return err
+	}
+	return sockErr
+}
+
+// directlyConnectedInterfaceIndex returns the index of the UP interface
+// whose subnet contains ip — i.e. the interface ip is directly reachable
+// on. Returns ok=false when no interface owns a matching subnet so the
+// caller leaves routing to the kernel's default lookup.
+func directlyConnectedInterfaceIndex(ip net.IP) (int, bool) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return 0, false
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if ipNet.Contains(ip) {
+				return iface.Index, true
+			}
+		}
+	}
+	return 0, false
+}

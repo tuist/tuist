@@ -76,7 +76,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
         cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
         custom_tags: Keyword.get(attrs, :custom_tags, []),
-        custom_values: Keyword.get(attrs, :custom_values, %{})
+        custom_values: Keyword.get(attrs, :custom_values, %{}),
+        generation_id: Keyword.get(attrs, :generation_id)
       })
 
     Tuist.Builds.Build.Buffer.flush()
@@ -230,6 +231,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       status: Keyword.get(attrs, :status, 0),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
       is_new: Keyword.get(attrs, :is_new, false),
+      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
       duration: Keyword.get(attrs, :duration, 100),
       ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())

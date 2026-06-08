@@ -38,9 +38,11 @@ defmodule Tuist.Docs.CLI do
     cache = Keyword.get(opts, :cache, :tuist)
 
     case Cachex.get(cache, @cache_key) do
+      nil -> fetch_and_cache(cache)
       {:ok, nil} -> fetch_and_cache(cache)
       {:ok, data} -> data
-      _ -> nil
+      {:error, _reason} -> nil
+      data -> data
     end
   end
 
@@ -102,7 +104,7 @@ defmodule Tuist.Docs.CLI do
         {:ok, body}
 
       {:ok, %{status: 200, body: body}} when is_binary(body) ->
-        Jason.decode(body)
+        JSON.decode(body)
 
       {:ok, %{status: status}} ->
         {:error, {:http_error, status}}

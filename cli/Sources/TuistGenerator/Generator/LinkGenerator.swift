@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import PathKit
+import TuistConstants
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -40,7 +41,7 @@ protocol LinkGenerating {
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws
+    ) throws -> [SideEffectDescriptor]
 }
 
 /// When generating build settings like "framework search path", some of the path might be relative to paths
@@ -80,8 +81,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         sourceRootPath: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupSearchAndIncludePaths(
+    ) throws -> [SideEffectDescriptor] {
+        let sideEffects = try setupSearchAndIncludePaths(
             target: target,
             pbxTarget: pbxTarget,
             sourceRootPath: sourceRootPath,
@@ -122,6 +123,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             pbxproj: pbxproj,
             fileElements: fileElements
         )
+
+        return sideEffects
     }
 
     private func setupSearchAndIncludePaths(
@@ -130,15 +133,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         sourceRootPath: AbsolutePath,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) throws {
-        try setupFrameworkSearchPath(
-            target: target,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
+    ) throws -> [SideEffectDescriptor] {
         try setupHeadersSearchPath(
             target: target,
             pbxTarget: pbxTarget,
@@ -170,6 +165,8 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             path: path,
             graphTraverser: graphTraverser
         )
+
+        return []
     }
 
     func generatePackages(
@@ -293,34 +290,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         pbxTarget.buildPhases.append(embedPhase)
     }
 
-    func setupFrameworkSearchPath(
-        target: Target,
-        pbxTarget: PBXTarget,
-        sourceRootPath: AbsolutePath,
-        path: AbsolutePath,
-        graphTraverser: GraphTraversing
-    ) throws {
-        let linkableModules = try graphTraverser.searchablePathDependencies(path: path, name: target.name).sorted()
-
-        let precompiledPaths = linkableModules.compactMap(\.precompiledPath)
-            .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
-        let sdkPaths = linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
-                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
-            } else {
-                return nil
-            }
-        }
-
-        let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
-        try setup(
-            setting: "FRAMEWORK_SEARCH_PATHS",
-            paths: uniquePaths,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
-        )
-    }
-
     func setupHeadersSearchPath(
         target: Target,
         pbxTarget: PBXTarget,
@@ -427,6 +396,22 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         }
         let value = SettingValue
             .array(["$(inherited)"] + paths.map { $0.xcodeValue(sourceRootPath: sourceRootPath) }.uniqued().sorted())
+        let newSetting = [name: value]
+        let helper = SettingsHelper()
+        for configuration in configurationList.buildConfigurations {
+            try helper.extend(buildSettings: &configuration.buildSettings, with: newSetting)
+        }
+    }
+
+    private func setup(
+        setting name: String,
+        values: [String],
+        pbxTarget: PBXTarget
+    ) throws {
+        guard let configurationList = pbxTarget.buildConfigurationList else {
+            throw LinkGeneratorError.missingConfigurationList(targetName: pbxTarget.name)
+        }
+        let value = SettingValue.array(["$(inherited)"] + values)
         let newSetting = [name: value]
         let helper = SettingsHelper()
         for configuration in configurationList.buildConfigurations {
