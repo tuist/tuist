@@ -639,8 +639,8 @@
 
   /* Divider */
   --noora-content-divider-line: light-dark(
-    var(--noora-neutral-light-500),
-    var(--noora-alpha-black)
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-900)
   );
 
   /* Charts */
