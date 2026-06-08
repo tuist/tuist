@@ -92,7 +92,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: macos-26
-    timeout-minutes: 50
+    timeout-minutes: 75
     permissions:
       contents: write
       id-token: write
@@ -1916,21 +1916,30 @@ jobs:
           name: cli-artifacts
 
       - name: Download CLI Linux x86_64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
 
       - name: Download CLI Linux aarch64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
 
       - name: Merge Linux artifacts into build directory
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         run: |
           # Append Linux checksums to main checksum files
           cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
