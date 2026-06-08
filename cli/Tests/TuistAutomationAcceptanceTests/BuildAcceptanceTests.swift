@@ -420,7 +420,9 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
         #expect(otherSwiftFlags.contains(where: {
             $0.contains(".build/prebuilts/swift-syntax/") && $0.contains("-MacroSupport/Modules")
         }))
-        #expect(otherSwiftFlags.contains(where: { $0.contains(".build/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include") }))
+        #expect(otherSwiftFlags.contains(where: {
+            $0.contains(".build/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include")
+        }))
 
         let librarySearchPaths = try #require(buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue)
         #expect(librarySearchPaths.contains(where: {
