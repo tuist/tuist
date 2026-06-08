@@ -3,3 +3,6 @@
 /log/
 /data/
 /target/
+
+# Bazel convenience symlinks.
+/bazel-*

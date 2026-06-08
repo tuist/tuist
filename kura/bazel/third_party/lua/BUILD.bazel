@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# Lua 5.4 compiled from the sources vendored in the `lua-src` crate (the same
+# sources mlua's `vendored` feature would build via cargo). We build it as a
+# first-class cc_library and link it into mlua-sys, instead of relying on
+# lua-src's build script, which resolves its source dir from a compile-time
+# env!("CARGO_MANIFEST_DIR") that does not survive Bazel sandboxing.
+#
+# LUA_USE_LINUX matches lua-src's Linux build (enables LUA_USE_POSIX and
+# LUA_USE_DLOPEN); dlopen requires -ldl at the final link. lua.c/luac.c (the
+# standalone interpreter/compiler mains) are not shipped by lua-src, so the
+# glob is exactly the embeddable library.
+# The lua-src crate repo is only visible by its canonical name from this (main)
+# repo; the filegroups are defined via crate.annotation in //:MODULE.bazel.
+cc_library(
+    name = "lua",
+    srcs = ["@@rules_rust++crate+crates__lua-src-550.0.0//:lua_c_srcs"],
+    hdrs = ["@@rules_rust++crate+crates__lua-src-550.0.0//:lua_hdrs"],
+    linkopts = ["-ldl"],
+    local_defines = ["LUA_USE_LINUX"],
+    visibility = ["//visibility:public"],
+)

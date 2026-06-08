@@ -56,25 +56,93 @@ jobs:
   compile:
     name: Compile
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # The compile gate is a Bazel build that dogfoods Kura as the remote cache. Kura runs as
+    # a normal `docker run` container (bazel/ci-kura-cache.sh) so it can be GRACEFULLY stopped
+    # (SIGTERM -> RocksDB flush) as the last step before its data dir is snapshotted by
+    # actions/cache — the restore/save split persists the action cache across runs. Bazel runs
+    # inside the dev image (bazel/linux-dev.Dockerfile, built in-step) because the cross-GCC
+    # toolchain is non-hermetic and must match the bookworm runtime; the build command is
+    # inlined (no wrapper script). Builds the lib + binary for BOTH Linux arches with
+    # warnings-as-errors (the old `cargo check` only checked x86_64); the test target compiles
+    # on the runner's native (x86_64) arch only — its test toolchain doesn't resolve when
+    # cross-built. The OCI image is intentionally not built here (a different cache keyspace).
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      # The action cache lives in Kura; persist Kura's data dir. Restore/save split so a red
+      # run still warms the next, and so the save happens AFTER Kura is gracefully stopped.
+      - name: Restore Kura cache (data dir)
+        id: kura-cache
+        uses: actions/cache/restore@v4
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: --force rust
-          working_directory: kura
+          path: ${{ runner.temp }}/kura-data
+          key: kura-compile-data-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
+          restore-keys: |
+            kura-compile-data-
 
-      - uses: Swatinem/rust-cache@v2
+      # Bazel's repository cache (downloaded crate sources) is not served by Kura's REAPI.
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@v4
         with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
+          path: ${{ runner.temp }}/bazel-repo
+          key: bazel-repo-compile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
+          restore-keys: |
+            bazel-repo-compile-
 
-      - name: Compile without warnings
-        run: env -u RUSTUP_TOOLCHAIN RUSTFLAGS="-D warnings" cargo check --locked --all-targets
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f bazel/linux-dev.Dockerfile -t kura-bazel-dev .
+
+      - name: Start Kura as the Bazel remote cache
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh start
+
+      - name: Compile (Bazel, both Linux arches, warnings-as-errors)
+        run: |
+          docker run --rm \
+            --network kura-bazel-ci-net \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-repo:/bazelrepo" \
+            kura-bazel-dev \
+            bash -c '
+              mkdir -p /bazelrepo
+              {
+                echo "common --repository_cache=/bazelrepo"
+                echo "common --http_timeout_scaling=8"
+                echo "common --remote_cache=grpc://kura-bazel-ci-cache:50051"
+                echo "common --remote_instance_name=kura-bazel-ci"
+                echo "common --remote_upload_local_results=true"
+                echo "common --remote_download_outputs=minimal"
+              } > /root/.bazelrc
+              ec=0
+              # lib + binary for both arches (cross-compile check)
+              for platform in //bazel/platforms:linux_x86_64 //bazel/platforms:linux_arm64; do
+                bazel build //:kura //:kura_lib -c opt --platforms="$platform" \
+                  --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings || ec=$?
+              done
+              # test code compiles on the runner (x86_64) arch — its test toolchain only
+              # resolves for the native arch, so the test target is not cross-built
+              bazel build //:kura_lib_test -c opt --platforms=//bazel/platforms:linux_x86_64 \
+                --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings || ec=$?
+              chmod -R a+rX /bazelrepo 2>/dev/null || true
+              exit $ec'
+
+      - name: Stop Kura and surface cache errors
+        if: always()
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh stop
+
+      - name: Save Kura cache (data dir)
+        if: always() && steps.kura-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-compile-data-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
 
   clippy:
     name: Clippy
