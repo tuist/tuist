@@ -98,6 +98,20 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-staging
     registryBucket: ""
 
+# Docker Hub pull-through cache. Reuses the staging object-storage bucket
+# under a `docker-mirror` prefix.
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-stag-storage
+    rootDirectory: docker-mirror
+
 # CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Each instance is a streaming replica
 # holding the whole DB, so the size is per-replica capacity, not a

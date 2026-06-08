@@ -59,6 +59,12 @@ type RunnerPoolReconciler struct {
 	// bumped. Empty means Linux pods skip the sidecar — fine for
 	// macOS-only installs.
 	DindImage string
+
+	// RegistryMirror is the in-cluster Docker Hub pull-through cache
+	// URL stamped into the dind sidecar's dockerd as --registry-mirror
+	// (with a matching --insecure-registry, since it's http in-cluster).
+	// Empty leaves dockerd pulling docker.io directly.
+	RegistryMirror string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -342,7 +348,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror)
 	if err != nil {
 		return fmt.Errorf("build pod: %w", err)
 	}
