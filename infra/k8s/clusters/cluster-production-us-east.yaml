@@ -38,12 +38,25 @@ spec:
         - class: hcloud-worker
           name: kura
           failureDomain: ash
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
           metadata:
             labels:
               autoscaling.tuist.dev/group: kura
               node.cluster.x-k8s.io/pool: kura
             annotations:
               cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "32"
               cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "12"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "32"

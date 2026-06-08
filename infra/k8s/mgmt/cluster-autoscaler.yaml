@@ -18,15 +18,24 @@ rules:
       - cluster.x-k8s.io
     resources:
       - clusters
+      - machines
       - machinedeployments
       - machinedeployments/scale
-      - machines
       - machinesets
       - machinepools
     verbs:
       - get
       - list
+      - patch
       - update
+      - watch
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - hcloudmachinetemplates
+    verbs:
+      - get
+      - list
       - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
