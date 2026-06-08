@@ -77,28 +77,19 @@ fi
 # BEAM's libc resolver finds the pooler proxy without MagicDNS.
 # The BEGIN/END markers let us strip + rewrite on every boot — a
 # peer that's been deleted from the tailnet stops appearing in
-# `tailscale status --json`'s peers and falls out of /etc/hosts
-# the next time the loop runs. The python3 one-liner parses the
-# JSON inline so we don't depend on jq (not in the macOS base
-# image).
+# `tailscale status` and falls out of /etc/hosts the next time
+# the loop runs.
+#
+# Plain `tailscale status` (no --json) is one IPv4 + hostname per
+# peer-line — awk picks both off without depending on jq (not in
+# the macOS base image) or python's JSON parser (which also
+# returns user-device display names like "Marek's MacBook" that
+# embed whitespace and aren't valid /etc/hosts entries).
 HOSTS_BEGIN="# BEGIN tailscale-up tailnet peers"
 HOSTS_END="# END tailscale-up tailnet peers"
-HOSTS_BLOCK=$(${TAILSCALE} status --json 2>/dev/null \
-  | /usr/bin/python3 -c '
-import json, sys
-d = json.load(sys.stdin)
-def emit(peer):
-    name = (peer.get("HostName") or "").strip()
-    ips = peer.get("TailscaleIPs") or []
-    if not name or not ips:
-        return
-    v4 = next((ip for ip in ips if ":" not in ip), None)
-    if v4:
-        print(f"{v4}\t{name}")
-emit(d.get("Self", {}))
-for p in (d.get("Peer") or {}).values():
-    emit(p)
-' || true)
+HOSTS_BLOCK=$(${TAILSCALE} status 2>/dev/null \
+  | /usr/bin/awk '/^[0-9]/ && NF >= 2 { printf "%s\t%s\n", $1, $2 }' \
+  || true)
 
 if [ -n "${HOSTS_BLOCK}" ]; then
   sudo /usr/bin/sed -i.bak "/^${HOSTS_BEGIN}$/,/^${HOSTS_END}$/d" /etc/hosts
