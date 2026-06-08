@@ -219,10 +219,27 @@ jobs:
                 echo "common --remote_instance_name=kura-bazel-ci"
                 echo "common --remote_upload_local_results=true"
                 echo "common --remote_download_outputs=all"
+                echo "common --remote_grpc_log=/bazelrepo/grpc-oci.log"
+                echo "common --execution_log_json_file=/bazelrepo/exec-oci.json"
               } > /root/.bazelrc
               bash bazel/ci-oci.sh; ec=$?
               chmod -R a+rX /bazelrepo 2>/dev/null || true
               exit $ec'
+
+      # DIAGNOSTIC (temporary): capture the wire log + execution log of the warm OCI build so we
+      # can count, on a warm cache, how many blobs Kura is asked about via FindMissingBlobs and
+      # reports missing (i.e. failed to persist/serve), and which actions re-execute. Revert
+      # once the OCI-cache gap is root-caused.
+      - name: Upload OCI cache diagnostics (grpc + execution log)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oci-cache-diagnostics
+          path: |
+            ${{ runner.temp }}/bazel-repo/grpc-oci.log
+            ${{ runner.temp }}/bazel-repo/exec-oci.json
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Stop Kura and surface cache errors
         if: always()
