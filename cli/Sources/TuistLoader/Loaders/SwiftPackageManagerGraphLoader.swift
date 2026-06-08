@@ -125,8 +125,18 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     ) async throws -> (TuistLoader.DependenciesGraph, [LintingIssue]) {
         let path = scratchDirectory
         let checkoutsFolder = path.appending(component: "checkouts")
+        let packageInfoCache = await SwifterPMPackageInfoCache.load(
+            scratchDirectory: scratchDirectory,
+            fileSystem: fileSystem
+        )
 
-        let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
+        let rootPackage = if let packageInfoCache,
+                             let rootPackageInfo = packageInfoCache.rootPackageInfo(for: packagePath.parentDirectory)
+        {
+            rootPackageInfo
+        } else {
+            try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
+        }
 
         var packageInfos: [
             // swiftlint:disable:next large_tuple
@@ -167,7 +177,13 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+            let packageInfo = if let packageInfoCache,
+                                 let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+            {
+                cachedPackageInfo
+            } else {
+                try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+            }
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
@@ -416,6 +432,128 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             environment: Environment.current.variables,
             workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
+    }
+}
+
+private struct SwifterPMPackageInfoCache {
+    private struct Index: Decodable {
+        let schemaVersion: Int
+        let root: Entry
+        let packages: [Entry]
+
+        enum CodingKeys: String, CodingKey {
+            case schemaVersion = "schema_version"
+            case root
+            case packages
+        }
+    }
+
+    private struct Entry: Decodable {
+        let packagePath: String
+        let packageInfoPath: String
+
+        enum CodingKeys: String, CodingKey {
+            case packagePath = "package_path"
+            case packageInfoPath = "package_info_path"
+        }
+    }
+
+    private struct CachedPackageInfo {
+        let entry: Entry
+        let packageInfo: PackageInfo
+    }
+
+    private let root: CachedPackageInfo?
+    private let packagesByPath: [String: CachedPackageInfo]
+
+    static func load(
+        scratchDirectory: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async -> SwifterPMPackageInfoCache? {
+        let cacheDirectory = scratchDirectory.appending(components: "swifterpm", "package-info")
+        let indexPath = cacheDirectory.appending(component: "index.json")
+        guard (try? await fileSystem.exists(indexPath)) == true,
+              let indexData = try? await fileSystem.readFile(at: indexPath),
+              let index = try? JSONDecoder().decode(Index.self, from: indexData),
+              index.schemaVersion == 1
+        else {
+            return nil
+        }
+
+        let root = await cachedPackageInfo(for: index.root, fileSystem: fileSystem)
+        var packagesByPath: [String: CachedPackageInfo] = [:]
+        for entry in index.packages {
+            guard let cachedPackageInfo = await cachedPackageInfo(for: entry, fileSystem: fileSystem) else {
+                continue
+            }
+            packagesByPath[normalizedPackagePath(entry.packagePath)] = cachedPackageInfo
+        }
+
+        return SwifterPMPackageInfoCache(
+            root: root,
+            packagesByPath: packagesByPath
+        )
+    }
+
+    func rootPackageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
+        guard let root,
+              Self.normalizedPackagePath(root.entry.packagePath) == Self.normalizedPackagePath(packagePath.pathString)
+        else {
+            return nil
+        }
+        return root.packageInfo
+    }
+
+    func packageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
+        packagesByPath[Self.normalizedPackagePath(packagePath.pathString)]?.packageInfo
+    }
+
+    private static func cachedPackageInfo(
+        for entry: Entry,
+        fileSystem: FileSysteming
+    ) async -> CachedPackageInfo? {
+        guard let packagePath = absolutePath(entry.packagePath),
+              let packageInfoPath = absolutePath(entry.packageInfoPath),
+              await isFreshPackageInfo(
+                  packageInfoPath: packageInfoPath,
+                  packagePath: packagePath,
+                  fileSystem: fileSystem
+              ),
+              let data = try? await fileSystem.readFile(at: packageInfoPath),
+              let packageInfo = try? JSONDecoder().decode(PackageInfo.self, from: data)
+        else {
+            return nil
+        }
+
+        return CachedPackageInfo(entry: entry, packageInfo: packageInfo)
+    }
+
+    private static func isFreshPackageInfo(
+        packageInfoPath: AbsolutePath,
+        packagePath: AbsolutePath,
+        fileSystem: FileSysteming
+    ) async -> Bool {
+        do {
+            guard let packageInfoDate = try await fileSystem.fileMetadata(at: packageInfoPath)?.lastModificationDate,
+                  let manifestDate = try await fileSystem.fileMetadata(
+                      at: packagePath.appending(component: "Package.swift")
+                  )?.lastModificationDate
+            else {
+                return false
+            }
+
+            return packageInfoDate >= manifestDate
+        } catch {
+            return false
+        }
+    }
+
+    private static func absolutePath(_ path: String) -> AbsolutePath? {
+        try? AbsolutePath(validating: normalizedPackagePath(path))
+    }
+
+    private static func normalizedPackagePath(_ path: String) -> String {
+        path.replacingOccurrences(of: "/private/var", with: "/var")
     }
 }
 
