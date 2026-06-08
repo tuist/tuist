@@ -1,7 +1,8 @@
 # Defaults for the tuist-ops chart. The per-env overlay
-# `values-managed-mgmt.yaml` only sets image.tag (and any overrides
-# needed at promote-time); everything else is shared because there
-# is exactly one deploy of tuist-ops, into the mgmt cluster.
+# `values-managed-production.yaml` only sets nodeSelector / scheduling
+# overrides; image.tag comes from the deploy workflow. There is
+# exactly one deploy of tuist-ops, into the production cluster
+# (alongside server/ and slack/, in its own namespace + Helm release).
 
 replicaCount: 1
 
@@ -35,8 +36,7 @@ postgresql:
     tag: "16.4"
   backup:
     enabled: true
-    # S3 bucket per env; tuist-ops gets its own prefix under the
-    # mgmt backup bucket.
+    # Tuist-wide CNPG backup bucket; tuist-ops gets its own prefix.
     destinationPath: s3://tuist-cnpg-backups/tuist-ops
     endpointURL: https://fly.storage.tigris.dev
     retentionPolicy: "30d"
@@ -74,7 +74,7 @@ service:
   tailscaleExpose: true
 
 # ESO ExternalSecret for the bot's credentials. Single 1P item per
-# env (only mgmt for now). Fields expected on TUIST_OPS_BOT:
+# Fields expected on TUIST_OPS_BOT:
 #   tailscale_client_id, tailscale_client_secret, tailscale_tailnet,
 #   slack_signing_secret, slack_bot_token, slack_approvals_channel_id
 externalSecret:
@@ -101,9 +101,7 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-# Pod-level scheduling. tuist-ops lives in mgmt and shouldn't
-# share a node with anything else by accident; the general
-# nodeSelector is overridable per env.
+# Pod-level scheduling. Overridable in the per-env values file.
 nodeSelector: {}
 tolerations: []
 podAnnotations: {}

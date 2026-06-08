@@ -1,8 +1,11 @@
 # tuist-ops (Elixir/Phoenix)
 
 Internal-tooling Phoenix app for Tuist team operations. Lives in the
-mgmt cluster, deliberately decoupled from the customer-facing `server/`
-so an outage of one doesn't affect the other.
+production cluster (alongside `server/` and `slack/` — matches the
+"internal Tuist-team tooling lives in the same cluster as customer
+workload" pattern), in its own namespace, with its own Helm release,
+own ESO secrets, and own CNPG Postgres. Decoupled at every layer
+except the cluster itself.
 
 Reached at `https://ops.tuist.dev` (public, Slack-only routes) and
 `http://ops.<tailnet>.ts.net` (on-tailnet, internal callers like
@@ -50,12 +53,13 @@ the `server/` side during migration windows.
 ## Stack
 - Phoenix 1.7 (no LiveView yet — adds when the first `/ops/*` page
   migrates from `server/`)
-- Postgres via its own CNPG cluster in the mgmt cluster
+- Postgres via its own CNPG cluster in the production cluster (same operator the main server uses)
 - Oban for the timed revert worker
 
 ## Runtime behavior
-- Single instance, deployed only to the mgmt cluster. Internal-only
-  tooling has no business running in the workload clusters it manages.
+- Single instance, deployed only to the production cluster (own Helm
+  release, own namespace, own DB — co-located with the customer
+  workload but isolated at every layer above the cluster).
 - Migrations run on boot unless `SKIP_MIGRATIONS=true`.
 
 ## Identity boundary
