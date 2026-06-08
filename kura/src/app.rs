@@ -62,6 +62,8 @@ impl ShutdownBudget {
 }
 
 pub async fn run() -> Result<(), String> {
+    let nofile_raise_error = raise_nofile_soft_to_hard().err();
+
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
     let node_location = resolve_node_location(
@@ -72,6 +74,9 @@ pub async fn run() -> Result<(), String> {
     )
     .await;
     let telemetry = init_tracing(&config, &node_location);
+    if let Some(error) = nofile_raise_error {
+        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+    }
     let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, geoip, node_location)
         .instrument(log_context)
@@ -86,10 +91,6 @@ async fn run_with_config(
     geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
 ) -> Result<(), String> {
-    if let Err(error) = raise_nofile_soft_to_hard() {
-        tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
-    }
-
     config
         .ensure_directories()
         .await
