@@ -792,6 +792,105 @@ jobs:
             ghcr.io/tuist/kura:${{ needs.check-releases.outputs.kura-next-version-number }}
             ghcr.io/tuist/kura:latest
 
+  # The Kura image is pushed before the release commit exists so we can
+  # deploy that exact tag to canary and run the production acceptance gates.
+  # Only a green validation is allowed to publish the Kura release, create the
+  # kura@ tag, and bump kuraRuntime.image.tag for the later production cascade.
+  validate-kura-runtime-canary:
+    name: Validate Kura Runtime Canary
+    needs: [check-releases, release-kura-docker]
+    if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-docker.result == 'success'
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ github.sha }}
+      kura_runtime_image_tag: ${{ needs.check-releases.outputs.kura-next-version-number }}
+    secrets: inherit
+
+  validate-kura-runtime-acceptance-tests:
+    name: Validate Kura Runtime Acceptance Tests
+    needs: [check-releases, validate-kura-runtime-canary]
+    if: needs.check-releases.outputs.kura-should-release == 'true'
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+        run: mise run cli:ee
+      - name: Test
+        env:
+          TUIST_EE: 1
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
+
+  validate-kura-runtime-backward-compatibility:
+    name: Validate Kura Runtime Backward Compatibility
+    needs: [check-releases, validate-kura-runtime-canary]
+    if: needs.check-releases.outputs.kura-should-release == 'true'
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: 0
+      TUIST_URL: https://canary.tuist.dev
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Resolve oldest supported CLI version
+        run: |
+          file=server/lib/tuist/cli_versions.ex
+          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @minimum_supported_version from $file" >&2
+            exit 1
+          fi
+          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Oldest supported CLI version: $version"
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "bats"
+      - name: Install oldest supported tuist
+        run: mise install "tuist@${MIN_SUPPORTED_TUIST_VERSION}"
+      - name: Resolve oldest supported tuist binary
+        id: oldtuist
+        run: |
+          install_dir="$(mise where "tuist@${MIN_SUPPORTED_TUIST_VERSION}")"
+          bin="$(find "$install_dir" -type f -name tuist | head -n1)"
+          if [ -z "$bin" ]; then
+            echo "Could not locate the tuist binary under $install_dir" >&2
+            exit 1
+          fi
+          echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
+          "$bin" version
+      - name: Run backward-compatibility acceptance test
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: mise run --no-deps e2e module_cache_backward_compat
+
   release-gradle:
     name: Release Gradle Plugin
     needs: check-releases
@@ -1875,6 +1974,8 @@ jobs:
         release-kura-prepare,
         release-kura-binaries,
         release-kura-docker,
+        validate-kura-runtime-acceptance-tests,
+        validate-kura-runtime-backward-compatibility,
         release-gradle,
         release-skills,
         release-noora,
@@ -1916,21 +2017,21 @@ jobs:
           name: cli-artifacts
 
       - name: Download CLI Linux x86_64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
 
       - name: Download CLI Linux aarch64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
 
       - name: Merge Linux artifacts into build directory
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
         run: |
           # Append Linux checksums to main checksum files
           cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
@@ -1967,42 +2068,64 @@ jobs:
           needs.check-releases.outputs.kura-should-release == 'true' &&
           needs.release-kura-prepare.result == 'success' &&
           needs.release-kura-binaries.result == 'success' &&
-          needs.release-kura-docker.result == 'success'
+          needs.release-kura-docker.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-release-metadata
           path: kura
 
       - name: Download Kura Linux x86_64 artifacts
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-binaries.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-binary-x86_64-unknown-linux-gnu-artifacts
           path: build-kura/x86_64-unknown-linux-gnu
 
       - name: Download Kura Linux aarch64 artifacts
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-binaries.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-binary-aarch64-unknown-linux-gnu-artifacts
           path: build-kura/aarch64-unknown-linux-gnu
 
       - name: Download Kura macOS x86_64 artifacts
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-binaries.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-binary-x86_64-apple-darwin-artifacts
           path: build-kura/x86_64-apple-darwin
 
       - name: Download Kura macOS aarch64 artifacts
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-binaries.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: kura-binary-aarch64-apple-darwin-artifacts
           path: build-kura/aarch64-apple-darwin
 
       - name: Merge Kura artifacts into build directory
-        if: needs.check-releases.outputs.kura-should-release == 'true' && needs.release-kura-binaries.result == 'success'
+        if: |
+          needs.check-releases.outputs.kura-should-release == 'true' &&
+          needs.release-kura-binaries.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         run: |
           mkdir -p build-kura
 
@@ -2113,7 +2236,7 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
-          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-acceptance-tests.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-backward-compatibility.result }}" == "success" ]; then
             # Anchor the repository with `$` so it matches the kuraRuntime
             # pin and not the kuraController one (ghcr.io/tuist/kura-controller).
             sed -i '/repository: ghcr.io\/tuist\/kura$/,/tag:/{
@@ -2415,7 +2538,7 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-acceptance-tests.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-backward-compatibility.result }}" == "success" ]; then
             git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
@@ -2518,7 +2641,7 @@ jobs:
               if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist Cache ${{ needs.check-releases.outputs.cache-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-acceptance-tests.result }}" == "success" ] && [ "${{ needs.validate-kura-runtime-backward-compatibility.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Kura ${{ needs.check-releases.outputs.kura-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.gradle-should-release }}" == "true" ] && [ "${{ needs.release-gradle.result }}" == "success" ]; then
@@ -2586,7 +2709,9 @@ jobs:
           needs.check-releases.outputs.kura-should-release == 'true' &&
           needs.release-kura-prepare.result == 'success' &&
           needs.release-kura-binaries.result == 'success' &&
-          needs.release-kura-docker.result == 'success'
+          needs.release-kura-docker.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         run: |
           TAG=${{ needs.check-releases.outputs.kura-next-version }}
           SOURCE_SHA=${{ github.sha }}
@@ -2605,7 +2730,9 @@ jobs:
           needs.check-releases.outputs.kura-should-release == 'true' &&
           needs.release-kura-prepare.result == 'success' &&
           needs.release-kura-binaries.result == 'success' &&
-          needs.release-kura-docker.result == 'success'
+          needs.release-kura-docker.result == 'success' &&
+          needs.validate-kura-runtime-acceptance-tests.result == 'success' &&
+          needs.validate-kura-runtime-backward-compatibility.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
