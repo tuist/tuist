@@ -631,6 +631,65 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
       `mise exec shellspec -- …` so it stops resolving tools it doesn't need, and pass the
       token into the build containers. Still: avoid immediate re-runs; prefer an organic push
       for a clean warm comparison.
+  - **OCI under-caching root cause + final validation. ✅ Fixed (PR #11141) and validated
+    (2026-06-08).** Even after the two follow-ups above, the `oci` job stayed ~28–32 min warm
+    (vs ~3 min on the retired `--disk_cache`) — it re-executed ~half its actions every run.
+    Root cause: `parse_blob_resource_name` in `src/reapi/mod.rs` (shared by ByteStream
+    `Write` **and** `Read`) keyed blobs as `"{hash}/{size}"`, but `FindMissingBlobs`,
+    `BatchUpdateBlobs`, and `BatchReadBlobs` all use `blob_key()` = `"blob/{hash}/{size}"`. So
+    **blobs uploaded via ByteStream were invisible to `FindMissingBlobs`** → Bazel saw cached
+    action outputs as missing → re-executed. The linux jobs mostly escaped it (small outputs go
+    via `BatchUpdateBlobs`, correct key); the OCI build's larger outputs go via ByteStream
+    (wrong key). ByteStream Write+Read share the parser, so round-trips still worked — which is
+    why #11129's read-back test never caught it. Proven three ways: (1) CI grpc-log diff
+    (build1 SENT 5975 Write blobs; build2 `FindMissingBlobs` reported 1720 missing, 1719 of them
+    sent by build1, 0 hash changes — "supposed to be there, aren't", zero non-determinism);
+    (2) in-process gRPC test — 6000 ByteStream blobs all missing from `FindMissingBlobs` even
+    live, while `BatchUpdateBlobs` blobs are found; (3) static code diff. **Fix (one line):**
+    `let key = blob_key(&format!("{hash}/{size_bytes}"));`. Shipped in the official
+    `ghcr.io/tuist/kura:latest` (tag `kura@0.7.3`, image rebuilt as release `0.7.4`).
+    **Final CI validation:** deleted all three orphaned `kura-data-*` caches (they're sticky —
+    saved `if cache-hit != 'true'`, so a stale cache never self-replaces; must be deleted),
+    ran COLD (run `27146692848`: empty Kura, OCI 53.5 min, `kura-data-oci` grew 687→763 MiB now
+    that ByteStream blobs land under `blob/`), then WARM (run `27149986151`): OCI `Cache hit for:
+    kura-data-oci-…`, Bazel `1057 remote cache hit + 445 action cache hit` (151 executed), zero
+    `fd_pool_exhausted`/persist warnings, save skipped on cache hit → **OCI 10.5 min warm**
+    (8.3 min Bazel + ~2 min image/dev-container + 0.8 min e2e). The residual vs the old local
+    `--disk_cache` (~3 min) is inherent remote-cache cost (gRPC blob download with
+    `--remote_download_outputs=all` + non-cacheable rules_oci packaging), not re-compilation.
+  - **OCI cache fragmentation: rules_oci transition keyspace. ✅ Fixed (2026-06-08).** Even
+    after the ByteStream fix, the warm OCI build kept recompiling the native `-sys` crates
+    (jemalloc, aws-lc-sys, ring) + exec-config host tools. Root cause (proven by `bazel aquery`
+    action-key diffs, locally in the arm64 dev container and confirmed in CI x86_64): the OCI
+    build reaches the binary two different ways. `//bazel/oci:load` set the platform via the
+    `--platforms` **command-line flag** → config `k8-opt`; `//bazel/oci:index` sets it via
+    `oci_image_index`'s **Starlark transition** → config `k8-opt-ST-<hash>`. Bazel tags a
+    transition-reached config with an `ST-<hash>` output-dir suffix **even when the build options
+    are byte-identical** (same BuildOptions checksum `23349af8…`). That `ST-` segment is baked
+    into every action's paths (`CARGO`/`RUSTC`/`--sysroot`/`--out_dir`/`--script`), so the action
+    key differs: jemalloc build script `fb6226c7` (flag) vs `9dccac1c` (transition). Consequences:
+    (1) the linux job (flag config, *and* a separate `kura-data-x86_64` cache) can never seed the
+    OCI image; (2) `load` (flag) and `index` (transition) built the native arch **twice**. The
+    `_bs_` runner (exec config `k8-opt-exec`) had the *same* key both ways, confirming only the
+    transitioned **target** configs diverge; keys are deterministic + machine-independent
+    (`NUM_JOBS=1`, all paths relative), and `executionInfo=[]` (not a `no-remote-cache` tag).
+    **Fix:** `bazel/oci/transition.bzl` adds a 1:1 `transitioned_image` whose transition mirrors
+    `oci_image_index`'s exactly (sets only `//command_line_option:platforms`, same value via
+    `str(label)`), so `//bazel/oci:load_linux_{x86_64,arm64}` reach `:image` in the **same**
+    `ST-` config the index uses — verified: identical action keys (`bbd149a5`/`5a209847`), so the
+    native binary is compiled once and shared. `ci-oci.sh` now builds `//bazel/oci:index` + the
+    host-arch `load_linux_<arch>` in one invocation (no separate `--platforms` flag build). The
+    flag `:load` stays for local single-arch dev (no remote cache to fragment locally). Validated
+    locally: `load_linux_arm64` builds under `aarch64-opt-ST-51a2…`, the tarball `docker load`s
+    and starts cleanly under tini. CI cold→warm validation: <pending>.
+  - **OPEN — within-index selective cold→warm miss.** Independent of the above: within a single
+    OCI run, a few build scripts (jemalloc, aws-lc-sys, ring, typeid) miss cold→warm and cascade
+    (~151 actions) while **rocksdb caches fine**. Ruled out: key non-determinism (stable), tags
+    (none), cold upload errors (cold logged `Kura exit code: 0`, `persist/fd error lines: 0`).
+    Since cold stored them cleanly under a stable key and warm requests that same key, this looks
+    like a storage/retrieval gap for those specific high-file-count tree outputs — same *class* as
+    the ByteStream bug, settleable with the grpc-log technique (diff cold-SENT vs warm-FindMissing).
+    Not yet chased.
 
 ## Open questions / risks
 

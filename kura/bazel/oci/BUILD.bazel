@@ -12,6 +12,7 @@
 load("@rules_distroless//distroless:defs.bzl", "cacerts")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load(":transition.bzl", "transitioned_image")
 
 # The ca-certificates .deb ships individual certs but the bundled
 # /etc/ssl/certs/ca-certificates.crt is produced by its postinst (update-ca-certificates),
@@ -77,6 +78,31 @@ oci_load(
     repo_tags = ["kura-bazel:oci"],
     visibility = ["//visibility:public"],
 )
+
+# Per-arch loadable tarballs that reach :image through the SAME transition the
+# multi-arch index uses (transitioned_image, see transition.bzl). Building one of
+# these alongside :index compiles the native binary ONCE in the shared `ST-` config
+# instead of a second time under the plain --platforms flag config that `:load`
+# above uses. CI (bazel/ci-oci.sh) builds the host-arch one for the e2e; the flag
+# `:load` stays for local single-arch dev (no remote cache to fragment locally).
+[
+    transitioned_image(
+        name = "image_linux_{}".format(arch),
+        image = ":image",
+        platform = "//bazel/platforms:linux_{}".format(arch),
+    )
+    for arch in ("x86_64", "arm64")
+]
+
+[
+    oci_load(
+        name = "load_linux_{}".format(arch),
+        image = ":image_linux_{}".format(arch),
+        repo_tags = ["kura-bazel:oci"],
+        visibility = ["//visibility:public"],
+    )
+    for arch in ("x86_64", "arm64")
+]
 
 # Multi-arch manifest. With one image + a platforms list, oci_image_index transitions
 # :image to each platform and assembles the index — both arches from a single host
