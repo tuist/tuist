@@ -1,45 +1,215 @@
 name: macOS + Xcode Image
 
-# Registration stub. The real implementation of this workflow
-# lives on the development branch shipping the macos-xcode-image
-# work (PR #10834) and a few iterations beyond. GitHub Actions
-# requires a workflow to exist on the default branch before
-# `workflow_dispatch --ref <branch>` can target it; the actual
-# execution body comes from whichever ref is dispatched, so this
-# file's job content is only what runs when someone dispatches
-# the stub against `main` directly.
+# Build the in-house macOS + Xcode Tart image — our replacement for
+# `ghcr.io/cirruslabs/macos-tahoe-xcode:N`. Triggered on-demand
+# when Apple ships a new Xcode (or when we want to test a beta).
 #
-# Once #10834 merges, the no-op `stub` job below is overwritten
-# by the real Packer build that lays Xcode onto
-# `macos-tahoe-base`. Until then, dispatching against `main`
-# fails fast with a pointer to the implementing branch — better
-# than silently succeeding with nothing done.
+# Per-Xcode image model: each invocation produces ONE image with
+# ONE Xcode. The push tag carries the full version with dots →
+# dashes:
+#   xcode_version=26.5     → ghcr.io/tuist/macos-tahoe-xcode:26-5
+#   xcode_version=26.4.1   → ghcr.io/tuist/macos-tahoe-xcode:26-4-1
+#   xcode_version=26.0.1   → ghcr.io/tuist/macos-tahoe-xcode:26-0-1
+#
+# Customer-facing fleet selects between these via a runner profile
+# (`runs-on: tuist-macos-xcode-26-5`, etc.) once that wiring lands.
+# For now, the chart pins one image at a time as the default.
+#
+# .xip source: pulled from `ghcr.io/tuist/xcode-xips:<version>`,
+# our in-house mirror populated by `mise run xcode-mirror:upload`
+# on a maintainer's Mac (Apple's SRP-only signin + `xcodes`'s
+# per-process cookie storage rule out an in-cluster auto-mirror).
+# This workflow never talks to developer.apple.com. See
+# `infra/macos-xcode-image/AGENTS.md` for the runbook.
 
 on:
   workflow_dispatch:
     inputs:
-      # Inputs match the real workflow's schema so dispatches
-      # against the development branch can pass them through
-      # `gh workflow run --ref <branch>` without surprises.
       xcode_version:
-        description: "Xcode version to install (e.g. 26.4.1, 26.5)."
+        description: "Xcode version to install (e.g. 26.4.1, 26.5). Must be available on developer.apple.com. Drives the push tag (dots → dashes)."
         required: true
       base_image:
         description: "Base Tart image to layer Xcode onto"
         required: false
         default: "ghcr.io/cirruslabs/macos-tahoe-base:latest"
 
+concurrency:
+  # Different Xcode versions can build in parallel (different push
+  # tags, no shared state). Same Xcode re-dispatched cancels the
+  # in-flight build — it would publish to the same tag and the
+  # second dispatch always represents the more recent intent.
+  group: macos-xcode-image-${{ inputs.xcode_version }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
 jobs:
-  stub:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 60
     steps:
-      - name: This is the registration stub, not the real workflow
+      - uses: actions/checkout@v4
+
+      # Tart isn't installed by this workflow. The builder host's
+      # bootstrap path (infra/macos-host-bootstrap.installTart, run
+      # by the Scaleway CAPI provider on every Mac mini Node)
+      # extracts the operator-image-baked tart.app tarball to
+      # /usr/local/bin/tart. Same install path the in-cluster
+      # macosFleet / runnersFleet hosts use; the workflow's PATH
+      # picks it up and `packer init` / Packer's tart-cli plugin
+      # fail loudly if it's missing.
+
+      # Pull the .xip from our in-house mirror instead of Apple
+      # directly. The mirror is populated by the operator running
+      # `mise run xcode-mirror:upload <version>` on their Mac
+      # (typically triggered by the xcodereleases.com RSS feed
+      # firing in Slack — see infra/macos-xcode-image/AGENTS.md).
+      # Moving the Apple-auth concern out of CI means CAPI-managed
+      # builders can rotate without breaking the workflow — no
+      # host-bound keychain session, no `gh workflow run`
+      # pre-requirement to SSH into the builder.
+      # If the .xip isn't in the mirror yet, the operator runs
+      # the upload task locally and re-triggers this workflow.
+      - name: Pull Xcode .xip from mirror
+        id: xcode_xip
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
         run: |
-          {
-            echo "::error::macos-xcode-image's stub on main was dispatched directly."
-            echo "::error::The real implementation lives on the development branch."
-            echo "::error::Dispatch with --ref <branch>:"
-            echo "::error::  gh workflow run macos-xcode-image.yml --ref <branch> -f xcode_version=${{ inputs.xcode_version }}"
-            echo "::error::See https://github.com/tuist/tuist/pull/10834 for context."
-          } >&2
+          set -euo pipefail
+          XCODE_XIP_DIR="${RUNNER_TEMP:-/tmp}/xcode-xip"
+          mkdir -p "$XCODE_XIP_DIR"
+          # Explicit oras login here (not at workflow top) because
+          # oras' login persists to ~/.docker/config.json, which
+          # Packer's anonymous-pull dance later toggles back to
+          # anonymous for the public Cirrus base.
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username tuist-bot --password-stdin
+          if ! oras pull "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}" --output "$XCODE_XIP_DIR"; then
+            {
+              echo "Error: Xcode ${XCODE_VERSION} is not in the mirror at"
+              echo "ghcr.io/tuist/xcode-xips:${XCODE_VERSION}."
+              echo ""
+              echo "Populate the mirror from a maintainer Mac:"
+              echo ""
+              echo "  mise run xcode-mirror:upload ${XCODE_VERSION}"
+              echo ""
+              echo "Then re-trigger this workflow."
+            } >&2
+            exit 1
+          fi
+          XCODE_XIP=$(ls "$XCODE_XIP_DIR"/Xcode-${XCODE_VERSION}*.xip | head -n1)
+          test -f "$XCODE_XIP"
+          echo "Have $(basename "$XCODE_XIP") ($(du -h "$XCODE_XIP" | awk '{print $1}'))"
+          echo "path=${XCODE_XIP}" >> "$GITHUB_OUTPUT"
+
+      - name: Initialize Packer
+        working-directory: infra/macos-xcode-image
+        run: packer init -upgrade macos-xcode.pkr.hcl
+
+      # Same anonymous-pull dance as the other image workflows:
+      # the bare-metal runner has tuist-bot creds cached for ghcr.io
+      # which don't authorize ghcr.io/cirruslabs/* pulls. Tart also
+      # consults Docker credential helpers, and this runner can
+      # have the macOS helper installed without the Docker CLI —
+      # clear both stores before Packer clones the public base.
+      - name: Drop cached ghcr.io credentials
+        run: |
+          tart logout ghcr.io || true
+          if command -v docker >/dev/null 2>&1; then
+            docker logout ghcr.io || true
+          fi
+          for helper in docker-credential-osxkeychain docker-credential-desktop; do
+            if command -v "$helper" >/dev/null 2>&1; then
+              printf 'ghcr.io' | "$helper" erase || true
+              printf 'https://ghcr.io' | "$helper" erase || true
+            fi
+          done
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build image
+        id: build
+        working-directory: infra/macos-xcode-image
+        env:
+          XCODE_VERSION: ${{ inputs.xcode_version }}
+        run: |
+          set -euo pipefail
+          docker_config="$HOME/.docker/config.json"
+          docker_config_backup=""
+          restore_docker_config() {
+            if [ -n "$docker_config_backup" ] && [ -f "$docker_config_backup" ]; then
+              mkdir -p "$HOME/.docker"
+              mv "$docker_config_backup" "$docker_config"
+            fi
+          }
+          trap restore_docker_config EXIT
+
+          if [ -f "$docker_config" ]; then
+            docker_config_backup="$(mktemp "${RUNNER_TEMP:-/tmp}/docker-config.XXXXXX")"
+            mv "$docker_config" "$docker_config_backup"
+          fi
+
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${{ inputs.base_image || 'ghcr.io/cirruslabs/macos-tahoe-base:latest' }}" \
+            -var "output_image=macos-tahoe-xcode" \
+            -var "xcode_xip_path=${{ steps.xcode_xip.outputs.path }}" \
+            -var "xcode_version=${XCODE_VERSION}" \
+            macos-xcode.pkr.hcl
+
+          # Tag is the full version with dots → dashes:
+          #   26.4.1 → 26-4-1
+          #   26.5   → 26-5
+          # Downstream images (runner-image, xcresult-processor) and
+          # the chart's `runnersFleet.runnerImage` digest pin reference
+          # this tag, so a 26.4.0 → 26.4.1 Apple bump is a *new* tag
+          # (`:26-4-1`), not a same-tag replacement.
+          TAG=$(echo "${XCODE_VERSION}" | tr '.' '-')
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      # crane writes creds to ~/.docker/config.json, which Tart's
+      # push reads via the Docker credential-helper protocol.
+      # Bypasses the macOS keychain (which `tart login` would use,
+      # and which gates on a Tahoe-LaunchAgent-incompatible "User
+      # interaction" prompt) and Tart 2.32.1's env-var-only push
+      # path (which hangs with "Error: The request timed out").
+      # `crane` is installed by the builder bootstrap. Logging in
+      # AFTER the Packer build is intentional: this image's base
+      # is the *public* `ghcr.io/cirruslabs/macos-tahoe-base`, so
+      # Packer's clone is anonymous (see the credential-dropping
+      # step above). Auth is needed only for the push that follows.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Push image to GHCR
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        # Direct tart push. Cirrus uses the same path to publish
+        # macos-tahoe-xcode at the same size; the prior bridge through
+        # a local registry + skopeo was added after failures on a
+        # different host whose network was structurally bad. Outer 3x
+        # retry stays as belt-and-braces; blob uploads are content-
+        # addressed so a re-push only re-uploads layers that didn't
+        # make it on the previous attempt.
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.build.outputs.tag }}"
+          for attempt in 1 2 3; do
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if tart push macos-tahoe-xcode "ghcr.io/tuist/macos-tahoe-xcode:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/macos-tahoe-xcode:${TAG} on attempt ${attempt}"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
           exit 1
+
+      - name: Cleanup
+        if: always()
+        run: tart delete macos-tahoe-xcode 2>/dev/null || true

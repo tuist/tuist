@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # POSTs to the Tuist server's runner dispatch endpoint with the
-# Pod's projected ServiceAccount token as Bearer, and execs the
-# actions/runner binary with the returned JIT config.
+# Pod's projected ServiceAccount token as Bearer to claim a job and
+# obtain its JIT runner config.
 #
 # This is the Linux analog of `infra/runner-image/dispatch-poll.sh`
 # (the macOS Tart VM version). The Linux side is shorter for a few
@@ -17,18 +17,42 @@
 #   * No SA token copy — the projected token lives at the standard
 #     in-cluster path the moment the container starts.
 #
+# Runs in the `poller` init container — the only container that
+# holds the SA token. On a claim it writes the minted JIT to
+# TUIST_RUNNER_JIT_OUTPUT_PATH and exits 0; the sibling `runner`
+# main container (no token) then reads it via run-job.sh and runs
+# the one job, so untrusted workflow code never shares a container
+# with the token.
+#
+# If TUIST_RUNNER_JIT_OUTPUT_PATH is unset, it execs ./run.sh in
+# this same container instead. That branch is purely a rollout
+# bridge: the runner image and the controller ship as independent
+# artifacts, so during the (image-first) cutover a not-yet-upgraded
+# controller runs this image as a single container with the env
+# unset. Delete it once the split controller is live in every env.
+#
 # Server contract (matches the macOS image):
 #   POST <url>
 #     200 with { encoded_jit_config, pool, owner }
-#       → exec ./run.sh --jitconfig <jit> --disableupdate (single
-#         job, ephemeral, no auto-upgrade)
+#       → stage the JIT for the runner container, exit 0
+#       → (env unset) exec ./run.sh --jitconfig <jit> --disableupdate
+#         (single job, ephemeral, no auto-upgrade)
 #     204 → no work; sleep + retry
 #     401/403 → auth failed; abort (the SA is GC'd or invalid)
+#     410 → stale image; exit 0 without staging a JIT so the Pod
+#           completes and the reconciler replaces it on the current
+#           image
 #     5xx / transport error → transient; sleep + retry
 
 set -uo pipefail
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
+
+# When set (the split Pod shape), the minted JIT is written here and
+# this script never execs the runner — that's the sibling runner
+# container's job. Unset falls back to exec'ing the runner in place
+# (the rollout bridge described above).
+JIT_OUTPUT_PATH=${TUIST_RUNNER_JIT_OUTPUT_PATH:-}
 
 # Audience-scoped projected token (the controller wires this in via
 # a projected volume with audience=tuist-runners-dispatch). Default
@@ -75,7 +99,37 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      if [ -n "${JIT_OUTPUT_PATH}" ]; then
+        # Stage the JIT for the sibling runner container and exit.
+        # Write to a temp file + atomic rename so a partial write can
+        # never be observed, and chmod 0644 so the non-root runner
+        # user can read it regardless of this container's umask (the
+        # JIT is the runner's own job credential, so in-Pod
+        # readability is intended).
+        #
+        # Fail closed: the job is already claimed server-side at this
+        # point, so a silent staging failure would strand it until
+        # orphan recovery (~5 min). This script runs without errexit,
+        # so check the write chain explicitly — on any failure, drop
+        # the temp file and exit non-zero so the Pod fails visibly
+        # instead of starting a runner with no JIT.
+        tmp="${JIT_OUTPUT_PATH}.tmp"
+        if ! { printf '%s' "${jit}" >"${tmp}" && chmod 0644 "${tmp}" && mv -f "${tmp}" "${JIT_OUTPUT_PATH}"; }; then
+          rm -f "${tmp}" 2>/dev/null || true
+          echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage JIT to ${JIT_OUTPUT_PATH}; aborting"
+          exit 1
+        fi
+        echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
+        exit 0
+      fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Forensic vitals (rollout-bridge single-container mode only; the
+      # split Pod shape runs vitals from run-job.sh). Backgrounded so it
+      # survives the exec and its last sample before a mid-job death
+      # lands in the Pod logs. Guarded so a missing script never blocks.
+      if [ -x /usr/local/bin/vitals.sh ]; then
+        /usr/local/bin/vitals.sh &
+      fi
       # `--jitconfig` makes the runner ephemeral (one job + exit).
       # `--disableupdate` pins to whatever runner version is baked
       # into the image; Renovate bumps RUNNER_VERSION in the
@@ -83,6 +137,11 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
+      #
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner Pod
+      # writes nothing to the ingest path.
       exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)

@@ -636,6 +636,45 @@ func TestReconcileDelete_LegacyCRWithoutPrefixSkipsRelease(t *testing.T) {
 	}
 }
 
+// TestReconcileDelete_LegacyCRUsesDefaultPrefix is the same legacy CR
+// (empty Spec.AdoptPoolPrefix), but with a controller-level
+// DefaultAdoptPoolPrefix configured. The release must now happen
+// against the default prefix instead of being skipped — closing the
+// strand-on-delete hole at the source for legacy CRs.
+func TestReconcileDelete_LegacyCRUsesDefaultPrefix(t *testing.T) {
+	api := &scalewayAPIStub{
+		servers: []*applesilicon.Server{{ID: "srv-legacy", Name: "tuist-tuist-macos-fleet-legacy"}},
+	}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "macos-fleet-legacy",
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{
+			// Empty AdoptPoolPrefix — predates the required-prefix contract.
+			Zone: "fr-par-1",
+		},
+		Status: infrav1.ScalewayAppleSiliconMachineStatus{ServerID: "srv-legacy"},
+	}
+	r := newReconciler(t)
+	r.ScalewayClient = &scaleway.Client{API: api}
+	r.DefaultAdoptPoolPrefix = "tuist-pool-"
+
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if got := api.reinstalledIDs; len(got) != 1 || got[0] != "srv-legacy" {
+		t.Fatalf("legacy CR with controller default must release to pool; got reinstalls %v", got)
+	}
+	if got := api.updatedNames; len(got) != 1 || !startsWith(got[0], "tuist-pool-") {
+		t.Fatalf("expected rename into the default pool namespace, got %v", got)
+	}
+	if machine.Status.ServerID != "" {
+		t.Fatalf("Status.ServerID should be cleared after release, got %q", machine.Status.ServerID)
+	}
+}
+
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
 }

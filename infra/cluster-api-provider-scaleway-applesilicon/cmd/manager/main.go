@@ -88,6 +88,11 @@ func main() {
 		egressNamespace      string
 		egressProxyGroup     string
 		egressMagicDNSSuffix string
+
+		defaultAdoptPoolPrefix       string
+		orphanReclaimClaimNamePrefix string
+		orphanReclaimZonesRaw        string
+		orphanReclaimInterval        time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -212,6 +217,33 @@ func main() {
 			"tailnet-fqdn annotation is `<machine.Name>.<suffix>`. Read from "+
 			"`tailscale status --json | .MagicDNSSuffix` on any tailnet "+
 			"device. Required when --tailscale-egress-proxy-group is set.")
+
+	flag.StringVar(&defaultAdoptPoolPrefix, "default-adopt-pool-prefix",
+		envOrDefault("CAPI_DEFAULT_ADOPT_POOL_PREFIX", ""),
+		"Pool prefix the controller falls back to when a CR's adoptPoolPrefix is "+
+			"empty (legacy CRs), used both to release such CRs on delete and as the "+
+			"orphan-reclaim sweep's pool prefix. Setting it enables the orphan-reclaim "+
+			"sweep (report-only until --orphan-reclaim-claim-name-prefix is also set). "+
+			"Empty disables both — bare legacy CRs skip release and no sweep runs.")
+	flag.StringVar(&orphanReclaimClaimNamePrefix, "orphan-reclaim-claim-name-prefix",
+		envOrDefault("CAPI_ORPHAN_RECLAIM_CLAIM_NAME_PREFIX", ""),
+		"Claimed-name namespace this cluster owns within the Scaleway project (e.g. "+
+			"`tuist-tuist-`). The orphan-reclaim sweep only returns a stranded host to "+
+			"the pool when its Scaleway name carries this prefix, so a host an operator "+
+			"is mid-provisioning under a Scaleway-default name, or a host owned by "+
+			"another cluster sharing the project, is reported via the "+
+			"scaleway_orphan_servers gauge but never mutated. Empty keeps the sweep "+
+			"report-only. Must be unique to this cluster when the Scaleway project is "+
+			"shared across environments.")
+	flag.StringVar(&orphanReclaimZonesRaw, "orphan-reclaim-zones",
+		envOrDefault("CAPI_ORPHAN_RECLAIM_ZONES", "fr-par-1"),
+		"Comma-separated Scaleway zones the orphan-reclaim sweep scans every cycle, "+
+			"unioned with the distinct zones of all live CRs. The static list keeps a "+
+			"zone covered after its last CR is deleted — the case where a strand is "+
+			"most likely and least visible.")
+	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
+		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
+			"ListServers per zone plus a CR list, so keep it coarse.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -358,7 +390,7 @@ func main() {
 		// `tag:tuist-k8s-<env>` dial access to this tag on the
 		// scrape ports; cross-env scraping is blocked once the
 		// wide-open catch-all is removed.
-		TailscaleTags:                parseTailscaleTags(tailscaleTagsRaw),
+		TailscaleTags:                parseCommaList(tailscaleTagsRaw),
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
@@ -366,6 +398,7 @@ func main() {
 		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
 		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),
 		MaxConcurrentReconciles:      machineMaxConcurrentReconciles,
+		DefaultAdoptPoolPrefix:       defaultAdoptPoolPrefix,
 		EgressNamespace:              egressNamespace,
 		EgressProxyGroup:             egressProxyGroup,
 		EgressMagicDNSSuffix:         egressMagicDNSSuffix,
@@ -393,6 +426,30 @@ func main() {
 			"deployment", fleetSpreadDeployment, "namespace", ns)
 	}
 
+	// Orphan-reclaim sweep: enabled once a pool prefix is configured
+	// (the same prefix the delete path falls back to). Report-only
+	// until a claim-name prefix is also set; see the flag help.
+	if defaultAdoptPoolPrefix != "" {
+		reclaimZones := parseCommaList(orphanReclaimZonesRaw)
+		if err := mgr.Add(&controllers.OrphanReclaimer{
+			Client:          mgr.GetClient(),
+			APIReader:       mgr.GetAPIReader(),
+			Scaleway:        scwClient,
+			Interval:        orphanReclaimInterval,
+			Zones:           reclaimZones,
+			PoolPrefix:      defaultAdoptPoolPrefix,
+			ClaimNamePrefix: orphanReclaimClaimNamePrefix,
+			Log:             ctrl.Log.WithName("orphan-reclaim"),
+		}); err != nil {
+			setupLog.Error(err, "setup OrphanReclaimer")
+			os.Exit(1)
+		}
+		setupLog.Info("orphan-reclaim sweep enabled",
+			"poolPrefix", defaultAdoptPoolPrefix,
+			"claimNamePrefix", orphanReclaimClaimNamePrefix,
+			"zones", reclaimZones, "interval", orphanReclaimInterval)
+	}
+
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "set up health check")
 		os.Exit(1)
@@ -416,12 +473,10 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
-// parseTailscaleTags splits a comma-separated --tailscale-tags
-// value into a slice. Empty input returns nil — the bootstrap then
-// falls back to whatever default tag the auth key carries.
-// Whitespace around each tag is trimmed; blank entries (e.g. a
-// trailing comma) are dropped.
-func parseTailscaleTags(raw string) []string {
+// parseCommaList splits a comma-separated flag value into a slice.
+// Empty input returns nil. Whitespace around each entry is trimmed;
+// blank entries (e.g. a trailing comma) are dropped.
+func parseCommaList(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil

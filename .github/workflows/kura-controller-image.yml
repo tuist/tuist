@@ -22,7 +22,8 @@ env:
 
 jobs:
   format:
-    runs-on: tuist-production-linux
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -39,7 +40,8 @@ jobs:
           fi
 
   test:
-    runs-on: tuist-production-linux
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -56,9 +58,7 @@ jobs:
   build:
     needs: test
     if: github.event_name != 'pull_request'
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3

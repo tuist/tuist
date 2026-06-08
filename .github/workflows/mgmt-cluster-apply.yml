@@ -39,6 +39,7 @@ on:
     branches: [main]
     paths:
       - 'infra/k8s/clusters/**'
+      - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
@@ -58,7 +59,7 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: mgmt-cluster-apply
     # The apply path normally finishes in under 2 min; 5 min
@@ -110,6 +111,9 @@ jobs:
           echo "::group::hetzner-robot-controller.yaml diff"
           kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
           echo "::endgroup::"
+          echo "::group::cluster-autoscaler.yaml diff"
+          kubectl diff -f infra/k8s/mgmt/cluster-autoscaler.yaml || true
+          echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
@@ -160,5 +164,6 @@ jobs:
         # CRs. Independent of the CAPI manifests above.
         run: |
           kubectl apply -f infra/k8s/mgmt/hetzner-robot-controller.yaml
+          kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml

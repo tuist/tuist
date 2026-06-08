@@ -90,10 +90,11 @@ struct TuistCacheEECanaryAcceptanceTests {
                 TuistTest.expectLogs("cacheable tasks (0%)")
                 resetUI()
 
-                try await fileSystem.remove(temporaryDirectory)
-
-                try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-                TuistTest.expectLogs("cacheable tasks (100%)")
+                try await expectFullyCachedRebuild(
+                    arguments: arguments,
+                    derivedDataPath: temporaryDirectory,
+                    fileSystem: fileSystem
+                )
             }
         }
     }
@@ -213,6 +214,37 @@ struct TuistCacheEECanaryAcceptanceTests {
         TuistTest.expectLogs(
             "The following targets have not changed since the last successful run and will be skipped: MultiPlatformTransitiveDynamicFrameworkTests"
         )
+    }
+
+    /// The remote compilation cache is eventually consistent: the outputs uploaded at the very end of
+    /// the first build (the `App` target's own objects, stored last) can lag behind on an immediate warm
+    /// rebuild, so a single clean rebuild does not reliably reach a 100% hit rate. Retry the clean rebuild
+    /// until every cacheable task is served from the cache, mirroring how `waitForRemoteSelectiveTestResult`
+    /// polls the same backend instead of asserting on the first attempt.
+    private func expectFullyCachedRebuild(
+        arguments: [String],
+        derivedDataPath: AbsolutePath,
+        fileSystem: FileSysteming,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(180))
+
+        while true {
+            try await fileSystem.remove(derivedDataPath)
+            try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+
+            if Logger.testingLogHandler.collected[.warning, >=].contains("cacheable tasks (100%)") {
+                return
+            }
+
+            if clock.now >= deadline {
+                TuistTest.expectLogs("cacheable tasks (100%)", sourceLocation: sourceLocation)
+                return
+            }
+
+            resetUI()
+        }
     }
 
     private func selectiveTestingHash(

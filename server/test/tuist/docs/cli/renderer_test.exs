@@ -170,6 +170,7 @@ defmodule Tuist.Docs.CLI.RendererTest do
       [cli_group, _] = Renderer.build_sidebar(@spec_fixture)
 
       labels = Enum.map(cli_group.items, & &1.label)
+      assert "Compatibility" in labels
       assert "Debugging" in labels
       assert "Directories" in labels
       assert "Shell completions" in labels

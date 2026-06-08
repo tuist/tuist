@@ -1,5 +1,6 @@
 services:
   kura-us:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
@@ -49,6 +50,7 @@ services:
           - kura-ring.kura.internal
 
   kura-eu:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
@@ -83,6 +85,7 @@ services:
           - kura-ring.kura.internal
 
   kura-ap:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile

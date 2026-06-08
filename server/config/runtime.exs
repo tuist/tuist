@@ -30,18 +30,56 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
+alias Tuist.Runners.Catalog
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
 
   json ->
-    case Tuist.Runners.Catalog.parse_shapes_json(json) do
+    case Catalog.parse_shapes_json(json) do
       :error ->
         raise "TUIST_RUNNER_LINUX_SHAPES is set but is not a valid JSON array of shapes " <>
                 "(Helm renders it from runnersFleetLinux.shapes via toJson). Got: #{inspect(json)}"
 
       shapes ->
         config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleet.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_macos_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_xcode_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_XCODE_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.xcodeVersions via toJson). Got: #{inspect(json)}"
+
+      xcodes ->
+        config :tuist, :runner_macos_xcode_versions, xcodes
     end
 end
 
@@ -467,7 +505,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
-base_queues = [default: 10, vcs_comments: 20, webhooks: 20]
+base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 

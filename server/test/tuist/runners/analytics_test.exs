@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.AnalyticsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -242,7 +242,10 @@ defmodule Tuist.Runners.AnalyticsTest do
       account = account_fixture()
 
       completed_job(account, 78_001, "success", fleet: "linux-amd64")
-      completed_job(account, 78_002, "success", fleet: Tuist.Runners.Catalog.pool_name(4, 16))
+
+      completed_job(account, 78_002, "success",
+        fleet: Tuist.Runners.Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16})
+      )
 
       assert %{count: 2} = Analytics.jobs_count(account.id, platform: "linux")
       assert %{count: 0} = Analytics.jobs_count(account.id, platform: "macos")

@@ -60,8 +60,14 @@ type Client struct {
 	// org-wide list and Scaleway returns "insufficient permissions".
 	DefaultProjectID string
 
-	// adoptMu serializes AdoptFromPool across all goroutines in this
-	// process. Scaleway's UpdateServer is not conditional — two
+	// adoptMu serializes AdoptFromPool and ReleaseToPool against each
+	// other across all goroutines in this process. ReleaseToPool renames
+	// a host into the pool prefix and only then requests the reinstall,
+	// so between those two calls the host carries the pool prefix and is
+	// still Status==ready; without holding this lock a concurrent
+	// adoption scan could claim it in that window and then the reinstall
+	// would wipe the freshly-claimed host. Scaleway's UpdateServer is not
+	// conditional — two
 	// concurrent rename calls against the same server both succeed,
 	// last-write-wins — so per-call optimistic read-after-write
 	// verification can't establish a "we own this server" invariant.
@@ -179,8 +185,11 @@ func normalizePubKey(pub string) string {
 
 // Server is the subset of fields the CAPI controller cares about.
 type Server struct {
-	ID           string
-	IP           string
+	ID   string
+	Name string
+	IP   string
+	// Status is the Scaleway lifecycle phase (`ready`, `reinstalling`,
+	// `rebooting`, …) as a raw string.
 	Status       string
 	SudoPassword string
 	SSHUsername  string
@@ -213,6 +222,49 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 		}
 		page++
 	}
+}
+
+// ListServers returns every Apple Silicon server the configured
+// credentials can see in `zone`, reduced to the Server view. The
+// Scaleway API has no server-side name filter, so it paginates the
+// full list and the caller filters client-side — the project holds at
+// most a few dozen hosts, so a full scan is cheap. Used by the
+// orphan-reclaim sweep to diff live hosts against the CRs that own
+// them.
+func (c *Client) ListServers(ctx context.Context, zone string) ([]Server, error) {
+	var out []Server
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.API.ListServers(&applesilicon.ListServersRequest{
+			Zone:     scw.Zone(zone),
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list servers in %s: %w", zone, err)
+		}
+		for _, s := range resp.Servers {
+			out = append(out, *scalewayServerToServer(s))
+		}
+		if len(resp.Servers) < int(pageSize) {
+			return out, nil
+		}
+		page++
+	}
+}
+
+// IsPoolOrAdopting reports whether a Scaleway server name marks a host
+// that is parked in the adopt pool (carries poolPrefix) or mid-adoption
+// (carries the internal claim-pending marker). Either is
+// controller-managed and must never be treated as stranded by the
+// orphan-reclaim sweep — the claim-pending case especially, since that
+// host is in the middle of being adopted by a live reconcile.
+func IsPoolOrAdopting(name, poolPrefix string) bool {
+	if poolPrefix != "" && strings.HasPrefix(name, poolPrefix) {
+		return true
+	}
+	return strings.HasPrefix(name, claimPendingPrefix)
 }
 
 // ErrNoAvailableHost is returned by AdoptFromPool when no
@@ -486,6 +538,13 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
 	}
 
+	// Hold the adoption lock across the rename + reinstall request so an
+	// AdoptFromPool scan can't claim the host in the window where it
+	// already carries the pool prefix but the wipe hasn't been requested
+	// yet. See the adoptMu field comment.
+	c.adoptMu.Lock()
+	defer c.adoptMu.Unlock()
+
 	newName := poolPrefix + uuid.NewString()
 	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
 		ServerID: id,
@@ -557,6 +616,7 @@ const SealedSecretMarker = "<sealed>"
 func scalewayServerToServer(s *applesilicon.Server) *Server {
 	out := &Server{
 		ID:           s.ID,
+		Name:         s.Name,
 		Status:       string(s.Status),
 		SudoPassword: s.SudoPassword,
 		SSHUsername:  s.SSHUsername,

@@ -36,6 +36,9 @@ kuraController:
     # Leave empty to disable controller-injected tracing, or override
     # per KuraInstance through spec.extraEnv.
     otlpTracesEndpoint: ""
+    # Environment label injected into controller-managed Kura pods. Kura
+    # uses this for both OpenTelemetry and Sentry.
+    deploymentEnvironment: production
   sharedSecrets:
     # Renders the kura-shared-secrets Kubernetes Secret in the
     # controller namespace. Set to false if the Secret is managed
@@ -57,6 +60,15 @@ kuraController:
       item: ""
       fields:
         introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+  sentry:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_SENTRY_DSN
     # Example shape — never commit real values here:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
@@ -401,6 +413,26 @@ xcresultProcessor:
   # that point at a different Secret.
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
+  # Tailscale identity for each Tart VM. When enabled the VM image's
+  # tailscale-up.sh runs at boot (before the BEAM) and joins the
+  # tailnet using the auth key sourced from this Secret. The chart's
+  # `xcresult-processor-database-url` rendering points at the
+  # operator-managed pooler proxy hostname; the VM resolves it via
+  # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # Off by default — self-hosters without a tailnet, and any
+  # deployment that hasn't shipped the tailscale-enabled VM image
+  # yet, leaves this off and the chart skips the env injection.
+  tailscale:
+    enabled: false
+    # Name of the Secret holding the per-env Tailscale pre-auth key
+    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # operator's --tailscale-auth-key-secret-name flag). Empty falls
+    # back to the chart-default
+    # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
+    # macOS-fleet ExternalSecret syncs from 1Password.
+    authKeySecretName: ""
+    authKeySecretKey: "auth-key"
   extraEnv: []
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
@@ -522,6 +554,25 @@ macosFleet:
   # set this when the ConfigMap isn't usable (non-kubeadm cluster,
   # split-horizon DNS, ad-hoc override).
   apiServerURL: ""
+
+  # Orphan-reclaim sweep — a leader-gated periodic sweep that returns
+  # Scaleway hosts which were claimed by the controller but whose CR is
+  # gone (a legacy CR that skipped release, a force-delete that bypassed
+  # the finalizer, a crash mid-claim) back to the adopt pool. The sweep's
+  # pool prefix and zones are derived from the fleet config
+  # (adoptPoolPrefix + each fleet's machine.zone) and the claimed-name
+  # prefix from the chart name, so the only knob here is whether the
+  # sweep may mutate. See controllers/orphan_reclaimer.go.
+  orphanReclaim:
+    # false (default): report-only. The sweep exports the
+    # scaleway_orphan_servers gauge and logs strays but never touches a
+    # host; the per-Machine delete path still falls back to the fleet
+    # pool prefix, which prevents new strands. true: the sweep also
+    # returns stranded hosts to the pool (rename + reinstall). Enable per
+    # env only after confirming this cluster has its own Scaleway project
+    # — a shared project could let the sweep reclaim another env's live
+    # host, whose CR isn't visible to this cluster's API server.
+    activeReclaim: false
 
   # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
   # each Mac mini. Each Mac mini joins the cluster as a real Node and
@@ -688,8 +739,9 @@ macosFleet:
 # (intentional — we'd rather let a thin overcommit show up as
 # unscheduled Pods than fail a deploy on arithmetic).
 #
-# Per-customer concurrency is enforced server-side via
-# `accounts.runner_max_concurrent` (see server/lib/tuist/runners.ex).
+# Runner availability is gated server-side by the `:runners`
+# feature flag (see server/lib/tuist/runners.ex); there's no
+# per-customer concurrency cap.
 #
 # The Tuist server's ServiceAccount holds Pod create/list/get on
 # the runners namespace (templates/runners-namespace.yaml); a
@@ -753,6 +805,67 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+  # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
+  # single source of truth for the Profiles dropdown and the server's
+  # `:runner_macos_shapes` validation. Injected into the server as
+  # `TUIST_RUNNER_MACOS_SHAPES` (JSON). M2-L is the only Scaleway Apple
+  # Silicon SKU on the fleet today.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+  # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
+  # `<release>-runner-pool-macos-<xcode-dashes>` with image
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  # Customers route via account-scoped Runner Profiles; the server
+  # resolves (account, requested-label) → profile → pool. Keep this
+  # list in sync with the `runner-image-build.strategy.matrix.xcode`
+  # matrix in `.github/workflows/release.yml`.
+  xcodeVersions:
+    - xcodeVersion: "26.5"
+      default: true
+    - xcodeVersion: "26.4.1"
+  # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
+  # catalog stays in `xcodeVersions` above so it's shared via the
+  # common values file; each managed env layers its overrides here
+  # without re-pasting the catalog. Unset fields fall back to the
+  # template defaults (replicas: 0, pod sizing from the catalog's
+  # `default: true` shape, no autoscaling).
+  #
+  # The runners-controller's fleet allocator apportions the
+  # `hostCount` slot budget across every macOS pool sharing this
+  # fleetSelector using the same three-tier (floor / load /
+  # headroom) policy as the Linux pools. `maxReplicas` is per-pool
+  # and can be set to the full host budget — the allocator caps
+  # the joint sum so two pools both at max don't double-book hosts.
+  xcodeOverrides: {}
+    # "26.5":
+    #   replicas: 1                    # Static (non-autoscaling) warm count.
+    #   pod:                           # Optional. Defaults to the catalog's default shape.
+    #     cpuMilli: 6000
+    #     memoryMB: 14336
+    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
+    #     enabled: true
+    #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
+    #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
+    #     scaleDownCooldownSeconds: 300
+    #   runnerLabels:                  # Optional. Defaults to ["self-hosted", "macOS", "ARM64"].
+    #     - self-hosted
+    #     - macOS
+    #     - ARM64
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageSemver`.
+  # Per-pool runner image template. `runner-pool.yaml` constructs each
+  # macOS pool's `spec.image` as
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`,
+  # so the release-runner-image flow only bumps `runnerImageSemver`
+  # and every Xcode pool refreshes in lockstep. An xcodeVersions entry
+  # can override `imageTag` to pin a specific tag (e.g. a SHA tag for
+  # an out-of-rotation Xcode refreshed via `runner-image.yml`).
+  runnerImageRepository: "ghcr.io/tuist/tuist-runner"
+  # Required when `xcodeVersions` is non-empty (the template fails the
+  # render otherwise). Bumped by `release-runner-image` on every
+  # release; managed envs override this with the live version.
+  runnerImageSemver: ""
   # RunnerPool CRs rendered into `runnersFleet.namespace`. One
   # entry per image variant. Required when `runnersFleet.enabled`
   # is true; the chart fails the render with an empty list.
@@ -1172,6 +1285,62 @@ postgresql:
     owner: tuist_app
     # Initial database created on bootstrap.
     database: tuist
+    # Server-level Postgres parameters merged into the Cluster CR's
+    # spec.postgresql.parameters. max_connections must cover the aggregate
+    # direct-connection budget: web replicas x TUIST_DATABASE_POOL_SIZE +
+    # processor + pooler backend pool + replication/monitoring/superuser
+    # overhead. The operator default is 100; set it explicitly so a
+    # multi-replica env (production autoscales the web tier to 5) doesn't
+    # silently hit the ceiling. See infra/cnpg/MIGRATION.md for the budget.
+    parameters:
+      max_connections: "100"
+    # Extra Postgres libraries to preload via shared_preload_libraries.
+    # Kept separate from `parameters` because CNPG's admission webhook
+    # rejects shared_preload_libraries set there — it's a fixed
+    # parameter the operator manages internally. The chart renders this
+    # list to `spec.postgresql.shared_preload_libraries` on the Cluster
+    # CR, the supported path.
+    sharedPreloadLibraries: []
+    # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
+    # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
+    # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier and
+    # Postgres-peer leader election don't survive *transaction* pooling). On
+    # Supabase the web tier still rides Supavisor in *session* mode (:5432),
+    # but that pooler exists for Supabase-platform reasons (IPv4-only direct
+    # endpoint, managed connection front door); in-cluster the `-rw` Service
+    # is already the native session endpoint with primary failover, so we
+    # connect the web tier straight to it. Both are session-mode, so the
+    # app's connection shape is identical either way. Enabling is just a
+    # flag flip: with no custom cert secrets below, CNPG's built-in
+    # PgBouncer integration manages auth itself (it creates the
+    # cnpg_pooler_pgbouncer role + user_search function in the `postgres`
+    # database on reconcile). See infra/cnpg/README.md.
+    pooler:
+      enabled: false
+      instances: 1
+      poolMode: transaction
+      parameters:
+        default_pool_size: "20"
+        max_client_conn: "100"
+      # Annotate the Pooler's Service so the Tailscale operator stands up
+      # a userspace proxy on the tailnet, exposing the in-cluster pooler
+      # ClusterIP at a stable MagicDNS hostname. The processor's
+      # ExternalSecret then renders a second URL keyed off that hostname
+      # for clients whose only network interface is Tailnet — namely the
+      # macOS Tart VM xcresult-processor pods, which can't reach
+      # ClusterIPs through the K8s overlay. Linux processors keep using
+      # the direct in-cluster pooler hostname (no detour).
+      tailscale:
+        enabled: false
+        # tailscale.com/hostname annotation. Must be unique on the tailnet
+        # — by convention, "tuist-pg-pooler-<env>".
+        hostname: ""
+        # tailscale.com/tags annotation override. The operator's
+        # PROXY_TAGS default ("tag:k8s") is platform-wide and the
+        # tailnet's ACL only permits Tuist-scoped tags; set this to the
+        # env's permitted tag (e.g. "tag:tuist-k8s-production").
+        tags: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"

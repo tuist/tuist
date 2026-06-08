@@ -29,6 +29,34 @@ Per [the RFC](https://community.tuist.dev/t/moving-postgres-in-cluster/986), thr
   ```
 - Tigris bucket created per env (`tuist-stag-pg-backups`, `tuist-can-pg-backups`, `tuist-prod-pg-backups`). The CNPG `barmanObjectStore` writes a directory tree under the path; no extra prefix needed.
 
+## Connection budget
+
+The CNPG cluster's `max_connections` is set explicitly via `postgresql.cnpg.parameters.max_connections` (the operator default is 100). Unlike Supabase, a CNPG cluster has no managed pooler in front by default, so the app's connections land on Postgres directly and the cluster must be sized for the aggregate:
+
+```
+max_connections  ≳  (web replicas × TUIST_DATABASE_POOL_SIZE)
+                   + processor pool
+                   + migration job (pool 1, transient)
+                   + pooler backend pool (if the Pooler is enabled)
+                   + ~15 for replication walsenders, monitoring, and
+                     superuser_reserved_connections (3)
+                   + headroom for a deploy surge (maxSurge adds a replica)
+```
+
+The web tier is the dominant term, and it scales with replica count:
+
+| Env        | Web replicas (max) | Pool | Web peak | `max_connections` |
+|------------|--------------------|------|----------|-------------------|
+| staging    | 1                  | 15   | 15       | 100 (default)     |
+| canary     | 1                  | 30   | 30       | 100 (default)     |
+| production | 5 (autoscaled)     | 15   | 75       | **200**           |
+
+**Do not raise the per-replica pool on a multi-replica env to match canary's 30.** Canary can afford a 30-connection pool because it is a single replica (30 < 100). On production, 5 replicas × 30 = 150 would blow past `max_connections` and surface as Postgres-side `remaining connection slots` / `too many clients` refusals — a different and worse failure than app-side pool pressure. Scale the web tier's connection pressure with replicas, not with a fat per-replica pool, and keep `max_connections` ahead of the peak.
+
+Raising `max_connections` costs roughly 5–10 MiB of shared memory per connection, so keep it proportionate to the instance's memory limit (200 connections ≈ ~2 GiB, comfortable inside production's 16 GiB).
+
+Optionally, a CNPG `Pooler` (PgBouncer) can front the cluster for the **processor** only, in transaction mode — matching the processor's Supabase Supavisor `:6543` path so its `prepare: :unnamed` shape is unchanged across cutover. The web tier connects straight to `-rw` instead. Note this differs from Supabase, where the web tier rides Supavisor in *session* mode (`:5432`); we skip that hop because `-rw` is already a native session endpoint with failover and a session pooler would not change the budget. See [`README.md`](./README.md) → "Connection pooler (PgBouncer)" for the full rationale and the activation sequence.
+
 ## Per-env migration (repeat for each)
 
 ### 1. Provision the CNPG cluster ahead of cutover
@@ -222,12 +250,20 @@ kubectl cnpg psql -n tuist-$ENV tuist-tuist-pg -- -d tuist \
   -c "ALTER SUBSCRIPTION tuist_migration DISABLE;"
 
 # 6e. Land the cutover PR that flips `postgresql.mode` to `cnpg` in
-# the env overlay (`values-managed-$ENV.yaml`). The chart's
-# server-deployment / processor-external-secrets / server-migration-job
-# templates then inject DATABASE_URL from the CNPG `<cluster>-app`
-# Secret and from the `tuist_processor` ESO secret. No change to
-# priv/secrets/<env>.yml.enc is needed — the chart env var takes
-# precedence over the encrypted-bundle DATABASE_URL.
+# the env overlay (`values-managed-$ENV.yaml`). In the SAME change, set
+# `postgresql.cnpg.pooler.enabled: true` so the processor moves straight
+# from Supabase's transaction pooler (Supavisor :6543) onto the CNPG
+# transaction pooler (`-pooler-rw`), keeping its `prepare: :unnamed`
+# shape. Enabling the pooler only *after* cutover would briefly land the
+# processor on `-rw` directly (session / `prepare: :named`) and then flip
+# its shape a second time — so flip both together. (staging and canary
+# already run with the pooler on, so for them only `mode` changes here;
+# production is the env that flips both.) The chart's server-deployment /
+# processor-external-secrets / server-migration-job templates then inject
+# DATABASE_URL from the CNPG `<cluster>-app` Secret and from the
+# `tuist_processor` ESO secret. No change to priv/secrets/<env>.yml.enc
+# is needed — the chart env var takes precedence over the
+# encrypted-bundle DATABASE_URL.
 gh workflow run server-deployment.yml -f environment=$ENV
 
 # 6f. Resume Oban queues.
@@ -235,11 +271,38 @@ kubectl -n tuist-$ENV exec deploy/tuist-tuist-server -- \
   /app/bin/tuist eval 'Oban.resume_all_queues(Oban)'
 ```
 
-### 7. Reverse replication for rollback (14 days)
+### 7. Rollback strategy (14 days, fix-forward by default)
 
-For the next 14 days, replicate CNPG → Supabase so a rollback is a flip of DATABASE_URL back to Supabase, not a multi-hour data-export. Same `CREATE PUBLICATION` / `CREATE SUBSCRIPTION` pattern in the opposite direction.
+After cutover the rollback path is **fix-forward on CNPG**, not flip-back-to-Supabase. The Supabase project stays live but unused as a frozen pre-cutover snapshot for 14 days, then is decommissioned.
 
-After 14 days of clean operation, drop the reverse subscription and decommission the Supabase project for that env.
+We chose this over continuous CNPG → Supabase reverse replication after weighing the trade-offs. Reverse replication would buy ~5-minute rollback at the cost of: a public-facing Hetzner LB exposing CNPG (extra attack surface even with source-IP ACLs), a second logical replication slot with the same `statement_timeout` / `max_slot_wal_keep_size` / slot-invalidation failure modes we hit during the forward COPY (now failing silently and discovered on the day rollback is needed), a `tuist_replicator` role on CNPG with REPLICATION privilege, and chart additions for `pg_hba` injection + managed role declaration. That's a lot of net-new operational surface to protect against scenarios where rolling back to Supabase doesn't actually help — Supabase wouldn't have the post-cutover writes anyway, so any rollback past hour-1 would require manual data reconciliation either way, and every realistic CNPG failure mode (data corruption, performance regression, ops gap) is recoverable on CNPG via the existing safety nets.
+
+#### Safety nets already in place
+
+- Base backups to Tigris (`tuist-<env>-pg-backups`), daily via `ScheduledBackup`.
+- Continuous WAL archive to the same bucket → point-in-time recovery to any second within the retention window.
+- Restore-validation drill has been proven end-to-end against the staging cluster.
+- The Supabase project for the env stays running, untouched, as a frozen snapshot for 14 days.
+
+#### Emergency rollback in the first 24h
+
+If a problem surfaces inside the first day and we need to genuinely flip back to Supabase:
+
+1. Pause writes (Maintenance mode toggle on `/ops/db`, or scale the server to 0).
+2. Identify the small write delta on CNPG since cutover (timestamp-bounded `pg_dump --data-only --table=...` for the high-write tables, or a row-count diff against Supabase).
+3. Apply the delta to Supabase as the superuser (`op://Development/Tuist <Env> Database (Supabase)`).
+4. Open a one-line revert PR flipping `postgresql.mode` and `postgresql.cnpg.pooler.enabled` back to `external` / `false` for the env.
+5. Merge + deploy. Server switches back to Supabase.
+
+Wall-time depends on the delta size, but a same-day rollback is on the order of one operator-hour, not the multi-hour COPY a fresh forward migration would take.
+
+#### Beyond the first 24h
+
+Fix-forward on CNPG. Drift between CNPG and Supabase grows monotonically and we'd be reconciling manually anyway — at that point a "rollback" is really a from-scratch migration in the reverse direction, the same operation we just did forward.
+
+#### Day-14 decommission
+
+Drop the Supabase project for the env and remove any remaining references (1Password items, processor `database.host` overlay value, pg_dump scripts pointing at it).
 
 ## Per-environment soak gates
 

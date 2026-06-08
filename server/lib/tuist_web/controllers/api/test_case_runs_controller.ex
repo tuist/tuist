@@ -471,8 +471,8 @@ defmodule TuistWeb.API.TestCaseRunsController do
   defp render_test_case_runs(conn, filters, page, page_size) do
     options = %{
       filters: filters,
-      order_by: [:ran_at],
-      order_directions: [:desc],
+      order_by: [:ran_at, :id],
+      order_directions: [:desc, :asc],
       page: page,
       page_size: page_size
     }

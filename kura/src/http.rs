@@ -1,6 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     net::IpAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Instant,
 };
 
 use axum::{
@@ -12,12 +16,15 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, head, post, put},
 };
+use bytes::Bytes;
+use futures_util::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    bandwidth::BandwidthLimiter,
     constants::{
         MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
         MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
@@ -25,15 +32,18 @@ use crate::{
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
     memory::MemoryPressure,
+    metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
+    runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::is_disk_full_error,
     telemetry::{attach_parent_context, record_trace_context},
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
-const RESPONSE_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
+const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -224,6 +234,13 @@ impl NamespaceQuery {
             }),
         }
     }
+
+    fn usage_context(&self) -> UsageContext {
+        UsageContext {
+            tenant_id: self.tenant_id.clone(),
+            namespace_id: self.namespace_id.clone(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -324,7 +341,13 @@ struct ProjectAnalyticsContext<'a> {
     namespace_id: &'a str,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
+struct UsageContext {
+    tenant_id: String,
+    namespace_id: String,
+}
+
+#[derive(Clone)]
 struct BlobPutSpec<'a> {
     namespace_id: &'a str,
     key: &'a str,
@@ -333,6 +356,7 @@ struct BlobPutSpec<'a> {
     success_status: StatusCode,
     existing_status: StatusCode,
     analytics: Option<ProjectAnalyticsContext<'a>>,
+    usage: Option<UsageContext>,
 }
 
 impl PageQuery {
@@ -461,9 +485,14 @@ async fn track_http_metrics(
     req: Request,
     next: Next,
 ) -> Response {
-    let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = request_route(&req);
+    let traffic_class = if is_public_load_route(&route) {
+        HttpTrafficClass::Public
+    } else {
+        HttpTrafficClass::Background
+    };
+    let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -506,11 +535,21 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
+    let elapsed = start.elapsed();
+    if traffic_class == HttpTrafficClass::Public {
+        state
+            .runtime
+            .record_public_request_latency(&state.metrics, "http", &route, elapsed);
+    }
     state
         .metrics
-        .record_http(route, response.status(), client_country, start.elapsed());
+        .record_http(route, response.status(), client_country, elapsed);
 
     response
+}
+
+fn is_public_load_route(route: &str) -> bool {
+    !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
 }
 
 fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
@@ -1047,6 +1086,7 @@ async fn get_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+    let usage = namespace.usage_context();
 
     let key = action_cache_key(&cas_id);
     match state.store.fetch_inline_artifact_bytes(
@@ -1058,6 +1098,13 @@ async fn get_keyvalue(
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
+            record_usage_event(
+                &state,
+                ArtifactProducer::Xcode,
+                "download",
+                Some(&usage),
+                bytes.len() as u64,
+            );
             (
                 [(
                     axum::http::header::CONTENT_TYPE,
@@ -1071,7 +1118,7 @@ async fn get_keyvalue(
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Key-value entry not found")
         }
         Err(error) => {
             state
@@ -1086,6 +1133,11 @@ async fn get_keyvalue(
 }
 
 async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedState>) -> Response {
+    let usage = UsageContext {
+        tenant_id: state.config.tenant_id.clone(),
+        namespace_id: NX_NAMESPACE_ID.to_owned(),
+    };
+
     get_artifact(
         state,
         ArtifactProducer::Nx,
@@ -1093,6 +1145,7 @@ async fn get_nx(AxumPath(hash): AxumPath<String>, State(state): State<SharedStat
         &hash,
         None,
         None,
+        Some(usage),
     )
     .await
 }
@@ -1102,6 +1155,11 @@ async fn put_nx(
     State(state): State<SharedState>,
     request: Request,
 ) -> Response {
+    let usage = UsageContext {
+        tenant_id: state.config.tenant_id.clone(),
+        namespace_id: NX_NAMESPACE_ID.to_owned(),
+    };
+
     put_blob_artifact(
         state,
         ArtifactProducer::Nx,
@@ -1114,6 +1172,7 @@ async fn put_nx(
             success_status: StatusCode::OK,
             existing_status: StatusCode::OK,
             analytics: None,
+            usage: Some(usage),
         },
     )
     .await
@@ -1123,6 +1182,11 @@ async fn get_metro(
     AxumPath(cache_key): AxumPath<String>,
     State(state): State<SharedState>,
 ) -> Response {
+    let usage = UsageContext {
+        tenant_id: state.config.tenant_id.clone(),
+        namespace_id: METRO_NAMESPACE_ID.to_owned(),
+    };
+
     get_artifact(
         state,
         ArtifactProducer::Metro,
@@ -1130,6 +1194,7 @@ async fn get_metro(
         &cache_key,
         None,
         None,
+        Some(usage),
     )
     .await
 }
@@ -1139,6 +1204,11 @@ async fn put_metro(
     State(state): State<SharedState>,
     request: Request,
 ) -> Response {
+    let usage = UsageContext {
+        tenant_id: state.config.tenant_id.clone(),
+        namespace_id: METRO_NAMESPACE_ID.to_owned(),
+    };
+
     put_blob_artifact(
         state,
         ArtifactProducer::Metro,
@@ -1151,6 +1221,7 @@ async fn put_metro(
             success_status: StatusCode::OK,
             existing_status: StatusCode::OK,
             analytics: None,
+            usage: Some(usage),
         },
     )
     .await
@@ -1165,6 +1236,7 @@ async fn put_keyvalue(
         Ok(namespace) => namespace,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+    let usage = namespace.usage_context();
 
     let body = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
         Ok(body) => body,
@@ -1220,6 +1292,13 @@ async fn put_keyvalue(
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Xcode, "ok", manifest.size);
+            record_usage_event(
+                &state,
+                ArtifactProducer::Xcode,
+                "upload",
+                Some(&usage),
+                manifest.size,
+            );
             StatusCode::NO_CONTENT.into_response()
         }
         Err(error) => {
@@ -1245,6 +1324,7 @@ async fn get_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
+    let usage = namespace.usage_context();
 
     get_artifact(
         state,
@@ -1253,6 +1333,7 @@ async fn get_xcode(
         &blob_key(&id),
         Some(&id),
         analytics,
+        Some(usage),
     )
     .await
 }
@@ -1269,6 +1350,7 @@ async fn put_xcode(
     };
 
     let analytics = namespace.project_analytics_context();
+    let usage = namespace.usage_context();
 
     put_blob_artifact(
         state,
@@ -1282,6 +1364,7 @@ async fn put_xcode(
             success_status: StatusCode::NO_CONTENT,
             existing_status: StatusCode::NO_CONTENT,
             analytics,
+            usage: Some(usage),
         },
     )
     .await
@@ -1298,6 +1381,7 @@ async fn get_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
+    let usage = namespace.usage_context();
 
     get_artifact(
         state,
@@ -1306,6 +1390,7 @@ async fn get_gradle(
         &cache_key,
         Some(&cache_key),
         analytics,
+        Some(usage),
     )
     .await
 }
@@ -1322,6 +1407,7 @@ async fn put_gradle(
     };
 
     let analytics = namespace.project_analytics_context();
+    let usage = namespace.usage_context();
 
     put_blob_artifact(
         state,
@@ -1335,6 +1421,7 @@ async fn put_gradle(
             success_status: StatusCode::CREATED,
             existing_status: StatusCode::OK,
             analytics,
+            usage: Some(usage),
         },
     )
     .await
@@ -1375,6 +1462,7 @@ async fn get_module(
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+    let usage = query.namespace.usage_context();
 
     get_artifact(
         state,
@@ -1383,6 +1471,7 @@ async fn get_module(
         &query.artifact_key(),
         None,
         None,
+        Some(usage),
     )
     .await
 }
@@ -1443,6 +1532,7 @@ async fn upload_module_part(
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
         &state.io,
+        None,
     )
     .await
     {
@@ -1505,6 +1595,15 @@ async fn complete_module_upload(
         Ok(query) => query,
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
+    let usage = state
+        .store
+        .multipart_upload(&query.upload_id)
+        .ok()
+        .flatten()
+        .map(|upload| UsageContext {
+            tenant_id: upload.tenant_id,
+            namespace_id: upload.namespace_id,
+        });
 
     let targets = replication_targets(&state).await;
     match state
@@ -1517,6 +1616,13 @@ async fn complete_module_upload(
             state
                 .metrics
                 .record_artifact_write(ArtifactProducer::Module, "ok", manifest.size);
+            record_usage_event(
+                &state,
+                ArtifactProducer::Module,
+                "upload",
+                usage.as_ref(),
+                manifest.size,
+            );
             StatusCode::NO_CONTENT.into_response()
         }
         Err(MultipartError::NotFound) => error_response(StatusCode::NOT_FOUND, "Upload not found"),
@@ -1619,7 +1725,16 @@ async fn internal_bootstrap_artifact(
         .fetch_artifact_by_id_for_serving(&artifact_id)
         .await
     {
-        Ok(Some(manifest)) => serve_file(&state, StatusCode::OK, &manifest).await,
+        Ok(Some(manifest)) => {
+            serve_file_reader(
+                &state,
+                StatusCode::OK,
+                &manifest,
+                state.replication_bandwidth_limiter.clone(),
+                false,
+            )
+            .await
+        }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1719,6 +1834,7 @@ async fn internal_replicate_artifact(
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
         &state.io,
+        state.replication_bandwidth_limiter.clone(),
     )
     .await
     {
@@ -1820,6 +1936,7 @@ async fn get_artifact(
     key: &str,
     analytics_key: Option<&str>,
     analytics: Option<ProjectAnalyticsContext<'_>>,
+    usage: Option<UsageContext>,
 ) -> Response {
     match state
         .store
@@ -1832,7 +1949,7 @@ async fn get_artifact(
                 state
                     .metrics
                     .record_artifact_read(producer, "ok", manifest.size);
-                record_usage_event(&state, producer, "download", analytics, manifest.size);
+                record_usage_event(&state, producer, "download", usage.as_ref(), manifest.size);
                 record_project_scoped_cache_event(
                     &state,
                     producer,
@@ -1850,7 +1967,7 @@ async fn get_artifact(
         }
         Ok(None) => {
             state.metrics.record_artifact_read(producer, "not_found", 0);
-            StatusCode::NOT_FOUND.into_response()
+            error_response(StatusCode::NOT_FOUND, "Artifact not found")
         }
         Err(error) => {
             state.metrics.record_artifact_read(producer, "error", 0);
@@ -1888,6 +2005,7 @@ async fn put_blob_artifact(
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
         &state.io,
+        None,
     )
     .await
     {
@@ -1925,7 +2043,13 @@ async fn put_blob_artifact(
             state
                 .metrics
                 .record_artifact_write(producer, "ok", manifest.size);
-            record_usage_event(&state, producer, "upload", spec.analytics, manifest.size);
+            record_usage_event(
+                &state,
+                producer,
+                "upload",
+                spec.usage.as_ref(),
+                manifest.size,
+            );
             record_project_scoped_cache_event(
                 &state,
                 producer,
@@ -1950,10 +2074,10 @@ fn record_usage_event(
     state: &SharedState,
     producer: ArtifactProducer,
     action: &str,
-    analytics: Option<ProjectAnalyticsContext<'_>>,
+    usage_context: Option<&UsageContext>,
     size: u64,
 ) {
-    let Some(context) = analytics else {
+    let Some(context) = usage_context else {
         return;
     };
     let Some(usage) = state.usage.as_ref() else {
@@ -1963,14 +2087,17 @@ fn record_usage_event(
 
     match action {
         "download" => usage.record_public_download(
-            context.tenant_id,
-            context.namespace_id,
+            &context.tenant_id,
+            &context.namespace_id,
             artifact_kind,
             size,
         ),
-        "upload" => {
-            usage.record_public_upload(context.tenant_id, context.namespace_id, artifact_kind, size)
-        }
+        "upload" => usage.record_public_upload(
+            &context.tenant_id,
+            &context.namespace_id,
+            artifact_kind,
+            size,
+        ),
         _ => {}
     }
 }
@@ -2023,21 +2150,41 @@ async fn serve_file(
     status: StatusCode,
     manifest: &ArtifactManifest,
 ) -> Response {
-    match state.store.open_artifact_reader(manifest).await {
-        Ok(reader) => {
-            let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
+    match state.store.try_mmap_artifact_bytes(manifest).await {
+        Ok(Some(bytes)) => {
+            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_TYPE,
-                HeaderValue::from_str(&manifest.content_type)
-                    .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+            apply_artifact_response_headers(&mut response, manifest);
+            response
+        }
+        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
+        Err(error) => {
+            tracing::warn!(
+                artifact_id = %manifest.artifact_id,
+                %error,
+                "mmap artifact serving failed; falling back to streaming reader"
             );
-            response.headers_mut().insert(
-                axum::http::header::CONTENT_LENGTH,
-                HeaderValue::from_str(&manifest.size.to_string())
-                    .unwrap_or_else(|_| HeaderValue::from_static("0")),
-            );
+            serve_file_reader(state, status, manifest, None, true).await
+        }
+    }
+}
+
+async fn serve_file_reader(
+    state: &SharedState,
+    status: StatusCode,
+    manifest: &ArtifactManifest,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    hold_public_inflight: bool,
+) -> Response {
+    match state.store.open_artifact_reader(manifest).await {
+        Ok(reader) => {
+            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = throttle_body_stream(stream, bandwidth_limiter);
+            let stream = instrument_artifact_stream(state, manifest, stream, hold_public_inflight);
+            let mut response = Response::new(Body::from_stream(stream));
+            *response.status_mut() = status;
+            apply_artifact_response_headers(&mut response, manifest);
             response
         }
         Err(error) => error_response(
@@ -2045,6 +2192,161 @@ async fn serve_file(
             format!("Artifact bytes are missing from local storage: {error}"),
         ),
     }
+}
+
+fn instrument_artifact_stream<S>(
+    state: &SharedState,
+    manifest: &ArtifactManifest,
+    stream: S,
+    hold_public_inflight: bool,
+) -> InstrumentedArtifactStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+{
+    let request_guard =
+        hold_public_inflight.then(|| state.start_http_request(HttpTrafficClass::Public));
+    InstrumentedArtifactStream::new(
+        state.metrics.clone(),
+        manifest.producer,
+        stream,
+        request_guard,
+    )
+}
+
+struct InstrumentedArtifactStream<S> {
+    inner: S,
+    metrics: Metrics,
+    producer: ArtifactProducer,
+    _request_guard: Option<InflightGuard>,
+    started_at: Instant,
+    yielded_bytes: u64,
+    recorded: bool,
+}
+
+impl<S> InstrumentedArtifactStream<S> {
+    fn new(
+        metrics: Metrics,
+        producer: ArtifactProducer,
+        stream: S,
+        request_guard: Option<InflightGuard>,
+    ) -> Self {
+        Self {
+            inner: stream,
+            metrics,
+            producer,
+            _request_guard: request_guard,
+            started_at: Instant::now(),
+            yielded_bytes: 0,
+            recorded: false,
+        }
+    }
+
+    fn record_once(&mut self, result: &str) {
+        if self.recorded {
+            return;
+        }
+
+        self.recorded = true;
+        self.metrics.record_artifact_egress(
+            self.producer,
+            result,
+            self.yielded_bytes,
+            self.started_at.elapsed(),
+        );
+    }
+}
+
+fn throttle_body_stream<S, E>(
+    stream: S,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+) -> impl futures_util::Stream<Item = Result<Bytes, E>>
+where
+    S: futures_util::Stream<Item = Result<Bytes, E>>,
+{
+    stream.then(move |item| {
+        let bandwidth_limiter = bandwidth_limiter.clone();
+        async move {
+            if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                limiter.acquire(chunk.len()).await;
+            }
+            item
+        }
+    })
+}
+
+impl<S> Stream for InstrumentedArtifactStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>>,
+{
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // The wrapper never moves `inner` after being pinned; this only projects
+        // the pinned field so non-`Unpin` streams can stay unboxed.
+        let this = unsafe { self.as_mut().get_unchecked_mut() };
+        let inner = unsafe { Pin::new_unchecked(&mut this.inner) };
+        match inner.poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                this.yielded_bytes = this.yielded_bytes.saturating_add(bytes.len() as u64);
+                Poll::Ready(Some(Ok(bytes)))
+            }
+            Poll::Ready(Some(Err(error))) => {
+                this.record_once("error");
+                Poll::Ready(Some(Err(error)))
+            }
+            Poll::Ready(None) => {
+                this.record_once("ok");
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl<S> Drop for InstrumentedArtifactStream<S> {
+    fn drop(&mut self) {
+        self.record_once("aborted");
+    }
+}
+
+struct BytesChunks {
+    bytes: Bytes,
+    offset: usize,
+}
+
+impl Stream for BytesChunks {
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.offset >= self.bytes.len() {
+            return Poll::Ready(None);
+        }
+
+        let end = self
+            .offset
+            .saturating_add(MMAP_RESPONSE_CHUNK_BYTES)
+            .min(self.bytes.len());
+        let chunk = self.bytes.slice(self.offset..end);
+        self.offset = end;
+        Poll::Ready(Some(Ok(chunk)))
+    }
+}
+
+fn bytes_chunks(bytes: Bytes) -> BytesChunks {
+    BytesChunks { bytes, offset: 0 }
+}
+
+fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_str(&manifest.content_type)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
+    );
+    response.headers_mut().insert(
+        axum::http::header::CONTENT_LENGTH,
+        HeaderValue::from_str(&manifest.size.to_string())
+            .unwrap_or_else(|_| HeaderValue::from_static("0")),
+    );
 }
 
 fn draining_response(version: Version) -> Response {
@@ -2086,10 +2388,36 @@ mod tests {
     use super::*;
     use crate::{
         artifact::producer::ArtifactProducer,
-        config::AnalyticsConfig,
+        config::{AnalyticsConfig, UsageConfig},
         test_support::{response_text, test_context},
         utils::blob_key,
     };
+
+    fn test_usage_config() -> UsageConfig {
+        UsageConfig {
+            control_plane_url: "http://localhost:0".to_owned(),
+            client_id: "kura".to_owned(),
+            client_secret: "secret".to_owned(),
+            window_secs: 60,
+            flush_interval_ms: 1_000,
+            delivery_interval_ms: 1_000,
+            batch_size: 100,
+            max_buckets: 100,
+            outbox_max_depth: 100,
+        }
+    }
+
+    async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            response.headers().get(axum::http::header::CONTENT_TYPE),
+            Some(&HeaderValue::from_static("application/json"))
+        );
+
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("failed to decode error response");
+        assert_eq!(body["message"], message);
+    }
 
     #[tokio::test]
     async fn up_includes_current_node_and_known_members() {
@@ -2204,6 +2532,16 @@ mod tests {
             UNMATCHED_ROUTE
         );
         assert_eq!(route_template_for_path("/.docker/.env"), UNMATCHED_ROUTE);
+    }
+
+    #[test]
+    fn public_load_routes_exclude_probes_internal_and_unmatched_routes() {
+        assert!(is_public_load_route(ROUTE_API_CACHE_CAS));
+        assert!(is_public_load_route(ROUTE_API_CACHE_MODULE));
+        assert!(!is_public_load_route(ROUTE_UP));
+        assert!(!is_public_load_route(ROUTE_METRICS));
+        assert!(!is_public_load_route(ROUTE_INTERNAL_REPLICATE_ARTIFACT));
+        assert!(!is_public_load_route(UNMATCHED_ROUTE));
     }
 
     #[tokio::test]
@@ -2540,6 +2878,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+
+        let response = router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_json_error_response(response, StatusCode::NOT_FOUND, "Key-value entry not found")
+            .await;
+    }
+
+    #[tokio::test]
+    async fn keyvalue_routes_emit_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"x"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let body = response_text(get_response).await;
+        assert_eq!(body, r#"{"entries":[{"value":"x"}]}"#);
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "ios"
+                && rollup.direction == "ingress"
+                && rollup.operation == "upload"
+                && rollup.artifact_kind == "xcode"
+                && rollup.bytes == 27
+                && rollup.request_count == 1
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "ios"
+                && rollup.direction == "egress"
+                && rollup.operation == "download"
+                && rollup.artifact_kind == "xcode"
+                && rollup.bytes == 27
+                && rollup.request_count == 1
+        }));
+    }
+
+    #[tokio::test]
     async fn account_and_project_handle_aliases_work_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
@@ -2569,6 +2989,140 @@ mod tests {
             .expect("get request failed");
         assert_eq!(get_response.status(), StatusCode::OK);
         assert_eq!(response_text(get_response).await, "xcode-binary");
+    }
+
+    #[tokio::test]
+    async fn bytes_chunks_reassembles_multi_chunk_payloads() {
+        use futures_util::StreamExt;
+
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
+        let payload = Bytes::from(
+            (0..len)
+                .map(|index| (index % 251) as u8)
+                .collect::<Vec<u8>>(),
+        );
+
+        let mut stream = Box::pin(bytes_chunks(payload.clone()));
+        let mut chunks = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            chunks.push(chunk.expect("chunk should be produced"));
+        }
+
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), MMAP_RESPONSE_CHUNK_BYTES);
+        assert_eq!(chunks[1].len(), MMAP_RESPONSE_CHUNK_BYTES);
+        assert_eq!(chunks[2].len(), 7);
+        assert_eq!(chunks.concat(), payload.to_vec());
+    }
+
+    #[tokio::test]
+    async fn artifact_get_serves_multi_chunk_payloads_via_mmap_and_reader_fallback() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
+        let payload: Vec<u8> = (0..len).map(|index| (index % 251) as u8).collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/multi-chunk?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_request = || {
+            Request::builder()
+                .uri("/api/cache/cas/multi-chunk?tenant_id=acme&namespace_id=ios")
+                .body(Body::empty())
+                .expect("failed to build get request")
+        };
+
+        let mmap_response = app
+            .clone()
+            .oneshot(get_request())
+            .await
+            .expect("mmap get request failed");
+        assert_eq!(mmap_response.status(), StatusCode::OK);
+        let mmap_body = mmap_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect mmap body")
+            .to_bytes();
+        assert_eq!(mmap_body.as_ref(), payload.as_slice());
+
+        // Force memory pressure so mmap serving is skipped and the streaming
+        // reader path serves the same artifact; the bytes must be identical.
+        context.state.memory.observe(u64::MAX);
+
+        let reader_response = app
+            .oneshot(get_request())
+            .await
+            .expect("reader get request failed");
+        assert_eq!(reader_response.status(), StatusCode::OK);
+        let reader_body = reader_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect reader body")
+            .to_bytes();
+        assert_eq!(reader_body.as_ref(), payload.as_slice());
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("kura_artifact_egress_completions_total"));
+        assert!(metrics.contains("producer=\"xcode\""));
+        assert!(metrics.contains("result=\"ok\""));
+        assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn artifact_get_misses_return_json_not_found_errors() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let cas_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/missing-cas?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build CAS request"),
+            )
+            .await
+            .expect("CAS request failed");
+        assert_json_error_response(cas_response, StatusCode::NOT_FOUND, "Artifact not found").await;
+
+        let module_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/module/missing-module?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build module request"),
+            )
+            .await
+            .expect("module request failed");
+        assert_json_error_response(module_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
+
+        let gradle_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/gradle/missing-gradle?tenant_id=acme&namespace_id=android")
+                    .body(Body::empty())
+                    .expect("failed to build Gradle request"),
+            )
+            .await
+            .expect("Gradle request failed");
+        assert_json_error_response(gradle_response, StatusCode::NOT_FOUND, "Artifact not found")
+            .await;
     }
 
     #[tokio::test]
@@ -2745,6 +3299,164 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn tenant_only_xcode_routes_emit_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from("account-binary"))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/account-artifact?tenant_id=acme")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "account-binary");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id.is_empty()
+                && rollup.direction == "ingress"
+                && rollup.operation == "upload"
+                && rollup.artifact_kind == "xcode"
+                && rollup.bytes == 14
+                && rollup.request_count == 1
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id.is_empty()
+                && rollup.direction == "egress"
+                && rollup.operation == "download"
+                && rollup.artifact_kind == "xcode"
+                && rollup.bytes == 14
+                && rollup.request_count == 1
+        }));
+    }
+
+    #[tokio::test]
+    async fn fixed_namespace_cache_routes_emit_usage_events() {
+        let context = test_context(|config| {
+            config.tenant_id = "acme".into();
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let nx_put = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/v1/cache/nx-key")
+                    .body(Body::from("nx-bytes"))
+                    .expect("failed to build nx put request"),
+            )
+            .await
+            .expect("nx put request failed");
+        assert_eq!(nx_put.status(), StatusCode::OK);
+
+        let nx_get = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/cache/nx-key")
+                    .body(Body::empty())
+                    .expect("failed to build nx get request"),
+            )
+            .await
+            .expect("nx get request failed");
+        assert_eq!(nx_get.status(), StatusCode::OK);
+        assert_eq!(response_text(nx_get).await, "nx-bytes");
+
+        let metro_put = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/metro/cache/metro-key")
+                    .body(Body::from("metro-bytes"))
+                    .expect("failed to build metro put request"),
+            )
+            .await
+            .expect("metro put request failed");
+        assert_eq!(metro_put.status(), StatusCode::OK);
+
+        let metro_get = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/metro/cache/metro-key")
+                    .body(Body::empty())
+                    .expect("failed to build metro get request"),
+            )
+            .await
+            .expect("metro get request failed");
+        assert_eq!(metro_get.status(), StatusCode::OK);
+        assert_eq!(response_text(metro_get).await, "metro-bytes");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "nx"
+                && rollup.direction == "ingress"
+                && rollup.artifact_kind == "nx"
+                && rollup.bytes == 8
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "nx"
+                && rollup.direction == "egress"
+                && rollup.artifact_kind == "nx"
+                && rollup.bytes == 8
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "metro"
+                && rollup.direction == "ingress"
+                && rollup.artifact_kind == "metro"
+                && rollup.bytes == 11
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "metro"
+                && rollup.direction == "egress"
+                && rollup.artifact_kind == "metro"
+                && rollup.bytes == 11
+        }));
+    }
+
+    #[tokio::test]
     async fn multipart_module_round_trip_works_through_router() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
@@ -2834,6 +3546,99 @@ mod tests {
             Some("17")
         );
         assert_eq!(response_text(get).await, "part-one-part-two");
+    }
+
+    #[tokio::test]
+    async fn multipart_module_routes_emit_usage_events() {
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
+        let app = router(context.state.clone());
+
+        let start = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build start request"),
+            )
+            .await
+            .expect("start request failed");
+        let payload: Value = serde_json::from_str(&response_text(start).await)
+            .expect("failed to decode start payload");
+        let upload_id = payload["upload_id"]
+            .as_str()
+            .expect("upload id should be present");
+
+        let part_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/api/cache/module/part?upload_id={upload_id}&part_number=1"
+                    ))
+                    .body(Body::from("module-bytes"))
+                    .expect("failed to build part request"),
+            )
+            .await
+            .expect("part request failed");
+        assert_eq!(part_response.status(), StatusCode::NO_CONTENT);
+
+        let complete_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/cache/module/complete?upload_id={upload_id}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"parts":[1]}"#))
+                    .expect("failed to build complete request"),
+            )
+            .await
+            .expect("complete request failed");
+        assert_eq!(complete_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/module/module-1?tenant_id=acme&namespace_id=ios&hash=hash-1&name=Module.framework&cache_category=builds")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        assert_eq!(response_text(get_response).await, "module-bytes");
+
+        let rollups = context
+            .state
+            .usage
+            .as_ref()
+            .expect("usage should be enabled")
+            .current_rollups_for_tests();
+
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "ios"
+                && rollup.direction == "ingress"
+                && rollup.operation == "upload"
+                && rollup.artifact_kind == "module"
+                && rollup.bytes == 12
+                && rollup.request_count == 1
+        }));
+        assert!(rollups.iter().any(|rollup| {
+            rollup.tenant_id == "acme"
+                && rollup.namespace_id == "ios"
+                && rollup.direction == "egress"
+                && rollup.operation == "download"
+                && rollup.artifact_kind == "module"
+                && rollup.bytes == 12
+                && rollup.request_count == 1
+        }));
     }
 
     #[tokio::test]
@@ -3045,6 +3850,24 @@ mod tests {
             .await
             .expect("get request failed");
         assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn instrumented_artifact_stream_holds_public_inflight_until_body_drops() {
+        let context = test_context(|_| {}).await;
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
+
+        let stream = futures_util::stream::pending::<Result<Bytes, std::io::Error>>();
+        let instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            stream,
+            Some(context.state.start_http_request(HttpTrafficClass::Public)),
+        );
+
+        assert_eq!(context.state.runtime.public_http_inflight(), 1);
+        drop(instrumented);
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
     }
 
     #[derive(Clone, Debug)]

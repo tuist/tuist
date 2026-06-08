@@ -125,9 +125,8 @@ defmodule Tuist.Authentication do
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
     claims =
       claims
-      |> Map.put("projects", Cache.accessible_project_handles(resource, recent: 5))
-      |> Map.put("accounts", Cache.accessible_account_handles(resource))
-      |> Map.put("cache_grants", Cache.cache_grants(resource, recent: 5))
+      |> Map.delete("accounts")
+      |> Map.merge(Cache.embedded_cache_claims(resource, recent: 5))
 
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
   end

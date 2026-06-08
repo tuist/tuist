@@ -28,6 +28,11 @@ const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+const KURA_ACCELERATED_FILE_SERVING_ENABLED: &str = "KURA_ACCELERATED_FILE_SERVING_ENABLED";
+const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
+const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
+    "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
+const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -68,6 +73,9 @@ const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
 const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
 const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
+    "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
+const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
@@ -85,6 +93,8 @@ const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
+const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 512 * BYTES_PER_MIB;
+const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
@@ -105,6 +115,7 @@ pub struct Config {
     pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
     pub https_port: u16,
+    pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -120,6 +131,8 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
+    pub replication_bandwidth_limit_bytes_per_second: u64,
+    pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
@@ -161,6 +174,29 @@ pub struct GrpcTlsConfig {
 pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceleratedFileServingConfig {
+    pub enabled: bool,
+    pub mode: AcceleratedFileServingMode,
+    pub max_concurrent: usize,
+    pub chunk_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcceleratedFileServingMode {
+    Sendfile,
+    Splice,
+}
+
+impl AcceleratedFileServingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Sendfile => "sendfile",
+            Self::Splice => "splice",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -357,6 +393,68 @@ impl Config {
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let accelerated_file_serving_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
+        let accelerated_file_serving_mode =
+            lookup(KURA_ACCELERATED_FILE_SERVING_MODE).unwrap_or_else(|| "splice".to_owned());
+        let accelerated_file_serving_mode = match accelerated_file_serving_mode.as_str() {
+            "sendfile" => Some(AcceleratedFileServingMode::Sendfile),
+            "splice" => Some(AcceleratedFileServingMode::Splice),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_ACCELERATED_FILE_SERVING_MODE} must be either sendfile or splice"
+                ));
+                None
+            }
+        };
+        let accelerated_file_serving_max_concurrent = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(32);
+        if accelerated_file_serving_max_concurrent == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving_chunk_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(1024 * 1024);
+        if accelerated_file_serving_chunk_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving =
+            accelerated_file_serving_mode.map(|mode| AcceleratedFileServingConfig {
+                enabled: accelerated_file_serving_enabled,
+                mode,
+                max_concurrent: accelerated_file_serving_max_concurrent,
+                chunk_bytes: accelerated_file_serving_chunk_bytes,
+            });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -682,6 +780,30 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
+        let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!(
+                        "{KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND} must be a valid u64"
+                    )
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND);
+        let replication_public_latency_target_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -1129,6 +1251,8 @@ impl Config {
             grpc_tls,
             public_tls,
             https_port,
+            accelerated_file_serving: accelerated_file_serving
+                .expect("accelerated_file_serving should be present when configuration is valid"),
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -1144,6 +1268,8 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
+            replication_bandwidth_limit_bytes_per_second,
+            replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
@@ -1407,6 +1533,20 @@ mod tests {
             (8 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            512 * BYTES_PER_MIB
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            }
+        );
         assert_eq!(config.sentry_dsn, None);
     }
 
@@ -1434,6 +1574,15 @@ mod tests {
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
             (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "false"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
+            (
+                KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+                "10485760",
+            ),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1475,6 +1624,20 @@ mod tests {
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: false,
+                mode: AcceleratedFileServingMode::Sendfile,
+                max_concurrent: 16,
+                chunk_bytes: 2 * 1024 * 1024,
+            }
+        );
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            10_485_760
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1564,6 +1727,12 @@ mod tests {
             (KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES, "invalid"),
             (KURA_METADATA_STORE_WRITE_BUFFER_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_WRITE_BUFFERS, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
+            (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1590,6 +1759,24 @@ mod tests {
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_WRITE_BUFFERS));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_ENABLED));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
+        assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
+        assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_accelerated_file_serving_limits() {
+        let error = config_from(&[
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "0"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "0"),
+        ])
+        .expect_err("expected invalid accelerated file serving limits to fail");
+
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
     }
 
     #[test]

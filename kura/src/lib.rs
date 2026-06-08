@@ -1,6 +1,8 @@
+mod accelerated_file_serving;
 mod analytics;
 mod app;
 mod artifact;
+mod bandwidth;
 mod config;
 mod constants;
 mod extension;
@@ -10,6 +12,7 @@ mod http;
 mod io;
 mod memory;
 mod metrics;
+mod mmap;
 mod multipart;
 mod node_location;
 mod peer_tls;

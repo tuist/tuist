@@ -97,16 +97,16 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 > [!TIP]
 > **Optimized Caching**
 >
-> If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted cache nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
+> If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted Kura nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
 > See the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
 
 
-### Self-hosted cache nodes {#self-hosted-cache-nodes}
+### Self-hosted Kura nodes {#self-hosted-cache-nodes}
 
-To use self-hosted cache nodes with a self-hosted Tuist server:
+To use self-hosted Kura nodes with a self-hosted Tuist server:
 
-1. Deploy cache nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
+1. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
 2. Set `TUIST_KURA_ENDPOINTS` to a comma-separated list of Kura URLs, or configure `server.kuraEndpointUrls` in the Helm chart.
 
 ## Configuration {#configuration}
@@ -141,7 +141,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose a
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `TUIST_APP_URL` | The base URL to access the instance from the Internet | Yes | | https://tuist.dev |
-| `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
+| `TUIST_SECRET_KEY_BASE` | The key to use to encrypt information (e.g. sessions in a cookie) | Yes | | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
 | `TUIST_SECRET_KEY_PASSWORD` | Pepper to generate hashed passwords | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_TOKENS` | Secret key to generate random tokens | No | `$TUIST_SECRET_KEY_BASE` | |
 | `TUIST_SECRET_KEY_ENCRYPTION` | 32-byte key for AES-GCM encryption of sensitive data | No | `$TUIST_SECRET_KEY_BASE` | |
@@ -307,7 +307,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 - ClickHouse 25 for analytics
 - ClickHouse Keeper for coordination
 - MinIO for S3-compatible storage
-- Redis for persistent KV storage across deploys (optional)
+- Kura for local self-hosted cache testing
 - pgweb for database administration
 
 > [!CAUTION]
@@ -329,7 +329,7 @@ We provide a comprehensive Docker Compose configuration that includes all requir
 2. Configure environment variables:
    ```bash
    cp .env.example .env
-   # Edit .env and add your TUIST_LICENSE and authentication credentials
+   # Edit .env and add your TUIST_LICENSE, TUIST_SECRET_KEY_BASE, and authentication credentials
    ```
 
 3. Start all services:
@@ -339,10 +339,14 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    podman compose up -d
    ```
 
+   On Apple Silicon, Docker Desktop automatically pulls the `linux/arm64` variants of the Tuist and dependency images. To force amd64 emulation for debugging, run Compose with `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
+
 4. Access the server at http://localhost:8080
 
 **Service Endpoints:**
 - Tuist Server: http://localhost:8080
+- Kura HTTP: http://localhost:4000
+- Kura gRPC: grpc://localhost:50051
 - MinIO Console: http://localhost:9003 (credentials: `tuist` / `tuist_dev_password`)
 - MinIO API: http://localhost:9002
 - pgweb (PostgreSQL UI): http://localhost:8081
@@ -523,6 +527,8 @@ You can retrieve the image by executing the following command:
 ```bash
 docker pull ghcr.io/tuist/tuist:latest
 ```
+
+The image is published for both `linux/amd64` and `linux/arm64`, so Docker selects the native Linux architecture for the host automatically.
 
 Or pull a specific version:
 ```bash
