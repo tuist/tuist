@@ -1,20 +1,28 @@
 #!/bin/bash
-# Joins this Tart VM to the Tailscale tailnet at boot, using the per-VM
-# auth key the K8s Deployment injects via TAILSCALE_AUTH_KEY. Blocks
-# until `tailscale ip -4` returns a tailnet IPv4 so the BEAM that runs
-# next has a routable identity for the pooler proxy.
+# Joins this Tart VM to the Tailscale tailnet at boot and pins the
+# pooler proxy hostname into /etc/hosts so the BEAM that runs next
+# resolves it without MagicDNS.
 #
-# tart-cri's CNI sets up vmnet shared-NAT only; the VM has no path to
-# the cluster overlay or to tailnet CGNAT addresses through the host.
-# Installing tailscaled inside the VM gives each VM its own first-class
-# tailnet identity — analogous to how Linux runner microVMs get a
-# first-class K8s overlay identity through Kata's CNI integration. The
-# Mac mini host's tailscaled stays as-is (advertises host metrics on
-# :9100); the VM's tailscaled is independent.
+# tart-cri's CNI sets up vmnet shared-NAT only; the VM has no path
+# to the cluster overlay or to tailnet CGNAT addresses through the
+# host. Installing tailscaled inside the VM gives each VM its own
+# first-class tailnet identity — analogous to how Linux runner
+# microVMs get a first-class K8s overlay identity through Kata's
+# CNI integration. The Mac mini host's tailscaled stays as-is
+# (advertises host metrics on :9100); the VM's tailscaled is
+# independent.
+#
+# MagicDNS quirk: the open-source `tailscaled` variant on macOS
+# (the only headless option — the App Store variant is GUI-only)
+# can't reliably push DNS into `scutil`, so `--accept-dns=true`
+# is a no-op for the BEAM's `gethostbyname`. We walk the netmap
+# from `tailscale status --json` and write the names we need
+# straight into /etc/hosts instead; the BEAM's resolver picks
+# them up the same way it'd pick up MagicDNS records.
 #
 # Sourced from the xcresult-processor launchd plist, after
-# /opt/tuist/inject-env.sh has materialized the env file but before
-# `tuist start` runs.
+# /opt/tuist/inject-env.sh has materialized the env file but
+# before `tuist start` runs.
 
 set -euo pipefail
 
@@ -23,102 +31,110 @@ if [ -z "${TAILSCALE_AUTH_KEY:-}" ]; then
   exit 1
 fi
 
-# Hostname defaults to the K8s pod name (injected as TAILSCALE_HOSTNAME
-# from the Downward API). Falls back to the VM's macOS hostname so an
-# ad-hoc image boot still has a unique identity.
-HOSTNAME_FLAG=""
-if [ -n "${TAILSCALE_HOSTNAME:-}" ]; then
-  HOSTNAME_FLAG="--hostname=${TAILSCALE_HOSTNAME}"
-fi
+TAILSCALE=/opt/homebrew/bin/tailscale
 
-# `--reset` so a re-claim of the same VM (Pod re-scheduled onto the same
-# Mac mini host's vmnet slot) gets a fresh registration rather than
-# inheriting the previous boot's state. `--accept-dns=true` is the
-# default but stamp it explicitly so MagicDNS works for the pooler
-# proxy hostname the BEAM dials next. `--ssh=true` exposes Tailscale
-# SSH (ACL-gated, op-only) so operators can shell into a VM via
-# tailnet without ever touching the host or the tart CLI — diagnostic
-# parity with what every other tailnet device offers.
-if ! /opt/homebrew/bin/tailscale up \
-    --authkey="${TAILSCALE_AUTH_KEY}" \
-    --reset \
-    --ssh=true \
-    --accept-dns=true \
-    ${HOSTNAME_FLAG}; then
-  echo "tailscale-up: tailscale up failed" >&2
-  exit 1
-fi
-
-# Block until tailscaled has assigned a tailnet IPv4 — `tailscale up`
-# can return 0 before MagicDNS / netmap propagate, and Postgrex's first
-# dial would otherwise race the daemon's startup.
-TAILNET_IP=""
-for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-  TAILNET_IP="$(/opt/homebrew/bin/tailscale ip -4 2>/dev/null | head -1 || true)"
-  if [ -n "${TAILNET_IP}" ]; then
-    echo "tailscale-up: tailnet IP ${TAILNET_IP}"
-    break
+# Idempotency: launchd's KeepAlive restarts the wrapper every time
+# the BEAM exits, and `tailscale up --reset` on each restart
+# re-authenticates the device (tearing down the previous
+# registration) — `tailscale ip -4` returns empty for tens of
+# seconds during the reset window, and a 30s wait races and
+# usually loses, putting the wrapper in a 2000+-iter crash loop.
+# Only call `tailscale up` when we're not already on the tailnet.
+EXISTING_IP="$(${TAILSCALE} ip -4 2>/dev/null | head -1 || true)"
+if [ -n "${EXISTING_IP}" ]; then
+  echo "tailscale-up: already on tailnet at ${EXISTING_IP} (launchd restart); skipping tailscale up"
+  TAILNET_IP="${EXISTING_IP}"
+else
+  HOSTNAME_FLAG=""
+  if [ -n "${TAILSCALE_HOSTNAME:-}" ]; then
+    HOSTNAME_FLAG="--hostname=${TAILSCALE_HOSTNAME}"
   fi
-  sleep 2
-done
+  if ! ${TAILSCALE} up \
+      --authkey="${TAILSCALE_AUTH_KEY}" \
+      --reset \
+      --ssh=true \
+      --accept-dns=true \
+      ${HOSTNAME_FLAG}; then
+    echo "tailscale-up: tailscale up failed" >&2
+    exit 1
+  fi
+  TAILNET_IP=""
+  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+    TAILNET_IP="$(${TAILSCALE} ip -4 2>/dev/null | head -1 || true)"
+    if [ -n "${TAILNET_IP}" ]; then
+      break
+    fi
+    sleep 2
+  done
+  if [ -z "${TAILNET_IP}" ]; then
+    echo "tailscale-up: timed out waiting for tailscale ip -4 after fresh tailscale up" >&2
+    exit 1
+  fi
+  echo "tailscale-up: joined tailnet at ${TAILNET_IP}"
+fi
 
-if [ -z "${TAILNET_IP}" ]; then
-  echo "tailscale-up: timed out waiting for tailscale ip -4" >&2
-  exit 1
+# Pin every peer's tailnet IPv4 + hostname into /etc/hosts so the
+# BEAM's libc resolver finds the pooler proxy without MagicDNS.
+# The BEGIN/END markers let us strip + rewrite on every boot — a
+# peer that's been deleted from the tailnet stops appearing in
+# `tailscale status --json`'s peers and falls out of /etc/hosts
+# the next time the loop runs. The python3 one-liner parses the
+# JSON inline so we don't depend on jq (not in the macOS base
+# image).
+HOSTS_BEGIN="# BEGIN tailscale-up tailnet peers"
+HOSTS_END="# END tailscale-up tailnet peers"
+HOSTS_BLOCK=$(${TAILSCALE} status --json 2>/dev/null \
+  | /usr/bin/python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+def emit(peer):
+    name = (peer.get("HostName") or "").strip()
+    ips = peer.get("TailscaleIPs") or []
+    if not name or not ips:
+        return
+    v4 = next((ip for ip in ips if ":" not in ip), None)
+    if v4:
+        print(f"{v4}\t{name}")
+emit(d.get("Self", {}))
+for p in (d.get("Peer") or {}).values():
+    emit(p)
+' || true)
+
+if [ -n "${HOSTS_BLOCK}" ]; then
+  sudo /usr/bin/sed -i.bak "/^${HOSTS_BEGIN}$/,/^${HOSTS_END}$/d" /etc/hosts
+  sudo /bin/rm -f /etc/hosts.bak
+  printf '%s\n%s\n%s\n' "${HOSTS_BEGIN}" "${HOSTS_BLOCK}" "${HOSTS_END}" | sudo /usr/bin/tee -a /etc/hosts >/dev/null
+  echo "tailscale-up: wrote $(echo "${HOSTS_BLOCK}" | wc -l | tr -d ' ') tailnet peer(s) to /etc/hosts"
 fi
 
 # Diagnostic dump — captured in /var/log/xcresult-processor/stdout.log
-# alongside the BEAM's own stdout. tart-kubelet doesn't proxy `kubectl
-# logs` through the K8s API (the apiserver can't DNS-resolve Mac mini
-# hostnames), and the Tailscale SSH ACL doesn't yet permit
-# subnet-router→VM SSH, so we publish the diag dump over plain HTTP
-# at <vm-tailnet-ip>:8000/diagnostics.log instead. Anyone on the
-# tailnet can `wget` it; the wide-open `grants` rule covers the
-# port. Removable once kubectl logs / Tailscale SSH is wired.
+# alongside the BEAM's own stdout. tart-kubelet doesn't proxy
+# `kubectl logs` through the K8s API (the apiserver can't
+# DNS-resolve Mac mini hostnames), so an operator on the tailnet
+# uses `tailscale ssh admin@<vm-tailnet-ip>` and reads
+# /var/log/xcresult-processor/{stdout,stderr,diagnostics}.log.
+# The dump is non-fatal: if `tailscale netcheck` hangs or any
+# probe errors, the BEAM still boots.
 DIAG_FILE=/var/log/xcresult-processor/diagnostics.log
 sudo mkdir -p "$(dirname "${DIAG_FILE}")"
 sudo chown admin:staff "$(dirname "${DIAG_FILE}")"
 {
   echo "==== tailscale-up: diagnostics ($(date)) ===="
   echo "-- tailscale status --"
-  /opt/homebrew/bin/tailscale status || true
-  echo "-- tailscale netcheck --"
-  /opt/homebrew/bin/tailscale netcheck 2>/dev/null | head -30 || true
-  echo "-- ifconfig (utun + en* + lo) --"
-  /sbin/ifconfig | awk '/^utun|^en|^lo/ { keep=1 } /^[a-z]/ { if (!/^utun|^en|^lo/) keep=0 } keep' || true
-  echo "-- netstat -rn --"
-  /usr/sbin/netstat -rn || true
-  echo "-- scutil DNS state --"
-  /usr/sbin/scutil --dns 2>/dev/null | head -60 || true
-  echo "-- pf state --"
-  echo 'admin' | sudo -S /sbin/pfctl -s rules 2>&1 | head -20 || true
+  ${TAILSCALE} status 2>&1 || true
+  echo "-- /etc/hosts (tail) --"
+  /usr/bin/tail -50 /etc/hosts || true
   echo "-- DATABASE_URL host probe --"
   if [ -n "${DATABASE_URL:-}" ]; then
-    # Parse host:port from the URL (postgres://user:pass@host:port/db).
-    HOSTPORT=$(echo "${DATABASE_URL}" | sed -E 's|^[a-z]+://[^@]+@([^/]+).*|\1|')
-    HOST=$(echo "${HOSTPORT}" | sed -E 's|:.*||')
-    PORT=$(echo "${HOSTPORT}" | sed -E 's|.*:||')
+    HOSTPORT=$(echo "${DATABASE_URL}" | /usr/bin/sed -E 's|^[a-z]+://[^@]+@([^/]+).*|\1|')
+    HOST=$(echo "${HOSTPORT}" | /usr/bin/sed -E 's|:.*||')
+    PORT=$(echo "${HOSTPORT}" | /usr/bin/sed -E 's|.*:||')
     echo "URL host=${HOST} port=${PORT}"
-    echo "-- nslookup ${HOST} --"
-    /usr/bin/nslookup "${HOST}" 2>&1 | head -10 || true
+    echo "-- /usr/bin/dscacheutil -q host -a name ${HOST} --"
+    /usr/bin/dscacheutil -q host -a name "${HOST}" 2>&1 | /usr/bin/head -10 || true
     echo "-- nc -vz ${HOST} ${PORT} (10s) --"
     /usr/bin/nc -vz -w 10 "${HOST}" "${PORT}" 2>&1 || true
-    echo "-- route get ${HOST} --"
-    /sbin/route -n get "${HOST}" 2>&1 | head -15 || true
   else
     echo "DATABASE_URL not set"
   fi
-} 2>&1 | sudo tee "${DIAG_FILE}" >/dev/null || true
-
-# Start a tiny HTTP file server in the log directory so an operator
-# on the tailnet can `wget http://<vm-tailnet-ip>:8000/diagnostics.log`
-# or `…/stdout.log` to read the BEAM's boot output. Forks into the
-# background; failures are non-fatal. macOS ships python3 (Command
-# Line Tools), no extra deps. Bound to 0.0.0.0 because the VM's
-# tailscale0 carries the only routable interface for tailnet clients.
-nohup /usr/bin/python3 -m http.server --bind 0.0.0.0 --directory /var/log/xcresult-processor 8000 >/dev/null 2>&1 &
-disown 2>/dev/null || true
-
-echo "tailscale-up: timed out waiting for tailscale ip -4" >&2
-exit 1
-
+} > "${DIAG_FILE}" 2>&1 || true
