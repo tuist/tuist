@@ -22,10 +22,9 @@ name: Server Production Deployment
 # Kura regional controller/platform rollouts are handled by
 # server-kura-regional-deployment.yml after production succeeds so
 # regional capacity incidents do not mark the main production deploy as
-# failed. The Kura runtime image is pinned in values-managed-common.yaml
-# (kuraRuntime.image.tag) and bumped by release.yml's commit-and-release on
-# each kura@ release; that bump commit promotes through this same cascade,
-# so the runtime rolls forward like every other pinned component.
+# failed. The Kura runtime image version is resolved at deploy time by
+# server-deployment.yml from the latest kura@ git tag (no committed pin),
+# so it rolls forward like every other fleet/runtime image.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -42,19 +41,21 @@ name: Server Production Deployment
 #   stored as a Document item.
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - server/**
-      - tuist_common/**
-      - noora/**
-      - infra/kura-controller/**
-      - infra/helm/tuist/**
-      - infra/helm/k8s-monitoring/**
-      - .github/workflows/server-production-deployment.yml
-      - .github/workflows/server-deployment.yml
-      - server/pnpm-lock.yaml
+  # No `push` trigger. release.yml's `trigger-deploy` job dispatches this
+  # workflow on every push to main once the release builds have published
+  # any changed component images and pushed their `<component>@<semver>`
+  # tags. That ordering is what lets a runner-image (or any fleet/runtime
+  # image) change ship in the SAME pipeline as the server, instead of the
+  # old "deploy server -> release commits an image pin -> server redeploys"
+  # double cascade. server-deployment.yml resolves every image version
+  # from those git tags at deploy time, so there is no committed pin to
+  # bump and nothing re-triggers a deploy.
+  #
+  # It is dispatched (not called via workflow_call / a needs edge) so this
+  # cascade runs as its own workflow run: release.yml's cancel-in-progress
+  # can never SIGKILL an in-flight `helm --atomic` deploy, and deploys keep
+  # serializing through server-deployment.yml's per-env concurrency lane
+  # instead of serializing behind every release build.
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -63,6 +64,11 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      hotfix:
+        description: Skip canary + acceptance tests and ship straight to production
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -166,16 +172,16 @@ jobs:
   # the canary cascade, and running canary in parallel just doubles the
   # rollout surface (and noise) for a push that explicitly opted out.
   #
-  # kura_runtime_image_tag is normally empty: the runtime is pinned in
-  # values-managed-common.yaml (kuraRuntime.image.tag) and bumped by
-  # commit-and-release on each kura@ release. It is only set on a manual
-  # re-roll dispatch, where it overrides the pin.
+  # kura_runtime_image_tag is normally empty: server-deployment.yml
+  # resolves the runtime version from the latest kura@ git tag at deploy
+  # time. It is only set on a manual re-roll dispatch, where it overrides
+  # the resolved value.
   # --------------------------------------------------------------------------
   canary:
     needs: build
-    if: >-
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
-      github.event_name == 'workflow_dispatch'
+    # Skipped on a hotfix dispatch: the fast-path ships straight to
+    # production without waiting on the canary cascade.
+    if: ${{ !inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
@@ -291,9 +297,7 @@ jobs:
   # --------------------------------------------------------------------------
   production:
     needs: [build, acceptance-tests, backward-compatibility-acceptance]
-    if: >-
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
-      github.event_name == 'workflow_dispatch'
+    if: ${{ !inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
@@ -311,7 +315,7 @@ jobs:
   # --------------------------------------------------------------------------
   production-hotfix:
     needs: build
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
+    if: ${{ inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production

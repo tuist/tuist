@@ -441,6 +441,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Full history + tags so the version-resolution step below can
+          # read every `<component>@<semver>` release tag.
+          fetch-depth: 0
+      - name: Resolve fleet and runtime image versions from git tags
+        # The managed values files no longer pin these image versions
+        # (xcresult-processor, CAPI provider, runners-controller, Kura
+        # runtime, macOS + Linux runner images). Each is the highest
+        # `<component>@<semver>` tag reachable from the deployed commit,
+        # so a release that cuts a new tag rolls forward on the next
+        # deploy with no committed pin and no pin-bump redeploy. `--merged`
+        # makes a re-promote of an older SHA resolve the versions as they
+        # were at that commit.
+        run: |
+          set -euo pipefail
+          resolve() {
+            git tag --list "${1}*" --merged "$DEPLOY_SHA" \
+              | sed "s|^${1}||" \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n1
+          }
+          {
+            echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
+            echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
+            echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
+            echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
+          } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"
@@ -600,15 +628,38 @@ jobs:
           watcher_pid=$!
           trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
 
-          # The Kura runtime image tag is pinned in values-managed-common.yaml
-          # (kuraRuntime.image.tag) and bumped by commit-and-release on each
-          # kura@ release. Only override it via --set when a tag is passed
-          # explicitly (manual re-roll); an empty --set would blank the pin.
-          kura_runtime_set=()
-          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
-            kura_runtime_set=(--set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG")
-            echo "Overriding pinned Kura runtime image tag with ${KURA_RUNTIME_IMAGE_TAG}"
+          # Fleet + runtime image versions are resolved from git tags (the
+          # "Resolve fleet and runtime image versions" step writes them to
+          # the env) and passed via --set, replacing the committed pins the
+          # managed values files used to carry. add_set skips empties so an
+          # unreleased or disabled component keeps the chart default.
+          image_sets=()
+          add_set() {
+            if [ -n "$2" ]; then
+              image_sets+=(--set "$1=$2")
+              echo "Pinning $1=$2"
+            else
+              echo "WARNING: no version resolved for $1; leaving chart default."
+            fi
+          }
+          add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
+          add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
+          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
+          add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          if [ -n "${LINUX_RUNNER_IMAGE_VERSION:-}" ]; then
+            add_set "runnersFleetLinux.shapeRunnerImage" \
+              "ghcr.io/tuist/tuist-linux-runner:${LINUX_RUNNER_IMAGE_VERSION}"
           fi
+
+          # The explicit kura_runtime_image_tag input (manual re-roll) wins
+          # over the resolved kura@ tag.
+          kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
+          if [ -n "$kura_runtime_tag" ]; then
+            echo "Overriding resolved Kura runtime tag with input ${kura_runtime_tag}"
+          else
+            kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
+          fi
+          add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -616,7 +667,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            "${kura_runtime_set[@]}" \
+            "${image_sets[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
