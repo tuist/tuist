@@ -12,8 +12,20 @@ permissions:
   packages: write
 
 concurrency:
+  # The group serializes release runs so two pushes can't race on version
+  # computation — check-releases derives the next version from the latest
+  # tag, and concurrent runs would compute the same one.
+  #
+  # Don't cancel: the pipeline no longer commits to main (the original
+  # reason cancellation was added, to avoid racing on the [Release] push).
+  # It now pushes component tags, publishes GitHub Releases, and dispatches
+  # the deploy as side effects, so killing an in-flight run would tear a
+  # release or — since the deploy is dispatched at the end — starve deploys
+  # under a steady merge stream. Queue instead; GitHub keeps only the
+  # latest pending run, so a burst of merges collapses into one run that
+  # covers them all via cumulative check-releases.
   group: release-workflow-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   MISE_VERSION: "2026.5.15"
