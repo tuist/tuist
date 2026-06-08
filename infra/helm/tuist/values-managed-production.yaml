@@ -157,6 +157,15 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache-production
     registryBucket: tuist-registry
 
+# Docker Hub pull-through cache. Reuses the production object-storage
+# bucket under a `docker-mirror` prefix. Deployed but inert until
+# runnersController.features.registryMirror is flipped on (below).
+registryCache:
+  enabled: true
+  s3:
+    bucket: tuist-prod-storage
+    rootDirectory: docker-mirror
+
 processor:
   # During the Supabase→CNPG migration, the processor stays on Supabase
   # (pooler hostname below) until the env-level cutover flips
@@ -348,6 +357,14 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
+    # Routes runner `docker pull`s through the in-cluster pull-through
+    # cache (above). Flip to true ONLY once the deployed controller image
+    # is a release that ships `--registry-mirror-url`, AND only after
+    # canary has run on it — production is the high-throughput fleet where
+    # the fleet churn from this pod-template change is heaviest. The dind
+    # image is already off Docker Hub (ECR Public), so the churn's
+    # sidecar-image re-pull no longer spends the Docker Hub budget.
+    registryMirror: false
 
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
