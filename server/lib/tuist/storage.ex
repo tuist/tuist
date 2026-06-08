@@ -80,9 +80,7 @@ defmodule Tuist.Storage do
   defp multipart_complete_upload_error(reason), do: reason
 
   defp multipart_upload_not_found?(body) do
-    SweetXml.xpath(body, ~x"//Code/text()"s) == "NoSuchUpload"
-  rescue
-    _error -> false
+    Regex.match?(~r/<(?:\w+:)?Code>\s*NoSuchUpload\s*<\/(?:\w+:)?Code>/, body)
   end
 
   def generate_download_url(object_key, actor, opts \\ []) do

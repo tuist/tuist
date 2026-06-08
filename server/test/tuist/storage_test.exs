@@ -192,6 +192,31 @@ defmodule Tuist.StorageTest do
       assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) ==
                {:error, :multipart_upload_not_found}
     end
+
+    test "returns the original error when a 404 response is not a missing multipart upload" do
+      # Given
+      bucket_name = UUIDv7.generate()
+      upload_id = UUIDv7.generate()
+      object_key = UUIDv7.generate()
+      parts = [{1, "etag-1"}]
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+      error = {:http_error, 404, %{body: "<Error><Code>NoSuchKey</Code></Error>"}}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :complete_multipart_upload, fn ^bucket_name, ^object_key, ^upload_id, ^parts ->
+        operation
+      end)
+
+      expect(ExAws, :request, fn ^operation, _opts ->
+        {:error, error}
+      end)
+
+      # When/Then
+      assert Storage.multipart_complete_upload(object_key, upload_id, parts, :test) == {:error, error}
+    end
   end
 
   describe "generate_download_url/2" do
