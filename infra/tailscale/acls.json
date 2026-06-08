@@ -92,6 +92,37 @@
 			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 
+		// Same-env Mac mini fleet → CNPG pooler proxy on tcp:5432.
+		// The Tailscale operator-managed proxy (rendered with the
+		// `tailscale.com/expose` + `tailscale.com/tags` annotations
+		// in postgresql-cnpg-pooler.yaml) registers under
+		// `tag:tuist-k8s-<env>` — the operator's OAuth client is
+		// only authorised to mint that tag today, so the proxy
+		// shares it with the cluster's subnet router rather than
+		// carrying a dedicated `tag:tuist-pg-pooler-<env>` tag.
+		// That makes the dst here wider than the proxy alone, but
+		// the catch-all above already subsumes that today; this is
+		// the load-bearing rule for when the catch-all is removed.
+		// Follow-up to narrow further: provision a dedicated proxy
+		// tag in the OAuth client, list it under tagOwners below,
+		// and swap the `tailscale.com/tags` annotation on the
+		// Pooler CR to use it.
+		{
+			"src": ["tag:tuist-macmini-staging"],
+			"dst": ["tag:tuist-k8s-staging"],
+			"ip":  ["tcp:5432"],
+		},
+		{
+			"src": ["tag:tuist-macmini-canary"],
+			"dst": ["tag:tuist-k8s-canary"],
+			"ip":  ["tcp:5432"],
+		},
+		{
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["tag:tuist-k8s-production"],
+			"ip":  ["tcp:5432"],
+		},
+
 		// Humans SSH into any Mac mini. Not load-bearing — the
 		// CAPI provider's per-fleet SSH key is the normal path the
 		// controller takes. tag:tuist-ops is env-agnostic because
@@ -107,21 +138,25 @@
 		},
 	],
 
-	// Tailscale SSH (distinct from "grants") permits humans into
-	// their own devices in check mode. Untouched from the tailnet's
-	// initial setup.
+	// Tailscale SSH (distinct from "grants"). The same-env
+	// k8s→macmini accept grants let the cluster-side subnet-router
+	// `tailscale ssh admin@<vm-tailnet-ip>` into matching-env Mac
+	// mini hosts + the Tart VMs that run on them — diagnostic
+	// shell access when `kubectl logs` / `kubectl exec` against
+	// the kubelet endpoint fails (tart-kubelet's Node hostname
+	// doesn't resolve from the K8s apiserver's DNS, so the
+	// standard debug path is broken on macOS fleets and this is
+	// the substitute).
 	//
-	// The same-env k8s→macmini accept grant lets the cluster-side
-	// subnet-router tailscale ssh into matching-env Mac mini hosts +
-	// the Tart VMs that run on them (xcresult-processor, future
-	// in-VM workloads). It's how we get diagnostic shell access
-	// when `kubectl logs` / `kubectl exec` against the kubelet
-	// endpoint fails — tart-kubelet's Node hostname doesn't
-	// resolve from the K8s apiserver's DNS, so the standard
-	// debug path is broken on macOS fleets and this is the
-	// substitute. `action: accept` rather than `check` because the
-	// src is a tagged machine, not a human session that has a
-	// re-auth flow.
+	// Locked down to the `admin` user only — the bake-time user
+	// that owns /opt/tuist and the launchd plist. Explicitly
+	// excludes `root` and the broader `autogroup:nonroot` to keep
+	// a compromise of the k8s tag (large blast radius — cluster
+	// subnet router, every operator pod the Tailscale operator
+	// exposes) from being a root-shell pivot. Tagged-device SSH
+	// can't use `check` mode (no re-auth flow for a non-human
+	// source), so `accept` is the only option and the narrowing
+	// happens via `users`. See sshTests below.
 	"ssh": [
 		{
 			"action": "check",
@@ -133,19 +168,63 @@
 			"action": "accept",
 			"src":    ["tag:tuist-k8s-staging"],
 			"dst":    ["tag:tuist-macmini-staging"],
-			"users":  ["autogroup:nonroot", "root"],
+			"users":  ["admin"],
 		},
 		{
 			"action": "accept",
 			"src":    ["tag:tuist-k8s-canary"],
 			"dst":    ["tag:tuist-macmini-canary"],
-			"users":  ["autogroup:nonroot", "root"],
+			"users":  ["admin"],
 		},
 		{
 			"action": "accept",
 			"src":    ["tag:tuist-k8s-production"],
 			"dst":    ["tag:tuist-macmini-production"],
-			"users":  ["autogroup:nonroot", "root"],
+			"users":  ["admin"],
+		},
+	],
+
+	// SSH ACL assertions, enforced on every save in the admin
+	// console. The accept lines lock in the `admin`-only narrowing
+	// added with #11134's diagnostic grants; the reject lines
+	// catch the failure modes that would re-expand blast radius
+	// — root SSH (host take-over) or cross-env SSH (staging
+	// subnet router into production VMs).
+	"sshTests": [
+		{
+			"src":    "tag:tuist-k8s-staging",
+			"dst":    ["tag:tuist-macmini-staging"],
+			"accept": ["admin"],
+		},
+		{
+			"src":    "tag:tuist-k8s-staging",
+			"dst":    ["tag:tuist-macmini-staging"],
+			"deny":   ["root"],
+		},
+		{
+			"src":    "tag:tuist-k8s-staging",
+			"dst":    ["tag:tuist-macmini-production"],
+			"deny":   ["admin"],
+		},
+		{
+			"src":    "tag:tuist-k8s-canary",
+			"dst":    ["tag:tuist-macmini-canary"],
+			"accept": ["admin"],
+		},
+		{
+			"src":    "tag:tuist-k8s-canary",
+			"dst":    ["tag:tuist-macmini-canary"],
+			"deny":   ["root"],
+		},
+		{
+			"src":    "tag:tuist-k8s-production",
+			"dst":    ["tag:tuist-macmini-production"],
+			"accept": ["admin"],
+		},
+		{
+			"src":    "tag:tuist-k8s-production",
+			"dst":    ["tag:tuist-macmini-production"],
+			"deny":   ["root"],
 		},
 	],
 
