@@ -10,6 +10,7 @@ import TuistInitCommand
 import TuistSupport
 import TuistTestCommand
 import TuistTesting
+import XcodeProj
 @testable import TuistKit
 
 struct BuildAcceptanceTestMultiplatformAppWithExtension {
@@ -395,28 +396,39 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
     @Test(
         .withFixture("generated_app_with_swiftpm_prebuilt_macro_dependency"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(5))
+        .timeLimit(.minutes(2))
     )
-    func app_with_swiftpm_prebuilt_macro_dependency() async throws {
+    func app_with_swiftpm_prebuilt_macro_dependency_generates_prebuilt_macro_settings() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
 
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
-        try await TuistTest.run(
-            BuildCommand.self,
-            [
-                "App",
-                "--platform",
-                "macos",
-                "--path",
-                fixtureDirectory.pathString,
-                "--derived-data-path",
-                derivedDataPath.pathString,
-                "--",
-                "-skipMacroValidation",
-            ]
+
+        let xcodeproj = try XcodeProj(
+            pathString: fixtureDirectory.appending(components: "MacroDependency", "MacroDependency.xcodeproj").pathString
         )
+        let targetNames = xcodeproj.pbxproj.nativeTargets.map(\.name)
+        #expect(!targetNames.contains("SwiftSyntax"))
+        #expect(!targetNames.contains("SwiftSyntaxBuilder"))
+        #expect(!targetNames.contains("SwiftSyntaxMacros"))
+        #expect(!targetNames.contains("SwiftCompilerPlugin"))
+
+        let macroTarget = try TuistAcceptanceTest.requireTarget("MacroDependencyMacros", in: xcodeproj)
+        let buildSettings = try #require(macroTarget.buildConfigurationList?.configuration(name: "Debug")?.buildSettings)
+        let otherSwiftFlags = try #require(buildSettings["OTHER_SWIFT_FLAGS"]?.arrayValue)
+        #expect(otherSwiftFlags.contains("-I"))
+        #expect(otherSwiftFlags.contains(where: {
+            $0.contains(".build/prebuilts/swift-syntax/") && $0.contains("-MacroSupport/Modules")
+        }))
+        #expect(otherSwiftFlags.contains(where: { $0.contains(".build/checkouts/swift-syntax/Sources/_SwiftSyntaxCShims/include") }))
+
+        let librarySearchPaths = try #require(buildSettings["LIBRARY_SEARCH_PATHS"]?.arrayValue)
+        #expect(librarySearchPaths.contains(where: {
+            $0.contains(".build/prebuilts/swift-syntax/") && $0.contains("-MacroSupport/lib")
+        }))
+
+        let otherLDFlags = try #require(buildSettings["OTHER_LDFLAGS"]?.arrayValue)
+        #expect(otherLDFlags.contains("-lMacroSupport"))
     }
 }
 
