@@ -13,6 +13,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -676,6 +677,135 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAndExpandsPVCs(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(2)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "200Gi",
+		},
+	}
+	legacyInstance := instance.DeepCopy()
+	legacyInstance.Spec.Image = "ghcr.io/tuist/kura:0.5.2"
+	legacyInstance.Spec.StorageSize = "20Gi"
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(legacyInstance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
+		},
+	}
+	pvc0 := dataPersistentVolumeClaim(instance, 0, "20Gi")
+	pvc1 := dataPersistentVolumeClaim(instance, 1, "20Gi")
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc0, pvc1).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedSts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updatedSts); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedSts.Spec.Template.Spec.Containers[0].Image; got != "ghcr.io/tuist/kura:0.5.3" {
+		t.Fatalf("expected StatefulSet pod template to be updated, got %q", got)
+	}
+	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
+		t.Fatalf("expected existing StatefulSet PVC template to be preserved, got %q", got)
+	}
+
+	for _, name := range []string{pvc0.Name, pvc1.Name} {
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			t.Fatal(err)
+		}
+		if got := pvc.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
+			t.Fatalf("expected PVC %s to expand to 200Gi, got %q", name, got)
+		}
+	}
+}
+
+func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	stsInstance := instance.DeepCopy()
+	stsInstance.Spec.StorageSize = "200Gi"
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(stsInstance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
+		},
+	}
+	pvc := dataPersistentVolumeClaim(instance, 0, "200Gi")
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPVC := &corev1.PersistentVolumeClaim{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, updatedPVC); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPVC.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
+		t.Fatalf("expected PVC not to shrink, got %q", got)
+	}
+}
+
 func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	replicas := int32(1)
 	instance := &kurav1alpha1.KuraInstance{
@@ -702,6 +832,22 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	pvc := dataVolumeClaim(instance)
 	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "10Gi" {
 		t.Fatalf("expected local PVC size, got %q", got)
+	}
+}
+
+func dataPersistentVolumeClaim(instance *kurav1alpha1.KuraInstance, ordinal int, storage string) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+			Labels:    labels(instance),
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+			},
+		},
 	}
 }
 

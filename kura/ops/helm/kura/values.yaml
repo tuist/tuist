@@ -77,7 +77,7 @@ persistence:
   # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
     - ReadWriteOncePod
-  size: 20Gi
+  size: 200Gi
   storageClass: ""
   annotations: {}
 
