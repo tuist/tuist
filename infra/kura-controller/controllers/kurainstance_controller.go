@@ -8,9 +8,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -98,9 +100,25 @@ type KuraInstanceReconciler struct {
 	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
-	GRPCClusterIssuer  string
-	OTLPTracesEndpoint string
-	Environment        string
+	GRPCClusterIssuer   string
+	OTLPTracesEndpoint  string
+	Environment         string
+	RuntimeStatusClient RuntimeStatusClient
+}
+
+type RuntimeStatusClient interface {
+	Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error)
+}
+
+type runtimeStatus struct {
+	Ready           bool   `json:"ready"`
+	State           string `json:"state"`
+	RingMembers     int    `json:"ring_members"`
+	WriterLockOwned bool   `json:"writer_lock_owned"`
+}
+
+type httpRuntimeStatusClient struct {
+	client *http.Client
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -345,31 +363,112 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return "", err
 	}
-	return choosePrimaryPod(current, instance.Name, pods.Items), nil
+	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
 }
 
-// choosePrimaryPod picks the pod the public Services route to. It is
-// sticky: the current primary is kept while it stays Ready so a recovered
-// lower-ordinal pod does not steal traffic back, because every handoff
-// costs a brief read-after-write inconsistency window during async
-// replication catch-up and we want to minimise them. Otherwise it falls
-// to the lowest-ordinal Ready pod, and before any pod is Ready it
-// defaults to ordinal 0 so the Service has a stable selector.
-func choosePrimaryPod(current, instanceName string, pods []corev1.Pod) string {
-	ready := map[string]bool{}
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+	kubernetesReady := map[string]bool{}
 	for i := range pods {
 		if podReady(&pods[i]) {
-			ready[pods[i].Name] = true
+			kubernetesReady[pods[i].Name] = true
 		}
 	}
 
-	if current != "" && ready[current] {
+	statusClient := r.RuntimeStatusClient
+	if statusClient == nil {
+		statusClient = defaultRuntimeStatusClient()
+	}
+
+	runtimeHealthy := map[string]bool{}
+	runtimeStatuses := 0
+	for i := range pods {
+		if !kubernetesReady[pods[i].Name] {
+			continue
+		}
+		status, err := statusClient.Status(ctx, pods[i])
+		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+			continue
+		}
+		runtimeStatuses++
+		runtimeHealthy[pods[i].Name] = runtimeStatusRoutable(status, replicas(instance))
+	}
+
+	if runtimeStatuses == 0 {
+		return kubernetesReady
+	}
+	return runtimeHealthy
+}
+
+func defaultRuntimeStatusClient() RuntimeStatusClient {
+	return &httpRuntimeStatusClient{client: &http.Client{Timeout: 2 * time.Second}}
+}
+
+func (c *httpRuntimeStatusClient) Status(ctx context.Context, pod corev1.Pod) (runtimeStatus, error) {
+	if pod.Status.PodIP == "" {
+		return runtimeStatus{}, fmt.Errorf("pod has no IP")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://%s:%d/status/rollout", pod.Status.PodIP, httpPort), nil)
+	if err != nil {
+		return runtimeStatus{}, err
+	}
+	response, err := c.client.Do(request)
+	if err != nil {
+		return runtimeStatus{}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return runtimeStatus{}, fmt.Errorf("unexpected status %d", response.StatusCode)
+	}
+	var status runtimeStatus
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		return runtimeStatus{}, err
+	}
+	return status, nil
+}
+
+func runtimeStatusRoutable(status runtimeStatus, replicas int32) bool {
+	if !status.Ready || status.State != "serving" || !status.WriterLockOwned {
+		return false
+	}
+	return status.RingMembers >= requiredPrimaryRingMembers(replicas)
+}
+
+func requiredPrimaryRingMembers(replicas int32) int {
+	if replicas <= 1 {
+		return 1
+	}
+	return 2
+}
+
+// choosePrimaryPod picks the pod the public Services route to. It is
+// sticky: the current primary is kept while it stays routable so a
+// recovered lower-ordinal pod does not steal traffic back, because every
+// handoff costs a brief read-after-write inconsistency window during
+// async replication catch-up and we want to minimise them. Otherwise it
+// falls to the lowest-ordinal routable pod, and before any pod is
+// routable it defaults to ordinal 0 so the Service has a stable selector.
+func choosePrimaryPod(current, instanceName string, pods []corev1.Pod, routable map[string]bool) string {
+	if routable == nil {
+		routable = map[string]bool{}
+		for i := range pods {
+			if podReady(&pods[i]) {
+				routable[pods[i].Name] = true
+			}
+		}
+	}
+
+	if current != "" && routable[current] {
 		return current
 	}
 
 	best := ""
 	bestOrdinal := -1
-	for name := range ready {
+	for name, ok := range routable {
+		if !ok {
+			continue
+		}
 		ordinal, ok := podOrdinal(name, instanceName)
 		if !ok {
 			continue
