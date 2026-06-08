@@ -6,22 +6,6 @@ set -eo pipefail
 TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Delete on exit
 
-op_read() {
-    local args=("$@")
-    local attempt=1
-    local max_attempts=5
-
-    until op read "${args[@]}"; do
-        if [ "$attempt" -ge "$max_attempts" ]; then
-            return 1
-        fi
-
-        echo "op read attempt $attempt failed; retrying..." >&2
-        sleep $((attempt * 5))
-        attempt=$((attempt + 1))
-    done
-}
-
 if [ "${CI:-}" = "true" ]; then
     echo "Creating a temporary keychain"
     KEYCHAIN_PASSWORD=$(uuidgen)
@@ -32,12 +16,12 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-op_read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_DIR/certificate.p12
-security import $TMP_DIR/certificate.p12 -P "$(op_read "op://tuist/Distribution Certificate/password")" -A
+op read "op://tuist/Distribution Certificate/distribution.p12" --out-file $TMP_DIR/certificate.p12
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Distribution Certificate/password") -A
 
 mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-op_read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_ad_hoc.mobileprovision"
-op_read "op://tuist/Tuist App Store Connect Provisioning Profile/Tuist_App_Store_Connect.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_app_store.mobileprovision"
+op read "op://tuist/Tuist App Ad Hoc/Tuist_App_Ad_Hoc.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_ad_hoc.mobileprovision"
+op read "op://tuist/Tuist App Store Connect Provisioning Profile/Tuist_App_Store_Connect.mobileprovision" --out-file "$HOME/Library/MobileDevice/Provisioning Profiles/tuist_app_store.mobileprovision"
 
 EXPORT_OPTIONS_PLIST_PATH=$TMP_DIR/ExportOptions.plist
 
