@@ -296,6 +296,7 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
+
 	restConfig := ctrl.GetConfigOrDie()
 
 	if apiServerURL == "" {
