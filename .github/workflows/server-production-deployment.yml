@@ -250,21 +250,6 @@ jobs:
         with:
           ref: ${{ inputs.commit_sha || github.sha }}
           submodules: false
-      - name: Resolve expected Kura runtime image tag
-        # The runtime this cascade deploys is the pin in
-        # values-managed-common.yaml. The roll onto the test account's Kura
-        # mesh is reconciled asynchronously after the canary server deploy, so
-        # this gate (which only `needs: canary`) can start before the new image
-        # is serving. Surfaced for the wait-and-retry below and its diagnostics.
-        run: |
-          file=infra/helm/tuist/values-managed-common.yaml
-          tag="$(awk '/^kuraRuntime:/{f=1} f&&/^[[:space:]]*tag:/{gsub(/[" ]/,"",$2); print $2; exit}' "$file")"
-          if [ -z "$tag" ]; then
-            echo "Could not resolve kuraRuntime.image.tag from $file" >&2
-            exit 1
-          fi
-          echo "EXPECTED_KURA_RUNTIME_TAG=$tag" >> "$GITHUB_ENV"
-          echo "Expected canary Kura runtime image tag: $tag"
       - name: Resolve oldest supported CLI version
         # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
         # which also drives the deprecation warning and the docs Compatibility page.
@@ -312,11 +297,11 @@ jobs:
             attempt=$(( attempt + 1 ))
             if [ "$(date +%s)" -ge "$deadline" ]; then
               echo "::error::Oldest-CLI module-cache flow still failing after ${attempt} attempts (~10m)."
-              echo "::error::Expected canary Kura runtime image: ${EXPECTED_KURA_RUNTIME_TAG:-<unresolved>}."
+              echo "::error::Expected canary Kura runtime: the kuraRuntime.image.tag pin in infra/helm/tuist/values-managed-common.yaml."
               echo "::error::If canary Kura is stuck on an older image, re-trigger its runtime deployment — the reconciler does not auto-retry a failed roll. Otherwise this is a real backward-compatibility regression against the oldest supported CLI."
               exit 1
             fi
-            echo "Attempt ${attempt} failed; canary Kura may still be rolling to ${EXPECTED_KURA_RUNTIME_TAG:-<unresolved>}. Retrying in 30s..."
+            echo "Attempt ${attempt} failed; canary Kura may still be rolling to the pinned runtime. Retrying in 30s..."
             sleep 30
           done
 
