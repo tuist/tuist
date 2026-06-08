@@ -1,0 +1,138 @@
+name: Pomerium Deployment
+
+# Deploys the per-env Pomerium kube-gateway chart (wraps the upstream
+# pomerium/pomerium chart) into a workload cluster. Pomerium fronts
+# `kube-<env>.tuist.dev` for kubectl access and per-request calls
+# tuist-ops's `/api/v1/policy` over the tailnet to resolve impersonation
+# headers based on tailnet role + any active elevation row.
+#
+# Triggers:
+#  - push to main whenever the Pomerium chart or this workflow changes,
+#    rolling out to all three envs in parallel via matrix (matches how
+#    HCCM deploys — Pomerium is a workload-level component, blast
+#    radius per-cluster).
+#  - workflow_dispatch with an `environment` input to target a single
+#    env (used during the initial rollout to validate staging → canary
+#    → production in sequence).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/helm/pomerium/**
+      - .github/workflows/pomerium-deployment.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target env (staging | canary | production). Leave blank to roll all three.
+        required: false
+        type: choice
+        options:
+          - ""
+          - staging
+          - canary
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  # Resolve the matrix dynamically: workflow_dispatch with a specific
+  # env runs only that env; push or empty dispatch runs all three.
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.envs.outputs.envs }}
+    steps:
+      - id: envs
+        env:
+          INPUT_ENV: ${{ inputs.environment }}
+        run: |
+          if [ -n "${INPUT_ENV:-}" ]; then
+            echo "envs=[\"${INPUT_ENV}\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo 'envs=["staging","canary","production"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Pomerium (${{ matrix.environment }})
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.matrix.outputs.envs) }}
+    runs-on: tuist-linux
+    environment:
+      # server-k8s-<env> environments already exist (used by
+      # server-deployment.yml, hccm-deployment.yml) and have
+      # OP_SERVICE_ACCOUNT_TOKEN scoped to the matching
+      # tuist-k8s-<env> 1P vault.
+      name: server-k8s-${{ matrix.environment }}
+    concurrency:
+      # Hold the same lane as the server + HCCM deploys so we don't
+      # race for the cluster apiserver during a rollout.
+      group: server-deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Fetch upstream Pomerium chart
+        # The wrapper chart declares a dependency on pomerium/pomerium
+        # at a pinned version. `helm dep update` resolves and downloads
+        # it into infra/helm/pomerium/charts/ before deploy. Cached
+        # locally per-runner; safe to re-run.
+        run: |
+          helm repo add pomerium https://helm.pomerium.io >/dev/null
+          helm repo update pomerium >/dev/null
+          helm dep update infra/helm/pomerium
+      - name: helm upgrade --install pomerium-kube
+        run: |
+          helm upgrade --install pomerium-kube infra/helm/pomerium \
+            --namespace pomerium --create-namespace \
+            -f infra/helm/pomerium/values-${{ matrix.environment }}.yaml \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history pomerium-kube -n pomerium --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest"
+          helm get manifest pomerium-kube -n pomerium 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::workload resources"
+          kubectl -n pomerium get deploy,svc,ingress,externalsecret,pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::deployment describe"
+          kubectl -n pomerium describe deploy 2>&1 | tail -120 || true
+          echo "::endgroup::"
+          echo "::group::pod logs (most recent)"
+          kubectl -n pomerium logs -l app.kubernetes.io/name=pomerium --tail=100 || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n pomerium get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"
