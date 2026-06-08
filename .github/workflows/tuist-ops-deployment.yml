@@ -76,7 +76,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      name: tuist-k8s-mgmt
+      # Reuses the existing environment from mgmt-cluster-apply.yml
+      # — same OP_SERVICE_ACCOUNT_TOKEN scope (read on the
+      # tuist-k8s-mgmt 1P vault) and same access gates. Any approval
+      # rules attached to mgmt-cluster-apply apply here too, which
+      # is the right posture for any workflow that mutates the mgmt
+      # cluster.
+      name: mgmt-cluster-apply
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
