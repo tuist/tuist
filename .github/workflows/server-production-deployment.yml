@@ -159,6 +159,46 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   # --------------------------------------------------------------------------
+  # Resolve the Kura runtime image tag once for the whole cascade: the tag
+  # passed by kura-release-deployment.yml on a `kura@` dispatch, otherwise the
+  # latest published `kura@` release. Surfacing it here (rather than only
+  # inside server-deployment.yml) means every leg deploys the same Kura
+  # runtime AND the backward-compatibility gate knows which runtime it should
+  # be testing against, so it can wait the runtime roll out instead of racing
+  # it.
+  # --------------------------------------------------------------------------
+  resolve-kura-runtime-tag:
+    name: Resolve Kura runtime image tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.kura_runtime_image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG:-}" ]; then
+            echo "tag=${INPUT_TAG}" >> "$GITHUB_OUTPUT"
+            echo "Using dispatched Kura runtime image tag ${INPUT_TAG}"
+            exit 0
+          fi
+          tag="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/matching-refs/tags/kura@" --jq '.[].ref' |
+              sed -E 's#^refs/tags/kura@##' |
+              grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' |
+              sort -V | tail -n1 || true
+          )"
+          if [ -z "$tag" ]; then
+            echo "::error::No kura@ release tag found to resolve the Kura runtime image"
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Resolved latest Kura runtime image tag ${tag}"
+
+  # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Runs on standard pushes and
   # manual dispatch. Skipped on hotfix pushes: the whole point of the
   # hotfix fast-path is to ship straight to production without waiting on
@@ -166,7 +206,7 @@ jobs:
   # rollout surface (and noise) for a push that explicitly opted out.
   # --------------------------------------------------------------------------
   canary:
-    needs: build
+    needs: [build, resolve-kura-runtime-tag]
     if: >-
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
       github.event_name == 'workflow_dispatch'
@@ -175,7 +215,7 @@ jobs:
       environment: canary
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
-      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
+      kura_runtime_image_tag: ${{ needs.resolve-kura-runtime-tag.outputs.tag }}
     secrets: inherit
 
   acceptance-tests:
@@ -226,7 +266,7 @@ jobs:
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
-    needs: canary
+    needs: [canary, resolve-kura-runtime-tag]
     runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -239,6 +279,11 @@ jobs:
       # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
       TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
       TUIST_AUTH_PASSWORD: tuistrocks
+      # The Kura runtime this cascade is rolling out. The roll is reconciled
+      # asynchronously after the canary server deploy, so this gate (which only
+      # `needs: canary`) can start before the new Kura image is serving the
+      # test account. Surfaced for the wait-and-retry below and its diagnostics.
+      EXPECTED_KURA_RUNTIME_TAG: ${{ needs.resolve-kura-runtime-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -276,7 +321,28 @@ jobs:
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
-        run: mise run --no-deps e2e module_cache_backward_compat
+        # The canary Kura runtime rolls out asynchronously (reconciled by the
+        # just-deployed server, then a StatefulSet rollout), so right after the
+        # canary leg the test account can still be served by the previous Kura
+        # image. Wait the roll out by retrying the oldest-CLI flow until it
+        # passes against the new runtime, or fail loudly with the expected tag.
+        # A genuine backward-compatibility regression keeps failing and still
+        # fails the gate once the deadline elapses.
+        run: |
+          set -uo pipefail
+          deadline=$(( $(date +%s) + 600 ))
+          attempt=0
+          until mise run --no-deps e2e module_cache_backward_compat; do
+            attempt=$(( attempt + 1 ))
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Oldest-CLI module-cache flow still failing after ${attempt} attempts (~10m)."
+              echo "::error::Expected canary Kura runtime image: ${EXPECTED_KURA_RUNTIME_TAG:-<unresolved>}."
+              echo "::error::If canary Kura is stuck on an older image, re-trigger its runtime deployment — the reconciler does not auto-retry a failed roll. Otherwise this is a real backward-compatibility regression against the oldest supported CLI."
+              exit 1
+            fi
+            echo "Attempt ${attempt} failed; canary Kura may still be rolling to ${EXPECTED_KURA_RUNTIME_TAG:-<unresolved>}. Retrying in 30s..."
+            sleep 30
+          done
 
   # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes
@@ -284,7 +350,7 @@ jobs:
   # Skipped on hotfix pushes (the hotfix job below runs instead).
   # --------------------------------------------------------------------------
   production:
-    needs: [build, acceptance-tests, backward-compatibility-acceptance]
+    needs: [build, acceptance-tests, backward-compatibility-acceptance, resolve-kura-runtime-tag]
     if: >-
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
       github.event_name == 'workflow_dispatch'
@@ -293,7 +359,7 @@ jobs:
       environment: production
       commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
-      kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
+      kura_runtime_image_tag: ${{ needs.resolve-kura-runtime-tag.outputs.tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
