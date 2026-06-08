@@ -40,6 +40,7 @@ import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
 import SubmitOnCmdEnter from "./js/SubmitOnCmdEnter.js";
 import CopyToClipboard from "./js/CopyToClipboard.js";
 import DownloadAsFile from "./js/DownloadAsFile.js";
+import ScrollToTail from "./js/ScrollToTail.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -64,6 +65,7 @@ Hooks.TextAttachmentContent = TextAttachmentContent;
 Hooks.SubmitOnCmdEnter = SubmitOnCmdEnter;
 Hooks.CopyToClipboard = CopyToClipboard;
 Hooks.DownloadAsFile = DownloadAsFile;
+Hooks.ScrollToTail = ScrollToTail;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;

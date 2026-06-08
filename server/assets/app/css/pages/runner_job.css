@@ -306,7 +306,6 @@
   & [data-part="step-logs"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-2);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-5) var(--noora-spacing-7);
@@ -323,7 +322,6 @@
   & [data-part="log-stream"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-2);
   }
 
   & [data-part="load-older"] {
@@ -346,13 +344,16 @@
   & [data-part="log-line"] {
     display: flex;
     flex-direction: row;
+    align-items: flex-start;
     gap: var(--noora-spacing-5);
+    line-height: 1.45;
 
     & > [data-part="log-ln"] {
       flex-shrink: 0;
       min-width: 3ch;
       color: var(--noora-surface-label-tertiary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: inherit;
       user-select: none;
       text-align: right;
     }
@@ -361,6 +362,7 @@
       flex-shrink: 0;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: inherit;
     }
 
     & > [data-part="log-message"] {
@@ -368,6 +370,7 @@
       min-width: 0;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: inherit;
       white-space: pre-wrap;
       word-break: break-word;
     }
@@ -388,6 +391,7 @@
       cursor: pointer;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+      line-height: 1.45;
       list-style: none;
 
       &::-webkit-details-marker {

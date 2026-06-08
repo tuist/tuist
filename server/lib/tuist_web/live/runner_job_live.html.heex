@@ -290,17 +290,19 @@
             {dgettext("dashboard_runners", "No log lines match your search.")}
           </div>
           <div :for={line <- @search_results} data-part="log-line">
+            <% message_html = Tuist.Runners.LogFormatter.render_message(line.message) %>
             <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-            <span data-part="log-message">
-              {Tuist.Runners.LogFormatter.render_message(line.message)}
-            </span>
+            <span data-part="log-message">{message_html}</span>
           </div>
         </div>
 
         <div
           :if={@has_logs}
           id="runner-log-viewport"
+          phx-hook="ScrollToTail"
           data-part="log-viewport"
+          data-scroll-to-tail-active={to_string(@selected_tab == "logs" and @search == "")}
+          data-scroll-to-tail-item-selector="[data-part='log-line']"
           hidden={@search != ""}
         >
           <button
@@ -313,10 +315,9 @@
           </button>
           <div id="runner-logs" data-part="log-stream" phx-update="stream">
             <div :for={{dom_id, line} <- @streams.log_lines} id={dom_id} data-part="log-line">
+              <% message_html = Tuist.Runners.LogFormatter.render_message(line.message) %>
               <span data-part="log-ts">{TuistWeb.RunnerJobLive.log_ts(line.ts)}</span>
-              <span data-part="log-message">
-                {Tuist.Runners.LogFormatter.render_message(line.message)}
-              </span>
+              <span data-part="log-message">{message_html}</span>
             </div>
           </div>
         </div>
