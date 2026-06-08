@@ -681,15 +681,24 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     host-arch `load_linux_<arch>` in one invocation (no separate `--platforms` flag build). The
     flag `:load` stays for local single-arch dev (no remote cache to fragment locally). Validated
     locally: `load_linux_arm64` builds under `aarch64-opt-ST-51a2…`, the tarball `docker load`s
-    and starts cleanly under tini. CI cold→warm validation: <pending>.
-  - **OPEN — within-index selective cold→warm miss.** Independent of the above: within a single
-    OCI run, a few build scripts (jemalloc, aws-lc-sys, ring, typeid) miss cold→warm and cascade
-    (~151 actions) while **rocksdb caches fine**. Ruled out: key non-determinism (stable), tags
-    (none), cold upload errors (cold logged `Kura exit code: 0`, `persist/fd error lines: 0`).
-    Since cold stored them cleanly under a stable key and warm requests that same key, this looks
-    like a storage/retrieval gap for those specific high-file-count tree outputs — same *class* as
-    the ByteStream bug, settleable with the grpc-log technique (diff cold-SENT vs warm-FindMissing).
-    Not yet chased.
+    and starts cleanly under tini. **CI cold→warm validation (2026-06-08):** deleted
+    `kura-data-oci`, ran COLD (run `27156343682`, commit `9219675e6d`): the OCI build is now a
+    **single** Bazel invocation — `2179 processes: 1474 executed` in `1843 s (~31 min)`, vs the
+    old two-invocation cold (`load` 1330+889-exec then `index` 1688+1169-exec, ~51 min Bazel /
+    53.5 min job) — ~580 fewer executed actions = the eliminated double native build; OCI job
+    33 min; `kura-data-oci` saved 721 MiB (was 763 — no duplicate flag-config entries), `Kura
+    exit 0`, 0 persist/fd errors. Then WARM (run `27158278415`): `Cache hit for: kura-data-oci`,
+    `2179 processes: 1475 remote cache hit, 703 internal, 1 processwrapper-sandbox` — **1 executed
+    action**, Bazel `35 s`, **OCI job 4 min** (was 10.5 min). (Transient `auth.docker.io` 502 flaked
+    the arm64 linux job on the cold run; green on the warm rerun — unrelated to this change.)
+  - **Within-index selective cold→warm miss — RESOLVED by the unified build.** Earlier the warm
+    OCI re-ran jemalloc/aws-lc-sys/ring/typeid build scripts (~151 actions) while rocksdb cached;
+    I'd flagged it as a possible Kura storage/retrieval gap. The unified single-invocation build
+    above eliminates it: warm now executes **1** action with **0** build-script re-runs. The
+    two-invocation flag(`load`)+transition(`index`) split — which compiled those native `-sys`
+    crates under two keyspaces in one cold run — was implicated; the exact upstream mechanism
+    wasn't separately root-caused since it's moot now. If it ever recurs, the grpc-log diff
+    (cold-SENT vs warm-FindMissing) is the tool.
 
 ## Open questions / risks
 
