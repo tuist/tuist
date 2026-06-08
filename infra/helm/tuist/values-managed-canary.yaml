@@ -134,6 +134,17 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
+      # See values-managed-production.yaml for the rationale. Canary's
+      # only Mac mini is on the production tailnet (single shared
+      # tailnet across canary + production), so the proxy needs to land
+      # on the same tag as production's `tag:tuist-k8s-production`
+      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
+      # by the operator's OAuth client. Hostname is env-scoped to
+      # keep production's stable.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-canary
+        tags: tag:tuist-k8s-production
     storage:
       size: "10Gi"
     resources:
@@ -182,6 +193,10 @@ xcresultProcessor:
   # Mac mini and replicaCount=2 the second pod has nowhere to land
   # without violating Apple's 2-VM SLA cap that Tart enforces.
   replicaCount: 1
+  # Tailnet-fronted URL key — see values-managed-production.yaml.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  tailscale:
+    enabled: true
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the

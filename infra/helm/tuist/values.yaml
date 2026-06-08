@@ -413,6 +413,26 @@ xcresultProcessor:
   # that point at a different Secret.
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
+  # Tailscale identity for each Tart VM. When enabled the VM image's
+  # tailscale-up.sh runs at boot (before the BEAM) and joins the
+  # tailnet using the auth key sourced from this Secret. The chart's
+  # `xcresult-processor-database-url` rendering points at the
+  # operator-managed pooler proxy hostname; the VM resolves it via
+  # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # Off by default — self-hosters without a tailnet, and any
+  # deployment that hasn't shipped the tailscale-enabled VM image
+  # yet, leaves this off and the chart skips the env injection.
+  tailscale:
+    enabled: false
+    # Name of the Secret holding the per-env Tailscale pre-auth key
+    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # operator's --tailscale-auth-key-secret-name flag). Empty falls
+    # back to the chart-default
+    # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
+    # macOS-fleet ExternalSecret syncs from 1Password.
+    authKeySecretName: ""
+    authKeySecretKey: "auth-key"
   extraEnv: []
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
@@ -1303,6 +1323,24 @@ postgresql:
       parameters:
         default_pool_size: "20"
         max_client_conn: "100"
+      # Annotate the Pooler's Service so the Tailscale operator stands up
+      # a userspace proxy on the tailnet, exposing the in-cluster pooler
+      # ClusterIP at a stable MagicDNS hostname. The processor's
+      # ExternalSecret then renders a second URL keyed off that hostname
+      # for clients whose only network interface is Tailnet — namely the
+      # macOS Tart VM xcresult-processor pods, which can't reach
+      # ClusterIPs through the K8s overlay. Linux processors keep using
+      # the direct in-cluster pooler hostname (no detour).
+      tailscale:
+        enabled: false
+        # tailscale.com/hostname annotation. Must be unique on the tailnet
+        # — by convention, "tuist-pg-pooler-<env>".
+        hostname: ""
+        # tailscale.com/tags annotation override. The operator's
+        # PROXY_TAGS default ("tag:k8s") is platform-wide and the
+        # tailnet's ACL only permits Tuist-scoped tags; set this to the
+        # env's permitted tag (e.g. "tag:tuist-k8s-production").
+        tags: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"

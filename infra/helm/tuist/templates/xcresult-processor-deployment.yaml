@@ -135,6 +135,34 @@ spec:
                   name: {{ $masterKeySecretName }}
                   key: server-master-key
             {{- end }}
+            {{- if .Values.xcresultProcessor.tailscale.enabled }}
+            # Per-VM tailnet identity. tailscale-up.sh inside the VM
+            # reads TAILSCALE_AUTH_KEY at boot and joins the tailnet
+            # before the BEAM starts so Postgrex's first dial of the
+            # operator-managed pooler proxy hostname resolves. See
+            # infra/xcresult-processor-image/tailscale-up.sh.
+            #
+            # We share the macOS-fleet Tailscale auth key (same
+            # `tag:tuist-macmini-<env>` ACL binding the bootstrap
+            # uses for the Mac mini hosts) rather than minting a
+            # separate VM key — the ACL grants the same outbound
+            # surface either way and one key per env keeps rotation
+            # simple.
+            - name: TAILSCALE_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.xcresultProcessor.tailscale.authKeySecretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+                  key: {{ .Values.xcresultProcessor.tailscale.authKeySecretKey | default "auth-key" }}
+            # Identity stamp on the tailnet device the VM registers
+            # — defaults to the K8s Pod name (Downward API), which
+            # the chart's Deployment template already binds to the
+            # ReplicaSet hash + Pod ordinal. Roll a Pod → new device
+            # name → fresh tailnet registration.
+            - name: TAILSCALE_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- end }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
