@@ -1,0 +1,9 @@
+apiVersion: v2
+name: tuist-ops
+description: |
+  Tuist internal-ops Phoenix app: JIT elevation Slack bot + Pomerium
+  ext_authz endpoint. Deployed to the mgmt cluster only. See
+  `../../tuist-ops/AGENTS.md` for what runs here and why.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -13,6 +13,10 @@ defmodule TuistOpsWeb.Router do
     # broadly, add a mTLS or shared-secret check.
   end
 
+  pipeline :health do
+    plug :accepts, ["json"]
+  end
+
   scope "/webhooks/slack", TuistOpsWeb do
     pipe_through :slack_webhook
 
@@ -24,5 +28,11 @@ defmodule TuistOpsWeb.Router do
     pipe_through :pomerium_authz
 
     post "/policy", PolicyController, :evaluate
+  end
+
+  scope "/api/v1", TuistOpsWeb do
+    pipe_through :health
+
+    get "/healthz", HealthController, :show
   end
 end
