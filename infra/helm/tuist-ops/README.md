@@ -46,26 +46,33 @@ workload clusters it manages.
 6. **CloudNativePG operator** in mgmt (it's already there for any
    other CNPG cluster in mgmt, or install via the platform chart).
 
-## Image build
+## Image + deploy
 
-Built and pushed by `.github/workflows/tuist-ops.yml` on every push to
-`main` (and on `workflow_dispatch`). Two tags per build:
+Built, pushed, and deployed by `.github/workflows/tuist-ops-deployment.yml`
+on every push to `main` that touches `tuist-ops/**`,
+`infra/helm/tuist-ops/**`, or the workflow itself. Two tags per build:
 - `ghcr.io/tuist/tuist-ops:sha-<first-12-of-commit>`
 - `ghcr.io/tuist/tuist-ops:latest`
 
-Prefer the SHA tag for deploys so rollbacks are precise.
+The `deploy` job pulls the mgmt kubeconfig from the
+`kubeconfig: tuist-mgmt` document in the `tuist-k8s-mgmt` 1P vault
+(via the `OP_SERVICE_ACCOUNT_TOKEN` repo secret, scoped to the
+`tuist-k8s-mgmt` GitHub environment) and runs `helm upgrade --install`
+with `--atomic --wait --timeout 10m`.
 
-## Deploy
+PR-side CI (format / credo / test) lives in
+`.github/workflows/tuist-ops.yml` and runs on every PR. No image
+build there; the deployment workflow handles both.
+
+## Manual rollback / break-glass deploy
 
 ```bash
 helm upgrade --install tuist-ops infra/helm/tuist-ops \
   -n tuist-ops --create-namespace \
   -f infra/helm/tuist-ops/values-managed-mgmt.yaml \
-  --set image.tag=sha-$(git rev-parse HEAD | cut -c1-12) \
+  --set image.tag=sha-<known-good-12-char-sha> \
   --kube-context tuist-mgmt
 ```
 
-A dedicated `tuist-ops-deployment.yml` workflow (mirroring
-`slack-deployment.yml`) for automated `helm upgrade --install` on
-push-to-main is a follow-up; for the first deploy and any rollbacks
-the manual command above is the path.
+Or trigger the deployment workflow with a specific `image_tag` input
+via `gh workflow run tuist-ops-deployment.yml -f image_tag=sha-<sha>`.
