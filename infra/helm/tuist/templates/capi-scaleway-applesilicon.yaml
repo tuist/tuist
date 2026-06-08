@@ -257,17 +257,6 @@ spec:
             # short-circuit.
             - --tailscale-binaries-path=/opt/tailscale/tailscale-darwin-arm64.tar.gz
             - --node-exporter-binary-path=/opt/node-exporter/node_exporter-darwin-arm64
-            {{- with .Values.macosFleet.hostTCPForwards }}
-            # Host-side TCP forwarder. Bridges Tart VM outbound
-            # traffic (5432 in production: xcresult-processor →
-            # CNPG pooler) into a tailnet-exposed cluster Service
-            # via the host's tailscale0 interface — the only
-            # network path the Tart VM has out of vmnet that
-            # actually reaches a tailnet CGNAT IP. See
-            # macos-host-bootstrap/bootstrap.go:installHostTCPForwarder.
-            - --host-tcp-forwarder-binary-path=/opt/host-tcp-forwarder/host-tcp-forwarder-darwin-arm64
-            - --host-tcp-forwards={{ range $i, $f := . }}{{ if $i }},{{ end }}{{ $f.name }}={{ $f.listen }}={{ $f.target }}{{ end }}
-            {{- end }}
             # The bootstrap reads this Secret per Machine reconcile
             # (controller-runtime cache hit, no API round-trip) so a
             # rotated key takes effect on the next reconcile without

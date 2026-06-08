@@ -45,7 +45,6 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
-	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
 )
 
 var (
@@ -72,8 +71,6 @@ func main() {
 		tartTarballPath              string
 		tailscaleBinariesPath        string
 		nodeExporterBinaryPath       string
-		hostTCPForwarderBinaryPath   string
-		hostTCPForwardsRaw           string
 		tailscaleAuthKeySecretName   string
 		tailscaleTagsRaw             string
 		tartKubeletHostCPU           int
@@ -136,25 +133,6 @@ func main() {
 			"Empty disables the host-metrics step. Paired with "+
 			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
 			"to a public interface, which the bootstrap step actively refuses.")
-	flag.StringVar(&hostTCPForwarderBinaryPath, "host-tcp-forwarder-binary-path",
-		envOrDefault("CAPI_HOST_TCP_FORWARDER_BINARY_PATH", ""),
-		"Local path of the darwin/arm64 host-tcp-forwarder binary baked into this "+
-			"image (/opt/host-tcp-forwarder/host-tcp-forwarder-darwin-arm64 by "+
-			"default). The bootstrap installs the binary on each Mac mini and "+
-			"renders one launchd plist per --host-tcp-forwards entry. The forwarder "+
-			"bridges Tart VM outbound traffic to tailnet-exposed cluster Services "+
-			"via the host's tailscale0 interface — without it the VM has no path "+
-			"to tailnet CGNAT addresses (vmnet NAT routes through the public "+
-			"interface, not tailscale0). Empty disables the step.")
-	flag.StringVar(&hostTCPForwardsRaw, "host-tcp-forwards",
-		envOrDefault("CAPI_HOST_TCP_FORWARDS", ""),
-		"Comma-separated list of host-tcp-forwarder forwards installed on every "+
-			"Mac mini this operator reconciles. Each entry is name=listen=target "+
-			"(e.g. pg-pooler=0.0.0.0:5432=tuist-pg-pooler-production:5432). "+
-			"Name is the launchd label suffix (alphanumerics + dashes), Listen is "+
-			"the host bind address (0.0.0.0:5432 for VM-facing forwards), Target "+
-			"is the tailnet-reachable upstream — a Tailscale MagicDNS hostname or "+
-			"IP that the host's tailscaled can route to. Empty installs no forwards.")
 	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
 		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
 		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
@@ -318,25 +296,6 @@ func main() {
 		}
 		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
 	}
-	var hostTCPForwarderBinary []byte
-	if hostTCPForwarderBinaryPath != "" {
-		hostTCPForwarderBinary, err = os.ReadFile(hostTCPForwarderBinaryPath)
-		if err != nil {
-			setupLog.Error(err, "read host-tcp-forwarder binary", "path", hostTCPForwarderBinaryPath)
-			os.Exit(1)
-		}
-		setupLog.Info("loaded host-tcp-forwarder binary", "path", hostTCPForwarderBinaryPath, "bytes", len(hostTCPForwarderBinary), "sha", sha256Hex(hostTCPForwarderBinary))
-	}
-	hostTCPForwards, err := parseHostTCPForwards(hostTCPForwardsRaw)
-	if err != nil {
-		setupLog.Error(err, "parse --host-tcp-forwards", "raw", hostTCPForwardsRaw)
-		os.Exit(1)
-	}
-	if len(hostTCPForwards) > 0 && len(hostTCPForwarderBinary) == 0 {
-		setupLog.Error(nil, "--host-tcp-forwards given without --host-tcp-forwarder-binary-path — forwards would never install")
-		os.Exit(1)
-	}
-
 	restConfig := ctrl.GetConfigOrDie()
 
 	if apiServerURL == "" {
@@ -413,19 +372,17 @@ func main() {
 	}
 
 	if err := (&controllers.ScalewayAppleSiliconMachineReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		ScalewayClient:         scwClient,
-		CredentialsManager:     credsManager,
-		Recorder:               mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
-		Kubeconfig:             kubeconfigBuilder,
-		TartKubeletBinary:      tartKubeletBinary,
-		TartKubeletBinarySHA:   binarySHA,
-		TartTarball:            tartTarball,
-		TailscaleBinaries:      tailscaleBinaries,
-		NodeExporterBinary:     nodeExporterBinary,
-		HostTCPForwarderBinary: hostTCPForwarderBinary,
-		HostTCPForwards:        hostTCPForwards,
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		ScalewayClient:       scwClient,
+		CredentialsManager:   credsManager,
+		Recorder:             mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:           kubeconfigBuilder,
+		TartKubeletBinary:    tartKubeletBinary,
+		TartKubeletBinarySHA: binarySHA,
+		TartTarball:          tartTarball,
+		TailscaleBinaries:    tailscaleBinaries,
+		NodeExporterBinary:   nodeExporterBinary,
 		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
 		// Flows in from the Helm chart's macosFleet.tailscale.tags
 		// via --tailscale-tags. ACL grants the matching env's
@@ -533,42 +490,6 @@ func parseCommaList(raw string) []string {
 		out = append(out, p)
 	}
 	return out
-}
-
-// parseHostTCPForwards turns the comma-separated --host-tcp-forwards
-// flag value into a typed slice. Each entry must be
-// `name=listen=target`; empty input returns nil. Validation here
-// keeps a malformed flag from surfacing as a confusing bootstrap
-// failure on the first reconciled Mac mini.
-func parseHostTCPForwards(raw string) ([]bootstrap.HostTCPForward, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, nil
-	}
-	entries := strings.Split(raw, ",")
-	out := make([]bootstrap.HostTCPForward, 0, len(entries))
-	seen := map[string]struct{}{}
-	for _, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		parts := strings.SplitN(entry, "=", 3)
-		if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
-			return nil, fmt.Errorf("invalid forward spec %q (want name=listen=target)", entry)
-		}
-		name := strings.TrimSpace(parts[0])
-		if _, dup := seen[name]; dup {
-			return nil, fmt.Errorf("duplicate forward name %q", name)
-		}
-		seen[name] = struct{}{}
-		out = append(out, bootstrap.HostTCPForward{
-			Name:   name,
-			Listen: strings.TrimSpace(parts[1]),
-			Target: strings.TrimSpace(parts[2]),
-		})
-	}
-	return out, nil
 }
 
 func sha256Hex(b []byte) string {

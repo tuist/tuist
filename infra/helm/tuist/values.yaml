@@ -676,25 +676,6 @@ macosFleet:
       item: TAILSCALE
       fields:
         authKey: auth-key
-  # Host-side TCP forwards installed on every Mac mini the operator
-  # reconciles. Each entry is bridged by a launchd-supervised
-  # host-tcp-forwarder process: a Tart VM connects to the host's vmnet
-  # gateway on `listen`, the host relays the stream through tailscale0
-  # to `target`. This is how Tart VMs reach tailnet-exposed cluster
-  # Services — they have no tailnet identity of their own and vmnet's
-  # NAT routes outbound through the host's public-internet uplink, not
-  # through tailscale0.
-  #
-  # Per-env values populate this. Production wires
-  # `pg-pooler=0.0.0.0:5432=tuist-pg-pooler-production:5432` so the
-  # xcresult-processor Tart VM reaches the CNPG pooler via the
-  # tailnet proxy `postgresql.cnpg.pooler.tailscale.hostname`
-  # registers. Empty list installs no forwards.
-  hostTCPForwards: []
-    # - name: pg-pooler          # launchd label suffix; [a-z0-9-]
-    #   listen: "0.0.0.0:5432"   # host bind (0.0.0.0 catches the VM-gateway path)
-    #   target: "tuist-pg-pooler-production:5432"  # MagicDNS hostname or IP
-
   # Tailscale egress Services. When enabled, the CAPI operator
   # creates one ExternalName Service per Mac mini in
   # `.namespace` (matching the tailscale-operator wrapper chart's

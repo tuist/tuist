@@ -46,7 +46,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -142,31 +141,6 @@ type Config struct {
 	// listening on a public IP.
 	NodeExporterBinary []byte
 
-	// HostTCPForwarderBinary is the darwin/arm64 host-tcp-forwarder
-	// binary (cross-compiled in the operator image from
-	// infra/host-tcp-forwarder). Installed at
-	// /usr/local/bin/host-tcp-forwarder, with one launchd plist per
-	// entry in HostTCPForwards. Empty disables the step entirely.
-	//
-	// The forwarder bridges Tart VM outbound traffic into cluster
-	// Services exposed on the tailnet: the VM dials its vmnet
-	// gateway IP, the host-side forwarder relays the TCP stream
-	// through the host's tailscale0 interface to the target. Without
-	// this relay the VM has no path to tailnet CGNAT addresses —
-	// vmnet's NAT routes the VM's outbound through the host's
-	// public-internet uplink, not through tailscale0, and the VM
-	// can't run a CNI agent of its own.
-	HostTCPForwarderBinary []byte
-
-	// HostTCPForwards is the set of forwards installed on the host
-	// when HostTCPForwarderBinary is non-empty. Each entry becomes
-	// one launchd plist labelled
-	// `dev.tuist.host-tcp-forwarder.<name>`; the forwarder process
-	// listens on Listen and relays accepted connections to Target.
-	// Empty (with the binary set) installs the binary but starts no
-	// forwards — fine, the binary is small.
-	HostTCPForwards []HostTCPForward
-
 	// HostCPU / HostMemoryMB / MaxPods are advertised on the Node.
 	HostCPU      int
 	HostMemoryMB int
@@ -215,34 +189,6 @@ type Config struct {
 	// token from a Secret before populating
 	// GHActionsRunner.GHRunnerRegistrationToken.
 	GHActionsRunner *GHActionsRunnerConfig
-}
-
-// HostTCPForward is one entry in Config.HostTCPForwards. The
-// forwarder binary is installed once on the host; one launchd plist
-// per HostTCPForward boots one process per forward, each with its
-// own --bind and --target flags. Names must be unique on the host;
-// they're stamped into the launchd label and the log path, so the
-// caller picks human-readable identifiers like "pg-pooler" rather
-// than UUIDs.
-type HostTCPForward struct {
-	// Name is the per-host identifier. Used in the launchd label
-	// (`dev.tuist.host-tcp-forwarder.<Name>`) and log path
-	// (`/var/log/host-tcp-forwarder-<Name>.log`). Lowercase
-	// alphanumerics + dashes only — checked at install time so a
-	// stray entry can't write to an arbitrary path.
-	Name string
-
-	// Listen is the local bind address, e.g. "0.0.0.0:5432". Tart
-	// VMs reach the host over their vmnet gateway, so 0.0.0.0 is
-	// what's expected for VM-facing forwards. Bind explicitly to a
-	// specific interface to scope the listener tighter.
-	Listen string
-
-	// Target is the upstream `host:port`. For tailnet-exposed
-	// in-cluster Services, pass the Tailscale MagicDNS hostname
-	// (`tuist-pg-pooler-production:5432`); the host's tailscaled
-	// resolves it on the first connection. IPs work too.
-	Target string
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -296,9 +242,6 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
-	}
-	if err := installHostTCPForwarder(ctx, client, cfg); err != nil {
-		return hk.Observed(), fmt.Errorf("install host-tcp-forwarder: %w", err)
 	}
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("write kubeconfig: %w", err)
@@ -372,9 +315,6 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installNodeExporter(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install node_exporter: %w", err)
-	}
-	if err := installHostTCPForwarder(ctx, client, cfg); err != nil {
-		return hk.Observed(), fmt.Errorf("install host-tcp-forwarder: %w", err)
 	}
 	if err := loadTartKubeletLaunchd(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("reload launchd job: %w", err)
@@ -1399,172 +1339,6 @@ sudo launchctl bootout system /Library/LaunchDaemons/dev.tuist.node-exporter.pli
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.node-exporter.plist
 `
 	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.NodeExporterBinary))
-}
-
-// hostTCPForwardNamePattern is the allowed shape of a forward Name —
-// lowercase alphanumerics + dashes, 1-40 chars. Name is interpolated
-// into the launchd plist path and the log file path, so locking it
-// down means a misconfigured controller can't direct a `tee` write
-// to an arbitrary file system path.
-var hostTCPForwardNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
-
-// hostTCPForwardEndpointPattern matches Listen and Target values. We
-// drop the values verbatim into the launchd plist's <string>
-// elements as ProgramArguments — no XML escaping, no shell quoting.
-// Limiting to `host:port` shape (DNS labels + IPv4 + port) keeps a
-// misconfigured controller from injecting XML or argv past the
-// `--bind` / `--target` slot.
-var hostTCPForwardEndpointPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+:[0-9]{1,5}$`)
-
-// installHostTCPForwarder uploads the darwin/arm64 forwarder binary
-// to /usr/local/bin/host-tcp-forwarder and renders one supervised
-// launchd plist per Config.HostTCPForwards entry. Each entry becomes
-// a long-running process bridging Tart VM traffic through the host's
-// tailscale0 interface to a tailnet-exposed cluster Service.
-//
-// Idempotent: re-running with the same forwards is a no-op past the
-// binary write + plist bootstrap cycle; re-running with a different
-// list `bootout`s the missing plists before re-bootstrapping the
-// updated ones, so an entry removed from chart values goes away on
-// the next reconcile rather than lingering.
-//
-// No-op when HostTCPForwarderBinary is empty (chart bring-up where
-// the operator image doesn't yet ship the binary). When the binary
-// is present but HostTCPForwards is empty, the binary is still
-// installed but no forwards start — fine, the binary is ~5 MiB.
-func installHostTCPForwarder(ctx context.Context, client *ssh.Client, cfg Config) error {
-	if len(cfg.HostTCPForwarderBinary) == 0 {
-		return nil
-	}
-	for _, fwd := range cfg.HostTCPForwards {
-		if !hostTCPForwardNamePattern.MatchString(fwd.Name) {
-			return fmt.Errorf("host tcp forward name %q does not match %s", fwd.Name, hostTCPForwardNamePattern)
-		}
-		if !hostTCPForwardEndpointPattern.MatchString(fwd.Listen) {
-			return fmt.Errorf("host tcp forward %q: Listen %q does not match %s", fwd.Name, fwd.Listen, hostTCPForwardEndpointPattern)
-		}
-		if !hostTCPForwardEndpointPattern.MatchString(fwd.Target) {
-			return fmt.Errorf("host tcp forward %q: Target %q does not match %s", fwd.Name, fwd.Target, hostTCPForwardEndpointPattern)
-		}
-	}
-
-	// Stage 1: drop the binary. Always overwrite so an operator image
-	// bump that includes a new forwarder build rolls through on the
-	// next reconcile without a separate trigger.
-	stage1 := `set -euo pipefail
-sudo mkdir -p /usr/local/bin
-sudo tee /usr/local/bin/host-tcp-forwarder >/dev/null
-sudo chmod 0755 /usr/local/bin/host-tcp-forwarder
-`
-	if err := RunCommandWithStdin(ctx, client, stage1, bytes.NewReader(cfg.HostTCPForwarderBinary)); err != nil {
-		return fmt.Errorf("upload binary: %w", err)
-	}
-
-	// Stage 2: prune launchd jobs that aren't in the desired set.
-	// The chart can remove a forward by dropping it from
-	// HostTCPForwards; without this prune step a stale plist would
-	// keep running. We list every dev.tuist.host-tcp-forwarder.*
-	// plist on the host, subtract the names we're about to install,
-	// and `bootout` + delete each leftover.
-	//
-	// `find` rather than a shell glob because the SSH login shell on
-	// macOS is zsh, and zsh's default NO_NOMATCH treats a glob with
-	// no matches as a fatal error before the `[ -e ]` guard inside
-	// the loop ever runs — `set -e` then bombs the whole script the
-	// first time around, when no plists exist yet.
-	desired := make([]string, 0, len(cfg.HostTCPForwards))
-	for _, fwd := range cfg.HostTCPForwards {
-		desired = append(desired, fwd.Name)
-	}
-	pruneScript := fmt.Sprintf(`set -euo pipefail
-KEEP=%q
-DIR=/Library/LaunchDaemons
-find "$DIR" -maxdepth 1 -name 'dev.tuist.host-tcp-forwarder.*.plist' -print0 | \
-  while IFS= read -r -d '' plist; do
-    name=$(basename "$plist" .plist)
-    short=${name#dev.tuist.host-tcp-forwarder.}
-    keep=0
-    for k in $KEEP; do
-      if [ "$k" = "$short" ]; then keep=1; break; fi
-    done
-    if [ "$keep" -eq 0 ]; then
-      sudo launchctl bootout system "$plist" 2>/dev/null || true
-      sudo rm -f "$plist"
-    fi
-  done
-`, strings.Join(desired, " "))
-	if err := RunCommand(ctx, client, pruneScript); err != nil {
-		return fmt.Errorf("prune stale forwards: %w", err)
-	}
-
-	// Stage 3: render + bootstrap each desired plist. Each forward
-	// gets a fresh `bootout` + `bootstrap` cycle so flag changes
-	// (Listen or Target moved) take effect immediately.
-	for _, fwd := range cfg.HostTCPForwards {
-		label := "dev.tuist.host-tcp-forwarder." + fwd.Name
-		plistPath := "/Library/LaunchDaemons/" + label + ".plist"
-		logPath := "/var/log/host-tcp-forwarder-" + fwd.Name + ".log"
-		// Listen + Target + the bare log path go into XML `<string>`
-		// elements unquoted: launchd reads the XML literally and
-		// `'…'` would be parsed as part of the path / argument
-		// (it's not a shell). Paths flow through shellQuote where
-		// they're bash command arguments — the two distinct usages
-		// are spelled out below so a future addition doesn't trip
-		// over the same bug we hit on the first deploy.
-		script := fmt.Sprintf(`set -euo pipefail
-sudo tee %[1]s >/dev/null <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>%[2]s</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/usr/local/bin/host-tcp-forwarder</string>
-    <string>--bind</string><string>%[3]s</string>
-    <string>--target</string><string>%[4]s</string>
-  </array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>ThrottleInterval</key><integer>10</integer>
-  <key>StandardOutPath</key><string>%[5]s</string>
-  <key>StandardErrorPath</key><string>%[5]s</string>
-</dict>
-</plist>
-PLIST
-sudo chown root:wheel %[1]s
-sudo chmod 0644 %[1]s
-sudo launchctl bootout system %[1]s 2>/dev/null || true
-sudo launchctl bootstrap system %[1]s
-
-# Verify the daemon actually started — bootstrap returns 0 even when
-# the daemon crashes on launch (KeepAlive + ThrottleInterval keep it
-# in a retry loop, never reaching state=running). Without this check
-# the same misconfiguration we saw on the first deploy (single-quote
-# escaping leaking into argv) would land silently again.
-for i in 1 2 3 4 5; do
-  state=$(sudo launchctl print system/%[2]s 2>/dev/null | awk '/^[[:space:]]*state = /{print $3; exit}' || true)
-  if [ "$state" = "running" ]; then
-    break
-  fi
-  sleep 1
-done
-if [ "$state" != "running" ]; then
-  echo "host-tcp-forwarder %[2]s did not reach state=running (state=$state)" >&2
-  sudo launchctl print system/%[2]s 2>&1 | head -40 >&2
-  echo "--- recent stderr from %[6]s ---" >&2
-  sudo tail -n 40 %[6]s 2>/dev/null || true
-  exit 1
-fi
-`,
-			shellQuote(plistPath), label,
-			fwd.Listen, fwd.Target,
-			logPath, shellQuote(logPath))
-		if err := RunCommand(ctx, client, script); err != nil {
-			return fmt.Errorf("load forward %q: %w", fwd.Name, err)
-		}
-	}
-	return nil
 }
 
 // === SSH helpers ===========================================================

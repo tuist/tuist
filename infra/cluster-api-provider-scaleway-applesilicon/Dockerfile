@@ -89,25 +89,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o /out/tart-kubelet-darwin-arm64 ./cmd/tart-kubelet
 
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS host-tcp-forwarder-builder
-
-# Tiny multi-connection TCP relay (`infra/host-tcp-forwarder/`). Runs
-# on each Mac mini, bridging Tart VM outbound traffic to tailnet-
-# exposed cluster Services via the host's tailscale0 interface — the
-# VM has no tailnet identity, so without this relay there is no path
-# from VM userspace to a tailnet CGNAT address. The bootstrap step
-# installs it under launchd, one supervised job per forward.
-WORKDIR /src
-COPY infra/host-tcp-forwarder/go.mod ./
-RUN go mod download
-COPY infra/host-tcp-forwarder ./
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w" \
-    -o /out/host-tcp-forwarder-darwin-arm64 ./cmd/host-tcp-forwarder
-
-
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tart-fetcher
 
 # Pin Tart at image build time. The asset URL pattern is stable:
@@ -188,7 +169,6 @@ COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tar
 COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
 COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
-COPY --from=host-tcp-forwarder-builder /out/host-tcp-forwarder-darwin-arm64 /opt/host-tcp-forwarder/host-tcp-forwarder-darwin-arm64
 
 USER nonroot:nonroot
 
