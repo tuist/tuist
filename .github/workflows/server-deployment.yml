@@ -562,32 +562,6 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
-      - name: Resolve Kura runtime image tag
-        run: |
-          set -euo pipefail
-
-          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
-            echo "Using configured Kura runtime image tag $KURA_RUNTIME_IMAGE_TAG"
-            exit 0
-          fi
-
-          refs="$(git ls-remote --tags --refs origin 'refs/tags/kura@*')"
-          tag="$(
-            printf '%s\n' "$refs" |
-              awk -F'refs/tags/kura@' 'NF == 2 { print $2 }' |
-              grep -E '^[0-9]+[.][0-9]+[.][0-9]+$' |
-              sort -V |
-              tail -n 1 ||
-              true
-          )"
-
-          if [ -z "$tag" ]; then
-            echo "No kura@ release tag found."
-            exit 1
-          fi
-
-          echo "KURA_RUNTIME_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
-          echo "Resolved Kura runtime image tag $tag"
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
@@ -626,13 +600,23 @@ jobs:
           watcher_pid=$!
           trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
 
+          # The Kura runtime image tag is pinned in values-managed-common.yaml
+          # (kuraRuntime.image.tag) and bumped by commit-and-release on each
+          # kura@ release. Only override it via --set when a tag is passed
+          # explicitly (manual re-roll); an empty --set would blank the pin.
+          kura_runtime_set=()
+          if [ -n "${KURA_RUNTIME_IMAGE_TAG:-}" ]; then
+            kura_runtime_set=(--set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG")
+            echo "Overriding pinned Kura runtime image tag with ${KURA_RUNTIME_IMAGE_TAG}"
+          fi
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
             -f "$HELM_CHART_PATH/values-managed-common.yaml" \
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            --set kuraRuntime.image.tag="$KURA_RUNTIME_IMAGE_TAG" \
+            "${kura_runtime_set[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and

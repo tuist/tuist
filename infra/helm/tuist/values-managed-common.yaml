@@ -256,6 +256,15 @@ runnersController:
     # workflow.
     tag: "0.11.0"
 
+# Kura runtime image the server provisions for every account's Kura mesh
+# (surfaced as TUIST_KURA_RUNTIME_IMAGE_TAG, rolled by Kura.Reconciler).
+# Bumped by commit-and-release on each kura@ release, like the component
+# pins above.
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: "0.7.1"
+
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
 cache:

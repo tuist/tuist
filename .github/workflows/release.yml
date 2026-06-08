@@ -2113,6 +2113,13 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+            # Anchor the repository with `$` so it matches the kuraRuntime
+            # pin and not the kuraController one (ghcr.io/tuist/kura-controller).
+            sed -i '/repository: ghcr.io\/tuist\/kura$/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.kura-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
           if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
             # The hetzner-robot-controller image pin lives in the
             # mgmt-cluster raw manifest, not in values-managed-common
@@ -2409,7 +2416,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
-            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock
+            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
 
