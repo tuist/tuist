@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in xcresult-processor-image@0.12.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* stop leaking component release titles into the CLI deprecation warning ([#11122](https://github.com/tuist/tuist/pull/11122))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.1...xcresult-processor-image@0.12.2
+
 ## What's Changed in xcresult-processor-image@0.12.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

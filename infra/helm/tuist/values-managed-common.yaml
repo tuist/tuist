@@ -218,7 +218,11 @@ xcresultProcessor:
     # peers into /etc/hosts to work around the open-source
     # tailscaled's macOS DNS gap), plus Tailscale SSH for
     # operator diagnostics. release-xcresult-processor-image
-    # rewrites this with the next semver tag on merge to main.
+    # rewrites this with the next semver tag on merge to main —
+    # the 0.12.2 release that conflicted against here was the
+    # pre-PR image without tailscaled, taking it would crash the
+    # BEAM on boot since the chart's URL points at a Tailscale-
+    # exposed hostname only the in-VM tailscaled can resolve.
     tag: "c6d08f92"
 
 capi:
