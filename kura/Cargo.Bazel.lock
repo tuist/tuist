@@ -1,5 +1,5 @@
 {
-  "checksum": "07a3c70e37c1e0f7128731e219a689c3c526b5043eb4acee42a4961816c55646",
+  "checksum": "d837377492c2da592d4c41d2b8a43012d3e1a3e0e4c8afe5c1f985cecdacc51b",
   "crates": {
     "addr2line 0.25.1": {
       "name": "addr2line",
@@ -8679,9 +8679,9 @@
       ],
       "license_file": "LICENSE"
     },
-    "kura 0.6.0": {
+    "kura 0.7.4": {
       "name": "kura",
-      "version": "0.6.0",
+      "version": "0.7.4",
       "package_url": null,
       "repository": null,
       "targets": [
@@ -8750,6 +8750,14 @@
               "target": "http_body_util"
             },
             {
+              "id": "httparse 1.10.1",
+              "target": "httparse"
+            },
+            {
+              "id": "hyper 1.9.0",
+              "target": "hyper"
+            },
+            {
               "id": "hyper-util 0.1.20",
               "target": "hyper_util"
             },
@@ -8764,6 +8772,10 @@
             {
               "id": "maxminddb 0.27.3",
               "target": "maxminddb"
+            },
+            {
+              "id": "memmap2 0.9.10",
+              "target": "memmap2"
             },
             {
               "id": "mlua 0.11.6",
@@ -8842,6 +8854,10 @@
               "target": "tonic"
             },
             {
+              "id": "tower 0.5.3",
+              "target": "tower"
+            },
+            {
               "id": "tracing 0.1.44",
               "target": "tracing"
             },
@@ -8876,19 +8892,17 @@
             {
               "id": "tempfile 3.27.0",
               "target": "tempfile"
-            },
-            {
-              "id": "tower 0.5.3",
-              "target": "tower"
             }
           ],
           "selects": {}
         },
         "edition": "2024",
-        "version": "0.6.0"
+        "version": "0.7.4"
       },
-      "license": null,
-      "license_ids": [],
+      "license": "AGPL-3.0-only",
+      "license_ids": [
+        "AGPL-3.0"
+      ],
       "license_file": null
     },
     "lazy_static 1.5.0": {
@@ -10015,6 +10029,56 @@
         "Unlicense"
       ],
       "license_file": "LICENSE-MIT"
+    },
+    "memmap2 0.9.10": {
+      "name": "memmap2",
+      "version": "0.9.10",
+      "package_url": "https://github.com/RazrFalcon/memmap2-rs",
+      "repository": {
+        "Http": {
+          "url": "https://static.crates.io/crates/memmap2/0.9.10/download",
+          "sha256": "714098028fe011992e1c3962653c96b2d578c4b4bce9036e15ff220319b1e0e3"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "memmap2",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "memmap2",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [],
+          "selects": {
+            "cfg(unix)": [
+              {
+                "id": "libc 0.2.185",
+                "target": "libc"
+              }
+            ]
+          }
+        },
+        "edition": "2021",
+        "version": "0.9.10"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": "LICENSE-APACHE"
     },
     "mime 0.3.17": {
       "name": "mime",
@@ -27612,7 +27676,7 @@
   },
   "binary_crates": [],
   "workspace_members": {
-    "kura 0.6.0": ""
+    "kura 0.7.4": ""
   },
   "conditions": {
     "aarch64-apple-darwin": [
@@ -27857,10 +27921,13 @@
     "hex 0.4.3",
     "hmac 0.12.1",
     "http-body-util 0.1.3",
+    "httparse 1.10.1",
+    "hyper 1.9.0",
     "hyper-util 0.1.20",
     "jsonwebtoken 10.3.0",
     "libc 0.2.185",
     "maxminddb 0.27.3",
+    "memmap2 0.9.10",
     "mlua 0.11.6",
     "opentelemetry 0.31.0",
     "opentelemetry-otlp 0.31.1",
@@ -27881,6 +27948,7 @@
     "tokio-stream 0.1.18",
     "tokio-util 0.7.18",
     "tonic 0.14.5",
+    "tower 0.5.3",
     "tracing 0.1.44",
     "tracing-opentelemetry 0.32.1",
     "tracing-subscriber 0.3.23",
@@ -27888,8 +27956,7 @@
   ],
   "direct_dev_deps": [
     "rcgen 0.14.7",
-    "tempfile 3.27.0",
-    "tower 0.5.3"
+    "tempfile 3.27.0"
   ],
   "unused_patches": []
 }
