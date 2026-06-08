@@ -110,11 +110,41 @@
 	// Tailscale SSH (distinct from "grants") permits humans into
 	// their own devices in check mode. Untouched from the tailnet's
 	// initial setup.
+	//
+	// The same-env k8s→macmini accept grant lets the cluster-side
+	// subnet-router tailscale ssh into matching-env Mac mini hosts +
+	// the Tart VMs that run on them (xcresult-processor, future
+	// in-VM workloads). It's how we get diagnostic shell access
+	// when `kubectl logs` / `kubectl exec` against the kubelet
+	// endpoint fails — tart-kubelet's Node hostname doesn't
+	// resolve from the K8s apiserver's DNS, so the standard
+	// debug path is broken on macOS fleets and this is the
+	// substitute. `action: accept` rather than `check` because the
+	// src is a tagged machine, not a human session that has a
+	// re-auth flow.
 	"ssh": [
 		{
 			"action": "check",
 			"src":    ["autogroup:member"],
 			"dst":    ["autogroup:self"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+		{
+			"action": "accept",
+			"src":    ["tag:tuist-k8s-staging"],
+			"dst":    ["tag:tuist-macmini-staging"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+		{
+			"action": "accept",
+			"src":    ["tag:tuist-k8s-canary"],
+			"dst":    ["tag:tuist-macmini-canary"],
+			"users":  ["autogroup:nonroot", "root"],
+		},
+		{
+			"action": "accept",
+			"src":    ["tag:tuist-k8s-production"],
+			"dst":    ["tag:tuist-macmini-production"],
 			"users":  ["autogroup:nonroot", "root"],
 		},
 	],
