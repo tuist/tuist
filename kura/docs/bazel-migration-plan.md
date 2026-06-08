@@ -711,3 +711,44 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
   `rules_rust` + `rules_oci` (the more mature path today). The same native-cross + OCI
   story is achievable with Buck2 (reindeer + the buck2 prelude) if that becomes the
   target.
+
+## Maintenance: repin the Rust crate lockfile when Cargo deps change
+
+`rules_rust`'s `crate_universe` pins the resolved crate set in `Cargo.Bazel.lock`
+(`MODULE.bazel`: `cargo_lockfile = "//:Cargo.lock"`, `lockfile = "//:Cargo.Bazel.lock"`).
+That pin is a **digest of `Cargo.toml` + `Cargo.lock`**. Whenever those change,
+`Cargo.Bazel.lock` must be regenerated ("repinned") in the **same commit**, or every Bazel
+job fails at analysis with:
+
+```
+Error: Digests do not match: Current Digest("…") != Expected Digest("…")
+The current `lockfile` is out of date for 'crates'. … CARGO_BAZEL_REPIN=true
+ERROR: error evaluating module extension @@rules_rust+//crate_universe:extensions.bzl%crate
+```
+
+**Repin — preferably BEFORE committing — whenever you:**
+- add/remove/bump a dependency in `kura/Cargo.toml` (and `Cargo.lock` updates), or
+- **rebase / merge `main` into this branch** — `main` keeps developing Kura's crates while
+  this branch only adds Bazel files, so an integration almost always brings a newer
+  `Cargo.toml`/`Cargo.lock` that the branch's `Cargo.Bazel.lock` doesn't yet match. This bit
+  us on the 2026-06-08 rebase (all three jobs red at analysis); fixed by repinning.
+
+**How (run in the Debian dev container — the macOS host can't analyze the Linux graph,
+`No matching toolchains for @@bazel_tools//tools/cpp:toolchain_type`):**
+
+```bash
+# from kura/, dev image already built as kura-bazel-dev (bazel/linux-dev.Dockerfile)
+docker run --rm -v "$PWD:/workspace/kura" \
+  -v "$HOME/.cache/kura-bazel-repo-container:/bazelrepo" \
+  kura-bazel-dev bash -c '
+    cd /workspace/kura
+    echo "common --repository_cache=/bazelrepo" > /root/.bazelrc
+    CARGO_BAZEL_REPIN=true bazel build //:kura --platforms=//bazel/platforms:linux_x86_64 -c opt --nobuild'
+```
+
+`--nobuild` keeps it to load+analysis (the repin runs in the `crate_universe` module
+extension, before any compile), so it's fast and needs no full build. It rewrites
+`Cargo.Bazel.lock`; **commit that file**. Verify before pushing by re-running the same
+`bazel build … --nobuild` **without** `CARGO_BAZEL_REPIN` — clean analysis means the
+committed pin matches. (In CI, `kura-bazel.yml` does *not* set `CARGO_BAZEL_REPIN`, by
+design: a stale pin should fail loudly rather than silently re-resolve.)
