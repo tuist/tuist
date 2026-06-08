@@ -1,6 +1,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     net::IpAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Instant,
 };
 
 use axum::{
@@ -13,13 +17,14 @@ use axum::{
     routing::{delete, get, head, post, put},
 };
 use bytes::Bytes;
-use futures_util::stream;
+use futures_util::{Stream, StreamExt};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
+    bandwidth::BandwidthLimiter,
     constants::{
         MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
         MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
@@ -27,15 +32,18 @@ use crate::{
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
     memory::MemoryPressure,
+    metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
+    runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
     store::is_disk_full_error,
     telemetry::{attach_parent_context, record_trace_context},
     utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
 };
 
-const RESPONSE_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
+const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -477,9 +485,14 @@ async fn track_http_metrics(
     req: Request,
     next: Next,
 ) -> Response {
-    let _request_guard = state.start_http_request();
     let start = std::time::Instant::now();
     let route = request_route(&req);
+    let traffic_class = if is_public_load_route(&route) {
+        HttpTrafficClass::Public
+    } else {
+        HttpTrafficClass::Background
+    };
+    let _request_guard = state.start_http_request(traffic_class);
     let method = req.method().to_string();
     let uri_path = req.uri().path().to_owned();
     let client_location = state
@@ -522,11 +535,21 @@ async fn track_http_metrics(
         request_span.record("otel.status_code", "ERROR");
     }
 
+    let elapsed = start.elapsed();
+    if traffic_class == HttpTrafficClass::Public {
+        state
+            .runtime
+            .record_public_request_latency(&state.metrics, "http", &route, elapsed);
+    }
     state
         .metrics
-        .record_http(route, response.status(), client_country, start.elapsed());
+        .record_http(route, response.status(), client_country, elapsed);
 
     response
+}
+
+fn is_public_load_route(route: &str) -> bool {
+    !is_probe_route(route) && !route.starts_with("/_internal/") && route != UNMATCHED_ROUTE
 }
 
 fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<IpAddr> {
@@ -1509,6 +1532,7 @@ async fn upload_module_part(
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
         &state.io,
+        None,
     )
     .await
     {
@@ -1701,7 +1725,16 @@ async fn internal_bootstrap_artifact(
         .fetch_artifact_by_id_for_serving(&artifact_id)
         .await
     {
-        Ok(Some(manifest)) => serve_file(&state, StatusCode::OK, &manifest).await,
+        Ok(Some(manifest)) => {
+            serve_file_reader(
+                &state,
+                StatusCode::OK,
+                &manifest,
+                state.replication_bandwidth_limiter.clone(),
+                false,
+            )
+            .await
+        }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1801,6 +1834,7 @@ async fn internal_replicate_artifact(
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
         &state.io,
+        state.replication_bandwidth_limiter.clone(),
     )
     .await
     {
@@ -1971,6 +2005,7 @@ async fn put_blob_artifact(
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
         &state.io,
+        None,
     )
     .await
     {
@@ -2117,19 +2152,20 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
-            let mut response = Response::new(Body::from_stream(bytes_chunks(bytes)));
+            let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
+            let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest).await,
+        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest).await
+            serve_file_reader(state, status, manifest, None, true).await
         }
     }
 }
@@ -2138,10 +2174,14 @@ async fn serve_file_reader(
     state: &SharedState,
     status: StatusCode,
     manifest: &ArtifactManifest,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    hold_public_inflight: bool,
 ) -> Response {
     match state.store.open_artifact_reader(manifest).await {
         Ok(reader) => {
-            let stream = ReaderStream::with_capacity(reader, RESPONSE_STREAM_CHUNK_BYTES);
+            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = throttle_body_stream(stream, bandwidth_limiter);
+            let stream = instrument_artifact_stream(state, manifest, stream, hold_public_inflight);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
@@ -2154,17 +2194,146 @@ async fn serve_file_reader(
     }
 }
 
-fn bytes_chunks(bytes: Bytes) -> impl futures_util::Stream<Item = Result<Bytes, std::io::Error>> {
-    stream::unfold((bytes, 0), |(bytes, offset)| async move {
-        if offset >= bytes.len() {
-            return None;
+fn instrument_artifact_stream<S>(
+    state: &SharedState,
+    manifest: &ArtifactManifest,
+    stream: S,
+    hold_public_inflight: bool,
+) -> InstrumentedArtifactStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+{
+    let request_guard =
+        hold_public_inflight.then(|| state.start_http_request(HttpTrafficClass::Public));
+    InstrumentedArtifactStream::new(
+        state.metrics.clone(),
+        manifest.producer,
+        stream,
+        request_guard,
+    )
+}
+
+struct InstrumentedArtifactStream<S> {
+    inner: S,
+    metrics: Metrics,
+    producer: ArtifactProducer,
+    _request_guard: Option<InflightGuard>,
+    started_at: Instant,
+    yielded_bytes: u64,
+    recorded: bool,
+}
+
+impl<S> InstrumentedArtifactStream<S> {
+    fn new(
+        metrics: Metrics,
+        producer: ArtifactProducer,
+        stream: S,
+        request_guard: Option<InflightGuard>,
+    ) -> Self {
+        Self {
+            inner: stream,
+            metrics,
+            producer,
+            _request_guard: request_guard,
+            started_at: Instant::now(),
+            yielded_bytes: 0,
+            recorded: false,
         }
-        let end = offset
-            .saturating_add(RESPONSE_STREAM_CHUNK_BYTES)
-            .min(bytes.len());
-        let chunk = bytes.slice(offset..end);
-        Some((Ok(chunk), (bytes, end)))
+    }
+
+    fn record_once(&mut self, result: &str) {
+        if self.recorded {
+            return;
+        }
+
+        self.recorded = true;
+        self.metrics.record_artifact_egress(
+            self.producer,
+            result,
+            self.yielded_bytes,
+            self.started_at.elapsed(),
+        );
+    }
+}
+
+fn throttle_body_stream<S, E>(
+    stream: S,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+) -> impl futures_util::Stream<Item = Result<Bytes, E>>
+where
+    S: futures_util::Stream<Item = Result<Bytes, E>>,
+{
+    stream.then(move |item| {
+        let bandwidth_limiter = bandwidth_limiter.clone();
+        async move {
+            if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref()) {
+                limiter.acquire(chunk.len()).await;
+            }
+            item
+        }
     })
+}
+
+impl<S> Stream for InstrumentedArtifactStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>>,
+{
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // The wrapper never moves `inner` after being pinned; this only projects
+        // the pinned field so non-`Unpin` streams can stay unboxed.
+        let this = unsafe { self.as_mut().get_unchecked_mut() };
+        let inner = unsafe { Pin::new_unchecked(&mut this.inner) };
+        match inner.poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                this.yielded_bytes = this.yielded_bytes.saturating_add(bytes.len() as u64);
+                Poll::Ready(Some(Ok(bytes)))
+            }
+            Poll::Ready(Some(Err(error))) => {
+                this.record_once("error");
+                Poll::Ready(Some(Err(error)))
+            }
+            Poll::Ready(None) => {
+                this.record_once("ok");
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl<S> Drop for InstrumentedArtifactStream<S> {
+    fn drop(&mut self) {
+        self.record_once("aborted");
+    }
+}
+
+struct BytesChunks {
+    bytes: Bytes,
+    offset: usize,
+}
+
+impl Stream for BytesChunks {
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.offset >= self.bytes.len() {
+            return Poll::Ready(None);
+        }
+
+        let end = self
+            .offset
+            .saturating_add(MMAP_RESPONSE_CHUNK_BYTES)
+            .min(self.bytes.len());
+        let chunk = self.bytes.slice(self.offset..end);
+        self.offset = end;
+        Poll::Ready(Some(Ok(chunk)))
+    }
+}
+
+fn bytes_chunks(bytes: Bytes) -> BytesChunks {
+    BytesChunks { bytes, offset: 0 }
 }
 
 fn apply_artifact_response_headers(response: &mut Response, manifest: &ArtifactManifest) {
@@ -2363,6 +2532,16 @@ mod tests {
             UNMATCHED_ROUTE
         );
         assert_eq!(route_template_for_path("/.docker/.env"), UNMATCHED_ROUTE);
+    }
+
+    #[test]
+    fn public_load_routes_exclude_probes_internal_and_unmatched_routes() {
+        assert!(is_public_load_route(ROUTE_API_CACHE_CAS));
+        assert!(is_public_load_route(ROUTE_API_CACHE_MODULE));
+        assert!(!is_public_load_route(ROUTE_UP));
+        assert!(!is_public_load_route(ROUTE_METRICS));
+        assert!(!is_public_load_route(ROUTE_INTERNAL_REPLICATE_ARTIFACT));
+        assert!(!is_public_load_route(UNMATCHED_ROUTE));
     }
 
     #[tokio::test]
@@ -2816,7 +2995,7 @@ mod tests {
     async fn bytes_chunks_reassembles_multi_chunk_payloads() {
         use futures_util::StreamExt;
 
-        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
         let payload = Bytes::from(
             (0..len)
                 .map(|index| (index % 251) as u8)
@@ -2830,8 +3009,8 @@ mod tests {
         }
 
         assert_eq!(chunks.len(), 3);
-        assert_eq!(chunks[0].len(), RESPONSE_STREAM_CHUNK_BYTES);
-        assert_eq!(chunks[1].len(), RESPONSE_STREAM_CHUNK_BYTES);
+        assert_eq!(chunks[0].len(), MMAP_RESPONSE_CHUNK_BYTES);
+        assert_eq!(chunks[1].len(), MMAP_RESPONSE_CHUNK_BYTES);
         assert_eq!(chunks[2].len(), 7);
         assert_eq!(chunks.concat(), payload.to_vec());
     }
@@ -2841,7 +3020,7 @@ mod tests {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
 
-        let len = RESPONSE_STREAM_CHUNK_BYTES * 2 + 7;
+        let len = MMAP_RESPONSE_CHUNK_BYTES * 2 + 7;
         let payload: Vec<u8> = (0..len).map(|index| (index % 251) as u8).collect();
 
         let put_response = app
@@ -2895,6 +3074,12 @@ mod tests {
             .expect("failed to collect reader body")
             .to_bytes();
         assert_eq!(reader_body.as_ref(), payload.as_slice());
+
+        let metrics = context.state.metrics.render();
+        assert!(metrics.contains("kura_artifact_egress_completions_total"));
+        assert!(metrics.contains("producer=\"xcode\""));
+        assert!(metrics.contains("result=\"ok\""));
+        assert!(metrics.contains(&format!("{}", payload.len() * 2)));
     }
 
     #[tokio::test]
@@ -3665,6 +3850,24 @@ mod tests {
             .await
             .expect("get request failed");
         assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn instrumented_artifact_stream_holds_public_inflight_until_body_drops() {
+        let context = test_context(|_| {}).await;
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
+
+        let stream = futures_util::stream::pending::<Result<Bytes, std::io::Error>>();
+        let instrumented = InstrumentedArtifactStream::new(
+            context.state.metrics.clone(),
+            ArtifactProducer::Xcode,
+            stream,
+            Some(context.state.start_http_request(HttpTrafficClass::Public)),
+        );
+
+        assert_eq!(context.state.runtime.public_http_inflight(), 1);
+        drop(instrumented);
+        assert_eq!(context.state.runtime.public_http_inflight(), 0);
     }
 
     #[derive(Clone, Debug)]
