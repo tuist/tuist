@@ -263,7 +263,7 @@ runnersController:
 kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
-    tag: "0.7.1"
+    tag: "0.7.3"
 
 # Everything below = external. The managed deployment never runs embedded
 # Postgres / ClickHouse / object storage / observability stacks.
