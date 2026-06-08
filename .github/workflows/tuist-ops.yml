@@ -1,0 +1,174 @@
+name: Tuist Ops
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tuist-ops/**
+      - infra/helm/tuist-ops/**
+      - .github/workflows/tuist-ops.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - tuist-ops/**
+      - infra/helm/tuist-ops/**
+      - .github/workflows/tuist-ops.yml
+  merge_group: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: tuist-ops-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist-ops
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+
+defaults:
+  run:
+    working-directory: tuist-ops
+
+jobs:
+  format:
+    name: Format
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check format
+        run: mix format --check-formatted
+
+  credo:
+    name: Credo
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Run Credo
+        run: mix credo
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tuist_ops_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Test
+        env:
+          MIX_ENV: test
+        run: mix test
+
+  build:
+    name: Build & push image
+    needs: [format, credo, test]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        working-directory: ${{ github.workspace }}
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          GIT_SHA="${GITHUB_SHA::12}"
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE}:sha-${GIT_SHA}"
+            echo "${IMAGE}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          # Build context is the repo root — Dockerfile uses
+          # `tuist-ops/...` path-prefixed COPYs (mirrors slack/Dockerfile).
+          context: .
+          file: tuist-ops/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=tuist-ops
+          cache-to: type=gha,mode=max,scope=tuist-ops

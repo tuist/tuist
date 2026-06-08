@@ -46,16 +46,26 @@ workload clusters it manages.
 6. **CloudNativePG operator** in mgmt (it's already there for any
    other CNPG cluster in mgmt, or install via the platform chart).
 
+## Image build
+
+Built and pushed by `.github/workflows/tuist-ops.yml` on every push to
+`main` (and on `workflow_dispatch`). Two tags per build:
+- `ghcr.io/tuist/tuist-ops:sha-<first-12-of-commit>`
+- `ghcr.io/tuist/tuist-ops:latest`
+
+Prefer the SHA tag for deploys so rollbacks are precise.
+
 ## Deploy
 
 ```bash
 helm upgrade --install tuist-ops infra/helm/tuist-ops \
   -n tuist-ops --create-namespace \
   -f infra/helm/tuist-ops/values-managed-mgmt.yaml \
-  --set image.tag=<sha> \
+  --set image.tag=sha-$(git rev-parse HEAD | cut -c1-12) \
   --kube-context tuist-mgmt
 ```
 
-Image build comes from `tuist-ops/Dockerfile`; tag is the matching
-commit SHA (CI handles this once the chart lands in a release
-workflow — out of scope for this PR).
+A dedicated `tuist-ops-deployment.yml` workflow (mirroring
+`slack-deployment.yml`) for automated `helm upgrade --install` on
+push-to-main is a follow-up; for the first deploy and any rollbacks
+the manual command above is the path.
