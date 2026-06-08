@@ -82,9 +82,7 @@ extension SwifterPM: SwifterPMResolving {
 }
 
 public enum SwiftPackageManagerControllerError: FatalError, Equatable {
-    case missingSwifterPMArgumentValue(String)
-    case unsupportedSwifterPMArguments([String])
-    case conflictingSCMToRegistryTransformationArguments
+    case unexpectedSwifterPMCommand(String)
 
     public var type: ErrorType {
         .abort
@@ -92,12 +90,8 @@ public enum SwiftPackageManagerControllerError: FatalError, Equatable {
 
     public var description: String {
         switch self {
-        case let .missingSwifterPMArgumentValue(argument):
-            return "The SwifterPM argument \(argument) requires a value."
-        case let .unsupportedSwifterPMArguments(arguments):
-            return "The following Swift Package Manager arguments are not supported by SwifterPM: \(arguments.joined(separator: ", "))"
-        case .conflictingSCMToRegistryTransformationArguments:
-            return "The source-control to registry transformation arguments conflict."
+        case let .unexpectedSwifterPMCommand(command):
+            return "Expected SwifterPM to parse a \(command) command."
         }
     }
 }
@@ -131,6 +125,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
         if swifterPMIsEnabled {
             let request = try await swifterPMRequest(
+                command: "resolve",
                 packagePath: path,
                 arguments: arguments,
                 printOutput: printOutput
@@ -152,6 +147,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
         if swifterPMIsEnabled {
             let request = try await swifterPMRequest(
+                command: "update",
                 packagePath: path,
                 arguments: arguments,
                 printOutput: printOutput
@@ -282,212 +278,44 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     private func swifterPMRequest(
+        command: String,
         packagePath: AbsolutePath,
         arguments: [String],
         printOutput: Bool
     ) async throws -> SwifterPMResolutionRequest {
-        let options = try await SwifterPMOptions.parse(
-            arguments,
+        let parserArguments = swifterPMArguments(
+            command: command,
             packagePath: packagePath,
-            currentWorkingDirectory: try await Environment.current.currentWorkingDirectory()
+            arguments: arguments
         )
+        let parsedCommand = try await SwifterPMCommandParser.parse(parserArguments)
 
-        return SwifterPMResolutionRequest(
-            packageDirectory: options.packageDirectory,
-            cacheDirectory: options.cacheDirectory,
-            scratchDirectory: options.scratchDirectory,
-            registryConfigurationPath: options.registryConfigurationPath,
-            defaultRegistryURL: options.defaultRegistryURL,
-            disableSandbox: options.disableSandbox,
-            forceResolvedVersions: options.forceResolvedVersions,
-            skipUpdate: options.skipUpdate,
-            disablePackageInfoCache: options.disablePackageInfoCache,
-            packageInfoCacheDirectory: options.packageInfoCacheDirectory,
-            scmToRegistryTransformation: options.scmToRegistryTransformation,
-            quiet: options.quiet || !printOutput
-        )
+        var request: SwifterPMResolutionRequest
+        switch (command, parsedCommand) {
+        case ("resolve", .resolve(let parsedRequest)),
+             ("update", .update(let parsedRequest)):
+            request = parsedRequest
+        default:
+            throw SwiftPackageManagerControllerError.unexpectedSwifterPMCommand(command)
+        }
+
+        request.quiet = request.quiet || !printOutput
+        return request
+    }
+
+    private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {
+        var parserArguments = arguments
+        if !parserArguments.containsPackagePathArgument {
+            parserArguments = ["--package-path", packagePath.pathString] + parserArguments
+        }
+        return parserArguments + [command]
     }
 }
 
-private struct SwifterPMOptions {
-    var packageDirectory: Foundation.URL
-    var cacheDirectory: Foundation.URL?
-    var scratchDirectory: Foundation.URL?
-    var registryConfigurationPath: Foundation.URL?
-    var defaultRegistryURL: String?
-    var disableSandbox = false
-    var forceResolvedVersions = false
-    var skipUpdate = false
-    var disablePackageInfoCache = false
-    var packageInfoCacheDirectory: Foundation.URL?
-    var scmToRegistryTransformation: SCMToRegistryTransformation = .disabled
-    var quiet = false
-
-    private enum ValueOption: String, CaseIterable {
-        case packagePath = "--package-path"
-        case cachePath = "--cache-path"
-        case scratchPath = "--scratch-path"
-        case buildPath = "--build-path"
-        case configPath = "--config-path"
-        case defaultRegistryURL = "--default-registry-url"
-        case packageInfoCachePath = "--package-info-cache-path"
-        case chdir = "--chdir"
-    }
-
-    static func parse(
-        _ arguments: [String],
-        packagePath: AbsolutePath,
-        currentWorkingDirectory: AbsolutePath
-    ) async throws -> SwifterPMOptions {
-        var baseDirectory = Foundation.URL(fileURLWithPath: currentWorkingDirectory.pathString, isDirectory: true)
-            .standardizedFileURL
-        var rawPackagePath = packagePath.pathString
-        var rawCachePath: String?
-        var rawScratchPath: String?
-        var rawBuildPath: String?
-        var rawConfigPath: String?
-        var rawPackageInfoCachePath: String?
-        var defaultRegistryURL: String?
-        var disableSandbox = false
-        var forceResolvedVersions = false
-        var skipUpdate = false
-        var disablePackageInfoCache = false
-        var quiet = false
-        var replaceSCMWithRegistry = false
-        var useRegistryIdentityForSCM = false
-        var disableSCMToRegistryTransformation = false
-        var unsupportedArguments: [String] = []
-
-        var index = arguments.startIndex
-        while index < arguments.endIndex {
-            let argument = arguments[index]
-            if let option = ValueOption.allCases.first(where: { argument == $0.rawValue }) {
-                let nextIndex = arguments.index(after: index)
-                guard nextIndex < arguments.endIndex else {
-                    throw SwiftPackageManagerControllerError.missingSwifterPMArgumentValue(argument)
-                }
-                let value = arguments[nextIndex]
-                switch option {
-                case .packagePath:
-                    rawPackagePath = value
-                case .cachePath:
-                    rawCachePath = value
-                case .scratchPath:
-                    rawScratchPath = value
-                case .buildPath:
-                    rawBuildPath = value
-                case .configPath:
-                    rawConfigPath = value
-                case .defaultRegistryURL:
-                    defaultRegistryURL = value
-                case .packageInfoCachePath:
-                    rawPackageInfoCachePath = value
-                case .chdir:
-                    baseDirectory = resolve(value, relativeTo: baseDirectory)
-                }
-                index = arguments.index(after: nextIndex)
-                continue
-            }
-
-            if let (option, value) = valueOption(argument) {
-                switch option {
-                case .packagePath:
-                    rawPackagePath = value
-                case .cachePath:
-                    rawCachePath = value
-                case .scratchPath:
-                    rawScratchPath = value
-                case .buildPath:
-                    rawBuildPath = value
-                case .configPath:
-                    rawConfigPath = value
-                case .defaultRegistryURL:
-                    defaultRegistryURL = value
-                case .packageInfoCachePath:
-                    rawPackageInfoCachePath = value
-                case .chdir:
-                    baseDirectory = resolve(value, relativeTo: baseDirectory)
-                }
-                index = arguments.index(after: index)
-                continue
-            }
-
-            switch argument {
-            case "--disable-sandbox":
-                disableSandbox = true
-            case "--skip-update":
-                skipUpdate = true
-            case "--force-resolved-versions", "--disable-automatic-resolution", "--only-use-versions-from-resolved-file":
-                forceResolvedVersions = true
-            case "--replace-scm-with-registry":
-                replaceSCMWithRegistry = true
-            case "--use-registry-identity-for-scm":
-                useRegistryIdentityForSCM = true
-            case "--disable-scm-to-registry-transformation":
-                disableSCMToRegistryTransformation = true
-            case "--disable-package-info-cache":
-                disablePackageInfoCache = true
-            case "--enable-dependency-cache", "--disable-dependency-cache":
-                break
-            case "-q", "--quiet":
-                quiet = true
-            default:
-                unsupportedArguments.append(argument)
-            }
-            index = arguments.index(after: index)
+private extension [String] {
+    var containsPackagePathArgument: Bool {
+        contains { argument in
+            argument == "--package-path" || argument.hasPrefix("--package-path=")
         }
-
-        guard unsupportedArguments.isEmpty else {
-            throw SwiftPackageManagerControllerError.unsupportedSwifterPMArguments(unsupportedArguments)
-        }
-
-        let enabledTransformationFlags = [
-            replaceSCMWithRegistry,
-            useRegistryIdentityForSCM,
-            disableSCMToRegistryTransformation,
-        ].filter { $0 }.count
-        guard enabledTransformationFlags <= 1 else {
-            throw SwiftPackageManagerControllerError.conflictingSCMToRegistryTransformationArguments
-        }
-
-        let scmToRegistryTransformation: SCMToRegistryTransformation = if replaceSCMWithRegistry {
-            .replaceSCMWithRegistry
-        } else if useRegistryIdentityForSCM {
-            .useRegistryIdentityForSCM
-        } else {
-            .disabled
-        }
-
-        return SwifterPMOptions(
-            packageDirectory: resolve(rawPackagePath, relativeTo: baseDirectory),
-            cacheDirectory: rawCachePath.map { resolve($0, relativeTo: baseDirectory) },
-            scratchDirectory: (rawScratchPath ?? rawBuildPath).map { resolve($0, relativeTo: baseDirectory) },
-            registryConfigurationPath: rawConfigPath.map { resolve($0, relativeTo: baseDirectory) },
-            defaultRegistryURL: defaultRegistryURL,
-            disableSandbox: disableSandbox,
-            forceResolvedVersions: forceResolvedVersions,
-            skipUpdate: skipUpdate,
-            disablePackageInfoCache: disablePackageInfoCache,
-            packageInfoCacheDirectory: rawPackageInfoCachePath.map { resolve($0, relativeTo: baseDirectory) },
-            scmToRegistryTransformation: scmToRegistryTransformation,
-            quiet: quiet
-        )
-    }
-
-    private static func valueOption(_ argument: String) -> (ValueOption, String)? {
-        for option in ValueOption.allCases {
-            let prefix = "\(option.rawValue)="
-            if argument.hasPrefix(prefix) {
-                return (option, String(argument.dropFirst(prefix.count)))
-            }
-        }
-        return nil
-    }
-
-    private static func resolve(_ path: String, relativeTo baseDirectory: Foundation.URL) -> Foundation.URL {
-        if path.hasPrefix("/") {
-            return Foundation.URL(fileURLWithPath: path).standardizedFileURL
-        }
-        return baseDirectory.appendingPathComponent(path).standardizedFileURL
     }
 }

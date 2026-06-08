@@ -127,6 +127,29 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertEqual(request.scmToRegistryTransformation, .replaceSCMWithRegistry)
     }
 
+    func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
+        // Given
+        let path = try temporaryPath()
+        let overriddenPath = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--package-path", overriddenPath.pathString],
+            printOutput: true
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.packageDirectory, URL(fileURLWithPath: overriddenPath.pathString).standardizedFileURL)
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_printOutput_is_false_setsQuiet() async throws {
         // Given
         let path = try temporaryPath()
@@ -159,15 +182,17 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
         )
 
-        // When / Then
-        await XCTAssertThrowsSpecific(
+        // When
+        do {
             try await subject.resolve(
                 at: path,
                 arguments: ["--unsupported"],
                 printOutput: false
-            ),
-            SwiftPackageManagerControllerError.unsupportedSwifterPMArguments(["--unsupported"])
-        )
+            )
+            XCTFail("Expected resolve to fail")
+        } catch {
+            // Then
+        }
     }
 
     func test_resolve_when_swifterpm_is_enabled_and_transformArgumentsConflict_fails() async throws {
@@ -180,8 +205,8 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
         )
 
-        // When / Then
-        await XCTAssertThrowsSpecific(
+        // When
+        do {
             try await subject.resolve(
                 at: path,
                 arguments: [
@@ -189,9 +214,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
                     "--use-registry-identity-for-scm",
                 ],
                 printOutput: false
-            ),
-            SwiftPackageManagerControllerError.conflictingSCMToRegistryTransformationArguments
-        )
+            )
+            XCTFail("Expected resolve to fail")
+        } catch {
+            // Then
+        }
     }
 
     func test_update_when_swifterpm_is_enabled() async throws {
