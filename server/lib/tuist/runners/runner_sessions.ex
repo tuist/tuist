@@ -180,4 +180,28 @@ defmodule Tuist.Runners.RunnerSessions do
   defp earlier(%DateTime{} = a, %DateTime{} = b) do
     if DateTime.before?(a, b), do: a, else: b
   end
+
+  @doc """
+  Returns the set of `pod_name`s that currently hold an *open*
+  billing session (`is_nil(ended_at)`).
+
+  Used by `OrphanedStampedPodsWorker` as a shape-independent proof
+  that dispatch fully committed for a Pod: `open/1` is only called
+  inside `Tuist.Runners.serve_claim/5`'s success branch, after every
+  step that could trigger `release_safely/3`. So a Pod with an open
+  session can never be the wedge that worker exists to clean up —
+  it received its JIT and is (or just was) running a customer job.
+
+  Closes happen via `close_by_pod_name/2` from the runners-controller
+  reporting pod-stop, so a closed session means the Pod actually
+  stopped — at which point reaping it is harmless.
+  """
+  def live_pod_names do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at))
+    |> select([s], s.pod_name)
+    |> distinct(true)
+    |> Repo.all()
+    |> MapSet.new()
+  end
 end
