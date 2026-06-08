@@ -35,7 +35,9 @@ That said, there was an easy win sitting in plain sight, one the community has r
 
 ## A global store, and links instead of copies
 
-The bigger change is how things are laid out on disk. Everything is arranged so that reproducing the dependencies for any project links back to the same content-addressable store, which becomes the single source of truth for all package data. Archives and extracted source trees are stored once under `$XDG_CACHE_HOME/swifterpm` (or `~/.cache/swifterpm`), keyed by package identity, version, and revision. The project-local `.build/checkouts` entries stay as real directories, but their contents link back to that global store, so every path Xcode and Tuist expect keeps resolving inside the worktree.
+The bigger change is how things are laid out on disk. Everything is arranged so that reproducing the dependencies for any project links back to the same content-addressable store, which becomes the single source of truth for all package data. Archives and extracted source trees are stored once under `$XDG_CACHE_HOME/swifterpm` (or `~/.cache/swifterpm`), keyed by package identity, version, and revision.
+
+The directory where the dependencies get reproduced, `.build/checkouts`, is no longer a full copy of the graph. The entries stay as real directories so the paths Xcode and Tuist expect keep resolving inside the worktree, but their contents are symlinks back into that global store. So instead of materializing the entire source tree of every dependency into each worktree, we lay down a thin set of links that point at bytes that already exist once on disk.
 
 This buys two things that matter a lot:
 
