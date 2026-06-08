@@ -52,10 +52,11 @@ settings:
     is_enabled: true
     request_url: https://ops.tuist.dev/webhooks/slack/interactive
 
-  # No event subscriptions used; the bot only receives slash
-  # commands + interactive payloads.
-  event_subscriptions:
-    bot_events: []
+  # No `event_subscriptions:` block on purpose — the bot only
+  # receives slash commands + interactive payloads, no Events API
+  # at all. Slack rejects an empty event_subscriptions block when
+  # neither a request_url nor socket_mode_enabled is set, so we
+  # omit the key entirely.
 
   # Default-deny on everything we don't actively need.
   org_deploy_enabled: false
