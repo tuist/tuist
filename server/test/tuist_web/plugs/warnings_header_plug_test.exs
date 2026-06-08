@@ -43,7 +43,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
     test "it doesn't return the warnings if the version is lower than 4.11.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
+      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "CLI 4.160.0", tag_name: "4.160.0"} end)
 
       conn =
         :get
@@ -62,7 +62,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
     test "it returns the warnings if the version is higher or equal than 4.11.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
+      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "CLI 4.160.0", tag_name: "4.160.0"} end)
 
       conn =
         :get
@@ -86,7 +86,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
     test "it returns a deprecation warning if the version is lower than 4.150.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
+      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "CLI 4.160.0", tag_name: "4.160.0"} end)
 
       conn =
         :get
@@ -108,7 +108,7 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
     test "it doesn't return a deprecation warning if the version is higher or equal than 4.150.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.160.0"} end)
+      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "CLI 4.160.0", tag_name: "4.160.0"} end)
 
       conn =
         :get
