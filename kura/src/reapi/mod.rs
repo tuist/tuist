@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, future::Future, pin::Pin, time::Duration};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 
 use bazel_remote_apis::{
     build::bazel::{
@@ -20,7 +27,9 @@ use bazel_remote_apis::{
         rpc::Status as RpcStatus,
     },
 };
-use futures_util::StreamExt;
+use bytes::Bytes;
+use futures_util::{StreamExt, future::BoxFuture};
+use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
 use tokio::net::TcpListener;
@@ -28,8 +37,11 @@ use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
     Request, Response, Status,
+    body::Body as TonicBody,
+    codegen::{Body as HttpBody, Service, http},
     transport::{Identity, Server, ServerTlsConfig},
 };
+use tower::Layer;
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
@@ -42,8 +54,10 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
-const REAPI_READ_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+type BoxError = Box<dyn Error + Send + Sync + 'static>;
+type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
 #[derive(Clone)]
 pub struct ReapiService {
@@ -65,7 +79,9 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let tls = state.config.grpc_tls.clone();
-    let service = ReapiService { state };
+    let service = ReapiService {
+        state: state.clone(),
+    };
     let capabilities = CapabilitiesServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let action_cache = ActionCacheServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let cas =
@@ -74,7 +90,8 @@ where
 
     let mut builder = Server::builder()
         .max_connection_age(Duration::from_secs(300))
-        .max_connection_age_grace(Duration::from_secs(300));
+        .max_connection_age_grace(Duration::from_secs(300))
+        .layer(GrpcRequestAccountingLayer { state });
     if let Some(tls) = tls {
         builder = builder
             .tls_config(load_grpc_tls_config(&tls).await?)
@@ -89,6 +106,72 @@ where
         .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await
         .map_err(|error| format!("gRPC server error: {error}"))
+}
+
+#[derive(Clone)]
+struct GrpcRequestAccountingLayer {
+    state: SharedState,
+}
+
+impl<S> Layer<S> for GrpcRequestAccountingLayer {
+    type Service = GrpcRequestAccountingService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        GrpcRequestAccountingService {
+            inner,
+            state: self.state.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct GrpcRequestAccountingService<S> {
+    inner: S,
+    state: SharedState,
+}
+
+impl<S, ResBody> Service<http::Request<TonicBody>> for GrpcRequestAccountingService<S>
+where
+    S: Service<http::Request<TonicBody>, Response = http::Response<ResBody>> + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Send + 'static,
+    ResBody: HttpBody<Data = Bytes> + Send + 'static,
+    ResBody::Error: Into<BoxError> + 'static,
+{
+    type Response = http::Response<GrpcAccountingBody>;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: http::Request<TonicBody>) -> Self::Future {
+        let started_at = Instant::now();
+        let route = request.uri().path().to_owned();
+        let guard = self.state.start_grpc_request();
+        let state = self.state.clone();
+        let future = self.inner.call(request);
+        Box::pin(async move {
+            let response = future.await?;
+            // Sample latency once the response is ready, before the body
+            // streams, so long ByteStream reads do not inflate the signal.
+            state.runtime.record_public_request_latency(
+                &state.metrics,
+                "grpc",
+                &route,
+                started_at.elapsed(),
+            );
+            Ok(response.map(|body| {
+                body.map_frame(move |frame| {
+                    let _guard = &guard;
+                    frame
+                })
+                .map_err(|error| -> BoxError { error.into() })
+                .boxed_unsync()
+            }))
+        })
+    }
 }
 
 async fn load_grpc_tls_config(tls: &GrpcTlsConfig) -> Result<ServerTlsConfig, String> {
@@ -166,7 +249,6 @@ impl Capabilities for ReapiService {
         &self,
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
@@ -220,7 +302,6 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::GetActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -312,7 +393,6 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -370,7 +450,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::FindMissingBlobsRequest>,
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -410,7 +489,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -464,7 +542,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -547,7 +624,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
-        let request_guard = self.state.start_grpc_request();
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.read",
@@ -618,7 +694,6 @@ impl ByteStream for ReapiService {
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         let stream =
             ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
-                let _keep_guard_alive = &request_guard;
                 match result {
                     Ok(bytes) => Ok(bytestream::ReadResponse {
                         data: bytes.to_vec(),
@@ -639,7 +714,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.write",
             operation: "artifact.write",
@@ -790,7 +864,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.query_write_status",
@@ -1176,13 +1249,39 @@ fn parse_blob_resource_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
         test_support::test_context,
     };
+
+    #[tokio::test]
+    async fn grpc_request_accounting_layer_keeps_guard_until_response_body_drops() {
+        let context = test_context(|_| {}).await;
+        let layer = GrpcRequestAccountingLayer {
+            state: context.state.clone(),
+        };
+        let mut service = layer.layer(tower::service_fn(
+            |_request: http::Request<TonicBody>| async {
+                Ok::<_, Infallible>(http::Response::new(TonicBody::empty()))
+            },
+        ));
+
+        let response = service
+            .call(http::Request::new(TonicBody::empty()))
+            .await
+            .expect("accounting layer should pass through service response");
+
+        assert_eq!(context.state.runtime.grpc_inflight(), 1);
+        assert_eq!(context.state.runtime.public_inflight(), 1);
+
+        drop(response);
+
+        assert_eq!(context.state.runtime.grpc_inflight(), 0);
+        assert_eq!(context.state.runtime.public_inflight(), 0);
+    }
 
     // Regression test for the missing flush in the ByteStream `write` handler. The
     // handler streams chunks into a temp file with `write_all` and then persists it by

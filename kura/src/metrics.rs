@@ -32,11 +32,16 @@ pub struct Metrics {
     http_requests: Family<HttpRequestLabels, Counter>,
     http_client_requests: Family<HttpClientCountryLabels, Counter>,
     http_request_duration: Histogram,
+    public_request_latency: Family<PublicRequestLatencyLabels, Histogram>,
     http_exceptions: Family<HttpExceptionLabels, Counter>,
     artifact_reads: Family<ArtifactOpLabels, Counter>,
     artifact_writes: Family<ArtifactOpLabels, Counter>,
     artifact_read_bytes: Family<ArtifactOpLabels, Counter>,
     artifact_write_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_completions: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_bytes: Family<ArtifactOpLabels, Counter>,
+    artifact_egress_duration: Family<ArtifactRouteLabels, Histogram>,
+    artifact_egress_throughput: Family<ArtifactRouteLabels, Histogram>,
     segment_refreshes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
@@ -44,6 +49,9 @@ pub struct Metrics {
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
+    replication_bandwidth_configured_limit_bytes_per_second: Gauge,
+    replication_bandwidth_effective_limit_bytes_per_second: Gauge,
+    replication_bandwidth_public_latency_target_ms: Gauge,
     multipart_parts: Family<MultipartLabels, Counter>,
     node_info: Family<NodeInfoLabels, Gauge>,
     node_geo: Family<NodeGeoLabels, Gauge>,
@@ -56,6 +64,8 @@ pub struct Metrics {
     file_descriptor_waiting: Gauge,
     file_descriptor_capacity: Gauge,
     http_inflight_requests: Gauge,
+    public_http_inflight_requests: Gauge,
+    public_request_latency_ewma_ms: Gauge,
     grpc_inflight_requests: Gauge,
     segment_handles_cached: Gauge,
     segment_handle_cache_capacity: Gauge,
@@ -134,11 +144,25 @@ impl Metrics {
         let http_requests = Family::<HttpRequestLabels, Counter>::default();
         let http_client_requests = Family::<HttpClientCountryLabels, Counter>::default();
         let http_request_duration = Histogram::new(exponential_buckets(0.001, 2.0, 16));
+        let public_request_latency =
+            Family::<PublicRequestLatencyLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_bytes = Family::<ArtifactOpLabels, Counter>::default();
+        let artifact_egress_duration =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(0.001, 2.0, 16))
+            });
+        let artifact_egress_throughput =
+            Family::<ArtifactRouteLabels, Histogram>::new_with_constructor(|| {
+                Histogram::new(exponential_buckets(1024.0, 4.0, 12))
+            });
         let segment_refreshes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_refresh_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let segment_refresh_duration =
@@ -152,6 +176,9 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
+        let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
+        let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
+        let replication_bandwidth_public_latency_target_ms = Gauge::default();
         let multipart_parts = Family::<MultipartLabels, Counter>::default();
         let node_info = Family::<NodeInfoLabels, Gauge>::default();
         let node_geo = Family::<NodeGeoLabels, Gauge>::default();
@@ -170,6 +197,8 @@ impl Metrics {
         let file_descriptor_waiting = Gauge::default();
         let file_descriptor_capacity = Gauge::default();
         let http_inflight_requests = Gauge::default();
+        let public_http_inflight_requests = Gauge::default();
+        let public_request_latency_ewma_ms = Gauge::default();
         let grpc_inflight_requests = Gauge::default();
         let segment_handles_cached = Gauge::default();
         let segment_handle_cache_capacity = Gauge::default();
@@ -263,6 +292,11 @@ impl Metrics {
             http_request_duration.clone(),
         );
         registry.register(
+            "kura_public_request_latency_seconds",
+            "Time to first response byte for public cache requests by transport and route, used to gauge responsiveness and plan sharding",
+            public_request_latency.clone(),
+        );
+        registry.register(
             "kura_http_exceptions_total",
             "HTTP exceptions by route and class",
             http_exceptions.clone(),
@@ -286,6 +320,26 @@ impl Metrics {
             "kura_artifact_write_bytes_total",
             "Artifact write throughput by producer and result",
             artifact_write_bytes.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_completions_total",
+            "Artifact response body stream completions by producer and result",
+            artifact_egress_completions.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_bytes_total",
+            "Bytes yielded by artifact response body streams by producer and result",
+            artifact_egress_bytes.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_duration_seconds",
+            "Time from artifact response body creation until stream completion, error, or drop",
+            artifact_egress_duration.clone(),
+        );
+        registry.register(
+            "kura_artifact_egress_throughput_bytes_per_second",
+            "Achieved per-response artifact egress throughput in bytes per second, used to detect bandwidth saturation and plan sharding",
+            artifact_egress_throughput.clone(),
         );
         registry.register(
             "kura_segment_refreshes_total",
@@ -321,6 +375,21 @@ impl Metrics {
             "kura_replication_apply_results_total",
             "Receiver and bootstrap apply outcomes for replicated artifacts and namespace deletes",
             replication_apply_results.clone(),
+        );
+        registry.register(
+            "kura_replication_bandwidth_configured_limit_bytes_per_second",
+            "Configured aggregate byte-per-second ceiling for peer artifact body transfers where 0 disables throttling",
+            replication_bandwidth_configured_limit_bytes_per_second.clone(),
+        );
+        registry.register(
+            "kura_replication_bandwidth_effective_limit_bytes_per_second",
+            "Current aggregate byte-per-second limit for peer artifact body transfers after public-load adaptation",
+            replication_bandwidth_effective_limit_bytes_per_second.clone(),
+        );
+        registry.register(
+            "kura_replication_bandwidth_public_latency_target_ms",
+            "Public request latency target in milliseconds used to adapt peer artifact body bandwidth",
+            replication_bandwidth_public_latency_target_ms.clone(),
         );
         registry.register(
             "kura_multipart_parts_total",
@@ -381,6 +450,16 @@ impl Metrics {
             "kura_http_inflight_requests",
             "HTTP requests currently in flight across public and internal listeners",
             http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_public_http_inflight_requests",
+            "Public non-probe HTTP requests currently in flight",
+            public_http_inflight_requests.clone(),
+        );
+        registry.register(
+            "kura_public_request_latency_ewma_ms",
+            "EWMA of completed public HTTP and gRPC request latency in milliseconds used by peer sync bandwidth adaptation",
+            public_request_latency_ewma_ms.clone(),
         );
         registry.register(
             "kura_grpc_inflight_requests",
@@ -676,11 +755,16 @@ impl Metrics {
             http_requests,
             http_client_requests,
             http_request_duration,
+            public_request_latency,
             http_exceptions,
             artifact_reads,
             artifact_writes,
             artifact_read_bytes,
             artifact_write_bytes,
+            artifact_egress_completions,
+            artifact_egress_bytes,
+            artifact_egress_duration,
+            artifact_egress_throughput,
             segment_refreshes,
             segment_refresh_bytes,
             segment_refresh_duration,
@@ -688,6 +772,9 @@ impl Metrics {
             replication_requests,
             replication_request_duration,
             replication_apply_results,
+            replication_bandwidth_configured_limit_bytes_per_second,
+            replication_bandwidth_effective_limit_bytes_per_second,
+            replication_bandwidth_public_latency_target_ms,
             multipart_parts,
             node_info,
             node_geo,
@@ -700,6 +787,8 @@ impl Metrics {
             file_descriptor_waiting,
             file_descriptor_capacity,
             http_inflight_requests,
+            public_http_inflight_requests,
+            public_request_latency_ewma_ms,
             grpc_inflight_requests,
             segment_handles_cached,
             segment_handle_cache_capacity,
@@ -843,6 +932,49 @@ impl Metrics {
         }
     }
 
+    pub fn record_artifact_egress(
+        &self,
+        producer: ArtifactProducer,
+        result: &str,
+        bytes: u64,
+        duration: Duration,
+    ) {
+        let labels = ArtifactOpLabels {
+            producer: producer.as_str().to_owned(),
+            result: result.to_owned(),
+        };
+        self.artifact_egress_completions
+            .get_or_create(&labels)
+            .inc();
+        if bytes > 0 {
+            self.artifact_egress_bytes
+                .get_or_create(&labels)
+                .inc_by(bytes);
+        }
+        self.artifact_egress_duration
+            .get_or_create(&ArtifactRouteLabels {
+                producer: producer.as_str().to_owned(),
+            })
+            .observe(duration.as_secs_f64());
+        let seconds = duration.as_secs_f64();
+        if bytes > 0 && seconds > 0.0 {
+            self.artifact_egress_throughput
+                .get_or_create(&ArtifactRouteLabels {
+                    producer: producer.as_str().to_owned(),
+                })
+                .observe(bytes as f64 / seconds);
+        }
+    }
+
+    pub fn observe_public_request_latency(&self, transport: &str, route: &str, duration: Duration) {
+        self.public_request_latency
+            .get_or_create(&PublicRequestLatencyLabels {
+                transport: transport.to_owned(),
+                route: route.to_owned(),
+            })
+            .observe(duration.as_secs_f64());
+    }
+
     pub fn record_segment_refresh(
         &self,
         producer: ArtifactProducer,
@@ -916,6 +1048,20 @@ impl Metrics {
             .inc();
     }
 
+    pub fn update_replication_bandwidth_limits(
+        &self,
+        configured_bytes_per_second: u64,
+        effective_bytes_per_second: u64,
+        public_latency_target_ms: u64,
+    ) {
+        self.replication_bandwidth_configured_limit_bytes_per_second
+            .set(configured_bytes_per_second as i64);
+        self.replication_bandwidth_effective_limit_bytes_per_second
+            .set(effective_bytes_per_second as i64);
+        self.replication_bandwidth_public_latency_target_ms
+            .set(public_latency_target_ms as i64);
+    }
+
     pub fn record_multipart_part(&self, result: &str) {
         self.multipart_parts
             .get_or_create(&MultipartLabels {
@@ -976,6 +1122,15 @@ impl Metrics {
 
     pub fn update_http_inflight(&self, count: usize) {
         self.http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_public_http_inflight(&self, count: usize) {
+        self.public_http_inflight_requests.set(count as i64);
+    }
+
+    pub fn update_public_request_latency_ewma(&self, duration: Duration) {
+        self.public_request_latency_ewma_ms
+            .set(duration.as_millis().min(i64::MAX as u128) as i64);
     }
 
     pub fn update_grpc_inflight(&self, count: usize) {
@@ -1353,6 +1508,12 @@ struct HttpExceptionLabels {
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct PublicRequestLatencyLabels {
+    transport: String,
+    route: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 struct ArtifactOpLabels {
     producer: String,
     result: String,
@@ -1563,6 +1724,12 @@ mod tests {
         );
         metrics.record_artifact_read(ArtifactProducer::Xcode, "ok", 5);
         metrics.record_artifact_write(ArtifactProducer::Module, "ok", 10);
+        metrics.record_artifact_egress(
+            ArtifactProducer::Module,
+            "ok",
+            10,
+            Duration::from_millis(30),
+        );
         metrics.record_segment_refresh(ArtifactProducer::Xcode, "ok", 5, Duration::from_millis(4));
         metrics.record_segment_eviction(ArtifactProducer::Xcode, "ok", 2);
         metrics.record_replication(
@@ -1573,11 +1740,19 @@ mod tests {
         );
         metrics.record_replication_apply("replication", "artifact", "applied");
         metrics.record_replication_apply("bootstrap", "namespace_delete", "ignored_older");
+        metrics.update_replication_bandwidth_limits(10_485_760, 5_242_880, 100);
         metrics.record_multipart_part("ok");
         metrics.record_file_descriptor_wait("ok", Duration::from_millis(1));
         metrics.record_file_operation("open_read", "ok", Duration::from_millis(2), 42);
         metrics.update_file_descriptor_pool(64, 3, 61, 1);
         metrics.update_http_inflight(2);
+        metrics.update_public_http_inflight(1);
+        metrics.update_public_request_latency_ewma(Duration::from_millis(42));
+        metrics.observe_public_request_latency(
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(12),
+        );
         metrics.update_grpc_inflight(1);
         metrics.update_segment_handles_cached(2);
         metrics.update_segment_handle_cache_capacity(8);
@@ -1648,6 +1823,12 @@ mod tests {
         );
         assert!(rendered.contains("kura_artifact_reads_total"));
         assert!(rendered.contains("kura_artifact_write_bytes_total"));
+        assert!(rendered.contains("kura_artifact_egress_completions_total"));
+        assert!(rendered.contains("kura_artifact_egress_bytes_total"));
+        assert!(rendered.contains("kura_artifact_egress_duration_seconds"));
+        assert!(rendered.contains("kura_artifact_egress_throughput_bytes_per_second"));
+        assert!(rendered.contains("kura_public_request_latency_seconds"));
+        assert!(rendered.contains("transport=\"http\""));
         assert!(rendered.contains("kura_segment_refreshes_total"));
         assert!(rendered.contains("kura_segment_evicted_artifacts_total"));
         assert!(rendered.contains("kura_replication_requests_total"));
@@ -1665,6 +1846,7 @@ mod tests {
         assert!(rendered.contains("kura_file_operations_total"));
         assert!(rendered.contains("kura_file_descriptor_in_use"));
         assert!(rendered.contains("kura_http_inflight_requests"));
+        assert!(rendered.contains("kura_public_http_inflight_requests"));
         assert!(rendered.contains("kura_grpc_inflight_requests"));
         assert!(rendered.contains("kura_segment_handles_cached"));
         assert!(rendered.contains("kura_segment_handle_cache_capacity"));
@@ -1687,6 +1869,10 @@ mod tests {
         assert!(rendered.contains("kura_bootstrap_runs_total"));
         assert!(rendered.contains("kura_bootstrap_duration_seconds"));
         assert!(rendered.contains("kura_bootstrap_applied_items_total"));
+        assert!(rendered.contains("kura_replication_bandwidth_configured_limit_bytes_per_second"));
+        assert!(rendered.contains("kura_replication_bandwidth_effective_limit_bytes_per_second"));
+        assert!(rendered.contains("kura_replication_bandwidth_public_latency_target_ms"));
+        assert!(rendered.contains("kura_public_request_latency_ewma_ms"));
         assert!(rendered.contains("kura_analytics_events_total"));
         assert!(rendered.contains("kura_analytics_batches_total"));
         assert!(rendered.contains("kura_analytics_batch_duration_seconds"));
