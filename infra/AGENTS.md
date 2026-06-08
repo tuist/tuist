@@ -26,7 +26,13 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
 ### `helm/tailscale-operator/` — Tailscale Kubernetes operator wrapper
-Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides three tailnet paths: a Connector subnet router (tailnet devices dial in-cluster Services), Mac mini egress (cluster Pods scrape the macOS fleet), and the API server proxy in auth mode for human kubectl access. In auth mode the proxy impersonates the caller's tailnet identity; tailnet ACL grants in [`tailscale/acls.json`](tailscale/acls.json) authorize impersonation and `accessBindings` maps the impersonated group to a built-in `ClusterRole`. Default tier on every env is **`view` for everyone (founders and engineers alike)**; writes go through the per-env `tuist-<env>-write` break-glass group managed by the JIT bot (see [Cluster access for agents](#cluster-access-for-agents) below). The proxy is additive: the public apiserver endpoint and the CI deployer kubeconfig are unaffected.
+Wraps the upstream `tailscale-operator` chart with ESO-synced OAuth credentials and per-env tag identity (`tag:tuist-k8s-<env>`). Provides two tailnet paths used today: a Connector subnet router (tailnet devices dial in-cluster Services) and Mac mini egress (cluster Pods scrape the macOS fleet). Human kubectl access to workload clusters does NOT flow through the operator's API-server proxy anymore — see `helm/pomerium/` below.
+
+### `helm/pomerium/` — kubectl gateway, one per workload cluster
+Wraps the upstream `pomerium/pomerium` chart. One Helm release per workload env (staging / canary / production) deployed into that cluster. Pomerium fronts `https://kube-<env>.tuist.dev`, authenticates humans via Google Workspace OIDC, and per-request calls the tuist-ops `/api/v1/policy` ext_authz endpoint to resolve `Impersonate-User` + `Impersonate-Group` headers based on the user's tailnet role and any active elevation row. RBAC then maps the impersonated group to a built-in `ClusterRole` on the apiserver. Default tier is **`view` for everyone (founders and engineers alike)**; elevated `edit` access flows through the JIT Slack flow (see [Cluster access for agents](#cluster-access-for-agents) below). Pomerium reaches tuist-ops over the tailnet via a `tailscale.com/tailnet-fqdn`-annotated egress Service.
+
+### `helm/tuist-ops/` — internal ops Phoenix app
+Single-replica deploy of the `tuist-ops` app into the mgmt cluster. Hosts the JIT elevation Slack bot (`/webhooks/slack/*`) and the Pomerium ext_authz endpoint (`/api/v1/policy`). Public ingress on `ops.tuist.dev` routes ONLY the Slack-signed webhook paths to the upstream; everything else is reachable solely on the tailnet as `ops.<tailnet>.ts.net` via a `tailscale.com/expose: true` Service. Includes its own CNPG Cluster (3-table schema, ~5Gi storage, daily Tigris backups). Decoupled from `server/` so customer-facing outages don't take down internal cluster access and vice versa.
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
@@ -69,33 +75,38 @@ This section is normative for agents (Claude, Codex, anything driving `kubectl` 
 
 ### Default: read-only is always allowed, no setup needed
 
-The team's tailnet identity carries through to every workload cluster via the Tailscale operator's API server proxy. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. RBAC binds the impersonated identity to `view`, which **excludes `Secret`s** — that's deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
+The team's Google Workspace identity carries through to every workload cluster via Pomerium fronting `https://kube-<env>.tuist.dev`. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. Pomerium's `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. The tuist-ops `/api/v1/policy` ext_authz callback returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
 
 For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely.
 
 ### Writes: never escalate without explicit human approval
 
-Every mutating operation (`delete pod`, `apply -f`, `scale deployment`, `patch`, `create` of any kind) returns `403 Forbidden` by default. This is the agent-containment property the design protects — an agent with a teammate's tailnet identity cannot wreck a cluster silently.
+Every mutating operation (`delete pod`, `apply -f`, `scale deployment`, `patch`, `create` of any kind) returns `403 Forbidden` by default. This is the agent-containment property the design protects — an agent with a teammate's Pomerium session cannot wreck a cluster silently.
 
-The bot's `/elevate <env> [duration] <intent>` Slack flow is the path to write access. **It is not an agent-driven path.** The `Tuist.TailscaleJIT.Policy` module currently allows founders to self-approve any env and engineers to self-approve non-prod, but that policy assumes the click comes from a human at a keyboard. An agent that drives both `/elevate` and the Approve click via the same workstation's Slack token has defeated the entire design. Don't do it.
+The bot's `/elevate <env> [duration] <intent>` Slack flow is the path to write access. **It is not an agent-driven path.** `TuistOps.JIT.Policy` currently allows Owner/Admin tailnet roles to self-approve any env and Member to self-approve non-prod, but that policy assumes the click comes from a human at a keyboard. An agent that drives both `/elevate` and the Approve click via the same workstation's Slack token has defeated the entire design. Don't do it.
 
 Concrete rules for agents:
 
 - **Do not invoke `/elevate` autonomously.** If you think a write is needed, surface that to the human ("this would require elevation; can you run `/elevate ...` and grant the access?") and let them drive both the request and the approval.
 - **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
-- **If the human has elevated themselves and you're now running inside that window**, mutating operations through the proxy will work — the elevation widens the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+- **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's ext_authz response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
 
 ### Forensic trail
 
-Every elevation produces records in four independent stores (Slack thread, the bot's Postgres tables, Tailscale's ACL audit log, the operator proxy's per-call access log in Grafana Cloud Loki). [`k8s/jit-elevation-audit.md`](k8s/jit-elevation-audit.md) is the runbook for joining them when something needs to be reconstructed.
+Every elevation produces records in three independent stores:
+- **Slack thread** in `#tailscale-jit-approvals` (request → approval → outcome).
+- **tuist-ops Postgres** (`tailscale_jit_requests` + `tailscale_jit_elevations`).
+- **Pomerium access log** in Grafana Cloud Loki — one line per kubectl call with `user_email`, `method`, `path`, `response_code`, joined-on-elevation via the active row at request time.
+
+The previous "Tailscale ACL audit log" trail no longer applies — the ACL is now a static, code-reviewed document; the bot does not mutate it at runtime.
 
 ### Where the bot lives
 
-- Service code: [`server/lib/tuist/tailscale_jit/`](../server/lib/tuist/tailscale_jit/).
-- Policy (self-approve + approver trust tiers): `Tuist.TailscaleJIT.Policy`. Both decisions read the requester's / approver's **tailnet role** (Owner / Admin / Member) from `GET /api/v2/tailnet/-/users` via `Tuist.TailscaleJIT.TailscaleClient.user_role/1`. There are no email lists in code; promoting someone in the Tailscale admin console Users page changes their bot policy on the next 30s cache tick.
-- ACL source of truth: [`tailscale/acls.json`](tailscale/acls.json). The `src` selectors for cluster-proxy grants use `autogroup:owner` + `autogroup:admin` (cluster admins) and `autogroup:member` (engineers), so role changes in the console propagate without an ACL edit.
-- Per-cluster RBAC: `accessBindings` in `helm/tailscale-operator/values-{staging,canary,production}.yaml`. The strings there (`tuist-admins`, `tuist-eng`) are the *Kubernetes-side* impersonation labels the operator injects on each forwarded request; they happen to share names with the historical tailnet groups for readability but live in a different system.
+- Service code: [`tuist-ops/lib/tuist_ops/jit/`](../tuist-ops/lib/tuist_ops/jit/) (the standalone Phoenix app in [`tuist-ops/`](../tuist-ops/)).
+- Policy (self-approve + approver trust tiers): `TuistOps.JIT.Policy`. Both decisions read the requester's / approver's **tailnet role** (Owner / Admin / Member) from `GET /api/v2/tailnet/-/users` via `TuistOps.JIT.TailscaleClient.user_role/1`. There are no email lists in code; promoting someone in the Tailscale admin console Users page changes their bot policy on the next 30s cache tick.
+- Per-call impersonation resolution: `TuistOpsWeb.PolicyController` serves Pomerium's Envoy ExtAuthz callback. Reads the active Elevation row for `(subject, env)` and emits the appropriate `Impersonate-User` / `Impersonate-Group` headers.
+- Tailnet ACL: [`tailscale/acls.json`](tailscale/acls.json). View-tier only; static; humans edit it through code review. The `tuist-admins` / `tuist-eng` strings inside `accessBindings` in `helm/tailscale-operator/values-*.yaml` are the *Kubernetes-side* impersonation labels Pomerium injects on each forwarded request.
 
 ## Deployment
 
