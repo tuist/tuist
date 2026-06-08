@@ -97,6 +97,7 @@ spec:
           failureDomain: fsn1
           metadata:
             labels:
+              autoscaling.tuist.dev/group: kura
               node.cluster.x-k8s.io/pool: kura
             annotations:
               cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
