@@ -413,6 +413,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testCommand.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "XcodeProj"),
                 ]
             case .dependencies:
                 [

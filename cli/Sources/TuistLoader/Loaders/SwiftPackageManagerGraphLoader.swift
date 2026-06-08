@@ -138,68 +138,58 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
         }
 
-        var packageInfos: [
-            // swiftlint:disable:next large_tuple
-            (
-                id: String,
-                name: String,
-                folder: AbsolutePath,
-                targetToArtifactPaths: [String: AbsolutePath],
-                info: PackageInfo,
-                hash: String?,
-                kind: String
-            )
-        ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
-            let name = dependency.packageRef.name
-            let packageFolder: AbsolutePath
-            let hash: String?
-            switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
-                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-                hash = dependency.state?.checkoutState?.revision
-            case "local", "fileSystem", "localSourceControl":
-                // Depending on the swift version, the information is available either in `path` or in `location`
-                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+        var packageInfos: [SwiftPackageManagerResolvedPackageInfo] = try await workspaceState.object.dependencies
+            .concurrentMap { dependency in
+                let name = dependency.packageRef.name
+                let packageFolder: AbsolutePath
+                let hash: String?
+                switch dependency.packageRef.kind {
+                case "remote", "remoteSourceControl":
+                    packageFolder = checkoutsFolder.appending(component: dependency.subpath)
+                    hash = dependency.state?.checkoutState?.revision
+                case "local", "fileSystem", "localSourceControl":
+                    // Depending on the swift version, the information is available either in `path` or in `location`
+                    guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                        throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                    }
+                    // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+                    // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+                    // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                    packageFolder = try AbsolutePath(
+                        validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+                    )
+                    hash = nil
+                case "registry":
+                    let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
+                    packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
+                    hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
+                default:
+                    throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
                 }
-                // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                packageFolder = try AbsolutePath(
-                    validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+
+                let packageInfo = if let packageInfoCache,
+                                     let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
+                {
+                    cachedPackageInfo
+                } else {
+                    try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
+                }
+                let targetToArtifactPaths = try workspaceState.object.artifacts
+                    .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                    .reduce(into: [:]) { result, artifact in
+                        result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
+                    }
+
+                return SwiftPackageManagerResolvedPackageInfo(
+                    id: dependency.packageRef.identity.lowercased(),
+                    name: name,
+                    folder: packageFolder,
+                    targetToArtifactPaths: targetToArtifactPaths,
+                    info: packageInfo,
+                    hash: hash,
+                    kind: dependency.packageRef.kind
                 )
-                hash = nil
-            case "registry":
-                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
-                hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
-            default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
-
-            let packageInfo = if let packageInfoCache,
-                                 let cachedPackageInfo = packageInfoCache.packageInfo(for: packageFolder)
-            {
-                cachedPackageInfo
-            } else {
-                try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
-            }
-            let targetToArtifactPaths = try workspaceState.object.artifacts
-                .filter { $0.packageRef.identity == dependency.packageRef.identity }
-                .reduce(into: [:]) { result, artifact in
-                    result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
-                }
-
-            return (
-                id: dependency.packageRef.identity.lowercased(),
-                name: name,
-                folder: packageFolder,
-                targetToArtifactPaths: targetToArtifactPaths,
-                info: packageInfo,
-                hash: hash,
-                kind: dependency.packageRef.kind
-            )
-        }
 
         // When the same package appears from multiple sources (e.g. local path, registry, or source control),
         // we keep a single entry to avoid duplicates. Selection is based on the following precedence:
@@ -238,6 +228,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
             ($0.name, $0.targetToArtifactPaths)
         })
+        let packagePrebuilts = try mapPackagePrebuilts(
+            packageInfos: packageInfos,
+            prebuilts: workspaceState.object.prebuilts
+        )
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
 
@@ -289,7 +283,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(
                         origin: Self.packageOrigin(for: packageInfo.kind),
-                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]
+                        artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:],
+                        packagePrebuilts: packagePrebuilts
                     ),
                     packageSettings: packageSettings,
                     packageModuleAliases: packageModuleAliases,
@@ -432,6 +427,53 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             environment: Environment.current.variables,
             workingDirectory: try await Environment.current.currentWorkingDirectory()
         )
+    }
+}
+
+private struct SwiftPackageManagerResolvedPackageInfo {
+    let id: String
+    let name: String
+    let folder: AbsolutePath
+    let targetToArtifactPaths: [String: AbsolutePath]
+    let info: PackageInfo
+    let hash: String?
+    let kind: String
+}
+
+private func mapPackagePrebuilts(
+    packageInfos: [SwiftPackageManagerResolvedPackageInfo],
+    prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt]
+) throws -> [String: [String: SwiftPackageManagerPrebuilt]] {
+    try packageInfos.reduce(into: [:]) { result, packageInfo in
+        let packagePrebuilts = prebuilts.filter { $0.identity.lowercased() == packageInfo.id.lowercased() }
+        guard !packagePrebuilts.isEmpty else { return }
+
+        let packageKeys = Set([
+            packageInfo.id,
+            packageInfo.name,
+            packageInfo.name.lowercased(),
+            packageInfo.folder.basename,
+            packageInfo.folder.basename.lowercased(),
+        ])
+
+        for prebuilt in packagePrebuilts {
+            let mappedPrebuilt = SwiftPackageManagerPrebuilt(
+                identity: prebuilt.identity,
+                version: prebuilt.version,
+                libraryName: prebuilt.libraryName,
+                path: try AbsolutePath(validating: prebuilt.path),
+                checkoutPath: try prebuilt.checkoutPath.map { try AbsolutePath(validating: $0) },
+                products: prebuilt.products,
+                includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
+                cModules: prebuilt.cModules
+            )
+
+            for packageKey in packageKeys {
+                for product in prebuilt.products {
+                    result[packageKey, default: [:]][product] = mappedPrebuilt
+                }
+            }
+        }
     }
 }
 

@@ -522,10 +522,129 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfo: .any,
                         path: .any,
                         packageType: .matching { packageType in
-                            if case .external(origin: .remote, artifactPaths: _) = packageType {
+                            if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _) = packageType {
                                 return true
                             }
                             return false
+                        },
+                        packageSettings: .any,
+                        packageModuleAliases: .any,
+                        enabledTraits: .any
+                    )
+                    .called(1)
+            }
+        }
+    }
+
+    @Test
+    func load_whenWorkspaceStateContainsPrebuilts_passesPackagePrebuiltsToMapper() async throws {
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
+                // Given
+                let packageSettings = PackageSettings.test()
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
+                let prebuiltPath = temporaryDirectory.appending(components: [
+                    ".build", "prebuilts", "swift-syntax",
+                ])
+                let checkoutPath = temporaryDirectory.appending(components: [
+                    ".build", "checkouts", "swift-syntax",
+                ])
+
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "swift-syntax",
+                              "kind" : "remoteSourceControl",
+                              "location" : "https://github.com/swiftlang/swift-syntax.git",
+                              "name" : "swift-syntax"
+                            },
+                            "state" : {
+                              "checkoutState" : {
+                                "revision" : "revision",
+                                "version" : "601.0.0"
+                              },
+                              "name" : "sourceControlCheckout"
+                            },
+                            "subpath" : "swift-syntax"
+                          }
+                        ],
+                        "prebuilts" : [
+                          {
+                            "identity" : "swift-syntax",
+                            "version" : "601.0.0",
+                            "libraryName" : "SwiftSyntax",
+                            "path" : "\(prebuiltPath.pathString)",
+                            "checkoutPath" : "\(checkoutPath.pathString)",
+                            "products" : ["SwiftSyntax"],
+                            "includePath" : ["Sources/_SwiftSyntaxCShims/include"],
+                            "cModules" : ["_SwiftSyntaxCShims"]
+                          }
+                        ]
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
+
+                given(packageInfoMapper)
+                    .resolveExternalDependencies(
+                        path: .any,
+                        packagePath: .any,
+                        packageInfos: .any,
+                        packageToFolder: .any,
+                        packageToTargetsToArtifactPaths: .any,
+                        packageModuleAliases: .any,
+                        packageSettings: .any
+                    )
+                    .willReturn([:])
+
+                // When
+                _ = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true
+                )
+
+                // Then
+                verify(packageInfoMapper)
+                    .map(
+                        packageInfo: .any,
+                        path: .any,
+                        packageType: .matching { packageType in
+                            guard case let .external(
+                                origin: .remote,
+                                artifactPaths: _,
+                                packagePrebuilts: packagePrebuilts
+                            ) = packageType,
+                                let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
+                            else {
+                                return false
+                            }
+
+                            return prebuilt.path == prebuiltPath
+                                && prebuilt.checkoutPath == checkoutPath
+                                && prebuilt.includePath?.map(\.pathString) == ["Sources/_SwiftSyntaxCShims/include"]
                         },
                         packageSettings: .any,
                         packageModuleAliases: .any,
@@ -650,7 +769,7 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageInfo: .any,
                 path: .any,
                 packageType: .matching { packageType in
-                    if case .external(origin: .local, artifactPaths: _) = packageType {
+                    if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType {
                         return true
                     }
                     return false
