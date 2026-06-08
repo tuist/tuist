@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -34,7 +35,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_001,
         account_id: account.id,
-        fleet_name: "macos-xcode-26.4",
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
         repository: "tuist/tuist",
         workflow_run_id: 310_010,
         workflow_name: "Server",
@@ -59,7 +60,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_101,
         account_id: account.id,
-        fleet_name: "linux-amd64",
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
         repository: "tuist/cli",
         workflow_run_id: 311_010,
         workflow_name: "CLI",
@@ -69,7 +70,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "1234567"
       })
 
-    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
+
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_101, "tuist-runner-x")
     {:ok, _completed} = Jobs.complete(31_101, "success")
