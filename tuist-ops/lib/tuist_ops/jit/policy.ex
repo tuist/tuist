@@ -46,7 +46,8 @@ defmodule TuistOps.JIT.Policy do
   elevation request for `target_group`. Unknown target groups
   default to deny, regardless of who the actor is.
   """
-  def self_approval_allowed?(actor_email, target_group) when is_binary(actor_email) and is_binary(target_group) do
+  def self_approval_allowed?(actor_email, target_group)
+      when is_binary(actor_email) and is_binary(target_group) do
     with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
          {:ok, role} <- TailscaleClient.user_role(actor_email) do
       allow_for_env?(role, env)
@@ -64,7 +65,8 @@ defmodule TuistOps.JIT.Policy do
   (`actor != requester`) to keep an engineer from approving
   another engineer's production write.
   """
-  def approver_allowed?(approver_email, target_group) when is_binary(approver_email) and is_binary(target_group) do
+  def approver_allowed?(approver_email, target_group)
+      when is_binary(approver_email) and is_binary(target_group) do
     with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
          {:ok, role} <- TailscaleClient.user_role(approver_email) do
       allow_for_env?(role, env)

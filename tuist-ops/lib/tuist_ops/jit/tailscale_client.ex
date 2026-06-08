@@ -145,7 +145,8 @@ defmodule TuistOps.JIT.TailscaleClient do
     |> handle_token_response()
   end
 
-  defp handle_token_response({:ok, %Req.Response{status: status, body: body}}) when status in 200..299 do
+  defp handle_token_response({:ok, %Req.Response{status: status, body: body}})
+       when status in 200..299 do
     access_token = body["access_token"]
     expires_in = body["expires_in"] || 3600
     # Refresh 60s before actual expiry so an in-flight request

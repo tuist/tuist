@@ -102,7 +102,8 @@ defmodule TuistOps.JIT.SlackBlocks do
         elements: [
           %{
             type: "mrkdwn",
-            text: "Active until <!date^#{DateTime.to_unix(elev.expires_at)}^{date_short_pretty} at {time}|soon>."
+            text:
+              "Active until <!date^#{DateTime.to_unix(elev.expires_at)}^{date_short_pretty} at {time}|soon>."
           }
         ]
       },

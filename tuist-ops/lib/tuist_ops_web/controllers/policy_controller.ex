@@ -170,7 +170,10 @@ defmodule TuistOpsWeb.PolicyController do
         {:deny, "subject #{subject} not on tailnet"}
 
       {:error, reason} ->
-        Logger.warning("tuist_ops policy: tailnet lookup failed for #{subject}: #{inspect(reason)}")
+        Logger.warning(
+          "tuist_ops policy: tailnet lookup failed for #{subject}: #{inspect(reason)}"
+        )
+
         {:deny, "tailnet lookup failed"}
     end
   end

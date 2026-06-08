@@ -29,7 +29,8 @@ defmodule TuistOps.JIT.SlackClient do
     |> handle_user_info()
   end
 
-  defp handle_user_info({:ok, %Req.Response{status: status, body: body}}) when status in 200..299 do
+  defp handle_user_info({:ok, %Req.Response{status: status, body: body}})
+       when status in 200..299 do
     case body do
       %{"ok" => true, "user" => %{"profile" => %{"email" => email}}} when is_binary(email) ->
         {:ok, email}
@@ -110,7 +111,8 @@ defmodule TuistOps.JIT.SlackClient do
     ]
   end
 
-  defp handle_post({:ok, %Req.Response{status: status, body: body}}, return) when status in 200..299 do
+  defp handle_post({:ok, %Req.Response{status: status, body: body}}, return)
+       when status in 200..299 do
     case body do
       %{"ok" => true} = parsed ->
         case return do

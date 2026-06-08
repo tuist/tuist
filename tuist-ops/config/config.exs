@@ -10,8 +10,7 @@ config :tuist_ops,
   ecto_repos: [TuistOps.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :tuist_ops, TuistOps.Repo,
-  migration_timestamps: [type: :utc_datetime]
+config :tuist_ops, TuistOps.Repo, migration_timestamps: [type: :utc_datetime]
 
 config :tuist_ops, TuistOpsWeb.Endpoint,
   url: [host: "localhost"],

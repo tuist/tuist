@@ -57,7 +57,8 @@ defmodule TuistOps.JIT.Approvals do
       |> Request.create_changeset()
 
     with {:ok, request} <- Repo.insert(changeset),
-         self_approval = Policy.self_approval_allowed?(request.requester_email, request.target_group),
+         self_approval =
+           Policy.self_approval_allowed?(request.requester_email, request.target_group),
          {:ok, ts} <-
            SlackClient.post_message(
              request.slack_channel_id,
@@ -258,11 +259,19 @@ defmodule TuistOps.JIT.Approvals do
   end
 
   defp notify_active(%Request{} = req, %Elevation{} = elev) do
-    SlackClient.update_message(req.slack_channel_id, req.slack_message_ts, SlackBlocks.active(req, elev))
+    SlackClient.update_message(
+      req.slack_channel_id,
+      req.slack_message_ts,
+      SlackBlocks.active(req, elev)
+    )
   end
 
   defp notify_closed(%Request{} = req, label, detail \\ nil) do
-    SlackClient.update_message(req.slack_channel_id, req.slack_message_ts, SlackBlocks.closed(req, label, detail))
+    SlackClient.update_message(
+      req.slack_channel_id,
+      req.slack_message_ts,
+      SlackBlocks.closed(req, label, detail)
+    )
   end
 
   defp clamp_ttl(ttl) when is_integer(ttl) and ttl > 0 do

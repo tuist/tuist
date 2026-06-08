@@ -87,7 +87,10 @@ defmodule TuistOps.JIT.Workers.RevertWorker do
             :ok
 
           {:error, reason} ->
-            Logger.warning("tailscale_jit: slack card update failed for request_id=#{request_id}: #{inspect(reason)}")
+            Logger.warning(
+              "tailscale_jit: slack card update failed for request_id=#{request_id}: #{inspect(reason)}"
+            )
+
             :ok
         end
 

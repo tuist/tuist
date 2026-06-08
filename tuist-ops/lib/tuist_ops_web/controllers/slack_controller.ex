@@ -91,7 +91,10 @@ defmodule TuistOpsWeb.SlackController do
     conn |> put_status(400) |> json(%{ok: false, error: "missing payload"})
   end
 
-  defp dispatch_interactive(conn, %{"actions" => [%{"action_id" => action_id, "value" => value} | _]} = payload) do
+  defp dispatch_interactive(
+         conn,
+         %{"actions" => [%{"action_id" => action_id, "value" => value} | _]} = payload
+       ) do
     user_slack_id = get_in(payload, ["user", "id"])
     user_email = slack_user_to_email(user_slack_id)
     channel_id = get_in(payload, ["channel", "id"])
@@ -153,7 +156,12 @@ defmodule TuistOpsWeb.SlackController do
             send_resp(conn, 200, "")
 
           {:error, reason} ->
-            SlackClient.ephemeral(channel_id, actor_slack_id, "Approval failed: #{human_error(reason)}")
+            SlackClient.ephemeral(
+              channel_id,
+              actor_slack_id,
+              "Approval failed: #{human_error(reason)}"
+            )
+
             send_resp(conn, 200, "")
         end
 
@@ -200,8 +208,12 @@ defmodule TuistOpsWeb.SlackController do
 
         [env, maybe_duration, rest] ->
           case parse_duration(maybe_duration) do
-            {:ok, seconds} -> {:ok, env, seconds, String.trim(rest)}
-            :error -> {:ok, env, Approvals.default_ttl_seconds(), String.trim("#{maybe_duration} #{rest}")}
+            {:ok, seconds} ->
+              {:ok, env, seconds, String.trim(rest)}
+
+            :error ->
+              {:ok, env, Approvals.default_ttl_seconds(),
+               String.trim("#{maybe_duration} #{rest}")}
           end
 
         [env, rest] ->
@@ -216,7 +228,9 @@ defmodule TuistOpsWeb.SlackController do
 
   defp parse_slash(_), do: {:error, :missing_text}
 
-  defp validate_intent({:ok, env, ttl, intent}) when byte_size(intent) >= 5, do: {:ok, env, ttl, intent}
+  defp validate_intent({:ok, env, ttl, intent}) when byte_size(intent) >= 5,
+    do: {:ok, env, ttl, intent}
+
   defp validate_intent({:ok, _env, _ttl, _short}), do: {:error, :intent_too_short}
   defp validate_intent(other), do: other
 
@@ -239,7 +253,9 @@ defmodule TuistOpsWeb.SlackController do
     end
   end
 
-  defp human_error({:invalid_env, env}), do: "Unknown env `#{env}`. Use one of: #{Enum.join(@valid_envs, ", ")}."
+  defp human_error({:invalid_env, env}),
+    do: "Unknown env `#{env}`. Use one of: #{Enum.join(@valid_envs, ", ")}."
+
   defp human_error(:missing_intent), do: usage_message()
   defp human_error(:missing_text), do: usage_message()
   defp human_error(:intent_too_short), do: "Intent must be at least 5 characters."
@@ -262,7 +278,10 @@ defmodule TuistOpsWeb.SlackController do
         email
 
       {:error, reason} ->
-        Logger.warning("tuist_ops: failed to resolve Slack user #{slack_user_id} email: #{inspect(reason)}")
+        Logger.warning(
+          "tuist_ops: failed to resolve Slack user #{slack_user_id} email: #{inspect(reason)}"
+        )
+
         nil
     end
   end

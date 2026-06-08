@@ -169,5 +169,4 @@ defmodule TuistOps.JIT.ApprovalsTest do
                })
     end
   end
-
 end
