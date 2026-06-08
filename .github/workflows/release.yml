@@ -2337,44 +2337,18 @@ jobs:
 
   # --------------------------------------------------------------------------
   # Deploy orchestration. The release pipeline no longer commits image pins
-  # back to main; instead it tags every fleet/runtime image it builds and
-  # then dispatches the server production deployment, which resolves those
-  # tags at deploy time. This is what replaces the old "deploy server ->
-  # release commits a pin -> server redeploys" double cascade with a single
-  # build-then-deploy pass.
+  # back to main; it tags every fleet/runtime image it builds and then
+  # dispatches the server production deployment, which resolves those tags at
+  # deploy time. This replaces the old "deploy server -> release commits a pin
+  # -> server redeploys" double cascade with a single build-then-deploy pass.
+  #
+  # This pipeline owns the deploy ONLY when a fleet/runtime image is releasing
+  # — that deploy must wait for the image build + tag, so it belongs here,
+  # downstream of the build. Server / chart / config changes with no fleet
+  # image release are deployed by server-deploy-dispatch.yml instead, off this
+  # workflow's serialized concurrency lane, so a server deploy never waits
+  # behind a CLI/app release build.
   # --------------------------------------------------------------------------
-  deploy-gate:
-    name: Compute deploy gate
-    needs: check-releases
-    runs-on: tuist-linux
-    timeout-minutes: 5
-    outputs:
-      should-deploy: ${{ steps.gate.outputs.should-deploy }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - id: gate
-        # Deploy when this push touched server-deploy-relevant paths. A
-        # fleet/runtime image release also forces a deploy via the
-        # trigger-deploy `if` below, so a runner-image-only change still
-        # ships in this same pipeline.
-        env:
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          should=false
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            # New branch / unknown base: deploy to be safe.
-            should=true
-          elif git diff --name-only "$BEFORE" "$AFTER" \
-            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/k8s-monitoring/|server/pnpm-lock\.yaml|\.github/workflows/server-(production-)?deployment\.yml)'; then
-            should=true
-          fi
-          echo "should-deploy=$should" >> "$GITHUB_OUTPUT"
-          echo "should-deploy=$should"
-
   tag-infra-releases:
     name: Tag fleet and runtime image releases
     needs:
@@ -2439,18 +2413,19 @@ jobs:
 
   trigger-deploy:
     name: Trigger server production deployment
-    needs: [check-releases, deploy-gate, tag-infra-releases]
-    # Deploy when server-side source changed OR any fleet/runtime image
-    # released this run (so a runner-image-only change ships with the
-    # server). Independent of whether a versioned server release happened
-    # — a chore(server) push still deploys.
+    needs: [check-releases, tag-infra-releases]
+    # Owns the deploy ONLY when a fleet/runtime image released this run, so
+    # the new image ships with the server in this same pass (the deploy must
+    # wait for the build + tag, which is why it lives here downstream of
+    # tag-infra-releases). Server / chart / config changes with no fleet
+    # image release are handled by server-deploy-dispatch.yml off this
+    # workflow's serialized lane. The two are mutually exclusive — no push
+    # deploys twice or is skipped.
     if: >-
       always() &&
       needs.check-releases.result == 'success' &&
-      needs.deploy-gate.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       (
-        needs.deploy-gate.outputs.should-deploy == 'true' ||
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
@@ -2467,11 +2442,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dispatch server production deployment
         # Dispatched as its own workflow run (not a needs edge) so
-        # release.yml's cancel-in-progress can never interrupt an
-        # in-flight helm --atomic deploy. The "(hotfix)" subject
-        # convention drives the production fast-path via the dispatch
-        # input. HEAD_MSG is passed through the env, never interpolated
-        # into the shell, so a commit subject can't break the script.
+        # release.yml's concurrency can never interrupt an in-flight
+        # helm --atomic deploy. The "(hotfix)" subject convention drives
+        # the production fast-path via the dispatch input. HEAD_MSG is
+        # passed through the env, never interpolated into the shell, so a
+        # commit subject can't break the script.
         run: |
           set -euo pipefail
           HOTFIX=false

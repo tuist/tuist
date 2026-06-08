@@ -74,6 +74,15 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  # One production cascade at a time, whoever dispatched it (release.yml's
+  # trigger-deploy for fleet-image releases, or server-deploy-dispatch.yml
+  # for server/chart changes). cancel-in-progress: false so an in-flight
+  # cascade is never killed; GitHub keeps only the latest pending dispatch,
+  # so a burst collapses to deploying the latest commit.
+  group: server-production-deployment
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
