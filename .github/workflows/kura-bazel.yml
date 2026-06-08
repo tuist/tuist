@@ -1,25 +1,27 @@
 name: Kura Bazel
 
-# Shadow CI for the Kura Bazel migration (docs/bazel-migration-plan.md, "Shadow ->
-# compare -> flip"). Non-gating: it builds and validates the Bazel-produced Linux
-# binaries alongside the existing Cargo/Docker release path, without touching it.
+# Shadow CI for the Kura Bazel migration (docs/bazel-migration-plan.md, "Shadow -> compare ->
+# flip"). Non-gating: it builds and validates the Bazel-produced Linux binaries and the runtime
+# OCI image alongside the existing Cargo/Docker release path, without touching it.
 #
-# `bazel-linux`: each runner builds BOTH Linux arches inside the Debian Bookworm dev
-# container: the arch matching the host is native, the other is cross-compiled (Debian
-# cross GCC, no QEMU). Running on both an x86_64 and an arm64 runner exercises both cross
-# directions of the symmetric toolchains — in particular it gives the arm64-from-x86_64
-# cross build (which can't be validated on an Apple-silicon dev machine) a real x86_64 host.
+# The build (action) cache IS Kura: each job runs a Kura node (the published ghcr.io/tuist/kura
+# image) over a Docker network, points Bazel at it as the --remote_cache, and persists *Kura's
+# data dir* with actions/cache — so CI exercises Kura's REAPI + on-disk format as the real build
+# cache, the surface a production Kura-backed cache would use. Bazel's --repository_cache
+# (downloaded crate sources, geoip — not served by Kura's REAPI) is persisted separately. The
+# node lifecycle lives in bazel/ci-kura-cache.sh (shared wiring with local-ci.sh): it sizes the
+# FD pool for Bazel's bursty uploads (#11132) and stops the node GRACEFULLY so RocksDB flushes
+# its action-cache index before the data dir is snapshotted. See docs/bazel-migration-plan.md,
+# Phase 4c. (The earlier --disk_cache jobs were removed once the Kura-backed cache was validated.)
 #
-# `oci`: builds the runtime OCI image with rules_oci (multi-arch index, no QEMU/Buildx)
-# and runs the e2e suite against the native image. Still shadow only — no oci_push.
+# `bazel-linux`: each runner builds BOTH Linux arches inside the Debian Bookworm dev container:
+# the arch matching the host is native, the other is cross-compiled (Debian cross GCC, no QEMU).
+# Running on both an x86_64 and an arm64 runner exercises both cross directions of the symmetric
+# toolchains — in particular it gives the arm64-from-x86_64 cross build (which can't be validated
+# on an Apple-silicon dev machine) a real x86_64 host.
 #
-# `*-kura` jobs (Phase 4c): the same builds, but instead of Bazel's --disk_cache they point
-# Bazel at a Kura node (the published ghcr.io/tuist/kura image) over a Docker network and
-# persist *Kura's data dir* with actions/cache. This dogfoods Kura's REAPI + on-disk format
-# as the real build cache — the surface a production Kura-backed cache would use. They run
-# ALONGSIDE the --disk_cache jobs on purpose, so one run yields both warm-build numbers for a
-# direct comparison; once 4c is trusted the --disk_cache jobs (bazel-linux, oci) can be
-# dropped. See docs/bazel-migration-plan.md, Phase 4c.
+# `oci`: builds the runtime OCI image with rules_oci (multi-arch index, no QEMU/Buildx) and runs
+# the e2e suite against the native image. Still shadow only — no oci_push.
 
 on:
   push:
@@ -53,7 +55,7 @@ env:
 
 jobs:
   bazel-linux:
-    name: Bazel Linux binaries (${{ matrix.host_arch }} host)
+    name: Bazel Linux (${{ matrix.host_arch }} host)
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
@@ -67,153 +69,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Persist Bazel's disk + repository cache across runs so the native -sys crates
-      # (rocksdb/jemalloc/aws-lc/lua) are not recompiled every time. Keyed on the
-      # lockfiles, so it survives code-only changes and refreshes when deps move. The
-      # cache is saved even when the job fails, so a red run still warms the next one.
-      - name: Cache Bazel (disk + repos)
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/bazel-cache
-          key: bazel-linux-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
-          restore-keys: |
-            bazel-linux-${{ matrix.host_arch }}-
-
-      # Run Bazel inside the Debian Bookworm dev image (the single source of truth for
-      # the toolchain). The runner provides Docker; checkout/upload run on the host
-      # (which has node), only the Bazel build runs in the container. The disk/repo cache
-      # is mounted in and wired via a CI-only ~/.bazelrc (so local builds are unaffected);
-      # the trailing chmod makes the root-written cache readable to actions/cache.
-      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
-        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
-
-      - name: Cross-build and validate both Linux binaries
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
-            -v "${{ runner.temp }}/bazel-cache:/bazelcache" \
-            kura-bazel-dev \
-            bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-validate.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
-
-      - name: Upload Bazel-built Linux binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: kura-bazel-linux-from-${{ matrix.host_arch }}
-          path: |
-            kura/bazel-dist/kura-x86_64
-            kura/bazel-dist/kura-aarch64
-            kura/bazel-dist/kura-x86_64.sha256
-            kura/bazel-dist/kura-aarch64.sha256
-          if-no-files-found: error
-          retention-days: 7
-
-  # Builds the runtime OCI image with rules_oci (multi-arch index, no QEMU) and runs the
-  # e2e suite against it. SHADOW only — no oci_push; production paths are untouched. On
-  # the x86_64 runner the native image is loaded and the cluster suite runs against it,
-  # exercising the real bookworm runtime (tini/curl/certs) end-to-end.
-  oci:
-    name: Bazel OCI image + e2e (x86_64)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "shellspec"
-          working_directory: kura
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      # See the bazel-linux job for the caching rationale. This job is split into
-      # restore + save (vs. the plain cache action) for two reasons:
-      #   1. Save on failure. The plain action only saves on a clean job, but this
-      #      OCI job stays red while the runtime is debugged — so the expensive C
-      #      compilation would never get cached. The save step runs `if: always()`.
-      #   2. Seed from the binary job's cache. Bazel's disk_cache is content-
-      #      addressed, and the x86_64 (and cross-arm64) compile actions are
-      #      identical between the binary build and the image build, so falling
-      #      back to `bazel-linux-x86_64-` warms the first OCI run for free.
-      - name: Restore Bazel cache (disk + repos)
-        id: bazel-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ runner.temp }}/bazel-cache
-          key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
-          restore-keys: |
-            bazel-oci-
-            bazel-linux-x86_64-
-
-      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
-        run: docker build -f kura/bazel/linux-dev.Dockerfile -t kura-bazel-dev kura
-
-      - name: Build the OCI image (multi-arch index + native tarball)
-        run: |
-          docker run --rm \
-            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
-            -v "${{ runner.temp }}/bazel-cache:/bazelcache" \
-            kura-bazel-dev \
-            bash -c 'mkdir -p /bazelcache/disk /bazelcache/repo && printf "common --disk_cache=/bazelcache/disk\ncommon --repository_cache=/bazelcache/repo\n" > /root/.bazelrc && bash bazel/ci-oci.sh; ec=$?; chmod -R a+rX /bazelcache 2>/dev/null || true; exit $ec'
-
-      - name: Load the native image into Docker
-        run: docker load -i kura/bazel-dist/kura-oci.tar
-
-      # `docker run` here is the native-exec guard: it execs the ELF interpreter on
-      # the runner, so a regression of the merged-/usr layer bug (dangling loader
-      # symlink under overlay2) would resurface as `exec ...: no such file or
-      # directory` and fail this step.
-      - name: Smoke-test the image (clean startup via tini)
-        run: |
-          docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'
-          docker run --rm --entrypoint /bin/ls kura-bazel:oci -l /usr/bin/tini /usr/bin/curl /usr/local/bin/kura
-          out="$(docker run --rm kura-bazel:oci 2>&1 || true)"
-          echo "$out"
-          echo "$out" | grep -q "invalid configuration" || { echo "image did not start cleanly under tini"; exit 1; }
-
-      - name: Run e2e (cluster_spec) against the Bazel image
-        working-directory: kura
-        env:
-          KURA_IMAGE: kura-bazel:oci
-          KURA_E2E_SKIP_BUILD: "1"
-        run: mise exec shellspec -- shellspec spec/e2e/cluster_spec.sh
-
-      # Save even when an earlier step failed (the job is red while the runtime is
-      # debugged), and skip only on an exact-key hit to avoid pointless re-uploads.
-      - name: Save Bazel cache (disk + repos)
-        if: always() && steps.bazel-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ runner.temp }}/bazel-cache
-          key: bazel-oci-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
-
-  # ---------------------------------------------------------------------------------------
-  # Phase 4c — dogfood Kura itself as the Bazel remote cache.
-  #
-  # Same binaries/image as the jobs above, but the *action* cache lives in a Kura node
-  # (ghcr.io/tuist/kura) reached over a Docker network, and we persist Kura's data dir with
-  # actions/cache instead of Bazel's --disk_cache. Bazel's --repository_cache (downloaded
-  # crate sources, geoip — not served by Kura's REAPI) is still persisted separately. The FD
-  # pool is sized for Bazel's bursty uploads (#11132); the node start/stop lifecycle lives in
-  # bazel/ci-kura-cache.sh (shared with the same wiring local-ci.sh uses).
-  # ---------------------------------------------------------------------------------------
-  bazel-linux-kura:
-    name: Bazel Linux + Kura cache (${{ matrix.host_arch }} host)
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            host_arch: x86_64
-          - runner: ubuntu-24.04-arm
-            host_arch: arm64
-    steps:
-      - uses: actions/checkout@v4
-
-      # The action cache now lives in Kura; persist Kura's data dir (not a Bazel disk_cache).
-      # Restore/save split so a red run still warms the next (the plain action only saves on
-      # a clean job). Keyed on the lockfiles like the --disk_cache jobs.
+      # The action cache lives in Kura; persist Kura's data dir. Restore/save split so a red run
+      # still warms the next (the plain action only saves on a clean job). Keyed on the
+      # lockfiles, so it survives code-only changes and refreshes when deps move.
       - name: Restore Kura cache (data dir)
         id: kura-cache
         uses: actions/cache/restore@v4
@@ -223,8 +81,8 @@ jobs:
           restore-keys: |
             kura-data-${{ matrix.host_arch }}-
 
-      # Bazel's repository cache (downloaded crate sources, geoip) is not served by Kura's
-      # REAPI action cache, so it is persisted separately.
+      # Bazel's repository cache (downloaded crate sources, geoip) is not served by Kura's REAPI
+      # action cache, so it is persisted separately.
       - name: Cache Bazel repository downloads
         uses: actions/cache@v4
         with:
@@ -242,11 +100,11 @@ jobs:
           KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
         run: bash bazel/ci-kura-cache.sh start
 
-      # Same ci-validate.sh as the --disk_cache job, but the CI-only ~/.bazelrc points Bazel
-      # at the Kura node (by container name over the shared network) instead of a disk_cache.
-      # --repository_cache stays on disk; --remote_download_outputs=all materializes outputs
-      # so ci-validate.sh can install the binaries off disk.
-      - name: Cross-build and validate both Linux binaries (Kura remote cache)
+      # ci-validate.sh builds both arches; the CI-only ~/.bazelrc points Bazel at the Kura node
+      # (by container name over the shared network). --repository_cache stays on disk;
+      # --remote_download_outputs=all materializes outputs so ci-validate.sh can install the
+      # binaries off disk.
+      - name: Cross-build and validate both Linux binaries
         run: |
           docker run --rm \
             --network kura-bazel-ci-net \
@@ -282,10 +140,10 @@ jobs:
           path: ${{ runner.temp }}/kura-data
           key: kura-data-${{ matrix.host_arch }}-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock', 'kura/bazel/oci/bookworm_apt.lock.json') }}
 
-      - name: Upload Bazel-built Linux binaries (Kura cache)
+      - name: Upload Bazel-built Linux binaries
         uses: actions/upload-artifact@v4
         with:
-          name: kura-bazel-linux-kura-from-${{ matrix.host_arch }}
+          name: kura-bazel-linux-from-${{ matrix.host_arch }}
           path: |
             kura/bazel-dist/kura-x86_64
             kura/bazel-dist/kura-aarch64
@@ -294,8 +152,12 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  oci-kura:
-    name: Bazel OCI image + e2e + Kura cache (x86_64)
+  # Builds the runtime OCI image with rules_oci (multi-arch index, no QEMU) and runs the e2e
+  # suite against it. SHADOW only — no oci_push; production paths are untouched. On the x86_64
+  # runner the native image is loaded and the cluster suite runs against it, exercising the real
+  # bookworm runtime (tini/curl/certs) end-to-end.
+  oci:
+    name: Bazel OCI image + e2e (x86_64)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -308,10 +170,9 @@ jobs:
           working_directory: kura
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
-      # Kura's data dir is content-addressed at the CAS layer, so — like the --disk_cache
-      # oci job seeds from bazel-linux-x86_64- — this seeds from a prior run's
-      # kura-data-x86_64- cache: the x86_64/cross-arm64 compile actions are identical between
-      # the binary and image builds, so the first oci-kura run is warmed for free.
+      # Kura's CAS is content-addressed, so this seeds from the binary job's kura-data-x86_64-
+      # cache: the x86_64/cross-arm64 compile actions are identical between the binary and image
+      # builds, so the first OCI run after a dep change is warmed for free.
       - name: Restore Kura cache (data dir)
         id: kura-cache
         uses: actions/cache/restore@v4
@@ -340,7 +201,7 @@ jobs:
           KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
         run: bash bazel/ci-kura-cache.sh start
 
-      - name: Build the OCI image (multi-arch index + native tarball, Kura remote cache)
+      - name: Build the OCI image (multi-arch index + native tarball)
         run: |
           docker run --rm \
             --network kura-bazel-ci-net \
@@ -379,6 +240,9 @@ jobs:
       - name: Load the native image into Docker
         run: docker load -i kura/bazel-dist/kura-oci.tar
 
+      # `docker run` here is the native-exec guard: it execs the ELF interpreter on the runner,
+      # so a regression of the merged-/usr layer bug (dangling loader symlink under overlay2)
+      # would resurface as `exec ...: no such file or directory` and fail this step.
       - name: Smoke-test the image (clean startup via tini)
         run: |
           docker image inspect kura-bazel:oci --format 'arch={{.Architecture}} os={{.Os}} entrypoint={{.Config.Entrypoint}}'

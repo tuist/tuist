@@ -501,7 +501,7 @@ graph. Kura itself speaks the Bazel Remote Execution API (`bazel-remote-apis`
 dependency), so a Kura-backed remote cache is dogfooding. On the persistent
 `tuist-linux` runner even a local disk cache stays warm across runs.
 
-- **4a — GitHub Actions disk/repo cache. ✅ Done (shadow CI).** Each shadow-CI job mounts
+- **4a — GitHub Actions disk/repo cache. ✅ Done (shadow CI); later removed — superseded by 4c.** Each shadow-CI job mounts
   a host dir into the dev container and points Bazel at it via a CI-only `~/.bazelrc`
   (`common --disk_cache` + `common --repository_cache`), persisted with `actions/cache`
   keyed on the lockfiles. The native `-sys` crates (rocksdb/jemalloc/aws-lc/lua) compile
@@ -582,19 +582,19 @@ dependency), so a Kura-backed remote cache is dogfooding. On the persistent
     the flush fix, cargo build scripts (rocksdb, jemalloc, …) fail to store their action
     results, so **every CI build re-runs them** (effective cache invalidation every build),
     which would have made 4c look broken.
-  - **Runs alongside 4a on purpose** (non-gating) so one push yields both warm-build numbers
-    for a direct comparison. Land/keep before the Phase 3.6 production cutover so the cutover
-    inherits a proven Kura-backed CI cache.
-  - **Cleanup — full removal, no disk_cache fallback (decided).** Once 4c is trusted, delete
-    the `--disk_cache` jobs (`bazel-linux`, `oci`) outright rather than keeping one as a
-    fallback: the `-kura` jobs are a functional superset (same binaries, image, smoke, e2e),
-    and a Kura-cache failure degrades to *slow* CI (cache miss → recompile), not *broken* CI,
-    so a fallback buys little. Exit criteria before deleting them (hold for ~a week of pushes):
-    (1) cold→warm proven in CI (first run uploads, next run hits, fast); (2) the `Stop Kura`
-    step's `::warning::` stays at **0** persist/fd errors every run; (3) both arches green
-    (multi-arch pull + cross builds + the Linux chmod); (4) `actions/cache` save/restore of
-    the data dir is stable and the `oci-kura` cross-job seeding actually hits; (5) warm times
-    comparable to 4a.
+    Land/keep before the Phase 3.6 production cutover so the cutover inherits a proven
+    Kura-backed CI cache.
+  - **Cleanup — `--disk_cache` jobs removed. ✅ Done.** The Kura-backed jobs were promoted to
+    the canonical names (`bazel-linux`, `oci`) and the old `--disk_cache` jobs deleted outright
+    (no fallback kept): the Kura jobs are a functional superset (same binaries, image, smoke,
+    e2e), and a Kura-cache failure degrades to *slow* CI (cache miss → recompile), not *broken*
+    CI, so a fallback bought little. The soak was waived because all the technical exit criteria
+    were already met and confirmed in CI — (1) cold→warm hit on **both** arches (x86_64
+    46→1.8 min, arm64 41→2.2 min); (2) **0** persist/fd warnings every run; (3) both arches
+    green; (4) stable save/restore + `oci` cross-job seeding from `kura-data-x86_64-`; (5) warm
+    times comparable to the old disk_cache jobs (~2 min). Cache keys were kept byte-identical
+    through the rename so the validated warm caches still hit. `kura-bazel.yml` now has exactly
+    two jobs, both Kura-backed.
   - **First CI results (run `27104501258`, 2026-06-07).** Cold run: all 6 jobs green, Kura
     booted in all 3 `-kura` jobs, **0 persist/fd errors** on both arches, all three
     `kura-data-*` caches saved. Warm re-run, `bazel-linux-kura` **x86_64: exact-key restore →
