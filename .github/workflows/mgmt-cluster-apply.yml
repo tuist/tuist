@@ -62,9 +62,9 @@ jobs:
     runs-on: tuist-linux
     environment:
       name: mgmt-cluster-apply
-    # The apply path normally finishes in under 2 min; 5 min
-    # leaves slack for slow `kubectl diff` against large CRDs.
-    timeout-minutes: 5
+    # `kubectl diff` can be slow against the Cluster API CRDs when many
+    # Machines are changing, so leave enough room for the visibility step.
+    timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
