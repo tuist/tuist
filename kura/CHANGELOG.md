@@ -1,15 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in kura@0.7.2<!-- RELEASE NOTES START -->
+## What's Changed in kura@0.7.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* key ByteStream CAS blobs with the blob/ prefix so FindMissingBlobs sees them ([#11141](https://github.com/tuist/tuist/pull/11141))
+* reconcile expanded storage without StatefulSet mutation ([#11139](https://github.com/tuist/tuist/pull/11139))
 * optimize artifact response streaming ([#11124](https://github.com/tuist/tuist/pull/11124))
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.3
 
 ## What's Changed in kura@0.7.1<!-- RELEASE NOTES START -->
 
