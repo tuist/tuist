@@ -73,31 +73,44 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   customer Pod — observable from GitHub's side as a runner that
   "lost communication with the server."
 
-  The Kubernetes Pod's `runner` container state is the ground truth
-  for "did this Pod actually start executing a job" — but only in
-  the **Linux split-container shape**. There the `runner` container
-  is gated behind the `poller` init container, so it reaches
-  `started=true` only once the poller successfully claimed *and*
-  staged a JIT — exactly the transition that means "JIT was
-  delivered, the runner is or was executing a customer job." We
-  refuse to reap any Linux Pod whose `runner` container has reached
-  `started=true` or `terminated`, even when the claim is missing.
-  The wedge signature this worker was built for (poller poll-loops
-  forever without ever receiving a JIT) still trips the reap
-  because the `runner` container never leaves `waiting`.
+  Two independent signals shield Pods that are actually executing,
+  layered for shape coverage:
 
-  The macOS Pod shape is single-container: the same `runner`
-  container runs the poll loop inside the Tart VM and execs
-  `./run.sh` in place on a successful claim. `started=true` is true
-  the moment the VM boots — long before any dispatch — so it is
-  NOT a signal that a customer job began. The guard is therefore
-  scoped to Pods that carry a `poller` init container (the
-  discriminator), preserving the wedge cleanup the worker exists
-  for on macOS. A `release_safely/3`-induced silent delete on a
-  live macOS job is a known gap of this fix; closing it requires a
-  signal that distinguishes "macOS polling" from "macOS executing"
-  (e.g., a server-confirmed live `RunnerSession`), which is left
-  for a follow-up.
+  1. **Open `RunnerSession`** (shape-independent). `open/1` is
+     called on the success branch of `serve_claim/5`, AFTER every
+     step that could trigger `release_safely/3` (mint_jit,
+     `mark_running`, `record_running_safe`). An open session is
+     therefore proof that the full dispatch committed — the JIT was
+     returned to the Pod and the runner is or was running a
+     customer job. Sessions are closed only by the controller's
+     `PodLifecycleReconciler` reporting `pods/stopped` once the
+     Pod actually stops. So a live build always has an open
+     session, regardless of whether the Pod is Linux or macOS.
+
+  2. **Linux `runner` container started/terminated** (Linux only).
+     In the split-container shape the `runner` container is gated
+     behind the `poller` init container: it reaches `started=true`
+     only once the poller successfully claimed AND staged a JIT.
+     This catches the post-job cleanup window where the session
+     has been closed (controller already reported `pods/stopped`)
+     but the Pod has not yet been reaped by the Pool reconciler —
+     `state.terminated` is set, and we defer to the reconciler so
+     it can log the runner's exit code via `#11109` instead of
+     racing it with a silent reap here.
+
+     macOS Pods are single-container: the same `runner` container
+     runs the poll loop inside the Tart VM and execs `./run.sh`
+     in place on a successful claim. `started=true` is true the
+     moment the VM boots — long before any dispatch — so it is
+     NOT a signal that a customer job began. We discriminate by
+     spec (presence of a `poller` init container) and apply this
+     check only when it carries useful information.
+
+  The wedge signature this worker was built for (poller polls
+  forever without ever receiving a JIT) still trips the reap
+  because: claim absent, session absent (open was never called),
+  and in the Linux case the runner container never leaves
+  `waiting`.
 
   The check is intentionally conservative: it prefers leaking a
   Pod for one more reconcile cycle (the Pool reconciler will
@@ -110,6 +123,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -135,7 +149,13 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   end
 
   defp reap_orphans(namespace, pods) do
-    live = Claims.live_pod_names()
+    # Two independent "this Pod is in flight" signals, unioned. Claims
+    # cover the normal busy state; sessions cover the gap where the
+    # claim was released after dispatch committed but before the Pod
+    # actually stopped (the silent-delete class this worker has been
+    # observed to produce on a `Claims.release` race). Pods is read
+    # *before* both sets — same race-safety argument as `live`.
+    live = MapSet.union(Claims.live_pod_names(), RunnerSessions.live_pod_names())
     cutoff = DateTime.add(DateTime.utc_now(), -@grace_seconds, :second)
 
     reaped =

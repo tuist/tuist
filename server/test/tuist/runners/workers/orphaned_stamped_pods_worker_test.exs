@@ -6,6 +6,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.OrphanedStampedPodsWorker
 
   setup :verify_on_exit!
@@ -27,7 +28,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
   # macOS single-container shape: no `poller` init container. The
   # runner container is `started=true` while merely polling, so the
   # guard must NOT treat that as proof of execution on this shape.
-  defp macos_pod(name, created_at, container_statuses \\ []) do
+  defp macos_pod(name, created_at, container_statuses) do
     %{
       "metadata" => %{"name" => name, "creationTimestamp" => created_at},
       "spec" => %{"initContainers" => []},
@@ -72,6 +73,9 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
 
   setup do
     stub(Environment, :runners_namespace, fn -> @namespace end)
+    # Default: no open sessions. Tests that exercise the session
+    # guard override this per-case.
+    stub(RunnerSessions, :live_pod_names, fn -> MapSet.new() end)
     :ok
   end
 
@@ -246,6 +250,45 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorkerTest do
       expect(Claims, :live_pod_names, fn -> MapSet.new() end)
 
       expect(K8sClient, :delete_runner, fn @namespace, "runner-macos-leak" -> :ok end)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a macOS stamped pod with an open session even when the claim is missing" do
+      # The macOS analogue of the Linux live-runner protection:
+      # dispatch fully committed (`RunnerSessions.open/1` only runs on
+      # the success branch of `serve_claim/5`, after every step that
+      # could fire `release_safely/3`), then *something* released the
+      # PG claim while the runner is mid-job (a stale webhook, an
+      # `OrphanedRunnersWorker` false positive). On macOS the
+      # `runner` container's `started=true` is uninformative, so the
+      # session is the only signal that says "this pod received its
+      # JIT and is running a customer job."
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [macos_pod("runner-macos-live", aged(), runner_executing())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-macos-live"]) end)
+
+      reject(&K8sClient.delete_runner/2)
+
+      assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
+    end
+
+    test "leaves a Linux stamped pod with an open session even when the claim and started=false (race window)" do
+      # Narrow window on Linux: dispatch committed and the session
+      # opened, but kubelet hasn't started the `runner` container
+      # yet (poller exited, runner Pending). The container-started
+      # guard would miss this, but the session guard catches it.
+      expect(K8sClient, :list_pods, fn @namespace, _selector ->
+        {:ok, [linux_pod("runner-linux-handoff", aged(), runner_waiting())]}
+      end)
+
+      expect(Claims, :live_pod_names, fn -> MapSet.new() end)
+      expect(RunnerSessions, :live_pod_names, fn -> MapSet.new(["runner-linux-handoff"]) end)
+
+      reject(&K8sClient.delete_runner/2)
 
       assert :ok = OrphanedStampedPodsWorker.perform(%Oban.Job{})
     end
