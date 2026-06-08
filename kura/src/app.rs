@@ -26,7 +26,7 @@ use crate::{
     memory::{MemoryController, MemoryPressure},
     metrics::Metrics,
     node_location::resolve_node_location,
-    peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
+    peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
@@ -121,7 +121,8 @@ async fn run_with_config(
         config.memory_hard_limit_bytes,
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let client = build_peer_client(&config).await?;
+    let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
+    let client = peer_client_factory.build()?;
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -145,6 +146,7 @@ async fn run_with_config(
         usage,
         geoip,
         client,
+        peer_client_factory,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
