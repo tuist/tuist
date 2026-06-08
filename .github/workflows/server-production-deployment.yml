@@ -282,28 +282,7 @@ jobs:
       - name: Run backward-compatibility acceptance test
         env:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
-        # The canary Kura runtime rolls out asynchronously (reconciled by the
-        # just-deployed server, then a StatefulSet rollout), so right after the
-        # canary leg the test account can still be served by the previous Kura
-        # image. Wait the roll out by retrying the oldest-CLI flow until it
-        # passes against the new runtime, or fail loudly with the expected tag.
-        # A genuine backward-compatibility regression keeps failing and still
-        # fails the gate once the deadline elapses.
-        run: |
-          set -uo pipefail
-          deadline=$(( $(date +%s) + 600 ))
-          attempt=0
-          until mise run --no-deps e2e module_cache_backward_compat; do
-            attempt=$(( attempt + 1 ))
-            if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "::error::Oldest-CLI module-cache flow still failing after ${attempt} attempts (~10m)."
-              echo "::error::Expected canary Kura runtime: the kuraRuntime.image.tag pin in infra/helm/tuist/values-managed-common.yaml."
-              echo "::error::If canary Kura is stuck on an older image, re-trigger its runtime deployment — the reconciler does not auto-retry a failed roll. Otherwise this is a real backward-compatibility regression against the oldest supported CLI."
-              exit 1
-            fi
-            echo "Attempt ${attempt} failed; canary Kura may still be rolling to the pinned runtime. Retrying in 30s..."
-            sleep 30
-          done
+        run: mise run --no-deps e2e module_cache_backward_compat
 
   # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes
