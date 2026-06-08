@@ -1,0 +1,103 @@
+# Defaults for the per-env Pomerium kube gateway. Per-env overlays
+# (values-staging.yaml / values-canary.yaml / values-production.yaml)
+# only override:
+#   - tuistEnv         (staging | canary | production)
+#   - publicHostname   (kube-<env>.tuist.dev)
+# Everything else (image, OIDC, ext_authz wiring, ingress shape)
+# stays identical across envs to keep behaviour symmetric.
+
+tuistEnv: staging
+publicHostname: kube-staging.tuist.dev
+
+# tuist-ops's tailnet-exposed Service hostname. tuist-ops lives in
+# the mgmt cluster and is reachable from workload clusters only
+# over the tailnet (no public hop). Pomerium dials this URL for
+# the ext_authz check on every request.
+extAuthzUrl: "http://ops.<TAILNET>.ts.net/api/v1/policy"
+
+# Upstream Pomerium chart values. The wrapping is thin: most of
+# Pomerium's behaviour is config, not chart, so the chart side is
+# mostly a passthrough.
+pomerium:
+  # Two-pod baseline (one Pomerium can absorb the kubectl traffic
+  # for a small team; the second is for rolling restarts without
+  # downtime).
+  replicaCount: 2
+
+  config:
+    rootDomain: tuist.dev
+
+    # See the per-route `to:` for the actual upstream. `from:` is
+    # the public URL kubectl dials; `to:` is the cluster's
+    # apiserver Service. `tls_skip_verify: true` is fine because
+    # the apiserver Service's cert is signed by the cluster's own
+    # CA, which Pomerium has no preconfigured trust for; the
+    # network path stays inside the cluster.
+    routes:
+      - from: ""                                # rendered from .publicHostname
+        to: "https://kubernetes.default.svc:443"
+        tls_skip_verify: true
+        pass_identity_headers: true
+        preserve_host_header: false
+        timeout: 90s
+        # Allow any authenticated Google Workspace user in the
+        # tuist.dev domain. Per-user gating + per-env elevation
+        # both happen at the ext_authz callback below; this is
+        # the coarse "is this a Tuist team member at all" gate.
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
+
+    # Pomerium's IdP. Google Workspace OIDC client credentials
+    # are pulled from ESO-synced env vars (POMERIUM_IDP_CLIENT_ID
+    # and POMERIUM_IDP_CLIENT_SECRET).
+    authenticate:
+      provider: google
+      clientID: ""                              # from secretEnv below
+      clientSecret: ""                          # from secretEnv below
+      url: ""                                   # rendered: https://authenticate.kube-<env>.tuist.dev
+      callbackPath: "/oauth2/callback"
+
+  # Pomerium's databroker (session store) needs a signing key. ESO
+  # syncs it from 1P; rotating means re-syncing.
+  databroker:
+    sharedSecret: ""                            # from secretEnv
+
+  # Per-pod env vars sourced from the ESO-managed Secret. The
+  # ExternalSecret lives in templates/external-secret.yaml.
+  secretEnv:
+    secretName: pomerium-tuist
+    keys:
+      - POMERIUM_SHARED_SECRET
+      - POMERIUM_COOKIE_SECRET
+      - POMERIUM_DATABROKER_STORAGE_CONNECTION_STRING_OPTIONAL
+      - POMERIUM_IDP_CLIENT_ID
+      - POMERIUM_IDP_CLIENT_SECRET
+
+  ingress:
+    enabled: true
+    className: nginx
+    hosts: []                                   # rendered from .publicHostname
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+      # Pomerium needs raw client connection info for OIDC flows.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      # kubectl needs websocket / streaming support for `kubectl
+      # exec`, `kubectl logs -f`, `kubectl port-forward`. Increase
+      # the timeout to match the apiserver's watch budget.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    tls: []                                     # rendered from .publicHostname
+
+  # Pod-level resource caps. Pomerium is mostly Go + Envoy under
+  # the hood; idle is light, peak bursts to a few hundred MB during
+  # session reconciliation.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 512Mi

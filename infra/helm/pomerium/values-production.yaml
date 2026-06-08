@@ -1,0 +1,35 @@
+tuistEnv: production
+publicHostname: kube-prod.tuist.dev
+extAuthzUrl: "http://ops.tuist.ts.net/api/v1/policy"
+
+pomerium:
+  config:
+    routes:
+      - from: "https://kube-prod.tuist.dev"
+        to: "https://kubernetes.default.svc:443"
+        tls_skip_verify: true
+        pass_identity_headers: true
+        preserve_host_header: false
+        timeout: 90s
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
+    authenticate:
+      url: "https://authenticate.kube-prod.tuist.dev"
+  ingress:
+    hosts:
+      - host: kube-prod.tuist.dev
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+      - host: authenticate.kube-prod.tuist.dev
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls:
+      - hosts:
+          - kube-prod.tuist.dev
+          - authenticate.kube-prod.tuist.dev
+        secretName: pomerium-production-tls

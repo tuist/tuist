@@ -35,6 +35,18 @@ When a new ops feature lands, the pattern is:
 Top-level modules (`Application`, `Repo`, `Environment`, the web
 endpoint and router) stay shared across features.
 
+## Routing convention
+
+Routes are mounted at root, never under `/ops`. The `/ops` prefix
+that exists today at `tuist.dev/ops/db` is the legacy form;
+`ops.tuist.dev` makes the subdomain the prefix and the URL path
+drops to `/db`. So a new feature exposed at `ops.tuist.dev/incidents`
+lives at `lib/tuist_ops_web/live/incidents_live.ex` with router
+entry `live "/incidents"`, NOT `live "/ops/incidents"`. The
+canonical URL form is `ops.tuist.dev/<feature>`; a redirect at
+`tuist.dev/ops/<feature>` → `ops.tuist.dev/<feature>` may live on
+the `server/` side during migration windows.
+
 ## Stack
 - Phoenix 1.7 (no LiveView yet — adds when the first `/ops/*` page
   migrates from `server/`)

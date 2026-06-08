@@ -1,0 +1,27 @@
+{{- /*
+Tailscale egress: lets Pomerium pods reach tuist-ops over the
+tailnet without putting Pomerium itself on the tailnet. The
+tailscale operator (already deployed in this cluster) sees this
+Service annotation, provisions a tailnet device that proxies to
+the named tailnet FQDN, and exposes it inside the cluster as a
+regular ClusterIP. Pomerium's ext_authz URL points at this
+service hostname.
+
+ExternalName + the operator annotation is the documented egress
+pattern: https://tailscale.com/kb/1438/kubernetes-operator-cluster-egress
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: tuist-ops-egress
+  labels:
+    app.kubernetes.io/component: pomerium
+    app.kubernetes.io/managed-by: helm
+  annotations:
+    tailscale.com/tailnet-fqdn: "ops.tuist.ts.net"
+spec:
+  # ExternalName is the trigger Tailscale's operator watches for.
+  # The value is a placeholder; the operator rewrites it once the
+  # tailnet proxy device is up.
+  type: ExternalName
+  externalName: placeholder.tuist.ts.net

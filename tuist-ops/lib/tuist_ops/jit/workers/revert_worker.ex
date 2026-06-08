@@ -27,7 +27,11 @@ defmodule TuistOps.JIT.Workers.RevertWorker do
       period: :infinity,
       fields: [:args],
       keys: [:elevation_id],
-      states: [:available, :scheduled, :executing, :retryable]
+      # Match Oban's :incomplete preset so a manual revoke insertion
+      # races cleanly with the TTL-scheduled job across every state
+      # an unfinished job can be in (including :suspended, which
+      # newer Oban versions added).
+      states: Oban.Job.states() -- [:completed, :discarded, :cancelled]
     ],
     max_attempts: 5
 
