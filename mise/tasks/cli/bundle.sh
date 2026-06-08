@@ -148,7 +148,7 @@ echo "$(format_section "Bundling")"
     rm "notarization-bundle.zip"
 
     echo "$(format_subsection "Bundling tuist.zip")"
-    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates
+    zip -q -r --symlinks tuist.zip tuist ProjectDescription.framework ProjectDescription.framework.dSYM Templates vendor
 
     echo "$(format_subsection "Bundling ProjectDescription.xcframework.zip")"
     xcodebuild -create-xcframework -framework ProjectDescription.framework -output ProjectDescription.xcframework
@@ -159,7 +159,7 @@ echo "$(format_section "Bundling")"
     ./tuist --experimental-dump-help --path "$SPEC_TMP_DIR" > tuist.spec.json
     rm -rf "$SPEC_TMP_DIR"
 
-    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates
+    rm -rf tuist ProjectDescription.framework ProjectDescription.xcframework ProjectDescription.framework.dSYM Templates vendor
 
     : > SHASUMS256.txt
     : > SHASUMS512.txt
