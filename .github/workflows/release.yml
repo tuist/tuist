@@ -154,9 +154,10 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
-      - name: Update mise.toml
-        run: |
-          sed -i '' "s/tuist = \".*\"/tuist = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" mise.toml
+      # The mise.toml CLI pin is no longer bumped here. It is the
+      # dev-tooling version contributors run, not a release artifact, and
+      # it is now bumped by a Renovate PR that tracks new tuist releases
+      # (see renovate.json) instead of a release-pipeline commit to main.
 
       - name: Upload CLI artifacts
         id: upload
@@ -2089,9 +2090,6 @@ jobs:
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
 
-      - name: Update mise.lock
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
-        run: mise lock tuist --platform linux-x64,macos-arm64,macos-x64
 
       - name: Create App GitHub Release
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success' && needs.release-ios.result == 'success' && needs.release-android.result == 'success'
