@@ -213,13 +213,13 @@ xcresultProcessor:
     # component, pin to a known-good SHA-tagged build that the standalone
     # xcresult-processor-image.yml workflow pushed.
     # Pinned to the workflow_dispatch build of this PR's HEAD —
-    # carries tailscale + tailscaled + tailscale-up.sh + the chained
-    # launchd plist that joins the VM to the tailnet before the BEAM
-    # boots, plus Tailscale SSH and a boot-time diagnostic dump so
-    # operators can shell in via `tailscale ssh` when the BEAM's
-    # Postgrex pool stays empty. release-xcresult-processor-image
+    # carries tailscale + tailscaled + tailscale-up.sh (joins the
+    # VM to the tailnet before the BEAM boots and pins tailnet
+    # peers into /etc/hosts to work around the open-source
+    # tailscaled's macOS DNS gap), plus Tailscale SSH for
+    # operator diagnostics. release-xcresult-processor-image
     # rewrites this with the next semver tag on merge to main.
-    tag: "958ad548"
+    tag: "c6d08f92"
 
 capi:
   # Managed clusters store the CAPI workload kubeconfig in their
