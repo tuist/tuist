@@ -211,17 +211,49 @@ ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded
 {{- end -}}
 {{- end -}}
 
+{{/*
+CNPG generates one Secret per role: `<cluster-name>-app` (the owner role
+from `bootstrap.initdb.owner`) and one per managed role under the name
+declared in `managed.roles[].passwordSecret.name`. The owner Secret
+carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
+`dbname`. We mount `uri` straight into DATABASE_URL.
+*/}}
+{{- define "tuist.cnpgClusterName" -}}
+{{- include "tuist.componentName" (dict "root" . "component" "pg") -}}
+{{- end -}}
+
+{{- define "tuist.cnpgAppSecretName" -}}
+{{- printf "%s-app" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgServiceRW" -}}
+{{- printf "%s-rw" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{- define "tuist.cnpgServiceRO" -}}
+{{- printf "%s-ro" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
+{{/* CNPG names the Pooler's Service after the Pooler CR's metadata.name. */}}
+{{- define "tuist.cnpgServicePooler" -}}
+{{- printf "%s-pooler-rw" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
-{{- else -}}
+{{- else if eq .Values.postgresql.mode "external" -}}
 ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external.password }}@{{ .Values.postgresql.external.host }}:{{ .Values.postgresql.external.port }}/{{ .Values.postgresql.external.database }}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- fail "tuist.databaseUrl is not literal under postgresql.mode=cnpg — wire DATABASE_URL from the CNPG-generated Secret via envFrom or secretKeyRef instead." -}}
 {{- end -}}
 {{- end -}}
 
 {{- define "tuist.databaseHost" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{ include "tuist.cnpgServiceRW" . }}
 {{- else -}}
 {{- .Values.postgresql.external.host -}}
 {{- end -}}
@@ -229,6 +261,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 
 {{- define "tuist.databasePort" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
+5432
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
 5432
 {{- else -}}
 {{- .Values.postgresql.external.port -}}
@@ -238,6 +272,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- define "tuist.databaseName" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{- .Values.postgresql.embedded.database -}}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- .Values.postgresql.cnpg.database -}}
 {{- else -}}
 {{- .Values.postgresql.external.database -}}
 {{- end -}}
@@ -246,6 +282,8 @@ ecto://{{ .Values.postgresql.external.username }}:{{ .Values.postgresql.external
 {{- define "tuist.databaseUsername" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 {{- .Values.postgresql.embedded.username -}}
+{{- else if eq .Values.postgresql.mode "cnpg" -}}
+{{- .Values.postgresql.cnpg.owner -}}
 {{- else -}}
 {{- .Values.postgresql.external.username -}}
 {{- end -}}
@@ -289,6 +327,16 @@ server.externalSecrets.kuraIntrospection.item is set.
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
 {{- if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
+- name: KURA_CONTROL_PLANE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_ID
+- name: KURA_CONTROL_PLANE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $esoSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_SECRET
 - name: TUIST_KURA_INTROSPECTION_CLIENT_ID
   valueFrom:
     secretKeyRef:

@@ -16,16 +16,16 @@ defmodule Tuist.Runners do
       each pool's Pods + per-Pod ServiceAccounts directly via
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
-    * **`accounts.runner_max_concurrent`** is the only per-customer
-      knob. 0 = runners disabled; N>0 = at most N concurrent
-      across all pools the customer reaches.
+    * **Runner availability is gated by the `:runners` feature
+      flag** (`Tuist.FeatureFlags.runners_enabled?/1`) — the only
+      per-customer switch. There's no concurrency cap.
     * **Two-store split for the workflow_job lifecycle.** Postgres
       `runner_claims` is the thin OLTP table — one row per
       currently-claimed workflow_job, used for atomic claim (`INSERT
-      … ON CONFLICT DO NOTHING` on the PK) and per-account cap
-      counting. ClickHouse `runner_jobs` is the customer-facing
-      view + history — `queued`, `claimed`, `running`, `completed`
-      state transitions recorded as RMT INSERTs. Every PG write is
+      … ON CONFLICT DO NOTHING` on the PK). ClickHouse `runner_jobs`
+      is the customer-facing view + history — `queued`, `claimed`,
+      `running`, `completed` state transitions recorded as RMT
+      INSERTs. Every PG write is
       paired with a CH INSERT so the customer surfaces stay in
       sync; CH is never queried for OLTP correctness.
 
@@ -65,6 +65,16 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
+
+  # The owner label gates dispatch egress: the runners-namespace
+  # NetworkPolicy admits only label-less (idle, polling) Pods to the
+  # churning dispatch policy, so a claimed Pod's egress isn't perturbed
+  # by a server rollout mid-job. A claimed Pod that never gets the
+  # label stays in the idle policy and loses that protection, so the
+  # stamp is retried to ride out a transient apiserver blip before
+  # falling back to best-effort.
+  @owner_label_stamp_attempts 3
+  @owner_label_stamp_retry_backoff_ms 100
 
   # Drain stagger: stale Pods are partitioned into `@drain_slots`
   # buckets keyed by `phash2(pod_name)`. Slot N becomes drain-
@@ -111,8 +121,8 @@ defmodule Tuist.Runners do
   Returns `{:ok, %{jit, account, runner_name}}` on success.
 
   Error cases the web layer translates to HTTP responses:
-    * `{:error, :no_work_yet}` — queue empty, all accounts at
-      cap, or we lost a claim race; warm Pod keeps polling.
+    * `{:error, :no_work_yet}` — queue empty or we lost a claim
+      race; warm Pod keeps polling.
     * `{:error, :not_found}` — SA gone (raced with GC).
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
@@ -139,17 +149,7 @@ defmodule Tuist.Runners do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
          {:ok, fleet_name} <- pool_label(sa),
          :ok <- check_not_stale(namespace, sa_name, fleet_name) do
-      # `ineligible_accounts/0` is a perf optimisation — skip
-      # candidates whose account already hit cap so we don't
-      # round-trip ClickHouse for a row we'd reject anyway. The
-      # authoritative gate is `Claims.attempt/4`, which re-checks
-      # the cap inside the same transaction as the INSERT and
-      # holds an advisory lock on the account for the duration.
-      # The pre-filter can be eventually-consistent without
-      # affecting correctness.
-      ineligible = ineligible_accounts()
-
-      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, ineligible),
+      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
            {:ok, claim} <-
              Claims.attempt(
                candidate.workflow_job_id,
@@ -163,7 +163,7 @@ defmodule Tuist.Runners do
         {:error, :empty} ->
           {:error, :no_work_yet}
 
-        {:error, reason} when reason in [:lost_race, :over_cap, :runners_disabled, :pod_in_use, :unknown_account] ->
+        {:error, reason} when reason in [:lost_race, :pod_in_use] ->
           # All transactional-claim outcomes that mean "this poll
           # gets nothing right now" — collapsed for the caller.
           # The candidate (if we had one) stays queued in CH for
@@ -196,8 +196,9 @@ defmodule Tuist.Runners do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
 
-        with {:ok, %{dispatch_label: dispatch_label, runner_labels: runner_labels}} <-
+        with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
+             dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
              :ok <- stamp_owner_labels(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
@@ -229,7 +230,13 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id
           )
 
-          {:ok, %{jit: jit, account: account, runner_name: runner_name}}
+          {:ok,
+           %{
+             jit: jit,
+             account: account,
+             runner_name: runner_name,
+             workflow_job_id: candidate.workflow_job_id
+           }}
         else
           {:error, reason} = err ->
             release_safely(candidate, claim, reason)
@@ -317,28 +324,6 @@ defmodule Tuist.Runners do
       end
   end
 
-  # Builds the at-cap account list for the candidate query. One
-  # indexed Postgres query across all fleets for the inflight
-  # counts (the cap is account-level, NOT fleet-level — a
-  # customer at cap=1 can't run one job per pool); a per-account
-  # lookup for the cap config.
-  defp ineligible_accounts do
-    Claims.counts_per_account()
-    |> Enum.filter(&at_cap?/1)
-    |> Enum.map(fn {account_id, _inflight} -> account_id end)
-  end
-
-  defp at_cap?({account_id, inflight}) do
-    case Accounts.get_account_by_id(account_id) do
-      {:ok, %{runner_max_concurrent: cap}} when is_integer(cap) and cap > 0 ->
-        inflight >= cap
-
-      _ ->
-        # No account row or cap=0 — treat as ineligible.
-        true
-    end
-  end
-
   defp stamp_owner_labels(namespace, pod_name, account) do
     patch = %{
       "metadata" => %{
@@ -349,18 +334,35 @@ defmodule Tuist.Runners do
       }
     }
 
+    patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
+
+  defp patch_pod_labels(namespace, pod_name, patch, attempts_left) do
     case K8sClient.patch_pod(namespace, pod_name, patch) do
       {:ok, _} ->
         :ok
 
-      {:error, reason} ->
-        Logger.warning("runners: pod label stamp failed; operational view may be wrong",
+      {:error, reason} when attempts_left > 1 ->
+        Logger.warning("runners: pod label stamp failed; retrying",
           pod: pod_name,
           reason: inspect(reason)
         )
 
-        # Continue — cap accounting reads from Postgres, the K8s
-        # labels are operational visibility only.
+        Process.sleep(@owner_label_stamp_retry_backoff_ms)
+        patch_pod_labels(namespace, pod_name, patch, attempts_left - 1)
+
+      {:error, reason} ->
+        Logger.warning(
+          "runners: pod label stamp failed after retries; Pod stays in the idle dispatch NetworkPolicy and a server rollout may perturb its egress",
+          pod: pod_name,
+          reason: inspect(reason)
+        )
+
+        # Non-fatal on purpose. The claim is already won here; failing
+        # dispatch would strand the job, and a sustained apiserver
+        # outage would block all dispatch. Degrade to "running without
+        # the label" rather than dropping the job. Per-account cap
+        # accounting reads from Postgres, not these labels.
         :ok
     end
   end
@@ -442,6 +444,21 @@ defmodule Tuist.Runners do
   end
 
   defp pool_label(_), do: {:error, :no_pool_label}
+
+  # Profile-aware dispatch labelling: prefer the customer-facing
+  # label the workflow_job carried in `runs-on:` (e.g.
+  # `tuist-default`), which the webhook stored on the candidate's
+  # CH row. Fall back to the pool's internal `dispatchLabel`
+  # (e.g. `shape-linux-4vcpu-16gb`) only when the candidate's
+  # `requested_dispatch_label` is missing — that path only fires
+  # for legacy rows enqueued before the requested-label column
+  # existed.
+  defp pick_dispatch_label(candidate, pool_dispatch_label) do
+    case Map.get(candidate, :requested_dispatch_label, "") do
+      label when is_binary(label) and label != "" -> label
+      _ -> pool_dispatch_label
+    end
+  end
 
   # The polling Pod's name. The controller's podtemplate stamps
   # Pods + SAs with the same name, so the SA name IS the Pod name.

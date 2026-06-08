@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.BillingTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -268,6 +268,8 @@ defmodule Tuist.Runners.BillingTest do
       account = account_fixture()
       period_start = ~U[2026-05-01 00:00:00.000000Z]
       period_end = ~U[2026-05-31 23:59:59.999999Z]
+
+      Repo.query!("SET LOCAL TIME ZONE 'Europe/Berlin'")
 
       # 23:50 May 10 → 00:10 May 11 = 20 minutes total. 10 mins
       # belong to May 10, 10 mins to May 11.

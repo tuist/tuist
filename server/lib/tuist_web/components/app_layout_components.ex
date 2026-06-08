@@ -378,6 +378,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% runners_path = ~p"/#{@selected_account.name}/runners" %>
       <% runner_workflows_path = ~p"/#{@selected_account.name}/runners/workflows" %>
       <% runner_jobs_path = ~p"/#{@selected_account.name}/runners/jobs" %>
+      <% runner_profiles_path = ~p"/#{@selected_account.name}/runners/profiles" %>
       <.sidebar_item
         label={dgettext("dashboard", "Projects")}
         icon="folders"
@@ -409,6 +410,12 @@ defmodule TuistWeb.AppLayoutComponents do
           icon="stack_2"
           navigate={runner_jobs_path}
           selected={String.starts_with?(@current_path, runner_jobs_path)}
+        />
+        <.sidebar_item
+          label={dgettext("dashboard", "Profiles")}
+          icon="category"
+          navigate={runner_profiles_path}
+          selected={String.starts_with?(@current_path, runner_profiles_path)}
         />
       </.sidebar_group>
       <.sidebar_item
@@ -501,6 +508,12 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="users"
         navigate={~p"/ops/accounts"}
         selected={String.starts_with?(@current_path, "/ops/accounts")}
+      />
+      <.sidebar_item
+        label={dgettext("dashboard", "Database")}
+        icon="database"
+        navigate={~p"/ops/db"}
+        selected={String.starts_with?(@current_path, "/ops/db")}
       />
       <.sidebar_item
         label={dgettext("dashboard", "LiveDashboard")}

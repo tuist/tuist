@@ -34,3 +34,39 @@ spec:
   {{- end }}
 {{- end }}
 
+{{- if .Values.grpcIngress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "kura.fullname" . }}-grpc
+  labels:
+    {{- include "kura.labels" . | nindent 4 }}
+  {{- with .Values.grpcIngress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.grpcIngress.className }}
+  ingressClassName: {{ .Values.grpcIngress.className }}
+  {{- end }}
+  rules:
+    {{- range .Values.grpcIngress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "kura.fullname" $ }}
+                port:
+                  name: grpc
+          {{- end }}
+    {{- end }}
+  {{- with .Values.grpcIngress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

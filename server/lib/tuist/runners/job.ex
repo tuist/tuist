@@ -36,6 +36,23 @@ defmodule Tuist.Runners.Job do
     field :pod_name, Ch, type: "String", default: ""
     field :runner_name, Ch, type: "String", default: ""
 
+    # When the gzipped full-log archive landed in S3. `nil` until the
+    # `ArchiveLogsWorker` finishes uploading; the download endpoint
+    # streams ClickHouse directly in that window. The S3 key itself is
+    # derived from `(account_id, workflow_job_id)` via
+    # `ArchiveLogsWorker.archive_key/2` — no column carries it.
+    field :log_archived_at, Ch, type: "Nullable(DateTime64(6, 'UTC'))", default: nil
+
+    # The label the customer wrote in `runs-on:` (e.g.
+    # `tuist-default`). Carried from webhook enqueue so JIT-mint
+    # can stamp it on the runner — without this, the runner would
+    # register under the pool's internal `dispatchLabel`
+    # (`shape-linux-<vcpus>vcpu-<gb>gb`) which never matches the
+    # workflow_job's `runs-on:`. Empty for legacy `runner_jobs`
+    # rows pre-profiles; the dispatch path falls back to the
+    # pool's dispatchLabel in that case.
+    field :requested_dispatch_label, Ch, type: "String", default: ""
+
     # RMT version column. Every state-transition INSERT advances
     # this; merge keeps the row with the latest `updated_at` for
     # each `workflow_job_id`.

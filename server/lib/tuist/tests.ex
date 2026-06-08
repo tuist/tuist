@@ -1490,6 +1490,48 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
+  # Chunk size for the default-branch validation lookup. An alert's triggered
+  # set can be large (a `flakiness_rate < threshold` cleanup rule matches most
+  # of a project's test cases, which can run into tens of thousands). The ids
+  # travel as a single ClickHouse array parameter, so chunking keeps that
+  # parameter's encoded value below ClickHouse's per-request limits.
+  @default_branch_validation_batch_size 2_000
+
+  @doc """
+  Given a list of test case ids, returns the subset that has at least one
+  successful, non-flaky run on the project's default branch. A test case with
+  no such run has never been validated on the trusted branch (for example, a
+  brand-new test that has only ever run on a pull-request branch) and should
+  not be eligible for automated quarantine.
+  """
+  def test_case_ids_with_successful_default_branch_run(_project_id, [], _default_branch), do: []
+
+  def test_case_ids_with_successful_default_branch_run(project_id, test_case_ids, default_branch) do
+    test_case_ids
+    |> Enum.chunk_every(@default_branch_validation_batch_size)
+    |> Enum.flat_map(&fetch_validated_test_case_ids_chunk(project_id, &1, default_branch))
+  end
+
+  # Binds the ids as a single `Array(UUID)` parameter via a fragment instead of
+  # `tcr.test_case_id in ^ids_chunk`. `in` expands to one bound parameter per
+  # id, which overflows ClickHouse's request limits when the triggered set is
+  # large. Chunks are disjoint, so the per-chunk `distinct` already yields a
+  # distinct union.
+  defp fetch_validated_test_case_ids_chunk(project_id, ids_chunk, default_branch) do
+    ClickHouseRepo.all(
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
+        where: fragment("? IN (?)", tcr.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+        where: tcr.git_branch == ^default_branch,
+        where: fragment("? = 'success'", tcr.status),
+        where: tcr.is_flaky == false,
+        distinct: true,
+        select: tcr.test_case_id
+      ),
+      multipart: true
+    )
+  end
+
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->

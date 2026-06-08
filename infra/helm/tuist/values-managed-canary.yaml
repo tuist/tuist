@@ -14,6 +14,10 @@ server:
 
   appUrl: https://canary.tuist.dev
 
+  externalSecrets:
+    kuraIntrospection:
+      item: kura-introspection-oauth-client
+
   autoscaling:
     enabled: false
 
@@ -59,8 +63,13 @@ server:
     # plus the MASTER_KEY ESO secret pick the runtime deployment target.
     - name: TUIST_DEPLOY_ENV
       value: can
+    # Single web replica shares this pool between request handling and the
+    # in-node Oban queues (default: 10). Sized well above the default-queue
+    # concurrency so the steady AlertEvaluationWorker load can't starve web
+    # checkouts. Comfortably under CNPG max_connections (100): 30 web + 10
+    # processor + replication/monitoring/superuser overhead.
     - name: TUIST_DATABASE_POOL_SIZE
-      value: "15"
+      value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
@@ -71,11 +80,76 @@ objectStorage:
     buckets:
       default: tuist-can-storage
 
+cache:
+  s3:
+    bucket: tuist-cas-canary
+    xcodeCacheBucket: tuist-xcode-cache-canary
+    registryBucket: tuist-registry-canary
+
+kuraController:
+  telemetry:
+    deploymentEnvironment: canary
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
+  sharedSecrets:
+    externalSecret:
+      enabled: true
+      item: kura-introspection-oauth-client
+
+# CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
+# replica), 10Gi per instance. Matches the cluster's general-purpose
+# hcloud-worker pool (md-0, replicas: 2) — hard pod anti-affinity
+# requires one CNPG instance per host, so a 3-instance cluster would
+# leave the third pod permanently Pending until md-0 was scaled up.
+# Canary is a soak environment, not an HA-shape one; production keeps
+# the 3-instance design on its 3-worker pool. Each instance is a
+# streaming replica holding the whole DB, so the size is per-replica
+# capacity, not a pool to split across them. The Hetzner CSI storage
+# class has `allowVolumeExpansion: true` for in-place growth if the
+# footprint climbs. Backups land in the `tuist-can-pg-backups` Tigris
+# bucket.
+postgresql:
+  mode: cnpg
+  cnpg:
+    instances: 2
+    # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
+    # otherwise leaves Postgres on its 128 MiB shared_buffers default;
+    # mirror the production tuning shape so canary catches any regression
+    # before it reaches prod.
+    parameters:
+      shared_buffers: "2GB"
+      effective_cache_size: "6GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+    # See values.yaml for why this is a list at the CR level instead of
+    # an entry under `parameters`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
+    # Route the processor through the transaction-mode PgBouncer pooler so
+    # this soak env matches production's post-CNPG-cutover topology
+    # (processor pooled, web tier direct on -rw). CNPG's built-in
+    # integration manages the PgBouncer auth — no manual bootstrap; see
+    # infra/cnpg/README.md.
+    pooler:
+      enabled: true
+    storage:
+      size: "10Gi"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "4Gi"
+      limits:
+        cpu: "2000m"
+        memory: "8Gi"
+    backup:
+      destinationPath: s3://tuist-can-pg-backups/
+
 processor:
-  # Supabase canary project (thapckmapmffdgaiarvu) — dedicated pooler on
-  # port 6543 (transaction mode). Same hostname as the direct Postgres
-  # endpoint, just a different port. Pooler creds are the `tuist_processor`
-  # role provisioned via infra/supabase/tuist-processor-role.sql.
+  # During the Supabase→CNPG migration, the processor stays on Supabase
+  # (pooler hostname below) until the env-level cutover flips
+  # `postgresql.mode` from `external` to `cnpg`.
   database:
     host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1
@@ -153,29 +227,49 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  pools:
-    - name: default
-      replicas: 1
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-canary-macos"
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; the sum across overrides must stay ≤ `hostCount`.
+  xcodeOverrides:
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 1
+        maxReplicas: 1
+    "26.4.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+  runnerImageSemver: "0.2.1"
+  pools: []
 
-# Bare-metal vm-image-builder fleet — bakes the Tart VM images
-# the macosFleet and runnersFleet hosts run. Sized at 1 in canary
-# to mirror staging; canary is a pre-prod gate, not a capacity
-# tier. Shares the `tuist-pool-` host pool with the other two
-# fleets, so adding this fleet costs one more pre-ordered host on
-# top of macosFleet (1) + runnersFleet (1) = 3 hosts of pool
-# demand in canary.
+# Bare-metal vm-image-builder fleet. Disabled in canary: the baked
+# Tart images are global GHCR artifacts, so only the production fleet
+# bakes them. A builder here registers the shared `vm-image-builder`
+# org runner label (the fleets advertise identical labels to the same
+# org, with no per-env scoping), so it would pick up production release
+# jobs, exactly the cross-env bleed we want to avoid.
 buildersFleet:
-  enabled: true
-  replicas: 1
+  enabled: false
+  replicas: 0
   adoptPoolPrefix: "tuist-pool-"
   externalSecrets:
-    enabled: true
+    enabled: false
 
 # Kata Containers + QEMU runtime for the Linux runner microVM pool.
 kataContainers:
   enabled: true
+
+runnersController:
+  features:
+    dindImage: true
 
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline
@@ -187,26 +281,31 @@ kataContainers:
 runnersFleetLinux:
   enabled: true
   name: runners-linux
-  pools:
-    - name: ubuntu-22-04
-      runnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
-      dispatchLabel: "tuist-canary-linux"
-      runnerLabels:
-        - self-hosted
-        - Linux
-        - X64
-      runtimeClass: kata-qemu
-      pod:
-        cpuMilli: 1000
-        memoryMB: 4096
-      # Pod-level autoscaling only. Bare-metal host count is operator-
-      # managed via the cluster topology — see staging values for the
-      # rationale.
+  pools: []
+  # Shape-keyed pools backing Runner Profiles. Keep in sync with
+  # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
+  # shapes scale to zero; the default shape keeps a warm floor since it
+  # absorbs `tuist-default` + `linux` default-profile traffic.
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:c3661219d7a0ac9669b321b3d80e09ec8f43e20e464e4c16a90e2193db71b02e"
+  shapeRuntimeClass: kata-qemu
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 0
+    maxReplicas: 14
+    scaleDownCooldownSeconds: 300
+  shapes:
+    - { vcpus: 1, memoryGb: 2 }
+    - { vcpus: 2, memoryGb: 4 }
+    - vcpus: 2
+      memoryGb: 8
+      default: true
       autoscaling:
-        enabled: true
         minWarmPoolFloor: 2
-        maxReplicas: 14
-        scaleDownCooldownSeconds: 300
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 16 }
+    - { vcpus: 8, memoryGb: 32 }
+    - { vcpus: 16, memoryGb: 32 }
 
 # In-cluster Valkey backs the auth rate limiter (Hammer.Redis). The
 # chart wires TUIST_REDIS_URL to the embedded Service; without it the

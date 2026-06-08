@@ -22,6 +22,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Billing
   alias Tuist.Environment
   alias Tuist.Projects
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -1241,6 +1242,22 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_admin?(user, organization) == true
     end
 
+    test "auto-bootstraps the protected linux runner profile" do
+      # Every new organization account lands with the default `linux`
+      # profile so `runs-on: <prefix>linux` resolves the moment the
+      # account exists — without it the customer's first workflow
+      # would error out before they ever see the Profiles UI.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      profiles = RunnerProfiles.list_for_account(organization.account)
+
+      assert %{name: "linux", protected: true, vcpus: 2, memory_gb: 8} =
+               Enum.find(profiles, &(&1.name == "linux"))
+    end
+
     test "creates an organization when new pricing model is enabled" do
       # Given
       Billing
@@ -1685,6 +1702,21 @@ defmodule Tuist.AccountsTest do
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
+    end
+
+    test "auto-bootstraps the protected linux runner profile" do
+      # Same default-profile invariant the organization path enforces:
+      # personal accounts land with the `linux` profile so the
+      # `<prefix>linux` label resolves from the first workflow run.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+
+      {:ok, user} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+
+      profiles = RunnerProfiles.list_for_account(user.account)
+
+      assert %{name: "linux", protected: true, vcpus: 2, memory_gb: 8} =
+               Enum.find(profiles, &(&1.name == "linux"))
     end
 
     test "creates the user infering the handle from the email when no handle is provided" do
@@ -4011,6 +4043,32 @@ defmodule Tuist.AccountsTest do
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
     end
 
+    test "returns account Kura endpoints by default when the account has ready Kura endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache.example.com",
+          technology: :kura
+        })
+
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == ["https://kura-cache.example.com"]
+    end
+
     test "returns default endpoints when account has no custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -4098,165 +4156,6 @@ defmodule Tuist.AccountsTest do
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(nil)
-
-      # Then
-      assert endpoints == default_endpoints
-    end
-
-    test "returns Kura endpoints when account has them configured" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert Enum.sort(endpoints) ==
-               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
-    end
-
-    test "returns environment Kura endpoints over account-specific endpoints" do
-      # Given
-      environment_endpoints = [
-        "https://kura-cluster-1.example.com",
-        "https://kura-cluster-2.example.com"
-      ]
-
-      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == environment_endpoints
-    end
-
-    test "returns environment Kura endpoints when the account handle is missing" do
-      # Given
-      environment_endpoints = ["https://kura-cluster.example.com"]
-      stub(Environment, :kura_endpoints, fn -> environment_endpoints end)
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(nil, :kura)
-
-      # Then
-      assert endpoints == environment_endpoints
-    end
-
-    test "returns regional Kura endpoints until the global endpoint has been reconciled" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-2.example.com",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert Enum.sort(endpoints) ==
-               Enum.sort(["https://kura-cache-1.example.com", "https://kura-cache-2.example.com"])
-    end
-
-    test "returns the global Kura endpoint over regional Kura endpoints once reconciled" do
-      # Given
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache-1.example.com",
-          technology: :kura
-        })
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == ["https://#{account.name}.kura.tuist.dev"]
-    end
-
-    test "returns default endpoints when account has no Kura endpoints configured" do
-      # Given
-      default_endpoints = ["https://default.tuist.dev"]
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
-
-      # Then
-      assert endpoints == default_endpoints
-    end
-
-    test "returns default endpoints instead of a stale global Kura endpoint without regional endpoints" do
-      # Given
-      default_endpoints = ["https://default.tuist.dev"]
-      stub(Environment, :tuist_hosted?, fn -> true end)
-      stub(Environment, :dev?, fn -> false end)
-      stub(Environment, :test?, fn -> false end)
-      stub(Environment, :kura_endpoints, fn -> nil end)
-      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://#{account.name}.kura.tuist.dev",
-          technology: :kura
-        })
-
-      # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
       assert endpoints == default_endpoints

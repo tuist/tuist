@@ -15,7 +15,6 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
-  alias TuistWeb.Headers
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -34,6 +33,8 @@ defmodule TuistWeb.API.CacheController do
        when action not in [:access, :endpoints]
 
   plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+
+  plug :sign
 
   tags(["Cache"])
 
@@ -69,20 +70,12 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    technology = technology(conn)
-
     endpoints =
       params[:account_handle]
-      |> Accounts.get_cache_endpoints_for_handle(technology)
+      |> Accounts.get_cache_endpoints_for_handle()
       |> Enum.reject(&is_nil/1)
 
-    if technology == :kura and Enum.any?(endpoints, &(String.trim(&1) == "")) do
-      conn
-      |> put_status(:service_unavailable)
-      |> json(%{message: "Kura cache endpoint is unavailable."})
-    else
-      json(conn, %{endpoints: endpoints})
-    end
+    json(conn, %{endpoints: endpoints})
   end
 
   operation(:access,
@@ -117,14 +110,6 @@ defmodule TuistWeb.API.CacheController do
     |> Authentication.authenticated_subject()
     |> Cache.accessible_handles()
     |> then(&json(conn, &1))
-  end
-
-  defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
-    end
   end
 
   operation(:get_cache_action_item,
@@ -737,6 +722,18 @@ defmodule TuistWeb.API.CacheController do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
       "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
+    end
+  end
+
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(conn, _opts), do: conn
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
+    else
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

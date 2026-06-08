@@ -58,7 +58,7 @@ msgstr ""
 msgid "Bad request"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:430
+#: lib/tuist_web/components/app_layout_components.ex:437
 #, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr ""
@@ -93,8 +93,8 @@ msgstr ""
 msgid "Cache Runs"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:96
-#: lib/tuist_web/live/layout_live.ex:176
+#: lib/tuist_web/live/layout_live.ex:106
+#: lib/tuist_web/live/layout_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -104,23 +104,24 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:525
+#: lib/tuist_web/components/app_layout_components.ex:538
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
 
 #: lib/tuist_web/controllers/error_html.ex:133
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
+#: lib/tuist_web/live/ops_database_live.html.heex:323
 #, elixir-autogen, elixir-format
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:540
+#: lib/tuist_web/components/app_layout_components.ex:553
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:518
+#: lib/tuist_web/components/app_layout_components.ex:531
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -136,13 +137,13 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:548
+#: lib/tuist_web/components/app_layout_components.ex:561
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:470
+#: lib/tuist_web/components/app_layout_components.ex:477
 #, elixir-autogen, elixir-format
 msgid "Integrations"
 msgstr ""
@@ -158,8 +159,8 @@ msgstr ""
 msgid "Invalid installation request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:408
-#: lib/tuist_web/components/app_layout_components.ex:512
+#: lib/tuist_web/components/app_layout_components.ex:409
+#: lib/tuist_web/components/app_layout_components.ex:525
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -169,7 +170,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:506
+#: lib/tuist_web/components/app_layout_components.ex:519
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -179,7 +180,7 @@ msgstr ""
 msgid "Log out"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:416
+#: lib/tuist_web/components/app_layout_components.ex:423
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
@@ -240,6 +241,7 @@ msgid "Operations"
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:26
+#: lib/tuist_web/live/ops_database_live.html.heex:8
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr ""
@@ -259,7 +261,12 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:382
+#: lib/tuist_web/components/app_layout_components.ex:415
+#, elixir-autogen, elixir-format
+msgid "Profiles"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:383
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
@@ -269,7 +276,7 @@ msgstr ""
 msgid "Server error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:444
+#: lib/tuist_web/components/app_layout_components.ex:451
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -294,7 +301,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:532
+#: lib/tuist_web/components/app_layout_components.ex:545
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -327,7 +334,7 @@ msgstr ""
 msgid "The account %{account_handle} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:153
+#: lib/tuist_web/live/layout_live.ex:168
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -360,17 +367,12 @@ msgstr ""
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:61
-#, elixir-autogen, elixir-format
-msgid "The project you are looking for doesn't exist or has been moved."
-msgstr ""
-
 #: lib/tuist_web/plugs/loader_plug.ex:95
 #, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:260
+#: lib/tuist_web/live/layout_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -385,8 +387,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:573
-#: lib/tuist_web/components/app_layout_components.ex:610
+#: lib/tuist_web/components/app_layout_components.ex:586
+#: lib/tuist_web/components/app_layout_components.ex:623
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -401,10 +403,10 @@ msgstr ""
 msgid "Unauthorized"
 msgstr ""
 
-#: lib/tuist/utilities/date_formatter.ex:120
-#: lib/tuist/utilities/date_formatter.ex:129
-#: lib/tuist/utilities/date_formatter.ex:177
-#: lib/tuist/utilities/date_formatter.ex:211
+#: lib/tuist/utilities/date_formatter.ex:128
+#: lib/tuist/utilities/date_formatter.ex:137
+#: lib/tuist/utilities/date_formatter.ex:185
+#: lib/tuist/utilities/date_formatter.ex:219
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
 #: lib/tuist_web/components/runs/ran_by_badge.ex:104
@@ -494,12 +496,12 @@ msgstr ""
 msgid "Gradle Cache"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:119
+#: lib/tuist_web/live/layout_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:493
+#: lib/tuist_web/components/app_layout_components.ex:500
 #: lib/tuist_web/live/ops_cache_live.html.heex:3
 #, elixir-autogen, elixir-format
 msgid "Cache"
@@ -632,7 +634,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:500
+#: lib/tuist_web/components/app_layout_components.ex:507
 #: lib/tuist_web/live/ops_accounts_live.ex:18
 #: lib/tuist_web/live/ops_accounts_live.html.heex:3
 #: lib/tuist_web/live/ops_accounts_live.html.heex:5
@@ -640,7 +642,7 @@ msgstr ""
 msgid "Accounts"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:479
+#: lib/tuist_web/components/app_layout_components.ex:486
 #, elixir-autogen, elixir-format
 msgid "Authentication"
 msgstr ""
@@ -842,6 +844,8 @@ msgid "Estonia"
 msgstr ""
 
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
+#: lib/tuist_web/live/ops_database_live.html.heex:123
+#: lib/tuist_web/live/ops_database_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Failed"
 msgstr ""
@@ -973,6 +977,8 @@ msgid "Monthly"
 msgstr ""
 
 #: lib/tuist_web/live/ops_accounts_live.html.heex:24
+#: lib/tuist_web/live/ops_database_live.html.heex:139
+#: lib/tuist_web/live/ops_database_table_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -1008,7 +1014,7 @@ msgid "No active subscription to cancel."
 msgstr ""
 
 #: lib/tuist/utilities/date_formatter.ex:5
-#: lib/tuist/utilities/date_formatter.ex:68
+#: lib/tuist/utilities/date_formatter.ex:76
 #: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
 #: lib/tuist_web/live/ops_account_live.html.heex:23
 #: lib/tuist_web/live/ops_account_live.html.heex:27
@@ -1198,6 +1204,7 @@ msgid "Turkey"
 msgstr ""
 
 #: lib/tuist_web/live/ops_accounts_live.html.heex:27
+#: lib/tuist_web/live/ops_database_table_live.html.heex:103
 #, elixir-autogen, elixir-format
 msgid "Type"
 msgstr ""
@@ -1327,27 +1334,496 @@ msgstr ""
 msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:464
+#: lib/tuist_web/components/app_layout_components.ex:471
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:393
+#: lib/tuist_web/components/app_layout_components.ex:394
 #, elixir-autogen, elixir-format
 msgid "Runners"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:423
+#: lib/tuist_web/components/app_layout_components.ex:430
 #, elixir-autogen, elixir-format
 msgid "Webhooks"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:402
+#: lib/tuist_web/components/app_layout_components.ex:403
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:437
+#: lib/tuist_web/live/ops_database_live.html.heex:485
+#, elixir-autogen, elixir-format
+msgid "%{n} row(s) · %{duration}%{trunc}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "%{rows} estimated row(s) · %{size}"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:23
+#, elixir-autogen, elixir-format
+msgid "Activity"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:374
+#, elixir-autogen, elixir-format
+msgid "Archive settings"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:119
+#: lib/tuist_web/live/ops_database_live.html.heex:352
+#, elixir-autogen, elixir-format
+msgid "Archives total"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:311
+#, elixir-autogen, elixir-format
+msgid "Backup"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:33
+#: lib/tuist_web/live/ops_database_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Backups"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:308
+#, elixir-autogen, elixir-format
+msgid "Base backups"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "Capacity"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:29
+#: lib/tuist_web/live/ops_database_table_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "Columns"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:320
+#, elixir-autogen, elixir-format
+msgid "Completed"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Connected as"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Connections"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:468
+#, elixir-autogen, elixir-format
+msgid "Copy as CSV"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:460
+#, elixir-autogen, elixir-format
+msgid "Copy as JSON"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:452
+#, elixir-autogen, elixir-format
+msgid "Copy as Markdown"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.ex:202
+#, elixir-autogen, elixir-format
+msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:513
+#: lib/tuist_web/live/ops_database_live.html.heex:3
+#: lib/tuist_web/live/ops_database_live.html.heex:58
+#, elixir-autogen, elixir-format
+msgid "Database"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Default"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:390
+#, elixir-autogen, elixir-format
+msgid "Description"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:476
+#, elixir-autogen, elixir-format
+msgid "Download CSV"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:188
+#, elixir-autogen, elixir-format
+msgid "Duplicate indexes"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:518
+#, elixir-autogen, elixir-format
+msgid "Empty result"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:181
+#, elixir-autogen, elixir-format
+msgid "Every index has been used at least once."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:448
+#, elixir-autogen, elixir-format
+msgid "Export"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:245
+#, elixir-autogen, elixir-format
+msgid "Granted"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Identity"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:97
+#, elixir-autogen, elixir-format
+msgid "In recovery"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:168
+#, elixir-autogen, elixir-format
+msgid "Index"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:18
+#: lib/tuist_web/live/ops_database_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "Indexes"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Last WAL archive"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:340
+#, elixir-autogen, elixir-format
+msgid "Last archived"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:346
+#, elixir-autogen, elixir-format
+msgid "Last archived WAL"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:358
+#, elixir-autogen, elixir-format
+msgid "Last failed WAL"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:233
+#, elixir-autogen, elixir-format
+msgid "Locks"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:208
+#, elixir-autogen, elixir-format
+msgid "Long-running queries"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:317
+#, elixir-autogen, elixir-format
+msgid "Method"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Mode"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "No CNPG cluster wired to this server (dev, or Postgres still on the external provider). Base backups appear once the server runs against the in-cluster cluster."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "No base backups"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "No duplicates"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:254
+#, elixir-autogen, elixir-format
+msgid "No locks"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "No long queries"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:283
+#, elixir-autogen, elixir-format
+msgid "No replicas attached"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "No rows"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "No rows match the current filter on this page."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:151
+#, elixir-autogen, elixir-format
+msgid "No tables"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:201
+#, elixir-autogen, elixir-format
+msgid "No two indexes cover the same column set."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "No unused indexes"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "Not configured"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:225
+#, elixir-autogen, elixir-format
+msgid "Nothing is currently running for longer than 200ms."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:255
+#, elixir-autogen, elixir-format
+msgid "Nothing is holding a lock right now."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:106
+#, elixir-autogen, elixir-format
+msgid "Nullable"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:211
+#: lib/tuist_web/live/ops_database_live.html.heex:236
+#, elixir-autogen, elixir-format
+msgid "PID"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Phase"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:217
+#: lib/tuist_web/live/ops_database_live.html.heex:248
+#, elixir-autogen, elixir-format
+msgid "Query"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:239
+#, elixir-autogen, elixir-format
+msgid "Relation"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:277
+#, elixir-autogen, elixir-format
+msgid "Replay lag (bytes)"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:265
+#, elixir-autogen, elixir-format
+msgid "Replica"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:262
+#, elixir-autogen, elixir-format
+msgid "Replicas"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Replication"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:24
+#: lib/tuist_web/live/ops_database_table_live.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Rows"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:145
+#, elixir-autogen, elixir-format
+msgid "Rows (est.)"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:425
+#, elixir-autogen, elixir-format
+msgid "Run"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:416
+#, elixir-autogen, elixir-format
+msgid "SELECT / WITH / EXPLAIN / SHOW only. Runs inside a 5s read-only transaction."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "SQL"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:397
+#, elixir-autogen, elixir-format
+msgid "SQL editor"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "Scans"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Schema"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Server"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:381
+#, elixir-autogen, elixir-format
+msgid "Setting"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:285
+#, elixir-autogen, elixir-format
+msgid "Single-instance cluster, or replicas have not connected. The Supabase→CNPG migration's zero-lag soak window relies on this view."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:83
+#: lib/tuist_web/live/ops_database_live.html.heex:142
+#: lib/tuist_web/live/ops_database_live.html.heex:171
+#: lib/tuist_web/live/ops_database_live.html.heex:191
+#, elixir-autogen, elixir-format
+msgid "Size"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.html.heex:49
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "State"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:364
+#, elixir-autogen, elixir-format
+msgid "Stats reset"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:271
+#, elixir-autogen, elixir-format
+msgid "Sync state"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "Table"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_table_live.ex:63
+#, elixir-autogen, elixir-format
+msgid "Table not found."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:13
+#: lib/tuist_web/live/ops_database_live.html.heex:131
+#: lib/tuist_web/live/ops_database_table_live.html.heex:7
+#, elixir-autogen, elixir-format
+msgid "Tables"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.ex:207
+#, elixir-autogen, elixir-format
+msgid "The cluster has not produced any base backups yet."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "The database is empty."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:519
+#, elixir-autogen, elixir-format
+msgid "The query returned no rows."
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "Unused indexes"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:93
+#, elixir-autogen, elixir-format
+msgid "Uptime"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:384
+#, elixir-autogen, elixir-format
+msgid "Value"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Version"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:337
+#, elixir-autogen, elixir-format
+msgid "WAL archive"
+msgstr ""
+
+#: lib/tuist_web/live/ops_database_live.html.heex:274
+#, elixir-autogen, elixir-format
+msgid "Write lag (bytes)"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:444
 #, elixir-autogen, elixir-format
 msgid "Usage"
 msgstr ""

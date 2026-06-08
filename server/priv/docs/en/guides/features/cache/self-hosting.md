@@ -1,22 +1,23 @@
 ---
 {
-  "title": "Kura",
-  "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Deploy Kura and connect it to a self-hosted Tuist server."
+  "title": "Self-hosted cache",
+  "titleTemplate": ":title | Cache | Guides | Tuist",
+  "description": "Deploy self-hosted cache nodes and connect them to Tuist."
 }
 ---
 
-# Kura {#kura}
+# Self-hosted cache {#self-hosted-cache}
 
-Kura is Tuist's decentralized cache mesh for build artifacts and cache metadata. It lets you place cache nodes close to the machines that produce and consume build outputs, whether those machines run in CI, developer offices, remote workstations, or regional compute clusters.
+Self-hosted cache nodes let you keep build artifacts and cache metadata close to the machines that produce and consume build outputs. Use them when cache latency matters across CI, developer offices, remote workstations, or regional compute clusters, while keeping endpoint discovery centralized through Tuist.
 
-The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each Kura node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
+The goal is low-latency caching everywhere, not only in the one environment where a central cache happens to be nearby. Each cache node serves reads and writes from local disk, while the mesh replicates artifacts and metadata between peers so other locations can benefit from the same cache over time.
 
-## How Kura fits with Tuist {#how-kura-fits-with-tuist}
+> [!NOTE]
+> Tuist's self-hosted cache nodes are powered by [Kura](https://github.com/tuist/tuist/tree/main/kura), Tuist's decentralized cache mesh. Kura is the data plane for cache nodes: it serves cache reads and writes, stores local state on disk, and replicates artifacts and metadata to peer nodes.
 
-The Tuist server tells clients which Kura endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
+## How self-hosted cache fits with Tuist {#how-self-hosted-cache-fits-with-tuist}
 
-Kura is the data plane. It serves cache reads and writes, stores local state on disk, and replicates artifacts and metadata to peer nodes.
+The Tuist server tells clients which cache endpoints to use. This keeps endpoint discovery centralized while allowing the cache itself to stay decentralized and close to the compute that needs it.
 
 ## Deploy on Kubernetes {#deploy-on-kubernetes}
 
@@ -73,6 +74,48 @@ Then configure the Tuist server with the URLs that clients can reach:
 ```bash
 TUIST_KURA_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
+
+## Build a cache mesh {#build-a-cache-mesh}
+
+A cache mesh lets you place cache capacity next to the compute that needs it. A company might run one node near its main CI runners, another close to developers in Europe, and another near a US office or regional build cluster. Each location reads and writes against the closest node, while Kura replicates artifacts and metadata in the background so later builds in other locations can reuse the same outputs.
+
+The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, bootstrap newly joined nodes, and replicate artifacts after local writes are accepted.
+
+We strongly recommend securing the peer plane with [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
+
+For example, this generates a private CA and one peer certificate that can be mounted by every node in a small mesh. Replace the DNS names with the internal names your nodes use in `KURA_NODE_URL` and `KURA_PEERS`.
+
+```bash
+mkdir -p kura-peer-tls
+cd kura-peer-tls
+
+openssl ecparam -genkey -name prime256v1 -noout -out ca.key
+openssl req -x509 -new -key ca.key -sha256 -days 3650 \
+  -subj "/CN=kura-peer-ca" \
+  -out ca.pem
+
+openssl ecparam -genkey -name prime256v1 -noout -out tls.key
+openssl req -new -key tls.key \
+  -subj "/CN=kura-peer" \
+  -out peer.csr
+
+cat > peer.ext <<'EOF'
+subjectAltName = DNS:kura-0.kura-headless.kura.svc.cluster.local,DNS:kura-1.kura-headless.kura.svc.cluster.local,DNS:kura-2.kura-headless.kura.svc.cluster.local,DNS:kura-1.internal,DNS:kura-2.internal
+extendedKeyUsage = serverAuth,clientAuth
+keyUsage = digitalSignature,keyEncipherment
+EOF
+
+openssl x509 -req -in peer.csr \
+  -CA ca.pem \
+  -CAkey ca.key \
+  -CAcreateserial \
+  -out tls.crt \
+  -days 730 \
+  -sha256 \
+  -extfile peer.ext
+```
+
+Use network-level restrictions in addition to mTLS. In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery, then allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, give each node a stable DNS name or IP address, seed the mesh with the internal URLs of the other nodes, and use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
 
 ## Configuration {#configuration}
 

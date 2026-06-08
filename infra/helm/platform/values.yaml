@@ -110,6 +110,26 @@ metrics-server:
       cpu: 200m
       memory: 200Mi
 
+# CloudNativePG — operator that owns the postgresql.cnpg.io/v1 Cluster +
+# Backup + ScheduledBackup CRs the Tuist chart renders. Installed
+# cluster-wide on every workload cluster so the next `helm upgrade
+# tuist` can declare a Cluster without an out-of-band step.
+#
+# Self-hosters running the Tuist chart with `postgresql.mode: embedded`
+# (the default) or `postgresql.mode: external` don't need this — flip
+# it off in the same overlay that flips the Tuist chart's
+# `postgresql.mode` off the cnpg path.
+cloudnative-pg:
+  enabled: true
+  # PodMonitor stays off: managed clusters run Grafana Alloy via
+  # k8s-monitoring with annotation autodiscovery
+  # (prometheus.io/scrape + prometheus.io/port), not prometheus-operator,
+  # so the `monitoring.coreos.com/v1` PodMonitor CRD isn't installed.
+  # Enabling this would crash `helm upgrade platform` with
+  # "no matches for kind PodMonitor".
+  monitoring:
+    podMonitorEnabled: false
+
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
 clusterIssuer:

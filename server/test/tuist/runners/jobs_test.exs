@@ -1,5 +1,5 @@
 defmodule Tuist.Runners.JobsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
@@ -10,7 +10,7 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.Telemetry
 
   defp enqueue_fixture(account, workflow_job_id, opts \\ []) do
-    Jobs.enqueue(%{
+    attrs = %{
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
@@ -20,8 +20,19 @@ defmodule Tuist.Runners.JobsTest do
       workflow_name: Keyword.get(opts, :workflow_name, ""),
       job_name: Keyword.get(opts, :job_name, "build"),
       head_branch: Keyword.get(opts, :head_branch, "main"),
-      head_sha: Keyword.get(opts, :head_sha, "deadbeef")
-    })
+      head_sha: Keyword.get(opts, :head_sha, "deadbeef"),
+      requested_dispatch_label: Keyword.get(opts, :requested_dispatch_label, "")
+    }
+
+    # Only set :enqueued_at when a test pins it — otherwise let
+    # `Jobs.enqueue/1` stamp `now()` via its `put_new`.
+    attrs =
+      case Keyword.get(opts, :enqueued_at) do
+        %DateTime{} = ts -> Map.put(attrs, :enqueued_at, ts)
+        nil -> attrs
+      end
+
+    Jobs.enqueue(attrs)
   end
 
   describe "enqueue/1" do
@@ -40,6 +51,50 @@ defmodule Tuist.Runners.JobsTest do
 
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
+    end
+  end
+
+  describe "last_used_at_by_dispatch_label/1" do
+    test "returns the latest enqueued_at per requested_dispatch_label" do
+      account = account_fixture()
+      older = ~U[2026-05-01 10:00:00.000000Z]
+      newer = ~U[2026-05-20 10:00:00.000000Z]
+
+      # Two jobs share a label so `max(enqueued_at)` must win.
+      :ok = enqueue_fixture(account, 70_001, requested_dispatch_label: "tuist-default", enqueued_at: older)
+      :ok = enqueue_fixture(account, 70_002, requested_dispatch_label: "tuist-default", enqueued_at: newer)
+      :ok = enqueue_fixture(account, 70_003, requested_dispatch_label: "tuist-gpu", enqueued_at: older)
+
+      result = Jobs.last_used_at_by_dispatch_label(account.id)
+
+      assert map_size(result) == 2
+      assert DateTime.compare(result["tuist-default"], newer) == :eq
+      assert DateTime.compare(result["tuist-gpu"], older) == :eq
+    end
+
+    test "omits jobs with an empty requested_dispatch_label (legacy rows)" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 70_101, requested_dispatch_label: "tuist-default")
+      :ok = enqueue_fixture(account, 70_102)
+
+      assert Map.keys(Jobs.last_used_at_by_dispatch_label(account.id)) == ["tuist-default"]
+    end
+
+    test "scopes results to the given account" do
+      account = account_fixture()
+      other = account_fixture()
+
+      :ok = enqueue_fixture(account, 70_201, requested_dispatch_label: "tuist-default")
+      :ok = enqueue_fixture(other, 70_202, requested_dispatch_label: "tuist-other")
+
+      assert Map.keys(Jobs.last_used_at_by_dispatch_label(account.id)) == ["tuist-default"]
+    end
+
+    test "returns an empty map for an account with no labelled jobs" do
+      account = account_fixture()
+
+      assert Jobs.last_used_at_by_dispatch_label(account.id) == %{}
     end
   end
 
@@ -474,6 +529,43 @@ defmodule Tuist.Runners.JobsTest do
     test "returns :not_found when the workflow_job_id doesn't exist" do
       account = account_fixture()
       assert {:error, :not_found} = Jobs.get_for_account(account.id, 99_999_999)
+    end
+  end
+
+  describe "set_log_archived_at/2" do
+    test "stamps the archive timestamp while preserving the job's lifecycle state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7350, fleet: "fleet-archive")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7350, "runner-x")
+      {:ok, _} = Jobs.complete(7350, "success")
+
+      archived_at = ~U[2026-06-04 15:00:00.000000Z]
+      :ok = Jobs.set_log_archived_at(7350, archived_at)
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7350)
+      assert job.log_archived_at == archived_at
+      assert job.status == "completed"
+      assert job.conclusion == "success"
+    end
+
+    test "clears the timestamp when called with nil (post-prune)" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7351, fleet: "fleet-archive2")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive2", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7351, "runner-x")
+      {:ok, _} = Jobs.complete(7351, "success")
+      :ok = Jobs.set_log_archived_at(7351, ~U[2026-03-04 15:00:00.000000Z])
+
+      :ok = Jobs.set_log_archived_at(7351, nil)
+
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7351)
+    end
+
+    test "is a no-op when the job row doesn't exist yet" do
+      assert :ok = Jobs.set_log_archived_at(7_399_998, DateTime.utc_now())
     end
   end
 

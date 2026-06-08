@@ -9,6 +9,12 @@
 > [!NOTE]
 > `Kura` comes from the Japanese word `蔵` (`kura`), which refers to a storehouse or warehouse. The name fits the system's role: keeping build artifacts and cache metadata stored durably and close at hand so they can be served with low latency.
 
+## License and Contributing
+
+Kura is licensed under the GNU Affero General Public License, version 3 only. See [LICENSE.md](./LICENSE.md) for the full license text.
+
+Contributions to Kura require signing the Kura Contributor License Agreement (CLA). Please see [CLA.md](./CLA.md) before submitting pull requests that modify Kura components.
+
 ## Summary ✨
 
 - ⚡ Hot reads come from local disk
@@ -93,7 +99,7 @@ Kura is easier to read by subsystem than by tutorial step. The sections below gr
 
 ## 🔌 Protocol Surfaces
 
-Kura exposes multiple cache protocols behind one service. The actively supported surfaces are:
+Kura exposes multiple cache protocols behind one service. Public HTTPS supports HTTP/2 so clients can multiplex concurrent artifact downloads on long-lived connections. The actively supported surfaces are:
 
 - 🛠️ `Bazel` and `Buck2`: REAPI over gRPC on `KURA_GRPC_PORT`
 - 🍎 `Xcode Cache`: `POST/GET /api/cache/cas/{id}?tenant_id=...&namespace_id=...`
@@ -282,7 +288,7 @@ KURA_OTEL_DEPLOYMENT_ENVIRONMENT=production \
 ./target/release/kura
 ```
 
-Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. In Helm deployments, inject it via `extraEnv` or `extraEnvFrom`.
+Set `KURA_SENTRY_DSN` to also forward panics and `tracing::error!` events to Sentry. Kura uses `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` as the Sentry environment, so set it to values such as `production`, `staging`, or `canary` when separating events by deployment. In the standalone Helm chart, inject the DSN via `extraEnv` or `extraEnvFrom`. In controller-managed Tuist deployments, set `kuraController.telemetry.deploymentEnvironment` and sync the DSN into `kura-shared-secrets` with `kuraController.sentry.externalSecret`.
 `KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` accepts either an OTLP HTTP signal path such as `http://otel-collector:4318/v1/traces` or an OTLP gRPC root endpoint such as `http://otel-collector:4317`.
 
 ## 📊 Observability
@@ -310,16 +316,18 @@ Kura also exports:
 - 💾 file descriptor pool pressure metrics
 - 🧠 manifest cache occupancy and admission metrics
 
+HTTP request counters keep bounded `route` and `status` labels by using Axum route templates such as `/api/cache/cas/{id}` and folding unmatched paths into `/_unmatched`. Request methods stay on OpenTelemetry spans instead of Prometheus labels, and client country counts live on the separate `kura_http_client_requests_total` counter. The `kura_http_request_duration_seconds` histogram intentionally has no `route` label and records only public non-probe requests. Keeping route-level latency in Prometheus would multiply every route by every histogram bucket, so route-specific latency belongs in sampled traces instead.
+
 ### GeoIP enrichment
 
 The Kura container image vendors a [DB-IP IP-to-City Lite](https://db-ip.com/db/download/ip-to-city-lite) MMDB at `/opt/geoip/dbip-city-lite.mmdb`, so client geographic attribution is on by default. Location is resolved from the first hop in `X-Forwarded-For` (or `X-Real-IP`) at two granularities:
 
-- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
+- country (ISO 3166-1): the `client_country` Prometheus label on `kura_http_client_requests_total` and the `geo.country.iso_code` OTel span attribute on `http.request` spans
 - subdivision (ISO 3166-2, e.g. `US-CA`): the `geo.region.iso_code` OTel span attribute on `http.request` spans
 
 Span and Resource attributes follow the OpenTelemetry [`geo.*` semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/geo/) so standard Grafana/Tempo tooling understands them out of the box. The Prometheus label stays `client_country` (short and Prometheus-idiomatic; semantic conventions cover spans/logs/resource, not metric label names).
 
-Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × method × status would inflate the active series on the busiest counter. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on metrics because it is bounded (~250 codes).
+Subdivision is intentionally **not** a Prometheus label. ISO 3166-2 has thousands of codes, and multiplying it across route × status would inflate active series. It lives on sampled traces only, which is enough to compute geographic distance per request. Country stays on a dedicated low-cardinality metric because it is bounded (~250 codes).
 
 Lookups that miss (no header, private IP, or DB missing) fall back to `client_country="unknown"` and an unset `geo.region.iso_code`. If the vendored database is absent (custom image builds), Kura logs a startup warning and quietly runs without geographic attribution.
 
@@ -398,6 +406,7 @@ The repository includes a Helm chart at `ops/helm/kura` that deploys Kura as a `
 - 🧭 a headless service for stable pod DNS and peer discovery
 - 🌐 a regular service exposing both HTTP and gRPC
 - 🚪 optional ingress for the HTTP API
+- 🚪 optional ingress for the gRPC Remote Execution API
 - 🧩 optional inline extension script mounting through a `ConfigMap`
 - 🔐 optional peer mTLS for `/_internal/*` traffic via a mounted Kubernetes `Secret`
 - 🚦 `/ready` for public readiness and `/up` for liveness, with a `preStop` `SIGUSR1` drain hook that removes pods from traffic before `SIGTERM`
@@ -408,6 +417,21 @@ Lint and render the chart:
 ```bash
 helm lint ops/helm/kura
 helm template kura ops/helm/kura --namespace kura
+```
+
+Enable `grpcIngress` when the Bazel Remote Execution API should be reachable outside the cluster. It renders a separate ingress that routes to the service's `grpc` port so you can attach controller-specific gRPC annotations without changing the HTTP API ingress:
+
+```yaml
+grpcIngress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+  hosts:
+    - host: kura-grpc.example.com
+      paths:
+        - path: /
+          pathType: Prefix
 ```
 
 Install it on a generic cluster:

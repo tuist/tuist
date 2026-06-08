@@ -76,7 +76,8 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
         cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
         custom_tags: Keyword.get(attrs, :custom_tags, []),
-        custom_values: Keyword.get(attrs, :custom_values, %{})
+        custom_values: Keyword.get(attrs, :custom_values, %{}),
+        generation_id: Keyword.get(attrs, :generation_id)
       })
 
     Tuist.Builds.Build.Buffer.flush()

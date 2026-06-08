@@ -17,7 +17,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
+    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
   ]
 
   @hosted_only_crons [
@@ -25,9 +26,14 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
     {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
+    {"30 2 * * *", Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker},
+    {"0 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeCacheArtifactsWorker},
+    {"15 3 * * *", Tuist.Storage.Workers.DeleteExpiredXcodeModuleCacheArtifactsWorker},
+    {"30 3 * * *", Tuist.Storage.Workers.DeleteExpiredGradleCacheArtifactsWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
+    {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker}
   ]
 

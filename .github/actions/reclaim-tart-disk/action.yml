@@ -1,0 +1,62 @@
+name: Reclaim Tart disk
+description: |
+  Free disk on a vm-image-builder host before an image bake.
+  Always drops every locally-cloned VM (working copies are
+  throwaway across runs), then LRU-prunes the OCI base-image
+  cache only when free disk falls below `free-floor-gb`.
+
+  The cached OCI bases (`ghcr.io/tuist/macos-tahoe-xcode:<dashes>`
+  and friends, ~80 GB each on the 512 GB M2-L) survive across
+  runs whenever there's headroom. `tart prune --older-than` is
+  access-time based, so sibling matrix legs (e.g. xcode 26.5
+  next to 26.4.1 in `release.yml`'s `runner-image-build`) and
+  back-to-back releases hit a warm cache and skip a ~10 min
+  pull per Xcode.
+
+inputs:
+  free-floor-gb:
+    description: |
+      Free-disk threshold (in GB) below which the OCI cache gets
+      pruned. Sized for one base clone (~80 GB) plus a working
+      VM (~80 GB) plus headroom for two-to-three additional
+      cached bases (matrix siblings, sibling image-bake
+      workflows on the same host). The default 300 GB is the
+      comfortable floor on the 512 GB M2-L; below it we start
+      LRU-evicting cold bases to make room for the upcoming
+      clone.
+    required: false
+    default: "300"
+
+runs:
+  using: composite
+  steps:
+    - name: Reclaim Tart disk
+      shell: bash
+      env:
+        FREE_FLOOR_GB: ${{ inputs.free-floor-gb }}
+      run: |
+        set -uo pipefail
+        tart list || true
+        df -h /
+        # Stop+delete local clones (working copies — never reused
+        # across runs; the in-progress bake's VM is its own one
+        # and the cleanup step deletes it).
+        tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
+          tart stop "$vm" 2>/dev/null || true
+          tart delete "$vm" 2>/dev/null || true
+        done
+        FREE_GB=$(df -g / | awk 'NR==2 { print $4 }')
+        echo "free disk after local VM cleanup: ${FREE_GB}G (floor: ${FREE_FLOOR_GB}G)"
+        if [ "$FREE_GB" -lt "$FREE_FLOOR_GB" ]; then
+          echo "below floor; pruning OCI caches older than 1 day"
+          tart prune --entries caches --older-than 1
+          FREE_GB=$(df -g / | awk 'NR==2 { print $4 }')
+          echo "free disk after stale-cache prune: ${FREE_GB}G"
+          if [ "$FREE_GB" -lt "$FREE_FLOOR_GB" ]; then
+            echo "still below floor; clearing OCI cache entirely"
+            tart prune --entries caches --older-than 0
+          fi
+        else
+          echo "above floor; keeping OCI cache warm"
+        fi
+        df -h /

@@ -40,6 +40,7 @@ type AppleSiliconAPI interface {
 	ListServers(req *applesilicon.ListServersRequest, opts ...scw.RequestOption) (*applesilicon.ListServersResponse, error)
 	UpdateServer(req *applesilicon.UpdateServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 	ReinstallServer(req *applesilicon.ReinstallServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
+	RebootServer(req *applesilicon.RebootServerRequest, opts ...scw.RequestOption) (*applesilicon.Server, error)
 }
 
 // Client talks to Scaleway's Apple Silicon + IAM APIs. Construct with
@@ -59,8 +60,14 @@ type Client struct {
 	// org-wide list and Scaleway returns "insufficient permissions".
 	DefaultProjectID string
 
-	// adoptMu serializes AdoptFromPool across all goroutines in this
-	// process. Scaleway's UpdateServer is not conditional — two
+	// adoptMu serializes AdoptFromPool and ReleaseToPool against each
+	// other across all goroutines in this process. ReleaseToPool renames
+	// a host into the pool prefix and only then requests the reinstall,
+	// so between those two calls the host carries the pool prefix and is
+	// still Status==ready; without holding this lock a concurrent
+	// adoption scan could claim it in that window and then the reinstall
+	// would wipe the freshly-claimed host. Scaleway's UpdateServer is not
+	// conditional — two
 	// concurrent rename calls against the same server both succeed,
 	// last-write-wins — so per-call optimistic read-after-write
 	// verification can't establish a "we own this server" invariant.
@@ -178,8 +185,11 @@ func normalizePubKey(pub string) string {
 
 // Server is the subset of fields the CAPI controller cares about.
 type Server struct {
-	ID           string
-	IP           string
+	ID   string
+	Name string
+	IP   string
+	// Status is the Scaleway lifecycle phase (`ready`, `reinstalling`,
+	// `rebooting`, …) as a raw string.
 	Status       string
 	SudoPassword string
 	SSHUsername  string
@@ -212,6 +222,49 @@ func (c *Client) findServerByName(ctx context.Context, name, zone string) (*appl
 		}
 		page++
 	}
+}
+
+// ListServers returns every Apple Silicon server the configured
+// credentials can see in `zone`, reduced to the Server view. The
+// Scaleway API has no server-side name filter, so it paginates the
+// full list and the caller filters client-side — the project holds at
+// most a few dozen hosts, so a full scan is cheap. Used by the
+// orphan-reclaim sweep to diff live hosts against the CRs that own
+// them.
+func (c *Client) ListServers(ctx context.Context, zone string) ([]Server, error) {
+	var out []Server
+	page := int32(1)
+	pageSize := uint32(100)
+	for {
+		resp, err := c.API.ListServers(&applesilicon.ListServersRequest{
+			Zone:     scw.Zone(zone),
+			Page:     &page,
+			PageSize: &pageSize,
+		}, scw.WithContext(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("list servers in %s: %w", zone, err)
+		}
+		for _, s := range resp.Servers {
+			out = append(out, *scalewayServerToServer(s))
+		}
+		if len(resp.Servers) < int(pageSize) {
+			return out, nil
+		}
+		page++
+	}
+}
+
+// IsPoolOrAdopting reports whether a Scaleway server name marks a host
+// that is parked in the adopt pool (carries poolPrefix) or mid-adoption
+// (carries the internal claim-pending marker). Either is
+// controller-managed and must never be treated as stranded by the
+// orphan-reclaim sweep — the claim-pending case especially, since that
+// host is in the middle of being adopted by a live reconcile.
+func IsPoolOrAdopting(name, poolPrefix string) bool {
+	if poolPrefix != "" && strings.HasPrefix(name, poolPrefix) {
+		return true
+	}
+	return strings.HasPrefix(name, claimPendingPrefix)
 }
 
 // ErrNoAvailableHost is returned by AdoptFromPool when no
@@ -417,6 +470,33 @@ func (c *Client) GetServer(ctx context.Context, id, zone string) (*Server, error
 	return scalewayServerToServer(srv), nil
 }
 
+// RebootServer asks Scaleway to reboot the host. Fire-and-forget on
+// the wire; the server transitions through `rebooting → ready` on its
+// own (~1-2 min). Used as a cheap volatile-state clear before
+// considering a host irrecoverable — clears in-memory PAM lockouts,
+// sshd connection throttling, and other state that survives across
+// failed SSH attempts but not across a clean boot.
+func (c *Client) RebootServer(ctx context.Context, id, zone string) error {
+	_, err := c.API.RebootServer(&applesilicon.RebootServerRequest{
+		ServerID: id,
+		Zone:     scw.Zone(zone),
+	}, scw.WithContext(ctx))
+	if err != nil {
+		if IsNotFound(err) {
+			return nil
+		}
+		// A reboot issued while the server is already mid-reboot/install
+		// is harmless from our perspective; treat the typed transient
+		// state error as success so callers aren't pushed into
+		// secondary recovery for a no-op.
+		if isTransientState(err) {
+			return nil
+		}
+		return fmt.Errorf("reboot server %s: %w", id, err)
+	}
+	return nil
+}
+
 // ReleaseToPool returns a Mac mini to the adopt pool. Operator-
 // driven physical destruction is intentionally separated from
 // cluster-driven Machine churn: the 24h Apple-licensing floor makes
@@ -457,6 +537,13 @@ func (c *Client) ReleaseToPool(ctx context.Context, id, zone, poolPrefix string)
 	if poolPrefix == "" {
 		return fmt.Errorf("ReleaseToPool: poolPrefix is required")
 	}
+
+	// Hold the adoption lock across the rename + reinstall request so an
+	// AdoptFromPool scan can't claim the host in the window where it
+	// already carries the pool prefix but the wipe hasn't been requested
+	// yet. See the adoptMu field comment.
+	c.adoptMu.Lock()
+	defer c.adoptMu.Unlock()
 
 	newName := poolPrefix + uuid.NewString()
 	if _, err := c.API.UpdateServer(&applesilicon.UpdateServerRequest{
@@ -519,9 +606,17 @@ func IsNotFound(err error) bool {
 	return false
 }
 
+// SealedSecretMarker is the literal placeholder macOS Tahoe writes when
+// the OS-managed auto-login credential is sealed (e.g., immediately
+// after a fresh adopt or while the server is rebooting). Scaleway
+// surfaces it verbatim through both `sudo_password` and `vnc_url` while
+// the seal is in effect — the string is not a usable password.
+const SealedSecretMarker = "<sealed>"
+
 func scalewayServerToServer(s *applesilicon.Server) *Server {
 	out := &Server{
 		ID:           s.ID,
+		Name:         s.Name,
 		Status:       string(s.Status),
 		SudoPassword: s.SudoPassword,
 		SSHUsername:  s.SSHUsername,
@@ -529,21 +624,23 @@ func scalewayServerToServer(s *applesilicon.Server) *Server {
 	if s.IP != nil {
 		out.IP = s.IP.String()
 	}
-	// Scaleway never surfaces `sudo_password` on GET/list responses
-	// for pool-adopted hosts (the field is only populated on the
-	// one-time CreateServer response, and the pool workflow never
-	// hits that path). Without a fallback the controller stages an
-	// empty password into the bootstrap Secret and `enableAutoLogin`
-	// either silently skips (writing nothing) or writes a kcpassword
-	// whose plaintext is just the cipher key padding — either way
-	// Aqua never comes up and `tart run` fails forever.
-	//
-	// The `vnc_url` field embeds the same OS-default credentials as
-	// `vnc://<ssh_username>:<password>@<ip>:<port>`. It's surfaced on
-	// every GET and verified out-of-band to authenticate the m1
-	// macOS user; pull the password from there.
-	if out.SudoPassword == "" {
+	// Scaleway either populates `sudo_password` directly (one-time
+	// CreateServer response, or transient post-adopt windows) or
+	// returns the literal `<sealed>` marker while the OS-level seal is
+	// in effect. The `vnc_url` field carries the same OS-default
+	// credentials as `vnc://<ssh_username>:<password>@<ip>:<port>` and
+	// is surfaced on every GET — pull the password from there when the
+	// top-level field isn't directly usable.
+	if out.SudoPassword == "" || out.SudoPassword == SealedSecretMarker {
 		out.SudoPassword = passwordFromVncURL(s.VncURL)
+	}
+	// `vnc_url` itself can carry the sealed marker either as the whole
+	// string (URL parsing returns no userinfo → empty above) or as the
+	// embedded password component (URL parsing succeeds → marker comes
+	// through verbatim). Reject the marker so downstream code never
+	// hands `<sealed>` to sudo.
+	if out.SudoPassword == SealedSecretMarker {
+		out.SudoPassword = ""
 	}
 	return out
 }

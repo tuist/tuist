@@ -8,13 +8,6 @@ global:
     tuist.dev/service: kura
     tuist.dev/stack: managed
 
-# Regional Kura clusters expose their per-region public and gRPC
-# endpoints through Hetzner LoadBalancer Services. Keep Cloudflare load
-# balancing disabled until the pool quota is raised and the global
-# endpoint design is revisited.
-kuraGlobalEndpointsEnabled: false
-kuraGlobalEndpointsRequired: false
-
 kuraController:
   enabled: true
   namespace: kura
@@ -33,13 +26,12 @@ kuraController:
   # mgmt-cluster pipeline).
   tlsClusterIssuer: "letsencrypt-cloudflare"
   telemetry:
+    deploymentEnvironment: production
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
-  cloudflareLoadBalancing:
-    enabled: false
-    zoneName: tuist.dev
-    apiTokenSecret:
-      managed: true
-      item: cloudflare-tuist-dns
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     # In managed regions, kura-shared-secrets is populated from the
     # same 1Password vault as the Tuist server release.

@@ -72,7 +72,7 @@ defmodule TuistWeb.UsageLive do
      |> assign(:analytics_selected_widget, selected_widget)
      |> assign(:analytics_trend_label, trend_label(preset))
      |> assign_async(
-       [:totals, :egress_series, :ingress_series, :requests_series, :per_node],
+       [:totals, :egress_series, :ingress_series, :requests_series, :per_region],
        fn ->
          {:ok,
           %{
@@ -80,7 +80,7 @@ defmodule TuistWeb.UsageLive do
             egress_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, egress_opts),
             ingress_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, ingress_opts),
             requests_series: Usage.traffic_time_series_by_region(account.id, start_dt, end_dt, requests_opts),
-            per_node: Usage.per_node(account.id, start_dt, end_dt, base_opts)
+            per_region: Usage.per_region(account.id, start_dt, end_dt, base_opts)
           }}
        end
      )}

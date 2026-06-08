@@ -8,6 +8,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
+  alias Tuist.Projects
+  alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
 
   require Logger
@@ -30,6 +32,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   defp evaluate_and_execute(alert) do
     %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert)
 
+    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
+
     if alert.baseline_established_at == nil do
       establish_baseline(alert, triggered_ids)
     else
@@ -37,6 +41,27 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
 
     :ok
+  end
+
+  # A test case that has never had a successful, non-flaky run on the project's
+  # default branch has not been validated on the trusted branch yet. Examples:
+  # a brand-new test still living on its pull-request branch, or a test that
+  # merged broken and only ever fails on the default branch. Auto-quarantining
+  # such a test would silence it before it was ever proven, so we drop it from
+  # the triggered set. It re-enters evaluation naturally once it lands and
+  # accrues a passing default-branch run. The check is all-time (not the
+  # trigger window) so an established test that passed long ago stays eligible.
+  #
+  # Recovery is intentionally not filtered: unmuting is always safe.
+  defp reject_unvalidated_test_cases(_alert, []), do: []
+
+  defp reject_unvalidated_test_cases(alert, triggered_ids) do
+    %{default_branch: default_branch} = Projects.get_project_by_id(alert.project_id)
+
+    validated =
+      MapSet.new(Tests.test_case_ids_with_successful_default_branch_run(alert.project_id, triggered_ids, default_branch))
+
+    Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
   end
 
   # First evaluation after the alert was created: every test case currently
