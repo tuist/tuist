@@ -43,6 +43,30 @@ Each file ends with a sanity-check `SELECT … information_schema.role_table_gra
 
 Same three reasons as the old [`infra/supabase/`](../supabase/) directory — `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the future operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
 
+## Connection pooler (PgBouncer)
+
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It is a **transaction-mode pooler for the processor only**, so the processor's `prepare: :unnamed` connection shape stays constant across the Supabase→CNPG cutover (it matches the processor's Supabase Supavisor `:6543` path).
+
+### Why the web tier is not pooled here, and how that differs from Supabase
+
+The web pods run Oban, whose PG notifier (LISTEN/NOTIFY) and Postgres-peer leader election (session advisory locks) do not survive **transaction** pooling. They do survive **session** pooling — so the constraint is specifically transaction mode, not pooling in general.
+
+On Supabase the web tier does go through a pooler: Supavisor in **session** mode (`*.pooler.supabase.com:5432`, `prepare: :named`). We deliberately differ in-cluster. That session pooler exists for Supabase-platform reasons — the direct Postgres endpoint is IPv4-inaccessible and Supabase wants a managed connection front door — neither of which applies here. CNPG's `-rw` Service is already the native session endpoint, with primary failover built in, so the web tier connects straight to it. Both are session-mode connections, so the application's connection shape is identical; we simply skip a PgBouncer hop that would add no budget headroom (session pooling holds ~one backend per client connection) and would duplicate what `-rw` already does.
+
+The web tier's connection budget is therefore sized at the cluster via `max_connections` (see [`MIGRATION.md`](./MIGRATION.md) → "Connection budget"), not by a pooler.
+
+### Activation
+
+No manual SQL bootstrap is needed. The chart's `Pooler` does not set custom certificate secrets, so CNPG's built-in PgBouncer integration manages authentication itself: on reconcile it creates the `cnpg_pooler_pgbouncer` role and the `user_search` lookup function in the **`postgres`** database, issues the pooler's TLS certificate, and configures PgBouncer with `auth_user = cnpg_pooler_pgbouncer` and `auth_dbname = postgres`. (Providing custom cert secrets would *disable* that built-in integration and hand you full responsibility for auth — so don't.)
+
+To activate:
+
+1. Set `postgresql.cnpg.pooler.enabled: true` in the env values and deploy.
+2. CNPG creates the `<cluster>-pooler-rw` Deployment + Service. Wait for the pooler pods to be Ready.
+3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
+
+There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
+
 ## Password rotation
 
 ```bash

@@ -11,7 +11,7 @@ use tokio::{
 
 use crate::io::PersistentFile;
 
-const READ_CHUNK_BYTES: usize = 256 * 1024;
+const READ_CHUNK_BYTES: usize = 512 * 1024;
 
 pub struct SegmentReader {
     handle: Arc<PersistentFile>,

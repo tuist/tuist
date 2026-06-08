@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in kura@0.7.0<!-- RELEASE NOTES START -->
+## What's Changed in kura@0.7.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* optimize artifact response streaming ([#11124](https://github.com/tuist/tuist/pull/11124))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.2
+
+## What's Changed in kura@0.7.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -9,13 +19,14 @@ All notable changes to this project will be documented in this file.
 * accept HTTP/2 and serve hot artifacts via mmap ([#11086](https://github.com/tuist/tuist/pull/11086))
 ### 🐛 Bug Fixes
 
+* flush REAPI ByteStream uploads before persisting ([#11129](https://github.com/tuist/tuist/pull/11129))
 * return JSON for cache miss responses ([#11070](https://github.com/tuist/tuist/pull/11070))
 * improve extension routing and observability ([#11066](https://github.com/tuist/tuist/pull/11066))
 * meter public cache traffic usage ([#11058](https://github.com/tuist/tuist/pull/11058))
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.6.0...kura@0.7.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.6.0...kura@0.7.1
 
 ## What's Changed in kura@0.6.0<!-- RELEASE NOTES START -->
 

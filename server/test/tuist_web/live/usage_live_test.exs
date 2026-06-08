@@ -117,7 +117,7 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "No cache traffic in this window yet"
     end
 
-    test "renders the per-node table when events exist", %{conn: conn, account: account} do
+    test "renders the per-region table when events exist", %{conn: conn, account: account} do
       ProjectsFixtures.project_fixture(account: account, name: "ios")
 
       insert_event(%{
@@ -132,7 +132,9 @@ defmodule TuistWeb.UsageLiveTest do
 
       html = render_async(lv, @render_async_timeout)
 
-      assert html =~ "kura-test-node"
+      assert html =~ "Traffic by region"
+      assert html =~ "us-east-1"
+      refute html =~ "kura-test-node"
       # 1 MB rendered through ByteFormatter
       assert html =~ "MB"
     end

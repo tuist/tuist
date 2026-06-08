@@ -1,6 +1,39 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runner-image@0.3.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* tailnet-expose CNPG pooler for xcresult-processor ([#11134](https://github.com/tuist/tuist/pull/11134))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.0...runner-image@0.3.1
+
+## What's Changed in runner-image@0.3.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* runner job steps + log capture (live tail, per-step) ([#10985](https://github.com/tuist/tuist/pull/10985))
+### 🐛 Bug Fixes
+
+* pin runners-controller to 0.11.0 to deploy the runner _diag env var ([#11118](https://github.com/tuist/tuist/pull/11118))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.2.1...runner-image@0.3.0
+
+## What's Changed in runner-image@0.2.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* roll runners-controller back to 0.7.0 to restore CI docker ([#11102](https://github.com/tuist/tuist/pull/11102))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.2.0...runner-image@0.2.1
+
 ## What's Changed in runner-image@0.2.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

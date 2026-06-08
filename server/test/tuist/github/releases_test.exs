@@ -16,7 +16,8 @@ defmodule Tuist.GitHub.ReleasesTest do
 
       release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
-        "name" => "v2.0.0",
+        "name" => "CLI 4.196.0",
+        "tag_name" => "4.196.0",
         "html_url" => "https://github.com/release",
         "assets" => []
       }
@@ -35,24 +36,24 @@ defmodule Tuist.GitHub.ReleasesTest do
       release = Releases.get_latest_cli_release()
 
       # Then
-      assert release.name == "v2.0.0"
+      assert release.tag_name == "4.196.0"
       assert release.html_url == "https://github.com/release"
     end
 
-    test "returns the latest CLI release if the latest release is an App release" do
-      # Given
+    test "skips component releases (scoped tags) and returns the CLI release" do
+      # Given: mirror the real GitHub release shape. Component releases have a
+      # human-readable `name` like "Runners Controller 0.9.0" (no "@") and a
+      # scoped `tag_name` like "runners-controller@0.9.0". CLI releases have a
+      # bare semver `tag_name` like "4.196.0". The filter must look at
+      # `tag_name`, not `name`, to skip the components.
       published_at = DateTime.utc_now()
 
-      release = %{
+      cli_release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
-        "name" => "v2.0.0",
-        "html_url" => "https://github.com/release",
-        "assets" => [
-          %{
-            "name" => "tuist.zip",
-            "browser_download_url" => "https://github.com/tuist/tuist/releases/download/app@0.1.0/app.dmg"
-          }
-        ]
+        "name" => "CLI 4.196.0",
+        "tag_name" => "4.196.0",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/4.196.0",
+        "assets" => []
       }
 
       releases_url = Releases.releases_url()
@@ -67,11 +68,19 @@ defmodule Tuist.GitHub.ReleasesTest do
              body: [
                %{
                  "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
-                 "name" => "app@2.0.0",
+                 "name" => "Runners Controller 0.11.0",
+                 "tag_name" => "runners-controller@0.11.0",
                  "html_url" => "https://github.com/release",
                  "assets" => []
                },
-               release
+               %{
+                 "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+                 "name" => "Server 1.207.0",
+                 "tag_name" => "server@1.207.0",
+                 "html_url" => "https://github.com/release",
+                 "assets" => []
+               },
+               cli_release
              ]
            }}
         end
@@ -81,8 +90,8 @@ defmodule Tuist.GitHub.ReleasesTest do
       release = Releases.get_latest_cli_release()
 
       # Then
-      assert release.name == "v2.0.0"
-      assert release.html_url == "https://github.com/release"
+      assert release.tag_name == "4.196.0"
+      assert release.name == "CLI 4.196.0"
     end
 
     test "returns cached release when update: false and cache exists" do
@@ -91,7 +100,8 @@ defmodule Tuist.GitHub.ReleasesTest do
 
       cached_release = %{
         "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
-        "name" => "v3.0.0",
+        "name" => "CLI 4.196.0",
+        "tag_name" => "4.196.0",
         "html_url" => "https://github.com/cached-release",
         "assets" => []
       }
@@ -104,7 +114,7 @@ defmodule Tuist.GitHub.ReleasesTest do
       release = Releases.get_latest_cli_release(update_if_needed: false)
 
       # Then
-      assert release.name == "v3.0.0"
+      assert release.tag_name == "4.196.0"
       assert release.html_url == "https://github.com/cached-release"
     end
 

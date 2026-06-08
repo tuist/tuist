@@ -339,6 +339,8 @@ We provide a comprehensive Docker Compose configuration that includes all requir
    podman compose up -d
    ```
 
+   On Apple Silicon, Docker Desktop automatically pulls the `linux/arm64` variants of the Tuist and dependency images. To force amd64 emulation for debugging, run Compose with `DOCKER_DEFAULT_PLATFORM=linux/amd64`.
+
 4. Access the server at http://localhost:8080
 
 **Service Endpoints:**
@@ -525,6 +527,8 @@ You can retrieve the image by executing the following command:
 ```bash
 docker pull ghcr.io/tuist/tuist:latest
 ```
+
+The image is published for both `linux/amd64` and `linux/arm64`, so Docker selects the native Linux architecture for the host automatically.
 
 Or pull a specific version:
 ```bash

@@ -162,7 +162,12 @@ defmodule Tuist.Docs.Loader do
   # source — touching the catalogue forces the docs page to recompile and
   # re-substitute.
   defp expand_compile_time_macros(markdown) do
-    String.replace(markdown, "{{webhook_events_table}}", webhook_events_table())
+    markdown
+    |> String.replace("{{webhook_events_table}}", webhook_events_table())
+    |> String.replace(
+      "{{minimum_supported_cli_version}}",
+      Tuist.CLIVersions.minimum_supported_version()
+    )
   end
 
   defp webhook_events_table do

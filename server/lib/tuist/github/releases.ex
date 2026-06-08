@@ -38,8 +38,13 @@ defmodule Tuist.GitHub.Releases do
           [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
         end
 
+      # Filter on tag_name, not name: CLI tags are bare semver (e.g. "4.196.0")
+      # while component tags are scoped (e.g. "runners-controller@0.11.0"). The
+      # human-readable `name` field never contains "@" (it is a title like
+      # "Runners Controller 0.11.0"), so filtering on name lets component
+      # releases through and the latest one wins regardless of type.
       case Enum.find(releases, fn release ->
-             not String.contains?(release["name"], "@")
+             not String.contains?(release["tag_name"] || "", "@")
            end) do
         nil -> nil
         release -> map_release(release)

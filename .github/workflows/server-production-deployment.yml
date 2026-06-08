@@ -97,12 +97,40 @@ jobs:
         env:
           DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # The Dockerfile's `--mount=type=cache` for /og-cache is local to the
+      # BuildKit builder, which starts empty on every ephemeral runner, so
+      # Chromium re-renders every OG image (~6 min, on the critical path that
+      # gates `mix release`) on each deploy. cache-dance round-trips the mount
+      # through actions/cache so unchanged images are skipped via their
+      # .cachekey sidecars. The registry layer cache below can't do this:
+      # `mode=max` exports layers, not cache-mount contents.
+      - name: Restore OG image render cache
+        id: og-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            og-cache-marketing
+            og-cache-docs
+          key: server-og-cache-${{ inputs.commit_sha || github.sha }}
+          restore-keys: |
+            server-og-cache-
+      - name: Seed OG cache mounts into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "og-cache-marketing": { "target": "/og-cache/marketing", "id": "og-marketing" },
+              "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
+            }
+          skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
         name: Build and push server image
         with:
@@ -112,6 +140,12 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Shared registry layer cache. This workflow runs on every push to
+          # main, so it keeps `buildcache:server` warm merge to merge;
+          # server-deployment.yml reads and writes the same ref. `mode=max`
+          # caches every stage (deps.compile, builder, og-images).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
@@ -178,12 +212,79 @@ jobs:
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
+  # Backward-compatibility acceptance - runs the OLDEST CLI version we still
+  # support against the freshly-deployed canary. The acceptance-tests job above
+  # always uses the CLI built from HEAD, so it can never catch a server change
+  # that breaks an older but still-supported CLI. This job pins that floor and
+  # gates production alongside acceptance-tests.
+  #
+  # The oldest supported release (3-month window) has a single source of truth:
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex.
+  # This job derives MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning
+  # enforces it, and the docs Compatibility page renders it. Bump it there as the
+  # window slides.
+  # --------------------------------------------------------------------------
+  backward-compatibility-acceptance:
+    name: Backward-Compatibility Acceptance
+    needs: canary
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: 0
+      TUIST_URL: https://canary.tuist.dev
+      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha || github.sha }}
+          submodules: false
+      - name: Resolve oldest supported CLI version
+        # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
+        # which also drives the deprecation warning and the docs Compatibility page.
+        run: |
+          file=server/lib/tuist/cli_versions.ex
+          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @minimum_supported_version from $file" >&2
+            exit 1
+          fi
+          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Oldest supported CLI version: $version"
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "bats"
+      - name: Install oldest supported tuist
+        run: mise install "tuist@${MIN_SUPPORTED_TUIST_VERSION}"
+      - name: Resolve oldest supported tuist binary
+        id: oldtuist
+        run: |
+          install_dir="$(mise where "tuist@${MIN_SUPPORTED_TUIST_VERSION}")"
+          bin="$(find "$install_dir" -type f -name tuist | head -n1)"
+          if [ -z "$bin" ]; then
+            echo "Could not locate the tuist binary under $install_dir" >&2
+            exit 1
+          fi
+          echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
+          "$bin" version
+      - name: Run backward-compatibility acceptance test
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: mise run --no-deps e2e module_cache_backward_compat
+
+  # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes
   # the same image bytes tests ran against.
   # Skipped on hotfix pushes (the hotfix job below runs instead).
   # --------------------------------------------------------------------------
   production:
-    needs: [build, acceptance-tests]
+    needs: [build, acceptance-tests, backward-compatibility-acceptance]
     if: >-
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
       github.event_name == 'workflow_dispatch'

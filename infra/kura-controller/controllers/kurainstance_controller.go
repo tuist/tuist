@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -30,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -55,6 +57,13 @@ const (
 	drainCompletionTimeoutMs int64 = 240_000
 	preStopDelaySeconds      int64 = 20
 	terminationGraceExtra    int64 = 15
+
+	// podNameLabel is the per-pod label the StatefulSet controller stamps
+	// on every pod (<statefulset>-<ordinal>). The public Services select a
+	// single pod through it so steady-state cache traffic for a region
+	// lands on one node, giving read-after-write consistency without
+	// fanning the read path across the eventually-consistent mesh.
+	podNameLabel = "statefulset.kubernetes.io/pod-name"
 
 	sharedSecretsName         = "kura-shared-secrets"
 	otlpTracesEndpointEnvVar  = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
@@ -124,6 +133,8 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -157,10 +168,14 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileHeadlessService(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileService(ctx, instance); err != nil {
+	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.reconcileGRPCService(ctx, instance); err != nil {
+	if err := r.reconcileService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcileGRPCService(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -238,14 +253,14 @@ func (r *KuraInstanceReconciler) reconcileHeadlessService(ctx context.Context, i
 	return err
 }
 
-func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
 			return err
 		}
 		service.Labels = labels(instance)
-		service.Spec.Selector = selectorLabels(instance)
+		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
 		service.Annotations = publicServiceAnnotations(instance)
 
 		if instance.Spec.PublicHost == "" {
@@ -274,7 +289,7 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 // downstream), so gRPC is incompatible with them — Kura terminates TLS
 // itself using the cert-manager Certificate produced by
 // reconcileGRPCCertificate.
-func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
 
 	if instance.Spec.GRPCPublicHost == "" {
@@ -292,13 +307,110 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 		service.Annotations = grpcServiceAnnotations(instance)
 		service.Spec.Type = corev1.ServiceTypeLoadBalancer
 		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
-		service.Spec.Selector = selectorLabels(instance)
+		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "grpcs", Port: httpsPort, TargetPort: intstr.FromString("grpc"), Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
 	return err
+}
+
+// primaryServiceSelector pins a public Service to a single pod by adding
+// the StatefulSet per-pod label to the instance selector. The headless
+// Service keeps the broad selector so peer replication still reaches
+// every pod.
+func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod string) map[string]string {
+	selector := selectorLabels(instance)
+	selector[podNameLabel] = primaryPod
+	return selector
+}
+
+// selectPrimaryPod resolves which pod the public Services should route
+// to. The currently routed pod is read back from the existing Service
+// selector so the choice is sticky across reconciles and survives a
+// controller restart without a dedicated status field.
+func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+	current := ""
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
+	case err == nil:
+		current = service.Spec.Selector[podNameLabel]
+	case apierrors.IsNotFound(err):
+	default:
+		return "", err
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return "", err
+	}
+	return choosePrimaryPod(current, instance.Name, pods.Items), nil
+}
+
+// choosePrimaryPod picks the pod the public Services route to. It is
+// sticky: the current primary is kept while it stays Ready so a recovered
+// lower-ordinal pod does not steal traffic back, because every handoff
+// costs a brief read-after-write inconsistency window during async
+// replication catch-up and we want to minimise them. Otherwise it falls
+// to the lowest-ordinal Ready pod, and before any pod is Ready it
+// defaults to ordinal 0 so the Service has a stable selector.
+func choosePrimaryPod(current, instanceName string, pods []corev1.Pod) string {
+	ready := map[string]bool{}
+	for i := range pods {
+		if podReady(&pods[i]) {
+			ready[pods[i].Name] = true
+		}
+	}
+
+	if current != "" && ready[current] {
+		return current
+	}
+
+	best := ""
+	bestOrdinal := -1
+	for name := range ready {
+		ordinal, ok := podOrdinal(name, instanceName)
+		if !ok {
+			continue
+		}
+		if best == "" || ordinal < bestOrdinal {
+			best = name
+			bestOrdinal = ordinal
+		}
+	}
+	if best != "" {
+		return best
+	}
+
+	if current != "" {
+		return current
+	}
+	return fmt.Sprintf("%s-0", instanceName)
+}
+
+func podReady(pod *corev1.Pod) bool {
+	if pod.DeletionTimestamp != nil {
+		return false
+	}
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			return condition.Status == corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+func podOrdinal(podName, instanceName string) (int, bool) {
+	prefix := instanceName + "-"
+	if !strings.HasPrefix(podName, prefix) {
+		return 0, false
+	}
+	ordinal, err := strconv.Atoi(strings.TrimPrefix(podName, prefix))
+	if err != nil {
+		return 0, false
+	}
+	return ordinal, true
 }
 
 // reconcilePublicCertificate provisions a cert-manager Certificate so
@@ -567,6 +679,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		return err
 	}
 	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
+		existingVolumeClaimTemplates := sts.Spec.VolumeClaimTemplates
 		if err := controllerutil.SetControllerReference(instance, sts, r.Scheme); err != nil {
 			return err
 		}
@@ -576,7 +689,11 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		sts.Spec.PodManagementPolicy = appsv1.ParallelPodManagement
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		sts.Spec.Template = podTemplate(instance, r.OTLPTracesEndpoint, r.Environment, sharedSecretsResourceVersion)
-		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
+		if len(existingVolumeClaimTemplates) > 0 {
+			sts.Spec.VolumeClaimTemplates = existingVolumeClaimTemplates
+		} else {
+			sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)}
+		}
 		// Drop the PVC when the StatefulSet itself is deleted (server
 		// destroy), but keep it around when scaling down so a replica
 		// can rejoin with its existing cache.
@@ -586,7 +703,39 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		}
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+}
+
+func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	desiredStorage := storageQuantity(instance)
+	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
+		pvc := &corev1.PersistentVolumeClaim{}
+		name := fmt.Sprintf("data-%s-%d", instance.Name, ordinal)
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+
+		currentStorage := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		if desiredStorage.Cmp(currentStorage) <= 0 {
+			continue
+		}
+
+		before := pvc.DeepCopy()
+		if pvc.Spec.Resources.Requests == nil {
+			pvc.Spec.Resources.Requests = corev1.ResourceList{}
+		}
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = desiredStorage.DeepCopy()
+		if err := r.Patch(ctx, pvc, client.MergeFrom(before)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) sharedSecretsResourceVersion(ctx context.Context, namespace string) (string, error) {
@@ -1102,6 +1251,11 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return object.GetName() == sharedSecretsName
 			})),
 		).
+		Watches(
+			&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(r.kuraInstanceForPod),
+			builder.WithPredicates(predicate.And(kuraPodPredicate(), podRoutabilityChangedPredicate())),
+		).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
 		Owns(&corev1.ConfigMap{}).
@@ -1110,6 +1264,46 @@ func (r *KuraInstanceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.NetworkPolicy{}).
 		Owns(&policyv1.PodDisruptionBudget{}).
 		Complete(r)
+}
+
+// kuraInstanceForPod maps a Kura pod back to its owning KuraInstance so a
+// pod readiness change re-runs primary selection and fails the public
+// Services over to a healthy pod.
+func (r *KuraInstanceReconciler) kuraInstanceForPod(_ context.Context, object client.Object) []reconcile.Request {
+	labels := object.GetLabels()
+	instanceName := labels["app.kubernetes.io/instance"]
+	if labels["app.kubernetes.io/name"] != "kura" || instanceName == "" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: instanceName, Namespace: object.GetNamespace()},
+	}}
+}
+
+func kuraPodPredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(object client.Object) bool {
+		return object.GetLabels()["app.kubernetes.io/name"] == "kura"
+	})
+}
+
+// podRoutabilityChangedPredicate keeps the controller from re-running on
+// every pod heartbeat: it only enqueues when a pod appears, disappears,
+// or crosses the Ready/terminating boundary that primary selection cares
+// about.
+func podRoutabilityChangedPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return true },
+		DeleteFunc:  func(event.DeleteEvent) bool { return true },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			oldPod, ok := e.ObjectOld.(*corev1.Pod)
+			newPod, okNew := e.ObjectNew.(*corev1.Pod)
+			if !ok || !okNew {
+				return false
+			}
+			return podReady(oldPod) != podReady(newPod)
+		},
+	}
 }
 
 func (r *KuraInstanceReconciler) kuraInstancesForSharedSecret(ctx context.Context, object client.Object) []reconcile.Request {

@@ -532,6 +532,43 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "set_log_archived_at/2" do
+    test "stamps the archive timestamp while preserving the job's lifecycle state" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7350, fleet: "fleet-archive")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7350, "runner-x")
+      {:ok, _} = Jobs.complete(7350, "success")
+
+      archived_at = ~U[2026-06-04 15:00:00.000000Z]
+      :ok = Jobs.set_log_archived_at(7350, archived_at)
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, 7350)
+      assert job.log_archived_at == archived_at
+      assert job.status == "completed"
+      assert job.conclusion == "success"
+    end
+
+    test "clears the timestamp when called with nil (post-prune)" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 7351, fleet: "fleet-archive2")
+      {:ok, candidate} = Jobs.pick_queued("fleet-archive2", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = Jobs.record_running(7351, "runner-x")
+      {:ok, _} = Jobs.complete(7351, "success")
+      :ok = Jobs.set_log_archived_at(7351, ~U[2026-03-04 15:00:00.000000Z])
+
+      :ok = Jobs.set_log_archived_at(7351, nil)
+
+      assert {:ok, %{log_archived_at: nil}} = Jobs.get_for_account(account.id, 7351)
+    end
+
+    test "is a no-op when the job row doesn't exist yet" do
+      assert :ok = Jobs.set_log_archived_at(7_399_998, DateTime.utc_now())
+    end
+  end
+
   describe "complete/2" do
     test "transitions to completed with the conclusion" do
       account = account_fixture()

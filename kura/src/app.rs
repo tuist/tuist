@@ -10,12 +10,14 @@ use hyper_util::{
     rt::{TokioExecutor, TokioTimer},
     server::conn::auto::Builder as HttpBuilder,
 };
-use tokio::sync::{Notify, Semaphore, oneshot};
+use tokio::sync::{Notify, Semaphore, oneshot, watch};
 use tokio::{task::JoinHandle, time::Instant};
 use tracing::{Instrument, info, warn};
 
 use crate::{
+    accelerated_file_serving,
     analytics::Analytics,
+    bandwidth::BandwidthLimiter,
     config::Config,
     extension::ExtensionEngine,
     geoip::GeoIp,
@@ -35,7 +37,10 @@ use crate::{
 };
 
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
-const HTTP2_MAX_FRAME_SIZE: u32 = 16 * 1024;
+const HTTP2_INITIAL_STREAM_WINDOW_BYTES: u32 = 1024 * 1024;
+const HTTP2_INITIAL_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -116,6 +121,13 @@ async fn run_with_config(
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
     let client = build_peer_client(&config).await?;
+    let runtime = RuntimeState::new();
+    let replication_bandwidth_limiter = BandwidthLimiter::new(
+        config.replication_bandwidth_limit_bytes_per_second,
+        config.replication_public_latency_target_ms,
+        runtime.clone(),
+    )
+    .map(Arc::new);
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
@@ -126,12 +138,13 @@ async fn run_with_config(
         io,
         memory,
         metrics,
-        runtime: RuntimeState::new(),
+        runtime,
         extension,
         analytics,
         usage,
         geoip,
         client,
+        replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
@@ -269,6 +282,7 @@ async fn run_with_config(
     let public_shutdown_handle = public_handle.clone();
     let https_shutdown_handle = https_handle.clone();
     let public_shutdown_state = state.clone();
+    let (public_plain_shutdown_tx, public_plain_shutdown_rx) = watch::channel(false);
     tokio::spawn(
         async move {
             shutdown_signal().await;
@@ -276,6 +290,7 @@ async fn run_with_config(
             let _ = shutdown_budget_tx.send(budget);
             let _ = public_shutdown_state.enter_draining();
             public_shutdown_state.sync_runtime_metrics().await;
+            let _ = public_plain_shutdown_tx.send(true);
             public_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
             https_shutdown_handle.graceful_shutdown(Some(budget.remaining()));
         }
@@ -300,12 +315,24 @@ async fn run_with_config(
         None
     };
 
-    let mut public_server = axum_server::bind(address).handle(public_handle);
-    configure_public_http_builder(public_server.http_builder());
-    public_server
-        .serve(router.into_make_service())
+    if state.config.accelerated_file_serving.enabled {
+        accelerated_file_serving::serve_public_http(
+            address,
+            router,
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            public_plain_shutdown_rx,
+        )
         .await
         .map_err(|error| format!("server error: {error}"))?;
+    } else {
+        let mut public_server = axum_server::bind(address).handle(public_handle);
+        configure_public_http_builder(public_server.http_builder());
+        public_server
+            .serve(router.into_make_service())
+            .await
+            .map_err(|error| format!("server error: {error}"))?;
+    }
     let shutdown_budget = shutdown_budget_rx.await.unwrap_or_else(|_| {
         warn!("shutdown budget channel closed before graceful shutdown completed");
         ShutdownBudget::new(drain_completion_timeout)
@@ -339,9 +366,12 @@ fn configure_public_http_builder(builder: &mut HttpBuilder<TokioExecutor>) {
         .header_read_timeout(Some(Duration::from_secs(30)));
     builder
         .http2()
+        .initial_stream_window_size(Some(HTTP2_INITIAL_STREAM_WINDOW_BYTES))
+        .initial_connection_window_size(Some(HTTP2_INITIAL_CONNECTION_WINDOW_BYTES))
         .adaptive_window(true)
         .max_concurrent_streams(Some(HTTP2_MAX_CONCURRENT_STREAMS))
         .max_frame_size(Some(HTTP2_MAX_FRAME_SIZE))
+        .max_send_buf_size(HTTP2_MAX_SEND_BUFFER_BYTES)
         .keep_alive_interval(Some(HTTP2_KEEP_ALIVE_INTERVAL))
         .keep_alive_timeout(HTTP2_KEEP_ALIVE_TIMEOUT)
         .timer(TokioTimer::new());
@@ -810,7 +840,9 @@ mod tests {
     #[tokio::test]
     async fn wait_for_inflight_drain_returns_when_requests_finish() {
         let context = test_context(|_| {}).await;
-        let guard = context.state.start_http_request();
+        let guard = context
+            .state
+            .start_http_request(crate::runtime::HttpTrafficClass::Public);
         let waiter = tokio::spawn(wait_for_inflight_drain(
             context.state.clone(),
             ShutdownBudget::new(Duration::from_millis(250)),

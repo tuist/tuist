@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import Path
 import Synchronization
 import Testing
 import TSCBasic
@@ -8,6 +9,7 @@ import TuistCore
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting
+import XcodeGraph
 @testable import TuistLoader
 
 private final class SwiftPackageManagerLockObservation: Sendable {
@@ -303,6 +305,121 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageModuleAliases: .any,
                 packageSettings: .any
             )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_swifterPMPackageInfoCacheIsFresh_usesCachedPackageInfo() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+        try await writeSwifterPMPackageInfoCache(
+            scratchDirectory: scratchDirectory,
+            rootPackagePath: temporaryDirectory,
+            dependencyPackagePath: dependencyPackagePath
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        // When
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
+        verify(manifestLoader)
+            .loadPackage(at: .any, disableSandbox: .any)
+            .called(0)
+        verify(packageInfoMapper)
+            .map(
+                packageInfo: .value(.alamofire),
+                path: .value(dependencyPackagePath),
+                packageType: .any,
+                packageSettings: .any,
+                packageModuleAliases: .any,
+                enabledTraits: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_swifterPMPackageInfoCacheEntryIsStale_fallsBackToManifestLoader() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await writeSwiftPackageManifest(at: dependencyPackagePath)
+        let cacheFiles = try await writeSwifterPMPackageInfoCache(
+            scratchDirectory: scratchDirectory,
+            rootPackagePath: temporaryDirectory,
+            dependencyPackagePath: dependencyPackagePath
+        )
+        try await fileSystem.setFileTimes(
+            of: cacheFiles.dependencyPackageInfoPath,
+            lastAccessDate: nil,
+            lastModificationDate: Date(timeIntervalSince1970: 1)
+        )
+        try await fileSystem.setFileTimes(
+            of: dependencyPackagePath.appending(component: "Package.swift"),
+            lastAccessDate: nil,
+            lastModificationDate: Date(timeIntervalSince1970: 2)
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        // When
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
+        verify(manifestLoader)
+            .loadPackage(at: .value(temporaryDirectory), disableSandbox: .value(true))
+            .called(0)
+        verify(manifestLoader)
+            .loadPackage(at: .value(dependencyPackagePath), disableSandbox: .value(true))
             .called(1)
     }
 
@@ -755,5 +872,107 @@ struct SwiftPackageManagerGraphLoaderTests {
         #expect(
             got.externalProjects.values.map(\.hash) == [nil]
         )
+    }
+
+    private func writeRegistryWorkspaceState(
+        scratchDirectory: Path.AbsolutePath,
+        dependencySubpath: String
+    ) async throws {
+        let workspacePath = scratchDirectory.appending(component: "workspace-state.json")
+        try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+        try await fileSystem.writeText(
+            """
+            {
+              "object" : {
+                "artifacts" : [],
+                "dependencies" : [
+                  {
+                    "basedOn" : null,
+                    "packageRef" : {
+                      "identity" : "Alamofire.Alamofire",
+                      "kind" : "registry",
+                      "location" : "Alamofire.Alamofire",
+                      "name" : "Alamofire.Alamofire"
+                    },
+                    "state" : {
+                      "name" : "registryDownload",
+                      "version" : "5.10.2"
+                    },
+                    "subpath" : "\(dependencySubpath)"
+                  }
+                ]
+              }
+            }
+            """,
+            at: workspacePath
+        )
+    }
+
+    private func writeSwiftPackageManifest(at packagePath: Path.AbsolutePath) async throws {
+        if try await !fileSystem.exists(packagePath, isDirectory: true) {
+            try await fileSystem.makeDirectory(at: packagePath)
+        }
+        try await fileSystem.writeText(
+            """
+            // swift-tools-version: 5.9
+            import PackageDescription
+
+            let package = Package(name: "\(packagePath.basename)")
+            """,
+            at: packagePath.appending(component: "Package.swift")
+        )
+    }
+
+    private struct SwifterPMPackageInfoCacheFiles {
+        let dependencyPackageInfoPath: Path.AbsolutePath
+    }
+
+    @discardableResult
+    private func writeSwifterPMPackageInfoCache(
+        scratchDirectory: Path.AbsolutePath,
+        rootPackagePath: Path.AbsolutePath,
+        dependencyPackagePath: Path.AbsolutePath
+    ) async throws -> SwifterPMPackageInfoCacheFiles {
+        let cacheDirectory = scratchDirectory.appending(components: "swifterpm", "package-info")
+        let packagesCacheDirectory = cacheDirectory.appending(component: "packages")
+        let rootPackageInfoPath = cacheDirectory.appending(component: "root.json")
+        let dependencyPackageInfoPath = packagesCacheDirectory.appending(component: "Alamofire.Alamofire-5.10.2.json")
+
+        try await fileSystem.makeDirectory(at: scratchDirectory.appending(component: "swifterpm"))
+        try await fileSystem.makeDirectory(at: cacheDirectory)
+        try await fileSystem.makeDirectory(at: packagesCacheDirectory)
+        try await fileSystem.writeText(PackageInfo.testJSON, at: rootPackageInfoPath)
+        try await fileSystem.writeText(PackageInfo.alamofireJSON, at: dependencyPackageInfoPath)
+        try await fileSystem.writeText(
+            """
+            {
+              "schema_version" : 1,
+              "generated_at_unix" : 1,
+              "root" : {
+                "identity" : "root",
+                "kind" : "root",
+                "location" : "\(rootPackagePath.pathString)",
+                "revision" : null,
+                "version" : null,
+                "package_path" : "\(rootPackagePath.pathString)",
+                "package_info_path" : "\(rootPackageInfoPath.pathString)"
+              },
+              "packages" : [
+                {
+                  "identity" : "Alamofire.Alamofire",
+                  "kind" : "registry",
+                  "location" : "Alamofire.Alamofire",
+                  "revision" : null,
+                  "version" : "5.10.2",
+                  "package_path" : "\(dependencyPackagePath.pathString)",
+                  "package_info_path" : "\(dependencyPackageInfoPath.pathString)"
+                }
+              ]
+            }
+            """,
+            at: cacheDirectory.appending(component: "index.json")
+        )
+
+        return SwifterPMPackageInfoCacheFiles(dependencyPackageInfoPath: dependencyPackageInfoPath)
     }
 }
