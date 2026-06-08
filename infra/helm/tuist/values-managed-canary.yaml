@@ -86,6 +86,12 @@ cache:
 # runnersController.features.registryMirror is flipped on (below).
 registryCache:
   enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
   s3:
     bucket: tuist-can-storage
     rootDirectory: docker-mirror
