@@ -452,7 +452,7 @@ defmodule CacheWeb.RegistryControllerTest do
         "scope" => scope,
         "name" => name,
         "releases" => %{
-          "1.2.3-alpha+1+2" => %{"checksum" => "abc123"}
+          "1.2.3-alpha.1.2" => %{"checksum" => "abc123"}
         }
       }
 
@@ -466,7 +466,7 @@ defmodule CacheWeb.RegistryControllerTest do
       assert conn.status == 200
 
       response = json_response(conn, :ok)
-      assert response["version"] == "1.2.3-alpha+1+2"
+      assert response["version"] == "1.2.3-alpha.1.2"
     end
 
     test "returns 404 when version not found", %{conn: conn} do
