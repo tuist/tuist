@@ -1,5 +1,5 @@
 {
-  "originHash" : "1f3e5ee5b66fb28f9141e6501cf9ca1adeea56fc91c10f14aa4ebec232838c9e",
+  "originHash" : "8d5d9c04eaae33643ec455b899e85a539fe7d9acda97c6a261b39abac12d9f0e",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -519,8 +519,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/swifterpm",
       "state" : {
-        "revision" : "c58fe5f6f44ccc888f3c60acfc140c3010dd4438",
-        "version" : "0.7.0"
+        "revision" : "97693fc545e5f75cf3cae8aef7a9210e303b01c7",
+        "version" : "0.7.1"
       }
     },
     {
