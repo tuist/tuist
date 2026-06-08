@@ -1236,7 +1236,12 @@ fn parse_blob_resource_name(
     } else {
         namespace_parts.join("/")
     };
-    let key = format!("{hash}/{size_bytes}");
+    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
+    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
+    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
+    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
+    let key = blob_key(&format!("{hash}/{size_bytes}"));
 
     Ok(BlobResource {
         namespace_id,
@@ -1390,6 +1395,89 @@ mod tests {
         let _ = server.await;
     }
 
+    // Regression: a CAS blob uploaded via the ByteStream `Write` interface must be reported
+    // present by `FindMissingBlobs`. ByteStream Write/Read once keyed blobs as "{hash}/{size}"
+    // while FindMissingBlobs/BatchUpdateBlobs/BatchReadBlobs use blob_key() = "blob/{hash}/{size}",
+    // so ByteStream-uploaded blobs were invisible to FindMissingBlobs and REAPI clients (e.g.
+    // Bazel) re-executed the action that produced them. Drives the real gRPC handlers end to end.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_uploaded_blob_is_visible_to_find_missing_blobs() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let blob = b"kura reapi bytestream blob-key regression payload".to_vec();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+
+        // Upload via the ByteStream Write interface, exactly as a REAPI client does for CAS.
+        let committed = ByteStreamClient::new(channel.clone())
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("uploads/regression/blobs/{hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: blob.clone(),
+            }]))
+            .await
+            .expect("ByteStream write should succeed")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, len);
+
+        // FindMissingBlobs must report it PRESENT — it shares blob_key()'s namespace with Write.
+        let missing = ContentAddressableStorageClient::new(channel.clone())
+            .find_missing_blobs(reapi::FindMissingBlobsRequest {
+                instance_name: String::new(),
+                blob_digests: vec![reapi::Digest {
+                    hash: hash.clone(),
+                    size_bytes: len as i64,
+                }],
+                digest_function: 0,
+            })
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+        assert!(
+            missing.is_empty(),
+            "a ByteStream-uploaded blob must be visible to FindMissingBlobs; got {} missing",
+            missing.len()
+        );
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
     #[test]
     fn parses_read_resource_names_with_and_without_instance_names() {
         assert_eq!(
@@ -1398,7 +1486,7 @@ mod tests {
                 namespace_id: "default".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
         assert_eq!(
@@ -1408,7 +1496,7 @@ mod tests {
                 namespace_id: "bazel/cache".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
     }
@@ -1422,7 +1510,7 @@ mod tests {
                 namespace_id: "buck/cache".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
     }
