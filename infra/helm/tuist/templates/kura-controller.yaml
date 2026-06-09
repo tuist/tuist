@@ -208,7 +208,6 @@ stringData:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- if .Values.kuraController.sharedSecrets.externalSecret.enabled }}
-{{- $kuraLicenseSigningKeyField := .Values.kuraController.sharedSecrets.externalSecret.fields.licenseSigningKey | default "" }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -231,19 +230,10 @@ spec:
       data:
         KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
         KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
-        {{- if $kuraLicenseSigningKeyField }}
-        KURA_EXTENSION_SIGNER_TUIST_LICENSE_ALGORITHM: "hmac-sha256"
-        KURA_EXTENSION_SIGNER_TUIST_LICENSE_SECRET: "{{ `{{ .tuist_license_signing_key | trim }}` }}"
-        {{- end }}
   data:
     - secretKey: kura_introspection_client_secret
       remoteRef:
         key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ .Values.kuraController.sharedSecrets.externalSecret.fields.introspectionClientSecret | default "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}"
-    {{- if $kuraLicenseSigningKeyField }}
-    - secretKey: tuist_license_signing_key
-      remoteRef:
-        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ $kuraLicenseSigningKeyField }}"
-    {{- end }}
 {{- end }}
 {{- if .Values.kuraController.sentry.externalSecret.enabled }}
 ---
