@@ -14,6 +14,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
+  @manifest_revision "2026-06-09-cross-region-peer-gateway-v1"
+  @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -82,6 +84,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
+  def current_manifest_revision(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
+      {:ok, _} -> {:ok, nil}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl true
+  def manifest_revision, do: @manifest_revision
+
+  @impl true
   def resources_for(%Server{}), do: %{}
 
   def instance_name(handle, %Regions{provisioner_config: %{cluster_id: cluster_id}}) do
@@ -113,6 +127,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script) do
     account_handle = dns_handle(account.name)
+    peer_public_host = peer_public_host(account_handle, region)
 
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
@@ -120,6 +135,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       "metadata" => %{
         "name" => name,
         "namespace" => @namespace,
+        "annotations" => %{
+          @manifest_revision_annotation => @manifest_revision
+        },
         "labels" => %{
           "app.kubernetes.io/name" => "kura",
           "app.kubernetes.io/instance" => name,
@@ -135,6 +153,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           "publicHost" => public_host(account_handle, region),
           "grpcPublicHost" => grpc_public_host(account_handle, region),
+          "peerPublicHost" => peer_public_host,
+          "globalDiscoveryDNSName" => global_discovery_dns_name(account_handle, region),
+          "peerTLSSecretName" => peer_tls_secret_name(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -158,6 +179,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp grpc_public_host(_handle, _region), do: nil
+
+  defp peer_public_host(handle, %Regions{provisioner_config: %{peer_public_host_template: template} = config}) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp peer_public_host(_handle, _region), do: nil
+
+  defp global_discovery_dns_name(handle, %Regions{
+         provisioner_config: %{global_discovery_dns_template: template} = config
+       }) do
+    interpolate_host(template, dns_handle(handle), config)
+  end
+
+  defp global_discovery_dns_name(_handle, _region), do: nil
+
+  defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
+       when is_binary(secret_name) and secret_name != "",
+       do: secret_name
+
+  defp peer_tls_secret_name(_region), do: nil
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are

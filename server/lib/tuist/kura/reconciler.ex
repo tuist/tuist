@@ -226,6 +226,7 @@ defmodule Tuist.Kura.Reconciler do
       |> where([s], s.status in ^@present_intent_statuses)
       |> order_by([s], asc: s.updated_at, asc: s.id)
       |> limit(^@reconcile_batch_size)
+      |> preload(:account)
       |> Repo.all()
       |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 
@@ -260,7 +261,7 @@ defmodule Tuist.Kura.Reconciler do
   defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
     case Provisioner.current_image_tag(server) do
       {:ok, observed} when observed == desired ->
-        converge(server, desired)
+        reconcile_manifest_revision(server, desired)
 
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
@@ -271,6 +272,44 @@ defmodule Tuist.Kura.Reconciler do
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
         :ok
+    end
+  end
+
+  defp reconcile_manifest_revision(%Server{} = server, desired) do
+    case {Provisioner.manifest_revision(server), Provisioner.current_manifest_revision(server)} do
+      {{:ok, nil}, _} ->
+        converge(server, desired)
+
+      {{:ok, desired_revision}, {:ok, desired_revision}} ->
+        converge(server, desired)
+
+      {{:ok, _desired_revision}, {:ok, _observed_revision}} ->
+        apply_current_manifest(server, desired)
+
+      {{:error, reason}, _} ->
+        Logger.warning("[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}")
+        converge(server, desired)
+
+      {_, {:error, reason}} ->
+        Logger.warning("[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}")
+        converge(server, desired)
+    end
+  end
+
+  defp apply_current_manifest(%Server{} = server, image_tag) do
+    inputs = %{
+      image_tag: image_tag,
+      account: server.account,
+      server: server
+    }
+
+    case Provisioner.rollout(server, inputs) do
+      :ok ->
+        converge(server, image_tag)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not re-apply manifest for server #{server.id}: #{inspect(reason)}")
+        converge(server, image_tag)
     end
   end
 

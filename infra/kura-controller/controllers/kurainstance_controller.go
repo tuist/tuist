@@ -134,11 +134,27 @@ func publicTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
 }
 
 func peerTLSSecretName(instance *kurav1alpha1.KuraInstance) string {
+	if instance.Spec.PeerTLSSecretName != "" {
+		return instance.Spec.PeerTLSSecretName
+	}
 	return instance.Name + "-peer-tls"
 }
 
 func grpcServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-grpc"
+}
+
+func peerServiceName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-peer"
+}
+
+func crossRegionPeerEnabled(instance *kurav1alpha1.KuraInstance) bool {
+	return instance.Spec.PeerPublicHost != "" &&
+		instance.Spec.GlobalDiscoveryDNSName != ""
+}
+
+func crossRegionRuntimeEnabled(instance *kurav1alpha1.KuraInstance) bool {
+	return crossRegionPeerEnabled(instance) && instance.Spec.PeerTLSSecretName != ""
 }
 
 func terminationGracePeriodSeconds() int64 {
@@ -194,6 +210,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileGRPCService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcilePublicCertificate(ctx, instance); err != nil {
@@ -328,6 +347,33 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
 		service.Spec.Ports = []corev1.ServicePort{
 			{Name: "grpcs", Port: httpsPort, TargetPort: intstr.FromString("grpc"), Protocol: corev1.ProtocolTCP},
+		}
+		return nil
+	})
+	return err
+}
+
+func (r *KuraInstanceReconciler) reconcilePeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: peerServiceName(instance), Namespace: instance.Namespace}}
+
+	if !crossRegionPeerEnabled(instance) {
+		if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+		if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
+			return err
+		}
+		service.Labels = labels(instance)
+		service.Annotations = peerServiceAnnotations(instance)
+		service.Spec.Type = corev1.ServiceTypeLoadBalancer
+		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
+		service.Spec.Ports = []corev1.ServicePort{
+			{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer"), Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
@@ -595,6 +641,10 @@ func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, i
 }
 
 func (r *KuraInstanceReconciler) reconcilePeerTLSSecret(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Spec.PeerTLSSecretName != "" {
+		return nil
+	}
+
 	secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
 		if err := controllerutil.SetControllerReference(instance, secret, r.Scheme); err != nil {
@@ -1034,6 +1084,21 @@ func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]stri
 	}
 }
 
+func peerServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
+	if !crossRegionPeerEnabled(instance) {
+		return nil
+	}
+
+	return map[string]string{
+		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PeerPublicHost,
+		"load-balancer.hetzner.cloud/name":                  peerServiceName(instance),
+		"load-balancer.hetzner.cloud/protocol":              "tcp",
+		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
+		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
+		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
+	}
+}
+
 // reconcileNetworkPolicy keeps inter-tenant traffic off the Kura pods on
 // the shared kura node pool. Selector traffic is allowed only between
 // pods of the same KuraInstance (peer replication, internal status) and
@@ -1049,7 +1114,7 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 		policy.Labels = labels(instance)
 		policy.Spec.PodSelector = metav1.LabelSelector{MatchLabels: selectorLabels(instance)}
 		policy.Spec.PolicyTypes = []networkingv1.PolicyType{networkingv1.PolicyTypeIngress}
-		policy.Spec.Ingress = []networkingv1.NetworkPolicyIngressRule{
+		ingress := []networkingv1.NetworkPolicyIngressRule{
 			{
 				// Ingress from this instance's own pods (peer
 				// replication, headless DNS bootstrap).
@@ -1080,6 +1145,16 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 				},
 			},
 		}
+		if crossRegionPeerEnabled(instance) {
+			ingress = append(ingress, networkingv1.NetworkPolicyIngressRule{
+				// Cross-region peer gateway traffic. The peer port is still
+				// protected by Kura's internal mTLS layer.
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("peer")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			})
+		}
+		policy.Spec.Ingress = ingress
 		return nil
 	})
 	return err
@@ -1149,6 +1224,10 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 			corev1.EnvVar{Name: "KURA_EXTENSION_ENABLED", Value: "true"},
 			corev1.EnvVar{Name: "KURA_EXTENSION_SCRIPT_PATH", Value: "/etc/kura/extensions/hooks.lua"},
 		)
+	}
+	if crossRegionRuntimeEnabled(instance) {
+		env = append(env, corev1.EnvVar{Name: "KURA_PEER_GATEWAY_URL", Value: fmt.Sprintf("https://%s:%d", instance.Spec.PeerPublicHost, peerPort)})
+		env = append(env, corev1.EnvVar{Name: "KURA_GLOBAL_DISCOVERY_DNS_NAME", Value: instance.Spec.GlobalDiscoveryDNSName})
 	}
 	if instance.Spec.GRPCPublicHost != "" {
 		env = append(env,

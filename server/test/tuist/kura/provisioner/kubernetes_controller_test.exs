@@ -31,6 +31,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["kind"] == "KuraInstance"
       assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
       assert manifest["metadata"]["namespace"] == "kura"
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision()
 
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
@@ -39,6 +41,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
       assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
+      assert spec["peerPublicHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert spec["globalDiscoveryDNSName"] == "tuist.kura-peers.tuist.dev"
+      assert spec["peerTLSSecretName"] == "kura-cross-region-peer-tls"
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
       assert spec["extensionScript"] == "return true"
@@ -53,6 +58,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
                "00000000-0000-0000-0000-000000000001"
+
+      refute Map.has_key?(env, "KURA_PEERS")
 
       # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
@@ -313,6 +320,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "eu-central-1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            peer_tls_secret_name: "kura-cross-region-peer-tls",
             storage_class: "hcloud-volumes"
           },
           extra_config
@@ -328,6 +338,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+        peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+        global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+        peer_tls_secret_name: "kura-cross-region-peer-tls",
         storage_class: "hcloud-volumes"
       }
     }

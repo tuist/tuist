@@ -44,7 +44,14 @@ struct PeerStatusPayload {
 struct DiscoveryTarget {
     url: String,
     label: String,
+    scope: DiscoveryScope,
     resolved: Option<ResolvedDiscoveryTarget>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum DiscoveryScope {
+    Local,
+    Global,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -125,7 +132,10 @@ async fn membership_task_loop(state: SharedState) {
                     .build_resolving(&resolved.host, resolved.address),
                 None => Ok(state.client.clone()),
             };
-            let url = format!("{}/_internal/status", peer.url);
+            let url = match peer.scope {
+                DiscoveryScope::Local => format!("{}/_internal/status", peer.url),
+                DiscoveryScope::Global => format!("{}/_internal/status?scope=global", peer.url),
+            };
             let label = peer.label.clone();
             async move {
                 let result = match client {
@@ -540,12 +550,10 @@ async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
         .map(|peer| DiscoveryTarget {
             label: peer.clone(),
             url: peer,
+            scope: DiscoveryScope::Local,
             resolved: None,
         })
         .collect::<BTreeSet<_>>();
-    let Some(dns_name) = &config.discovery_dns_name else {
-        return targets.into_iter().collect();
-    };
 
     let Ok(node_url) = reqwest::Url::parse(&config.node_url) else {
         return targets.into_iter().collect();
@@ -554,7 +562,31 @@ async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
         return targets.into_iter().collect();
     };
     let scheme = node_url.scheme().to_owned();
-    match tokio::net::lookup_host((dns_name.as_str(), port)).await {
+    if let Some(dns_name) = &config.discovery_dns_name {
+        discover_dns_targets(&mut targets, dns_name, port, &scheme, DiscoveryScope::Local).await;
+    }
+    if let Some(dns_name) = &config.global_discovery_dns_name {
+        discover_dns_targets(
+            &mut targets,
+            dns_name,
+            port,
+            &scheme,
+            DiscoveryScope::Global,
+        )
+        .await;
+    }
+
+    targets.into_iter().collect()
+}
+
+async fn discover_dns_targets(
+    targets: &mut BTreeSet<DiscoveryTarget>,
+    dns_name: &str,
+    port: u16,
+    scheme: &str,
+    scope: DiscoveryScope,
+) {
+    match tokio::net::lookup_host((dns_name, port)).await {
         Ok(addresses) => {
             for address in addresses {
                 if scheme == "https" {
@@ -562,8 +594,9 @@ async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
                     targets.insert(DiscoveryTarget {
                         label: format!("{url}@{}", address.ip()),
                         url,
+                        scope,
                         resolved: Some(ResolvedDiscoveryTarget {
-                            host: dns_name.clone(),
+                            host: dns_name.to_owned(),
                             address,
                         }),
                     });
@@ -572,6 +605,7 @@ async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
                     targets.insert(DiscoveryTarget {
                         label: url.clone(),
                         url,
+                        scope,
                         resolved: None,
                     });
                 }
@@ -579,8 +613,6 @@ async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
         }
         Err(error) => warn!("dns discovery lookup failed for {dns_name}:{port}: {error}"),
     }
-
-    targets.into_iter().collect()
 }
 
 fn format_ip_for_url(ip: IpAddr) -> String {
@@ -880,6 +912,7 @@ mod tests {
             config.node_url = "https://kura-us.kura.internal:7443".into();
             config.peers = vec!["https://seed.kura.internal:7443".into()];
             config.discovery_dns_name = Some("localhost".into());
+            config.global_discovery_dns_name = Some("localhost".into());
         })
         .await;
 
@@ -888,11 +921,16 @@ mod tests {
         assert!(targets.iter().any(|target| {
             target.url == "https://seed.kura.internal:7443" && target.resolved.is_none()
         }));
-        assert!(
-            targets.iter().any(|target| {
-                target.url == "https://localhost:7443" && target.resolved.is_some()
-            })
-        );
+        assert!(targets.iter().any(|target| {
+            target.url == "https://localhost:7443"
+                && target.scope == DiscoveryScope::Local
+                && target.resolved.is_some()
+        }));
+        assert!(targets.iter().any(|target| {
+            target.url == "https://localhost:7443"
+                && target.scope == DiscoveryScope::Global
+                && target.resolved.is_some()
+        }));
         assert!(!targets.iter().any(|target| {
             target.url.starts_with("https://127.") || target.url.starts_with("https://[::1]")
         }));
