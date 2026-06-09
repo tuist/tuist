@@ -155,36 +155,23 @@
 			"ip": ["tcp:22"],
 		},
 
-		// Human kubectl access to the API server proxies served by
-		// each env's tailscale operator (one device per env, tagged
-		// tag:tuist-k8s-<env>). The `app` capability authorizes
-		// impersonation; the impersonated group is mapped to a
-		// ClusterRole by accessBindings in the tailscale-operator
-		// chart per env (staging/canary tuist-eng -> edit, production
-		// tuist-eng -> view). tcp:443 is the proxy's listen port,
-		// included so the rules survive removal of the catch-all
-		// above. Grants for canary and production are inert until
-		// the corresponding chart overlay enables the proxy on those
-		// clusters.
+		// Human kubectl access to each env's tailscale operator API
+		// server proxy. `autogroup:member` matches every real human
+		// on the tailnet (Tailscale's grants block only accepts
+		// :member / :tagged / :internet / :self as src autogroups —
+		// the admin / owner role-based autogroups are NOT valid
+		// src here). Everyone impersonates as `tuist-eng`, which
+		// accessBindings in the tailscale-operator chart bind to
+		// `view` on every env. Role-based escalation to edit
+		// happens via the Pomerium gateway path, not this one.
 		//
 		// Note on the asymmetry between `src` and `impersonate.groups`:
 		// `src` is a tailnet concept (who's allowed to dial the
-		// proxy), so we use the role-derived autogroups. The string
-		// in `impersonate.groups` is a Kubernetes-side label that the
-		// operator injects as Impersonate-Group on the forwarded
-		// request; accessBindings in the tailscale-operator chart map
-		// each label to a ClusterRole. They happen to share names
-		// here for readability but live in different systems.
-		{
-			"src": ["autogroup:owner", "autogroup:admin"],
-			"dst": [
-				"tag:tuist-k8s-staging",
-				"tag:tuist-k8s-canary",
-				"tag:tuist-k8s-production",
-			],
-			"ip":  ["tcp:443"],
-			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-admins"]}}]},
-		},
+		// proxy). The string in `impersonate.groups` is a
+		// Kubernetes-side label the operator injects as
+		// Impersonate-Group on the forwarded request; accessBindings
+		// in the tailscale-operator chart map each label to a
+		// ClusterRole. Different systems.
 		{
 			"src": ["autogroup:member"],
 			"dst": [
@@ -199,11 +186,13 @@
 		// Elevated (`edit`) access for writes does NOT live here.
 		// It flows through the Pomerium gateway (see
 		// `infra/helm/pomerium/`), which authenticates callers via
-		// Tuist's OIDC IdP, looks up the active elevation in the
-		// Tuist DB per request, and injects the Impersonate-Group
-		// header that maps to the env's elevated ClusterRole. The
-		// tailnet ACL stays read-only and static — no runtime
-		// mutation, no break-glass groups.
+		// Google Workspace OIDC, looks up the active elevation in
+		// the tuist-ops DB per request, and injects the
+		// Impersonate-Group header that maps to the env's elevated
+		// ClusterRole. The tailnet ACL stays read-only and static —
+		// no runtime mutation, no break-glass groups, and no
+		// role-tier branching at this layer (Pomerium ext_authz
+		// owns that decision).
 	],
 
 	// Tailscale SSH (distinct from "grants"). The same-env
@@ -334,21 +323,10 @@
 				"tag:tuist-macmini-production:22",
 			],
 		},
-		{
-			"src": "autogroup:admin",
-			"accept": [
-				"tag:tuist-k8s-staging:443",
-				"tag:tuist-k8s-canary:443",
-				"tag:tuist-k8s-production:443",
-			],
-		},
-		{
-			"src": "autogroup:member",
-			"accept": [
-				"tag:tuist-k8s-staging:443",
-				"tag:tuist-k8s-canary:443",
-				"tag:tuist-k8s-production:443",
-			],
-		},
+		// Note: no test entries with autogroup-based src. Tailscale's
+		// test engine doesn't resolve `autogroup:*` as a concrete
+		// identity, so the human-kubectl grants above are exercised
+		// implicitly via the live access decisions in the console
+		// rather than via the test framework.
 	],
 }
