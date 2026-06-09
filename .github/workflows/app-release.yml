@@ -1,11 +1,5 @@
 name: App Release
 
-# Releases the Tuist app (macOS via Sparkle, iOS to App Store Connect,
-# Android to Google Play). Kept in its own workflow with its own concurrency
-# lane so an app release — slow and deploy-irrelevant — never serializes
-# against, or blocks, the server/infra release + deploy pipeline in
-# release.yml. The app shares no tag or version with any other component.
-
 on:
   push:
     branches:
