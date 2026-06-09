@@ -2564,12 +2564,60 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        dump(project?.targets.first?.destinations)
-        dump(other.targets.first?.destinations)
-
         #expect(
             project ==
                 other
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenUsingSwift64_clampsPackageDeploymentTargetsToXcode27Minimums() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.4")
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.10", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
         )
     }
 
