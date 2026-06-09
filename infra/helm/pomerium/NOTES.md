@@ -50,10 +50,20 @@ per-env kubectl gateway. One Helm release per workload env
      store).
    - `cookie_secret` (32 bytes base64): same generator.
    - `idp_client_id` / `idp_client_secret`: Google Workspace
-     OIDC credentials. Create via Workspace admin → APIs &
-     Services → Credentials → OAuth client ID, type "Web app",
-     authorised redirect URI
-     `https://authenticate.kube-<env>.tuist.dev/oauth2/callback`.
+     OIDC credentials. Today **one shared OAuth client covers
+     all three envs** (intentional simplification at our scale):
+     the same client_id / client_secret live in
+     `POMERIUM_STAGING`, `POMERIUM_CANARY`, and
+     `POMERIUM_PRODUCTION`. The client's "Authorized redirect
+     URIs" list must include all three env hosts:
+       - `https://authenticate.kube-staging.tuist.dev/oauth2/callback`
+       - `https://authenticate.kube-canary.tuist.dev/oauth2/callback`
+       - `https://authenticate.kube-prod.tuist.dev/oauth2/callback`
+     Trade-off: a leaked credential affects all envs, not one.
+     When the team grows, split into three per-env clients to
+     match the rest of the design's per-env credential
+     isolation (separate Tailscale OAuth clients, separate 1P
+     vaults, etc.).
 
    Databroker is memory-backed (single replica, sessions
    invalidate on pod restart and users re-auth — acceptable at
