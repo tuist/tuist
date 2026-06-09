@@ -1,0 +1,28 @@
+# Extra Debian Bookworm packages layered onto debian:bookworm-slim to match the
+# production Dockerfile's runtime (tini, curl, libstdc++6, ca-certificates) plus their
+# dependency closure, resolved hermetically by rules_distroless.
+#
+# After editing this file, regenerate the lockfile (pins each .deb by sha256):
+#   bazel run @bookworm_apt//:lock
+#
+# Sources mirror debian:bookworm-slim's default apt sources (bookworm + updates +
+# security) so resolved versions match a `apt-get install` in that base.
+version: 1
+
+sources:
+  - channel: bookworm main
+    url: https://deb.debian.org/debian
+  - channel: bookworm-updates main
+    url: https://deb.debian.org/debian
+  - channel: bookworm-security main
+    url: https://deb.debian.org/debian-security
+
+archs:
+  - amd64
+  - arm64
+
+packages:
+  - ca-certificates
+  - curl
+  - tini
+  - libstdc++6
