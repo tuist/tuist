@@ -121,8 +121,18 @@ defmodule Noora.Breadcrumbs do
         <span data-part="label">{@label}</span>
         <.badge :if={@badge_label} label={@badge_label} color={@badge_color} size="small" />
       </a>
-      <button :if={has_slot_content?(@inner_block, assigns)} data-part="trigger">
-        <.morphing_icon id={@id <> "-selector-morph"} from="selector" to="selector_2" />
+      <button
+        :if={has_slot_content?(@inner_block, assigns)}
+        data-part="trigger"
+        aria-label={"#{@label} menu"}
+      >
+        <.icon
+          id={@id <> "-selector"}
+          name="selector"
+          active_name="selector_2"
+          transition="morph"
+          active_state="open"
+        />
       </button>
       <div :if={has_slot_content?(@inner_block, assigns)} data-part="positioner">
         <div class="noora-dropdown-content" data-part="content">
