@@ -23,6 +23,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ const (
 	defaultListenAddr      = ":8081"
 	defaultApiserverURL    = "https://kubernetes.default.svc:443"
 	defaultSATokenFile     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	defaultCACertFile      = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 	defaultPolicyURL       = "http://tuist-ops-egress/api/v1/policy"
 	defaultPolicyTimeoutMS = 5000
 	defaultRefreshTTLSec   = 300
@@ -49,6 +51,7 @@ type config struct {
 	listenAddr    string
 	apiserverURL  string
 	saTokenFile   string
+	caCertFile    string
 	policyURL     string
 	policyTimeout time.Duration
 	refreshTTL    time.Duration
@@ -59,6 +62,7 @@ func configFromEnv() config {
 		listenAddr:    envOr("LISTEN_ADDR", defaultListenAddr),
 		apiserverURL:  envOr("APISERVER_URL", defaultApiserverURL),
 		saTokenFile:   envOr("SA_TOKEN_FILE", defaultSATokenFile),
+		caCertFile:    envOr("CA_CERT_FILE", defaultCACertFile),
 		policyURL:     envOr("POLICY_URL", defaultPolicyURL),
 		policyTimeout: time.Duration(envIntOr("POLICY_TIMEOUT_MS", defaultPolicyTimeoutMS)) * time.Millisecond,
 		refreshTTL:    time.Duration(envIntOr("REFRESH_TTL_SEC", defaultRefreshTTLSec)) * time.Second,
@@ -115,10 +119,15 @@ func main() {
 		log.Fatalf("parse apiserver URL %q: %v", cfg.apiserverURL, err)
 	}
 
+	apiTransport, err := apiserverTransport(cfg.caCertFile)
+	if err != nil {
+		log.Fatalf("apiserver transport: %v", err)
+	}
+
 	policyClient := &http.Client{Timeout: cfg.policyTimeout}
 	proxy := &httputil.ReverseProxy{
 		Director:  rewriteToApiserver(apiURL, tokens),
-		Transport: apiserverTransport(),
+		Transport: apiTransport,
 		ErrorLog:  log.New(os.Stderr, "[proxy] ", log.LstdFlags),
 	}
 
@@ -237,18 +246,33 @@ func stripImpersonate(h http.Header) {
 	}
 }
 
-// apiserverTransport: the apiserver's serving cert is signed by
-// the cluster CA. We don't bundle a trust store here; the network
-// hop is pod-local to in-cluster (`kubernetes.default.svc`) and
-// the threat model is already constrained by pod-network policy.
-func apiserverTransport() http.RoundTripper {
+// apiserverTransport pins the cluster CA so we get full TLS
+// verification on the upstream hop. The cert + token are
+// automounted by Kubernetes at the same conventional path
+// (`/var/run/secrets/kubernetes.io/serviceaccount/`) that
+// every in-cluster client uses; reading from there means we
+// trust exactly the CA that signs `kubernetes.default.svc`'s
+// serving cert and nothing else. No InsecureSkipVerify.
+func apiserverTransport(caCertFile string) (http.RoundTripper, error) {
+	caPEM, err := os.ReadFile(caCertFile)
+	if err != nil {
+		return nil, fmt.Errorf("read cluster CA cert %q: %w", caCertFile, err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("cluster CA cert at %q contains no usable PEM blocks", caCertFile)
+	}
+
 	return &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		TLSClientConfig: &tls.Config{
+			RootCAs:    pool,
+			MinVersion: tls.VersionTLS12,
+		},
 		// Sane defaults; rely on the standard library otherwise.
 		MaxIdleConns:        50,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
-	}
+	}, nil
 }
 
 func envOr(key, def string) string {

@@ -56,6 +56,7 @@ escalate).
 | `LISTEN_ADDR` | `:8081` | local Pomerium dials this |
 | `APISERVER_URL` | `https://kubernetes.default.svc:443` | upstream |
 | `SA_TOKEN_FILE` | `/var/run/secrets/kubernetes.io/serviceaccount/token` | k8s automount |
+| `CA_CERT_FILE` | `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` | trusted cluster CA for upstream TLS |
 | `POLICY_URL` | `http://tuist-ops-egress/api/v1/policy` | tailnet egress to ops |
 | `POLICY_TIMEOUT_MS` | `5000` | per-request budget for the policy call |
 | `REFRESH_TTL_SEC` | `300` | SA token re-read interval (projected tokens rotate) |

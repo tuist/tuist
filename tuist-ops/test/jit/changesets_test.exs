@@ -28,7 +28,8 @@ defmodule TuistOps.JIT.ChangesetsTest do
       assert cs.valid?
     end
 
-    for field <- ~w(requester_email requester_slack_id target_group intent ttl_seconds slack_channel_id expires_at)a do
+    for field <-
+          ~w(requester_email requester_slack_id target_group intent ttl_seconds slack_channel_id expires_at)a do
       test "missing #{field} → invalid" do
         cs = Request.create_changeset(Map.delete(@valid, unquote(field)))
         refute cs.valid?

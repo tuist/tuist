@@ -90,6 +90,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
       assert {:ok, body} = JSON.decode(conn.resp_body)
       assert body["response_type"] == "ephemeral"
       assert body["text"] =~ "C_APPROVALS"
+
       assert Repo.one(from r in Request, where: r.status == "pending") |> Map.get(:intent) ==
                "fix flaky test"
     end
