@@ -365,6 +365,62 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func load_when_registryPackageInfoCacheHasNoManifest_usesCachedPackageInfo() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let scratchDirectory = temporaryDirectory.appending(component: ".build")
+        let packagePath = temporaryDirectory.appending(component: "Package.swift")
+        let dependencyPackagePath = scratchDirectory.appending(
+            components: "registry", "downloads", "Alamofire", "Alamofire", "5.10.2"
+        )
+
+        try await writeRegistryWorkspaceState(
+            scratchDirectory: scratchDirectory,
+            dependencySubpath: "Alamofire/Alamofire/5.10.2"
+        )
+        try await writeSwiftPackageManifest(at: temporaryDirectory)
+        try await fileSystem.makeDirectory(at: dependencyPackagePath)
+        try await writeSwifterPMPackageInfoCache(
+            scratchDirectory: scratchDirectory,
+            rootPackagePath: temporaryDirectory,
+            dependencyPackagePath: dependencyPackagePath
+        )
+
+        given(packageInfoMapper)
+            .resolveExternalDependencies(
+                path: .any,
+                packagePath: .any,
+                packageInfos: .any,
+                packageToFolder: .any,
+                packageToTargetsToArtifactPaths: .any,
+                packageModuleAliases: .any,
+                packageSettings: .any
+            )
+            .willReturn([:])
+
+        // When
+        _ = try await subject.load(
+            packagePath: packagePath,
+            packageSettings: .test(),
+            disableSandbox: true
+        )
+
+        // Then
+        verify(manifestLoader)
+            .loadPackage(at: .any, disableSandbox: .any)
+            .called(0)
+        verify(packageInfoMapper)
+            .map(
+                packageInfo: .value(.alamofire),
+                path: .value(dependencyPackagePath),
+                packageType: .any,
+                packageSettings: .any,
+                packageModuleAliases: .any,
+                enabledTraits: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func load_when_swifterPMPackageInfoCacheEntryIsStale_fallsBackToManifestLoader() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scratchDirectory = temporaryDirectory.appending(component: ".build")

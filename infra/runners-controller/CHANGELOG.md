@@ -1,15 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in runners-controller@0.11.0<!-- RELEASE NOTES START -->
+## What's Changed in runners-controller@0.12.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* self-hosted Docker Hub pull-through cache for the Linux runner fleet ([#11106](https://github.com/tuist/tuist/pull/11106))
 * surface Linux runner death cause from runner and host sides ([#11114](https://github.com/tuist/tuist/pull/11114))
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/runners-controller@0.10.0...runners-controller@0.11.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/runners-controller@0.10.0...runners-controller@0.12.0
 
 ## What's Changed in runners-controller@0.10.0<!-- RELEASE NOTES START -->
 

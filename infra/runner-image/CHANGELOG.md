@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runner-image@0.3.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* harden CLI release artifact handling ([#11157](https://github.com/tuist/tuist/pull/11157))
+* bump pinned Kura runtime ([#11156](https://github.com/tuist/tuist/pull/11156))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.1...runner-image@0.3.2
+
 ## What's Changed in runner-image@0.3.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes

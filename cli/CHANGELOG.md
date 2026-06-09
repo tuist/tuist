@@ -1,13 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.196.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.197.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* support SwiftPM prebuilt libraries ([#11112](https://github.com/tuist/tuist/pull/11112))
+* add opt-in SwifterPM install resolution
 * Module Cache breakdown for local Xcode builds ([#11087](https://github.com/tuist/tuist/pull/11087))
 ### 🐛 Bug Fixes
 
+* update SwifterPM to 0.7.1 ([#11146](https://github.com/tuist/tuist/pull/11146))
 * tolerate Kura cache propagation in canary caching acceptance test ([#11119](https://github.com/tuist/tuist/pull/11119))
 * HAR recording shutdown crash ([#11116](https://github.com/tuist/tuist/pull/11116))
 * stream xcodebuild test output with NSUnbufferedIO ([#11046](https://github.com/tuist/tuist/pull/11046))
@@ -25,7 +28,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.196.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.195.11...4.197.0
 
 ## What's Changed in 4.195.11<!-- RELEASE NOTES START -->
 

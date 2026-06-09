@@ -212,8 +212,10 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
+| `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | Yes | `KURA_NODE_URL` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
+| `KURA_GLOBAL_DISCOVERY_DNS_NAME` | Optional DNS name for cross-region gateway discovery. Status checks through this path advertise `KURA_PEER_GATEWAY_URL` instead of pod-local `KURA_NODE_URL`. | Yes | disabled |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |

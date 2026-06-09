@@ -491,10 +491,12 @@ private struct SwifterPMPackageInfoCache {
     }
 
     private struct Entry: Decodable {
+        let kind: String
         let packagePath: String
         let packageInfoPath: String
 
         enum CodingKeys: String, CodingKey {
+            case kind
             case packagePath = "package_path"
             case packageInfoPath = "package_info_path"
         }
@@ -557,6 +559,7 @@ private struct SwifterPMPackageInfoCache {
         guard let packagePath = absolutePath(entry.packagePath),
               let packageInfoPath = absolutePath(entry.packageInfoPath),
               await isFreshPackageInfo(
+                  kind: entry.kind,
                   packageInfoPath: packageInfoPath,
                   packagePath: packagePath,
                   fileSystem: fileSystem
@@ -571,17 +574,22 @@ private struct SwifterPMPackageInfoCache {
     }
 
     private static func isFreshPackageInfo(
+        kind: String,
         packageInfoPath: AbsolutePath,
         packagePath: AbsolutePath,
         fileSystem: FileSysteming
     ) async -> Bool {
         do {
-            guard let packageInfoDate = try await fileSystem.fileMetadata(at: packageInfoPath)?.lastModificationDate,
-                  let manifestDate = try await fileSystem.fileMetadata(
-                      at: packagePath.appending(component: "Package.swift")
-                  )?.lastModificationDate
+            guard let packageInfoDate = try await fileSystem.fileMetadata(at: packageInfoPath)?.lastModificationDate
             else {
                 return false
+            }
+
+            guard let manifestDate = try await fileSystem.fileMetadata(
+                at: packagePath.appending(component: "Package.swift")
+            )?.lastModificationDate
+            else {
+                return kind == "registry"
             }
 
             return packageInfoDate >= manifestDate

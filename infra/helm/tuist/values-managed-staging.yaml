@@ -93,6 +93,9 @@ objectStorage:
       default: tuist-stag-storage
 
 cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
   s3:
     bucket: tuist-stag-storage
     xcodeCacheBucket: tuist-xcode-cache-staging

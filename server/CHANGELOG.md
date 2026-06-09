@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in server@1.207.3<!-- RELEASE NOTES START -->
+## What's Changed in server@1.207.4<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 * gate runner availability solely on the :runners feature flag ([#11090](https://github.com/tuist/tuist/pull/11090))
 ### 🐛 Bug Fixes
 
+* show runner job platforms ([#11147](https://github.com/tuist/tuist/pull/11147))
+* runner log spacing ([#11142](https://github.com/tuist/tuist/pull/11142))
 * css changes to projects page to match Figma ([#11138](https://github.com/tuist/tuist/pull/11138))
 * stop OrphanedStampedPodsWorker from killing live runner pods ([#11133](https://github.com/tuist/tuist/pull/11133))
 * handle GitHub log redirects manually ([#11126](https://github.com/tuist/tuist/pull/11126))
@@ -33,7 +35,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.207.3
+**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.205.0...server@1.207.4
 
 ## What's Changed in server@1.205.0<!-- RELEASE NOTES START -->
 

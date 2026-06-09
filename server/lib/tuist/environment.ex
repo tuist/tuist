@@ -185,6 +185,12 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  def kura_cross_region_replication_enabled? do
+    "TUIST_KURA_CROSS_REGION_REPLICATION_ENABLED"
+    |> System.get_env("0")
+    |> truthy?()
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
