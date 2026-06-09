@@ -1,5 +1,6 @@
 defmodule Tuist.Kura.UsageTest do
   use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
 
   import Ecto.Query
 
@@ -40,6 +41,28 @@ defmodule Tuist.Kura.UsageTest do
   end
 
   defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
+
+  defp wire_event(overrides \\ %{}) do
+    Map.merge(
+      %{
+        "event_id" => "wire-#{System.unique_integer([:positive])}",
+        "tenant_id" => "acme",
+        "namespace_id" => "ios",
+        "node_id" => "kura-0",
+        "region" => "us-east-1",
+        "traffic_plane" => "public",
+        "direction" => "egress",
+        "operation" => "download",
+        "protocol" => "http",
+        "artifact_kind" => "xcode",
+        "bytes" => 100,
+        "request_count" => 1,
+        "window_start_unix_seconds" => 1_777_968_000,
+        "window_seconds" => 60
+      },
+      overrides
+    )
+  end
 
   describe "create_events/1" do
     test "resolves tenant/namespace handles to account/project ids" do
@@ -126,6 +149,36 @@ defmodule Tuist.Kura.UsageTest do
         end)
 
       assert {:error, :too_many_events} = Usage.create_events(events)
+    end
+
+    test "rejects malformed events" do
+      assert {:error, :invalid_events} =
+               Usage.create_events([Map.delete(wire_event(), "event_id")])
+
+      assert {:error, :invalid_events} =
+               Usage.create_events([wire_event(%{"tenant_id" => String.duplicate("a", 33)})])
+
+      assert {:error, :invalid_events} =
+               Usage.create_events([wire_event(%{"bytes" => "100"})])
+    end
+
+    test "writes accepted events to ClickHouse in bounded chunks" do
+      parent = self()
+
+      expect(IngestRepo, :insert_all, 3, fn UsageEvent, rows ->
+        send(parent, {:chunk_size, length(rows)})
+        {length(rows), nil}
+      end)
+
+      events =
+        Enum.map(1..1_001, fn index ->
+          wire_event(%{"event_id" => "wire-#{index}"})
+        end)
+
+      assert {:ok, 1_001} = Usage.create_events(events)
+      assert_received {:chunk_size, 500}
+      assert_received {:chunk_size, 500}
+      assert_received {:chunk_size, 1}
     end
   end
 

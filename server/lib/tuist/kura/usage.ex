@@ -12,26 +12,104 @@ defmodule Tuist.Kura.Usage do
   alias Tuist.Projects
 
   @max_events_per_batch 5_000
+  @insert_chunk_size 500
+  @max_u32 4_294_967_295
+  @max_u64 18_446_744_073_709_551_615
+  @max_unix_seconds 4_102_444_800
+  @string_fields [
+    {"event_id", 512, false},
+    {"tenant_id", 32, false},
+    {"namespace_id", 32, true},
+    {"node_id", 512, false},
+    {"region", 64, false},
+    {"traffic_plane", 32, false},
+    {"direction", 32, false},
+    {"operation", 32, false},
+    {"protocol", 16, false},
+    {"artifact_kind", 64, false}
+  ]
+
+  @uint64_fields ["bytes", "request_count"]
 
   # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic). We
   # resolve them to Tuist account/project ids at the boundary and persist only
   # the ids — anything that can't be resolved drops to 0 and is treated as
   # unattributable traffic.
   def create_events(events) when is_list(events) and length(events) <= @max_events_per_batch do
-    projects_by_handle = lookup_projects(events)
-    account_ids_by_handle = lookup_account_ids(events)
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    with {:ok, events} <- validate_events(events) do
+      projects_by_handle = lookup_projects(events)
+      account_ids_by_handle = lookup_account_ids(events)
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
-    rows = Enum.map(events, &build_row(&1, projects_by_handle, account_ids_by_handle, now))
+      rows = Enum.map(events, &build_row(&1, projects_by_handle, account_ids_by_handle, now))
 
-    if rows != [] do
-      IngestRepo.insert_all(UsageEvent, rows)
+      rows
+      |> Enum.chunk_every(@insert_chunk_size)
+      |> Enum.each(&IngestRepo.insert_all(UsageEvent, &1))
+
+      {:ok, length(rows)}
     end
-
-    {:ok, length(rows)}
   end
 
   def create_events(events) when is_list(events), do: {:error, :too_many_events}
+
+  defp validate_events(events) do
+    events
+    |> Enum.reduce_while({:ok, []}, fn event, {:ok, acc} ->
+      case validate_event(event) do
+        {:ok, event} -> {:cont, {:ok, [event | acc]}}
+        {:error, :invalid_event} -> {:halt, {:error, :invalid_events}}
+      end
+    end)
+    |> case do
+      {:ok, events} -> {:ok, Enum.reverse(events)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_event(event) when is_map(event) do
+    with {:ok, event} <- validate_string_fields(event),
+         {:ok, event} <- validate_uint64_fields(event),
+         {:ok, event} <- validate_uint32_field(event, "window_seconds") do
+      validate_unix_seconds(event, "window_start_unix_seconds")
+    end
+  end
+
+  defp validate_event(_event), do: {:error, :invalid_event}
+
+  defp validate_string_fields(event) do
+    Enum.reduce_while(@string_fields, {:ok, event}, fn {field, max_bytes, allow_empty?}, {:ok, event} ->
+      case Map.fetch(event, field) do
+        {:ok, value}
+        when is_binary(value) and byte_size(value) <= max_bytes and
+               (allow_empty? or byte_size(value) > 0) ->
+          {:cont, {:ok, event}}
+
+        _ ->
+          {:halt, {:error, :invalid_event}}
+      end
+    end)
+  end
+
+  defp validate_uint64_fields(event) do
+    Enum.reduce_while(@uint64_fields, {:ok, event}, fn field, {:ok, event} ->
+      case validate_integer_field(event, field, 0, @max_u64) do
+        {:ok, event} -> {:cont, {:ok, event}}
+        {:error, :invalid_event} -> {:halt, {:error, :invalid_event}}
+      end
+    end)
+  end
+
+  defp validate_uint32_field(event, field), do: validate_integer_field(event, field, 1, @max_u32)
+
+  defp validate_unix_seconds(event, field), do: validate_integer_field(event, field, 0, @max_unix_seconds)
+
+  defp validate_integer_field(event, field, min, max) do
+    case Map.fetch(event, field) do
+      {:ok, value} when is_integer(value) and value >= min and value <= max -> {:ok, event}
+      _ -> {:error, :invalid_event}
+    end
+  end
 
   defp lookup_projects(events) do
     events
