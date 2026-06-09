@@ -9,11 +9,11 @@ og_image_path: /marketing/images/blog/2026/06/08/swifterpm/og.jpg
 
 For a while now our users have been telling us the same thing, and lately they have been telling us louder. Installing the dependencies of their Swift packages is slow, and the directory where those dependencies get resolved takes an uncomfortable amount of disk space. The itch has been getting worse, not better, and the reason is easy to point at: people are doing far more concurrent work with coding agents, each agent on its own [git worktree](https://git-scm.com/docs/git-worktree), each resolving the same dependencies from scratch. Several copies of the same packages, resolved several times, sitting on disk several times over.
 
-At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called **SwifterPM**, and it is a faster resolver and restorer for Swift packages.
+At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called [**SwifterPM**](https://github.com/tuist/swifterpm), and it is a faster resolver and restorer for Swift packages.
 
 ## Where the time and the disk go
 
-For those who do not know how this part of the world works, a quick tour. Tuist, like Xcode and like [Bazel](https://bazel.build), uses the Swift Package Manager to resolve the dependency graph locally. Each tool keeps that resolution in its own place. Tuist uses a `.build` directory relative to the root of the repository, Xcode keeps it in an internal location of its own, and Bazel does something similar under its own tree.
+For those who do not know how this part of the world works, a quick tour. Tuist, like Xcode and like [Bazel](https://bazel.build), uses the [Swift Package Manager](https://github.com/swiftlang/swift-package-manager) to resolve the dependency graph locally. Each tool keeps that resolution in its own place. Tuist uses a `.build` directory relative to the root of the repository, Xcode keeps it in an internal location of its own, and Bazel does something similar under its own tree.
 
 The interesting part is what happens after the graph is resolved. It does not stay as a generic graph. It gets reconciled into the primitives of whatever build system you are using. With Bazel it becomes the graph that [the Apple rules](https://github.com/bazelbuild/rules_apple) construct. With Tuist it becomes the graph of the generated project. And so on.
 
