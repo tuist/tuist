@@ -53,6 +53,18 @@ data:
         pass_identity_headers: true
         preserve_host_header: false
         timeout: 90s
+        # Pomerium authenticates ITSELF to the apiserver via its
+        # pod's ServiceAccount token (automounted by Kubernetes at
+        # the path below). The inbound Pomerium-issued bearer
+        # token kubectl sends is stripped here and replaced with
+        # the SA bearer for the upstream request. The apiserver
+        # sees Pomerium-the-SA as the requester and consumes the
+        # Impersonate-User / Impersonate-Group headers (set by the
+        # ext_authz response below) to decide RBAC. The
+        # ClusterRole binding in templates/rbac.yaml grants this
+        # SA the Impersonate verb so the apiserver accepts those
+        # headers.
+        kubernetes_service_account_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token"
         # Coarse domain gate before any ext_authz call.
         # Per-request impersonation (which group to inject) is
         # decided by the ext_authz callback below.
