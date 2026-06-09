@@ -158,13 +158,16 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   end
 
   def cas_output_fixture(attrs \\ []) do
-    build_run_id =
-      Keyword.get_lazy(attrs, :build_run_id, fn ->
+    {build_run_id, project_id} =
+      if Keyword.has_key?(attrs, :build_run_id) do
+        {Keyword.fetch!(attrs, :build_run_id), Keyword.get(attrs, :project_id, 0)}
+      else
         {:ok, build} = build_fixture()
-        build.id
-      end)
+        {build.id, Keyword.get(attrs, :project_id, build.project_id)}
+      end
 
     cas_output = %{
+      project_id: project_id,
       node_id: Keyword.get(attrs, :node_id, "node1"),
       checksum: Keyword.get(attrs, :checksum, "abc123"),
       size: Keyword.get(attrs, :size, 1000),

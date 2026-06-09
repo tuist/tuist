@@ -2802,14 +2802,14 @@ defmodule Tuist.Builds.AnalyticsTest do
       IngestRepo.query!(
         """
         INSERT INTO cas_outputs
-          (node_id, checksum, size, duration, compressed_size, operation, build_run_id, inserted_at)
+          (node_id, checksum, size, duration, compressed_size, operation, project_id, build_run_id, inserted_at)
         VALUES
-          ('n1', 'c1', 1024, 100, 1024, 'upload',   {b1:UUID}, toDateTime('2024-04-15 12:00:00')),
-          ('n2', 'c2', 2048, 200, 2048, 'upload',   {b2:UUID}, toDateTime('2024-05-15 12:00:00')),
-          ('n3', 'c3', 4096, 400, 4096, 'upload',   {b3:UUID}, toDateTime('2024-06-15 12:00:00')),
-          ('n4', 'c4', 9999, 999, 9999, 'download', {b4:UUID}, toDateTime('2024-05-15 12:00:00'))
+          ('n1', 'c1', 1024, 100, 1024, 'upload',   {pid:Int64}, {b1:UUID}, toDateTime('2024-04-15 12:00:00')),
+          ('n2', 'c2', 2048, 200, 2048, 'upload',   {pid:Int64}, {b2:UUID}, toDateTime('2024-05-15 12:00:00')),
+          ('n3', 'c3', 4096, 400, 4096, 'upload',   {pid:Int64}, {b3:UUID}, toDateTime('2024-06-15 12:00:00')),
+          ('n4', 'c4', 9999, 999, 9999, 'download', {pid:Int64}, {b4:UUID}, toDateTime('2024-05-15 12:00:00'))
         """,
-        %{b1: build_one, b2: build_two, b3: build_three, b4: build_four}
+        %{pid: project.id, b1: build_one, b2: build_two, b3: build_three, b4: build_four}
       )
 
       # When
