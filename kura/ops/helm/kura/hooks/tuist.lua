@@ -296,7 +296,9 @@ local function introspection_client_configured()
   return client_id ~= nil and client_id ~= "" and client_secret ~= nil and client_secret ~= ""
 end
 
-local function authenticate_via_introspection_endpoint(token)
+local authenticate_via_cache_access_endpoint
+
+local function authenticate_via_introspection_endpoint(token, authorization, target)
   local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
   local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
   local response = kura.http_json("tuist", {
@@ -321,6 +323,10 @@ local function authenticate_via_introspection_endpoint(token)
       }
     end
 
+    if target.scope == "project" then
+      return authenticate_via_cache_access_endpoint(authorization)
+    end
+
     return {
       deny = { status = 401, message = "Invalid or expired token" },
       ttl_seconds = 3,
@@ -333,7 +339,7 @@ local function authenticate_via_introspection_endpoint(token)
   }
 end
 
-local function authenticate_via_cache_access_endpoint(authorization)
+authenticate_via_cache_access_endpoint = function(authorization)
   local response = kura.http_json("tuist", {
     method = "GET",
     path = "/api/cache/access",
@@ -417,7 +423,7 @@ function authenticate(ctx)
   end
 
   if introspection_client_configured() then
-    return authenticate_via_introspection_endpoint(token)
+    return authenticate_via_introspection_endpoint(token, authorization, target)
   end
 
   if target.scope == "project" then
