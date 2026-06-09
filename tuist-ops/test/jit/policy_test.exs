@@ -75,6 +75,20 @@ defmodule TuistOps.JIT.PolicyTest do
       end
     end
 
+    test ":unknown role (from a future Tailscale role string we haven't mapped) denies everything" do
+      # TailscaleClient.parse_role/1 returns :unknown for any role
+      # string not in its enumerated list. Policy must treat that as
+      # deny, not as "the lowest real role" — otherwise a renamed or
+      # new Tailscale role would silently grant staging/canary
+      # self-approval + view-tier kubectl.
+      stub_roles(%{@member => :unknown})
+
+      for grp <- [@staging, @canary, @prod] do
+        refute Policy.self_approval_allowed?(@member, grp),
+               "expected :unknown role to be denied for #{grp}"
+      end
+    end
+
     test "off-tailnet identities cannot self-approve any env" do
       stub_roles(%{})
 

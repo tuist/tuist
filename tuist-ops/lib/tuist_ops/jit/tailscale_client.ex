@@ -100,9 +100,12 @@ defmodule TuistOps.JIT.TailscaleClient do
   end
 
   # Tailscale's users endpoint returns role as a hyphenated string.
-  # Map to atoms the policy code can pattern-match on. Unknown role
-  # strings degrade to `:member` (the lowest-trust real role) so a
-  # new Tailscale role we haven't seen doesn't accidentally promote.
+  # Map to atoms the policy code can pattern-match on. Unknown
+  # role strings degrade to `:unknown` so a new Tailscale role
+  # we haven't seen denies by default rather than silently
+  # promoting (or, in the case of the previous `:member` default,
+  # granting non-prod self-approval and view-tier kubectl to an
+  # unenumerated identity tier).
   defp parse_role("owner"), do: :owner
   defp parse_role("admin"), do: :admin
   defp parse_role("network-admin"), do: :network_admin
@@ -110,7 +113,7 @@ defmodule TuistOps.JIT.TailscaleClient do
   defp parse_role("auditor"), do: :auditor
   defp parse_role("billing-admin"), do: :billing_admin
   defp parse_role("member"), do: :member
-  defp parse_role(_), do: :member
+  defp parse_role(_), do: :unknown
 
   defp token do
     case :persistent_term.get(@token_cache_key, nil) do

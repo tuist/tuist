@@ -34,14 +34,19 @@ image:
 # to the in-cluster apiserver with the resolved Impersonate-* +
 # the pod's SA bearer.
 #
-# Tag is bumped by the kube-impersonator-image workflow; pin to a
-# sha-<short> from a green build for prod-grade reproducibility.
-# Branch tag (e.g. "infra-tailscale-k8s-human-access") is fine for
-# pre-merge validation.
+# Tag is an IMMUTABLE sha-<short> from a green
+# kube-impersonator-image workflow run. Bump when shipping a new
+# sidecar version:
+#   1. Land the change in kube-impersonator/.
+#   2. Watch the kube-impersonator-image workflow build the new
+#      image and push it with the sha-<short> tag.
+#   3. Update this `tag:` to the new sha and redeploy.
+# Don't pin to branch / latest tags here — they're mutable and
+# would make production state non-reproducible from git.
 kubeImpersonator:
   image:
     repository: ghcr.io/tuist/kube-impersonator
-    tag: infra-tailscale-k8s-human-access
+    tag: sha-f49b9c6
     pullPolicy: IfNotPresent
   port: 8081
   resources:

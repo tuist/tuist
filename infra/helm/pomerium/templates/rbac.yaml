@@ -17,9 +17,35 @@ metadata:
   labels:
     {{- include "pomerium.labels" . | nindent 4 }}
 rules:
+  # User impersonation is unrestricted because user identities
+  # are dynamic (Workspace emails are not enumerable in RBAC).
+  # The blast radius is bounded by the GROUPS rule below: a user
+  # with no group membership has no RBAC grants, so impersonating
+  # an arbitrary email is harmless on its own.
   - apiGroups: [""]
-    resources: ["users", "groups", "serviceaccounts"]
+    resources: ["users"]
     verbs: ["impersonate"]
+  # Group impersonation is RESTRICTED to the named tiers this
+  # chart owns (templates/access-tiers.yaml binds them to
+  # ClusterRoles). Without `resourceNames` the sidecar — or any
+  # caller in its trust chain — could request `system:masters`
+  # and the apiserver would accept it, escalating to cluster-
+  # admin. Names listed here must match the groups
+  # PolicyController emits as Impersonate-Group values.
+  - apiGroups: [""]
+    resources: ["groups"]
+    verbs: ["impersonate"]
+    resourceNames:
+      - tuist-admins
+      - tuist-eng
+      - tuist-staging-write
+      - tuist-canary-write
+      - tuist-prod-write
+  # ServiceAccount impersonation is NOT granted: humans never
+  # need to act as a workload identity, and the sidecar is the
+  # sole source of truth for impersonation. If a future feature
+  # legitimately requires SA impersonation, add a separate scoped
+  # rule rather than widening this one.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
