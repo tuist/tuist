@@ -80,6 +80,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # Full history so `git log -1 -- kube-impersonator/`
+          # below can find the last commit touching that path.
+          fetch-depth: 0
       - uses: jdx/mise-action@v4.0.1
         with:
           install_args: "helm kubectl"
@@ -99,11 +102,38 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve kube-impersonator image tag
+        # Aligns with the resolve-at-deploy pattern from
+        # `server-deployment.yml` (PR #11160): no image tag pin
+        # committed in values, the deploy workflow finds the right
+        # tag for the deployed SHA. For kube-impersonator the
+        # build is its own workflow (kube-impersonator-image.yml)
+        # that tags images `sha-<short>` on every push touching
+        # `kube-impersonator/**`. Resolving from the LAST commit
+        # touching that path means the tag is guaranteed to exist
+        # in ghcr (the build already ran for it) and the chart
+        # pulls the right sidecar version even for deploys that
+        # only changed Pomerium config.
+        run: |
+          set -euo pipefail
+          # 7 chars — matches docker/metadata-action's
+          # `type=sha,prefix=sha-,format=short` default in the
+          # kube-impersonator-image workflow. Without --abbrev,
+          # git's core.abbrev (often 12 chars on modern repos)
+          # would mismatch the published tag.
+          sha=$(git log -1 --abbrev=7 --format='%h' -- kube-impersonator/)
+          if [ -z "$sha" ]; then
+            echo "::error::could not resolve kube-impersonator commit"
+            exit 1
+          fi
+          echo "KUBE_IMPERSONATOR_TAG=sha-${sha}" >> "$GITHUB_ENV"
+          echo "Pinning kubeImpersonator.image.tag=sha-${sha}"
       - name: helm upgrade --install pomerium-kube
         run: |
           helm upgrade --install pomerium-kube infra/helm/pomerium \
             --namespace pomerium --create-namespace \
             -f infra/helm/pomerium/values-${{ matrix.environment }}.yaml \
+            --set kubeImpersonator.image.tag="$KUBE_IMPERSONATOR_TAG" \
             --atomic --timeout 10m --wait
       - name: Diagnostics on failure
         if: failure()

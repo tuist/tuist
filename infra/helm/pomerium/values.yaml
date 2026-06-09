@@ -34,19 +34,19 @@ image:
 # to the in-cluster apiserver with the resolved Impersonate-* +
 # the pod's SA bearer.
 #
-# Tag is an IMMUTABLE sha-<short> from a green
-# kube-impersonator-image workflow run. Bump when shipping a new
-# sidecar version:
-#   1. Land the change in kube-impersonator/.
-#   2. Watch the kube-impersonator-image workflow build the new
-#      image and push it with the sha-<short> tag.
-#   3. Update this `tag:` to the new sha and redeploy.
-# Don't pin to branch / latest tags here — they're mutable and
-# would make production state non-reproducible from git.
+# `tag` is intentionally empty in source. The deploy workflow
+# (.github/workflows/pomerium-deployment.yml) resolves it at
+# deploy time from `git log -1 --format=%h -- kube-impersonator/`
+# and passes via `--set kubeImpersonator.image.tag=sha-<short>`.
+# That matches the resolve-at-deploy pattern from PR #11160 —
+# no committed image pins, no commit-and-redeploy cascade. An
+# empty tag here fails the deploy fast (k8s rejects
+# `repository:`), which is the intended fail-fast on missing
+# `--set`.
 kubeImpersonator:
   image:
     repository: ghcr.io/tuist/kube-impersonator
-    tag: sha-f49b9c6
+    tag: ""
     pullPolicy: IfNotPresent
   port: 8081
   resources:
