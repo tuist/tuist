@@ -1,11 +1,5 @@
 name: CLI Release
 
-# Releases the Tuist CLI (macOS + Linux). Kept in its own workflow with its
-# own concurrency lane so a CLI release — the slow, frequent build — never
-# serializes against, or blocks, the server/infra release + deploy pipeline
-# in release.yml. The CLI shares no tag or version with any other component,
-# so nothing is lost by running it independently.
-
 on:
   push:
     branches:

@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-    # CLI and app release from cli-release.yml / app-release.yml. None of the
-    # components this workflow owns (server, cache, kura, gradle, skills,
-    # noora, helm, the infra images) has an include path under cli/** or
-    # app/**, so a push touching only those paths has nothing to do here.
     paths-ignore:
       - cli/**
       - app/**
