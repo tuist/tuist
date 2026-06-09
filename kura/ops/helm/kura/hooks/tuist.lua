@@ -4,7 +4,7 @@
 -- integration of Kura's extension API. Kura itself stays generic.
 -- Other adopters write their own hooks.lua against the same API.
 --
--- Two jobs:
+-- Three jobs:
 --
 --   1. authenticate — first try Tuist-issued Guardian JWTs locally.
 --      New tokens carry `cache_grants`, so Kura can authorize the hot
@@ -22,11 +22,19 @@
 --      `ctx.server_tenant_id`, then check the target against first-
 --      class account/project cache grants for the requested action.
 --
+--   3. response_headers — preserve the legacy Tuist cache API contract
+--      by signing successful module downloads with x-tuist-signature.
+--      Older CLIs validate this header before unpacking cache artifacts.
+--
 -- Required Kura extension config (set by the chart / rollout worker):
 --   * KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL              → https://tuist.dev (or staging)
 --   * KURA_EXTENSION_JWT_VERIFIER_TUIST_*                    → Guardian verifier for Tuist JWTs
 --   * KURA_CONTROL_PLANE_CLIENT_ID                           → OAuth client ID used by Kura
 --   * KURA_CONTROL_PLANE_CLIENT_SECRET                       → OAuth client secret used by Kura
+--
+-- Optional legacy module-cache signature config:
+--   * KURA_EXTENSION_SIGNER_TUIST_LICENSE_ALGORITHM          → hmac-sha256
+--   * KURA_EXTENSION_SIGNER_TUIST_LICENSE_SECRET             → base64 Tuist license signing key
 
 local function authorization_header(headers)
   local authorization = headers.authorization or headers.Authorization
@@ -296,6 +304,24 @@ local function introspection_client_configured()
   return client_id ~= nil and client_id ~= "" and client_secret ~= nil and client_secret ~= ""
 end
 
+local function tuist_signature_configured()
+  local secret = env_value("KURA_EXTENSION_SIGNER_TUIST_LICENSE_SECRET")
+
+  return secret ~= nil and secret ~= ""
+end
+
+local function module_download_hash(ctx)
+  if ctx.artifact_hash ~= nil and ctx.artifact_hash ~= "" then
+    return ctx.artifact_hash
+  end
+
+  if ctx.query ~= nil and ctx.query.hash ~= nil and ctx.query.hash ~= "" then
+    return ctx.query.hash
+  end
+
+  return nil
+end
+
 local authenticate_via_cache_access_endpoint
 
 local function authenticate_via_introspection_endpoint(token, authorization, target)
@@ -481,5 +507,37 @@ function authorize(ctx, principal)
       message = "Forbidden: " .. target.scope .. " '" .. target.identifier .. "' is not granted to this principal for " .. action,
     },
     ttl_seconds = 3,
+  }
+end
+
+function response_headers(ctx, principal)
+  if not tuist_signature_configured() then
+    return {}
+  end
+
+  if ctx.route ~= "/api/cache/module/{id}" then
+    return {}
+  end
+
+  local method = string.upper(ctx.method or "")
+  if method ~= "GET" then
+    return {}
+  end
+
+  if ctx.status_code == nil or ctx.status_code >= 400 then
+    return {}
+  end
+
+  local hash = module_download_hash(ctx)
+  if hash == nil then
+    return {}
+  end
+
+  return {
+    sign = {
+      header = "x-tuist-signature",
+      signer = "tuist_license",
+      payload = hash,
+    },
   }
 end

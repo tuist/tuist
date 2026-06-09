@@ -60,6 +60,11 @@ kuraController:
       item: ""
       fields:
         introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+        # Optional base64 Tuist license metadata.signingKey. When set,
+        # ESO projects it into KURA_EXTENSION_SIGNER_TUIST_LICENSE_SECRET
+        # so managed Kura nodes can emit the legacy x-tuist-signature
+        # header for old Tuist CLIs.
+        licenseSigningKey: ""
   sentry:
     externalSecret:
       enabled: false
