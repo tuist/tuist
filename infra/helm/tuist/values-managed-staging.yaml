@@ -384,6 +384,7 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
+    registryMirror: true
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #

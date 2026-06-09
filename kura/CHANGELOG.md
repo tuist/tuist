@@ -1,8 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in kura@0.7.4<!-- RELEASE NOTES START -->
+## What's Changed in kura@0.8.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add cross-region peer gateway discovery ([#11173](https://github.com/tuist/tuist/pull/11173))
 ### 🐛 Bug Fixes
 
 * stabilize peer discovery and primary routing ([#11151](https://github.com/tuist/tuist/pull/11151))
@@ -13,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.7.4
+**Full Changelog**: https://github.com/tuist/tuist/compare/kura@0.7.1...kura@0.8.0
 
 ## What's Changed in kura@0.7.1<!-- RELEASE NOTES START -->
 
