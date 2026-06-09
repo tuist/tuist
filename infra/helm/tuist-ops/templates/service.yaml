@@ -16,6 +16,11 @@ metadata:
     # forwards to this hostname.
     tailscale.com/expose: "true"
     tailscale.com/hostname: {{ .Values.tailnetHostname | quote }}
+    # Without this the operator defaults to `tag:k8s`, which the
+    # OAuth client doesn't have permission to mint. Use the
+    # production cluster's tag (matches the operator's defaultTags
+    # in infra/helm/tailscale-operator/values-production.yaml).
+    tailscale.com/tags: "tag:tuist-k8s-production"
   {{- end }}
 spec:
   type: {{ .Values.service.type }}
