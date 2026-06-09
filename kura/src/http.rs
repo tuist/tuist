@@ -1531,6 +1531,8 @@ async fn upload_module_part(
         request,
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
+        &state.config.tmp_dir,
+        state.config.tmp_dir_max_bytes,
         &state.io,
         None,
     )
@@ -1539,6 +1541,12 @@ async fn upload_module_part(
         Ok(temp) => temp,
         Err(BodyReadError::TooLarge) => {
             return error_response(StatusCode::PAYLOAD_TOO_LARGE, "Part exceeds 10MB limit");
+        }
+        Err(BodyReadError::TmpDirFull(error)) => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Temporary storage budget exhausted: {error}"),
+            );
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -1846,6 +1854,8 @@ async fn internal_replicate_artifact(
         request,
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
+        &state.config.tmp_dir,
+        state.config.tmp_dir_max_bytes,
         &state.io,
         state.replication_bandwidth_limiter.clone(),
     )
@@ -1859,6 +1869,15 @@ async fn internal_replicate_artifact(
             return error_response(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "Request body exceeded allowed size",
+            );
+        }
+        Err(BodyReadError::TmpDirFull(error)) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Temporary storage budget exhausted: {error}"),
             );
         }
         Err(BodyReadError::Io(error)) => {
@@ -2017,6 +2036,8 @@ async fn put_blob_artifact(
         request,
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
+        &state.config.tmp_dir,
+        state.config.tmp_dir_max_bytes,
         &state.io,
         None,
     )
@@ -2027,6 +2048,12 @@ async fn put_blob_artifact(
             return error_response(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "Request body exceeded allowed size",
+            );
+        }
+        Err(BodyReadError::TmpDirFull(error)) => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("Temporary storage budget exhausted: {error}"),
             );
         }
         Err(BodyReadError::Io(error)) => {

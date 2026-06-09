@@ -210,6 +210,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
+| `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
@@ -288,7 +289,7 @@ KURA_GRPC_PORT=50051 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
 KURA_REGION=eu-central \
-KURA_TMP_DIR=/tmp/kura \
+KURA_TMP_DIR=/var/cache/kura/tmp \
 KURA_DATA_DIR=/var/cache/kura \
 KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \

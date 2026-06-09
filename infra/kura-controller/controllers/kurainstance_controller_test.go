@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -271,15 +272,18 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Labels["tuist.dev/region"]; got != "eu" {
 		t.Fatalf("expected pod template region label, got %q", got)
 	}
-	var tmpVolume *corev1.Volume
-	for i := range sts.Spec.Template.Spec.Volumes {
-		if sts.Spec.Template.Spec.Volumes[i].Name == "tmp" {
-			tmpVolume = &sts.Spec.Template.Spec.Volumes[i]
-			break
+	if got := env["KURA_TMP_DIR"]; got != "/var/cache/kura/tmp" {
+		t.Fatalf("expected KURA_TMP_DIR to use the persistent data volume, got %q", got)
+	}
+	for _, mount := range container.VolumeMounts {
+		if mount.Name == "tmp" || mount.MountPath == "/tmp/kura" {
+			t.Fatalf("expected no tmp emptyDir mount, got %v", mount)
 		}
 	}
-	if tmpVolume == nil || tmpVolume.EmptyDir == nil || tmpVolume.EmptyDir.SizeLimit == nil {
-		t.Fatal("expected tmp emptyDir to declare a sizeLimit")
+	for i := range sts.Spec.Template.Spec.Volumes {
+		if sts.Spec.Template.Spec.Volumes[i].Name == "tmp" {
+			t.Fatal("expected no tmp emptyDir volume")
+		}
 	}
 	retention := sts.Spec.PersistentVolumeClaimRetentionPolicy
 	if retention == nil {
@@ -550,7 +554,11 @@ func TestKuraInstanceReconcileCrossRegionPeerGateway(t *testing.T) {
 	if got := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; got != "tuist.kura-peers.tuist.dev" {
 		t.Fatalf("expected global discovery DNS env, got %q", got)
 	}
-	if got := sts.Spec.Template.Spec.Volumes[1].Secret.SecretName; got != "kura-cross-region-peer-tls" {
+	peerTLSVolume := volumeByName(sts.Spec.Template.Spec.Volumes, peerTLSVolumeName)
+	if peerTLSVolume == nil || peerTLSVolume.Secret == nil {
+		t.Fatal("expected peer TLS Secret volume")
+	}
+	if got := peerTLSVolume.Secret.SecretName; got != "kura-cross-region-peer-tls" {
 		t.Fatalf("expected shared peer TLS Secret to be mounted, got %q", got)
 	}
 
@@ -1095,12 +1103,16 @@ func secretDataEqual(left, right map[string][]byte) bool {
 }
 
 func kuraPod(instanceName, namespace string, ordinal int, ready bool) *corev1.Pod {
+	return kuraPodCreatedAt(instanceName, namespace, ordinal, ready, time.Time{})
+}
+
+func kuraPodCreatedAt(instanceName, namespace string, ordinal int, ready bool, createdAt time.Time) *corev1.Pod {
 	status := corev1.ConditionFalse
 	if ready {
 		status = corev1.ConditionTrue
 	}
 	podName := fmt.Sprintf("%s-%d", instanceName, ordinal)
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
 			Namespace: namespace,
@@ -1114,6 +1126,10 @@ func kuraPod(instanceName, namespace string, ordinal int, ready bool) *corev1.Po
 			Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}},
 		},
 	}
+	if !createdAt.IsZero() {
+		pod.CreationTimestamp = metav1.NewTime(createdAt)
+	}
+	return pod
 }
 
 func TestChoosePrimaryPod(t *testing.T) {
@@ -1164,6 +1180,40 @@ func TestChoosePrimaryPodUsesRuntimeRoutability(t *testing.T) {
 
 	if got := choosePrimaryPod(name+"-1", name, pods, routable); got != name+"-0" {
 		t.Fatalf("expected runtime-unhealthy primary to fail over to lowest routable pod, got %q", got)
+	}
+}
+
+func TestPrimaryPodHealthIgnoresFreshPodsWhenReplicated(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	now := time.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(3))},
+	}
+	pods := []corev1.Pod{
+		*kuraPodCreatedAt(name, "kura", 0, true, now.Add(-2*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 1, true, now.Add(-30*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 2, true, now.Add(-30*time.Minute)),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				name + "-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				name + "-2": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			},
+		},
+	}
+
+	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	if routable[name+"-0"] {
+		t.Fatal("expected fresh pod to be excluded from primary routing")
+	}
+	if !routable[name+"-1"] || !routable[name+"-2"] {
+		t.Fatalf("expected older pods to stay routable, got %v", routable)
+	}
+	if got := choosePrimaryPod(name+"-0", name, pods, routable); got != name+"-1" {
+		t.Fatalf("expected fresh current primary to fail over to an older routable pod, got %q", got)
 	}
 }
 
@@ -1330,6 +1380,15 @@ func assertServiceRoutesTo(t *testing.T, r *KuraInstanceReconciler, name, namesp
 	if got := service.Spec.Selector["app.kubernetes.io/instance"]; got != name && service.Spec.Selector["app.kubernetes.io/name"] != "kura" {
 		t.Fatalf("expected service %s to keep the instance selector labels, got %v", name, service.Spec.Selector)
 	}
+}
+
+func volumeByName(volumes []corev1.Volume, name string) *corev1.Volume {
+	for i := range volumes {
+		if volumes[i].Name == name {
+			return &volumes[i]
+		}
+	}
+	return nil
 }
 
 func setPodReady(t *testing.T, r *KuraInstanceReconciler, name, namespace string, ready bool) {
