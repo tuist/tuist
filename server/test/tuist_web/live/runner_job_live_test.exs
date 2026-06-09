@@ -524,16 +524,15 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
     # Hidden by default; the icon points to the action (show) — a plain
-    # hourglass, so the hourglass-off slash path is absent.
+    # hourglass, so the hourglass-off variant is absent.
     assert html =~ ~s(data-show-timestamps="false")
     assert html =~ "Timestamps"
-    refute html =~ "M3 3l18 18"
+    refute html =~ "icon-tabler-hourglass-off"
 
     toggled = lv |> element("#logs-timestamps-button") |> render_click()
-    # Now visible; the action becomes "hide", so the icon is hourglass-off
-    # (its distinctive diagonal slash path).
+    # Now visible; the action becomes "hide", so the icon is hourglass-off.
     assert toggled =~ ~s(data-show-timestamps="true")
-    assert toggled =~ "M3 3l18 18"
+    assert toggled =~ "icon-tabler-hourglass-off"
   end
 
   test "the Steps card also has a timestamps button toggling per-step timestamps", %{conn: conn, account: account} do

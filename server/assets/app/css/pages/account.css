@@ -32,12 +32,16 @@
   }
 }
 
-#projects {
+#projects,
+#members {
   & > [data-part="page-title"] {
     margin: 0;
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
   }
+}
+
+#projects {
 
   & > [data-part="recent-section"],
   & > [data-part="all-section"] {
@@ -49,7 +53,7 @@
   & > [data-part="recent-section"] > [data-part="section-title"],
   & > [data-part="all-section"] > [data-part="section-title"] {
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
   }
 
   & > [data-part="all-section"] > [data-part="search-form"] {

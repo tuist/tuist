@@ -30,13 +30,13 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   `(test_run_id, …)` and would have to filter `project_id` after reading
   every granule in the relevant monthly partitions).
 
-  The `rolling` mode reads `test_case_runs_recent_per_case`, an
-  `AggregatingMergeTree` MV that maintains `groupArrayLast(N)` aggregates
-  of `(ran_at, is_flaky)` and `(ran_at, status == 'success')` tuples per
-  `(project_id, test_case_id)`. A
-  project's whole rolling-window scan becomes one row per active test
-  case, regardless of run volume — reading raw `test_case_runs` for that
-  pattern is unrunnable on busy projects.
+  The `rolling` mode reads bucketed `test_case_runs_recent_N_per_case`
+  `AggregatingMergeTree` MVs for common flaky-run windows and falls back to
+  `test_case_runs_recent_per_case` for larger windows. Reliability rolling
+  windows read the success aggregate on `test_case_runs_recent_per_case`.
+  A project's whole rolling-window scan becomes one row per active test case,
+  regardless of run volume — reading raw `test_case_runs` for that pattern is
+  unrunnable on busy projects.
   """
   import Ecto.Query
 
@@ -46,13 +46,13 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   @comparisons ~w(gte gt lt lte)
 
-  # Matches the `groupArrayLast(N)` cap baked into
-  # `test_case_runs_recent_per_case_mv` and the `Alert.changeset/2`
-  # validation. If we ever raise the user-facing cap, all three sites need to
-  # move together.
+  # Product cap shared with `Alert.changeset/2`; larger values are rejected at
+  # write time. Common windows use the smaller recent-runs MV fast path below.
   @max_rolling_window_size 1000
+  @default_rolling_window_size 100
+  @recent_runs_bucket_sizes [100, 250, 500, 750]
 
-  def evaluate(alert) do
+  def evaluate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 10
     comparison = parse_comparison(trigger_config["comparison"])
@@ -61,21 +61,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          ClickHouseRepo.all(
-            flakiness_rate_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
-          )
+          project_id
+          |> flakiness_rate_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          |> filter_test_case_ids(test_case_ids)
+          |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "flakiness_rate", size, threshold, comparison)
+          rolling_triggered_test_case_ids(project_id, "flakiness_rate", size, threshold, comparison, test_case_ids)
       end
 
     %{
       triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled)
+      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
     }
   end
 
-  def evaluate_by_run_count(alert) do
+  def evaluate_by_run_count(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 1
     comparison = parse_comparison(trigger_config["comparison"])
@@ -84,21 +85,22 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          ClickHouseRepo.all(
-            flaky_run_count_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
-          )
+          project_id
+          |> flaky_run_count_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          |> filter_test_case_ids(test_case_ids)
+          |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison)
+          rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison, test_case_ids)
       end
 
     %{
       triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled)
+      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
     }
   end
 
-  def evaluate_by_reliability_rate(alert) do
+  def evaluate_by_reliability_rate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 90
     comparison = parse_comparison(trigger_config["comparison"], "lt")
@@ -107,17 +109,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     triggered_test_case_ids =
       case window_mode(trigger_config) do
         {:last_days, seconds} ->
-          ClickHouseRepo.all(
-            reliability_rate_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
-          )
+          project_id
+          |> reliability_rate_last_days_query(window_cutoff_date(seconds), threshold, comparison)
+          |> filter_test_case_ids(test_case_ids)
+          |> ClickHouseRepo.all()
 
         {:rolling, size} ->
-          rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison)
+          rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison, test_case_ids)
       end
 
     %{
       triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled)
+      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
     }
   end
 
@@ -286,60 +289,129 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  # The rolling path reads `test_case_runs_recent_per_case_mv`, which
-  # maintains `groupArrayLast` aggregates of `(ran_at, is_flaky)` and
-  # `(ran_at, status == 'success')` tuples per `(project_id, test_case_id)`,
-  # capped at `@max_rolling_window_size` entries. Reading raw
-  # `test_case_runs` here doesn't scale: even with a 30-day lookback and
-  # `LIMIT N BY`, the query has to walk every run in the project's lookback
-  # (200M+ rows on busy projects) because the table's primary key prefix
-  # doesn't fit "last N runs per test case per project."
+  # The rolling fast path reads `test_case_runs_recent_N_per_case`, where N is
+  # the smallest bucket in `@recent_runs_bucket_sizes` that can satisfy the
+  # configured window. These tables maintain `groupArraySorted` aggregates of
+  # `(-ran_at_microseconds, is_flaky)` tuples per `(project_id, test_case_id)`.
+  # The full `test_case_runs_recent_per_case` aggregate still keeps 1000
+  # entries for larger user-configured windows, and also carries
+  # `recent_successful_runs` for reliability-rate windows.
   #
   # The MV scan is bounded by `active_test_cases_in_project` rather than
-  # total run volume — usually a few thousand rows. We sort the per-row
-  # array by `ran_at` DESC at read time so the user-facing semantic stays
-  # exact "last N by ran_at" rather than "last N by insertion order."
+  # total run volume — usually a few thousand rows. The per-row aggregate is
+  # sorted by `-ran_at_microseconds`, so the merged array is already
+  # latest-first before the final user-configured slice.
   #
   # ReplacingMergeTree dedup on `test_case_runs` happens after the MV has
   # already absorbed the row, so a re-inserted run (e.g. is_flaky updated
-  # later) appears twice in the `groupArrayLast` array. That's bounded
+  # later) appears twice in the bounded recent-runs array. That's bounded
   # noise — ≤1% at the default window — well within the natural variance
   # of a flakiness threshold.
   #
-  # `monitor_type` and `comparison` are interpolated because each is
-  # constrained to a fixed allowlist, so there is no SQL-injection vector.
-  # Numeric inputs (`project_id`, `size`, `threshold`) flow through bound
-  # parameters.
-  defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison) do
+  # `monitor_type`, `comparison`, `table`, and `recent_n_expr` are
+  # interpolated because they are chosen from fixed in-module allowlists, so
+  # there is no SQL-injection vector. Numeric inputs (`project_id`, `size`,
+  # `threshold`) flow through bound parameters.
+  defp rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison, test_case_ids) do
+    recent_n_expr = """
+    arraySlice(
+      arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_successful_runs)),
+      1,
+      {size:UInt32}
+    )
+    """
+
+    rolling_triggered_test_case_ids_from_recent_runs(
+      "test_case_runs_recent_per_case",
+      recent_n_expr,
+      project_id,
+      "reliability_rate",
+      size,
+      threshold,
+      comparison,
+      test_case_ids
+    )
+  end
+
+  defp rolling_triggered_test_case_ids(project_id, monitor_type, size, threshold, comparison, test_case_ids) do
+    {table, recent_n_expr} =
+      case Enum.find(@recent_runs_bucket_sizes, &(size <= &1)) do
+        nil ->
+          {
+            "test_case_runs_recent_per_case",
+            """
+            arraySlice(
+              arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_runs)),
+              1,
+              {size:UInt32}
+            )
+            """
+          }
+
+        bucket_size ->
+          {
+            "test_case_runs_recent_#{bucket_size}_per_case",
+            """
+            arraySlice(
+              groupArraySortedMerge(#{bucket_size})(recent_runs),
+              1,
+              {size:UInt32}
+            )
+            """
+          }
+      end
+
+    rolling_triggered_test_case_ids_from_recent_runs(
+      table,
+      recent_n_expr,
+      project_id,
+      monitor_type,
+      size,
+      threshold,
+      comparison,
+      test_case_ids
+    )
+  end
+
+  defp rolling_triggered_test_case_ids_from_recent_runs(
+         table,
+         recent_n_expr,
+         project_id,
+         monitor_type,
+         size,
+         threshold,
+         comparison,
+         test_case_ids
+       ) do
+    test_case_filter =
+      case test_case_ids do
+        nil -> ""
+        _test_case_ids -> "AND test_case_id IN {test_case_ids:Array(UUID)}"
+      end
+
     sql = """
     SELECT test_case_id
     FROM (
       SELECT
         test_case_id,
-        arraySlice(
-          arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(#{rolling_recent_runs_column(monitor_type)})),
-          1,
-          {size:UInt32}
-        ) AS recent_n
-      FROM test_case_runs_recent_per_case
+        #{recent_n_expr} AS recent_n
+      FROM #{table}
       WHERE project_id = {project_id:Int64}
+        #{test_case_filter}
       GROUP BY test_case_id
     )
     WHERE length(recent_n) > 0
       AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
     """
 
+    params = maybe_put_test_case_ids(%{project_id: project_id, size: size, threshold: threshold * 1.0}, test_case_ids)
+
     # Raise on ClickHouse errors instead of swallowing them. If the MV is
     # missing or the query fails transiently, returning `[]` would tell the
     # worker "no test cases match" and trip recovery actions on every active
     # event. Letting the error propagate matches the `ClickHouseRepo.all`
     # path in the `last_days` branch and gives Oban a chance to retry.
-    %{rows: rows} =
-      ClickHouseRepo.query!(sql, %{
-        project_id: project_id,
-        size: size,
-        threshold: threshold * 1.0
-      })
+    %{rows: rows} = ClickHouseRepo.query!(sql, params)
 
     # ClickHouse returns UUID columns as 16-byte binaries here; the rest of
     # the worker compares against string-encoded UUIDs from the Ecto path,
@@ -353,20 +425,31 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   defp rolling_having_expr("reliability_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
 
-  defp rolling_recent_runs_column("reliability_rate"), do: "recent_successful_runs"
-  defp rolling_recent_runs_column(_), do: "recent_runs"
-
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
   defp rolling_comparison_op("lt"), do: "<"
   defp rolling_comparison_op("lte"), do: "<="
 
-  defp load_all_test_case_ids(_project_id, false), do: []
+  defp maybe_put_test_case_ids(params, nil), do: params
+  defp maybe_put_test_case_ids(params, test_case_ids), do: Map.put(params, :test_case_ids, test_case_ids)
+
+  defp filter_test_case_ids(query, nil), do: query
+  defp filter_test_case_ids(query, []), do: where(query, false)
+
+  defp filter_test_case_ids(query, test_case_ids) do
+    where(query, [row], row.test_case_id in ^test_case_ids)
+  end
+
+  defp load_all_test_case_ids(_project_id, false, _test_case_ids), do: []
+
+  defp load_all_test_case_ids(_project_id, _recovery_enabled, test_case_ids) when is_list(test_case_ids) do
+    test_case_ids
+  end
 
   # `project_id` is the leading sort key; `DISTINCT` on `id` collapses
   # duplicate row versions from unmerged parts cheaply, avoiding the
   # multi-part full-row merge `FINAL` would force.
-  defp load_all_test_case_ids(project_id, _recovery_enabled) do
+  defp load_all_test_case_ids(project_id, _recovery_enabled, _test_case_ids) do
     ClickHouseRepo.all(
       from(tc in TestCase,
         where: tc.project_id == ^project_id,
@@ -398,8 +481,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   defp parse_window(_), do: 30 * 86_400
 
-  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: size
-  defp parse_rolling_size(_), do: 100
+  defp parse_rolling_size(size) when is_integer(size) and size > 0, do: min(size, @max_rolling_window_size)
+  defp parse_rolling_size(_), do: @default_rolling_window_size
 
   # `gte` is the historical default before alerts had a comparison field; keep
   # it as the fallback for existing flakiness/count alerts so their behaviour

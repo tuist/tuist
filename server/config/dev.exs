@@ -51,6 +51,8 @@ base_live_reload_patterns = [
   ~r"lib/tuist_web/docs/.*(ex|heex)$",
   ~r"priv/marketing/blog/*/.*(md)$",
   ~r"../../noora/lib/noora/.*(ex|heex)$",
+  ~r"../../noora/js/.*(js)$",
+  ~r"../../noora/css/.*(css)$",
   ~r"../../noora/priv/static/.*(js|css)$"
 ]
 

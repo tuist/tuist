@@ -343,6 +343,13 @@
   font: var(--noora-font-body-medium);
   text-decoration: none;
 
+  & [data-part="content"] {
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+  }
+
   & [data-part="body"] {
     flex-grow: 1;
   }

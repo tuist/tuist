@@ -24,6 +24,7 @@ defmodule Tuist.Kura.RegionsTest do
         assert config.cluster_id == "#{id}-1"
         assert config.hetzner_location == hetzner_locations[id]
         assert config.storage_class == "hcloud-volumes"
+        assert config.peer_tls_secret_name == "kura-cross-region-peer-tls"
       end
 
       assert Regions.get("us-east").provisioner_config.kubernetes_client == [

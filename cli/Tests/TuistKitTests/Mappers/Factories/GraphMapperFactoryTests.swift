@@ -263,7 +263,49 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_automation_contains_the_tests_cache_graph_mapper() throws {
+        func test_generation_preserves_cache_hashing_graph_before_focus_when_cache_is_enabled() {
+            // Given
+            let config = Tuist.test()
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .onlyExternal,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, CacheHashingGraphMapper.self)
+            XCTAssertContainsElementOfType(
+                got,
+                CacheHashingGraphMapper.self,
+                after: StaticXCFrameworkAppIntentsMetadataGraphMapper.self
+            )
+            XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: CacheHashingGraphMapper.self)
+        }
+
+        func test_generation_does_not_preserve_cache_hashing_graph_when_cache_is_disabled() {
+            // Given
+            let config = Tuist.test()
+            let cacheSources: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.generation(
+                config: config,
+                cacheProfile: .none,
+                cacheSources: cacheSources,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, CacheHashingGraphMapper.self)
+        }
+
+        func test_automation_contains_the_tests_cache_graph_mapper() {
             // Given
             let config = Tuist.test()
 
@@ -284,7 +326,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             _ = XCTAssertContainsElementOfType(got, TestsCacheGraphMapper.self)
         }
 
-        func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
+        func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() {
             // Given
             let config = Tuist.test()
             let includedTargets: Set<TargetQuery> = [.named("MyTarget")]
@@ -308,7 +350,57 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_automation_runs_tests_cache_after_static_xcframework_module_map_mapper() throws {
+        func test_automation_preserves_cache_hashing_graph_before_focus_when_binary_cache_is_enabled() {
+            // Given
+            let config = Tuist.test()
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: includedTargets,
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, CacheHashingGraphMapper.self)
+            XCTAssertContainsElementOfType(
+                got,
+                CacheHashingGraphMapper.self,
+                after: StaticXCFrameworkAppIntentsMetadataGraphMapper.self
+            )
+            XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: CacheHashingGraphMapper.self)
+        }
+
+        func test_automation_does_not_preserve_cache_hashing_graph_when_binary_cache_is_disabled() {
+            // Given
+            let config = Tuist.test()
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: true,
+                ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: includedTargets,
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, CacheHashingGraphMapper.self)
+        }
+
+        func test_automation_runs_tests_cache_after_static_xcframework_module_map_mapper() {
             // Given
             let config = Tuist.test()
 
@@ -331,7 +423,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_automation_runs_tests_cache_after_static_xcframework_app_intents_metadata_mapper() throws {
+        func test_automation_runs_tests_cache_after_static_xcframework_app_intents_metadata_mapper() {
             // Given
             let config = Tuist.test()
 
@@ -354,7 +446,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
+        func test_automation_contains_the_tests_cache_tree_shaking_mapper() {
             // Given
             let config = Tuist.test()
 
@@ -435,7 +527,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
         }
 
-        func test_automation_contains_static_xcframework_module_map_mapper_after_cache_replacement() throws {
+        func test_automation_contains_static_xcframework_module_map_mapper_after_cache_replacement() {
             // Given
             let config = Tuist.test()
 
@@ -460,7 +552,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        func test_automation_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() throws {
+        func test_automation_contains_static_xcframework_app_intents_metadata_mapper_after_cache_replacement() {
             // Given
             let config = Tuist.test()
 
@@ -631,6 +723,29 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
                 StaticXCFrameworkAppIntentsMetadataGraphMapper.self,
                 after: TargetsToCacheBinariesGraphMapper.self
             )
+        }
+
+        func test_binaryCacheWarming_preserves_cache_hashing_graph_before_focus() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(got, CacheHashingGraphMapper.self)
+            XCTAssertContainsElementOfType(
+                got,
+                CacheHashingGraphMapper.self,
+                after: StaticXCFrameworkAppIntentsMetadataGraphMapper.self
+            )
+            XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self, after: CacheHashingGraphMapper.self)
         }
 
         func test_automation_and_binaryCacheWarming_use_same_base_mappers() {

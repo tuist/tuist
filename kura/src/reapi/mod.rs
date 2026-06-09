@@ -49,6 +49,7 @@ use crate::{
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
     io::is_fd_pool_exhausted_error,
+    peer_tls::install_default_crypto_provider,
     replication::replication_targets,
     state::SharedState,
     utils::{action_cache_key, blob_key, temp_file_path},
@@ -176,6 +177,7 @@ where
 }
 
 async fn load_grpc_tls_config(tls: &GrpcTlsConfig) -> Result<ServerTlsConfig, String> {
+    install_default_crypto_provider();
     let cert = tokio::fs::read(&tls.cert_path).await.map_err(|error| {
         format!(
             "failed to read gRPC TLS cert at {}: {error}",
