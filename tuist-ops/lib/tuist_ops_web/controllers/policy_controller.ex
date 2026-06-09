@@ -1,82 +1,62 @@
 defmodule TuistOpsWeb.PolicyController do
   @moduledoc """
-  Pomerium ext_authz endpoint. Pomerium dials this on every
-  kubectl request that reaches a `kube-<env>.tuist.dev` route,
-  after it has authenticated the user via Google Workspace OIDC.
-  We resolve the impersonation headers (`Impersonate-User`,
-  `Impersonate-Group`) the apiserver should see for this user on
-  this env, based on:
+  Per-request impersonation resolver for the kubectl gateway.
+  Pomerium has an Envoy `ext_authz` HTTP filter pointed at this
+  endpoint, configured via the `extra_envoy_filters` /
+  `extra_envoy_clusters` block in the Pomerium chart's ConfigMap.
+  After Pomerium authenticates the user via Google Workspace OIDC,
+  Envoy dials this controller on every kubectl request and copies
+  selected response headers (Impersonate-*) onto the upstream
+  request to the apiserver. The apiserver then RBAC-binds the
+  impersonated group(s).
 
-    * the user's Tailscale role (Owner / Admin / Member, looked up
-      via `TuistOps.JIT.TailscaleClient.user_role/1`), which
-      decides the *base* tier (`tuist-admins` or `tuist-eng`);
-    * whether there is an `:active` Elevation row in the
-      `tailscale_jit_elevations` table for (user, env) at the
-      moment of the call, which adds the env-specific write group
-      on top.
+  ## Wire shape — HTTP ext_authz, not gRPC
 
-  ## Request shape
+  Envoy's HTTP ext_authz mode (`http_service:` in the filter
+  config) is a plain HTTP request to this controller, NOT the
+  Envoy CheckRequest gRPC interface. We read auth-relevant inputs
+  from request headers passed through by Envoy
+  (`authorization_request.allowed_headers` controls which headers
+  travel), and we communicate the decision via response status +
+  response headers (`authorization_response.allowed_upstream_headers`
+  controls which response headers Envoy forwards to the upstream).
 
-  Pomerium speaks the Envoy External Authorization v3 wire format,
-  posting a JSON body that wraps the original HTTP request. We
-  read three things out of it:
+  Inputs (request headers):
 
-    * `attributes.request.http.host`  — used to derive the env
-      ("kube-staging.tuist.dev" → "staging").
-    * `attributes.request.http.headers["x-pomerium-claim-email"]` —
-      the authenticated user's email, set by Pomerium after the
-      OIDC dance.
-    * `attributes.source.principal` — Pomerium's identity URI for
-      the caller, used as a fallback if the claim header is absent.
+    * `host` — derives env ("kube-staging.tuist.dev" → "staging").
+      Host header is the source of truth because Pomerium routes
+      by host and the same endpoint serves all envs.
+    * `x-pomerium-claim-email` — the authenticated user's email,
+      injected by Pomerium after the OIDC dance via the route's
+      `pass_identity_headers: true` setting.
 
-  ## Response shape
+  Outputs:
 
-  ```json
-  // Allowed, view tier (default):
-  {
-    "status":      { "code": 0 },
-    "ok_response": {
-      "headers": [
-        { "header": { "key": "Impersonate-User",  "value": "marek@tuist.dev" } },
-        { "header": { "key": "Impersonate-Group", "value": "tuist-admins"    } }
-      ]
-    }
-  }
+    * Allow → HTTP 200 with `Impersonate-User: <email>` plus one
+      or more `Impersonate-Group:` headers. Multi-group is
+      represented as multiple header entries with the same name
+      (this is the canonical Kubernetes convention; comma-joining
+      is NOT supported by the apiserver).
+    * Deny → HTTP 403 with the reason in the body. Envoy rejects
+      the original request and never forwards it.
 
-  // Allowed, elevated tier (active elevation for this env):
-  {
-    "status":      { "code": 0 },
-    "ok_response": {
-      "headers": [
-        { "header": { "key": "Impersonate-User",  "value": "marek@tuist.dev" } },
-        { "header": { "key": "Impersonate-Group", "value": "tuist-admins"    } },
-        { "header": { "key": "Impersonate-Group", "value": "tuist-prod-write" },
-          "append_action": "APPEND_IF_EXISTS_OR_ADD" }
-      ]
-    }
-  }
+  ## Tier resolution
 
-  // Denied (off-tailnet, unknown env, etc.):
-  {
-    "status":          { "code": 7 },
-    "denied_response": { "status": { "code": 403 }, "body": "<reason>" }
-  }
-  ```
-
-  Pomerium injects `ok_response.headers` into the upstream apiserver
-  request. The two `Impersonate-Group` entries with `append_action`
-  produce two distinct header lines, which Kubernetes interprets as
-  membership in BOTH groups (header repetition is how K8s
-  represents multi-valued `Impersonate-Group`).
+  Resolved by the user's Tailscale role (Owner / Admin / Member,
+  looked up via `TuistOps.JIT.TailscaleClient.user_role/1`) plus
+  any `:active` Elevation row in `tailscale_jit_elevations` for
+  (user, env). See `resolve/2` for the full decision table.
 
   ## Reachability + trust boundary
 
-  Pomerium dials this endpoint on the tailnet, at
-  `http://ops.<tailnet>.ts.net/api/v1/policy`. There is no bearer
-  on this call; the auth is "the caller is on the tailnet and
-  could reach a tailnet-tagged Service." Public ingress on
-  `ops.tuist.dev` MUST NOT route `/api/v1/*` through to this
-  controller — see the ingress config in `infra/helm/tuist-ops/`.
+  Envoy in each env's Pomerium pod dials this endpoint via the
+  cluster-internal `tuist-ops-egress` Service, which the
+  tailscale-operator turns into a tailnet egress proxy reaching
+  `ops.tuist.ts.net`. There is no bearer on this call; the auth
+  is "you're on the tailnet and the egress Service is in your
+  cluster." Public ingress on `ops.tuist.dev` MUST NOT route
+  `/api/v1/*` through to this controller — see the ingress
+  template in `infra/helm/tuist-ops/`.
   """
 
   use TuistOpsWeb, :controller
@@ -90,13 +70,8 @@ defmodule TuistOpsWeb.PolicyController do
 
   require Logger
 
-  # Envoy External Authorization v3 status codes.
-  # https://www.envoyproxy.io/docs/envoy/latest/api-v3/service/auth/v3/external_auth.proto
-  @ok 0
-  @permission_denied 7
-
-  def evaluate(conn, params) do
-    case extract_request(params) do
+  def evaluate(conn, _params) do
+    case extract_request(conn) do
       {:ok, subject, env} ->
         respond(conn, resolve(subject, env))
 
@@ -106,20 +81,14 @@ defmodule TuistOpsWeb.PolicyController do
     end
   end
 
-  # --- Envoy ext_authz request extraction --------------------------------
+  # --- request extraction ------------------------------------------------
 
-  defp extract_request(%{"attributes" => attrs}) do
-    request_http = get_in(attrs, ["request", "http"]) || %{}
-    host = Map.get(request_http, "host") || ""
-    headers = Map.get(request_http, "headers") || %{}
-
-    with {:ok, env} <- env_from_host(host),
-         {:ok, subject} <- subject_from_headers(headers, attrs) do
+  defp extract_request(conn) do
+    with {:ok, env} <- env_from_host(conn.host),
+         {:ok, subject} <- subject_from_conn(conn) do
       {:ok, subject, env}
     end
   end
-
-  defp extract_request(_), do: {:error, "missing attributes"}
 
   # "kube-staging.tuist.dev" → "staging". Host header is the source
   # of truth for env because Pomerium routes by Host and the same
@@ -130,18 +99,10 @@ defmodule TuistOpsWeb.PolicyController do
   defp env_from_host("kube-production.tuist.dev"), do: {:ok, "production"}
   defp env_from_host(other), do: {:error, "unrecognized host #{inspect(other)}"}
 
-  defp subject_from_headers(headers, attrs) do
-    case Map.get(headers, "x-pomerium-claim-email") || principal_email(attrs) do
-      email when is_binary(email) and byte_size(email) > 0 -> {:ok, email}
-      _ -> {:error, "no subject in claim headers or principal"}
-    end
-  end
-
-  defp principal_email(attrs) do
-    case get_in(attrs, ["source", "principal"]) do
-      "spiffe://" <> rest -> rest |> String.split("/", parts: 2) |> List.last()
-      other when is_binary(other) -> other
-      _ -> nil
+  defp subject_from_conn(conn) do
+    case get_req_header(conn, "x-pomerium-claim-email") do
+      [email | _] when is_binary(email) and byte_size(email) > 0 -> {:ok, email}
+      _ -> {:error, "no x-pomerium-claim-email header"}
     end
   end
 
@@ -153,9 +114,6 @@ defmodule TuistOpsWeb.PolicyController do
         base_groups = base_impersonate_groups(role)
 
         cond do
-          # Unknown role tier (Auditor, Billing admin, etc.) → no
-          # impersonation at all. Pomerium gets a deny and the
-          # request never reaches the apiserver.
           base_groups == [] ->
             {:deny, "role #{inspect(role)} has no cluster access tier"}
 
@@ -178,11 +136,6 @@ defmodule TuistOpsWeb.PolicyController do
     end
   end
 
-  # Owner / Admin → `tuist-admins` (bound to view by default;
-  # accessBindings in the tailscale-operator chart map it to a
-  # ClusterRole on each cluster).
-  # Member → `tuist-eng`.
-  # Other roles → no base group, default-deny.
   defp base_impersonate_groups(role) when role in [:owner, :admin], do: ["tuist-admins"]
   defp base_impersonate_groups(:member), do: ["tuist-eng"]
   defp base_impersonate_groups(_), do: []
@@ -214,11 +167,6 @@ defmodule TuistOpsWeb.PolicyController do
   defp group_for_env("canary"), do: "group:tuist-canary-write"
   defp group_for_env("production"), do: "group:tuist-prod-write"
 
-  # Matches `Policy.approver_allowed?/2` semantics: production
-  # elevation requires Owner/Admin even though a Member could have
-  # an active elevation row (the role gate fires on approval, but
-  # this is a defence-in-depth check at request time in case the
-  # row exists and the role has since changed).
   defp elevated_allowed?(role, env) do
     case Policy.env_access(role, env) do
       {:ok, _} -> true
@@ -226,43 +174,30 @@ defmodule TuistOpsWeb.PolicyController do
     end
   end
 
-  # --- Envoy ext_authz response shaping ----------------------------------
+  # --- response shaping --------------------------------------------------
 
   defp respond(conn, {:allow, subject, impersonate_groups}) do
-    headers =
-      [envoy_header("Impersonate-User", subject)] ++
-        Enum.map(impersonate_groups, fn group ->
-          # `append_action` "APPEND_IF_EXISTS_OR_ADD" makes Pomerium
-          # emit one Impersonate-Group line per call rather than
-          # comma-joining; K8s expects multi-value via repetition.
-          envoy_header("Impersonate-Group", group, append: true)
-        end)
-
-    json(conn, %{
-      status: %{code: @ok},
-      ok_response: %{headers: headers}
-    })
+    conn
+    |> put_resp_header("impersonate-user", subject)
+    |> add_impersonate_groups(impersonate_groups)
+    |> send_resp(200, "")
   end
 
   defp respond(conn, {:deny, reason}) do
     Logger.info("tuist_ops policy: deny — #{reason}")
 
-    json(conn, %{
-      status: %{code: @permission_denied},
-      denied_response: %{
-        status: %{code: 403},
-        body: reason
-      }
-    })
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(403, reason)
   end
 
-  defp envoy_header(key, value, opts \\ []) do
-    base = %{header: %{key: key, value: value}}
-
-    if Keyword.get(opts, :append, false) do
-      Map.put(base, :append_action, "APPEND_IF_EXISTS_OR_ADD")
-    else
-      base
-    end
+  # Multi-value `Impersonate-Group` requires multiple separate
+  # header entries — comma-joining isn't accepted by the
+  # Kubernetes apiserver. Plug's `put_resp_header/3` REPLACES, so
+  # we splice the entries onto `resp_headers` directly. Header
+  # names are normalised to lowercase per HTTP/2.
+  defp add_impersonate_groups(conn, groups) do
+    extras = Enum.map(groups, fn group -> {"impersonate-group", group} end)
+    %{conn | resp_headers: extras ++ conn.resp_headers}
   end
 end
