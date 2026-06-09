@@ -1918,9 +1918,9 @@ jobs:
   # It owns the deploy ONLY when a fleet/runtime image is releasing, because
   # that deploy must wait for the image build + tag, so it belongs here,
   # downstream of the build. Server / chart / config changes with no fleet
-  # image release are deployed by server-deploy-dispatch.yml instead, off
-  # this workflow's serialized concurrency lane, so a server deploy never
-  # waits behind a CLI/app release build.
+  # image release are deployed directly by server-production-deployment.yml's
+  # own push trigger (its gate job defers to this dispatch when a fleet image
+  # is releasing), off this workflow's serialized concurrency lane.
   # --------------------------------------------------------------------------
   tag-infra-releases:
     name: Tag fleet and runtime image releases
@@ -1987,13 +1987,13 @@ jobs:
   trigger-deploy:
     name: Trigger server production deployment
     needs: [check-releases, tag-infra-releases]
-    # Owns the deploy ONLY when a fleet/runtime image released this run, so
-    # the new image ships with the server in this same pass (the deploy must
-    # wait for the build + tag, which is why it lives here downstream of
-    # tag-infra-releases). Server / chart / config changes with no fleet
-    # image release are handled by server-deploy-dispatch.yml off this
-    # workflow's serialized lane. The two are mutually exclusive — no push
-    # deploys twice or is skipped.
+    # Dispatches the deploy ONLY when a fleet/runtime image released this
+    # run, so the new image ships with the server in this same pass (the
+    # deploy must wait for the build + tag, which is why it lives here
+    # downstream of tag-infra-releases). Server / chart / config changes with
+    # no fleet image release are deployed by server-production-deployment.yml's
+    # own push trigger, whose gate job defers to this dispatch when a fleet
+    # image is releasing — so no push deploys twice or is skipped.
     if: >-
       always() &&
       needs.check-releases.result == 'success' &&

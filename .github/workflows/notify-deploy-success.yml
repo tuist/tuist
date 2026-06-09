@@ -4,6 +4,13 @@ name: Notify Slack on deploy success
 # workflows where a green run is newsworthy. Today that's just
 # "Server Production Deployment" — we intentionally stay quiet on
 # staging/canary successes and only ping Slack when production lands.
+#
+# A "Server Production Deployment" run can be green without deploying:
+# its gate job defers to release.yml (skipping the cascade) when a
+# fleet/runtime image is releasing this push. So we notify only when the
+# run's production deploy job actually succeeded, not on any green run.
+# That job is named "… / Deploy to tuist" — "tuist" is the production
+# namespace; canary/staging are "Deploy to tuist-canary"/"-staging".
 
 on:
   workflow_run:
@@ -12,11 +19,35 @@ on:
     branches: [main]
     types: [completed]
 
-permissions: {}
+permissions:
+  actions: read
 
 jobs:
-  notify:
+  check:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      deployed: ${{ steps.check.outputs.deployed }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          count=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            | jq -s '[.[].jobs[] | select(.conclusion == "success") | select(.name | test("Deploy to tuist$"))] | length')
+          if [ "${count:-0}" -gt 0 ]; then
+            echo "deployed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            echo "Run $RUN_ID was green but did not deploy to production (gate deferred); skipping Slack."
+          fi
+
+  notify:
+    needs: check
+    if: ${{ needs.check.outputs.deployed == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: 1password/install-cli-action@v2
