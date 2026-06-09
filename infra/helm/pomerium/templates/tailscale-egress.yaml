@@ -18,7 +18,12 @@ metadata:
     app.kubernetes.io/component: pomerium
     app.kubernetes.io/managed-by: helm
   annotations:
-    tailscale.com/tailnet-fqdn: "ops.tuist.ts.net"
+    # tuist.ts.net was wrong — Tuist's tailnet doesn't have a
+    # vanity domain configured, so the canonical MagicDNS FQDN is
+    # ops.<tailnet>.ts.net where the tailnet name is taild6d7bb.
+    # `tailnetName` is templatable so a future move to a vanity
+    # domain only edits values, not the template.
+    tailscale.com/tailnet-fqdn: "ops.{{ .Values.tailnetName }}.ts.net"
     # Without this the operator defaults to `tag:k8s`, which the
     # OAuth client doesn't have permission to mint. Match the env's
     # cluster tag set in

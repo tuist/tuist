@@ -10,13 +10,18 @@ tuistEnv: staging
 publicHostname: kube-staging.tuist.dev
 authenticateHostname: authenticate.kube-staging.tuist.dev
 
-# tuist-ops reachability. Pomerium pods aren't on the tailnet
-# themselves; templates/tailscale-egress.yaml provisions an
+# tuist-ops reachability. The Pomerium pod isn't on the tailnet
+# itself; templates/tailscale-egress.yaml provisions an
 # ExternalName Service annotated for the tailscale operator,
-# which proxies cluster-internal traffic to ops.tuist.ts.net
-# over the tailnet. Pomerium dials the cluster-internal name.
+# which proxies cluster-internal traffic to ops.<tailnet>.ts.net
+# over the tailnet. The sidecar dials the cluster-internal name.
 extAuthzHost: tuist-ops-egress
 extAuthzPort: 80
+
+# Tuist's tailnet MagicDNS suffix. No vanity domain configured at
+# Tailscale today (so it's the random-looking `taild6d7bb`); if we
+# ever set up a vanity tailnet name, update this in one place.
+tailnetName: taild6d7bb
 
 image:
   repository: pomerium/pomerium
