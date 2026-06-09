@@ -32,282 +32,291 @@ defmodule TuistWeb.MembersLive do
   def render(assigns) do
     ~H"""
     <div id="members">
+      <h1 data-part="page-title">{@selected_account.name}</h1>
       <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
-      <div data-part="row">
-        <.form :if={@selected_inner_tab == "members"} for={%{}} phx-change="search">
-          <.text_input
-            id="search-members"
-            name="search"
-            type="search"
-            placeholder={dgettext("dashboard_account", "Search members...")}
-            show_suffix={false}
-          />
-        </.form>
-        <div :if={@selected_inner_tab == "invitations"} />
+      <div data-part="members-section">
+        <div data-part="row">
+          <.form :if={@selected_inner_tab == "members"} for={%{}} phx-change="search">
+            <.text_input
+              id="search-members"
+              name="search"
+              type="search"
+              placeholder={dgettext("dashboard_account", "Search members...")}
+              show_suffix={false}
+            />
+          </.form>
+          <div :if={@selected_inner_tab == "invitations"} />
 
-        <.invite_member_form
-          :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
-          id="invite-member-form"
-          form={@form}
-        />
-      </div>
-      <div id="members-tabs">
-        <div data-part="root">
-          <.tab_menu_horizontal data-part="list">
-            <.tab_menu_horizontal_item
-              label={dgettext("dashboard_account", "All members")}
-              phx-click="select-inner-tab"
-              phx-value-tab="members"
-              data-selected={@selected_inner_tab == "members"}
-            />
-            <.tab_menu_horizontal_item
-              :if={Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok}
-              label={dgettext("dashboard_account", "Invitations")}
-              phx-click="select-inner-tab"
-              phx-value-tab="invitations"
-              data-selected={@selected_inner_tab == "invitations"}
-            />
-          </.tab_menu_horizontal>
-          <div :if={@selected_inner_tab == "members"} data-part="content">
-            <.table
-              id="members-table"
-              rows={@members}
-              row_key={fn [member, _role] -> "member-#{member.id}" end}
-            >
-              <:col :let={[member, _role]} label={dgettext("dashboard_account", "Member")}>
-                <.text_and_description_cell label={member.account.name}>
-                  <:image>
-                    <.avatar
-                      id={"member-#{member.id}-avatar"}
-                      name={member.account.name}
-                      image_href={User.gravatar_url(member)}
-                      color={Accounts.avatar_color(member.account)}
-                    />
-                  </:image>
-                </.text_and_description_cell>
-              </:col>
-              <:col :let={[member, _role]} label={dgettext("dashboard_account", "E-mail")}>
-                <.text_cell label={member.email} />
-              </:col>
-              <:col :let={[_member, role]} label={dgettext("dashboard_account", "Role")}>
-                <.text_cell label={Macro.camelize(role)} />
-              </:col>
-              <:col :let={[member, role]}>
-                <.modal
-                  id={"manage-role-modal-#{member.id}"}
-                  title={dgettext("dashboard_account", "Manage role")}
-                  on_dismiss={"close-manage-role-modal-#{member.id}"}
-                  header_type="icon"
-                  header_size="small"
-                  data-part="manage-role-modal"
-                >
-                  <:header_icon>
-                    <.user />
-                  </:header_icon>
-                  <:trigger :let={modal_attrs}>
-                    <button
-                      id={"manage-role-trigger-#{member.id}"}
-                      type="button"
-                      {modal_attrs}
-                    >
-                    </button>
-                  </:trigger>
-                  <.line_divider />
-                  <div data-part="change-role">
-                    <label>{dgettext("dashboard_account", "Role")}</label>
-                    <.dropdown
-                      id={"role-dropdown-#{member.id}"}
-                      label={
-                        case get_selected_role(@managing_member, member.id, role) do
-                          "user" -> dgettext("dashboard_account", "User")
-                          "admin" -> dgettext("dashboard_account", "Admin")
-                        end
-                      }
-                    >
-                      <.dropdown_item
-                        value="user"
-                        label={dgettext("dashboard_account", "User")}
-                        phx-click="select-member-role"
-                        phx-value-member_id={member.id}
-                        phx-value-role="user"
-                        data-selected={get_selected_role(@managing_member, member.id, role) == "user"}
+          <.invite_member_form
+            :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
+            id="invite-member-form"
+            form={@form}
+          />
+        </div>
+        <div id="members-tabs">
+          <div data-part="root">
+            <.tab_menu_horizontal data-part="list">
+              <.tab_menu_horizontal_item
+                label={dgettext("dashboard_account", "All members")}
+                phx-click="select-inner-tab"
+                phx-value-tab="members"
+                data-selected={@selected_inner_tab == "members"}
+              />
+              <.tab_menu_horizontal_item
+                :if={
+                  Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok
+                }
+                label={dgettext("dashboard_account", "Invitations")}
+                phx-click="select-inner-tab"
+                phx-value-tab="invitations"
+                data-selected={@selected_inner_tab == "invitations"}
+              />
+            </.tab_menu_horizontal>
+            <div :if={@selected_inner_tab == "members"} data-part="content">
+              <.table
+                id="members-table"
+                rows={@members}
+                row_key={fn [member, _role] -> "member-#{member.id}" end}
+              >
+                <:col :let={[member, _role]} label={dgettext("dashboard_account", "Member")}>
+                  <.text_and_description_cell label={member.account.name}>
+                    <:image>
+                      <.avatar
+                        id={"member-#{member.id}-avatar"}
+                        name={member.account.name}
+                        image_href={User.gravatar_url(member)}
+                        color={Accounts.avatar_color(member.account)}
+                      />
+                    </:image>
+                  </.text_and_description_cell>
+                </:col>
+                <:col :let={[member, _role]} label={dgettext("dashboard_account", "E-mail")}>
+                  <.text_cell label={member.email} />
+                </:col>
+                <:col :let={[_member, role]} label={dgettext("dashboard_account", "Role")}>
+                  <.text_cell label={Macro.camelize(role)} />
+                </:col>
+                <:col :let={[member, role]}>
+                  <.modal
+                    id={"manage-role-modal-#{member.id}"}
+                    title={dgettext("dashboard_account", "Manage role")}
+                    on_dismiss={"close-manage-role-modal-#{member.id}"}
+                    header_type="icon"
+                    header_size="small"
+                    data-part="manage-role-modal"
+                  >
+                    <:header_icon>
+                      <.user />
+                    </:header_icon>
+                    <:trigger :let={modal_attrs}>
+                      <button
+                        id={"manage-role-trigger-#{member.id}"}
+                        type="button"
+                        {modal_attrs}
                       >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                      <.dropdown_item
-                        value="admin"
-                        label={dgettext("dashboard_account", "Admin")}
-                        phx-click="select-member-role"
-                        phx-value-member_id={member.id}
-                        phx-value-role="admin"
-                        data-selected={
-                          get_selected_role(@managing_member, member.id, role) == "admin"
+                      </button>
+                    </:trigger>
+                    <.line_divider />
+                    <div data-part="change-role">
+                      <label>{dgettext("dashboard_account", "Role")}</label>
+                      <.dropdown
+                        id={"role-dropdown-#{member.id}"}
+                        label={
+                          case get_selected_role(@managing_member, member.id, role) do
+                            "user" -> dgettext("dashboard_account", "User")
+                            "admin" -> dgettext("dashboard_account", "Admin")
+                          end
                         }
                       >
-                        <:right_icon><.check /></:right_icon>
-                      </.dropdown_item>
-                    </.dropdown>
-                  </div>
-                  <.line_divider />
-                  <:footer>
-                    <.modal_footer>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Cancel")}
-                          variant="secondary"
-                          type="button"
-                          phx-click={"close-manage-role-modal-#{member.id}"}
-                        />
-                      </:action>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Save")}
-                          type="button"
-                          phx-click="save-member-role"
-                          phx-value-member-id={member.id}
-                          disabled={get_selected_role(@managing_member, member.id, role) == role}
-                        />
-                      </:action>
-                    </.modal_footer>
-                  </:footer>
-                </.modal>
+                        <.dropdown_item
+                          value="user"
+                          label={dgettext("dashboard_account", "User")}
+                          phx-click="select-member-role"
+                          phx-value-member_id={member.id}
+                          phx-value-role="user"
+                          data-selected={
+                            get_selected_role(@managing_member, member.id, role) == "user"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                        <.dropdown_item
+                          value="admin"
+                          label={dgettext("dashboard_account", "Admin")}
+                          phx-click="select-member-role"
+                          phx-value-member_id={member.id}
+                          phx-value-role="admin"
+                          data-selected={
+                            get_selected_role(@managing_member, member.id, role) == "admin"
+                          }
+                        >
+                          <:right_icon><.check /></:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <.line_divider />
+                    <:footer>
+                      <.modal_footer>
+                        <:action>
+                          <.button
+                            label={dgettext("dashboard_account", "Cancel")}
+                            variant="secondary"
+                            type="button"
+                            phx-click={"close-manage-role-modal-#{member.id}"}
+                          />
+                        </:action>
+                        <:action>
+                          <.button
+                            label={dgettext("dashboard_account", "Save")}
+                            type="button"
+                            phx-click="save-member-role"
+                            phx-value-member-id={member.id}
+                            disabled={get_selected_role(@managing_member, member.id, role) == role}
+                          />
+                        </:action>
+                      </.modal_footer>
+                    </:footer>
+                  </.modal>
 
-                <.modal
-                  id={"remove-member-modal-#{member.id}"}
-                  title={dgettext("dashboard_account", "Remove member")}
-                  header_type="icon"
-                  header_size="small"
-                  on_dismiss={"close-remove-member-modal-#{member.id}"}
-                >
-                  <:trigger :let={modal_attrs}>
-                    <button
-                      id={"remove-member-trigger-#{member.id}"}
-                      type="button"
-                      style="display: none;"
-                      {modal_attrs}
+                  <.modal
+                    id={"remove-member-modal-#{member.id}"}
+                    title={dgettext("dashboard_account", "Remove member")}
+                    header_type="icon"
+                    header_size="small"
+                    on_dismiss={"close-remove-member-modal-#{member.id}"}
+                  >
+                    <:trigger :let={modal_attrs}>
+                      <button
+                        id={"remove-member-trigger-#{member.id}"}
+                        type="button"
+                        style="display: none;"
+                        {modal_attrs}
+                      >
+                      </button>
+                    </:trigger>
+                    <:header_icon>
+                      <.trash />
+                    </:header_icon>
+                    <p>
+                      {dgettext(
+                        "dashboard_account",
+                        "Are you sure you want to remove %{name} from this organization?",
+                        name: member.account.name
+                      )}
+                    </p>
+                    <:footer>
+                      <.modal_footer>
+                        <:action>
+                          <.button
+                            label={dgettext("dashboard_account", "Cancel")}
+                            variant="secondary"
+                            type="button"
+                            phx-click={"close-remove-member-modal-#{member.id}"}
+                          />
+                        </:action>
+                        <:action>
+                          <.button
+                            label={dgettext("dashboard_account", "Remove")}
+                            variant="destructive"
+                            type="button"
+                            phx-click="confirm-remove-member"
+                            phx-value-member-id={member.id}
+                          />
+                        </:action>
+                      </.modal_footer>
+                    </:footer>
+                  </.modal>
+
+                  <.dropdown
+                    :if={
+                      Authorization.authorize(:member_update, @current_user, @selected_account) == :ok
+                    }
+                    id={"member-actions-#{member.id}"}
+                    icon_only
+                  >
+                    <:icon><.dots_vertical /></:icon>
+
+                    <.dropdown_item
+                      :if={member.id != @current_user.id}
+                      label={dgettext("dashboard_account", "Manage role")}
+                      value="manage_role"
+                      phx-click={
+                        JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})
+                      }
                     >
-                    </button>
-                  </:trigger>
-                  <:header_icon>
-                    <.trash />
-                  </:header_icon>
-                  <p>
-                    {dgettext(
-                      "dashboard_account",
-                      "Are you sure you want to remove %{name} from this organization?",
-                      name: member.account.name
-                    )}
-                  </p>
-                  <:footer>
-                    <.modal_footer>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Cancel")}
-                          variant="secondary"
-                          type="button"
-                          phx-click={"close-remove-member-modal-#{member.id}"}
-                        />
-                      </:action>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Remove")}
-                          variant="destructive"
-                          type="button"
-                          phx-click="confirm-remove-member"
-                          phx-value-member-id={member.id}
-                        />
-                      </:action>
-                    </.modal_footer>
-                  </:footer>
-                </.modal>
+                      <:left_icon><.user /></:left_icon>
+                    </.dropdown_item>
 
-                <.dropdown
-                  :if={
-                    Authorization.authorize(:member_update, @current_user, @selected_account) == :ok
-                  }
-                  id={"member-actions-#{member.id}"}
-                  icon_only
-                >
-                  <:icon><.dots_vertical /></:icon>
+                    <.dropdown_item
+                      label={dgettext("dashboard_account", "Remove member")}
+                      value="remove"
+                      phx-click={
+                        JS.dispatch("phx:open-modal",
+                          detail: %{id: "remove-member-modal-#{member.id}"}
+                        )
+                      }
+                    >
+                      <:left_icon><.trash /></:left_icon>
+                    </.dropdown_item>
+                  </.dropdown>
+                </:col>
 
-                  <.dropdown_item
-                    :if={member.id != @current_user.id}
-                    label={dgettext("dashboard_account", "Manage role")}
-                    value="manage_role"
-                    phx-click={
-                      JS.dispatch("phx:open-modal", detail: %{id: "manage-role-modal-#{member.id}"})
-                    }
-                  >
-                    <:left_icon><.user /></:left_icon>
-                  </.dropdown_item>
-
-                  <.dropdown_item
-                    label={dgettext("dashboard_account", "Remove member")}
-                    value="remove"
-                    phx-click={
-                      JS.dispatch("phx:open-modal", detail: %{id: "remove-member-modal-#{member.id}"})
-                    }
-                  >
-                    <:left_icon><.trash /></:left_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </:col>
-
-              <:empty_state>
-                <.table_empty_state
-                  icon="user_x"
-                  title={dgettext("dashboard_account", "No members found")}
-                  subtitle={dgettext("dashboard_account", "Try changing your search term")}
-                />
-              </:empty_state>
-            </.table>
-          </div>
-          <div
-            :if={
-              @selected_inner_tab == "invitations" and
-                Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok
-            }
-            data-part="content"
-          >
-            <.table id="invitations-table" rows={@invitations}>
-              <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
-                <.text_cell label={invitation.invitee_email} />
-              </:col>
-              <:col label={dgettext("dashboard_account", "Status")}>
-                <.status_badge_cell
-                  label={dgettext("dashboard_account", "Pending")}
-                  status="attention"
-                />
-              </:col>
-              <:col :let={invitation}>
-                <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
-                  <:icon><.dots_vertical /></:icon>
-                  <.dropdown_item
-                    label={dgettext("dashboard_account", "Revoke invite")}
-                    value="revoke"
-                    on_click="revoke_invite"
-                    phx-value-id={invitation.id}
-                  >
-                    <:left_icon><.trash /></:left_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </:col>
-              <:empty_state>
-                <.table_empty_state>
-                  <.background_grid_light />
-                  <.cards_light />
-                  <.background_grid_dark />
-                  <.cards_dark />
-                  <div data-part="title">
-                    {dgettext("dashboard_account", "No invitations created")}
-                  </div>
-                  <div data-part="subtitle">
-                    {dgettext("dashboard_account", "Invite members to your organization")}
-                  </div>
-                  <.invite_member_form id="invite-member-form-empty-state" form={@form} />
-                </.table_empty_state>
-              </:empty_state>
-            </.table>
+                <:empty_state>
+                  <.table_empty_state
+                    icon="user_x"
+                    title={dgettext("dashboard_account", "No members found")}
+                    subtitle={dgettext("dashboard_account", "Try changing your search term")}
+                  />
+                </:empty_state>
+              </.table>
+            </div>
+            <div
+              :if={
+                @selected_inner_tab == "invitations" and
+                  Authorization.authorize(:invitation_read, @current_user, @selected_account) == :ok
+              }
+              data-part="content"
+            >
+              <.table id="invitations-table" rows={@invitations}>
+                <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
+                  <.text_cell label={invitation.invitee_email} />
+                </:col>
+                <:col label={dgettext("dashboard_account", "Status")}>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_account", "Pending")}
+                    status="attention"
+                  />
+                </:col>
+                <:col :let={invitation}>
+                  <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
+                    <:icon><.dots_vertical /></:icon>
+                    <.dropdown_item
+                      label={dgettext("dashboard_account", "Revoke invite")}
+                      value="revoke"
+                      on_click="revoke_invite"
+                      phx-value-id={invitation.id}
+                    >
+                      <:left_icon><.trash /></:left_icon>
+                    </.dropdown_item>
+                  </.dropdown>
+                </:col>
+                <:empty_state>
+                  <.table_empty_state>
+                    <.background_grid_light />
+                    <.cards_light />
+                    <.background_grid_dark />
+                    <.cards_dark />
+                    <div data-part="title">
+                      {dgettext("dashboard_account", "No invitations created")}
+                    </div>
+                    <div data-part="subtitle">
+                      {dgettext("dashboard_account", "Invite members to your organization")}
+                    </div>
+                    <.invite_member_form id="invite-member-form-empty-state" form={@form} />
+                  </.table_empty_state>
+                </:empty_state>
+              </.table>
+            </div>
           </div>
         </div>
       </div>
