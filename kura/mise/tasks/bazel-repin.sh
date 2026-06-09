@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Repin Cargo.Bazel.lock (crate_universe) after Rust deps change; `repin check` verifies only"
+#MISE description="Repin Cargo.Bazel.lock (crate_universe) after Rust deps change; `bazel-repin check` verifies only"
 #USAGE arg "[mode]" help="'check' verifies the pin is current without rewriting it; omit to repin" {
 #USAGE   choices "check"
 #USAGE }
@@ -12,7 +12,9 @@ set -euo pipefail
 # Both modes run on the host with no Docker: the repin/check is a crate_universe module-extension
 # step, evaluated before any target analysis or cc-toolchain resolution, so `bazel query
 # '@crates//:all'` (which only materializes the @crates repo) needs no cross-GCC toolchain.
-cd "${MISE_PROJECT_ROOT}"
+#
+# No `cd` needed: mise runs file tasks from the config root (kura/) regardless of the invocation
+# directory, so the relative paths below (Cargo.Bazel.lock) and the bazel workspace resolve here.
 
 if [ "${usage_mode:-}" = "check" ]; then
   # No CARGO_BAZEL_REPIN: a stale pin fails loudly here instead of being silently re-resolved.
@@ -20,7 +22,7 @@ if [ "${usage_mode:-}" = "check" ]; then
     echo "Cargo.Bazel.lock is up to date."
   else
     if printf '%s' "$err" | grep -qiE "do not match|out of date for 'crates'"; then
-      echo "Cargo.Bazel.lock is out of date — run 'mise run repin' (in kura/) and commit it." >&2
+      echo "Cargo.Bazel.lock is out of date — run 'mise run bazel-repin' (in kura/) and commit it." >&2
     else
       printf '%s\n' "$err" >&2
     fi

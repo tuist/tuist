@@ -61,9 +61,9 @@ jobs:
     # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
     # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
     # Bazel jobs fail deep in analysis with "lockfile is out of date for 'crates'".
-    # `mise run repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN, so a
+    # `mise run bazel-repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN, so a
     # stale pin fails loudly here in ~1 min with an actionable message. It only materializes the
-    # @crates repo — no cc toolchain — so it runs on the host (no dev container). Fix: `mise run repin`.
+    # @crates repo — no cc toolchain — so it runs on the host (no dev container). Fix: `mise run bazel-repin`.
     steps:
       - uses: actions/checkout@v4
 
@@ -84,7 +84,7 @@ jobs:
       - name: Check Cargo.Bazel.lock is up to date
         run: |
           echo "common --repository_cache=${{ runner.temp }}/bazel-repo" >> "$HOME/.bazelrc"
-          mise run repin check
+          mise run bazel-repin check
 
   compile:
     name: Compile
