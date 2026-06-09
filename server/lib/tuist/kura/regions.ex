@@ -82,14 +82,20 @@ defmodule Tuist.Kura.Regions do
       id: "us-east",
       display_name: "US East",
       provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-east-1",
-        hetzner_location: "ash",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
-      }
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "us-east-1",
+            hetzner_location: "ash",
+            kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            storage_class: "hcloud-volumes"
+          },
+          cross_region_runtime_config()
+        )
     }
   end
 
@@ -98,14 +104,20 @@ defmodule Tuist.Kura.Regions do
       id: "us-west",
       display_name: "US West",
       provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-west-1",
-        hetzner_location: "hil",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-west-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
-      }
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "us-west-1",
+            hetzner_location: "hil",
+            kubernetes_client: [mode: :kubeconfig, cluster_id: "us-west-1"],
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            storage_class: "hcloud-volumes"
+          },
+          cross_region_runtime_config()
+        )
     }
   end
 
@@ -114,15 +126,29 @@ defmodule Tuist.Kura.Regions do
       id: "eu-central",
       display_name: "EU Central",
       provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "eu-central-1",
-        hetzner_location: "fsn1",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes",
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
-      }
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "eu-central-1",
+            hetzner_location: "fsn1",
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            storage_class: "hcloud-volumes",
+            tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+          },
+          cross_region_runtime_config()
+        )
     }
+  end
+
+  defp cross_region_runtime_config do
+    if Tuist.Environment.kura_cross_region_replication_enabled?() do
+      %{peer_tls_secret_name: "kura-cross-region-peer-tls"}
+    else
+      %{}
+    end
   end
 
   defp local_controller_region do

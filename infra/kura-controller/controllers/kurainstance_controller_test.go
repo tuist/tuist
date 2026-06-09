@@ -485,6 +485,148 @@ func TestKuraInstanceReconcilePeerTLSSecretRegeneratesInvalidMaterial(t *testing
 	}
 }
 
+func TestKuraInstanceReconcileCrossRegionPeerGateway(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:          "tuist",
+			TenantID:               "tuist",
+			Region:                 "eu",
+			Image:                  "ghcr.io/tuist/kura:0.5.2",
+			PeerPublicHost:         "peer.tuist-eu-1.kura.tuist.dev",
+			GlobalDiscoveryDNSName: "tuist.kura-peers.tuist.dev",
+			PeerTLSSecretName:      "kura-cross-region-peer-tls",
+		},
+	}
+	peerSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-cross-region-peer-tls", Namespace: instance.Namespace},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, peerSecret).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	peerService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerServiceName(instance), Namespace: instance.Namespace}, peerService); err != nil {
+		t.Fatalf("expected peer LoadBalancer Service to be created: %v", err)
+	}
+	if peerService.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		t.Fatalf("expected peer service to be a LoadBalancer, got %q", peerService.Spec.Type)
+	}
+	if got := peerService.Spec.Selector[podNameLabel]; got != instance.Name+"-0" {
+		t.Fatalf("expected peer service to route to the selected primary pod, got %q", got)
+	}
+	if got := peerService.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "peer.tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected peer external-dns hostname, got %q", got)
+	}
+	if got := peerService.Spec.Ports[0].TargetPort.StrVal; got != "peer" {
+		t.Fatalf("expected peer service to target the peer port, got %q", got)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if got := env["KURA_PEER_GATEWAY_URL"]; got != "https://peer.tuist-eu-1.kura.tuist.dev:7443" {
+		t.Fatalf("expected peer gateway URL env, got %q", got)
+	}
+	if got := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; got != "tuist.kura-peers.tuist.dev" {
+		t.Fatalf("expected global discovery DNS env, got %q", got)
+	}
+	if got := sts.Spec.Template.Spec.Volumes[1].Secret.SecretName; got != "kura-cross-region-peer-tls" {
+		t.Fatalf("expected shared peer TLS Secret to be mounted, got %q", got)
+	}
+
+	generatedSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer-tls", Namespace: instance.Namespace}, generatedSecret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no generated per-instance peer TLS Secret when a shared Secret is configured, got %v", err)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	if len(policy.Spec.Ingress) != 4 {
+		t.Fatalf("expected NetworkPolicy to include a cross-region peer rule, got %d rules", len(policy.Spec.Ingress))
+	}
+	if got := policy.Spec.Ingress[3].Ports[0].Port.StrVal; got != "peer" {
+		t.Fatalf("expected cross-region NetworkPolicy rule to expose peer port, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcilePeerGatewayWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:          "tuist",
+			TenantID:               "tuist",
+			Region:                 "eu",
+			Image:                  "ghcr.io/tuist/kura:0.5.2",
+			PeerPublicHost:         "peer.tuist-eu-1.kura.tuist.dev",
+			GlobalDiscoveryDNSName: "tuist.kura-peers.tuist.dev",
+		},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	peerService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerServiceName(instance), Namespace: instance.Namespace}, peerService); err != nil {
+		t.Fatalf("expected peer LoadBalancer Service to be created: %v", err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if _, ok := env["KURA_PEER_GATEWAY_URL"]; ok {
+		t.Fatal("expected peer gateway URL to stay disabled until shared peer TLS is configured")
+	}
+	if _, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
+		t.Fatal("expected global discovery to stay disabled until shared peer TLS is configured")
+	}
+
+	generatedSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer-tls", Namespace: instance.Namespace}, generatedSecret); err != nil {
+		t.Fatalf("expected generated per-instance peer TLS Secret to remain in use: %v", err)
+	}
+}
+
 func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
