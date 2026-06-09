@@ -26,7 +26,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MISE_VERSION: "2026.4.18"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist-ops
@@ -92,7 +91,6 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
