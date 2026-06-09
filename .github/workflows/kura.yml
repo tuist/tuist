@@ -170,25 +170,87 @@ jobs:
   tests:
     name: Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Tests run via `bazel test //:kura_lib_test` (the rust_test that recompiles kura_lib
+    # with --test so the crate's #[cfg(test)] unit tests run). Same Kura-as-remote-cache
+    # setup as the `compile` job: Kura runs as a normal `docker run` container so it can be
+    # gracefully stopped (SIGTERM -> RocksDB flush) before its data dir is snapshotted by
+    # actions/cache. Flags MATCH the compile job's x86_64 leg (-c opt, same platform,
+    # -Dwarnings) on purpose: that makes every third-party dep's action key identical, so a
+    # fresh tests run reuses compile's warm dep cache (restore-keys falls back to
+    # kura-compile-data-) and only the test-crate compile + test run are new work. There are
+    # no doctests (rules_rust skips them) and no integration tests under tests/, so this
+    # target is a faithful replacement for `cargo test --locked`. Native (x86_64) arch only —
+    # the test toolchain doesn't resolve when cross-built.
     steps:
       - uses: actions/checkout@v4
 
-      - uses: jdx/mise-action@v4.0.1
+      - name: Restore Kura cache (data dir)
+        id: kura-cache
+        uses: actions/cache/restore@v4
         with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: rust
-          working_directory: kura
+          path: ${{ runner.temp }}/kura-data
+          key: kura-tests-data-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
+          restore-keys: |
+            kura-tests-data-
+            kura-compile-data-
 
-      - uses: Swatinem/rust-cache@v2
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@v4
         with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
+          path: ${{ runner.temp }}/bazel-repo
+          key: bazel-repo-tests-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
+          restore-keys: |
+            bazel-repo-tests-
+            bazel-repo-compile-
 
-      - name: Run tests
-        run: env -u RUSTUP_TOOLCHAIN cargo test --locked
+      - name: Build the Bazel dev image (Debian Bookworm + cross GCC)
+        run: docker build -f bazel/linux-dev.Dockerfile -t kura-bazel-dev .
+
+      - name: Start Kura as the Bazel remote cache
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh start
+
+      - name: Test (Bazel, native arch)
+        run: |
+          docker run --rm \
+            --network kura-bazel-ci-net \
+            -v "$GITHUB_WORKSPACE/kura:/workspace/kura" \
+            -v "${{ runner.temp }}/bazel-repo:/bazelrepo" \
+            kura-bazel-dev \
+            bash -c '
+              mkdir -p /bazelrepo
+              {
+                echo "common --repository_cache=/bazelrepo"
+                echo "common --http_timeout_scaling=8"
+                echo "common --remote_cache=grpc://kura-bazel-ci-cache:50051"
+                echo "common --remote_instance_name=kura-bazel-ci"
+                echo "common --remote_upload_local_results=true"
+                echo "common --remote_download_outputs=minimal"
+              } > /root/.bazelrc
+              ec=0
+              bazel test //:kura_lib_test -c opt --platforms=//bazel/platforms:linux_x86_64 \
+                --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings \
+                --test_output=errors || ec=$?
+              chmod -R a+rX /bazelrepo 2>/dev/null || true
+              exit $ec'
+
+      - name: Stop Kura and surface cache errors
+        if: always()
+        working-directory: kura
+        env:
+          KURA_CI_DATA_DIR: ${{ runner.temp }}/kura-data
+        run: bash bazel/ci-kura-cache.sh stop
+
+      - name: Save Kura cache (data dir)
+        if: always() && steps.kura-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/kura-data
+          key: kura-tests-data-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
 
   audit:
     name: Audit
