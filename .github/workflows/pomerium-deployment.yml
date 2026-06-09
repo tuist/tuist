@@ -117,9 +117,12 @@ jobs:
       # tuist-k8s-<env> 1P vault.
       name: server-k8s-${{ matrix.environment }}
     concurrency:
-      # Hold the same lane as the server + HCCM deploys so we don't
-      # race for the cluster apiserver during a rollout.
-      group: server-deploy-${{ matrix.environment }}
+      # Queue Pomerium runs against the same env so a push +
+      # workflow_dispatch (or two dispatches) don't overlap their
+      # helm upgrades on the same release. Doesn't share with the
+      # server / tuist-ops / slack deploys — each workflow has its
+      # own per-env lane in this repo's convention.
+      group: pomerium-deploy-${{ matrix.environment }}
       cancel-in-progress: false
     timeout-minutes: 15
     env:
