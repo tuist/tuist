@@ -8,6 +8,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 |---|---|
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
+| `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
 | `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
@@ -36,7 +37,13 @@ helm upgrade --install platform infra/helm/platform \
 
 Other clouds can plug in by adding a `values-<provider>.yaml` overlay that
 sets the provider-specific LoadBalancer annotations + any LB-specific
-ingress-nginx config.
+ingress-nginx config. The production `values-tuist.yaml` overlay also enables
+three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
+`kura-us-west`) so cache artifact traffic has dedicated regional gateways
+instead of sharing the main Tuist web ingress dataplane.
+Customer-dedicated Kura gateways are intentionally not chart aliases here:
+the Tuist server emits opaque `KuraGateway` resources and the Kura controller
+reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
@@ -100,6 +107,7 @@ connections should use the new gateway once the policy is re-applied.
 
 ## Notes
 
-- The ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Adjust `ingress-nginx.controller.service.annotations` when the cluster lands on a different provider.
+- The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Adjust `ingress-nginx.controller.service.annotations` when the cluster lands on a different provider.
+- Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

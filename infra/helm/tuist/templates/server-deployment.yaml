@@ -289,6 +289,10 @@ spec:
             - name: TUIST_KURA_ENDPOINTS
               value: {{ join "," . | quote }}
             {{- end }}
+            {{- with .Values.server.kuraDedicatedGatewayAccounts }}
+            - name: TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- if .Values.kuraRuntime.image.tag }}
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}

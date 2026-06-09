@@ -42,11 +42,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
       assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
-      assert spec["peerPublicHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert spec["globalDiscoveryDNSName"] == "tuist.kura-peers.tuist.dev"
-      assert spec["peerTLSSecretName"] == "kura-cross-region-peer-tls"
+      assert spec["ingressClassName"] == "kura-eu-central"
+      refute Map.has_key?(spec, "peerTLSSecretName")
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura"}
       assert spec["extensionScript"] == "return true"
 
       refute Map.has_key?(spec, "resources")
@@ -94,6 +94,54 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["tenantID"] == "bumble"
       assert spec["publicHost"] == "bumble-eu-central-1.kura.tuist.dev"
       assert spec["grpcPublicHost"] == "grpc.bumble-eu-central-1.kura.tuist.dev"
+    end
+
+    test "uses an opaque dedicated gateway class when the account is assigned to dedicated Kura ingress" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      region =
+        us_east_region(%{
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-us-east-1",
+          "0.5.2",
+          %{name: "tuist"},
+          region,
+          %Server{},
+          "return true"
+        )
+
+      gateway_name = manifest["metadata"]["annotations"]["tuist.dev/kura-gateway"]
+
+      assert String.starts_with?(gateway_name, "kgw-")
+      refute String.contains?(gateway_name, "tuist")
+      assert manifest["spec"]["ingressClassName"] == "kura-us-east-#{gateway_name}"
+
+      gateway_manifest =
+        KubernetesController.gateway_manifest(
+          %{name: gateway_name, ingress_class_name: manifest["spec"]["ingressClassName"]},
+          %{name: "tuist"},
+          region
+        )
+
+      assert gateway_manifest["kind"] == "KuraGateway"
+      assert gateway_manifest["metadata"]["name"] == gateway_name
+      assert gateway_manifest["spec"]["region"] == "us-east"
+      assert gateway_manifest["spec"]["ingressClassName"] == "kura-us-east-#{gateway_name}"
+      assert gateway_manifest["spec"]["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}
+
+      annotations = gateway_manifest["spec"]["loadBalancerAnnotations"]
+      assert annotations["load-balancer.hetzner.cloud/location"] == "ash"
+      assert annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"] == "true"
+      assert String.starts_with?(annotations["load-balancer.hetzner.cloud/name"], "tuist-kgw-")
+      refute String.contains?(annotations["load-balancer.hetzner.cloud/name"], "tuist-us")
     end
 
     test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
@@ -169,6 +217,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["replicas"] == 1
       assert spec["storageSize"] == "10Gi"
       assert spec["nodeSelector"] == %{"kubernetes.io/os" => "linux"}
+      refute Map.has_key?(spec, "ingressClassName")
       refute Map.has_key?(spec, "publicHost")
       refute Map.has_key?(spec, "grpcPublicHost")
 
@@ -207,16 +256,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                })
     end
 
-    test "passes regional Kubernetes client options through" do
+    test "applies managed US regions with the in-cluster Kubernetes client" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       region = us_east_region()
-      client_opts = [mode: :kubeconfig, cluster_id: "us-east-1"]
 
-      expect(Client, :apply, fn manifest, opts ->
-        assert opts == client_opts
+      expect(Client, :apply, fn manifest ->
         assert manifest["metadata"]["name"] == "kura-tuist-us-east-1"
         assert manifest["spec"]["region"] == "us-east"
+        assert manifest["spec"]["ingressClassName"] == "kura-us-east"
+        assert manifest["spec"]["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}
         {:ok, manifest}
       end)
 
@@ -229,15 +278,74 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                  hook_script: "return true"
                })
     end
+
+    test "applies a dedicated KuraGateway before the KuraInstance when the account is assigned to dedicated ingress" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      region =
+        us_east_region(%{
+          dedicated_gateway_account_handles: ["tuist"]
+        })
+
+      test_process = self()
+
+      expect(Client, :apply, 2, fn manifest ->
+        send(test_process, {:applied, manifest})
+        {:ok, manifest}
+      end)
+
+      assert :ok =
+               KubernetesController.rollout("kura-tuist-us-east-1", %{
+                 image_tag: "0.5.2",
+                 account: %{name: "tuist"},
+                 server: %Server{},
+                 region: region,
+                 hook_script: "return true"
+               })
+
+      assert_receive {:applied, %{"kind" => "KuraGateway"} = gateway_manifest}
+      assert_receive {:applied, %{"kind" => "KuraInstance"} = instance_manifest}
+
+      assert instance_manifest["metadata"]["annotations"]["tuist.dev/kura-gateway"] ==
+               gateway_manifest["metadata"]["name"]
+
+      assert instance_manifest["spec"]["ingressClassName"] ==
+               gateway_manifest["spec"]["ingressClassName"]
+    end
   end
 
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
+        {:error, :not_found}
+      end)
+
       expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
         {:error, :not_found}
       end)
 
       assert :ok = KubernetesController.destroy("kura-tuist-eu-central-1", eu_region())
+    end
+
+    test "deletes an assigned dedicated KuraGateway before deleting the KuraInstance" do
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1" ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "annotations" => %{"tuist.dev/kura-gateway" => "kgw-abc123-us-east"}
+           }
+         }}
+      end)
+
+      expect(Client, :delete_kura_gateway, fn "kura", "kgw-abc123-us-east" ->
+        :ok
+      end)
+
+      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-us-east-1" ->
+        :ok
+      end)
+
+      assert :ok = KubernetesController.destroy("kura-tuist-us-east-1", us_east_region())
     end
   end
 
@@ -321,29 +429,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
             cluster_id: "eu-central-1",
             public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
             grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
-            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
-            peer_tls_secret_name: "kura-cross-region-peer-tls",
-            storage_class: "hcloud-volumes"
+            ingress_class_name: "kura-eu-central",
+            storage_class: "hcloud-volumes",
+            node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"}
           },
           extra_config
         )
     }
   end
 
-  defp us_east_region do
+  defp us_east_region(extra_config \\ %{}) do
     %Regions{
       id: "us-east",
-      provisioner_config: %{
-        cluster_id: "us-east-1",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
-        global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
-        peer_tls_secret_name: "kura-cross-region-peer-tls",
-        storage_class: "hcloud-volumes"
-      }
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "us-east-1",
+            hetzner_location: "ash",
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            ingress_class_name: "kura-us-east",
+            storage_class: "hcloud-volumes",
+            node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-us-east"}
+          },
+          extra_config
+        )
     }
   end
 

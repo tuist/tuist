@@ -1,7 +1,10 @@
 # Shared values for the Tuist-managed deployment (tuist.dev).
 # All data services are external; the cache + embedded observability stack are off;
-# traffic flows through cert-manager + Cloudflare DNS-01 TLS and an ingress-nginx
-# LoadBalancer backed by the cloud provider's managed LB.
+# server traffic flows through cert-manager + Cloudflare DNS-01 TLS and the
+# main ingress-nginx LoadBalancer backed by the cloud provider's managed LB.
+# Kura cache traffic uses dedicated shared regional Kura ingress controllers
+# from the platform chart so artifact bytes don't contend with the web ingress
+# dataplane.
 #
 # This file is layered under values-managed-staging.yaml /
 # values-managed-canary.yaml / values-managed-production.yaml; those overlays
@@ -19,10 +22,13 @@ kuraController:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
   # chart. The controller uses it for the per-Kura public HTTPS and gRPC
-  # certificates mounted into each runtime pod.
+  # certificates consumed by the regional Kura ingress layer.
   tlsClusterIssuer: "letsencrypt-cloudflare"
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+  sharedSecrets:
+    kuraIntrospection:
+      enabled: true
 
 server:
   serviceAccount:

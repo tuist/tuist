@@ -14,3 +14,41 @@ ciliumEgressGateway:
     egressIP: 116.202.0.10
     hostConfigurator:
       enabled: true
+
+# Dedicated Kura ingress dataplanes. These are shared per region, not
+# per customer: customer-specific hosts route through the regional
+# ingress class and then to the selected Kura pod. Keep the controller
+# pods on the same regional Kura pools so the Hetzner LoadBalancer,
+# ingress-nginx, and Kura pods stay local to the region.
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/name: tuist-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+
+kura-us-east-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-east
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: ash
+        load-balancer.hetzner.cloud/name: tuist-kura-us-east-ingress
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+
+kura-us-west-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-us-west
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: hil
+        load-balancer.hetzner.cloud/name: tuist-kura-us-west-ingress
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

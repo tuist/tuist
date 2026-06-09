@@ -23,13 +23,13 @@ Wraps the upstream `grafana/k8s-monitoring` chart and adds the 1Password-via-ESO
 README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 
 ### `helm/platform/` — platform bootstrap chart
-cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
+cert-manager + external-dns + ESO + metrics-server + ingress-nginx controllers, installed once per workload cluster. Kura customer endpoints default to dedicated shared regional Kura ingress controllers rather than the main web ingress dataplane. Enterprise/high-volume exceptions are reconciled dynamically by the Kura controller from `KuraGateway` CRs, not hard-coded as customer-specific platform chart aliases. Provider-specific LB annotations live in per-provider and cluster overlays (e.g., `values-hetzner.yaml`, `values-tuist.yaml`).
 
 ### `k8s/` — CAPI cluster manifests
 Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
 - `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
-- `clusters/cluster-production-us-{east,west}.yaml` — production Kura regional workload clusters mapped to Hetzner `ash` / `hil`.
+- Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
@@ -38,7 +38,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `onboarding.md` — end-to-end runbook for standing up a new workload cluster.
 
 ### `kura-controller/` — Kura endpoint controller
-Go controller for `KuraInstance` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
+Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
 Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.

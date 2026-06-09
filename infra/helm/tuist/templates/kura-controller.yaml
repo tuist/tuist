@@ -1,7 +1,46 @@
 {{- if .Values.kuraController.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
 {{- $namespace := .Values.kuraController.namespace }}
+{{- $kuraSharedSecretName := "kura-shared-secrets" }}
+{{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
+{{- $existingKuraSharedSecret := lookup "v1" "Secret" $namespace $kuraSharedSecretName }}
+{{- $existingServerSharedSecret := lookup "v1" "Secret" .Release.Namespace $kuraSharedSecretName }}
+{{- $existingKuraSharedSecretData := dict }}
+{{- $existingServerSharedSecretData := dict }}
+{{- if $existingKuraSharedSecret }}
+{{- $existingKuraSharedSecretData = $existingKuraSharedSecret.data | default dict }}
+{{- end }}
+{{- if $existingServerSharedSecret }}
+{{- $existingServerSharedSecretData = $existingServerSharedSecret.data | default dict }}
+{{- end }}
+{{- $kuraIntrospectionClientSecret := $kuraIntrospection.clientSecret | default "" }}
+{{- if eq $kuraIntrospectionClientSecret "" }}
+{{- if hasKey $existingKuraSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" }}
+{{- $kuraIntrospectionClientSecret = index $existingKuraSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" | b64dec }}
+{{- else if hasKey $existingKuraSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}
+{{- $kuraIntrospectionClientSecret = index $existingKuraSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" | b64dec }}
+{{- else if hasKey $existingServerSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" }}
+{{- $kuraIntrospectionClientSecret = index $existingServerSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" | b64dec }}
+{{- else if hasKey $existingServerSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}
+{{- $kuraIntrospectionClientSecret = index $existingServerSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" | b64dec }}
+{{- else }}
+{{- $kuraIntrospectionClientSecret = randAlphaNum 64 }}
+{{- end }}
+{{- end }}
+{{- $kuraIntrospectionSecretData := dict }}
+{{- if $kuraIntrospection.enabled }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
+{{- $gatewayIngressServiceAccountName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayIngressRoleName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayIngressClusterRoleName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayClassClusterRoleName := printf "%s-gateway-classes" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- if not $imageTag }}
@@ -38,13 +77,13 @@ metadata:
     app.kubernetes.io/component: kura-controller
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances]
+    resources: [kurainstances, kuragateways]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances/status, kurainstances/finalizers]
+    resources: [kurainstances/status, kurainstances/finalizers, kuragateways/status, kuragateways/finalizers]
     verbs: [get, update, patch]
   - apiGroups: ["apps"]
-    resources: [statefulsets]
+    resources: [statefulsets, deployments]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [services, configmaps, secrets]
@@ -70,6 +109,34 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $gatewayClassClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingressclasses]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $gatewayClassClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $gatewayClassClusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -99,7 +166,7 @@ metadata:
     app.kubernetes.io/component: server
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances]
+    resources: [kurainstances, kuragateways]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
@@ -122,6 +189,91 @@ subjects:
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $gatewayIngressServiceAccountName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $gatewayIngressRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, endpoints, pods, secrets, services]
+    verbs: [get, list, watch]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses/status]
+    verbs: [update]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $gatewayIngressRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $gatewayIngressRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $gatewayIngressServiceAccountName }}
+    namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $gatewayIngressClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+rules:
+  - apiGroups: [""]
+    resources: [nodes, namespaces]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingressclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $gatewayIngressClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $gatewayIngressClusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $gatewayIngressServiceAccountName }}
+    namespace: {{ $namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -167,6 +319,7 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            - --gateway-service-account-name={{ $gatewayIngressServiceAccountName }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -203,9 +356,30 @@ metadata:
     {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
 {{- end }}
 type: Opaque
-{{- with .Values.kuraController.sharedSecrets.data }}
+{{- $kuraSharedSecretData := deepCopy $kuraIntrospectionSecretData }}
+{{- range $key, $value := .Values.kuraController.sharedSecrets.data }}
+{{- $_ := set $kuraSharedSecretData $key $value }}
+{{- end }}
+{{- with $kuraSharedSecretData }}
 stringData:
   {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+# Mirror only the Kura OAuth keys into the server namespace. Kubernetes
+# Secrets are namespaced, and the server needs the same client credentials
+# to serve Kura token introspection.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+type: Opaque
+stringData:
+  {{- toYaml $kuraIntrospectionSecretData | nindent 2 }}
 {{- end }}
 {{- if .Values.kuraController.sharedSecrets.externalSecret.enabled }}
 ---

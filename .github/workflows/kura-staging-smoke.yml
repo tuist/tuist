@@ -1,0 +1,405 @@
+name: Kura Staging Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KUBECONFIG: ${{ github.workspace }}/.kube/config
+  NAMESPACE: tuist-staging
+  KURA_NAMESPACE: kura
+  SMOKE_REGION: eu-central
+  REGIONAL_INGRESS_CLASS: kura-eu-central
+  REGIONAL_GATEWAY_SERVICE: platform-kura-eu-central-ingress-nginx-controller
+
+jobs:
+  smoke:
+    name: Public Kura cache roundtrip (${{ matrix.gateway_mode }})
+    runs-on: tuist-linux
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - gateway_mode: regional
+            account_handle: kura-smoke-staging-regional
+            dedicated_gateway: "false"
+          - gateway_mode: dedicated
+            account_handle: kura-smoke-staging-dedicated
+            dedicated_gateway: "true"
+    environment:
+      name: server-k8s-staging
+      url: https://staging.tuist.dev
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-staging" \
+            --vault "tuist-k8s-staging" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster and regional Kura platform
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+
+          kubectl -n platform rollout status \
+            deploy/platform-kura-eu-central-ingress-nginx-controller \
+            --timeout=10m
+          kubectl get ingressclass "$REGIONAL_INGRESS_CLASS"
+          kubectl -n platform get svc "$REGIONAL_GATEWAY_SERVICE" -o wide
+
+          regional_lb="$(
+            kubectl -n platform get svc "$REGIONAL_GATEWAY_SERVICE" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}{.status.loadBalancer.ingress[0].hostname}'
+          )"
+          if [ -z "$regional_lb" ]; then
+            echo "Regional Kura LoadBalancer has no public ingress yet."
+            kubectl -n platform get svc "$REGIONAL_GATEWAY_SERVICE" -o yaml
+            exit 1
+          fi
+          echo "Regional Kura LoadBalancer ingress: $regional_lb"
+
+          kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
+          kubectl -n "$KURA_NAMESPACE" rollout status deploy/tuist-tuist-kura-controller --timeout=10m
+          kubectl -n "$KURA_NAMESPACE" wait \
+            --for=condition=Ready externalsecret/kura-shared-secrets \
+            --timeout=5m
+          kubectl -n "$KURA_NAMESPACE" get secret kura-shared-secrets
+      - id: provision
+        name: Provision smoke Kura server
+        env:
+          SMOKE_ACCOUNT_HANDLE: ${{ matrix.account_handle }}
+          SMOKE_DEDICATED_GATEWAY: ${{ matrix.dedicated_gateway }}
+          SMOKE_GATEWAY_MODE: ${{ matrix.gateway_mode }}
+        run: |
+          set -euo pipefail
+
+          SMOKE_OUTPUT="$(
+            kubectl -n "$NAMESPACE" exec deploy/tuist-tuist-server -c server -- \
+              env \
+                RELEASE_DISTRIBUTION=none \
+                SMOKE_ACCOUNT_HANDLE="$SMOKE_ACCOUNT_HANDLE" \
+                SMOKE_DEDICATED_GATEWAY="$SMOKE_DEDICATED_GATEWAY" \
+                SMOKE_GATEWAY_MODE="$SMOKE_GATEWAY_MODE" \
+                SMOKE_REGION="$SMOKE_REGION" \
+                /app/bin/tuist eval '
+                  Application.load(:tuist)
+
+                  endpoint_config = Application.get_env(:tuist, TuistWeb.Endpoint, [])
+                  Application.put_env(:tuist, TuistWeb.Endpoint, Keyword.put(endpoint_config, :server, false))
+
+                  promex_config = Application.get_env(:tuist, Tuist.PromEx, [])
+                  Application.put_env(:tuist, Tuist.PromEx, Keyword.put(promex_config, :disabled, true))
+
+                  {:ok, _} = Application.ensure_all_started(:tuist)
+
+                  import Ecto.Query
+
+                  alias Tuist.Accounts
+                  alias Tuist.Billing.Subscription
+                  alias Tuist.Kura
+                  alias Tuist.Kura.Deployment
+                  alias Tuist.Kura.Server
+                  alias Tuist.Repo
+
+                  handle = System.fetch_env!("SMOKE_ACCOUNT_HANDLE")
+                  region = System.fetch_env!("SMOKE_REGION")
+                  gateway_mode = System.fetch_env!("SMOKE_GATEWAY_MODE")
+                  dedicated_gateway? = System.get_env("SMOKE_DEDICATED_GATEWAY") == "true"
+                  email = handle <> "@tuist.dev"
+
+                  account =
+                    case Accounts.get_account_by_handle(handle) do
+                      nil ->
+                        case Accounts.create_user(email, handle: handle, password: "kura-smoke-staging", confirmed_at: DateTime.utc_now()) do
+                          {:ok, user} -> user.account
+                          {:error, :account_handle_taken} -> Accounts.get_account_by_handle(handle)
+                          {:error, :email_taken} -> Accounts.get_account_by_handle(handle)
+                          {:error, reason} -> raise "failed to create smoke account: #{inspect(reason)}"
+                        end
+
+                      account ->
+                        account
+                    end
+
+                  if dedicated_gateway? do
+                    subscription_id = "sub_" <> handle <> "_kura_smoke"
+
+                    case Repo.get_by(Subscription, subscription_id: subscription_id) do
+                      nil ->
+                        %Subscription{}
+                        |> Subscription.create_changeset(%{
+                          plan: :enterprise,
+                          subscription_id: subscription_id,
+                          status: "active",
+                          account_id: account.id
+                        })
+                        |> Repo.insert!()
+
+                      %Subscription{account_id: account_id} when account_id != account.id ->
+                        raise "smoke subscription belongs to unexpected account"
+
+                      subscription ->
+                        subscription
+                        |> Subscription.update_changeset(%{
+                          plan: :enterprise,
+                          status: "active",
+                          cancel_at_period_end: false
+                        })
+                        |> Repo.update!()
+                    end
+                  end
+
+                  [%{image_tag: image_tag} | _] = Kura.latest_versions(1)
+
+                  server =
+                    Repo.one(
+                      from s in Server,
+                        where: s.account_id == ^account.id and s.region == ^region and s.status != :destroyed,
+                        order_by: [desc: s.inserted_at],
+                        limit: 1
+                    )
+
+                  server =
+                    case server do
+                      nil ->
+                        {:ok, server} = Kura.create_server(%{account_id: account.id, region: region, image_tag: image_tag})
+                        server
+
+                      server ->
+                        server
+                    end
+
+                  open_deployment =
+                    Repo.one(
+                      from d in Deployment,
+                        where:
+                          d.kura_server_id == ^server.id and d.image_tag == ^image_tag and
+                            d.status in [:pending, :running],
+                        order_by: [desc: d.inserted_at],
+                        limit: 1
+                    )
+
+                  if is_nil(open_deployment) do
+                    {:ok, _deployment} = Kura.create_deployment(server, image_tag)
+                  end
+
+                  token_name = "smoke-" <> gateway_mode <> "-" <> Integer.to_string(System.system_time(:second))
+
+                  {:ok, {_token, token_value}} =
+                    Accounts.create_account_token(%{
+                      account: account,
+                      name: token_name,
+                      scopes: ["account:cache:read", "account:cache:write"],
+                      all_projects: true,
+                      expires_at: DateTime.add(DateTime.utc_now(), 2, :hour)
+                    })
+
+                  Kura.reconcile_orphaned_deployments()
+
+                  url = Kura.Provisioner.public_url(account, server)
+
+                  IO.puts("SMOKE_ACCOUNT=#{account.name}")
+                  IO.puts("SMOKE_INSTANCE=#{server.provisioner_node_ref}")
+                  IO.puts("SMOKE_URL=#{url}")
+                  IO.puts("SMOKE_GATEWAY_MODE=#{gateway_mode}")
+                  IO.puts("SMOKE_DEDICATED_GATEWAY=#{dedicated_gateway?}")
+                  IO.puts("SMOKE_TOKEN=#{token_value}")
+                '
+          )"
+
+          printf '%s\n' "$SMOKE_OUTPUT" | sed -E 's/(SMOKE_TOKEN=).*/\1[masked]/'
+
+          SMOKE_ACCOUNT="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_ACCOUNT=//p' | tail -1)"
+          SMOKE_INSTANCE="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_INSTANCE=//p' | tail -1)"
+          SMOKE_URL="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_URL=//p' | tail -1)"
+          SMOKE_GATEWAY_MODE="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_GATEWAY_MODE=//p' | tail -1)"
+          SMOKE_DEDICATED_GATEWAY="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_DEDICATED_GATEWAY=//p' | tail -1)"
+          SMOKE_TOKEN="$(printf '%s\n' "$SMOKE_OUTPUT" | sed -n 's/^SMOKE_TOKEN=//p' | tail -1)"
+
+          if [ -z "$SMOKE_ACCOUNT" ] || [ -z "$SMOKE_INSTANCE" ] || [ -z "$SMOKE_URL" ] || [ -z "$SMOKE_TOKEN" ]; then
+            echo "Smoke provisioning did not return all required fields."
+            exit 1
+          fi
+
+          echo "::add-mask::$SMOKE_TOKEN"
+          {
+            echo "account=$SMOKE_ACCOUNT"
+            echo "instance=$SMOKE_INSTANCE"
+            echo "url=$SMOKE_URL"
+            echo "gateway_mode=$SMOKE_GATEWAY_MODE"
+            echo "dedicated_gateway=$SMOKE_DEDICATED_GATEWAY"
+            echo "token=$SMOKE_TOKEN"
+          } >> "$GITHUB_OUTPUT"
+      - name: Wait for Kura workload and validate gateway assignment
+        env:
+          SMOKE_INSTANCE: ${{ steps.provision.outputs.instance }}
+          SMOKE_GATEWAY_MODE: ${{ steps.provision.outputs.gateway_mode }}
+          SMOKE_DEDICATED_GATEWAY: ${{ steps.provision.outputs.dedicated_gateway }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 120); do
+            phase="$(
+              kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" \
+                -o jsonpath='{.status.phase}' 2>/dev/null || true
+            )"
+            ready="$(
+              kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" \
+                -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true
+            )"
+
+            echo "KuraInstance $SMOKE_INSTANCE phase=${phase:-<none>} ready=${ready:-0} attempt=$attempt"
+            if [ "$phase" = "Ready" ]; then
+              break
+            fi
+
+            if [ "$attempt" = "120" ]; then
+              kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" -o yaml || true
+              kubectl -n "$KURA_NAMESPACE" get pods -l "app.kubernetes.io/instance=$SMOKE_INSTANCE" -o wide || true
+              kubectl -n "$KURA_NAMESPACE" get events --sort-by=.lastTimestamp | tail -80 || true
+              exit 1
+            fi
+
+            sleep 15
+          done
+
+          kubectl -n "$KURA_NAMESPACE" rollout status statefulset/"$SMOKE_INSTANCE" --timeout=10m
+          kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" -o wide
+          kubectl -n "$KURA_NAMESPACE" get pods -l "app.kubernetes.io/instance=$SMOKE_INSTANCE" -o wide
+          kubectl -n "$KURA_NAMESPACE" get svc,ingress,certificate -l "app.kubernetes.io/instance=$SMOKE_INSTANCE" -o wide || true
+
+          ingress_class="$(
+            kubectl -n "$KURA_NAMESPACE" get ingress "$SMOKE_INSTANCE" \
+              -o jsonpath='{.spec.ingressClassName}'
+          )"
+          gateway_name="$(
+            kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" \
+              -o jsonpath='{.metadata.annotations.tuist\.dev/kura-gateway}' 2>/dev/null || true
+          )"
+
+          if [ "$SMOKE_DEDICATED_GATEWAY" = "true" ]; then
+            if [ -z "$gateway_name" ]; then
+              echo "Dedicated smoke KuraInstance has no dedicated gateway annotation."
+              kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" -o yaml
+              exit 1
+            fi
+
+            for attempt in $(seq 1 120); do
+              gateway_phase="$(
+                kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" \
+                  -o jsonpath='{.status.phase}' 2>/dev/null || true
+              )"
+              gateway_ready="$(
+                kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" \
+                  -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true
+              )"
+              gateway_lb="$(
+                kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" \
+                  -o jsonpath='{.status.loadBalancer}' 2>/dev/null || true
+              )"
+
+              echo "KuraGateway $gateway_name phase=${gateway_phase:-<none>} ready=${gateway_ready:-0} lb=${gateway_lb:-<none>} attempt=$attempt"
+              if [ "$gateway_phase" = "Ready" ] && [ -n "$gateway_lb" ]; then
+                break
+              fi
+
+              if [ "$attempt" = "120" ]; then
+                kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" -o yaml || true
+                kubectl -n "$KURA_NAMESPACE" get deploy,svc -l "tuist.dev/kura-gateway=$gateway_name" -o wide || true
+                kubectl -n "$KURA_NAMESPACE" get events --sort-by=.lastTimestamp | tail -80 || true
+                exit 1
+              fi
+
+              sleep 15
+            done
+
+            gateway_service="$(
+              kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" \
+                -o jsonpath='{.status.serviceName}'
+            )"
+            dedicated_lb="$(
+              kubectl -n "$KURA_NAMESPACE" get svc "$gateway_service" \
+                -o jsonpath='{.status.loadBalancer.ingress[0].ip}{.status.loadBalancer.ingress[0].hostname}'
+            )"
+
+            if [ -z "$dedicated_lb" ]; then
+              echo "Dedicated gateway Service has no LoadBalancer ingress."
+              kubectl -n "$KURA_NAMESPACE" get svc "$gateway_service" -o yaml
+              exit 1
+            fi
+
+            kubectl get ingressclass "$ingress_class"
+            kubectl -n "$KURA_NAMESPACE" rollout status deploy/"$gateway_service" --timeout=10m
+            kubectl -n "$KURA_NAMESPACE" get kuragateway "$gateway_name" -o wide
+            kubectl -n "$KURA_NAMESPACE" get svc "$gateway_service" -o wide
+            echo "Dedicated Kura LoadBalancer ingress: $dedicated_lb"
+          else
+            if [ -n "$gateway_name" ]; then
+              echo "Regional smoke KuraInstance unexpectedly received dedicated gateway $gateway_name."
+              kubectl -n "$KURA_NAMESPACE" get kurainstance "$SMOKE_INSTANCE" -o yaml
+              exit 1
+            fi
+
+            if [ "$ingress_class" != "$REGIONAL_INGRESS_CLASS" ]; then
+              echo "Regional smoke ingress class is $ingress_class, expected $REGIONAL_INGRESS_CLASS."
+              kubectl -n "$KURA_NAMESPACE" get ingress "$SMOKE_INSTANCE" -o yaml
+              exit 1
+            fi
+
+            echo "Regional Kura ingress uses shared class $REGIONAL_INGRESS_CLASS"
+          fi
+      - name: Exercise public cache endpoint
+        env:
+          SMOKE_ACCOUNT: ${{ steps.provision.outputs.account }}
+          SMOKE_GATEWAY_MODE: ${{ steps.provision.outputs.gateway_mode }}
+          SMOKE_URL: ${{ steps.provision.outputs.url }}
+          SMOKE_TOKEN: ${{ steps.provision.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 80); do
+            if curl -fsS "$SMOKE_URL/up" > /tmp/kura-up.json; then
+              cat /tmp/kura-up.json
+              break
+            fi
+
+            if [ "$attempt" = "80" ]; then
+              echo "Public Kura /up did not become reachable at $SMOKE_URL"
+              exit 1
+            fi
+
+            sleep 15
+          done
+
+          artifact_id="smoke-${SMOKE_GATEWAY_MODE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          payload_file="$(mktemp)"
+          downloaded_file="$(mktemp)"
+          printf 'kura staging smoke %s %s/%s\n' "$SMOKE_GATEWAY_MODE" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$payload_file"
+
+          curl -fsS \
+            -X POST \
+            -H "authorization: Bearer $SMOKE_TOKEN" \
+            --data-binary "@$payload_file" \
+            "$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT"
+
+          curl -fsS \
+            -H "authorization: Bearer $SMOKE_TOKEN" \
+            "$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT" \
+            > "$downloaded_file"
+
+          cmp -s "$payload_file" "$downloaded_file"
+          echo "Kura public cache roundtrip succeeded for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"

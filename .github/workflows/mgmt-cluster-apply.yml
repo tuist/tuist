@@ -45,9 +45,15 @@ on:
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - '.github/workflows/mgmt-cluster-apply.yml'
   # Manual re-runs of the apply path, e.g. to force a re-deploy
-  # without a code change. No inputs — incident-recovery actions
-  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
+  # without a code change. Operators can optionally scope a manual run
+  # to one workload Cluster CR so feature-branch validation does not
+  # reconcile every environment.
   workflow_dispatch:
+    inputs:
+      cluster_manifest:
+        description: Optional single workload Cluster manifest to apply, for example infra/k8s/clusters/cluster-staging.yaml
+        required: false
+        default: ""
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -59,7 +65,7 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     environment:
       name: mgmt-cluster-apply
     # `kubectl diff` can be slow against the Cluster API CRDs when many
@@ -67,6 +73,7 @@ jobs:
     timeout-minutes: 15
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
+      TARGET_CLUSTER_MANIFEST: ${{ inputs.cluster_manifest || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
@@ -88,36 +95,64 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          diff_manifest() {
+            timeout 60s kubectl diff -f "$1" || true
+          }
+
+          if [ -n "$TARGET_CLUSTER_MANIFEST" ]; then
+            case "$TARGET_CLUSTER_MANIFEST" in
+              infra/k8s/clusters/cluster-*.yaml)
+                if [ ! -f "$TARGET_CLUSTER_MANIFEST" ]; then
+                  echo "Target cluster manifest does not exist: $TARGET_CLUSTER_MANIFEST"
+                  exit 1
+                fi
+                echo "Skipping kubectl diff for scoped manual apply of $TARGET_CLUSTER_MANIFEST"
+                exit 0
+                ;;
+              *)
+                echo "cluster_manifest must be under infra/k8s/clusters/cluster-*.yaml"
+                exit 1
+                ;;
+            esac
+          fi
+
+          cluster_files=()
+          for f in infra/k8s/clusters/cluster-*.yaml; do
+            cluster_files+=("$f")
+          done
+
           echo "::group::ClusterClass diff"
-          kubectl diff -f infra/k8s/clusters/clusterclass-tuist.yaml || true
+          diff_manifest infra/k8s/clusters/clusterclass-tuist.yaml
           echo "::endgroup::"
           for f in infra/k8s/clusters/bare-metal*.yaml; do
             [ -e "$f" ] || continue
             echo "::group::$(basename "$f") diff"
-            kubectl diff -f "$f" || true
+            diff_manifest "$f"
             echo "::endgroup::"
           done
-          for f in infra/k8s/clusters/cluster-*.yaml; do
+          for f in "${cluster_files[@]}"; do
             echo "::group::$(basename "$f") diff"
-            kubectl diff -f "$f" || true
+            diff_manifest "$f"
             echo "::endgroup::"
           done
           echo "::group::etcd-snapshot.yaml diff"
-          kubectl diff -f infra/k8s/mgmt/etcd-snapshot.yaml || true
+          diff_manifest infra/k8s/mgmt/etcd-snapshot.yaml
           echo "::endgroup::"
           echo "::group::tailscale.yaml diff"
-          kubectl diff -f infra/k8s/mgmt/tailscale.yaml || true
+          diff_manifest infra/k8s/mgmt/tailscale.yaml
           echo "::endgroup::"
           echo "::group::hetzner-robot-controller.yaml diff"
-          kubectl diff -f infra/k8s/mgmt/hetzner-robot-controller.yaml || true
+          diff_manifest infra/k8s/mgmt/hetzner-robot-controller.yaml
           echo "::endgroup::"
           echo "::group::cluster-autoscaler.yaml diff"
-          kubectl diff -f infra/k8s/mgmt/cluster-autoscaler.yaml || true
+          diff_manifest infra/k8s/mgmt/cluster-autoscaler.yaml
           echo "::endgroup::"
       - name: Apply ClusterClass first (Cluster CRs reference it)
+        if: env.TARGET_CLUSTER_MANIFEST == ''
         run: |
           kubectl apply -f infra/k8s/clusters/clusterclass-tuist.yaml
       - name: Apply bare-metal substrate
+        if: env.TARGET_CLUSTER_MANIFEST == ''
         # HetznerBareMetalMachineTemplate + KubeadmConfigTemplate
         # for the shared `bare-metal-worker` MachineDeployment class.
         # Per-cluster HBM claim scoping is via the `bareMetalCluster`
@@ -155,11 +190,42 @@ jobs:
           done
       - name: Apply per-env Cluster CRs
         run: |
-          for f in infra/k8s/clusters/cluster-*.yaml; do
+          cluster_files=()
+          if [ -n "$TARGET_CLUSTER_MANIFEST" ]; then
+            case "$TARGET_CLUSTER_MANIFEST" in
+              infra/k8s/clusters/cluster-*.yaml)
+                if [ ! -f "$TARGET_CLUSTER_MANIFEST" ]; then
+                  echo "Target cluster manifest does not exist: $TARGET_CLUSTER_MANIFEST"
+                  exit 1
+                fi
+                cluster_files=("$TARGET_CLUSTER_MANIFEST")
+                ;;
+              *)
+                echo "cluster_manifest must be under infra/k8s/clusters/cluster-*.yaml"
+                exit 1
+                ;;
+            esac
+          else
+            for f in infra/k8s/clusters/cluster-*.yaml; do
+              cluster_files+=("$f")
+            done
+          fi
+
+          apply_args=()
+          if [ -n "$TARGET_CLUSTER_MANIFEST" ]; then
+            apply_args+=(--validate=false --request-timeout=60s)
+          fi
+
+          for f in "${cluster_files[@]}"; do
             echo "==> $f"
-            kubectl apply -f "$f"
+            if [ -n "$TARGET_CLUSTER_MANIFEST" ]; then
+              timeout 90s kubectl apply "${apply_args[@]}" -f "$f"
+            else
+              kubectl apply "${apply_args[@]}" -f "$f"
+            fi
           done
       - name: Apply mgmt-side workloads
+        if: env.TARGET_CLUSTER_MANIFEST == ''
         # These are mgmt-cluster Deployments / CronJobs, not Cluster
         # CRs. Independent of the CAPI manifests above.
         run: |

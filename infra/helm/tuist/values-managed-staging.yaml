@@ -31,6 +31,8 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central
 
   appUrl: https://staging.tuist.dev
 

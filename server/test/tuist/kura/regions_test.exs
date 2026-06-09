@@ -12,6 +12,12 @@ defmodule Tuist.Kura.RegionsTest do
       ids = Enum.map(Regions.all(), & &1.id)
       hetzner_locations = %{"eu-central" => "fsn1", "us-east" => "ash", "us-west" => "hil"}
 
+      ingress_classes = %{
+        "eu-central" => "kura-eu-central",
+        "us-east" => "kura-us-east",
+        "us-west" => "kura-us-west"
+      }
+
       assert "us-east" in ids
       assert "us-west" in ids
       assert "eu-central" in ids
@@ -23,20 +29,26 @@ defmodule Tuist.Kura.RegionsTest do
         refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
         assert config.hetzner_location == hetzner_locations[id]
+        assert config.ingress_class_name == ingress_classes[id]
         assert config.storage_class == "hcloud-volumes"
       end
 
-      assert Regions.get("us-east").provisioner_config.kubernetes_client == [
-               mode: :kubeconfig,
-               cluster_id: "us-east-1"
-             ]
+      assert Regions.get("us-east").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-us-east"
+             }
 
-      assert Regions.get("us-west").provisioner_config.kubernetes_client == [
-               mode: :kubeconfig,
-               cluster_id: "us-west-1"
-             ]
+      assert Regions.get("us-west").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-us-west"
+             }
 
-      refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
+      assert Regions.get("eu-central").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura"
+             }
+
+      for id <- ["us-east", "us-west", "eu-central"] do
+        refute Map.has_key?(Regions.get(id).provisioner_config, :kubernetes_client)
+        refute Map.has_key?(Regions.get(id).provisioner_config, :peer_tls_secret_name)
+      end
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do

@@ -17,7 +17,7 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 
 ## Install
 
-Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
+Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.
 
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
@@ -58,7 +58,7 @@ Managed Kura pods push OTLP HTTP spans to the same Service:
 http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
 ```
 
-`infra/helm/tuist/values-managed-common.yaml` and `infra/helm/tuist/values-managed-kura-region.yaml` pass this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
+`infra/helm/tuist/values-managed-common.yaml` passes this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
