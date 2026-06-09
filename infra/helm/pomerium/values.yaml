@@ -3,111 +3,95 @@
 # only override:
 #   - tuistEnv         (staging | canary | production)
 #   - publicHostname   (kube-<env>.tuist.dev)
-# Everything else (image, OIDC, ext_authz wiring, ingress shape)
-# stays identical across envs to keep behaviour symmetric.
+# Everything else (image, ext_authz wiring, ingress shape) stays
+# identical across envs to keep behaviour symmetric.
 
 tuistEnv: staging
 publicHostname: kube-staging.tuist.dev
+authenticateHostname: authenticate.kube-staging.tuist.dev
 
-# tuist-ops's tailnet-exposed Service hostname. tuist-ops lives in
-# the mgmt cluster and is reachable from workload clusters only
-# over the tailnet (no public hop). Pomerium dials this URL for
-# the ext_authz check on every request.
-extAuthzUrl: "http://ops.<TAILNET>.ts.net/api/v1/policy"
+# tuist-ops reachability. Pomerium pods aren't on the tailnet
+# themselves; templates/tailscale-egress.yaml provisions an
+# ExternalName Service annotated for the tailscale operator,
+# which proxies cluster-internal traffic to ops.tuist.ts.net
+# over the tailnet. Pomerium dials the cluster-internal name.
+extAuthzHost: tuist-ops-egress
+extAuthzPort: 80
 
-# Upstream Pomerium chart values. The wrapping is thin: most of
-# Pomerium's behaviour is config, not chart, so the chart side is
-# mostly a passthrough.
-pomerium:
-  # Single replica with memory-backed databroker. Trade-off: a
-  # Pomerium pod restart invalidates open sessions, users get
-  # bounced through Google OIDC again. Acceptable cost given:
-  #   - ~5 humans on the tailnet, low session volume
-  #   - browser re-auth is a few seconds
-  #   - chart upgrades are infrequent
-  # Switch to multi-replica + Postgres-backed databroker when
-  # the operational pain of re-auth-on-restart shows up.
-  replicaCount: 1
+image:
+  repository: pomerium/pomerium
+  tag: v0.22.0
+  pullPolicy: IfNotPresent
 
-  config:
-    rootDomain: tuist.dev
+# Single replica with memory-backed databroker. Trade-off: a pod
+# restart invalidates open sessions, users re-auth via browser on
+# next kubectl call. Acceptable cost at our scale (~5 humans, low
+# session volume); chart upgrades are infrequent.
+replicaCount: 1
 
-    # See the per-route `to:` for the actual upstream. `from:` is
-    # the public URL kubectl dials; `to:` is the cluster's
-    # apiserver Service. `tls_skip_verify: true` is fine because
-    # the apiserver Service's cert is signed by the cluster's own
-    # CA, which Pomerium has no preconfigured trust for; the
-    # network path stays inside the cluster.
-    routes:
-      - from: ""                                # rendered from .publicHostname
-        to: "https://kubernetes.default.svc:443"
-        tls_skip_verify: true
-        pass_identity_headers: true
-        preserve_host_header: false
-        timeout: 90s
-        # Allow any authenticated Google Workspace user in the
-        # tuist.dev domain. Per-user gating + per-env elevation
-        # both happen at the ext_authz callback below; this is
-        # the coarse "is this a Tuist team member at all" gate.
-        policy:
-          - allow:
-              and:
-                - domain:
-                    is: tuist.dev
+# Pomerium needs RBAC permission to impersonate users + groups on
+# the apiserver (per-request Impersonate-User / Impersonate-Group
+# headers come from the ext_authz response). The ClusterRole below
+# binds those verbs.
+serviceAccount:
+  create: true
+  name: ""  # defaults to release fullname
 
-    # Pomerium's IdP. Google Workspace OIDC client credentials
-    # are pulled from ESO-synced env vars (POMERIUM_IDP_CLIENT_ID
-    # and POMERIUM_IDP_CLIENT_SECRET).
-    authenticate:
-      provider: google
-      clientID: ""                              # from secretEnv below
-      clientSecret: ""                          # from secretEnv below
-      url: ""                                   # rendered: https://authenticate.kube-<env>.tuist.dev
-      callbackPath: "/oauth2/callback"
+rbac:
+  # Pomerium's SA needs Impersonate verb on users + groups +
+  # serviceaccounts. The headers it injects are validated by the
+  # apiserver against the calling identity's permissions — i.e.
+  # Pomerium must be authorised to impersonate. RBAC tier of the
+  # impersonated user is decided by separate bindings (the
+  # accessBindings in the tailscale-operator chart already bind
+  # tuist-eng / tuist-admins / tuist-<env>-write to ClusterRoles).
+  createImpersonatorRole: true
 
-  # Memory-backed databroker. No persistent backing; session state
-  # lives only in this pod's RAM. POMERIUM_SHARED_SECRET (the
-  # databroker signing key) still comes from ESO regardless of
-  # storage backing — it's not the data store, it's how Pomerium
-  # signs internal RPCs.
-  databroker:
-    storage:
-      type: memory
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
 
-  # Per-pod env vars sourced from the ESO-managed Secret. The
-  # ExternalSecret lives in templates/external-secret.yaml.
-  # Note: no DATABROKER_STORAGE_CONNECTION_STRING here — we use
-  # memory backing, no external store.
-  secretEnv:
-    secretName: pomerium-tuist
-    keys:
-      - POMERIUM_SHARED_SECRET
-      - POMERIUM_COOKIE_SECRET
-      - POMERIUM_IDP_CLIENT_ID
-      - POMERIUM_IDP_CLIENT_SECRET
+# Ingress fronts both the kubectl gateway hostname and the OIDC
+# callback hostname. cert-manager issues a Cloudflare-DNS-01 cert
+# per env covering both names.
+ingress:
+  className: nginx
+  tlsSecretName: pomerium-staging-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    # kubectl streams (exec, port-forward, logs -f) need long-lived
+    # connections. Bump nginx timeouts to match the apiserver's
+    # watch budget.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    # Pomerium handles TLS termination INSIDE the pod via its own
+    # certs (for the OIDC callback flow). But ingress-nginx ALSO
+    # terminates TLS — we configure Pomerium to trust the
+    # X-Forwarded-Proto header from ingress-nginx and serve HTTP
+    # internally. See config.insecure_server below.
 
-  ingress:
-    enabled: true
-    className: nginx
-    hosts: []                                   # rendered from .publicHostname
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
-      # Pomerium needs raw client connection info for OIDC flows.
-      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-      # kubectl needs websocket / streaming support for `kubectl
-      # exec`, `kubectl logs -f`, `kubectl port-forward`. Increase
-      # the timeout to match the apiserver's watch budget.
-      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    tls: []                                     # rendered from .publicHostname
+# Pod-level resource caps. Pomerium is Go + Envoy under the hood;
+# idle is light, peak bursts to a few hundred MB during session
+# reconciliation.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
 
-  # Pod-level resource caps. Pomerium is mostly Go + Envoy under
-  # the hood; idle is light, peak bursts to a few hundred MB during
-  # session reconciliation.
-  resources:
-    requests:
-      cpu: 100m
-      memory: 256Mi
-    limits:
-      cpu: 1000m
-      memory: 512Mi
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}
+
+# Pomerium's runtime credentials come from the ESO-managed
+# pomerium-tuist Secret (see templates/external-secret.yaml).
+# Keys consumed:
+#   POMERIUM_SHARED_SECRET   internal RPC signing key
+#   POMERIUM_COOKIE_SECRET   session cookie encryption key
+#   POMERIUM_IDP_CLIENT_ID   Google OAuth client id
+#   POMERIUM_IDP_CLIENT_SECRET  Google OAuth client secret
+secretName: pomerium-tuist

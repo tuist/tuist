@@ -1,15 +1,16 @@
 apiVersion: v2
 name: pomerium-kube-gateway
 description: |
-  Tuist wrapper around the upstream Pomerium chart that fronts a
-  Kubernetes cluster's apiserver. One instance per env; provides the
-  kubectl gateway at kube-<env>.tuist.dev. Authenticates humans via
-  Google Workspace OIDC and resolves impersonation per request by
-  ext_authz'ing to tuist-ops over the tailnet.
+  Self-contained Helm chart for Pomerium running in all-in-one mode
+  as the kubectl gateway for one Tuist workload cluster. One Helm
+  release per env (staging / canary / production) deployed into
+  that cluster. Pomerium authenticates humans via Google Workspace
+  OIDC, calls tuist-ops's /api/v1/policy ext_authz endpoint over
+  the tailnet on every request to resolve impersonation headers,
+  and forwards to the in-cluster apiserver.
+
+  No upstream chart dependency — Pomerium's chart is multi-component
+  split-mode which is overkill for our scale (5 humans, 1 replica).
 type: application
 version: 0.1.0
 appVersion: "0.22.0"
-dependencies:
-  - name: pomerium
-    version: "34.0.1"
-    repository: "https://helm.pomerium.io"

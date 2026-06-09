@@ -1,0 +1,39 @@
+{{- /*
+Pomerium's ServiceAccount needs the Impersonate verb on users +
+groups so the apiserver accepts the Impersonate-User /
+Impersonate-Group headers Pomerium injects from the ext_authz
+response. Without this binding the apiserver returns 403 on every
+forwarded request.
+
+The RBAC tier of the impersonated user (view / edit) comes from
+SEPARATE bindings — accessBindings in the tailscale-operator chart
+(transitional) and tuist-eng/tuist-admins/tuist-<env>-write
+bindings on each cluster.
+*/}}
+{{- if .Values.rbac.createImpersonatorRole }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "pomerium.fullname" . }}-impersonator
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["users", "groups", "serviceaccounts"]
+    verbs: ["impersonate"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "pomerium.fullname" . }}-impersonator
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "pomerium.fullname" . }}-impersonator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "pomerium.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

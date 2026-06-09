@@ -99,15 +99,6 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
-      - name: Fetch upstream Pomerium chart
-        # The wrapper chart declares a dependency on pomerium/pomerium
-        # at a pinned version. `helm dep update` resolves and downloads
-        # it into infra/helm/pomerium/charts/ before deploy. Cached
-        # locally per-runner; safe to re-run.
-        run: |
-          helm repo add pomerium https://helm.pomerium.io >/dev/null
-          helm repo update pomerium >/dev/null
-          helm dep update infra/helm/pomerium
       - name: helm upgrade --install pomerium-kube
         run: |
           helm upgrade --install pomerium-kube infra/helm/pomerium \
