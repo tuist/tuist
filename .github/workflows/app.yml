@@ -33,7 +33,6 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
-  SWIFTPM_BUILD_CACHE_VERSION: v2
 
 concurrency:
   group: app-${{ github.head_ref || github.run_id }}
@@ -102,7 +101,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -163,7 +162,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -215,7 +214,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
