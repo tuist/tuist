@@ -7,7 +7,8 @@ defmodule Tuist.Automations.Alerts.PendingTestCaseEvaluation do
   schema "automation_alert_pending_test_case_evaluations" do
     field :alert_id, Ecto.UUID
     field :test_case_id, Ecto.UUID
+    field :generation, :integer
 
-    timestamps(type: :utc_datetime_usec, updated_at: false)
+    timestamps(type: :utc_datetime, updated_at: false)
   end
 end

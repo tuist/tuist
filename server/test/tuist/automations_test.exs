@@ -219,7 +219,6 @@ defmodule Tuist.AutomationsTest do
 
       assert :ok =
                Automations.with_pending_alert_test_case_ids(alert.id, fn [^test_case_id] ->
-                 Process.sleep(1)
                  Automations.enqueue_flaky_alert_evaluations(project.id, [test_case_id])
                end)
 

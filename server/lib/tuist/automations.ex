@@ -188,7 +188,7 @@ defmodule Tuist.Automations do
         from(p in PendingTestCaseEvaluation,
           where: p.alert_id == ^alert_id,
           order_by: [asc: p.inserted_at, asc: p.test_case_id],
-          select: %{test_case_id: p.test_case_id, inserted_at: p.inserted_at}
+          select: %{test_case_id: p.test_case_id, generation: p.generation}
         )
       )
 
@@ -223,15 +223,15 @@ defmodule Tuist.Automations do
   end
 
   defp insert_pending_alert_test_case_ids(alert_id, test_case_ids) do
-    now = DateTime.utc_now()
+    now = DateTime.utc_now(:second)
 
     entries =
       Enum.map(test_case_ids, fn test_case_id ->
-        %{alert_id: alert_id, test_case_id: test_case_id, inserted_at: now}
+        %{alert_id: alert_id, test_case_id: test_case_id, generation: 1, inserted_at: now}
       end)
 
     Repo.insert_all(PendingTestCaseEvaluation, entries,
-      on_conflict: [set: [inserted_at: now]],
+      on_conflict: [set: [inserted_at: now], inc: [generation: 1]],
       conflict_target: [:alert_id, :test_case_id]
     )
   end
@@ -239,19 +239,18 @@ defmodule Tuist.Automations do
   defp delete_pending_alert_test_case_evaluations(_alert_id, []), do: :ok
 
   defp delete_pending_alert_test_case_evaluations(alert_id, pending_evaluations) do
-    test_case_ids = Enum.map(pending_evaluations, & &1.test_case_id)
+    test_case_ids = Enum.map(pending_evaluations, &Ecto.UUID.dump!(&1.test_case_id))
+    generations = Enum.map(pending_evaluations, & &1.generation)
 
-    cutoff =
-      pending_evaluations
-      |> Enum.max_by(& &1.inserted_at, DateTime)
-      |> Map.fetch!(:inserted_at)
-
-    Repo.delete_all(
-      from(p in PendingTestCaseEvaluation,
-        where: p.alert_id == ^alert_id,
-        where: p.test_case_id in ^test_case_ids,
-        where: p.inserted_at <= ^cutoff
-      )
+    Repo.query!(
+      """
+      DELETE FROM automation_alert_pending_test_case_evaluations AS pending
+      USING unnest($2::uuid[], $3::bigint[]) AS evaluated(test_case_id, generation)
+      WHERE pending.alert_id = $1::uuid
+        AND pending.test_case_id = evaluated.test_case_id
+        AND pending.generation = evaluated.generation
+      """,
+      [Ecto.UUID.dump!(alert_id), test_case_ids, generations]
     )
 
     :ok

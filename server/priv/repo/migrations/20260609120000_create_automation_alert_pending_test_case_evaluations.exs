@@ -7,6 +7,7 @@ defmodule Tuist.Repo.Migrations.CreateAutomationAlertPendingTestCaseEvaluations 
         null: false
 
       add :test_case_id, :uuid, null: false
+      add :generation, :bigint, null: false, default: 1
 
       timestamps(type: :timestamptz, updated_at: false)
     end
