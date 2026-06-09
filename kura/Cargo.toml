@@ -41,7 +41,7 @@ time = { version = "0.3.47", default-features = false, features = ["std"] }
 tokio = { version = "1.48.0", features = ["fs", "macros", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1.17", features = ["net"] }
 tokio-util = { version = "0.7.17", features = ["io"] }
-tonic = { version = "0.14.2", features = ["tls-ring"] }
+tonic = { version = "0.14.2", features = ["tls-aws-lc"] }
 tower = { version = "0.5.2", features = ["util"] }
 tracing = "0.1.41"
 tracing-opentelemetry = "0.32.1"
