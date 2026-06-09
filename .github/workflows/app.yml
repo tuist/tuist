@@ -114,7 +114,7 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
@@ -172,7 +172,7 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Test TuistApp
         run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
@@ -221,7 +221,7 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Update CFBundleVersion
         run: |
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"

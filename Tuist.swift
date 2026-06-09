@@ -11,7 +11,6 @@ let tuist = Tuist(
         installOptions: .options(
             passthroughSwiftPackageManagerArguments: [
                 "--replace-scm-with-registry",
-                "--force-resolved-versions",
             ]
         )
     )
