@@ -311,7 +311,9 @@ jobs:
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
     needs: [gate, canary]
-    runs-on: tuist-macos
+    # Exercise the oldest supported CLI on the oldest active Xcode runner
+    # profile, which mirrors the compatibility floor customers can still pin.
+    runs-on: tuist-macos-xcode-26-4
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:
