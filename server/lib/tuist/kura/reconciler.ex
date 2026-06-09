@@ -287,11 +287,17 @@ defmodule Tuist.Kura.Reconciler do
         apply_current_manifest(server, desired)
 
       {{:error, reason}, _} ->
-        Logger.warning("[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}")
+        Logger.warning(
+          "[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
         converge(server, desired)
 
       {_, {:error, reason}} ->
-        Logger.warning("[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}")
+        Logger.warning(
+          "[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
         converge(server, desired)
     end
   end

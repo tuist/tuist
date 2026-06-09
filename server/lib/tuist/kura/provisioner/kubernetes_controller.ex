@@ -186,17 +186,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp peer_public_host(_handle, _region), do: nil
 
-  defp global_discovery_dns_name(handle, %Regions{
-         provisioner_config: %{global_discovery_dns_template: template} = config
-       }) do
+  defp global_discovery_dns_name(handle, %Regions{provisioner_config: %{global_discovery_dns_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
   end
 
   defp global_discovery_dns_name(_handle, _region), do: nil
 
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
-       when is_binary(secret_name) and secret_name != "",
-       do: secret_name
+       when is_binary(secret_name) and secret_name != "", do: secret_name
 
   defp peer_tls_secret_name(_region), do: nil
 

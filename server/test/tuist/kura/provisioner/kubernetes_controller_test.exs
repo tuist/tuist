@@ -31,6 +31,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["kind"] == "KuraInstance"
       assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
       assert manifest["metadata"]["namespace"] == "kura"
+
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
                KubernetesController.manifest_revision()
 
