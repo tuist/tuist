@@ -543,12 +543,6 @@ defmodule Tuist.Environment do
     slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
   end
 
-  # Tailscale JIT elevation bot. All values come from the
-  # TAILSCALE_JIT_BOT 1P item in the tuist-k8s-production vault,
-  # synced to a Kubernetes Secret by ESO and mounted via envFrom.
-  # Unset in dev/test/self-host: the bot supervisor only starts
-  # when these and the prod-env gate are both satisfied.
-
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end
