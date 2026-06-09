@@ -2178,10 +2178,42 @@ end
         }
 
         #[tokio::test]
+        async fn falls_back_to_legacy_cache_access_when_introspection_marks_project_token_inactive()
+        {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (StatusCode::OK, cache_access_payload(&[], &["acme/ios"]))
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer legacy-token".into());
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
         async fn denies_when_introspection_returns_inactive() {
             let base = spawn_tuist_auth_mock(
                 |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
-                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+                |_| {
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        json!({ "message": "Invalid or expired token" }),
+                    )
+                },
             )
             .await;
             let engine = engine_pointing_at(&base, true).await;

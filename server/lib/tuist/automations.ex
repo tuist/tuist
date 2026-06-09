@@ -5,9 +5,12 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests.TestCaseRun
 
   require Logger
 
@@ -17,6 +20,8 @@ defmodule Tuist.Automations do
   # its own counter and concurrent updates don't interfere.
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
+  @flaky_monitor_types ~w(flakiness_rate flaky_run_count)
+  @scoped_evaluation_chunk_size 1000
 
   def list_alerts(project_id) do
     Alert
@@ -59,9 +64,48 @@ defmodule Tuist.Automations do
   end
 
   def update_alert(%Alert{} = alert, attrs) do
+    attrs = maybe_reset_baseline(alert, attrs)
+
     alert
     |> Alert.changeset(attrs)
     |> Repo.update()
+  end
+
+  defp maybe_reset_baseline(alert, attrs) do
+    if monitor_definition_changed?(alert, attrs) do
+      reset_baseline(attrs)
+    else
+      attrs
+    end
+  end
+
+  defp reset_baseline(attrs) do
+    if Enum.any?(Map.keys(attrs), &is_binary/1) do
+      Map.put(attrs, "baseline_established_at", nil)
+    else
+      Map.put(attrs, :baseline_established_at, nil)
+    end
+  end
+
+  defp monitor_definition_changed?(alert, attrs) do
+    changed_attr?(alert, attrs, :monitor_type) or changed_attr?(alert, attrs, :trigger_config)
+  end
+
+  defp changed_attr?(alert, attrs, key) do
+    case fetch_attr(attrs, key) do
+      {:ok, value} -> Map.fetch!(alert, key) != value
+      :error -> false
+    end
+  end
+
+  defp fetch_attr(attrs, key) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(attrs, key) -> {:ok, Map.fetch!(attrs, key)}
+      Map.has_key?(attrs, string_key) -> {:ok, Map.fetch!(attrs, string_key)}
+      true -> :error
+    end
   end
 
   def delete_alert(%Alert{} = alert) do
@@ -72,18 +116,148 @@ defmodule Tuist.Automations do
   Returns currently active alert events for an alert (latest status = "triggered").
   Uses argMax to find the most recent status per test_case_id from the append-only log.
   """
-  def list_active_alert_events(alert_id) do
-    ClickHouseRepo.all(
-      from(e in AlertEvent,
-        where: e.alert_id == ^alert_id,
-        group_by: e.test_case_id,
-        having: fragment("argMax(?, ?) = 'triggered'", e.status, e.inserted_at),
-        select: %{
-          test_case_id: e.test_case_id,
-          triggered_at: fragment("argMax(?, ?)", e.triggered_at, e.inserted_at)
-        }
+  def list_active_alert_events(alert_id, test_case_ids \\ nil) do
+    AlertEvent
+    |> where(alert_id: ^alert_id)
+    |> filter_alert_events_by_test_case_ids(test_case_ids)
+    |> group_by([e], e.test_case_id)
+    |> having([e], fragment("argMax(?, ?) = 'triggered'", e.status, e.inserted_at))
+    |> select([e], %{
+      test_case_id: e.test_case_id,
+      triggered_at: fragment("argMax(?, ?)", e.triggered_at, e.inserted_at)
+    })
+    |> ClickHouseRepo.all()
+  end
+
+  defp filter_alert_events_by_test_case_ids(query, nil), do: query
+  defp filter_alert_events_by_test_case_ids(query, []), do: where(query, false)
+
+  defp filter_alert_events_by_test_case_ids(query, test_case_ids) do
+    where(query, [e], e.test_case_id in ^test_case_ids)
+  end
+
+  def enqueue_flaky_alert_evaluations(_project_id, []), do: :ok
+
+  def enqueue_flaky_alert_evaluations(project_id, test_case_ids) do
+    test_case_ids =
+      test_case_ids
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    if test_case_ids == [] do
+      :ok
+    else
+      alerts =
+        Repo.all(
+          from(a in Alert,
+            where: a.project_id == ^project_id,
+            where: a.enabled == true,
+            where: a.monitor_type in ^@flaky_monitor_types
+          )
+        )
+
+      Enum.each(alerts, &enqueue_scoped_alert_evaluation/1)
+
+      :ok
+    end
+  end
+
+  def enqueue_scoped_alert_evaluation(%Alert{} = alert, opts \\ []) do
+    schedule_in = Keyword.get(opts, :schedule_in, alert_evaluation_schedule_in())
+
+    {:ok, _job} =
+      %{alert_id: alert.id, evaluate_recent_test_case_runs: true}
+      |> AlertEvaluationWorker.new(
+        schedule_in: schedule_in,
+        unique: [
+          keys: [:alert_id, :evaluate_recent_test_case_runs],
+          period: :infinity,
+          states: [:available, :scheduled]
+        ]
       )
+      |> Oban.insert()
+
+    :ok
+  end
+
+  def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
+    since = scoped_evaluation_query_since(alert)
+
+    rows =
+      ClickHouseRepo.all(
+        from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
+          where: r.project_id == ^alert.project_id,
+          where: not is_nil(r.test_case_id),
+          where: r.inserted_at >= ^DateTime.to_naive(since),
+          group_by: r.test_case_id,
+          order_by: [asc: r.test_case_id],
+          select: %{
+            test_case_id: r.test_case_id,
+            last_inserted_at: max(r.inserted_at)
+          }
+        )
+      )
+
+    %{
+      test_case_ids: Enum.map(rows, & &1.test_case_id),
+      cursor: latest_inserted_at_cursor(rows) || DateTime.utc_now(:second)
+    }
+  end
+
+  def establish_alert_baseline(%Alert{} = alert) do
+    now = DateTime.utc_now(:second)
+
+    alert
+    |> Ecto.Changeset.change(
+      baseline_established_at: now,
+      last_scoped_evaluation_inserted_at: now
     )
+    |> Repo.update()
+  end
+
+  def update_alert_scoped_evaluation_cursor(%Alert{} = alert, cursor) do
+    alert
+    |> Ecto.Changeset.change(last_scoped_evaluation_inserted_at: cursor)
+    |> Repo.update()
+  end
+
+  def scoped_evaluation_chunk_size, do: @scoped_evaluation_chunk_size
+
+  defp alert_evaluation_schedule_in do
+    div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
+  end
+
+  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: nil}) do
+    DateTime.add(DateTime.utc_now(:second), -scoped_evaluation_cursor_lookback_seconds(), :second)
+  end
+
+  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: cursor}) do
+    DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
+  end
+
+  defp scoped_evaluation_cursor_lookback_seconds do
+    max(alert_evaluation_schedule_in(), 10)
+  end
+
+  defp latest_inserted_at_cursor([]), do: nil
+
+  defp latest_inserted_at_cursor(rows) do
+    rows
+    |> Enum.map(&clickhouse_datetime_to_utc_datetime(&1.last_inserted_at))
+    |> Enum.max_by(&DateTime.to_unix(&1, :microsecond))
+    |> DateTime.truncate(:second)
+  end
+
+  defp clickhouse_datetime_to_utc_datetime(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> DateTime.truncate(:second)
+  end
+
+  defp clickhouse_datetime_to_utc_datetime(%NaiveDateTime{} = datetime) do
+    datetime
+    |> NaiveDateTime.truncate(:second)
+    |> DateTime.from_naive!("Etc/UTC")
   end
 
   @doc """

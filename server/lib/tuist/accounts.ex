@@ -26,6 +26,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Namespace
   alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -1944,10 +1945,10 @@ defmodule Tuist.Accounts do
   @doc """
   Returns cache endpoint URLs for the given account handle.
 
-  Ready account Kura endpoints are preferred when present. Kura servers mirror
-  their public URL into `account_cache_endpoints` only after the public endpoint
-  is ready, so clients do not need explicit opt-in once an account has an
-  available server.
+  Ready account Kura endpoints are preferred when present unless the account is
+  opted out through `:kura_cache_opt_out`. Kura servers mirror their public URL
+  into `account_cache_endpoints` only after the public endpoint is ready, so
+  clients do not need explicit opt-in once an account has an available server.
 
   When there is no ready account Kura endpoint, custom endpoints are only returned when:
   - The account exists
@@ -1998,7 +1999,13 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(%Account{} = account) do
+    if FeatureFlags.kura_cache_opted_out?(account) do
+      []
+    else
+      list_account_cache_endpoints(account, :kura)
+    end
+  end
 
   defp kura_cache_endpoints(_), do: []
 

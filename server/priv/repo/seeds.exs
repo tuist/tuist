@@ -601,6 +601,7 @@ cas_output_generator = fn build ->
     compressed_size = trunc(size * (0.3 + :rand.uniform() * 0.6))
 
     %{
+      project_id: build.project_id,
       build_run_id: build.id,
       node_id: generate_cas_node_id.(),
       checksum: generate_checksum.(),

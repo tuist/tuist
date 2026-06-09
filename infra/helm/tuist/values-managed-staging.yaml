@@ -354,10 +354,11 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-  # Bumped by `release-runner-image` on every release; the chart
-  # template constructs each pool's image as
+  # Resolved at deploy time from the latest `runner-image@` git tag
+  # (server-deployment.yml passes it via --set). The chart template
+  # constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  runnerImageSemver: "0.3.2"
+  runnerImageSemver: ""
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
@@ -422,7 +423,9 @@ runnersFleetLinux:
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
   # renders the pools; the server validates + addresses them).
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:c3661219d7a0ac9669b321b3d80e09ec8f43e20e464e4c16a90e2193db71b02e"
+  # Resolved at deploy time from the latest `linux-runner-image@` git tag
+  # (server-deployment.yml passes `tuist-linux-runner:<version>` via --set).
+  shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

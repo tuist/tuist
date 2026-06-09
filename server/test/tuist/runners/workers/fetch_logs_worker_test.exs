@@ -53,16 +53,37 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
   # arrives in chunks. Drive the callback synthetically with one or
   # more chunks and return the resulting (mutated) `Req.Response`.
   defp stub_req_stream(chunks) when is_list(chunks) do
-    expect(Req, :get, fn opts ->
-      resp = %Req.Response{status: 200, private: %{}}
+    expect(Req, :get, 2, fn opts ->
+      case Keyword.fetch!(opts, :url) do
+        "https://api.github.com/repos/tuist/tuist/actions/jobs/" <> workflow_job_id_and_suffix ->
+          refute Keyword.has_key?(opts, :into)
+          assert {"Authorization", "Bearer ghs_test_token"} in opts[:headers]
 
-      resp =
-        Enum.reduce(chunks, resp, fn chunk, acc ->
-          {:cont, {_req, acc}} = opts[:into].({:data, chunk}, {opts, acc})
-          acc
-        end)
+          workflow_job_id = String.replace_suffix(workflow_job_id_and_suffix, "/logs", "")
+          signed_url = "https://objects.githubusercontent.com/logs/#{workflow_job_id}.txt"
 
-      {:ok, resp}
+          {:ok,
+           %Req.Response{
+             status: 302,
+             headers: %{"location" => [signed_url]},
+             body: "",
+             private: %{}
+           }}
+
+        "https://objects.githubusercontent.com/logs/" <> _path ->
+          assert Keyword.has_key?(opts, :into)
+          refute Enum.any?(opts[:headers], fn {name, _value} -> String.downcase(name) == "authorization" end)
+
+          resp = %Req.Response{status: 200, private: %{}}
+
+          resp =
+            Enum.reduce(chunks, resp, fn chunk, acc ->
+              {:cont, {_req, acc}} = opts[:into].({:data, chunk}, {opts, acc})
+              acc
+            end)
+
+          {:ok, {opts, resp}}
+      end
     end)
   end
 
@@ -85,10 +106,9 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
                  "https://api.github.com/repos/tuist/tuist/actions/jobs/9910001/logs"
 
         assert {"Authorization", "Bearer ghs_test_token"} in opts[:headers]
+        refute Keyword.has_key?(opts, :into)
 
-        resp = %Req.Response{status: 200, private: %{}}
-        {:cont, {_req, resp}} = opts[:into].({:data, body}, {opts, resp})
-        {:ok, resp}
+        {:ok, %Req.Response{status: 200, body: body, private: %{}}}
       end)
 
       assert :ok = FetchLogsWorker.perform(%Oban.Job{args: args(9_910_001, account.id)})
@@ -118,22 +138,25 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
           "https://api.github.com/repos/tuist/tuist/actions/jobs/9910005/logs" ->
             assert opts[:redirect] == false
             assert {"Authorization", "Bearer ghs_test_token"} in opts[:headers]
+            refute Keyword.has_key?(opts, :into)
 
             {:ok,
-             %Req.Response{
-               status: 302,
-               headers: %{"location" => [signed_url]},
-               body: "",
-               private: %{}
-             }}
+             {opts,
+              %Req.Response{
+                status: 302,
+                headers: %{"location" => [signed_url]},
+                body: "",
+                private: %{}
+              }}}
 
           ^signed_url ->
             assert opts[:redirect] == false
+            assert Keyword.has_key?(opts, :into)
             refute Enum.any?(opts[:headers], fn {name, _value} -> String.downcase(name) == "authorization" end)
 
             resp = %Req.Response{status: 200, private: %{}}
             {:cont, {_req, resp}} = opts[:into].({:data, body}, {opts, resp})
-            {:ok, resp}
+            {:ok, {opts, resp}}
         end
       end)
 

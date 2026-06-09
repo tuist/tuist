@@ -209,7 +209,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         )
 
       refute changeset.valid?
-      assert errors_on(changeset).trigger_config
+      assert "rolling_window_size must be at most 1000" in errors_on(changeset).trigger_config
     end
 
     test "rejects rolling window_type with non-positive rolling_window_size" do
