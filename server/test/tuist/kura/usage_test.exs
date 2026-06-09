@@ -156,7 +156,7 @@ defmodule Tuist.Kura.UsageTest do
                Usage.create_events([Map.delete(wire_event(), "event_id")])
 
       assert {:error, :invalid_events} =
-               Usage.create_events([wire_event(%{"tenant_id" => String.duplicate("a", 33)})])
+               Usage.create_events([wire_event(%{"tenant_id" => 123})])
 
       assert {:error, :invalid_events} =
                Usage.create_events([wire_event(%{"bytes" => "100"})])

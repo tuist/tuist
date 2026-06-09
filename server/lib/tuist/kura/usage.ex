@@ -16,19 +16,18 @@ defmodule Tuist.Kura.Usage do
   @max_u32 4_294_967_295
   @max_u64 18_446_744_073_709_551_615
   @max_unix_seconds 4_102_444_800
-  @string_fields [
-    {"event_id", 512, false},
-    {"tenant_id", 32, false},
-    {"namespace_id", 32, true},
-    {"node_id", 512, false},
-    {"region", 64, false},
-    {"traffic_plane", 32, false},
-    {"direction", 32, false},
-    {"operation", 32, false},
-    {"protocol", 16, false},
-    {"artifact_kind", 64, false}
+  @required_string_fields [
+    "event_id",
+    "tenant_id",
+    "node_id",
+    "region",
+    "traffic_plane",
+    "direction",
+    "operation",
+    "protocol",
+    "artifact_kind"
   ]
-
+  @string_fields @required_string_fields ++ ["namespace_id"]
   @uint64_fields ["bytes", "request_count"]
 
   # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic). We
@@ -78,15 +77,27 @@ defmodule Tuist.Kura.Usage do
   defp validate_event(_event), do: {:error, :invalid_event}
 
   defp validate_string_fields(event) do
-    Enum.reduce_while(@string_fields, {:ok, event}, fn {field, max_bytes, allow_empty?}, {:ok, event} ->
+    @string_fields
+    |> Enum.reduce_while({:ok, event}, fn field, {:ok, event} ->
       case Map.fetch(event, field) do
-        {:ok, value}
-        when is_binary(value) and byte_size(value) <= max_bytes and
-               (allow_empty? or byte_size(value) > 0) ->
+        {:ok, value} when is_binary(value) ->
           {:cont, {:ok, event}}
 
         _ ->
           {:halt, {:error, :invalid_event}}
+      end
+    end)
+    |> case do
+      {:ok, event} -> validate_required_string_fields(event)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_required_string_fields(event) do
+    Enum.reduce_while(@required_string_fields, {:ok, event}, fn field, {:ok, event} ->
+      case Map.fetch(event, field) do
+        {:ok, value} when byte_size(value) > 0 -> {:cont, {:ok, event}}
+        _ -> {:halt, {:error, :invalid_event}}
       end
     end)
   end

@@ -132,9 +132,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   test "rejects malformed usage events", %{conn: conn, kura_client: client} do
     conn =
-      post_events(conn, [build_event(%{"tenant_id" => String.duplicate("a", 33)})],
-        authorization: authorization_header(client.id, client.secret)
-      )
+      post_events(conn, [build_event(%{"bytes" => "123"})], authorization: authorization_header(client.id, client.secret))
 
     assert %{"error" => "invalid_events"} = json_response(conn, 400)
   end
