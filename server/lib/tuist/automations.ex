@@ -5,12 +5,12 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
-  alias Tuist.Automations.Alerts.PendingTestCaseEvaluation
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.IngestRepo
   alias Tuist.Repo
+  alias Tuist.Tests.TestCaseRun
 
   require Logger
 
@@ -21,6 +21,7 @@ defmodule Tuist.Automations do
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
   @flaky_monitor_types ~w(flakiness_rate flaky_run_count)
+  @scoped_evaluation_chunk_size 1000
 
   def list_alerts(project_id) do
     Alert
@@ -155,24 +156,21 @@ defmodule Tuist.Automations do
           )
         )
 
-      Enum.each(alerts, fn alert ->
-        insert_pending_alert_test_case_ids(alert.id, test_case_ids)
-        enqueue_pending_alert_evaluation(alert)
-      end)
+      Enum.each(alerts, &enqueue_scoped_alert_evaluation/1)
 
       :ok
     end
   end
 
-  def enqueue_pending_alert_evaluation(%Alert{} = alert, opts \\ []) do
+  def enqueue_scoped_alert_evaluation(%Alert{} = alert, opts \\ []) do
     schedule_in = Keyword.get(opts, :schedule_in, alert_evaluation_schedule_in())
 
     {:ok, _job} =
-      %{alert_id: alert.id, drain_pending_test_case_ids: true}
+      %{alert_id: alert.id, evaluate_recent_test_case_runs: true}
       |> AlertEvaluationWorker.new(
         schedule_in: schedule_in,
         unique: [
-          keys: [:alert_id, :drain_pending_test_case_ids],
+          keys: [:alert_id, :evaluate_recent_test_case_runs],
           period: :infinity,
           states: [:available, :scheduled]
         ]
@@ -182,82 +180,84 @@ defmodule Tuist.Automations do
     :ok
   end
 
-  def with_pending_alert_test_case_ids(alert_id, fun) do
-    pending_evaluations =
-      Repo.all(
-        from(p in PendingTestCaseEvaluation,
-          where: p.alert_id == ^alert_id,
-          order_by: [asc: p.inserted_at, asc: p.test_case_id],
-          select: %{test_case_id: p.test_case_id, generation: p.generation}
+  def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
+    since = scoped_evaluation_query_since(alert)
+
+    rows =
+      ClickHouseRepo.all(
+        from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
+          where: r.project_id == ^alert.project_id,
+          where: not is_nil(r.test_case_id),
+          where: r.inserted_at >= ^DateTime.to_naive(since),
+          group_by: r.test_case_id,
+          order_by: [asc: r.test_case_id],
+          select: %{
+            test_case_id: r.test_case_id,
+            last_inserted_at: max(r.inserted_at)
+          }
         )
       )
 
-    test_case_ids = Enum.map(pending_evaluations, & &1.test_case_id)
-
-    if test_case_ids == [] do
-      :ok
-    else
-      result = fun.(test_case_ids)
-      delete_pending_alert_test_case_evaluations(alert_id, pending_evaluations)
-      result
-    end
+    %{
+      test_case_ids: Enum.map(rows, & &1.test_case_id),
+      cursor: latest_inserted_at_cursor(rows) || DateTime.utc_now(:second)
+    }
   end
 
-  def list_pending_alert_test_case_ids(alert_id) do
-    Repo.all(
-      from(p in PendingTestCaseEvaluation,
-        where: p.alert_id == ^alert_id,
-        order_by: [asc: p.inserted_at, asc: p.test_case_id],
-        select: p.test_case_id
-      )
-    )
-  end
-
-  def pending_alert_test_case_ids?(alert_id) do
-    Repo.exists?(from(p in PendingTestCaseEvaluation, where: p.alert_id == ^alert_id))
-  end
-
-  def delete_pending_alert_test_case_ids(alert_id) do
-    Repo.delete_all(from(p in PendingTestCaseEvaluation, where: p.alert_id == ^alert_id))
-    :ok
-  end
-
-  defp insert_pending_alert_test_case_ids(alert_id, test_case_ids) do
+  def establish_alert_baseline(%Alert{} = alert) do
     now = DateTime.utc_now(:second)
 
-    entries =
-      Enum.map(test_case_ids, fn test_case_id ->
-        %{alert_id: alert_id, test_case_id: test_case_id, generation: 1, inserted_at: now}
-      end)
-
-    Repo.insert_all(PendingTestCaseEvaluation, entries,
-      on_conflict: [set: [inserted_at: now], inc: [generation: 1]],
-      conflict_target: [:alert_id, :test_case_id]
+    alert
+    |> Ecto.Changeset.change(
+      baseline_established_at: now,
+      last_scoped_evaluation_inserted_at: now
     )
+    |> Repo.update()
   end
 
-  defp delete_pending_alert_test_case_evaluations(_alert_id, []), do: :ok
-
-  defp delete_pending_alert_test_case_evaluations(alert_id, pending_evaluations) do
-    test_case_ids = Enum.map(pending_evaluations, &Ecto.UUID.dump!(&1.test_case_id))
-    generations = Enum.map(pending_evaluations, & &1.generation)
-
-    Repo.query!(
-      """
-      DELETE FROM automation_alert_pending_test_case_evaluations AS pending
-      USING unnest($2::uuid[], $3::bigint[]) AS evaluated(test_case_id, generation)
-      WHERE pending.alert_id = $1::uuid
-        AND pending.test_case_id = evaluated.test_case_id
-        AND pending.generation = evaluated.generation
-      """,
-      [Ecto.UUID.dump!(alert_id), test_case_ids, generations]
-    )
-
-    :ok
+  def update_alert_scoped_evaluation_cursor(%Alert{} = alert, cursor) do
+    alert
+    |> Ecto.Changeset.change(last_scoped_evaluation_inserted_at: cursor)
+    |> Repo.update()
   end
+
+  def scoped_evaluation_chunk_size, do: @scoped_evaluation_chunk_size
 
   defp alert_evaluation_schedule_in do
     div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
+  end
+
+  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: nil}) do
+    DateTime.add(DateTime.utc_now(:second), -scoped_evaluation_cursor_lookback_seconds(), :second)
+  end
+
+  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: cursor}) do
+    DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
+  end
+
+  defp scoped_evaluation_cursor_lookback_seconds do
+    max(alert_evaluation_schedule_in(), 10)
+  end
+
+  defp latest_inserted_at_cursor([]), do: nil
+
+  defp latest_inserted_at_cursor(rows) do
+    rows
+    |> Enum.map(&clickhouse_datetime_to_utc_datetime(&1.last_inserted_at))
+    |> Enum.max_by(&DateTime.to_unix(&1, :microsecond))
+    |> DateTime.truncate(:second)
+  end
+
+  defp clickhouse_datetime_to_utc_datetime(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> DateTime.truncate(:second)
+  end
+
+  defp clickhouse_datetime_to_utc_datetime(%NaiveDateTime{} = datetime) do
+    datetime
+    |> NaiveDateTime.truncate(:second)
+    |> DateTime.from_naive!("Etc/UTC")
   end
 
   @doc """

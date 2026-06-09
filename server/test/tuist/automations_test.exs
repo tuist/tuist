@@ -8,6 +8,7 @@ defmodule Tuist.AutomationsTest do
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "list_alerts/1" do
     test "returns automations for the given project ordered by insertion time" do
@@ -146,7 +147,7 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
-    test "coalesces pending evaluations for enabled flaky monitors only" do
+    test "enqueues debounced scoped evaluations for enabled flaky monitors only" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
 
@@ -183,16 +184,13 @@ defmodule Tuist.AutomationsTest do
 
       args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args} end)
 
-      assert args_by_alert_id[flakiness_alert.id]["drain_pending_test_case_ids"]
+      assert args_by_alert_id[flakiness_alert.id]["evaluate_recent_test_case_runs"]
       refute Map.has_key?(args_by_alert_id[flakiness_alert.id], "test_case_ids")
-      assert args_by_alert_id[count_alert.id]["drain_pending_test_case_ids"]
+      assert args_by_alert_id[count_alert.id]["evaluate_recent_test_case_runs"]
       refute Map.has_key?(args_by_alert_id[count_alert.id], "test_case_ids")
-
-      assert MapSet.new(Automations.list_pending_alert_test_case_ids(flakiness_alert.id)) == MapSet.new(test_case_ids)
-      assert MapSet.new(Automations.list_pending_alert_test_case_ids(count_alert.id)) == MapSet.new(test_case_ids)
     end
 
-    test "merges repeated enqueue calls into one pending drain job per alert" do
+    test "merges repeated enqueue calls into one scoped evaluation job per alert" do
       project = ProjectsFixtures.project_fixture()
       alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
 
@@ -201,28 +199,64 @@ defmodule Tuist.AutomationsTest do
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [first_id, second_id])
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [second_id, third_id])
 
-      assert [%{args: %{"alert_id" => alert_id, "drain_pending_test_case_ids" => true}}] =
+      assert [%{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}}] =
                all_enqueued(worker: AlertEvaluationWorker)
 
       assert alert_id == alert.id
-
-      assert MapSet.new(Automations.list_pending_alert_test_case_ids(alert.id)) ==
-               MapSet.new([first_id, second_id, third_id])
     end
+  end
 
-    test "keeps a test case pending when it is re-added while a drain is evaluating" do
+  describe "recent_test_case_run_changes_for_alert/1" do
+    test "returns distinct recently inserted test case ids for the alert project" do
       project = ProjectsFixtures.project_fixture()
-      alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
-      test_case_id = Ecto.UUID.generate()
+      other_project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project)
+      {:ok, alert} = Automations.update_alert_scoped_evaluation_cursor(alert, ~U[2026-06-09 10:00:50Z])
 
-      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [test_case_id])
+      first_id = Ecto.UUID.generate()
+      second_id = Ecto.UUID.generate()
 
-      assert :ok =
-               Automations.with_pending_alert_test_case_ids(alert.id, fn [^test_case_id] ->
-                 Automations.enqueue_flaky_alert_evaluations(project.id, [test_case_id])
-               end)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: Ecto.UUID.generate(),
+        inserted_at: ~N[2026-06-09 09:00:00.000000]
+      )
 
-      assert Automations.list_pending_alert_test_case_ids(alert.id) == [test_case_id]
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: first_id,
+        inserted_at: ~N[2026-06-09 10:00:45.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: first_id,
+        inserted_at: ~N[2026-06-09 10:00:48.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: second_id,
+        inserted_at: ~N[2026-06-09 10:00:46.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: nil,
+        inserted_at: ~N[2026-06-09 10:00:49.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: other_project.id,
+        test_case_id: Ecto.UUID.generate(),
+        inserted_at: ~N[2026-06-09 10:00:49.000000]
+      )
+
+      assert %{test_case_ids: test_case_ids, cursor: cursor} =
+               Automations.recent_test_case_run_changes_for_alert(alert)
+
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      assert cursor == ~U[2026-06-09 10:00:48Z]
     end
   end
 

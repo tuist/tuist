@@ -26,8 +26,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "test_case_ids" => test_case_ids}})
   end
 
-  defp run_pending(alert_id) do
-    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "drain_pending_test_case_ids" => true}})
+  defp run_recent_test_case_runs(alert_id) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}})
   end
 
   test "no-op when automation is missing" do
@@ -102,13 +102,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run_scoped(automation.id, [affected_id, "not-a-uuid", affected_id])
   end
 
-  test "pending drain evaluates coalesced test case ids and clears them" do
+  test "ingestion-driven job evaluates recently inserted test case ids and advances the cursor" do
     automation =
       AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
 
     [first_id, second_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
 
-    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, [first_id, second_id, first_id])
+    expect(ClickHouseRepo, :all, fn _query ->
+      [
+        %{test_case_id: first_id, last_inserted_at: ~N[2026-06-09 10:00:01]},
+        %{test_case_id: second_id, last_inserted_at: ~N[2026-06-09 10:00:02]}
+      ]
+    end)
 
     reject(&FlakyTestsMonitor.evaluate/1)
 
@@ -126,16 +131,22 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_pending(automation.id)
-    assert Automations.list_pending_alert_test_case_ids(automation.id) == []
+    assert :ok = run_recent_test_case_runs(automation.id)
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
   end
 
-  test "pending drain chunks large affected sets" do
+  test "ingestion-driven job chunks large affected sets" do
     automation = AutomationsFixtures.automation_alert_fixture()
     test_case_ids = Enum.map(1..1001, fn _ -> Ecto.UUID.generate() end)
     test_pid = self()
 
-    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, test_case_ids)
+    expect(ClickHouseRepo, :all, fn _query ->
+      Enum.map(test_case_ids, fn test_case_id ->
+        %{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:00]}
+      end)
+    end)
 
     expect(FlakyTestsMonitor, :evaluate, 2, fn ^automation, chunk ->
       send(test_pid, {:monitor_chunk_size, length(chunk)})
@@ -151,31 +162,29 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_pending(automation.id)
+    assert :ok = run_recent_test_case_runs(automation.id)
 
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1}
     assert_receive {:active_events_chunk_size, 1000}
     assert_receive {:active_events_chunk_size, 1}
-    assert Automations.list_pending_alert_test_case_ids(automation.id) == []
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:00Z]
   end
 
-  test "pending drain clears queued ids when the alert is disabled" do
+  test "ingestion-driven job no-ops when the alert is disabled" do
     automation = AutomationsFixtures.automation_alert_fixture()
-    test_case_id = Ecto.UUID.generate()
-
-    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, [test_case_id])
-    assert Automations.list_pending_alert_test_case_ids(automation.id) == [test_case_id]
 
     assert {:ok, disabled} = Automations.update_alert(automation, %{enabled: false})
 
+    reject(&ClickHouseRepo.all/1)
     reject(&FlakyTestsMonitor.evaluate/1)
     reject(&FlakyTestsMonitor.evaluate/2)
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_pending(disabled.id)
-    assert Automations.list_pending_alert_test_case_ids(disabled.id) == []
+    assert :ok = run_recent_test_case_runs(disabled.id)
   end
 
   test "skips test cases that already have an active alert" do
@@ -408,7 +417,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         :ok
       end)
 
-      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+      expect(Automations, :establish_alert_baseline, fn ^automation ->
         {:ok, automation}
       end)
 
@@ -513,7 +522,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
 
-      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+      expect(Automations, :establish_alert_baseline, fn ^automation ->
         {:ok, automation}
       end)
 
