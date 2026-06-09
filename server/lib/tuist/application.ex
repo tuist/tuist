@@ -420,7 +420,6 @@ defmodule Tuist.Application do
     end
   end
 
-
   defp finch_pools do
     if Environment.test?() do
       %{:default => [size: 10]}
