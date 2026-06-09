@@ -72,12 +72,15 @@ defmodule TuistWeb.ProjectAutomationsLive do
   @comparisons ~w(gte gt lt lte)
   @window_types ~w(last_days rolling)
 
-  # Only varies by metric — switching comparison keeps whatever the user has
-  # typed, since "% < 5" and "% >= 5" are both reasonable starting points and
-  # auto-resetting on every dropdown click would clobber their input.
+  # These defaults encode the metric's unhealthy direction: flakiness should
+  # rise above the threshold, while reliability should fall below it.
   defp default_threshold("flakiness_rate"), do: "10"
   defp default_threshold("flaky_run_count"), do: "3"
+  defp default_threshold("reliability_rate"), do: "90"
   defp default_threshold(_), do: "1"
+
+  defp default_comparison("reliability_rate"), do: "lt"
+  defp default_comparison(_), do: "gte"
 
   defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
   defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
@@ -204,6 +207,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply,
      socket
      |> assign(create_automation_form_metric: metric)
+     |> assign(create_automation_form_comparison: default_comparison(metric))
      |> assign(create_automation_form_threshold: default_threshold(metric))
      |> assign(create_automation_form_trigger_actions: trigger_actions)
      |> assign(create_automation_form_recovery_enabled: recovery_enabled)
@@ -548,15 +552,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def event_driven_monitor_type?("test_updated"), do: true
   def event_driven_monitor_type?(_), do: false
 
-  defp parse_threshold("flakiness_rate", value) do
+  defp parse_threshold(metric, value) when metric in ["flakiness_rate", "reliability_rate"] do
     case Float.parse(value) do
       {n, _} -> n
-      :error -> 10.0
+      :error -> metric |> default_threshold() |> parse_default_rate_threshold()
     end
   end
 
   defp parse_threshold(_metric, value) do
     parse_int(value, 1)
+  end
+
+  defp parse_default_rate_threshold(value) do
+    {threshold, _} = Float.parse(value)
+    threshold
   end
 
   defp parse_int(value, default) do
@@ -568,6 +577,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Reliability rate")
   def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
@@ -612,6 +622,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def comparison_symbol(_), do: "≥"
 
   def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("reliability_rate"), do: dgettext("dashboard_projects", "Percent")
   def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
   def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
 
@@ -675,6 +686,19 @@ defmodule TuistWeb.ProjectAutomationsLive do
     dgettext(
       "dashboard_projects",
       "When flaky runs %{symbol} %{threshold} over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
+  def automation_summary(%{monitor_type: "reliability_rate", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When reliability rate %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window_summary(trigger_config)

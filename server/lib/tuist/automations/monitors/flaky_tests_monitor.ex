@@ -4,12 +4,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   Each alert is parameterised by:
 
-    * `monitor_type` — what's being measured (`flakiness_rate` or
-      `flaky_run_count`)
+    * `monitor_type` — what's being measured (`flakiness_rate`,
+      `flaky_run_count`, or `reliability_rate`)
     * `trigger_config.comparison` — how to compare the measurement to the
       threshold (`gte`, `gt`, `lt`, `lte`; defaults to `gte` for
-      backward compatibility with detection alerts seeded before
-      cleanup automations existed)
+      flakiness/count monitors and `lt` for reliability)
     * `trigger_config.window_type` — `"last_days"` evaluates over a calendar
       window (configured via `window: "30d"`); `"rolling"` evaluates the
       latest N runs per test case (configured via `rolling_window_size`).
@@ -32,8 +31,9 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   every granule in the relevant monthly partitions).
 
   The `rolling` mode reads `test_case_runs_recent_per_case`, an
-  `AggregatingMergeTree` MV that maintains a `groupArrayLast(N)` aggregate
-  of `(ran_at, is_flaky)` tuples per `(project_id, test_case_id)`. A
+  `AggregatingMergeTree` MV that maintains `groupArrayLast(N)` aggregates
+  of `(ran_at, is_flaky)` and `(ran_at, status == 'success')` tuples per
+  `(project_id, test_case_id)`. A
   project's whole rolling-window scan becomes one row per active test
   case, regardless of run volume — reading raw `test_case_runs` for that
   pattern is unrunnable on busy projects.
@@ -90,6 +90,29 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
         {:rolling, size} ->
           rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison)
+      end
+
+    %{
+      triggered: triggered_test_case_ids,
+      all: load_all_test_case_ids(project_id, alert.recovery_enabled)
+    }
+  end
+
+  def evaluate_by_reliability_rate(alert) do
+    trigger_config = alert.trigger_config
+    threshold = trigger_config["threshold"] || 90
+    comparison = parse_comparison(trigger_config["comparison"], "lt")
+    project_id = alert.project_id
+
+    triggered_test_case_ids =
+      case window_mode(trigger_config) do
+        {:last_days, seconds} ->
+          ClickHouseRepo.all(
+            reliability_rate_last_days_query(project_id, window_cutoff_date(seconds), threshold, comparison)
+          )
+
+        {:rolling, size} ->
+          rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison)
       end
 
     %{
@@ -207,13 +230,70 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
+  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "gte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(successful_run_count) * 100.0 / countMerge(run_count) >= ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
+    )
+  end
+
+  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "gt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(successful_run_count) * 100.0 / countMerge(run_count) > ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
+    )
+  end
+
+  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "lt") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(successful_run_count) * 100.0 / countMerge(run_count) < ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
+    )
+  end
+
+  defp reliability_rate_last_days_query(project_id, cutoff_date, threshold, "lte") do
+    from(daily in TestCaseRunDailyStatsPerCase,
+      where: daily.project_id == ^project_id,
+      where: daily.date >= ^cutoff_date,
+      group_by: daily.test_case_id,
+      having:
+        fragment(
+          "sumMerge(successful_run_count) * 100.0 / countMerge(run_count) <= ?",
+          ^threshold
+        ),
+      select: daily.test_case_id
+    )
+  end
+
   # The rolling path reads `test_case_runs_recent_per_case_mv`, which
-  # maintains a `groupArrayLast` aggregate of `(ran_at, is_flaky)` tuples per
-  # `(project_id, test_case_id)`, capped at `@max_rolling_window_size`
-  # entries. Reading raw `test_case_runs` here doesn't scale: even with a
-  # 30-day lookback and `LIMIT N BY`, the query has to walk every run in the
-  # project's lookback (200M+ rows on busy projects) because the table's
-  # primary key prefix doesn't fit "last N runs per test case per project."
+  # maintains `groupArrayLast` aggregates of `(ran_at, is_flaky)` and
+  # `(ran_at, status == 'success')` tuples per `(project_id, test_case_id)`,
+  # capped at `@max_rolling_window_size` entries. Reading raw
+  # `test_case_runs` here doesn't scale: even with a 30-day lookback and
+  # `LIMIT N BY`, the query has to walk every run in the project's lookback
+  # (200M+ rows on busy projects) because the table's primary key prefix
+  # doesn't fit "last N runs per test case per project."
   #
   # The MV scan is bounded by `active_test_cases_in_project` rather than
   # total run volume — usually a few thousand rows. We sort the per-row
@@ -237,7 +317,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       SELECT
         test_case_id,
         arraySlice(
-          arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(recent_runs)),
+          arrayReverseSort(x -> x.1, groupArrayLastMerge(#{@max_rolling_window_size})(#{rolling_recent_runs_column(monitor_type)})),
           1,
           {size:UInt32}
         ) AS recent_n
@@ -270,6 +350,11 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp rolling_having_expr("flakiness_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
 
   defp rolling_having_expr("flaky_run_count"), do: "arraySum(x -> toFloat64(x.2), recent_n)"
+
+  defp rolling_having_expr("reliability_rate"), do: "arraySum(x -> toFloat64(x.2), recent_n) * 100.0 / length(recent_n)"
+
+  defp rolling_recent_runs_column("reliability_rate"), do: "recent_successful_runs"
+  defp rolling_recent_runs_column(_), do: "recent_runs"
 
   defp rolling_comparison_op("gte"), do: ">="
   defp rolling_comparison_op("gt"), do: ">"
@@ -317,7 +402,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp parse_rolling_size(_), do: 100
 
   # `gte` is the historical default before alerts had a comparison field; keep
-  # it as the fallback so existing alerts don't change behaviour.
-  defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
-  defp parse_comparison(_), do: "gte"
+  # it as the fallback for existing flakiness/count alerts so their behaviour
+  # does not change. Reliability is new and defaults to the unhealthy
+  # direction (`lt`).
+  defp parse_comparison(comparison, _default \\ "gte")
+  defp parse_comparison(comparison, _default) when comparison in @comparisons, do: comparison
+  defp parse_comparison(_, default), do: default
 end

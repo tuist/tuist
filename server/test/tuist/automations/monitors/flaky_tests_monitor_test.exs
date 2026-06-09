@@ -227,6 +227,94 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
+  describe "evaluate_by_reliability_rate/1" do
+    test "fires for test cases whose success rate is below the threshold" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "unreliable")
+
+      base = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: "success",
+        ran_at: base,
+        inserted_at: base
+      )
+
+      for i <- 1..9 do
+        timestamp = NaiveDateTime.add(base, -i, :hour)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "failure",
+          ran_at: timestamp,
+          inserted_at: timestamp
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 20, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"}
+        )
+
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
+      assert test_case_id in triggered
+    end
+
+    test "skips test cases whose success rate is above the threshold" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "reliable")
+
+      for i <- 1..5 do
+        timestamp = NaiveDateTime.add(NaiveDateTime.utc_now(), -i, :hour)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "success",
+          ran_at: timestamp,
+          inserted_at: timestamp
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"}
+        )
+
+      refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
+    end
+
+    test "treats missing comparison as lt" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "legacy_reliability")
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: "failure"
+      )
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 50, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      assert test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
+    end
+  end
+
   describe "evaluate/1 with rolling window" do
     test "computes flakiness rate over the last N runs per test case" do
       project = ProjectsFixtures.project_fixture()
@@ -436,6 +524,55 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         )
 
       refute test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
+    end
+  end
+
+  describe "evaluate_by_reliability_rate/1 with rolling window" do
+    test "computes reliability over the last N runs per test case" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "rolling_unreliable")
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..5 do
+        timestamp = NaiveDateTime.add(base, -10 + i, :day)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "success",
+          ran_at: timestamp,
+          inserted_at: timestamp
+        )
+      end
+
+      for i <- 1..5 do
+        timestamp = NaiveDateTime.add(base, -i, :hour)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "failure",
+          ran_at: timestamp,
+          inserted_at: timestamp
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 50,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "lt"
+          }
+        )
+
+      assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
+      assert test_case_id in triggered
     end
   end
 end
