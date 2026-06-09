@@ -19,6 +19,7 @@ defmodule TuistWeb.MembersLive do
       |> assign(
         form: to_form(%{}, as: :invitation),
         selected_inner_tab: "members",
+        search_query: "",
         managing_member: nil
         # invite_role: :user,
         # invite_emails: []
@@ -36,16 +37,16 @@ defmodule TuistWeb.MembersLive do
       <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
       <div data-part="members-section">
         <div data-part="row">
-          <.form :if={@selected_inner_tab == "members"} for={%{}} phx-change="search">
+          <.form for={%{}} phx-change="search">
             <.text_input
               id="search-members"
               name="search"
               type="search"
+              value={@search_query}
               placeholder={dgettext("dashboard_account", "Search members...")}
               show_suffix={false}
             />
           </.form>
-          <div :if={@selected_inner_tab == "invitations"} />
 
           <.invite_member_form
             :if={Authorization.authorize(:invitation_create, @current_user, @selected_account) == :ok}
@@ -301,7 +302,13 @@ defmodule TuistWeb.MembersLive do
                   </.dropdown>
                 </:col>
                 <:empty_state>
-                  <.table_empty_state>
+                  <.table_empty_state
+                    :if={@search_query != ""}
+                    icon="user_x"
+                    title={dgettext("dashboard_account", "No invitations found")}
+                    subtitle={dgettext("dashboard_account", "Try changing your search term")}
+                  />
+                  <.table_empty_state :if={@search_query == ""}>
                     <.background_grid_light />
                     <.cards_light />
                     <.background_grid_dark />
@@ -393,17 +400,37 @@ defmodule TuistWeb.MembersLive do
 
   @impl true
   def handle_event("search", %{"search" => search}, socket) do
-    members =
-      Enum.filter(socket.assigns.all_members, fn [member, _role] ->
-        String.contains?(member.email, search) || String.contains?(member.account.name, search)
-      end)
+    socket =
+      case socket.assigns.selected_inner_tab do
+        "invitations" ->
+          invitations =
+            Enum.filter(socket.assigns.all_invitations, fn invitation ->
+              String.contains?(invitation.invitee_email, search)
+            end)
 
-    socket = assign(socket, members: members)
+          assign(socket, invitations: invitations, search_query: search)
+
+        _ ->
+          members =
+            Enum.filter(socket.assigns.all_members, fn [member, _role] ->
+              String.contains?(member.email, search) || String.contains?(member.account.name, search)
+            end)
+
+          assign(socket, members: members, search_query: search)
+      end
+
     {:noreply, socket}
   end
 
   def handle_event("select-inner-tab", %{"tab" => tab}, socket) do
-    socket = assign(socket, selected_inner_tab: tab)
+    socket =
+      assign(socket,
+        selected_inner_tab: tab,
+        search_query: "",
+        members: socket.assigns.all_members,
+        invitations: socket.assigns.all_invitations
+      )
+
     {:noreply, socket}
   end
 
@@ -510,9 +537,11 @@ defmodule TuistWeb.MembersLive do
         socket
         |> assign(
           invitations: organization.invitations,
+          all_invitations: organization.invitations,
           invite_emails: [],
           form: to_form(%{}, as: :invitation),
-          selected_inner_tab: "invitations"
+          selected_inner_tab: "invitations",
+          search_query: ""
         )
         |> push_event("close-modal", %{id: "invite-member-form-modal"})
         |> push_event("close-modal", %{id: "invite-member-form-empty-state-modal"})
@@ -554,7 +583,8 @@ defmodule TuistWeb.MembersLive do
       organization: organization,
       members: members,
       all_members: members,
-      invitations: organization.invitations
+      invitations: organization.invitations,
+      all_invitations: organization.invitations
     )
   end
 
