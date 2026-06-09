@@ -26,6 +26,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "test_case_ids" => test_case_ids}})
   end
 
+  defp run_pending(alert_id) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "drain_pending_test_case_ids" => true}})
+  end
+
   test "no-op when automation is missing" do
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
@@ -96,6 +100,82 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     assert :ok = run_scoped(automation.id, [affected_id, "not-a-uuid", affected_id])
+  end
+
+  test "pending drain evaluates coalesced test case ids and clears them" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+    [first_id, second_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
+
+    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, [first_id, second_id, first_id])
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    expect(FlakyTestsMonitor, :evaluate, fn ^automation, test_case_ids ->
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      %{triggered: [], all: test_case_ids}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn id, test_case_ids ->
+      assert id == automation.id
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_pending(automation.id)
+    assert Automations.list_pending_alert_test_case_ids(automation.id) == []
+  end
+
+  test "pending drain chunks large affected sets" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+    test_case_ids = Enum.map(1..1001, fn _ -> Ecto.UUID.generate() end)
+    test_pid = self()
+
+    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, test_case_ids)
+
+    expect(FlakyTestsMonitor, :evaluate, 2, fn ^automation, chunk ->
+      send(test_pid, {:monitor_chunk_size, length(chunk)})
+      %{triggered: [], all: chunk}
+    end)
+
+    expect(Automations, :list_active_alert_events, 2, fn id, chunk ->
+      assert id == automation.id
+      send(test_pid, {:active_events_chunk_size, length(chunk)})
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_pending(automation.id)
+
+    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 1}
+    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 1}
+    assert Automations.list_pending_alert_test_case_ids(automation.id) == []
+  end
+
+  test "pending drain clears queued ids when the alert is disabled" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+    test_case_id = Ecto.UUID.generate()
+
+    assert :ok = Automations.enqueue_flaky_alert_evaluations(automation.project_id, [test_case_id])
+    assert Automations.list_pending_alert_test_case_ids(automation.id) == [test_case_id]
+
+    assert {:ok, disabled} = Automations.update_alert(automation, %{enabled: false})
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate/2)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_pending(disabled.id)
+    assert Automations.list_pending_alert_test_case_ids(disabled.id) == []
   end
 
   test "skips test cases that already have an active alert" do

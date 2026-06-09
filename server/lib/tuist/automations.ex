@@ -5,6 +5,7 @@ defmodule Tuist.Automations do
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Alerts.PendingTestCaseEvaluation
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -20,7 +21,6 @@ defmodule Tuist.Automations do
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
   @flaky_monitor_types ~w(flakiness_rate flaky_run_count)
-  @alert_evaluation_chunk_size 1000
 
   def list_alerts(project_id) do
     Alert
@@ -155,21 +155,106 @@ defmodule Tuist.Automations do
           )
         )
 
-      jobs =
-        for alert <- alerts,
-            chunk <- Enum.chunk_every(test_case_ids, @alert_evaluation_chunk_size) do
-          AlertEvaluationWorker.new(%{alert_id: alert.id, test_case_ids: chunk},
-            schedule_in: alert_evaluation_schedule_in()
-          )
-        end
-
-      case jobs do
-        [] -> :ok
-        jobs -> Oban.insert_all(jobs)
-      end
+      Enum.each(alerts, fn alert ->
+        insert_pending_alert_test_case_ids(alert.id, test_case_ids)
+        enqueue_pending_alert_evaluation(alert)
+      end)
 
       :ok
     end
+  end
+
+  def enqueue_pending_alert_evaluation(%Alert{} = alert, opts \\ []) do
+    schedule_in = Keyword.get(opts, :schedule_in, alert_evaluation_schedule_in())
+
+    {:ok, _job} =
+      %{alert_id: alert.id, drain_pending_test_case_ids: true}
+      |> AlertEvaluationWorker.new(
+        schedule_in: schedule_in,
+        unique: [
+          keys: [:alert_id, :drain_pending_test_case_ids],
+          period: :infinity,
+          states: [:available, :scheduled]
+        ]
+      )
+      |> Oban.insert()
+
+    :ok
+  end
+
+  def with_pending_alert_test_case_ids(alert_id, fun) do
+    pending_evaluations =
+      Repo.all(
+        from(p in PendingTestCaseEvaluation,
+          where: p.alert_id == ^alert_id,
+          order_by: [asc: p.inserted_at, asc: p.test_case_id],
+          select: %{test_case_id: p.test_case_id, inserted_at: p.inserted_at}
+        )
+      )
+
+    test_case_ids = Enum.map(pending_evaluations, & &1.test_case_id)
+
+    if test_case_ids == [] do
+      :ok
+    else
+      result = fun.(test_case_ids)
+      delete_pending_alert_test_case_evaluations(alert_id, pending_evaluations)
+      result
+    end
+  end
+
+  def list_pending_alert_test_case_ids(alert_id) do
+    Repo.all(
+      from(p in PendingTestCaseEvaluation,
+        where: p.alert_id == ^alert_id,
+        order_by: [asc: p.inserted_at, asc: p.test_case_id],
+        select: p.test_case_id
+      )
+    )
+  end
+
+  def pending_alert_test_case_ids?(alert_id) do
+    Repo.exists?(from(p in PendingTestCaseEvaluation, where: p.alert_id == ^alert_id))
+  end
+
+  def delete_pending_alert_test_case_ids(alert_id) do
+    Repo.delete_all(from(p in PendingTestCaseEvaluation, where: p.alert_id == ^alert_id))
+    :ok
+  end
+
+  defp insert_pending_alert_test_case_ids(alert_id, test_case_ids) do
+    now = DateTime.utc_now()
+
+    entries =
+      Enum.map(test_case_ids, fn test_case_id ->
+        %{alert_id: alert_id, test_case_id: test_case_id, inserted_at: now}
+      end)
+
+    Repo.insert_all(PendingTestCaseEvaluation, entries,
+      on_conflict: [set: [inserted_at: now]],
+      conflict_target: [:alert_id, :test_case_id]
+    )
+  end
+
+  defp delete_pending_alert_test_case_evaluations(_alert_id, []), do: :ok
+
+  defp delete_pending_alert_test_case_evaluations(alert_id, pending_evaluations) do
+    test_case_ids = Enum.map(pending_evaluations, & &1.test_case_id)
+
+    cutoff =
+      pending_evaluations
+      |> Enum.max_by(& &1.inserted_at, DateTime)
+      |> Map.fetch!(:inserted_at)
+
+    Repo.delete_all(
+      from(p in PendingTestCaseEvaluation,
+        where: p.alert_id == ^alert_id,
+        where: p.test_case_id in ^test_case_ids,
+        where: p.inserted_at <= ^cutoff
+      )
+    )
+
+    :ok
   end
 
   defp alert_evaluation_schedule_in do

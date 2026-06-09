@@ -146,7 +146,7 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
-    test "enqueues scoped jobs for enabled flaky monitors only" do
+    test "coalesces pending evaluations for enabled flaky monitors only" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
 
@@ -175,16 +175,55 @@ defmodule Tuist.AutomationsTest do
 
       test_case_ids = [Ecto.UUID.generate(), Ecto.UUID.generate()]
 
-      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids)
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids ++ [hd(test_case_ids), nil])
 
       jobs = all_enqueued(worker: AlertEvaluationWorker)
 
       assert length(jobs) == 2
 
-      args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args["test_case_ids"]} end)
+      args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args} end)
 
-      assert args_by_alert_id[flakiness_alert.id] == test_case_ids
-      assert args_by_alert_id[count_alert.id] == test_case_ids
+      assert args_by_alert_id[flakiness_alert.id]["drain_pending_test_case_ids"]
+      refute Map.has_key?(args_by_alert_id[flakiness_alert.id], "test_case_ids")
+      assert args_by_alert_id[count_alert.id]["drain_pending_test_case_ids"]
+      refute Map.has_key?(args_by_alert_id[count_alert.id], "test_case_ids")
+
+      assert MapSet.new(Automations.list_pending_alert_test_case_ids(flakiness_alert.id)) == MapSet.new(test_case_ids)
+      assert MapSet.new(Automations.list_pending_alert_test_case_ids(count_alert.id)) == MapSet.new(test_case_ids)
+    end
+
+    test "merges repeated enqueue calls into one pending drain job per alert" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+
+      [first_id, second_id, third_id] = Enum.map(1..3, fn _ -> Ecto.UUID.generate() end)
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [first_id, second_id])
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [second_id, third_id])
+
+      assert [%{args: %{"alert_id" => alert_id, "drain_pending_test_case_ids" => true}}] =
+               all_enqueued(worker: AlertEvaluationWorker)
+
+      assert alert_id == alert.id
+
+      assert MapSet.new(Automations.list_pending_alert_test_case_ids(alert.id)) ==
+               MapSet.new([first_id, second_id, third_id])
+    end
+
+    test "keeps a test case pending when it is re-added while a drain is evaluating" do
+      project = ProjectsFixtures.project_fixture()
+      alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+      test_case_id = Ecto.UUID.generate()
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [test_case_id])
+
+      assert :ok =
+               Automations.with_pending_alert_test_case_ids(alert.id, fn [^test_case_id] ->
+                 Process.sleep(1)
+                 Automations.enqueue_flaky_alert_evaluations(project.id, [test_case_id])
+               end)
+
+      assert Automations.list_pending_alert_test_case_ids(alert.id) == [test_case_id]
     end
   end
 

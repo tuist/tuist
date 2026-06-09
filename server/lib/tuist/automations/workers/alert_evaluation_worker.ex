@@ -15,13 +15,20 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   require Logger
 
+  @pending_test_case_ids_chunk_size 1000
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
         if alert.enabled do
-          evaluate_and_execute(alert, scoped_test_case_ids(args))
+          if drain_pending_test_case_ids?(args) do
+            evaluate_pending_and_execute(alert)
+          else
+            evaluate_and_execute(alert, scoped_test_case_ids(args))
+          end
         else
+          maybe_delete_pending_test_case_ids(alert, args)
           :ok
         end
 
@@ -29,6 +36,35 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         :ok
     end
   end
+
+  defp evaluate_pending_and_execute(alert) do
+    Automations.with_pending_alert_test_case_ids(alert.id, fn test_case_ids ->
+      if alert.baseline_established_at == nil do
+        evaluate_and_execute(alert, nil)
+      else
+        test_case_ids
+        |> Enum.chunk_every(@pending_test_case_ids_chunk_size)
+        |> Enum.each(&evaluate_and_execute(alert, &1))
+      end
+    end)
+
+    if Automations.pending_alert_test_case_ids?(alert.id) do
+      Automations.enqueue_pending_alert_evaluation(alert)
+    else
+      :ok
+    end
+  end
+
+  defp maybe_delete_pending_test_case_ids(alert, args) do
+    if drain_pending_test_case_ids?(args) do
+      Automations.delete_pending_alert_test_case_ids(alert.id)
+    else
+      :ok
+    end
+  end
+
+  defp drain_pending_test_case_ids?(%{"drain_pending_test_case_ids" => true}), do: true
+  defp drain_pending_test_case_ids?(_args), do: false
 
   defp evaluate_and_execute(alert, test_case_ids) do
     if alert.baseline_established_at == nil do
