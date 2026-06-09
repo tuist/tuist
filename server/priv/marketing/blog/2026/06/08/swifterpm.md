@@ -71,7 +71,7 @@ We have been rolling this out as an opt-in feature, because we would rather vali
 
 If you use Tuist generated projects, you can opt in with a flag and let `tuist install` use SwifterPM before generation. If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
-```starlark
+```python
 bazel_dep(name = "swifterpm", version = "0.7.0")
 
 swift_deps = use_extension("@swifterpm//:extensions.bzl", "swift_deps")
