@@ -1,8 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in xcresult-processor-image@0.12.4<!-- RELEASE NOTES START -->
+## What's Changed in xcresult-processor-image@0.13.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* add cross-region peer gateway discovery ([#11173](https://github.com/tuist/tuist/pull/11173))
 ### 🐛 Bug Fixes
 
 * show runner job platforms ([#11147](https://github.com/tuist/tuist/pull/11147))
@@ -12,7 +15,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.2...xcresult-processor-image@0.12.4
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.2...xcresult-processor-image@0.13.0
 
 ## What's Changed in xcresult-processor-image@0.12.2<!-- RELEASE NOTES START -->
 
