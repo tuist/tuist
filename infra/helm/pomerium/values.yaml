@@ -20,7 +20,7 @@ extAuthzPort: 80
 
 image:
   repository: pomerium/pomerium
-  tag: v0.22.0
+  tag: v0.32.8
   pullPolicy: IfNotPresent
 
 # Single replica with memory-backed databroker. Trade-off: a pod
