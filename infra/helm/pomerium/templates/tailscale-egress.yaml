@@ -31,7 +31,11 @@ metadata:
     tailscale.com/tags: "tag:tuist-k8s-{{ .Values.tuistEnv }}"
 spec:
   # ExternalName is the trigger Tailscale's operator watches for.
-  # The value is a placeholder; the operator rewrites it once the
-  # tailnet proxy device is up.
+  # The value is a placeholder on first install; the operator
+  # rewrites it to point at the in-cluster operator-managed proxy
+  # Service once the tailnet device is up. On subsequent upgrades
+  # we look up the operator's current value and reassert it
+  # verbatim — without that, Helm's server-side apply hits a field
+  # ownership conflict with the operator on every redeploy.
   type: ExternalName
-  externalName: placeholder.tuist.ts.net
+  externalName: {{ (lookup "v1" "Service" .Release.Namespace "tuist-ops-egress").spec.externalName | default "placeholder.tuist.ts.net" }}
