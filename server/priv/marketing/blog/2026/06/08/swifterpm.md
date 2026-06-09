@@ -1,8 +1,8 @@
 ---
-title: "SwifterPM: faster Swift package resolution for generated and Bazel projects"
+title: "SwifterPM: faster Swift package resolution for generated, Bazel, and Buck2 projects"
 category: "product"
-tags: ["product", "swift", "spm", "cli", "bazel", "performance"]
-excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM, a faster resolver and restorer for Swift packages, available today as an opt-in feature for Tuist generated projects and as a Bazel rule. Here is how it works, what it does not solve, and the benchmarks."
+tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
+excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM, a faster resolver and restorer for Swift packages, available today as an opt-in feature for Tuist generated projects and as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/06/08/swifterpm/og.jpg
 ---
@@ -82,7 +82,20 @@ swift_deps.from_package(
 use_repo(swift_deps, "swift_package")
 ```
 
-We are taking our first real steps into Bazel, and we wanted this to be useful to that community from the start. Any company already on Bazel, or weighing the move, can pick up the rule and get the same speedups. This is part of a larger appetite we are building to plug our caching and infrastructure into more technologies, from cacheable generated projects through to Bazel, and there is a lot more exploration ahead of us in that space.
+And if you build Apple targets with Buck2, SwifterPM ships a small macro that creates a restore target you run before your build:
+
+```python
+load("//build_defs:swifterpm.bzl", "swifterpm_restore")
+
+swifterpm_restore(
+    name = "restore_swift_packages",
+    package = "Package.swift",
+)
+```
+
+That target resolves and restores the packages, so your Apple build targets can read sources straight from `.build/checkouts` against the shared global store, the same way Bazel and Tuist do.
+
+We are taking our first real steps into Bazel and Buck2, and we wanted this to be useful to those communities from the start. Any company already on one of them, or weighing the move, can pick up the rule and get the same speedups. This is part of a larger appetite we are building to plug our caching and infrastructure into more technologies, from cacheable generated projects through to Bazel and Buck2, and there is a lot more exploration ahead of us in that space.
 
 ## The one place we cannot reach, and the one we would like to
 
@@ -90,6 +103,6 @@ I wish I could say this helps everyone, and it does not. The integration between
 
 Which brings me to the part I want to put in writing. We are open to upstreaming these changes once we have validated that they work reliably and fast with a broader community. We do not want to fork the ecosystem, we want to raise its floor. aube is the example I keep in my head: it shipped, it forced a healthy round of competition, and the whole ecosystem got faster for it. If SwifterPM can do a small version of that for Swift, that is a win we are happy to share rather than hoard.
 
-We had to move on this quickly, because our users could not keep waiting for some future Xcode release to maybe address it. As long as we stay aligned with how resolution works, with the state files SwiftPM writes, and with what the clients (Bazel and Tuist) expect, we are in a good spot. Apple will keep adding things at the language and manifest level, as they did with [traits](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0450-swiftpm-package-traits.md), and that does not really change the resolution logic underneath.
+We had to move on this quickly, because our users could not keep waiting for some future Xcode release to maybe address it. As long as we stay aligned with how resolution works, with the state files SwiftPM writes, and with what the clients (Bazel, Buck2, and Tuist) expect, we are in a good spot. Apple will keep adding things at the language and manifest level, as they did with [traits](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0450-swiftpm-package-traits.md), and that does not really change the resolution logic underneath.
 
 Give it a try. If you hit a graph we do not handle yet, please [open an issue](https://github.com/tuist/swifterpm/issues) and include your Swift version and the errors you saw, so we can take a look. This has been a genuinely fun piece to work on, and as always, we will keep iterating in the open and sharing what we find.
