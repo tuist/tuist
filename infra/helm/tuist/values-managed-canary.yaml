@@ -90,8 +90,8 @@ cache:
     registryBucket: tuist-registry-canary
 
 # Docker Hub pull-through cache. Reuses the canary object-storage bucket
-# under a `docker-mirror` prefix. Deployed but inert until
-# runnersController.features.registryMirror is flipped on (below).
+# under a `docker-mirror` prefix. Runner `docker pull`s route through it
+# (runnersController.features.registryMirror below).
 registryCache:
   enabled: true
   proxy:
@@ -298,12 +298,7 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
-    # Routes runner `docker pull`s through the in-cluster pull-through
-    # cache (above). Flip to true ONLY once the deployed controller image
-    # is a release that ships `--registry-mirror-url` — merging the cache
-    # PR cuts that release and bumps the common pin; until then the
-    # current binary flag.Parse-exits and the controller crash-loops.
-    registryMirror: false
+    registryMirror: true
 
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline
