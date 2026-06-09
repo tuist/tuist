@@ -1,9 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Non-CLI dependencies are batched on a weekly schedule; the tuist CLI pin overrides this to run at any time (see its packageRule) so the dev-tooling version tracks releases quickly.",
+  "schedule": ["before 6am on monday"],
   "customManagers": [
     {
       "customType": "regex",
-      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which release.yml's release-runner-image flow picks up to rebuild the image, push a new semver tag, resolve the digest, and rewrite the runnersFleet.runnerImage pin in managed-env values files.",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which release.yml's release-runner-image flow picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
@@ -12,12 +14,32 @@
     },
     {
       "customType": "regex",
-      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm). Bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild + push + rewrite the runnersFleetLinux pin.",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm). Bumps land as `fix(linux-runner-image): …` commits which release.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
       "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
       ],
       "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "hetzner-robot-controller image pin in the mgmt-cluster Deployment manifest. Renovate tracks the ghcr tag the release pushes and opens the bump PR; mgmt-cluster-apply.yml rolls it out on merge (the manifest path is in its trigger).",
+      "fileMatch": ["^infra/k8s/mgmt/hetzner-robot-controller\\.yaml$"],
+      "matchStrings": [
+        "image: (?<depName>ghcr\\.io/tuist/tuist-hetzner-robot-controller):(?<currentValue>[^\\s\"]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Gradle plugin version the CLI references (gradlePluginVersion in Constants.swift). Renovate tracks the dev.tuist plugin on the Gradle Plugin Portal and opens the bump PR.",
+      "fileMatch": ["^cli/Sources/TuistConstants/Constants\\.swift$"],
+      "matchStrings": [
+        "public static let gradlePluginVersion = \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "maven",
+      "depNameTemplate": "dev.tuist:dev.tuist.gradle.plugin",
+      "registryUrlTemplate": "https://plugins.gradle.org/m2/"
     }
   ],
   "packageRules": [
@@ -36,6 +58,37 @@
       "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
       "matchPackageNames": ["actions/runner", "kubernetes/kubernetes", "helm/helm"],
       "commitMessagePrefix": "fix(linux-runner-image):",
+      "automerge": true
+    },
+    {
+      "description": "Tuist CLI dev-tooling pin in mise.toml. Runs at any time (more often than the weekly default) so the pin tracks new CLI releases quickly, and auto-merges.",
+      "matchManagers": ["mise"],
+      "matchPackageNames": ["tuist"],
+      "schedule": ["at any time"],
+      "commitMessagePrefix": "chore(cli):",
+      "commitMessageTopic": "Tuist CLI",
+      "automerge": true
+    },
+    {
+      "description": "hetzner-robot-controller mgmt-cluster image pin.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/k8s/mgmt/hetzner-robot-controller.yaml"],
+      "commitMessagePrefix": "fix(hetzner-robot-controller):",
+      "automerge": true
+    },
+    {
+      "description": "CLI gradlePluginVersion consumer pin in Constants.swift.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["cli/Sources/TuistConstants/Constants.swift"],
+      "commitMessagePrefix": "chore(cli):",
+      "commitMessageTopic": "dev.tuist Gradle plugin",
+      "automerge": true
+    },
+    {
+      "description": "android consumes the dev.tuist Gradle plugin via settings.gradle.kts; Renovate's native gradle manager picks up the `id(\"dev.tuist\") version` plugin pin. Route the bump under the android scope.",
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["dev.tuist", "dev.tuist:dev.tuist.gradle.plugin"],
+      "commitMessagePrefix": "chore(android):",
       "automerge": true
     }
   ]
