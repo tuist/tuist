@@ -1,0 +1,83 @@
+"""Kura — distributed cache mesh (Rust).
+
+Bazel foundation: workspace skeleton, Rust + cross C/C++ toolchains, and the
+third-party crate graph — enough to build //:all (lib + binary + tests). The
+runtime OCI image (rules_oci/rules_pkg/rules_distroless + the geoip/apt layers)
+is added in a later change; it is intentionally not part of this foundation.
+"""
+
+module(
+    name = "kura",
+    version = "0.6.0",
+)
+
+bazel_dep(name = "rules_rust", version = "0.70.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "platforms", version = "1.0.0")
+
+# Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
+# extra_target_triples enables cross-compilation between the two Linux arches.
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    extra_target_triples = [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+    ],
+    versions = ["1.94.1"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+# Cross C/C++ toolchains (Debian cross GCC in the dev image). Each is scoped to a
+# cross scenario (exec arch != target arch), so native builds keep the autodetected
+# host toolchain. x86_64 target builds from an arm64 host; arm64 target from x86_64.
+register_toolchains(
+    "//bazel/toolchains/cc:x86_64_linux_toolchain",
+    "//bazel/toolchains/cc:arm64_linux_toolchain",
+)
+
+# Third-party Rust dependencies, resolved from Cargo.toml / Cargo.lock.
+# Repin after changing dependencies or annotations (Bazel 9 has no `bazel sync`):
+#   CARGO_BAZEL_REPIN=1 bazel query '@crates//:all'
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+
+# mlua's `vendored` feature compiles Lua from source shipped in the `lua-src`
+# crate, whose build script reads `env!("CARGO_MANIFEST_DIR")` — a compile-time
+# path that no longer exists when the mlua-sys build script runs under Bazel.
+# Instead of coaxing that build script, we compile Lua ourselves as a cc_library
+# (//bazel/third_party/lua) from lua-src's vendored sources and link it:
+#   1. Expose lua-src's C sources + headers as filegroups for the cc_library.
+#   2. Disable mlua-sys's build script (it only locates/links Lua) and add the
+#      cc_library to its deps, so Bazel handles the C build and linking.
+# This touches no third-party Rust source and gives Lua a real Bazel target.
+crate.annotation(
+    additive_build_file_content = """
+filegroup(
+    name = "lua_c_srcs",
+    srcs = glob(["lua-5.4.8/*.c"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lua_hdrs",
+    srcs = glob(["lua-5.4.8/*.h"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    crate = "lua-src",
+)
+crate.annotation(
+    crate = "mlua-sys",
+    gen_build_script = "off",
+    # @@// is the canonical (main-repo) form, resolvable from the crate repo.
+    deps = ["@@//bazel/third_party/lua:lua"],
+)
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
+    manifests = ["//:Cargo.toml"],
+)
+use_repo(crate, "crates")
