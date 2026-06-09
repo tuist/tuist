@@ -8,8 +8,8 @@ description: |
   ext_authz'ing to tuist-ops over the tailnet.
 type: application
 version: 0.1.0
-appVersion: "0.30.0"
+appVersion: "0.22.0"
 dependencies:
   - name: pomerium
-    version: "53.1.1"
+    version: "34.0.1"
     repository: "https://helm.pomerium.io"
