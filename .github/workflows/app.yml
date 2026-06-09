@@ -100,8 +100,8 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
-          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-app-swifter-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -128,14 +128,11 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share TuistApp
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: ~/.cache/swifterpm
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   app-test:
@@ -161,8 +158,8 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
-          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-app-swifter-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -178,14 +175,11 @@ jobs:
         run: tuist install
       - name: Test TuistApp
         run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: ~/.cache/swifterpm
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   app-device-build:
@@ -213,8 +207,8 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
-          key: ${{ runner.os }}-app-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-app-swifter-v2-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -251,12 +245,9 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share build/Tuist.ipa
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: ~/.cache/swifterpm
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}

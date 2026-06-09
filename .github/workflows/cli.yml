@@ -60,7 +60,7 @@ concurrency:
   group: cli-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# .build cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
+# swifter cache keys: restore-keys hashes Package.swift (not Package.resolved) so the
 # fallback never crosses structural changes. See #10510 / e8fa267 for the incidents
 # (stale workspace state pointing at moved local SPM paths; Linux linker failures
 # from partial-artifact reuse) that motivate the narrower scope.
@@ -82,10 +82,10 @@ jobs:
       - uses: actions/cache/restore@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -120,10 +120,10 @@ jobs:
       - uses: actions/cache@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -141,9 +141,6 @@ jobs:
         run: tuist install
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
 
   cli-cache:
     name: Cache
@@ -164,10 +161,10 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -184,14 +181,11 @@ jobs:
         run: tuist install
       - name: Cache
         run: tuist cache
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build
+          path: ~/.cache/swifterpm
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
   cli-unit-tests:
@@ -212,10 +206,10 @@ jobs:
       - uses: actions/cache/restore@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -254,10 +248,10 @@ jobs:
       - uses: actions/cache/restore@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -305,10 +299,10 @@ jobs:
       - uses: actions/cache/restore@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -352,10 +346,10 @@ jobs:
       - uses: actions/cache/restore@v4
         id: cache
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          path: ~/.cache/swifterpm
+          key: ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
-            ${{ runner.os }}-cli-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
+            ${{ runner.os }}-cli-swifter-v2-${{ hashFiles('.xcode-version') }}-${{ hashFiles('Package.swift') }}-
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -405,9 +399,6 @@ jobs:
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
@@ -438,9 +429,6 @@ jobs:
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
         run: swift test --replace-scm-with-registry
-      - uses: ./.github/actions/materialize-build-cache
-        with:
-          path: .build
       - name: Save cache
         if: github.ref == 'refs/heads/main'
         id: cache-save
