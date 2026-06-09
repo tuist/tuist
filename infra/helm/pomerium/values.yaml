@@ -23,6 +23,30 @@ image:
   tag: v0.32.8
   pullPolicy: IfNotPresent
 
+# kube-impersonator sidecar. Pomerium handles OIDC + session
+# issuance; the sidecar handles per-request impersonation header
+# injection by calling tuist-ops's PolicyController, then forwards
+# to the in-cluster apiserver with the resolved Impersonate-* +
+# the pod's SA bearer.
+#
+# Tag is bumped by the kube-impersonator-image workflow; pin to a
+# sha-<short> from a green build for prod-grade reproducibility.
+# Branch tag (e.g. "infra-tailscale-k8s-human-access") is fine for
+# pre-merge validation.
+kubeImpersonator:
+  image:
+    repository: ghcr.io/tuist/kube-impersonator
+    tag: infra-tailscale-k8s-human-access
+    pullPolicy: IfNotPresent
+  port: 8081
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 # Single replica with memory-backed databroker. Trade-off: a pod
 # restart invalidates open sessions, users re-auth via browser on
 # next kubectl call. Acceptable cost at our scale (~5 humans, low

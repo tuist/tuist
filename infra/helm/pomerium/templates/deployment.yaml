@@ -86,6 +86,36 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+        # kube-impersonator sidecar — see kube-impersonator/AGENTS.md
+        # for the architecture. Pomerium's route `to:` points at
+        # 127.0.0.1:{{ .Values.kubeImpersonator.port }} so every
+        # kubectl request flows through here on the way to the
+        # apiserver. SA token is auto-mounted by Kubernetes via the
+        # ServiceAccount; the sidecar reads it for the upstream
+        # Authorization header.
+        - name: kube-impersonator
+          image: "{{ .Values.kubeImpersonator.image.repository }}:{{ .Values.kubeImpersonator.image.tag }}"
+          imagePullPolicy: {{ .Values.kubeImpersonator.image.pullPolicy }}
+          env:
+            - name: LISTEN_ADDR
+              value: ":{{ .Values.kubeImpersonator.port }}"
+          ports:
+            - name: imp
+              containerPort: {{ .Values.kubeImpersonator.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: imp
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: imp
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.kubeImpersonator.resources | nindent 12 }}
       volumes:
         - name: config
           configMap:

@@ -48,96 +48,25 @@ data:
 
     routes:
       - from: "https://{{ .Values.publicHostname }}"
-        to: "https://kubernetes.default.svc:443"
-        tls_skip_verify: true
+        # Route to the kube-impersonator sidecar in the same pod.
+        # The sidecar does the policy lookup against tuist-ops,
+        # injects Impersonate-User + Impersonate-Group(s), strips
+        # the Pomerium session bearer, attaches the pod SA token,
+        # and forwards to kubernetes.default.svc:443. Pomerium's
+        # responsibility ends at OIDC + session issuance.
+        to: "http://127.0.0.1:{{ .Values.kubeImpersonator.port }}"
         pass_identity_headers: true
-        preserve_host_header: false
+        preserve_host_header: true
         timeout: 90s
-        # Pomerium authenticates ITSELF to the apiserver via its
-        # pod's ServiceAccount token (automounted by Kubernetes at
-        # the path below). The inbound Pomerium-issued bearer
-        # token kubectl sends is stripped here and replaced with
-        # the SA bearer for the upstream request. The apiserver
-        # sees Pomerium-the-SA as the requester and consumes the
-        # Impersonate-User / Impersonate-Group headers (set by the
-        # ext_authz response below) to decide RBAC. The
-        # ClusterRole binding in templates/rbac.yaml grants this
-        # SA the Impersonate verb so the apiserver accepts those
-        # headers.
-        kubernetes_service_account_token_file: "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        # Coarse domain gate before any ext_authz call.
-        # Per-request impersonation (which group to inject) is
-        # decided by the ext_authz callback below.
+        # Coarse domain gate. Per-request fine-grained decision
+        # (which Impersonate-Group(s) the user gets) lives in
+        # tuist-ops's PolicyController, which the sidecar dials.
         policy:
           - allow:
               and:
                 - domain:
                     is: tuist.dev
-        # Static request headers — Impersonate-Group is dynamic
-        # now (set by the Envoy ext_authz filter below), so we
-        # only stamp the env name for tuist-ops's introspection.
+        # Stamp the env name so the sidecar's policy call carries
+        # it through to PolicyController.
         set_request_headers:
           X-Tuist-Env: {{ .Values.tuistEnv | quote }}
-
-    # Envoy ext_authz: per-request callback to tuist-ops's
-    # /api/v1/policy controller. Envoy dials the controller on
-    # every kubectl request, passes the x-pomerium-claim-email +
-    # host headers through, and copies any Impersonate-* headers
-    # from the controller's response onto the upstream request to
-    # the apiserver. The controller decides the impersonation tier
-    # from the user's tailnet role + active elevation row.
-    #
-    # Pomerium passes extra_envoy_filters / extra_envoy_clusters
-    # through to its embedded Envoy verbatim. Format is straight
-    # Envoy XDS JSON (camelCase keys, the @type discriminator).
-    extra_envoy_clusters:
-      - name: tuist_ops_ext_authz
-        type: STRICT_DNS
-        connect_timeout: 5s
-        load_assignment:
-          cluster_name: tuist_ops_ext_authz
-          endpoints:
-            - lb_endpoints:
-                - endpoint:
-                    address:
-                      socket_address:
-                        address: {{ .Values.extAuthzHost }}
-                        port_value: {{ .Values.extAuthzPort }}
-
-    extra_envoy_filters:
-      - name: envoy.filters.http.ext_authz
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
-          # HTTP service mode (not gRPC) — matches
-          # PolicyController's plain Plug response convention.
-          http_service:
-            server_uri:
-              uri: http://{{ .Values.extAuthzHost }}:{{ .Values.extAuthzPort }}
-              cluster: tuist_ops_ext_authz
-              timeout: 5s
-            path_prefix: /api/v1/policy
-            authorization_request:
-              allowed_headers:
-                patterns:
-                  - exact: host
-                  - exact: x-pomerium-claim-email
-                  - exact: x-tuist-env
-            authorization_response:
-              # Headers from the controller's 200 response that
-              # Envoy will inject onto the upstream apiserver
-              # request. Impersonate-Group can appear multiple
-              # times (multi-group impersonation); Envoy preserves
-              # repetition by default.
-              allowed_upstream_headers:
-                patterns:
-                  - exact: impersonate-user
-                  - exact: impersonate-group
-          # If the controller is unreachable, fail closed — don't
-          # let kubectl bypass authorization just because
-          # tuist-ops is down.
-          failure_mode_allow: false
-          # POST + body would re-serialize the original request
-          # body in the ext_authz call. Cheaper to use headers
-          # only — the controller's decision depends solely on
-          # Host + x-pomerium-claim-email.
-          with_request_body: null
