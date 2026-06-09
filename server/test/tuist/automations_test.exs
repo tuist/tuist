@@ -147,7 +147,7 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
-    test "enqueues debounced scoped evaluations for enabled flaky monitors only" do
+    test "enqueues debounced scoped evaluations for enabled scoped monitors only" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
 
@@ -159,6 +159,13 @@ defmodule Tuist.AutomationsTest do
           project: project,
           monitor_type: "flaky_run_count",
           trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"}
+        )
+
+      reliability_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{"threshold" => 90, "comparison" => "lt", "window_type" => "last_days", "window" => "30d"}
         )
 
       _disabled =
@@ -180,7 +187,7 @@ defmodule Tuist.AutomationsTest do
 
       jobs = all_enqueued(worker: AlertEvaluationWorker)
 
-      assert length(jobs) == 2
+      assert length(jobs) == 3
 
       args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args} end)
 
@@ -188,6 +195,8 @@ defmodule Tuist.AutomationsTest do
       refute Map.has_key?(args_by_alert_id[flakiness_alert.id], "test_case_ids")
       assert args_by_alert_id[count_alert.id]["evaluate_recent_test_case_runs"]
       refute Map.has_key?(args_by_alert_id[count_alert.id], "test_case_ids")
+      assert args_by_alert_id[reliability_alert.id]["evaluate_recent_test_case_runs"]
+      refute Map.has_key?(args_by_alert_id[reliability_alert.id], "test_case_ids")
     end
 
     test "merges repeated enqueue calls into one scoped evaluation job per alert" do

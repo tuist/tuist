@@ -2,7 +2,9 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -575,23 +577,20 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
       base = NaiveDateTime.utc_now()
 
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case.id,
-        is_flaky: true,
-        ran_at: NaiveDateTime.add(base, -1, :hour),
-        inserted_at: NaiveDateTime.add(base, -1, :hour)
-      )
-
-      for i <- 1..245 do
-        RunsFixtures.test_case_run_fixture(
-          project_id: project.id,
-          test_case_id: test_case.id,
-          is_flaky: false,
-          ran_at: NaiveDateTime.add(base, i, :second),
-          inserted_at: NaiveDateTime.add(base, i, :second)
+      insert_test_case_runs([
+        test_case_run_attrs(project.id, test_case.id,
+          is_flaky: true,
+          ran_at: NaiveDateTime.add(base, -1, :hour),
+          inserted_at: NaiveDateTime.add(base, -1, :hour)
         )
-      end
+        | for i <- 1..245 do
+            test_case_run_attrs(project.id, test_case.id,
+              is_flaky: false,
+              ran_at: NaiveDateTime.add(base, i, :second),
+              inserted_at: NaiveDateTime.add(base, i, :second)
+            )
+          end
+      ])
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -627,23 +626,20 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
       base = NaiveDateTime.utc_now()
 
-      RunsFixtures.test_case_run_fixture(
-        project_id: project.id,
-        test_case_id: test_case.id,
-        is_flaky: true,
-        ran_at: NaiveDateTime.add(base, -1, :hour),
-        inserted_at: NaiveDateTime.add(base, -1, :hour)
-      )
-
-      for i <- 1..749 do
-        RunsFixtures.test_case_run_fixture(
-          project_id: project.id,
-          test_case_id: test_case.id,
-          is_flaky: false,
-          ran_at: NaiveDateTime.add(base, i, :second),
-          inserted_at: NaiveDateTime.add(base, i, :second)
+      insert_test_case_runs([
+        test_case_run_attrs(project.id, test_case.id,
+          is_flaky: true,
+          ran_at: NaiveDateTime.add(base, -1, :hour),
+          inserted_at: NaiveDateTime.add(base, -1, :hour)
         )
-      end
+        | for i <- 1..749 do
+            test_case_run_attrs(project.id, test_case.id,
+              is_flaky: false,
+              ran_at: NaiveDateTime.add(base, i, :second),
+              inserted_at: NaiveDateTime.add(base, i, :second)
+            )
+          end
+      ])
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -766,5 +762,34 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
       assert test_case_id in triggered
     end
+  end
+
+  defp insert_test_case_runs(rows) do
+    IngestRepo.insert_all(TestCaseRun, rows)
+  end
+
+  defp test_case_run_attrs(project_id, test_case_id, attrs) do
+    %{
+      id: UUIDv7.generate(),
+      test_run_id: UUIDv7.generate(),
+      test_module_run_id: UUIDv7.generate(),
+      test_case_id: test_case_id,
+      project_id: project_id,
+      account_id: Keyword.get(attrs, :account_id),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      scheme: Keyword.get(attrs, :scheme, ""),
+      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      git_commit_sha: Keyword.get(attrs, :git_commit_sha, ""),
+      module_name: Keyword.get(attrs, :module_name, "MyTests"),
+      suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
+      name: Keyword.get(attrs, :name, "testExample"),
+      status: Keyword.get(attrs, :status, 0),
+      is_flaky: Keyword.get(attrs, :is_flaky, false),
+      is_new: Keyword.get(attrs, :is_new, false),
+      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
+      duration: Keyword.get(attrs, :duration, 100),
+      ran_at: Keyword.fetch!(attrs, :ran_at),
+      inserted_at: Keyword.fetch!(attrs, :inserted_at)
+    }
   end
 end

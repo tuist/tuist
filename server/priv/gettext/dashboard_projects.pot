@@ -1442,5 +1442,5 @@ msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.ex:699
 #, elixir-autogen, elixir-format
-msgid "When test reliability %{symbol} %{threshold}% over %{window}"
+msgid "When test reliability across branches %{symbol} %{threshold}% over %{window}"
 msgstr ""
