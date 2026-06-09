@@ -383,6 +383,10 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
+    # Routes runner `docker pull`s through the in-cluster pull-through
+    # cache. Staging goes first: the deployed controller already ships
+    # `--registry-mirror-url` (0.12.0) and the cache is healthy here.
+    registryMirror: true
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #
