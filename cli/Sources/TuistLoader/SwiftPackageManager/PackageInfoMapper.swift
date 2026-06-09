@@ -1128,12 +1128,36 @@ extension ProjectDescription.DeploymentTargets {
                 tvOS: "11.0",
                 visionOS: "1.0"
             )
-        } else {
+        } else if swiftVersion < Version(6, 0, 0) {
             return .multiplatform(
                 iOS: "12.0",
                 macOS: "10.13",
                 watchOS: "4.0",
                 tvOS: "12.0",
+                visionOS: "1.0"
+            )
+        } else if swiftVersion < Version(6, 2, 0) {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "10.13",
+                watchOS: "7.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        } else if swiftVersion < Version(6, 4, 0) {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "11.0",
+                watchOS: "8.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
+        } else {
+            return .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
                 visionOS: "1.0"
             )
         }
