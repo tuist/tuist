@@ -19,6 +19,11 @@ metadata:
     app.kubernetes.io/managed-by: helm
   annotations:
     tailscale.com/tailnet-fqdn: "ops.tuist.ts.net"
+    # Without this the operator defaults to `tag:k8s`, which the
+    # OAuth client doesn't have permission to mint. Match the env's
+    # cluster tag set in
+    # infra/helm/tailscale-operator/values-<env>.yaml.
+    tailscale.com/tags: "tag:tuist-k8s-{{ .Values.tuistEnv }}"
 spec:
   # ExternalName is the trigger Tailscale's operator watches for.
   # The value is a placeholder; the operator rewrites it once the
