@@ -113,7 +113,7 @@ only surfaces in production.
 | **0 — Foundation + rocksdb spike. ✅ Done** | `MODULE.bazel`, `.bazelrc`, `rules_rust`, `crate_universe` from `Cargo.toml`/`Cargo.lock`, hermetic Rust + cc toolchain, Bookworm sysroot. Produce a working **host (x86 Linux)** binary. | No | `rocksdb`/`mlua`/`jemalloc`/`ring` compile under Bazel; startup smoke + `bazel test` work. **Gate cleared — rocksdb builds hermetically.** (Milestones 0.1–0.6 below.) |
 | **1a — Linux x86_64 tarball** | Native build, `pkg_tar` + sha256/sha512 matching the current artifact layout. | Yes (per-target flip) | Bazel tarball passes the same checks as the Cargo one; e2e shellspec green; binary runs inside `debian:bookworm-slim`. |
 | **1b — Linux arm64 tarball (cross)** | The Bookworm cross sysroot for `aarch64`. | Yes (per-target flip) | arm64 binary cross-built from x86, verified on real arm hardware and inside Bookworm. |
-| **2 — macOS tarballs** | Bazel on `tuist-macos` for both darwin targets. | Optional / deferrable | macOS isn't on the image critical path; may stay on Cargo indefinitely. |
+| **2 — macOS tarballs** | Bazel on `tuist-macos` (no Docker) for both darwin targets. | Optional / deferrable | macOS isn't on the image critical path; may stay on Cargo indefinitely. Native build proven (0.7), x86_64 cross de-risked by the cargo flow — ≈1 day. See "Phase 2 — macOS tarballs" below. |
 | **3 — OCI image (the win)** | `rules_oci` wrapping the Phase 1 Linux binaries, `oci_image_index`, `oci_push`. geoip becomes a pinned layer. Delete QEMU / Buildx / `build-push-action`. | Yes | Image runs on both arches, e2e green, then flip tags. |
 | **4 — Remote cache** | Point Bazel at a remote cache (ideally Kura itself — dogfooding). | Yes | Speeds rebuilds; **dogfooding Kura surfaced two REAPI bugs** (see 4b) — not purely optional. |
 
@@ -340,6 +340,60 @@ release-workflow changes, the remote cache (Phase 4), and full unit-test parity.
 under `crate_universe` within the spike, **stop and revisit the approach** (e.g.
 wrapping rocksdb as a `cc_library` via `rules_foreign_cc`, or reconsidering Bazel vs.
 Buck2) before investing in Phase 1.
+
+### Phase 2 — macOS tarballs
+
+Ship the two darwin release binaries (`x86_64-apple-darwin`, `aarch64-apple-darwin`)
+from Bazel instead of `cargo build`, on the self-hosted `tuist-macos` runners (which
+have **no Docker**). Not started, but most of the risk is already retired.
+
+**Status: not started. Effort ≈ 1 day (low–medium).** This is off the OCI image's
+critical path (the image is Linux-only — Phase 3), so it's the lowest-priority piece;
+the cargo darwin legs work fine today and a mixed release (Bazel Linux + cargo darwin)
+is fine because the binaries and image jobs are decoupled.
+
+**What already shrinks the effort**
+
+- **Native macOS build is proven (0.7).** `bazel build //:kura` and
+  `bazel test //:kura_lib_test` build and pass natively on Apple silicon, and the one
+  real gotcha is already fixed in `.bazelrc` (`--macos_minimum_os=11.0` +
+  `--host_macos_minimum_os=11.0` so rocksdb's C++17 aligned `new`/`delete` compiles).
+- **The current cargo release already cross-compiles `x86_64-apple-darwin` from the
+  arm64 `tuist-macos` host.** Both darwin legs of `release-kura-binaries` `runs-on:
+  tuist-macos` and do `rustup target add x86_64-apple-darwin && cargo build --target
+  x86_64-apple-darwin`. So cross-compiling the `-sys` crates (rocksdb, jemalloc, mlua,
+  ring) to x86_64 on Apple silicon is **already solved on this exact hardware** — Bazel
+  uses the same Apple clang and the same build scripts, so the cross is very likely to
+  work; it just needs validating. This is the single biggest unknown, and the cargo
+  precedent de-risks it.
+- **No Docker makes the darwin job *simpler* than the Linux ones.** Bazel runs directly
+  on the runner via mise/bazelisk (already pinned), using the autodetected Xcode cc
+  toolchain. There is **no dev container, no cross-GCC toolchain, no Kura sidecar, and no
+  graceful-stop dance** — none of the machinery the Linux jobs need.
+
+**Work items**
+
+| Piece | Effort | Notes |
+|---|---|---|
+| `MODULE.bazel`: add `x86_64-apple-darwin` + `aarch64-apple-darwin` to `extra_target_triples` | ~30 min | the rust toolchain re-resolves darwin stdlibs → regenerate `MODULE.bazel.lock` |
+| `//bazel/platforms`: add `darwin_arm64` + `darwin_x86_64` | ~15 min | mirror the `linux_*` platform targets (`@platforms//os:macos` + cpu) |
+| CI/release job on `tuist-macos` | 2–4 hrs | native arm64 + cross x86_64; package `kura-<target>.tar.gz` + `sha256.txt`/`sha512.txt` to match the existing `release-kura-binaries` layout exactly (`tar -C <out> kura`; `shasum -a 256/512`) |
+| Validate the x86_64-darwin cross under Bazel + tarball parity | 2–4 hrs | the only real unknown — de-risked by the cargo precedent above |
+
+**Caching.** `tuist-macos` is the persistent self-hosted Mac fleet (used across
+`cli.yml`/`app.yml`/`server.yml`), so Bazel's on-disk action cache and repository cache
+persist across runs **for free** — no `actions/cache` and **no Kura sidecar** needed. If
+those runners are ever ephemeral, fall back to `--disk_cache` + `actions/cache` (still
+simpler than the Linux Kura setup). Note there's **no Kura-dogfooding benefit on darwin**:
+there's no container sidecar to run Kura in, and darwin action keys are disjoint from the
+Linux keys, so a shared cache would never be warmed by the Linux jobs. Build-system
+unification is the only payoff here.
+
+**Recommendation.** Fold into Stage B (release binaries). It can be split: **native
+arm64-darwin is a few hours and essentially proven**; the **x86_64-darwin cross is the
+only validation work**. A cheap first step is a throwaway `tuist-macos` job that just
+`bazel build //:kura --platforms=//bazel/platforms:darwin_x86_64 -c opt` — that single
+experiment retires the only real unknown and confirms the ~1-day estimate.
 
 ### Phase 3 — OCI image
 
