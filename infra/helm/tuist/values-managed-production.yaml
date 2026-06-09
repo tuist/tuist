@@ -213,8 +213,8 @@ cache:
     registryBucket: tuist-registry
 
 # Docker Hub pull-through cache. Reuses the production object-storage
-# bucket under a `docker-mirror` prefix. Deployed but inert until
-# runnersController.features.registryMirror is flipped on (below).
+# bucket under a `docker-mirror` prefix. Runner `docker pull`s route
+# through it (runnersController.features.registryMirror below).
 registryCache:
   enabled: true
   proxy:
@@ -425,14 +425,7 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
-    # Routes runner `docker pull`s through the in-cluster pull-through
-    # cache (above). Flip to true ONLY once the deployed controller image
-    # is a release that ships `--registry-mirror-url`, AND only after
-    # canary has run on it — production is the high-throughput fleet where
-    # the fleet churn from this pod-template change is heaviest. The dind
-    # image is already off Docker Hub (ECR Public), so the churn's
-    # sidecar-image re-pull no longer spends the Docker Hub budget.
-    registryMirror: false
+    registryMirror: true
 
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
