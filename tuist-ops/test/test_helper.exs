@@ -4,6 +4,7 @@ alias Ecto.Adapters.SQL.Sandbox
 # Tailscale HTTP, env var reads). Mirrors server's test_helper
 # shape so tests can stub via `stub(Module, :fun, fn ... -> ... end)`.
 Mimic.copy(TuistOps.Environment)
+Mimic.copy(TuistOps.JIT.Approvals)
 Mimic.copy(TuistOps.JIT.SlackClient)
 Mimic.copy(TuistOps.JIT.TailscaleClient)
 Mimic.copy(Req)
