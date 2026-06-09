@@ -323,6 +323,11 @@ local function authenticate_via_introspection_endpoint(token, authorization, tar
       }
     end
 
+    -- Legacy CLI compatibility: older clients can hold a token whose
+    -- embedded grants predate a newly-created project. The server's
+    -- /api/cache/access path still authorizes those project-scoped
+    -- requests, so keep this fallback until those CLI versions are no
+    -- longer supported.
     if target.scope == "project" then
       return authenticate_via_cache_access_endpoint(authorization)
     end
