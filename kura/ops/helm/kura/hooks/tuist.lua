@@ -289,6 +289,10 @@ local function grant_allows(grants, scope, action, identifier)
   return false
 end
 
+local function grants_allow_target(grants, target, action)
+  return grants_present(grants) and grant_allows(grants, target.scope, action, target.identifier)
+end
+
 local function introspection_client_configured()
   local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
   local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
@@ -298,7 +302,7 @@ end
 
 local authenticate_via_cache_access_endpoint
 
-local function authenticate_via_introspection_endpoint(token, authorization, target)
+local function authenticate_via_introspection_endpoint(token, authorization, target, action)
   local client_id = env_value("KURA_CONTROL_PLANE_CLIENT_ID") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
   local client_secret = env_value("KURA_CONTROL_PLANE_CLIENT_SECRET") or env_value("KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET")
   local response = kura.http_json("tuist", {
@@ -313,21 +317,28 @@ local function authenticate_via_introspection_endpoint(token, authorization, tar
 
   if response.status == 200 and response.body then
     if response.body.active == true then
+      local grants = cache_grants(response.body)
+
+      -- Legacy CLI compatibility: older clients can hold a token whose
+      -- embedded grants predate a newly-created project. Introspection can
+      -- also surface grant sets that do not prove the requested project action.
+      -- The server's /api/cache/access path still authorizes those
+      -- project-scoped requests, so keep this fallback until those CLI versions
+      -- are no longer supported.
+      if target.scope == "project" and not grants_allow_target(grants, target, action) then
+        return authenticate_via_cache_access_endpoint(authorization)
+      end
+
       return {
         principal = principal_from_grants(
           response.body.sub,
           response.body.principal_kind,
-          cache_grants(response.body)
+          grants
         ),
         ttl_seconds = 60,
       }
     end
 
-    -- Legacy CLI compatibility: older clients can hold a token whose
-    -- embedded grants predate a newly-created project. The server's
-    -- /api/cache/access path still authorizes those project-scoped
-    -- requests, so keep this fallback until those CLI versions are no
-    -- longer supported.
     if target.scope == "project" then
       return authenticate_via_cache_access_endpoint(authorization)
     end
@@ -404,7 +415,7 @@ function authenticate(ctx)
     local grants = cache_grants(claims)
     local action = request_action(ctx)
 
-    if grants_present(grants) and grant_allows(grants, target.scope, action, target.identifier) then
+    if grants_allow_target(grants, target, action) then
       return {
         principal = principal_from_grants(claims.sub, claims.type, grants),
         ttl_seconds = 60,
@@ -428,7 +439,7 @@ function authenticate(ctx)
   end
 
   if introspection_client_configured() then
-    return authenticate_via_introspection_endpoint(token, authorization, target)
+    return authenticate_via_introspection_endpoint(token, authorization, target, request_action(ctx))
   end
 
   if target.scope == "project" then
