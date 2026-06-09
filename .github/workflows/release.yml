@@ -92,7 +92,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: macos-26
-    timeout-minutes: 50
+    timeout-minutes: 75
     permissions:
       contents: write
       id-token: write
@@ -235,8 +235,6 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Install create-dmg
         run: brew install create-dmg
       - uses: jdx/mise-action@v4.0.1
@@ -324,8 +322,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -403,7 +399,7 @@ jobs:
           ./gradlew publishReleaseBundle
 
   release-server:
-    name: Release Server
+    name: Release Server (amd64)
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
     # Bigger shape: the server image build (Elixir release compile inside
@@ -416,6 +412,7 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
+      image-digest: ${{ steps.build.outputs.digest }}
       release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
@@ -457,21 +454,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push amd64 image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./server/Dockerfile
           target: runner
-          push: true
+          platforms: linux/amd64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
-          tags: |
-            ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}
-            ghcr.io/tuist/tuist:latest
 
       - name: Upload Server artifacts
         id: upload
@@ -481,6 +477,75 @@ jobs:
           path: |
             server/CHANGELOG.md
           retention-days: 1
+
+  release-server-arm64-image:
+    name: Release Server (arm64)
+    needs: check-releases
+    if: needs.check-releases.outputs.server-should-release == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push arm64 image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          platforms: linux/arm64
+          outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-buildcache:release-server-arm64,mode=max
+
+  release-server-manifest:
+    name: Release Server manifest
+    needs: [check-releases, release-server, release-server-arm64-image]
+    if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success' && needs.release-server-arm64-image.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      IMAGE: ghcr.io/tuist/tuist
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${{ needs.check-releases.outputs.server-next-version-number }}" \
+            --tag "${IMAGE}:latest" \
+            "${IMAGE}@${{ needs.release-server.outputs.image-digest }}" \
+            "${IMAGE}@${{ needs.release-server-arm64-image.outputs.image-digest }}"
+
+          docker buildx imagetools inspect "${IMAGE}:${{ needs.check-releases.outputs.server-next-version-number }}"
 
   release-cache:
     name: Release Cache
@@ -1805,6 +1870,7 @@ jobs:
         release-ios,
         release-android,
         release-server,
+        release-server-manifest,
         release-cache,
         release-kura-prepare,
         release-kura-binaries,
@@ -1850,21 +1916,30 @@ jobs:
           name: cli-artifacts
 
       - name: Download CLI Linux x86_64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
 
       - name: Download CLI Linux aarch64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
 
       - name: Merge Linux artifacts into build directory
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         run: |
           # Append Linux checksums to main checksum files
           cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
@@ -2047,6 +2122,13 @@ jobs:
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+            # Anchor the repository with `$` so it matches the kuraRuntime
+            # pin and not the kuraController one (ghcr.io/tuist/kura-controller).
+            sed -i '/repository: ghcr.io\/tuist\/kura$/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.kura-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
           if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
             # The hetzner-robot-controller image pin lives in the
             # mgmt-cluster raw manifest, not in values-managed-common
@@ -2085,7 +2167,7 @@ jobs:
           if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.app-next-version }}
           fi
-          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
             git tag ${{ needs.check-releases.outputs.server-next-version }}
           fi
           if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then
@@ -2156,7 +2238,7 @@ jobs:
             app/build/artifacts/Tuist.dmg
 
       - name: Create Server GitHub Release
-        if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success'
+        if: needs.check-releases.outputs.server-should-release == 'true' && needs.release-server.result == 'success' && needs.release-server-manifest.result == 'success'
         uses: softprops/action-gh-release@v2
         with:
           draft: false
@@ -2332,7 +2414,7 @@ jobs:
             FILES_ADDED=true
           fi
 
-          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+          if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
             git add server/CHANGELOG.md
             FILES_ADDED=true
           fi
@@ -2343,7 +2425,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
-            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock
+            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
 
@@ -2439,7 +2521,7 @@ jobs:
               if [ "${{ needs.check-releases.outputs.app-should-release }}" == "true" ] && [ "${{ needs.release-app.result }}" == "success" ] && [ "${{ needs.release-ios.result }}" == "success" ] && [ "${{ needs.release-android.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist App ${{ needs.check-releases.outputs.app-next-version }}"
               fi
-              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ]; then
+              if [ "${{ needs.check-releases.outputs.server-should-release }}" == "true" ] && [ "${{ needs.release-server.result }}" == "success" ] && [ "${{ needs.release-server-manifest.result }}" == "success" ]; then
                 COMMIT_MSG="$COMMIT_MSG Tuist Server ${{ needs.check-releases.outputs.server-next-version }}"
               fi
               if [ "${{ needs.check-releases.outputs.cache-should-release }}" == "true" ] && [ "${{ needs.release-cache.result }}" == "success" ]; then

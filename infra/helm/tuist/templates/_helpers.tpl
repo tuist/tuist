@@ -234,6 +234,11 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 {{- printf "%s-ro" (include "tuist.cnpgClusterName" .) -}}
 {{- end -}}
 
+{{/* CNPG names the Pooler's Service after the Pooler CR's metadata.name. */}}
+{{- define "tuist.cnpgServicePooler" -}}
+{{- printf "%s-pooler-rw" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}

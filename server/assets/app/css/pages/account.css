@@ -2,7 +2,7 @@
 #members {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-9);
+  gap: var(--noora-spacing-10);
 
   & > [data-part="title"],
   & > [data-part="row"] > [data-part="title"] {
@@ -43,7 +43,7 @@
   & > [data-part="all-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-9);
+    gap: var(--noora-spacing-7);
   }
 
   & > [data-part="recent-section"] > [data-part="section-title"],

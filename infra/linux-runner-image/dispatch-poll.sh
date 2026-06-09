@@ -123,6 +123,13 @@ while true; do
         exit 0
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Forensic vitals (rollout-bridge single-container mode only; the
+      # split Pod shape runs vitals from run-job.sh). Backgrounded so it
+      # survives the exec and its last sample before a mid-job death
+      # lands in the Pod logs. Guarded so a missing script never blocks.
+      if [ -x /usr/local/bin/vitals.sh ]; then
+        /usr/local/bin/vitals.sh &
+      fi
       # `--jitconfig` makes the runner ephemeral (one job + exit).
       # `--disableupdate` pins to whatever runner version is baked
       # into the image; Renovate bumps RUNNER_VERSION in the
@@ -130,6 +137,11 @@ while true; do
       # pipeline turns into a fresh image + digest bump in helm
       # values. Auto-update would silently swap the runner mid-Pod
       # and race with GitHub's deprecation cadence on cold boot.
+      #
+      # Logs are captured server-side from GitHub's Actions Logs
+      # API on `workflow_job: completed` (see
+      # `Tuist.Runners.Workers.FetchLogsWorker`); the runner Pod
+      # writes nothing to the ingest path.
       exec ./run.sh --jitconfig "${jit}" --disableupdate
       ;;
     204)

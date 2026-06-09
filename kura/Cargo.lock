@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "kura"
-version = "0.6.1"
+version = "0.7.4"
 dependencies = [
  "axum",
  "axum-server",
@@ -1371,6 +1371,8 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
+ "httparse",
+ "hyper",
  "hyper-util",
  "jsonwebtoken",
  "libc",

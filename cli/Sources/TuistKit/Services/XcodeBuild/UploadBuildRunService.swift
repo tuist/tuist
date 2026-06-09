@@ -14,6 +14,7 @@ import TuistMachineMetrics
 import TuistServer
 import TuistSupport
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 
 enum UploadBuildRunServiceError: Equatable, LocalizedError {
     case missingFullHandle
@@ -48,6 +49,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let gitController: GitControlling
     private let ciController: CIControlling
+    private let generationMetadataStore: GenerationMetadataStoring
+    private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
@@ -57,7 +60,9 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         uploadBuildService: UploadBuildServicing = UploadBuildService(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         gitController: GitControlling = GitController(),
-        ciController: CIControlling = CIController()
+        ciController: CIControlling = CIController(),
+        generationMetadataStore: GenerationMetadataStoring = GenerationMetadataStore(),
+        xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator()
     ) {
         self.fileSystem = fileSystem
         self.machineEnvironment = machineEnvironment
@@ -67,6 +72,8 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         self.serverEnvironmentService = serverEnvironmentService
         self.gitController = gitController
         self.ciController = ciController
+        self.generationMetadataStore = generationMetadataStore
+        self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
     }
 
     @discardableResult
@@ -83,6 +90,11 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
         }
 
         let buildId = activityLogPath.basenameWithoutExt
+        // Resolve the generated workspace so the key matches what `tuist generate` persisted, whether
+        // the build entry point handed us the workspace (inspect build, xcodebuild build -workspace)
+        // or a directory (bare xcodebuild build). `projectPath` itself stays the build's location.
+        let generationWorkspacePath = (try? await xcodeProjectOrWorkspacePathLocator.locate(from: projectPath)) ?? projectPath
+        let generationId = try? await generationMetadataStore.read(for: generationWorkspacePath)
 
         let build: ServerBuild = try await fileSystem.runInTemporaryDirectory(prefix: "build") { tempDirectory in
             let archivePath = try await bundleBuild(
@@ -103,6 +115,7 @@ public struct UploadBuildRunService: UploadBuildRunServicing {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 id: buildId,
+                generationId: generationId,
                 category: .incremental,
                 configuration: configuration ?? Environment.current.variables["CONFIGURATION"],
                 customMetadata: customMetadata,

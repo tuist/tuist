@@ -82,4 +82,37 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       end
     end
   end
+
+  describe "live_pod_names/0" do
+    test "returns the pod_names of sessions whose ended_at is nil" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-open-1", ended_at: nil)
+      session_fixture(account, pod_name: "pod-open-2", ended_at: nil)
+      session_fixture(account, pod_name: "pod-closed", ended_at: DateTime.utc_now())
+
+      names = RunnerSessions.live_pod_names()
+
+      assert MapSet.member?(names, "pod-open-1")
+      assert MapSet.member?(names, "pod-open-2")
+      refute MapSet.member?(names, "pod-closed")
+    end
+
+    test "deduplicates pod_names across multiple open sessions for the same pod" do
+      # Re-claims insert new RunnerSession rows for the same pod_name
+      # (see the module doc). The protect-set is a MapSet of names, so
+      # the duplicate must collapse cleanly.
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-reclaim", ended_at: nil)
+      session_fixture(account, pod_name: "pod-reclaim", ended_at: nil)
+
+      assert MapSet.size(RunnerSessions.live_pod_names()) == 1
+    end
+
+    test "returns an empty set when no sessions are open" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-already-closed", ended_at: DateTime.utc_now())
+
+      assert MapSet.equal?(RunnerSessions.live_pod_names(), MapSet.new())
+    end
+  end
 end

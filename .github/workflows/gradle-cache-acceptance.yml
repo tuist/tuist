@@ -85,30 +85,12 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: android-actions/setup-android@v3
-      - name: Restore server deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
       - name: Install server deps
         working-directory: server
         run: mix deps.get
       - name: Start ClickHouse
         working-directory: server
         run: mise run --no-deps clickhouse:start
-      - name: Restore cache deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            cache/deps
-            cache/_build
-          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
-          restore-keys: |
-            cache-mix-
       - name: Install cache deps
         working-directory: cache
         run: mix deps.get
@@ -121,13 +103,30 @@ jobs:
           # below: on a cold _build cache this does a full compile, and at 4
           # workers the in-flight module copies OOM the runner from inside the
           # guest ("lost communication").
+          log_file=/tmp/setup-main-server.log
           ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix do \
             compile, \
             ecto.create, \
             run priv/repo/timezone.exs, \
             ecto.load, \
             ecto.migrate, \
-            run priv/repo/seeds.exs
+            run priv/repo/seeds.exs > "$log_file" 2>&1 &
+          setup_pid=$!
+          while kill -0 "$setup_pid" 2>/dev/null; do
+            echo "Waiting for main server setup..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$setup_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- setup-main-server.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Main server setup completed"
       - name: Start main server
         working-directory: server
         run: |
@@ -159,14 +158,21 @@ jobs:
       - name: Start cache server
         working-directory: cache
         run: |
-          MIX_ENV=dev mix phx.server &
+          nohup bash -c 'ELIXIR_ERL_OPTIONS="+S 1" MIX_ENV=dev mix phx.server' >/tmp/cache-server.log 2>&1 &
+          disown
           cache_port="${TUIST_CACHE_PORT:-8087}"
-          for i in {1..30}; do
+          for i in {1..180}; do
             if nc -z localhost "$cache_port" 2>/dev/null; then
-              echo "Cache server is ready"
+              echo "Cache server is listening on :${cache_port} after ${i} attempts"
               break
             fi
-            echo "Waiting for cache server... ($i/30)"
+            if [ "$i" = "180" ]; then
+              echo "Cache server never came up on :${cache_port}" >&2
+              echo "--- cache-server.log tail ---" >&2
+              tail -50 /tmp/cache-server.log >&2
+              exit 1
+            fi
+            echo "Waiting for cache server... ($i/180)"
             sleep 2
           done
       - name: Run Gradle cache acceptance test

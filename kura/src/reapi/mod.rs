@@ -1,4 +1,11 @@
-use std::{collections::BTreeMap, future::Future, pin::Pin, time::Duration};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
 
 use bazel_remote_apis::{
     build::bazel::{
@@ -20,7 +27,9 @@ use bazel_remote_apis::{
         rpc::Status as RpcStatus,
     },
 };
-use futures_util::StreamExt;
+use bytes::Bytes;
+use futures_util::{StreamExt, future::BoxFuture};
+use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
 use tokio::net::TcpListener;
@@ -28,22 +37,28 @@ use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::io::ReaderStream;
 use tonic::{
     Request, Response, Status,
+    body::Body as TonicBody,
+    codegen::{Body as HttpBody, Service, http},
     transport::{Identity, Server, ServerTlsConfig},
 };
+use tower::Layer;
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     config::GrpcTlsConfig,
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
+    io::is_fd_pool_exhausted_error,
     replication::replication_targets,
     state::SharedState,
     utils::{action_cache_key, blob_key, temp_file_path},
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
-const REAPI_READ_STREAM_CHUNK_BYTES: usize = 256 * 1024;
+const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+type BoxError = Box<dyn Error + Send + Sync + 'static>;
+type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
 #[derive(Clone)]
 pub struct ReapiService {
@@ -65,7 +80,9 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let tls = state.config.grpc_tls.clone();
-    let service = ReapiService { state };
+    let service = ReapiService {
+        state: state.clone(),
+    };
     let capabilities = CapabilitiesServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let action_cache = ActionCacheServer::new(service.clone()).max_decoding_message_size(64 << 20);
     let cas =
@@ -74,7 +91,8 @@ where
 
     let mut builder = Server::builder()
         .max_connection_age(Duration::from_secs(300))
-        .max_connection_age_grace(Duration::from_secs(300));
+        .max_connection_age_grace(Duration::from_secs(300))
+        .layer(GrpcRequestAccountingLayer { state });
     if let Some(tls) = tls {
         builder = builder
             .tls_config(load_grpc_tls_config(&tls).await?)
@@ -89,6 +107,72 @@ where
         .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await
         .map_err(|error| format!("gRPC server error: {error}"))
+}
+
+#[derive(Clone)]
+struct GrpcRequestAccountingLayer {
+    state: SharedState,
+}
+
+impl<S> Layer<S> for GrpcRequestAccountingLayer {
+    type Service = GrpcRequestAccountingService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        GrpcRequestAccountingService {
+            inner,
+            state: self.state.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct GrpcRequestAccountingService<S> {
+    inner: S,
+    state: SharedState,
+}
+
+impl<S, ResBody> Service<http::Request<TonicBody>> for GrpcRequestAccountingService<S>
+where
+    S: Service<http::Request<TonicBody>, Response = http::Response<ResBody>> + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Send + 'static,
+    ResBody: HttpBody<Data = Bytes> + Send + 'static,
+    ResBody::Error: Into<BoxError> + 'static,
+{
+    type Response = http::Response<GrpcAccountingBody>;
+    type Error = S::Error;
+    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: http::Request<TonicBody>) -> Self::Future {
+        let started_at = Instant::now();
+        let route = request.uri().path().to_owned();
+        let guard = self.state.start_grpc_request();
+        let state = self.state.clone();
+        let future = self.inner.call(request);
+        Box::pin(async move {
+            let response = future.await?;
+            // Sample latency once the response is ready, before the body
+            // streams, so long ByteStream reads do not inflate the signal.
+            state.runtime.record_public_request_latency(
+                &state.metrics,
+                "grpc",
+                &route,
+                started_at.elapsed(),
+            );
+            Ok(response.map(|body| {
+                body.map_frame(move |frame| {
+                    let _guard = &guard;
+                    frame
+                })
+                .map_err(|error| -> BoxError { error.into() })
+                .boxed_unsync()
+            }))
+        })
+    }
 }
 
 async fn load_grpc_tls_config(tls: &GrpcTlsConfig) -> Result<ServerTlsConfig, String> {
@@ -166,7 +250,6 @@ impl Capabilities for ReapiService {
         &self,
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
@@ -220,7 +303,6 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::GetActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -312,7 +394,6 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -370,7 +451,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::FindMissingBlobsRequest>,
     ) -> Result<Response<reapi::FindMissingBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -410,7 +490,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -464,7 +543,6 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchReadBlobsRequest>,
     ) -> Result<Response<reapi::BatchReadBlobsResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -547,7 +625,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::ReadRequest>,
     ) -> Result<Response<Self::ReadStream>, Status> {
-        let request_guard = self.state.start_grpc_request();
         let resource = parse_read_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.read",
@@ -618,7 +695,6 @@ impl ByteStream for ReapiService {
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
         let stream =
             ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
-                let _keep_guard_alive = &request_guard;
                 match result {
                     Ok(bytes) => Ok(bytestream::ReadResponse {
                         data: bytes.to_vec(),
@@ -639,7 +715,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.write",
             operation: "artifact.write",
@@ -736,6 +811,18 @@ impl ByteStream for ReapiService {
             ));
         }
 
+        // Flush tokio's internal write buffer to the OS and close the write handle before
+        // the blob is persisted. persist_artifact_from_path re-opens this path on a
+        // separate descriptor to stat and copy it into a segment; without an explicit
+        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
+        // append fails with "appended N bytes, expected M" — which silently breaks remote
+        // caching of any action that uploads many blobs concurrently (e.g. cargo build
+        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
+        tokio::io::AsyncWriteExt::flush(&mut temp_file)
+            .await
+            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+        drop(temp_file);
+
         let targets = replication_targets(&self.state).await;
         let manifest = self
             .state
@@ -749,7 +836,15 @@ impl ByteStream for ReapiService {
                 &targets,
             )
             .await
-            .map_err(|error| Status::internal(format!("failed to persist CAS blob: {error}")))?;
+            .map_err(|error| {
+                if is_fd_pool_exhausted_error(&error) {
+                    Status::resource_exhausted(format!(
+                        "file descriptor pool exhausted while persisting CAS blob: {error}"
+                    ))
+                } else {
+                    Status::internal(format!("failed to persist CAS blob: {error}"))
+                }
+            })?;
         self.state.notify.notify_one();
         self.state
             .metrics
@@ -778,7 +873,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<bytestream::QueryWriteStatusRequest>,
     ) -> Result<Response<bytestream::QueryWriteStatusResponse>, Status> {
-        let _request_guard = self.state.start_grpc_request();
         let resource = parse_write_resource_name(&request.get_ref().resource_name)?;
         let extension = GrpcExtensionSpec {
             route: "reapi.bytestream.query_write_status",
@@ -1151,7 +1245,12 @@ fn parse_blob_resource_name(
     } else {
         namespace_parts.join("/")
     };
-    let key = format!("{hash}/{size_bytes}");
+    // Key CAS blobs the same way as the digest-based paths (FindMissingBlobs,
+    // BatchUpdateBlobs, BatchReadBlobs) which use `blob_key(&digest_key(..))` =
+    // "blob/{hash}/{size}". Without the `blob/` prefix, blobs uploaded via ByteStream were
+    // stored under "{hash}/{size}" and were invisible to FindMissingBlobs, so REAPI clients
+    // (e.g. Bazel) treated the produced outputs as missing and re-executed the action.
+    let key = blob_key(&format!("{hash}/{size_bytes}"));
 
     Ok(BlobResource {
         namespace_id,
@@ -1164,13 +1263,229 @@ fn parse_blob_resource_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::{convert::Infallible, time::Duration};
 
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
         test_support::test_context,
     };
+
+    #[tokio::test]
+    async fn grpc_request_accounting_layer_keeps_guard_until_response_body_drops() {
+        let context = test_context(|_| {}).await;
+        let layer = GrpcRequestAccountingLayer {
+            state: context.state.clone(),
+        };
+        let mut service = layer.layer(tower::service_fn(
+            |_request: http::Request<TonicBody>| async {
+                Ok::<_, Infallible>(http::Response::new(TonicBody::empty()))
+            },
+        ));
+
+        let response = service
+            .call(http::Request::new(TonicBody::empty()))
+            .await
+            .expect("accounting layer should pass through service response");
+
+        assert_eq!(context.state.runtime.grpc_inflight(), 1);
+        assert_eq!(context.state.runtime.public_inflight(), 1);
+
+        drop(response);
+
+        assert_eq!(context.state.runtime.grpc_inflight(), 0);
+        assert_eq!(context.state.runtime.public_inflight(), 0);
+    }
+
+    // Regression test for the missing flush in the ByteStream `write` handler. The
+    // handler streams chunks into a temp file with `write_all` and then persists it by
+    // re-opening the path on a separate descriptor (stat + copy into a segment).
+    // `tokio::fs::File` buffers writes and flushes lazily, so without an explicit flush
+    // the persist read races the flush and intermittently fails with
+    // "appended N bytes, expected M" — which silently broke remote caching of every
+    // action that uploads many blobs concurrently (notably cargo build scripts' directory
+    // outputs, e.g. librocksdb-sys). This drives the real gRPC handler with many
+    // concurrent multi-chunk uploads and asserts each persists and reads back intact.
+    #[tokio::test]
+    async fn bytestream_writes_persist_completely_under_concurrency() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let concurrency = 24u32;
+        let chunk_size = 32 * 1024;
+        let mut writers = Vec::new();
+        for index in 0..concurrency {
+            let mut client = ByteStreamClient::new(channel.clone());
+            writers.push(tokio::spawn(async move {
+                // Per-blob-distinct, multi-chunk content so each upload spans many
+                // `write_all` calls (leaving buffered bytes for the flush to race).
+                let blob: Vec<u8> = (0..384 * 1024u32)
+                    .map(|byte| byte.wrapping_mul(31).wrapping_add(index) as u8)
+                    .collect();
+                let hash = hex::encode(Sha256::digest(&blob));
+                let resource = format!("uploads/upload-{index}/blobs/{hash}/{}", blob.len());
+                let mut requests = Vec::new();
+                let mut offset = 0usize;
+                while offset < blob.len() {
+                    let end = (offset + chunk_size).min(blob.len());
+                    requests.push(bytestream::WriteRequest {
+                        resource_name: if offset == 0 {
+                            resource.clone()
+                        } else {
+                            String::new()
+                        },
+                        write_offset: offset as i64,
+                        finish_write: end == blob.len(),
+                        data: blob[offset..end].to_vec(),
+                    });
+                    offset = end;
+                }
+                let committed = client
+                    .write(tokio_stream::iter(requests))
+                    .await
+                    .expect("concurrent ByteStream write should persist")
+                    .into_inner()
+                    .committed_size;
+                assert_eq!(committed as usize, blob.len());
+                (hash, blob)
+            }));
+        }
+
+        let mut reader = ByteStreamClient::new(channel.clone());
+        for writer in writers {
+            let (hash, blob) = writer.await.expect("write task should not panic");
+            let mut stream = reader
+                .read(bytestream::ReadRequest {
+                    resource_name: format!("blobs/{hash}/{}", blob.len()),
+                    read_offset: 0,
+                    read_limit: 0,
+                })
+                .await
+                .expect("blob should be readable back")
+                .into_inner();
+            let mut roundtrip = Vec::new();
+            while let Some(chunk) = stream.message().await.expect("read chunk") {
+                roundtrip.extend_from_slice(&chunk.data);
+            }
+            assert_eq!(roundtrip, blob, "persisted blob must match the upload");
+        }
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    // Regression: a CAS blob uploaded via the ByteStream `Write` interface must be reported
+    // present by `FindMissingBlobs`. ByteStream Write/Read once keyed blobs as "{hash}/{size}"
+    // while FindMissingBlobs/BatchUpdateBlobs/BatchReadBlobs use blob_key() = "blob/{hash}/{size}",
+    // so ByteStream-uploaded blobs were invisible to FindMissingBlobs and REAPI clients (e.g.
+    // Bazel) re-executed the action that produced them. Drives the real gRPC handlers end to end.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_uploaded_blob_is_visible_to_find_missing_blobs() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+        use reapi::content_addressable_storage_client::ContentAddressableStorageClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let blob = b"kura reapi bytestream blob-key regression payload".to_vec();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+
+        // Upload via the ByteStream Write interface, exactly as a REAPI client does for CAS.
+        let committed = ByteStreamClient::new(channel.clone())
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("uploads/regression/blobs/{hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: blob.clone(),
+            }]))
+            .await
+            .expect("ByteStream write should succeed")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, len);
+
+        // FindMissingBlobs must report it PRESENT — it shares blob_key()'s namespace with Write.
+        let missing = ContentAddressableStorageClient::new(channel.clone())
+            .find_missing_blobs(reapi::FindMissingBlobsRequest {
+                instance_name: String::new(),
+                blob_digests: vec![reapi::Digest {
+                    hash: hash.clone(),
+                    size_bytes: len as i64,
+                }],
+                digest_function: 0,
+            })
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+        assert!(
+            missing.is_empty(),
+            "a ByteStream-uploaded blob must be visible to FindMissingBlobs; got {} missing",
+            missing.len()
+        );
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
 
     #[test]
     fn parses_read_resource_names_with_and_without_instance_names() {
@@ -1180,7 +1495,7 @@ mod tests {
                 namespace_id: "default".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
         assert_eq!(
@@ -1190,7 +1505,7 @@ mod tests {
                 namespace_id: "bazel/cache".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
     }
@@ -1204,7 +1519,7 @@ mod tests {
                 namespace_id: "buck/cache".into(),
                 hash: "abc".into(),
                 size_bytes: 10,
-                key: "abc/10".into(),
+                key: "blob/abc/10".into(),
             }
         );
     }

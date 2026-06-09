@@ -5,7 +5,10 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -32,7 +35,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_001,
         account_id: account.id,
-        fleet_name: "macos-xcode-26.4",
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
         repository: "tuist/tuist",
         workflow_run_id: 310_010,
         workflow_name: "Server",
@@ -57,7 +60,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_101,
         account_id: account.id,
-        fleet_name: "linux-amd64",
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
         repository: "tuist/cli",
         workflow_run_id: 311_010,
         workflow_name: "CLI",
@@ -67,7 +70,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "1234567"
       })
 
-    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
+
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_101, "tuist-runner-x")
     {:ok, _completed} = Jobs.complete(31_101, "success")
@@ -78,6 +83,502 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Linux"
     # status_badge_props maps conclusion=success → "Passed"
     assert html =~ "Passed"
+  end
+
+  test "renders the captured steps for a completed job", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_401,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_401, "tuist-runner-x")
+
+    {:ok, _completed} = Jobs.complete(31_401, "failure")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:00.000000Z],
+          completed_at: ~U[2026-05-28 10:00:05.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 2,
+          name: "Run tests",
+          status: "completed",
+          conclusion: "failure",
+          started_at: ~U[2026-05-28 10:00:05.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        }
+      ])
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+
+    assert html =~ "Steps"
+    assert html =~ "Set up job"
+    assert html =~ "Run tests"
+    # 30-second duration badge for the failing step (no fractional seconds)
+    assert html =~ "30s"
+    refute html =~ "30.0s"
+  end
+
+  test "renders the steps empty state for a job without captured steps", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_501,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/cli",
+        workflow_run_id: 315_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Lint",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
+
+    assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  test "renders captured logs on mount", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_601,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_601,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "compiling project"
+        }
+      ])
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
+
+    assert html =~ "Logs"
+    assert html =~ "compiling project"
+  end
+
+  test "refreshes the Logs tab when FetchLogsWorker broadcasts :runner_job_logs_ready",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_610,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_100,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316100/jobs/31610?tab=logs")
+    assert html =~ "No logs have been captured for this job yet."
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_610,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "after-broadcast line"
+        }
+      ])
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_610},
+      JobLogs.topic(31_610),
+      :runner_job_logs_ready
+    )
+
+    html = render(lv)
+    assert html =~ "after-broadcast line"
+    refute html =~ "No logs have been captured for this job yet."
+  end
+
+  test "shows the Download logs button after ArchiveLogsWorker broadcasts :runner_job_log_archived",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_620,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_200,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_620,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "hi"
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316200/jobs/31620?tab=logs")
+    refute html =~ "Download logs"
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_620, archived_at: DateTime.utc_now()},
+      JobLogs.topic(31_620),
+      :runner_job_log_archived
+    )
+
+    assert render(lv) =~ "Download logs"
+  end
+
+  test "expanding a step reveals only that step's logs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_602,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_602, "runner-x")
+
+    {:ok, _} = Jobs.complete(31_602, "success")
+
+    # Three GH-shaped steps: an auto "Set up job" head, a single
+    # user "Build" step delimited by `##[group]Run`, and an auto
+    # "Complete job" tail anchored to its own `started_at`. Slicing
+    # walks the marker, not the timestamps — see Tuist.Runners.JobLogs.
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 2,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:30.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:02:00.000000Z],
+          completed_at: ~U[2026-05-28 12:02:00.000000Z]
+        }
+      ])
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "Current runner version"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 2,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[group]Run build.sh"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 3,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[endgroup]"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 4,
+          ts: ~U[2026-05-28 12:00:45.000000Z],
+          message: "inside the build step"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 5,
+          ts: ~U[2026-05-28 12:02:00.000000Z],
+          message: "after the build step"
+        }
+      ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
+
+    # Expanding the Build step (number 2) shows the in-step lines
+    # but not the teardown content.
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "inside the build step"
+    refute panel =~ "after the build step"
+    refute panel =~ "Current runner version"
+  end
+
+  test "defaults to the Overview tab and selects Logs via ?tab=logs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_701,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701")
+    assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+
+    {:ok, lv2, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701?tab=logs")
+    assert has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+    refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
+  test "loads only the tail and pages older logs on demand", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_801,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # More than one page (page size is 200), so the oldest line is not
+    # in the initial tail.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_801,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "FIRST_LINE_MARKER", else: "line #{n}")
+          }
+        end
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31801?tab=logs")
+
+    refute html =~ "FIRST_LINE_MARKER"
+    assert has_element?(lv, ~s{[phx-click="load_older"]})
+
+    html_after = lv |> element(~s{[phx-click="load_older"]}) |> render_click()
+
+    assert html_after =~ "FIRST_LINE_MARKER"
+    refute has_element?(lv, ~s{[phx-click="load_older"]})
+  end
+
+  test "searches the full log, including lines outside the loaded tail", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_901,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # 250 lines (> page size). The match is on line 1, which is NOT in
+    # the initially-loaded tail — search must hit the server.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_901,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "DEEP_MATCH_TOKEN", else: "line #{n}")
+          }
+        end
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319010/jobs/31901?tab=logs")
+
+    refute html =~ "DEEP_MATCH_TOKEN"
+
+    results =
+      lv
+      |> form(~s{[data-part="logs-search-form"]}, %{search: "DEEP_MATCH_TOKEN"})
+      |> render_change()
+
+    assert results =~ "DEEP_MATCH_TOKEN"
+
+    scoped = lv |> element("#runner-log-search-results") |> render()
+    assert scoped =~ "DEEP_MATCH_TOKEN"
+    refute scoped =~ "line 200"
+  end
+
+  test "toggles timestamp visibility", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_902,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_902,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "a line"
+        }
+      ])
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
+    # Hidden by default; the icon points to the action (show) — a plain
+    # hourglass, so the hourglass-off slash path is absent.
+    assert html =~ ~s(data-show-timestamps="false")
+    assert html =~ "Timestamps"
+    refute html =~ "M3 3l18 18"
+
+    toggled = lv |> element("#logs-timestamps-button") |> render_click()
+    # Now visible; the action becomes "hide", so the icon is hourglass-off
+    # (its distinctive diagonal slash path).
+    assert toggled =~ ~s(data-show-timestamps="true")
+    assert toggled =~ "M3 3l18 18"
+  end
+
+  test "the Steps card also has a timestamps button toggling per-step timestamps", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_950,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_500,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
+    :ok = Jobs.record_running(31_950, "runner-x")
+
+    {:ok, _} = Jobs.complete(31_950, "success")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_950,
+          account_id: account.id,
+          number: 1,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        }
+      ])
+
+    # Overview tab is the default, where the Steps card lives.
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")
+
+    assert has_element?(lv, "#steps-timestamps-button")
+    assert html =~ ~s(data-show-timestamps="false")
+
+    toggled = lv |> element("#steps-timestamps-button") |> render_click()
+    assert toggled =~ ~s(data-show-timestamps="true")
   end
 
   test "raises 404 when the workflow_job_id belongs to another account", %{

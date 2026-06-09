@@ -17,7 +17,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@hourly", Tuist.Slack.Workers.ReportWorker},
     {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
     {"@hourly", Tuist.Tests.Workers.ExpireStaleTestRunsWorker},
-    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler}
+    {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
+    {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker}
   ]
 
   @hosted_only_crons [
@@ -65,9 +66,9 @@ defmodule Tuist.Oban.RuntimeConfig do
   Only `:web` may. Every other mode runs as the least-privilege
   `tuist_processor` Postgres role, which can't satisfy
   `Oban.Met.Reporter`'s leader-path `CREATE OR REPLACE FUNCTION` query
-  (see `infra/supabase/tuist-processor-role.sql`) — Reporter would
-  crash on every checkpoint. Non-`:web` pods also carry an empty
-  crontab, so a non-web leader silently halts every scheduled job.
+  (the role lacks `CREATE` on the schema) — Reporter would crash on
+  every checkpoint. Non-`:web` pods also carry an empty crontab, so a
+  non-web leader silently halts every scheduled job.
   """
   def peer_eligible?(:web), do: true
   def peer_eligible?(_), do: false

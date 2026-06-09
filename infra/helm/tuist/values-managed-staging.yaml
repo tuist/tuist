@@ -92,6 +92,29 @@ objectStorage:
     buckets:
       default: tuist-stag-storage
 
+cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
+  s3:
+    bucket: tuist-stag-storage
+    xcodeCacheBucket: tuist-xcode-cache-staging
+    registryBucket: ""
+
+# Docker Hub pull-through cache. Reuses the staging object-storage bucket
+# under a `docker-mirror` prefix.
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-stag-storage
+    rootDirectory: docker-mirror
+
 # CloudNativePG cluster — staging shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Each instance is a streaming replica
 # holding the whole DB, so the size is per-replica capacity, not a
@@ -113,6 +136,34 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # PostgreSQL config sized against the 4 GiB memory limit below. CNPG
+    # otherwise leaves Postgres on its 128 MiB shared_buffers default;
+    # mirror the production tuning shape so canary catches any regression
+    # before it reaches prod.
+    parameters:
+      shared_buffers: "1GB"
+      effective_cache_size: "3GB"
+      work_mem: "16MB"
+      maintenance_work_mem: "256MB"
+    # See values.yaml for why this is a list at the CR level instead of
+    # an entry under `parameters`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
+    # Route the processor through the transaction-mode PgBouncer pooler so
+    # this soak env matches production's post-CNPG-cutover topology
+    # (processor pooled, web tier direct on -rw). CNPG's built-in
+    # integration manages the PgBouncer auth — no manual bootstrap; see
+    # infra/cnpg/README.md.
+    pooler:
+      enabled: true
+      # See values-managed-production.yaml for the rationale. Staging
+      # has its own tailnet, so the tag is the staging-scoped one
+      # (`tag:tuist-k8s-staging`) — the operator's OAuth client there
+      # is only allowed to mint nodes with that tag.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-staging
+        tags: tag:tuist-k8s-staging
     storage:
       size: "10Gi"
     resources:
@@ -126,13 +177,6 @@ postgresql:
       destinationPath: s3://tuist-stag-pg-backups/
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`. After cutover, the
-  # processor-external-secrets template ignores `database.host` and
-  # composes against the in-cluster `<cluster>-rw` Service instead.
-  database:
-    host: db.inzgspjesrhqhleomvkb.supabase.co
   # Single replica on staging — 2-replica redundancy isn't needed for a
   # pre-prod env, and a second pod doesn't fit on the 2-worker cluster
   # alongside the server pod + system DaemonSets. PDB stays off too;
@@ -172,6 +216,10 @@ xcresultProcessor:
   # Single replica in staging, matching macosFleet.replicas=1.
   enabled: true
   replicaCount: 1
+  # Tailnet-fronted URL key — see values-managed-production.yaml.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  tailscale:
+    enabled: true
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the
@@ -309,7 +357,7 @@ runnersFleet:
   # Bumped by `release-runner-image` on every release; the chart
   # template constructs each pool's image as
   # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
-  runnerImageSemver: "3f32dbbb"
+  runnerImageSemver: "0.3.2"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in staging: the baked
@@ -373,7 +421,7 @@ runnersFleetLinux:
   # this list in sync with `:runner_linux_shapes` in
   # `server/config/config.exs` — the same catalog from two sides (Helm
   # renders the pools; the server validates + addresses them).
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:1970d76d557e03495fa7a3e82f1358e9ecc44f03dd8e236c0346f6430a1aa581"
+  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:c3661219d7a0ac9669b321b3d80e09ec8f43e20e464e4c16a90e2193db71b02e"
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

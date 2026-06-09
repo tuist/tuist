@@ -52,23 +52,18 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:223
-#, elixir-autogen, elixir-format
-msgid "Node"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.html.heex:16
 #, elixir-autogen, elixir-format
 msgid "Project:"
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:226
+#: lib/tuist_web/live/usage_live.html.heex:223
 #, elixir-autogen, elixir-format
 msgid "Region"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:145
-#: lib/tuist_web/live/usage_live.html.heex:235
+#: lib/tuist_web/live/usage_live.html.heex:232
 #, elixir-autogen, elixir-format
 msgid "Requests"
 msgstr ""
@@ -83,11 +78,6 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/usage_live.html.heex:199
-#, elixir-autogen, elixir-format
-msgid "Traffic by node"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.ex:39
 #: lib/tuist_web/live/usage_live.html.heex:4
 #, elixir-autogen, elixir-format
@@ -95,13 +85,13 @@ msgid "Usage"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:105
-#: lib/tuist_web/live/usage_live.html.heex:229
+#: lib/tuist_web/live/usage_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "Egress"
 msgstr ""
 
 #: lib/tuist_web/live/usage_live.html.heex:125
-#: lib/tuist_web/live/usage_live.html.heex:232
+#: lib/tuist_web/live/usage_live.html.heex:229
 #, elixir-autogen, elixir-format
 msgid "Ingress"
 msgstr ""
@@ -165,4 +155,9 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.ex:120
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
+msgstr ""
+
+#: lib/tuist_web/live/usage_live.html.heex:199
+#, elixir-autogen, elixir-format
+msgid "Traffic by region"
 msgstr ""

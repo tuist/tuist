@@ -78,6 +78,40 @@ defmodule CacheWeb.XcodeControllerTest do
       assert upload.key == key
     end
 
+    test "saves artifact without metadata or S3 transfer DB writes when Xcode database interactions are disabled", %{
+      conn: conn
+    } do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+      body = "test artifact content"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Cache.Config, :xcode_database_interactions_enabled?, 2, fn -> false end)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+      reject(S3Transfers, :enqueue_upload_if_missing, 4)
+
+      Xcode.Disk
+      |> expect(:exists?, fn ^account_handle, ^project_handle, ^id ->
+        false
+      end)
+      |> expect(:put, fn ^account_handle, ^project_handle, ^id, ^body ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}", body)
+
+      assert conn.status == 204
+      assert conn.resp_body == ""
+    end
+
     test "streams large artifact to temporary file", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
@@ -441,6 +475,36 @@ defmodule CacheWeb.XcodeControllerTest do
       assert conn.resp_body == ""
     end
 
+    test "returns local file without tracking metadata when Xcode database interactions are disabled", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:ok, %File.Stat{size: 1024, type: :regular}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/local/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+             ]
+
+      assert conn.resp_body == ""
+    end
+
     test "returns X-Accel-Redirect to remote when not on disk and S3 presign succeeds", %{conn: conn} do
       account_handle = "test-account"
       project_handle = "test-project"
@@ -457,6 +521,45 @@ defmodule CacheWeb.XcodeControllerTest do
       expect(CacheArtifacts, :track_artifact_access, fn key ->
         assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
         :ok
+      end)
+
+      expect(S3, :presign_download_url, fn key, opts ->
+        assert key == "#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}"
+        assert Keyword.get(opts, :type) == :xcode_cache
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
+
+      assert get_resp_header(conn, "x-accel-redirect") == [
+               "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/xcode/ab/c1/#{id}?token=abc"
+             ]
+
+      assert conn.resp_body == ""
+    end
+
+    test "returns remote redirect without transfer queue writes when Xcode database interactions are disabled", %{
+      conn: conn
+    } do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Cache.Config, :xcode_database_interactions_enabled?, 2, fn -> false end)
+      reject(CacheArtifacts, :track_artifact_access, 1)
+      reject(S3Transfers, :enqueue_xcode_download, 3)
+
+      expect(Xcode.Disk, :stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
       end)
 
       expect(S3, :presign_download_url, fn key, opts ->

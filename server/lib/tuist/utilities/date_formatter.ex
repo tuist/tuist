@@ -29,6 +29,7 @@ defmodule Tuist.Utilities.DateFormatter do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def format_duration_from_milliseconds(duration_ms, opts) when is_number(duration_ms) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
+    fractional_seconds = Keyword.get(opts, :fractional_seconds, true)
     duration_ms = trunc(duration_ms)
 
     if duration_ms < 1000 do
@@ -55,6 +56,13 @@ defmodule Tuist.Utilities.DateFormatter do
             parts
 
           duration_ms > 60_000 and seconds > 0 ->
+            parts ++ ["#{seconds}s"]
+
+          not fractional_seconds and seconds == 0 and parts != [] ->
+            # e.g. "6m" instead of "6m 0s" once fractions are dropped.
+            parts
+
+          not fractional_seconds ->
             parts ++ ["#{seconds}s"]
 
           true ->

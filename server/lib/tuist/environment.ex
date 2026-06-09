@@ -788,10 +788,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))

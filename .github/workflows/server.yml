@@ -60,7 +60,11 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: tuist-linux
+    # tuist-linux-large: mix gettext.extract compiles the full project
+    # (every dgettext/3 call needs to be reachable for the extractor) and
+    # OOMs the 2 vCPU / 8 GB default shape — same Elixir-compile-OOM
+    # pattern as `setup-server-mix` callers.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -68,7 +72,25 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
+      # Pre-compile the project in its own step so the OOM (if any)
+      # surfaces here rather than inside the extract heartbeat loop —
+      # makes the failure mode obvious. The throttle stack:
+      # MIX_OS_DEPS_COMPILE_PARTITION_COUNT for OS-deps compile,
+      # ERL_AFLAGS "+S 1:1" for project compile (Kernel.ParallelCompiler
+      # sizes concurrency from System.schedulers_online()), and the
+      # System.schedulers_online() echo verifies the throttle landed.
+      - name: Compile project (throttled)
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        working-directory: server
+        run: |
+          mix run -e 'IO.puts("schedulers_online=#{System.schedulers_online()}")'
+          mix compile
       - name: Check gettext templates are up-to-date
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
         run: |
           run_gettext_extract() {
             log_file="$1"
@@ -215,6 +237,7 @@ jobs:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
@@ -243,21 +266,22 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-server-mix
+      - uses: jdx/mise-action@v4.0.1
         with:
-          mise-version: ${{ env.MISE_VERSION }}
-          mise-install-args: erlang elixir node aube npm:prettier
-      - name: Restore Aube Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/aube
-            ~/.cache/aube
-          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+          version: ${{ env.MISE_VERSION }}
+          install_args: erlang elixir node aube
+          cache: "true"
+          working_directory: server
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Install mix dependencies
+        run: mix deps.get
       - name: Install aube dependencies
         run: aube install
       - name: Check format
-        run: mise run --no-deps format --check
+        run: |
+          mix format --check-formatted
+          aube exec prettier -c priv/static/app
+          aube exec prettier -c assets
   esbuild:
     name: esbuild
     runs-on: tuist-linux
@@ -339,6 +363,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Docker build
         run: |
+          log_file=/tmp/server-docker-build.log
           docker buildx build \
             --progress=plain \
             --file "$GITHUB_WORKSPACE/server/Dockerfile" \
@@ -351,7 +376,23 @@ jobs:
             --build-arg APT_CACHE_BUST=${{ github.sha }} \
             --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
             --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
-            "$GITHUB_WORKSPACE"
+            "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            echo "Waiting for Docker build..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$build_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- server-docker-build.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Docker build completed"
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -430,6 +471,7 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database

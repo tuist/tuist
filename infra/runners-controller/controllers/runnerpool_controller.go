@@ -59,6 +59,12 @@ type RunnerPoolReconciler struct {
 	// bumped. Empty means Linux pods skip the sidecar — fine for
 	// macOS-only installs.
 	DindImage string
+
+	// RegistryMirror is the in-cluster Docker Hub pull-through cache
+	// URL stamped into the dind sidecar's dockerd as --registry-mirror
+	// (with a matching --insecure-registry, since it's http in-cluster).
+	// Empty leaves dockerd pulling docker.io directly.
+	RegistryMirror string
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -181,6 +187,27 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			// stopped Pods + orphaned SAs, and the projected-token
 			// cache in tart-kubelet keeps re-validating SAs whose
 			// Pods are already gone.
+			//
+			// Log the runner container's exit code + reason first: it is
+			// the durable, image-independent fingerprint of HOW the job
+			// ended, captured before the Pod is reaped. A runner that
+			// "lost communication with the server" can then be classified
+			// from the controller logs (which land in Loki) instead of
+			// from the reaped Pod (long gone) or the runner image's vitals
+			// (absent on older images): 0 = clean exit (the runner
+			// finished; a lost-comms here is the GitHub completion
+			// handshake, not a death), 137 + reason=OOMKilled = host
+			// cgroup OOM, 137 + reason=Error = guest-internal OOM or in-VM
+			// kill, signal 15 = SIGTERM/deletion, other = crash.
+			if t := runnerTerminated(p); t != nil {
+				logger.Info("runner pod terminated",
+					"pod", p.Name,
+					"phase", string(p.Status.Phase),
+					"exitCode", t.ExitCode,
+					"signal", t.Signal,
+					"reason", t.Reason,
+				)
+			}
 			if err := r.reapRunner(ctx, p); err != nil {
 				logger.Error(err, "reap terminal runner; will retry", "pod", p.Name)
 				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -321,7 +348,7 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 		return fmt.Errorf("create sa: %w", err)
 	}
 
-	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage)
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror)
 	if err != nil {
 		return fmt.Errorf("build pod: %w", err)
 	}
@@ -426,6 +453,25 @@ func pollerTerminated(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+// runnerTerminated returns the terminated state of the `runner`
+// container, or nil if the container is absent or has no recorded
+// termination. Prefers the current terminated state; falls back to the
+// last termination. The exitCode + reason are the post-mortem
+// fingerprint logged on reap (see the terminal branch in Reconcile).
+func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
+	for i := range pod.Status.ContainerStatuses {
+		cs := &pod.Status.ContainerStatuses[i]
+		if cs.Name != "runner" {
+			continue
+		}
+		if cs.State.Terminated != nil {
+			return cs.State.Terminated
+		}
+		return cs.LastTerminationState.Terminated
+	}
+	return nil
 }
 
 // isStaleImage returns true when the Pod's runner container image
