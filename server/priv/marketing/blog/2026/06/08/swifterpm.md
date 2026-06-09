@@ -69,7 +69,7 @@ The cold runs are already a clear win, between 1.75x and 3.47x faster, even thou
 
 We have been rolling this out as an opt-in feature, because we would rather validate it carefully than surprise anyone. There may be graph scenarios we do not handle yet, and the honest way to find them is with real projects.
 
-If you use Tuist generated projects, you can opt in with a flag and let `tuist install` use SwifterPM before generation. If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
+If you use Tuist generated projects, set `TUIST_USE_SWIFTERPM=1` in your environment and `tuist install` will use SwifterPM before generation. If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
 ```python
 bazel_dep(name = "swifterpm", version = "0.7.0")
