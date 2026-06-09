@@ -52,7 +52,7 @@ use crate::{
     peer_tls::install_default_crypto_provider,
     replication::replication_targets,
     state::SharedState,
-    utils::{action_cache_key, blob_key, temp_file_path},
+    utils::{action_cache_key, blob_key, ensure_tmp_dir_capacity, temp_file_path},
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
@@ -767,7 +767,20 @@ impl ByteStream for ReapiService {
                     return Err(Status::invalid_argument("resource_name changed mid-stream"));
                 }
             } else {
-                resource = Some(parse_write_resource_name(&chunk_resource_name)?);
+                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
+                if let Err(error) = ensure_tmp_dir_capacity(
+                    &self.state.config.tmp_dir,
+                    parsed_resource.size_bytes,
+                    self.state.config.tmp_dir_max_bytes,
+                )
+                .await
+                {
+                    self.state.io.remove_file_if_exists(&temp_path).await;
+                    return Err(Status::resource_exhausted(format!(
+                        "temporary storage budget exhausted: {error}"
+                    )));
+                }
+                resource = Some(parsed_resource);
                 resource_name = Some(chunk_resource_name);
             }
             if chunk.write_offset < 0 || chunk.write_offset as u64 != written {

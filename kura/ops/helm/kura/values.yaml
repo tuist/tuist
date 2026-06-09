@@ -81,9 +81,6 @@ persistence:
   storageClass: ""
   annotations: {}
 
-tmpStorage:
-  sizeLimit: ""
-
 resources: {}
 
 nodeSelector: {}
@@ -107,6 +104,7 @@ pdb:
 config:
   tenantId: default
   region: fr-par
+  tmpDirMaxBytes: 8589934592
   fileDescriptors:
     # Leave unset to derive from the process RLIMIT_NOFILE after Kura raises
     # the soft limit to the hard limit at startup.
