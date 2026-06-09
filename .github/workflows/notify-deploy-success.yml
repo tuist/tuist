@@ -36,14 +36,13 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          count=$(gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
-            | jq -s '[.[].jobs[] | select(.conclusion == "success") | select(.name | test("Deploy to tuist$"))] | length')
-          if [ "${count:-0}" -gt 0 ]; then
-            echo "deployed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deployed=false" >> "$GITHUB_OUTPUT"
-            echo "Run $RUN_ID was green but did not deploy to production (gate deferred); skipping Slack."
-          fi
+          # A deploy run has well under 100 jobs, so one page covers it.
+          # "Deploy to tuist" is the production deploy job (canary/staging
+          # are "Deploy to tuist-canary"/"-staging"); a gate deferral has no
+          # such job, so this is false and we stay quiet.
+          deployed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq 'any(.jobs[]; .conclusion == "success" and (.name | endswith("Deploy to tuist")))')
+          echo "deployed=$deployed" >> "$GITHUB_OUTPUT"
 
   notify:
     needs: check
