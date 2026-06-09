@@ -9,26 +9,6 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
-  # Front the staging apiserver over the tailnet in auth mode so the
-  # team gets identity-based kubectl access. Staging mirrors canary
-  # and prod (view-by-default + break-glass) so the JIT-elevation
-  # workflow can be tested end-to-end on staging.
-  apiServerProxyConfig:
-    mode: "true"
-    allowImpersonation: "true"
-
-# Read-only by default for everyone. Writes go through the JIT bot,
-# which adds the requester to group:tuist-staging-write for the
-# session; that group is bound to `edit` here. Impersonated group
-# names must match the ACL grants in infra/tailscale/acls.json.
-accessBindings:
-  - group: tuist-admins
-    clusterRole: view
-  - group: tuist-eng
-    clusterRole: view
-  - group: tuist-staging-write
-    clusterRole: edit
-
 connector:
   hostname: tuist-cluster-router-staging
   tags:

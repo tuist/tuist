@@ -56,41 +56,13 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
-  # API server proxy. In auth mode the operator fronts the cluster's
-  # kube-apiserver over the tailnet and impersonates the caller's
-  # tailnet identity, so human kubectl access is granted by tailnet ACL
-  # grants (infra/tailscale/acls.json) plus the RBAC bindings in
-  # `accessBindings` below. Off by default; per-env overlays opt in,
-  # staging first. Purely additive: the cluster's existing public
-  # apiserver endpoint and the CI deployer kubeconfig keep working.
-  apiServerProxyConfig:
-    # "true" runs the in-process proxy; "noauth" skips impersonation.
-    mode: "false"
-    # "true" creates the ClusterRole the proxy needs to impersonate.
-    allowImpersonation: "false"
-
-# Human kubectl access tiers, rendered into ClusterRoleBindings by
-# templates/rbac.yaml. Each entry binds a Kubernetes group (the name
-# the API server proxy impersonates, set in the matching tailnet ACL
-# grant) to a built-in ClusterRole. Default is empty: every env opts
-# in explicitly so a new cluster never inherits standing access.
-#
-# The default tier across every env is read-only for everyone,
-# including founders, so an agent acting on anyone's behalf cannot
-# wreck a cluster silently through the proxy. Writes go through an
-# explicit Slack-approval chain that promotes the requester into the
-# env's break-glass group for the session; the chain is enforced by
-# the JIT bot shipped in this PR. Staging mirrors canary and prod so
-# the same elevation workflow can be tested end-to-end on staging.
-#
-#   any env  tuist-admins        -> view
-#            tuist-eng           -> view  (excludes Secrets)
-#            tuist-<env>-write   -> edit  (break-glass group with
-#                                          empty default membership,
-#                                          managed by the JIT bot;
-#                                          no RBAC/cluster-admin
-#                                          escalation)
-accessBindings: []
+  # Human kubectl access does NOT flow through the operator's API
+  # server proxy anymore — that path was replaced by Pomerium per
+  # env (`infra/helm/pomerium/`) which gives us Google OIDC auth +
+  # per-request impersonation via tuist-ops's PolicyController. The
+  # apiServerProxyConfig knob is intentionally absent here; if it's
+  # ever needed again, re-add it with mode/allowImpersonation set
+  # to "false" as the default and opt in per env.
 
 # Connector CR — the operator-managed `tailscaled` subnet router
 # that announces the cluster's reachability to the tailnet's

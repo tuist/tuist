@@ -155,33 +155,12 @@
 			"ip": ["tcp:22"],
 		},
 
-		// Human kubectl access to each env's tailscale operator API
-		// server proxy. `autogroup:member` matches every real human
-		// on the tailnet (Tailscale's grants block only accepts
-		// :member / :tagged / :internet / :self as src autogroups —
-		// the admin / owner role-based autogroups are NOT valid
-		// src here). Everyone impersonates as `tuist-eng`, which
-		// accessBindings in the tailscale-operator chart bind to
-		// `view` on every env. Role-based escalation to edit
-		// happens via the Pomerium gateway path, not this one.
-		//
-		// Note on the asymmetry between `src` and `impersonate.groups`:
-		// `src` is a tailnet concept (who's allowed to dial the
-		// proxy). The string in `impersonate.groups` is a
-		// Kubernetes-side label the operator injects as
-		// Impersonate-Group on the forwarded request; accessBindings
-		// in the tailscale-operator chart map each label to a
-		// ClusterRole. Different systems.
-		{
-			"src": ["autogroup:member"],
-			"dst": [
-				"tag:tuist-k8s-staging",
-				"tag:tuist-k8s-canary",
-				"tag:tuist-k8s-production",
-			],
-			"ip":  ["tcp:443"],
-			"app": {"tailscale.com/cap/kubernetes": [{"impersonate": {"groups": ["tuist-eng"]}}]},
-		},
+		// Human kubectl access to workload clusters is NOT a
+		// tailnet grant — Pomerium per env handles it via Google
+		// Workspace OIDC (`kube-<env>.tuist.dev`) + per-request
+		// impersonation resolved by tuist-ops's PolicyController.
+		// See `infra/helm/pomerium/`. No `tailscale.com/cap/kubernetes`
+		// grants belong in this file.
 
 		// Elevated (`edit`) access for writes does NOT live here.
 		// It flows through the Pomerium gateway (see

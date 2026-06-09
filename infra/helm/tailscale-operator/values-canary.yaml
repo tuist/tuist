@@ -8,21 +8,6 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-canary"
 
-  # Front the canary apiserver over the tailnet in auth mode. Default
-  # tier is view-only for everyone (including founders); writes go
-  # through the JIT bot per the design in values.yaml.
-  apiServerProxyConfig:
-    mode: "true"
-    allowImpersonation: "true"
-
-accessBindings:
-  - group: tuist-admins
-    clusterRole: view
-  - group: tuist-eng
-    clusterRole: view
-  - group: tuist-canary-write
-    clusterRole: edit
-
 connector:
   hostname: tuist-cluster-router-canary
   tags:

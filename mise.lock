@@ -184,6 +184,15 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 [tools.git-cliff."platforms.windows-x64"]
 url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"
 
+[[tools."github:pomerium/cli"]]
+version = "0.32.2"
+backend = "github:pomerium/cli"
+
+[tools."github:pomerium/cli"."platforms.macos-arm64"]
+checksum = "sha256:83140cab47cb8fbd0fd911d0d94a9d3ef9fc90ad506381aa84a1f298c0503f11"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-darwin-arm64.zip"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392607088"
+
 [[tools."github:tuist/blick"]]
 version = "0.8.0"
 backend = "github:tuist/blick"

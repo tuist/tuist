@@ -71,9 +71,8 @@ rbac:
   # serviceaccounts. The headers it injects are validated by the
   # apiserver against the calling identity's permissions — i.e.
   # Pomerium must be authorised to impersonate. RBAC tier of the
-  # impersonated user is decided by separate bindings (the
-  # accessBindings in the tailscale-operator chart already bind
-  # tuist-eng / tuist-admins / tuist-<env>-write to ClusterRoles).
+  # impersonated user is decided by the ClusterRoleBindings in
+  # templates/access-tiers.yaml (this chart owns them now).
   createImpersonatorRole: true
 
 service:
