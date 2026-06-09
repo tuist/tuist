@@ -164,10 +164,6 @@ jobs:
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
-      # The mise.toml CLI pin is the dev-tooling version contributors run,
-      # not a release artifact; Renovate tracks new tuist releases and bumps
-      # it via PR (see renovate.json).
-
       - name: Upload CLI artifacts
         id: upload
         uses: actions/upload-artifact@v4
