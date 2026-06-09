@@ -43,27 +43,31 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
+          # Pomerium reads config-key env vars WITHOUT a POMERIUM_
+          # prefix (the prefix is only for runtime knobs like
+          # POMERIUM_CONFIG). `idp_client_id` in the YAML config
+          # file corresponds to the IDP_CLIENT_ID env var, etc.
           env:
-            - name: POMERIUM_SHARED_SECRET
+            - name: SHARED_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
-                  key: POMERIUM_SHARED_SECRET
-            - name: POMERIUM_COOKIE_SECRET
+                  key: SHARED_SECRET
+            - name: COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
-                  key: POMERIUM_COOKIE_SECRET
-            - name: POMERIUM_IDP_CLIENT_ID
+                  key: COOKIE_SECRET
+            - name: IDP_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
-                  key: POMERIUM_IDP_CLIENT_ID
-            - name: POMERIUM_IDP_CLIENT_SECRET
+                  key: IDP_CLIENT_ID
+            - name: IDP_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
-                  key: POMERIUM_IDP_CLIENT_SECRET
+                  key: IDP_CLIENT_SECRET
           volumeMounts:
             - name: config
               mountPath: /etc/pomerium

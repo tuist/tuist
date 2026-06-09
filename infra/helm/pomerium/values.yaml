@@ -89,9 +89,11 @@ podAnnotations: {}
 
 # Pomerium's runtime credentials come from the ESO-managed
 # pomerium-tuist Secret (see templates/external-secret.yaml).
-# Keys consumed:
-#   POMERIUM_SHARED_SECRET   internal RPC signing key
-#   POMERIUM_COOKIE_SECRET   session cookie encryption key
-#   POMERIUM_IDP_CLIENT_ID   Google OAuth client id
-#   POMERIUM_IDP_CLIENT_SECRET  Google OAuth client secret
+# Keys consumed (no POMERIUM_ prefix — Pomerium reads config keys
+# as bare uppercase env vars; POMERIUM_ is reserved for runtime
+# knobs like POMERIUM_CONFIG):
+#   SHARED_SECRET       internal RPC signing key
+#   COOKIE_SECRET       session cookie encryption key
+#   IDP_CLIENT_ID       Google OAuth client id
+#   IDP_CLIENT_SECRET   Google OAuth client secret
 secretName: pomerium-tuist
