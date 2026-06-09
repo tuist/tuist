@@ -1437,10 +1437,10 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.ex:580
 #: lib/tuist_web/live/project_automations_live.html.heex:127
 #, elixir-autogen, elixir-format
-msgid "Reliability rate"
+msgid "Test reliability"
 msgstr ""
 
 #: lib/tuist_web/live/project_automations_live.ex:699
 #, elixir-autogen, elixir-format
-msgid "When reliability rate %{symbol} %{threshold}% over %{window}"
+msgid "When test reliability %{symbol} %{threshold}% over %{window}"
 msgstr ""

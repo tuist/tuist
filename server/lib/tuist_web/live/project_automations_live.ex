@@ -577,7 +577,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
   def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
-  def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Reliability rate")
+  def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Test reliability")
   def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
   def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
 
@@ -698,7 +698,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
     dgettext(
       "dashboard_projects",
-      "When reliability rate %{symbol} %{threshold}% over %{window}",
+      "When test reliability %{symbol} %{threshold}% over %{window}",
       symbol: symbol,
       threshold: threshold,
       window: window_summary(trigger_config)
