@@ -41,21 +41,17 @@ name: Server Production Deployment
 #   stored as a Document item.
 
 on:
-  # No `push` trigger. release.yml's `trigger-deploy` job dispatches this
-  # workflow on every push to main once the release builds have published
-  # any changed component images and pushed their `<component>@<semver>`
-  # tags. That ordering is what lets a runner-image (or any fleet/runtime
-  # image) change ship in the SAME pipeline as the server, instead of the
-  # old "deploy server -> release commits an image pin -> server redeploys"
-  # double cascade. server-deployment.yml resolves every image version
-  # from those git tags at deploy time, so there is no committed pin to
-  # bump and nothing re-triggers a deploy.
-  #
-  # It is dispatched (not called via workflow_call / a needs edge) so this
-  # cascade runs as its own workflow run: release.yml's cancel-in-progress
-  # can never SIGKILL an in-flight `helm --atomic` deploy, and deploys keep
-  # serializing through server-deployment.yml's per-env concurrency lane
-  # instead of serializing behind every release build.
+  # No `push` trigger. This cascade is dispatched (workflow_dispatch) by:
+  #   - release.yml's `trigger-deploy` when a fleet/runtime image is
+  #     released, after its build pushes the `<component>@<semver>` tag, so
+  #     the new image ships with the server in one build-then-deploy pass;
+  #   - server-deploy-dispatch.yml for server / chart / config changes with
+  #     no fleet image release.
+  # server-deployment.yml resolves every image version from git tags at
+  # deploy time. Dispatching (rather than a workflow_call / needs edge)
+  # keeps this cascade in its own run with its own concurrency lane: it is
+  # never cancelled by a release run, and deploys serialize among
+  # themselves via the group below plus server-deployment.yml's per-env lane.
   workflow_dispatch:
     inputs:
       commit_sha:

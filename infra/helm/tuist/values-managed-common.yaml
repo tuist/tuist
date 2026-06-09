@@ -206,9 +206,7 @@ xcresultProcessor:
   image:
     repository: ghcr.io/tuist/tuist-xcresult-processor
     # Resolved at deploy time from the latest `xcresult-processor-image@`
-    # git tag (server-deployment.yml passes it via --set). The tag is no
-    # longer pinned here, so a release no longer commits a bump back to
-    # main and no longer re-triggers the server cascade.
+    # git tag (server-deployment.yml passes it via --set). Not pinned here.
     tag: ""
 
 capi:

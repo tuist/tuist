@@ -445,14 +445,12 @@ jobs:
           # read every `<component>@<semver>` release tag.
           fetch-depth: 0
       - name: Resolve fleet and runtime image versions from git tags
-        # The managed values files no longer pin these image versions
-        # (xcresult-processor, CAPI provider, runners-controller, Kura
-        # runtime, macOS + Linux runner images). Each is the highest
-        # `<component>@<semver>` tag reachable from the deployed commit,
-        # so a release that cuts a new tag rolls forward on the next
-        # deploy with no committed pin and no pin-bump redeploy. `--merged`
-        # makes a re-promote of an older SHA resolve the versions as they
-        # were at that commit.
+        # The version of each fleet/runtime image (xcresult-processor, CAPI
+        # provider, runners-controller, Kura runtime, macOS + Linux runner
+        # images) is the highest `<component>@<semver>` tag reachable from
+        # the deployed commit, so a release that cuts a new tag rolls forward
+        # on the next deploy. `--merged` makes a re-promote of an older SHA
+        # resolve the versions as they were at that commit.
         run: |
           set -euo pipefail
           resolve() {
@@ -628,11 +626,10 @@ jobs:
           watcher_pid=$!
           trap 'kill "$watcher_pid" 2>/dev/null || true; wait "$watcher_pid" 2>/dev/null || true' EXIT
 
-          # Fleet + runtime image versions are resolved from git tags (the
-          # "Resolve fleet and runtime image versions" step writes them to
-          # the env) and passed via --set, replacing the committed pins the
-          # managed values files used to carry. add_set skips empties so an
-          # unreleased or disabled component keeps the chart default.
+          # Fleet + runtime image versions come from the env (the "Resolve
+          # fleet and runtime image versions" step) and are passed to the
+          # chart via --set. add_set skips empties so an unreleased or
+          # disabled component keeps the chart default.
           image_sets=()
           add_set() {
             if [ -n "$2" ]; then

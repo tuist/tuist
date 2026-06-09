@@ -111,10 +111,8 @@ let project = Project(
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
                     "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
-                    // Served from a stable GitHub Release asset
-                    // (tag `appcast`, re-uploaded by the app release flow)
-                    // instead of the committed app/appcast.xml, so a
-                    // release no longer has to commit the feed to main.
+                    // Served from a stable GitHub Release asset (tag
+                    // `appcast`, re-uploaded by the app release flow).
                     "SUFeedURL":
                         "https://github.com/tuist/tuist/releases/download/appcast/appcast.xml",
                     "CFBundleShortVersionString": "0.25.3",
