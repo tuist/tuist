@@ -35,6 +35,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
+  SWIFTPM_BUILD_CACHE_VERSION: v2
 
 defaults:
   run:
@@ -55,9 +56,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: server/native/xcactivitylog_nif/.build
-          key: xcactivitylog-nif-swiftpm-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
+          key: xcactivitylog-nif-swiftpm-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('server/native/xcactivitylog_nif/Package.resolved') }}
       - name: Run tests
         run: swift test --replace-scm-with-registry
+      - uses: ./.github/actions/materialize-build-cache
+        with:
+          path: server/native/xcactivitylog_nif/.build
   gettext:
     name: Gettext
     # tuist-linux-large: mix gettext.extract compiles the full project

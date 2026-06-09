@@ -33,6 +33,7 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
+  SWIFTPM_BUILD_CACHE_VERSION: v2
 
 concurrency:
   group: app-${{ github.head_ref || github.run_id }}
@@ -101,7 +102,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -128,6 +129,9 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share TuistApp
+      - uses: ./.github/actions/materialize-build-cache
+        with:
+          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -159,7 +163,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -175,6 +179,9 @@ jobs:
         run: tuist install
       - name: Test TuistApp
         run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - uses: ./.github/actions/materialize-build-cache
+        with:
+          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -208,7 +215,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build
-          key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: ${{ runner.os }}-app-${{ env.SWIFTPM_BUILD_CACHE_VERSION }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -245,6 +252,9 @@ jobs:
           github.event_name == 'workflow_dispatch' ||
           (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true')
         run: mise x -- tuist share build/Tuist.ipa
+      - uses: ./.github/actions/materialize-build-cache
+        with:
+          path: .build
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
