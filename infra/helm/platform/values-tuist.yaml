@@ -1,0 +1,16 @@
+# Production workload-cluster overlay. Loaded by k8s:install-platform when
+# CLUSTER_NAME=tuist.
+
+# Stable outbound source IP for hosted Tuist server traffic that reaches
+# customer infrastructure (for example GHES instances behind IP allowlists).
+# The IP is a Hetzner Floating IP in the tuist-workloads project. The
+# host-configurer DaemonSet makes the address and source route present on the
+# currently labelled gateway node; if that node is replaced, move the Floating
+# IP and `tuist.dev/stable-egress-gateway` node label together.
+ciliumEgressGateway:
+  server:
+    enabled: true
+    namespace: tuist
+    egressIP: 116.202.0.10
+    hostConfigurator:
+      enabled: true
