@@ -143,13 +143,7 @@ defmodule Tuist.Kura.Regions do
     }
   end
 
-  defp cross_region_runtime_config do
-    if Tuist.Environment.kura_cross_region_replication_enabled?() do
-      %{peer_tls_secret_name: "kura-cross-region-peer-tls"}
-    else
-      %{}
-    end
-  end
+  defp cross_region_runtime_config, do: %{peer_tls_secret_name: "kura-cross-region-peer-tls"}
 
   defp local_controller_region do
     suffix = Tuist.Environment.dev_instance_suffix()
