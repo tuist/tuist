@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runner-image@0.3.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* update XCLogParser for Xcode 27 logs ([#11176](https://github.com/tuist/tuist/pull/11176))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.2...runner-image@0.3.3
+
 ## What's Changed in runner-image@0.3.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
