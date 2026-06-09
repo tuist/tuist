@@ -62,7 +62,14 @@ escalate).
 
 ## Build / deploy
 
-Image is built and pushed to `ghcr.io/tuist/kube-impersonator` by
-`.github/workflows/kube-impersonator-image.yml` on every push that
-touches this directory. Pomerium chart references the tag via
-`kubeImpersonator.image.tag` in `infra/helm/pomerium/values.yaml`.
+Built and deployed by `.github/workflows/pomerium-deployment.yml`
+in one shot (same shape as `tuist-ops-deployment.yml`): the
+`build-impersonator` job pushes
+`ghcr.io/tuist/kube-impersonator:sha-<DEPLOY_SHA:0:12>`, and the
+`deploy` job passes that tag to helm via
+`--set kubeImpersonator.image.tag=...`. No tag committed in
+`infra/helm/pomerium/values.yaml` — chart default is `""` and
+the deploy fails fast if `--set` is missing.
+
+A `workflow_dispatch` input lets you pre-build the image
+elsewhere and skip the build job (`image_tag: sha-XYZ`).
