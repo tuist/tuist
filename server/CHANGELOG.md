@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in server@1.207.6<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* update XCLogParser for Xcode 27 logs ([#11176](https://github.com/tuist/tuist/pull/11176))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/server@1.207.5...server@1.207.6
+
 ## What's Changed in server@1.207.5<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

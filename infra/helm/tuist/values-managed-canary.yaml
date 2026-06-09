@@ -275,7 +275,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-  runnerImageSemver: "0.3.2"
+  runnerImageSemver: "0.3.3"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
