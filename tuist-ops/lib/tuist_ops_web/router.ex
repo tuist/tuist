@@ -7,10 +7,12 @@ defmodule TuistOpsWeb.Router do
   end
 
   pipeline :pomerium_authz do
-    # Envoy's HTTP ext_authz filter dials this endpoint with no
-    # Accept header constraints — accept whatever it sends.
-    # Network boundary is the auth (tailnet-only egress); if we
-    # ever expose it more broadly, add mTLS or a shared secret.
+    # Called by each env's kube-impersonator sidecar from inside
+    # the workload cluster, over the tailnet. No Accept header
+    # constraint — accept whatever the Go client sends. Network
+    # boundary is the auth (tailnet-only egress); if we ever
+    # expose this endpoint more broadly, add mTLS or a shared
+    # secret.
     plug :accepts, ["json", "text", "*/*"]
   end
 
@@ -28,13 +30,11 @@ defmodule TuistOpsWeb.Router do
   scope "/api/v1", TuistOpsWeb do
     pipe_through :pomerium_authz
 
-    # Envoy ext_authz HTTP filter sends a request with the same
-    # method as the original (GET for kubectl reads, POST for
-    # creates, etc.) when `with_request_body` is unset, plus an
-    # optional `path_prefix` that lands as a sub-path. We don't
-    # care about the method or sub-path — only Host header and
-    # x-pomerium-claim-email — so accept all methods under
-    # /policy/*.
+    # The sidecar issues a plain HTTP GET per kubectl call. Sub-
+    # paths exist as an escape hatch in case we later switch to a
+    # request shape where the original kubectl path lands as a
+    # suffix — the controller's decision depends only on the Host
+    # header and x-pomerium-claim-email, so the path is ignored.
     match :*, "/policy", PolicyController, :evaluate
     match :*, "/policy/*_path", PolicyController, :evaluate
   end

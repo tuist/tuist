@@ -19,7 +19,7 @@ port: 8080
 # Internal name used by the tailscale operator to expose this
 # Service as a tailnet device. Pomerium pods in workload clusters
 # dial this hostname through their cluster's tailscale-egress
-# Service to reach the ext_authz endpoint.
+# Service to reach the impersonation policy endpoint.
 tailnetHostname: ops
 
 # CNPG cluster sized for tuist-ops only. Three tables, a few

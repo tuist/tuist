@@ -4,7 +4,7 @@ Deploys the `tuist-ops` Phoenix app + its CNPG Postgres + the ESO
 ExternalSecrets that feed them. Single deploy, targeted at the production
 cluster (same pattern as `slack/` — internal Tuist-team tooling lives
 alongside the customer workload). Pomerium pods in staging/canary
-cross-call this deployment via the tailnet for ext_authz.
+cross-call this deployment via the tailnet for the policy lookup.
 
 ## What's in the box
 
@@ -15,7 +15,7 @@ cross-call this deployment via the tailnet for ext_authz.
   so Pomerium pods in workload clusters can reach it on the tailnet
   as `ops.<tailnet>.ts.net`.
 - **Ingress** — public ingress on `ops.tuist.dev`, **only routing
-  `/webhooks/slack/*`**. The Pomerium ext_authz endpoint
+  `/webhooks/slack/*`**. The Pomerium impersonation policy endpoint
   (`/api/v1/policy`) and any future LiveView paths (`/db`, etc.) are
   reachable only on the tailnet, never publicly.
 - **CNPG Cluster** — single-instance Postgres, 5Gi storage, daily

@@ -13,7 +13,7 @@ Pomerium).
 
 ## What lives here
 
-**JIT elevation Slack bot + Pomerium ext_authz endpoint** (current):
+**JIT elevation Slack bot + impersonation policy endpoint** (current):
 - `lib/tuist_ops/jit/` — core business logic
   - `approvals.ex` — state machine for Request → Elevation
   - `elevation.ex`, `request.ex` — Ecto schemas
@@ -22,7 +22,7 @@ Pomerium).
   - `tailscale_client.ex` — Tailscale users API (role lookup, cached 30s)
   - `workers/revert_worker.ex` — Oban job that marks elevation reverted at TTL
 - `lib/tuist_ops_web/controllers/slack_controller.ex` — Slack slash + interactive endpoints (`/webhooks/slack/*`)
-- `lib/tuist_ops_web/controllers/policy_controller.ex` — Pomerium ext_authz endpoint (`/api/v1/policy`)
+- `lib/tuist_ops_web/controllers/policy_controller.ex` — impersonation policy endpoint (`/api/v1/policy`)
 
 **Planned migrations from `server/`** (not yet moved, structure ready to receive):
 - `/ops/db` LiveView (read-only Postgres inspection) — will land as

@@ -14,7 +14,7 @@ defmodule TuistOps.JIT.Approvals do
       job forward to fire now.
 
   Elevation is a Postgres-side flag, not a tailnet ACL mutation.
-  The Pomerium gateway's ext_authz endpoint reads
+  The Pomerium gateway's policy endpoint reads
   `tailscale_jit_elevations` at request time to decide whether to
   inject the elevated impersonation header on a given kubectl call.
   No tailnet policy is written from this module; revocation is just
@@ -158,7 +158,7 @@ defmodule TuistOps.JIT.Approvals do
     elev_expires_at = DateTime.add(now, req.ttl_seconds, :second)
 
     # Elevation is a DB flag, not an ACL mutation. The Pomerium
-    # gateway's ext_authz endpoint checks `tailscale_jit_elevations`
+    # gateway's policy endpoint checks `tailscale_jit_elevations`
     # at request time to decide impersonation; no tailnet policy
     # touch and no propagation delay.
     {:ok, updated_req} =

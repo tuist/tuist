@@ -4,7 +4,7 @@ tailnet without putting Pomerium itself on the tailnet. The
 tailscale operator (already deployed in this cluster) sees this
 Service annotation, provisions a tailnet device that proxies to
 the named tailnet FQDN, and exposes it inside the cluster as a
-regular ClusterIP. Pomerium's ext_authz URL points at this
+regular ClusterIP. Pomerium's policy URL points at this
 service hostname.
 
 ExternalName + the operator annotation is the documented egress
@@ -38,4 +38,9 @@ spec:
   # verbatim — without that, Helm's server-side apply hits a field
   # ownership conflict with the operator on every redeploy.
   type: ExternalName
-  externalName: {{ (lookup "v1" "Service" .Release.Namespace "tuist-ops-egress").spec.externalName | default "placeholder.tuist.ts.net" }}
+  {{- $existing := lookup "v1" "Service" .Release.Namespace "tuist-ops-egress" }}
+  {{- $current := "" }}
+  {{- if and $existing $existing.spec }}
+    {{- $current = $existing.spec.externalName | default "" }}
+  {{- end }}
+  externalName: {{ $current | default "placeholder.tuist.ts.net" | quote }}

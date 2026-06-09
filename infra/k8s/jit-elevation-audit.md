@@ -2,7 +2,7 @@
 
 How to reconstruct, after the fact, what happened during a JIT elevation. Three independent audit trails carry the same elevation; pulling them all gives the complete forensic picture.
 
-After the Pomerium pivot, `tuist-ops` (mgmt cluster) owns the bot's tables and serves the Pomerium ext_authz endpoint; the tailnet ACL is no longer mutated at runtime, so the historical "Tailscale ACL audit log" trail no longer applies.
+After the Pomerium pivot, `tuist-ops` (mgmt cluster) owns the bot's tables and serves the Pomerium impersonation policy endpoint; the tailnet ACL is no longer mutated at runtime, so the historical "Tailscale ACL audit log" trail no longer applies.
 
 ## What you need to know upfront
 

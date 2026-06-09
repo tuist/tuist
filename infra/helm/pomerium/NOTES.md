@@ -1,58 +1,85 @@
 # pomerium chart
 
-Per-env wrapper around the upstream Pomerium chart that fronts a
-workload cluster's apiserver. One Helm release per env, deployed
-into each workload cluster (NOT mgmt).
+Self-contained chart (not a wrapper) deploying Pomerium in
+all-in-one mode plus the `kube-impersonator` sidecar as the
+per-env kubectl gateway. One Helm release per workload env
+(staging / canary / production), deployed into that cluster.
 
 ## What it provides
 
-- `https://kube-<env>.tuist.dev` — the kubectl gateway. Users dial
-  this with kubectl after running through Pomerium's exec
-  credential plugin to obtain a session token (Pomerium handles the
-  Google OIDC dance via browser; cached for ~24h).
+- `https://kube-<env>.tuist.dev` — kubectl gateway. Users dial
+  this via `pomerium-cli k8s exec-credential` registered as a
+  kubeconfig exec plugin; on first call the plugin opens a
+  browser for Google OIDC and caches the session for ~24h.
 - `https://authenticate.kube-<env>.tuist.dev` — Pomerium's
-  authenticate service, the OAuth callback URL.
+  authenticate service (OAuth callback target).
+- ClusterRoleBindings for `tuist-admins` / `tuist-eng` /
+  `tuist-<env>-write` → `view` / `view` / `edit` respectively
+  (`templates/access-tiers.yaml`).
 
 ## Identity flow
 
-1. `kubectl --context tuist-k8s-<env> get pods`
-2. Pomerium exec plugin presents cached session JWT
-3. Pomerium validates: signed by us, not expired, email in tuist.dev domain
-4. Pomerium calls ext_authz: `POST http://ops.tuist.ts.net/api/v1/policy` with the Envoy CheckRequest body containing `host`, `headers`, etc.
-5. tuist-ops reads `host` to derive env, reads claim header for subject, queries Tailscale role + active elevation, returns Envoy CheckResponse with `Impersonate-User` + `Impersonate-Group` headers to inject
-6. Pomerium injects headers, forwards to `https://kubernetes.default.svc:443`
-7. apiserver impersonates the user with the resolved tier, RBAC binds, request succeeds or fails on RBAC
+1. `kubectl --context kube-<env>.tuist.dev get pods`
+2. `pomerium-cli` injects the cached Pomerium session JWT as a Bearer.
+3. Pomerium validates the session (signed by us, not expired,
+   email in `tuist.dev`).
+4. Pomerium's route forwards to the `kube-impersonator` sidecar
+   on `127.0.0.1:8081`. `pass_identity_headers: true` +
+   `jwt_claims_headers: { X-Pomerium-Claim-Email: email }`
+   attach the user's email.
+5. Sidecar issues `GET http://tuist-ops-egress/api/v1/policy`
+   over the tailnet (the egress Service is operator-managed,
+   proxying to `ops.<tailnet>.ts.net`).
+6. tuist-ops reads `host` to derive the env + the claim header
+   to identify the user, checks `(subject, env)` against the
+   active elevation row, returns HTTP 200 + `Impersonate-User`
+   + one-or-more `Impersonate-Group` response headers.
+7. Sidecar strips the inbound bearer, attaches the pod
+   ServiceAccount token, copies the policy headers onto the
+   request, forwards to `https://kubernetes.default.svc:443`.
+8. apiserver impersonates, RBAC binds the group(s) to the right
+   ClusterRole (view / edit), request succeeds or fails on
+   that authorisation.
 
 ## Manual prereqs (per env)
 
-1. **Create the Pomerium 1P item** `POMERIUM_<TUIST_ENV>` in the matching env's vault with these fields:
-   - `shared_secret` (32 bytes base64): `openssl rand -base64 32` (Pomerium's internal RPC signing key, not the databroker store)
-   - `cookie_secret` (32 bytes base64): same
-   - `idp_client_id` / `idp_client_secret`: Google Workspace OIDC credentials (created via Workspace admin → APIs & Services → Credentials → OAuth client ID. Type: web. Authorised redirect URI: `https://authenticate.kube-<env>.tuist.dev/oauth2/callback`)
+1. **Create the Pomerium 1P item** `POMERIUM_<TUIST_ENV>` in the
+   matching env's vault with:
+   - `shared_secret` (32 bytes base64): `openssl rand -base64 32`
+     — Pomerium's internal RPC signing key (not the databroker
+     store).
+   - `cookie_secret` (32 bytes base64): same generator.
+   - `idp_client_id` / `idp_client_secret`: Google Workspace
+     OIDC credentials. Create via Workspace admin → APIs &
+     Services → Credentials → OAuth client ID, type "Web app",
+     authorised redirect URI
+     `https://authenticate.kube-<env>.tuist.dev/oauth2/callback`.
 
-   No `databroker_storage_connection_string` is required — the chart configures Pomerium to use memory-backed databroker (trade-off: a Pomerium pod restart invalidates sessions, users re-auth via browser; acceptable at our scale). Switch to Postgres-backed when there's an operational reason.
-2. **Create the DNS records** at Cloudflare for `kube-<env>.tuist.dev` and `authenticate.kube-<env>.tuist.dev` pointing at the cluster's ingress.
-3. **cert-manager** must already have a `letsencrypt` ClusterIssuer (it does — used by the existing Tuist server ingress).
-4. **Tailscale operator** must already be deployed in the cluster with egress enabled (it is — used by the apiserver proxy for view-tier access today).
+   Databroker is memory-backed (single replica, sessions
+   invalidate on pod restart and users re-auth — acceptable at
+   our scale). No connection string needed.
 
-## Bits to verify before first deploy
+2. **DNS** for `kube-<env>.tuist.dev` and
+   `authenticate.kube-<env>.tuist.dev` is created automatically
+   by `external-dns` from the chart's Ingress hosts.
 
-The chart skeleton uses a few Pomerium config keys whose exact names depend on upstream Pomerium version. Verify against [Pomerium reference config](https://www.pomerium.com/docs/reference) for the pinned `appVersion` in `Chart.yaml`:
+3. **cert-manager** must already have a
+   `letsencrypt-cloudflare` ClusterIssuer (it does — used by
+   the existing Tuist server ingress).
 
-- The shape of `pomerium.config.routes[].policy` (PPL vs YAML PPL).
-- Where to set `externalAuthorizationURI` (or equivalent) — likely under `pomerium.config.ext_authz_provider` or similar global key.
-- The exact env var names Pomerium reads for the IdP client id/secret when not in config (the chart may pass them via env, not config).
-
-These three settings are the only Pomerium-specific risk in the chart; the rest is standard Kubernetes wiring (Ingress, Service, ExternalSecret).
+4. **Tailscale operator** must already be deployed in the
+   cluster with the `tuist-ops-egress` ExternalName Service
+   path working — that's what the sidecar dials.
 
 ## Deploy
 
 ```bash
-helm dep update infra/helm/pomerium
 helm upgrade --install pomerium-kube infra/helm/pomerium \
   -n pomerium --create-namespace \
   -f infra/helm/pomerium/values-staging.yaml \
   --kube-context tuist-k8s-staging
 ```
 
-Repeat for canary and production once the staging deploy is proven.
+Repeat for canary + production once staging is proven. The
+deployment workflow at `.github/workflows/pomerium-deployment.yml`
+wraps this with the 1P kubeconfig fetch + per-env matrix.

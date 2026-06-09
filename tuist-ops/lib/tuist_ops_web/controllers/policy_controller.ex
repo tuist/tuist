@@ -1,25 +1,21 @@
 defmodule TuistOpsWeb.PolicyController do
   @moduledoc """
   Per-request impersonation resolver for the kubectl gateway.
-  Pomerium has an Envoy `ext_authz` HTTP filter pointed at this
-  endpoint, configured via the `extra_envoy_filters` /
-  `extra_envoy_clusters` block in the Pomerium chart's ConfigMap.
-  After Pomerium authenticates the user via Google Workspace OIDC,
-  Envoy dials this controller on every kubectl request and copies
-  selected response headers (Impersonate-*) onto the upstream
-  request to the apiserver. The apiserver then RBAC-binds the
-  impersonated group(s).
+  Each env runs a `kube-impersonator` sidecar alongside Pomerium
+  in the workload cluster's `pomerium` namespace. After Pomerium
+  authenticates the user via Google Workspace OIDC and forwards
+  the kubectl request to the sidecar, the sidecar dials this
+  controller, takes the `Impersonate-User` / `Impersonate-Group`
+  response headers, attaches them plus the pod's ServiceAccount
+  bearer to the upstream request, and forwards to the apiserver.
+  The apiserver RBAC-binds the impersonated group(s).
 
-  ## Wire shape — HTTP ext_authz, not gRPC
+  ## Wire shape — plain HTTP
 
-  Envoy's HTTP ext_authz mode (`http_service:` in the filter
-  config) is a plain HTTP request to this controller, NOT the
-  Envoy CheckRequest gRPC interface. We read auth-relevant inputs
-  from request headers passed through by Envoy
-  (`authorization_request.allowed_headers` controls which headers
-  travel), and we communicate the decision via response status +
-  response headers (`authorization_response.allowed_upstream_headers`
-  controls which response headers Envoy forwards to the upstream).
+  The sidecar speaks plain HTTP (see `kube-impersonator/main.go`).
+  We read auth-relevant inputs from request headers it forwards
+  and communicate the decision via response status + response
+  headers. No Envoy / ext_authz / gRPC framing.
 
   Inputs (request headers):
 
@@ -27,18 +23,18 @@ defmodule TuistOpsWeb.PolicyController do
       Host header is the source of truth because Pomerium routes
       by host and the same endpoint serves all envs.
     * `x-pomerium-claim-email` — the authenticated user's email,
-      injected by Pomerium after the OIDC dance via the route's
-      `pass_identity_headers: true` setting.
+      set by Pomerium via `jwt_claims_headers: { X-Pomerium-Claim-
+      Email: email }` and passed through by the sidecar.
 
   Outputs:
 
     * Allow → HTTP 200 with `Impersonate-User: <email>` plus one
       or more `Impersonate-Group:` headers. Multi-group is
       represented as multiple header entries with the same name
-      (this is the canonical Kubernetes convention; comma-joining
-      is NOT supported by the apiserver).
-    * Deny → HTTP 403 with the reason in the body. Envoy rejects
-      the original request and never forwards it.
+      (canonical Kubernetes convention; comma-joining is NOT
+      supported by the apiserver).
+    * Deny → HTTP 403 with the reason in the body. The sidecar
+      surfaces a 502 to kubectl (fail closed).
 
   ## Tier resolution
 
@@ -49,12 +45,12 @@ defmodule TuistOpsWeb.PolicyController do
 
   ## Reachability + trust boundary
 
-  Envoy in each env's Pomerium pod dials this endpoint via the
-  cluster-internal `tuist-ops-egress` Service, which the
-  tailscale-operator turns into a tailnet egress proxy reaching
-  `ops.tuist.ts.net`. There is no bearer on this call; the auth
-  is "you're on the tailnet and the egress Service is in your
-  cluster." Public ingress on `ops.tuist.dev` MUST NOT route
+  Each env's sidecar dials this controller via the cluster-internal
+  `tuist-ops-egress` ExternalName Service, which the tailscale-
+  operator turns into a tailnet egress proxy reaching
+  `ops.<tailnet>.ts.net`. There is no bearer on this call; the
+  auth is "you're on the tailnet and the egress Service is in
+  your cluster." Public ingress on `ops.tuist.dev` MUST NOT route
   `/api/v1/*` through to this controller — see the ingress
   template in `infra/helm/tuist-ops/`.
   """
@@ -76,7 +72,7 @@ defmodule TuistOpsWeb.PolicyController do
         respond(conn, resolve(subject, env))
 
       {:error, reason} ->
-        Logger.warning("tuist_ops policy: malformed ext_authz request: #{reason}")
+        Logger.warning("tuist_ops policy: malformed policy request: #{reason}")
         respond(conn, {:deny, "bad request: #{reason}"})
     end
   end

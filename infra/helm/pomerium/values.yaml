@@ -3,7 +3,7 @@
 # only override:
 #   - tuistEnv         (staging | canary | production)
 #   - publicHostname   (kube-<env>.tuist.dev)
-# Everything else (image, ext_authz wiring, ingress shape) stays
+# Everything else (image, sidecar wiring, ingress shape) stays
 # identical across envs to keep behaviour symmetric.
 
 tuistEnv: staging
@@ -60,7 +60,7 @@ replicaCount: 1
 
 # Pomerium needs RBAC permission to impersonate users + groups on
 # the apiserver (per-request Impersonate-User / Impersonate-Group
-# headers come from the ext_authz response). The ClusterRole below
+# headers come from the policy response). The ClusterRole below
 # binds those verbs.
 serviceAccount:
   create: true

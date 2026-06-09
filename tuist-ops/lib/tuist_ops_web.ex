@@ -1,7 +1,7 @@
 defmodule TuistOpsWeb do
   @moduledoc """
   HTTP surface for the JIT service. No HTML / LiveView — this is a
-  webhooks + JSON API app (Slack on one side, Pomerium ext_authz on the
+  webhooks + JSON API app (Slack on one side, the impersonation policy endpoint on the
   other).
   """
 

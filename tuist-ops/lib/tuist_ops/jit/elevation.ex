@@ -2,10 +2,10 @@ defmodule TuistOps.JIT.Elevation do
   @moduledoc """
   A bounded-time grant: a person is authorized for elevated
   impersonation on a specific cluster env. The row IS the JIT
-  authorization (no tailnet ACL mutation; the Pomerium ext_authz
+  authorization (no tailnet ACL mutation; the policy
   endpoint reads this table at request time). Lifecycle:
   `active → reverted`. The `RevertWorker` flips the row at
-  `expires_at`; `expires_at` is also enforced at the ext_authz
+  `expires_at`; `expires_at` is also enforced at the policy
   endpoint so the row going stale never grants access.
 
   Backed by [priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs](priv/repo/migrations/20260603120000_create_tailscale_jit_tables.exs).

@@ -1,9 +1,10 @@
 {{- /*
 Pomerium config file. Mounted at /etc/pomerium/config.yaml on the
 pod, read by the binary at startup. Most secrets stay out of this
-file (Pomerium reads them from POMERIUM_* env vars sourced from
-the ESO-synced Secret); this file holds the structural config
-(routes, OIDC provider type, ext_authz wiring).
+file (Pomerium reads them from SHARED_SECRET / COOKIE_SECRET /
+IDP_CLIENT_* env vars sourced from the ESO-synced Secret); this
+file holds the structural config (routes, OIDC provider, JWT
+claim header mapping, the sidecar route target).
 
 Pomerium runs in all-in-one mode (no `services:` block) — single
 process handles authenticate, authorize, databroker, proxy in one

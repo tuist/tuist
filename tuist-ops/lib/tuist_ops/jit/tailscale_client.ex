@@ -30,8 +30,8 @@ defmodule TuistOps.JIT.TailscaleClient do
 
   # Cache the tailnet users list briefly. Role changes are
   # infrequent and a stale-by-30s read is fine; this avoids a HTTP
-  # round-trip on every Slack interactive click and every Pomerium
-  # ext_authz call.
+  # round-trip on every Slack interactive click and every
+  # kube-impersonator policy call.
   @users_cache_ttl_seconds 30
 
   @doc """

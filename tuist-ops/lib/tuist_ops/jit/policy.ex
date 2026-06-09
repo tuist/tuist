@@ -80,14 +80,14 @@ defmodule TuistOps.JIT.Policy do
   @doc """
   Returns the env name (`"staging" | "canary" | "production"`) for a
   given target_group, or `nil` for unknown groups. Used by the
-  Pomerium ext_authz endpoint to derive the env from a request's
+  impersonation policy endpoint to derive the env from a request's
   declared target.
   """
   def env_for(target_group), do: Map.get(@group_to_env, target_group)
 
   @doc """
   Returns `{:ok, env}` if the role is allowed to operate on the env,
-  `:deny` otherwise. Used by the Pomerium ext_authz endpoint when
+  `:deny` otherwise. Used by the impersonation policy endpoint when
   deciding whether to inject the elevated impersonation header.
   """
   def env_access(role, env) when is_atom(role) and is_binary(env) do

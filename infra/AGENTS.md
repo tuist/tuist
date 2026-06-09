@@ -75,7 +75,7 @@ This section is normative for agents (Claude, Codex, anything driving `kubectl` 
 
 ### Default: read-only is always allowed, no setup needed
 
-The team's Google Workspace identity carries through to every workload cluster via Pomerium fronting `https://kube-<env>.tuist.dev`. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. Pomerium's `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. The tuist-ops `/api/v1/policy` ext_authz callback returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
+The team's Google Workspace identity carries through to every workload cluster via Pomerium fronting `https://kube-<env>.tuist.dev`. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. The `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. Each request then flows through the `kube-impersonator` sidecar in the Pomerium pod, which calls tuist-ops's `/api/v1/policy` over the tailnet; the policy returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
 
 For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely.
 
@@ -90,7 +90,7 @@ Concrete rules for agents:
 - **Do not invoke `/elevate` autonomously.** If you think a write is needed, surface that to the human ("this would require elevation; can you run `/elevate ...` and grant the access?") and let them drive both the request and the approval.
 - **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
-- **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's ext_authz response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+- **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's policy response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
 
 ### Forensic trail
 
@@ -105,8 +105,8 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - Service code: [`tuist-ops/lib/tuist_ops/jit/`](../tuist-ops/lib/tuist_ops/jit/) (the standalone Phoenix app in [`tuist-ops/`](../tuist-ops/)).
 - Policy (self-approve + approver trust tiers): `TuistOps.JIT.Policy`. Both decisions read the requester's / approver's **tailnet role** (Owner / Admin / Member) from `GET /api/v2/tailnet/-/users` via `TuistOps.JIT.TailscaleClient.user_role/1`. There are no email lists in code; promoting someone in the Tailscale admin console Users page changes their bot policy on the next 30s cache tick.
-- Per-call impersonation resolution: `TuistOpsWeb.PolicyController` serves Pomerium's Envoy ExtAuthz callback. Reads the active Elevation row for `(subject, env)` and emits the appropriate `Impersonate-User` / `Impersonate-Group` headers.
-- Tailnet ACL: [`tailscale/acls.json`](tailscale/acls.json). View-tier only; static; humans edit it through code review. The `tuist-admins` / `tuist-eng` strings inside `accessBindings` in `helm/tailscale-operator/values-*.yaml` are the *Kubernetes-side* impersonation labels Pomerium injects on each forwarded request.
+- Per-call impersonation resolution: `TuistOpsWeb.PolicyController` is the HTTP endpoint each env's `kube-impersonator` sidecar dials on every kubectl request. Reads the active Elevation row for `(subject, env)` and returns `Impersonate-User` / `Impersonate-Group` response headers; the sidecar copies them onto the upstream request to the apiserver.
+- Tailnet ACL: [`tailscale/acls.json`](tailscale/acls.json). View-tier only; static; humans edit it through code review. The `tuist-admins` / `tuist-eng` / `tuist-<env>-write` strings are *Kubernetes-side* impersonation labels, bound to ClusterRoles by `infra/helm/pomerium/templates/access-tiers.yaml`.
 
 ## Deployment
 

@@ -2,7 +2,7 @@ defmodule TuistOps.JIT.Workers.RevertWorker do
   @moduledoc """
   Reverts a single elevation by flipping `tailscale_jit_elevations`
   to `status="reverted"` and updating the Slack card. The Pomerium
-  ext_authz endpoint reads the same row at request time, so the
+  policy endpoint reads the same row at request time, so the
   revert takes effect on the next kubectl call after this worker
   runs (or earlier — the endpoint also filters by `expires_at`, so
   TTL expiry alone is enough to deny new requests before this
