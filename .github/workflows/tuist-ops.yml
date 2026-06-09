@@ -1,0 +1,28 @@
+name: Tuist Ops
+
+# STUB: this file exists on `main` so the workflow_dispatch UI exposes
+# "Tuist Ops" before the full tuist-ops/ tree lands (PR #10988). When
+# that PR merges, this file is replaced with the real format / credo /
+# test / build pipeline; until then, dispatching this workflow only
+# runs the placeholder job below.
+#
+# Why a stub: GitHub Actions only shows workflow_dispatch in the UI for
+# workflows that exist on the default branch. Landing the stub first
+# lets us dispatch the real workflow from a feature branch (the feature
+# branch supplies the actual workflow file at run time) without waiting
+# for the full PR to merge.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: |
+          echo "Stub workflow on main. The real workflow lands with PR #10988."
+          echo "Dispatch this from a branch that already has the real version to exercise it."

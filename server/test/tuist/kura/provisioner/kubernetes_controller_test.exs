@@ -32,6 +32,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
       assert manifest["metadata"]["namespace"] == "kura"
 
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] ==
+               KubernetesController.manifest_revision()
+
       spec = manifest["spec"]
       assert spec["accountHandle"] == "tuist"
       assert spec["tenantID"] == "tuist"
@@ -39,6 +42,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["image"] == "ghcr.io/tuist/kura:0.5.2"
       assert spec["publicHost"] == "tuist-eu-central-1.kura.tuist.dev"
       assert spec["grpcPublicHost"] == "grpc.tuist-eu-central-1.kura.tuist.dev"
+      assert spec["peerPublicHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
+      assert spec["globalDiscoveryDNSName"] == "tuist.kura-peers.tuist.dev"
+      assert spec["peerTLSSecretName"] == "kura-cross-region-peer-tls"
       refute Map.has_key?(spec, "tlsSecretName")
       assert spec["storageClassName"] == "hcloud-volumes"
       assert spec["extensionScript"] == "return true"
@@ -53,6 +59,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
                "00000000-0000-0000-0000-000000000001"
+
+      refute Map.has_key?(env, "KURA_PEERS")
 
       # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
@@ -88,6 +96,57 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["grpcPublicHost"] == "grpc.bumble-eu-central-1.kura.tuist.dev"
     end
 
+    test "uses the region-configured Tuist server URL for managed eu-central Kura instances" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{
+            tuist_base_url: "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
+          }),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      assert env["KURA_CONTROL_PLANE_URL"] ==
+               "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
+
+      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] ==
+               "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
+    end
+
+    test "falls back to the app URL when the region has no configured Tuist server URL" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
+      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
+    end
+
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
 
@@ -115,7 +174,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
       assert env["KURA_CONTROL_PLANE_URL"] == "http://host.docker.internal:8080"
-      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "http://host.docker.internal:8080"
+
+      assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] ==
+               "http://host.docker.internal:8080"
+
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
 
       assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
@@ -171,7 +233,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
-      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1" -> {:error, :not_found} end)
+      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
+        {:error, :not_found}
+      end)
 
       assert :ok = KubernetesController.destroy("kura-tuist-eu-central-1", eu_region())
     end
@@ -214,7 +278,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       end)
 
       assert {:ok, "sha-abcdef123456"} =
-               KubernetesController.current_image_tag("kura-tuist-local-controller", local_controller_region())
+               KubernetesController.current_image_tag(
+                 "kura-tuist-local-controller",
+                 local_controller_region()
+               )
     end
   end
 
@@ -224,7 +291,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "extracts the tag from an image reference that uses a registry port" do
-      assert KubernetesController.image_tag_from_image("localhost:5001/tuist/kura:0.5.2") == "0.5.2"
+      assert KubernetesController.image_tag_from_image("localhost:5001/tuist/kura:0.5.2") ==
+               "0.5.2"
     end
 
     test "returns nil when the image reference has no tag" do
@@ -244,15 +312,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
-  defp eu_region do
+  defp eu_region(extra_config \\ %{}) do
     %Regions{
       id: "eu-central",
-      provisioner_config: %{
-        cluster_id: "eu-central-1",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
-      }
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "eu-central-1",
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            peer_tls_secret_name: "kura-cross-region-peer-tls",
+            storage_class: "hcloud-volumes"
+          },
+          extra_config
+        )
     }
   end
 
@@ -264,6 +339,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
         public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
         grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+        peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+        global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+        peer_tls_secret_name: "kura-cross-region-peer-tls",
         storage_class: "hcloud-volumes"
       }
     }

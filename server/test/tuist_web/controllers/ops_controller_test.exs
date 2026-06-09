@@ -1,5 +1,5 @@
 defmodule TuistWeb.OpsControllerTest do
-  use TuistTestSupport.Cases.ConnCase
+  use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
   alias Tuist.Environment

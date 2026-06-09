@@ -249,7 +249,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Active customer builds on the fleet — PG claims in `lifecycle_state='running'`. Real cap occupancy; compare against the per-account `runner_max_concurrent` to spot account-level contention.",
+        "description": "Active customer builds on the fleet — PG claims in `lifecycle_state='running'`. Real fleet occupancy across all accounts.",
         "fieldConfig": {
           "defaults": {
             "color": {

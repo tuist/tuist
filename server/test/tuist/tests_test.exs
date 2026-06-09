@@ -1,5 +1,5 @@
 defmodule Tuist.TestsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   import Ecto.Query

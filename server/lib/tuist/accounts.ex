@@ -26,6 +26,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Namespace
   alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -354,7 +355,8 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account, :default_runner_profile] ->
+      {:error, part, changeset, _changes}
+      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -407,6 +409,9 @@ defmodule Tuist.Accounts do
     end)
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
       RunnerProfiles.create_default_for_account(account)
+    end)
+    |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_macos_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -694,6 +699,9 @@ defmodule Tuist.Accounts do
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_for_account(account)
       end)
+      |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_macos_for_account(account)
+      end)
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -730,8 +738,8 @@ defmodule Tuist.Accounts do
           {:error, changeset}
         end
 
-      {:error, :default_runner_profile, reason, _} ->
-        Logger.error("create_user: default runner profile insert failed: #{inspect(reason)}")
+      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
     end
   end
@@ -1935,51 +1943,49 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle and cache technology.
+  Returns cache endpoint URLs for the given account handle.
 
-  For the default cache technology, custom endpoints are only returned when:
+  Ready account Kura endpoints are preferred when present unless the account is
+  opted out through `:kura_cache_opt_out`. Kura servers mirror their public URL
+  into `account_cache_endpoints` only after the public endpoint is ready, so
+  clients do not need explicit opt-in once an account has an available server.
+
+  When there is no ready account Kura endpoint, custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
-
-  For Kura, configured Kura endpoints are returned when available. When none are configured or usable,
-  the default cache endpoints are returned so clients can fall back to Tuist-hosted cache nodes.
   """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
-
-  def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      account_handle
-      |> get_account_by_handle()
-      |> custom_cache_endpoints()
-      |> case do
-        [] -> CacheEndpoints.active_endpoint_urls()
-        endpoints -> Enum.map(endpoints, & &1.url)
-      end
+      hosted_cache_endpoints_for_handle(account_handle)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
-    account_handle
-    |> kura_endpoint_urls()
-    |> case do
-      [] ->
-        get_cache_endpoints_for_handle(account_handle, :default)
+  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
 
-      endpoints ->
-        endpoints
+  defp hosted_cache_endpoints_for_handle(account_handle) do
+    case get_account_by_handle(account_handle) do
+      %Account{} = account -> cache_endpoint_urls(account)
+      _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
-
-  def get_cache_endpoints_for_handle(_, :kura) do
-    case configured_kura_endpoint_urls() do
-      [] -> CacheEndpoints.active_endpoint_urls()
+  defp cache_endpoint_urls(%Account{} = account) do
+    case kura_cache_endpoint_urls(account) do
+      [] -> custom_cache_endpoint_urls(account)
       endpoints -> endpoints
+    end
+  end
+
+  defp custom_cache_endpoint_urls(%Account{} = account) do
+    account
+    |> custom_cache_endpoints()
+    |> case do
+      [] -> CacheEndpoints.active_endpoint_urls()
+      endpoints -> Enum.map(endpoints, & &1.url)
     end
   end
 
@@ -1993,32 +1999,15 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(%Account{} = account) do
+    if FeatureFlags.kura_cache_opted_out?(account) do
+      []
+    else
+      list_account_cache_endpoints(account, :kura)
+    end
+  end
 
   defp kura_cache_endpoints(_), do: []
-
-  defp kura_endpoint_urls(account_handle) do
-    case configured_kura_endpoint_urls() do
-      [] ->
-        case get_account_by_handle(account_handle) do
-          %Account{} = account -> kura_cache_endpoint_urls(account)
-          _ -> []
-        end
-
-      endpoints ->
-        endpoints
-    end
-  end
-
-  defp configured_kura_endpoint_urls do
-    Environment.kura_endpoints()
-    |> case do
-      endpoints when is_list(endpoints) -> endpoints
-      _ -> []
-    end
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
     account

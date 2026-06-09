@@ -60,7 +60,11 @@ jobs:
         run: swift test --replace-scm-with-registry
   gettext:
     name: Gettext
-    runs-on: tuist-production-linux
+    # tuist-linux-large: mix gettext.extract compiles the full project
+    # (every dgettext/3 call needs to be reachable for the extractor) and
+    # OOMs the 2 vCPU / 8 GB default shape — same Elixir-compile-OOM
+    # pattern as `setup-server-mix` callers.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -68,21 +72,103 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-version: ${{ env.MISE_VERSION }}
-      - name: Check marketing gettext template is up-to-date
+      # Pre-compile the project in its own step so the OOM (if any)
+      # surfaces here rather than inside the extract heartbeat loop —
+      # makes the failure mode obvious. The throttle stack:
+      # MIX_OS_DEPS_COMPILE_PARTITION_COUNT for OS-deps compile,
+      # ERL_AFLAGS "+S 1:1" for project compile (Kernel.ParallelCompiler
+      # sizes concurrency from System.schedulers_online()), and the
+      # System.schedulers_online() echo verifies the throttle landed.
+      - name: Compile project (throttled)
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        working-directory: server
         run: |
+          mix run -e 'IO.puts("schedulers_online=#{System.schedulers_online()}")'
+          mix compile
+      - name: Check gettext templates are up-to-date
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        run: |
+          run_gettext_extract() {
+            log_file="$1"
+            (
+              while true; do
+                sleep 30
+                echo "Waiting for gettext.extract..."
+              done
+            ) &
+            heartbeat_pid=$!
+
+            set +e
+            timeout 5m mix gettext.extract > "$log_file" 2>&1
+            extract_status=$?
+            set -e
+
+            kill "$heartbeat_pid" 2>/dev/null || true
+            wait "$heartbeat_pid" 2>/dev/null || true
+
+            if [ "$extract_status" -eq 124 ]; then
+              echo "::error title=Gettext extraction timed out::mix gettext.extract did not finish within 5 minutes."
+              cat "$log_file"
+              exit 1
+            fi
+
+            if [ "$extract_status" -gt 128 ]; then
+              exit "$extract_status"
+            fi
+          }
+
           # Extract only (without --merge) to check if marketing.pot changes
           # DO NOT use --merge here as it would modify .po translation files
           cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract > /dev/null 2>&1 || true
+
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          run_gettext_extract /tmp/gettext-extract.log
+
+          exit_code=0
 
           if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
             echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            rm priv/gettext/marketing.pot.backup
-            exit 1
+            exit_code=1
           else
             echo "✅ Marketing gettext template is up-to-date"
-            rm priv/gettext/marketing.pot.backup
           fi
+          rm priv/gettext/marketing.pot.backup
+
+          # Check each dashboard domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit_code=1
+          else
+            echo "✅ All dashboard gettext templates are up-to-date"
+          fi
+
+          exit "$exit_code"
       - name: Check marketing translations exist
         run: |
           # Check if marketing.pot exists
@@ -103,42 +189,6 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-      - name: Check dashboard gettext templates are up-to-date
-        run: |
-          # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
-
-          # Backup all dashboard .pot files
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot" ]; then
-              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
-            fi
-          done
-
-          # Extract only (without --merge) to check if any .pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          mix gettext.extract > /dev/null 2>&1 || true
-
-          # Check each domain for changes
-          CHANGED_DOMAINS=""
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
-              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
-                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-              fi
-              rm "priv/gettext/${domain}.pot.backup"
-            elif [ -f "priv/gettext/${domain}.pot" ]; then
-              # New domain file was created
-              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-            fi
-          done
-
-          if [ -n "$CHANGED_DOMAINS" ]; then
-            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit 1
-          else
-            echo "✅ All dashboard gettext templates are up-to-date"
-          fi
       - name: Check dashboard translations templates exist
         run: |
           # Dashboard domains to check
@@ -159,14 +209,16 @@ jobs:
           echo "✅ All dashboard translation templates present"
   test:
     name: Test
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    # Bigger shape: the test compile + ClickHouse + Postgres peak over the
+    # 2 vCPU / 8 GB default microVM, OOM-killing the runner from inside the
+    # guest ("lost communication"). The 4 vCPU / 16 GB shape restores the
+    # headroom this job had before the default was downsized (#11052).
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -185,6 +237,7 @@ jobs:
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
           mix-cache-key: mix-test-v2
           mix-cache-restore-key: mix-test-v2-
+          restore-mix-cache: "false"
       - name: Compile
         run: mix compile --warnings-as-errors
       - name: Start ClickHouse
@@ -195,7 +248,7 @@ jobs:
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -208,29 +261,30 @@ jobs:
         run: mix credo
   format:
     name: Format
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup-server-mix
+      - uses: jdx/mise-action@v4.0.1
         with:
-          mise-version: ${{ env.MISE_VERSION }}
-          mise-install-args: erlang elixir node aube npm:prettier
-      - name: Restore Aube Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/aube
-            ~/.cache/aube
-          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+          version: ${{ env.MISE_VERSION }}
+          install_args: erlang elixir node aube
+          cache: "true"
+          working_directory: server
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Install mix dependencies
+        run: mix deps.get
       - name: Install aube dependencies
         run: aube install
       - name: Check format
-        run: mise run --no-deps format --check
+        run: |
+          mix format --check-formatted
+          aube exec prettier -c priv/static/app
+          aube exec prettier -c assets
   esbuild:
     name: esbuild
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -275,7 +329,7 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -296,10 +350,10 @@ jobs:
         run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    # TODO: migrate to tuist-production-linux once the runner image ships a
-    # docker daemon — buildx requires a working docker engine.
-    runs-on: namespace-profile-default-with-volume
-    timeout-minutes: 15
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v4
@@ -308,19 +362,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Docker build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          target: runner
-          push: false
-          load: true
-          tags: tuist/tuist
-          build-args: |
-            TUIST_HOSTED=0
-            TUIST_VERSION=1.24.11.11
-            MIX_ENV=prod
-            APT_CACHE_BUST=${{ github.sha }}
+        run: |
+          log_file=/tmp/server-docker-build.log
+          docker buildx build \
+            --progress=plain \
+            --file "$GITHUB_WORKSPACE/server/Dockerfile" \
+            --target runner \
+            --load \
+            --tag tuist/tuist \
+            --build-arg TUIST_HOSTED=0 \
+            --build-arg TUIST_VERSION=1.24.11.11 \
+            --build-arg MIX_ENV=prod \
+            --build-arg APT_CACHE_BUST=${{ github.sha }} \
+            --build-arg DOCKER_IMAGE_PREFIX=mirror.gcr.io/ \
+            --build-arg DOCKER_OFFICIAL_IMAGE_PREFIX=mirror.gcr.io/library/ \
+            "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            echo "Waiting for Docker build..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$build_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- server-docker-build.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Docker build completed"
       - name: Install Trivy
         env:
           TRIVY_VERSION: "0.69.3"
@@ -335,7 +407,7 @@ jobs:
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
-  #   runs-on: namespace-profile-default-with-volume
+  #   runs-on: tuist-linux
   #   timeout-minutes: 15
   #   services:
   #     postgres:
@@ -352,12 +424,9 @@ jobs:
   #         --health-retries 5
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - uses: namespacelabs/nscloud-cache-action@v1
-  #       with:
-  #         cache: mise
   #     - uses: jdx/mise-action@v4.0.1
   #       with:
-  #         cache: "false"
+  #         cache: "true"
   #     - run: mise run install
   #     - run: mise run clickhouse:start
   #     - run: mise run db:reset
@@ -377,14 +446,15 @@ jobs:
   #         fi
   seed:
     name: Seed
-    # TODO: migrate to tuist-production-linux once the runner image ships
-    # a docker daemon — required for the postgres service container.
-    runs-on: namespace-profile-default-with-volume
+    # Bigger shape: database setup (migrations + seeds) is too slow on the
+    # 2 vCPU default and overruns the 15m timeout under fleet load. The
+    # 4 vCPU / 16 GB shape restores the headroom from before #11052.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -401,6 +471,7 @@ jobs:
         with:
           mise-version: ${{ env.MISE_VERSION }}
           mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          restore-mix-cache: "false"
       - name: Start ClickHouse
         run: mise run --no-deps clickhouse:start
       - name: Setup database
@@ -409,4 +480,3 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
-

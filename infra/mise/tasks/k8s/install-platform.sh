@@ -81,6 +81,7 @@ HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
 )
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
+CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"
 
 if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
   log "Regional Kura cluster detected; skipping ingress-nginx install"
@@ -90,6 +91,11 @@ else
     --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
     --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
   )
+fi
+
+if [ -f "$CLUSTER_VALUES_FILE" ]; then
+  log "Loading platform values overlay $(basename "$CLUSTER_VALUES_FILE")"
+  HELM_VALUES_ARGS+=(-f "$CLUSTER_VALUES_FILE")
 fi
 
 # Sized for a cold cluster: cert-manager CRDs, webhooks, and, on app

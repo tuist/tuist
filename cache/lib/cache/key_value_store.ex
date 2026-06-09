@@ -43,9 +43,13 @@ defmodule Cache.KeyValueStore do
     json = encode_entries(values)
     cache = Keyword.get(opts, :cache_name, @cache_name)
 
-    with :ok <- persist_entry(key, json),
-         {:ok, _} <- Cachex.put(cache, key, json) do
-      :ok
+    if Config.xcode_database_interactions_enabled?() do
+      :ok = persist_entry(key, json)
+    end
+
+    case Cachex.put(cache, key, json) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -74,7 +78,11 @@ defmodule Cache.KeyValueStore do
   defp fetch_entry(key, cache) do
     case Cachex.get(cache, key) do
       {:ok, nil} ->
-        load_from_persistence(key, cache)
+        if Config.xcode_database_interactions_enabled?() do
+          load_from_persistence(key, cache)
+        else
+          {:error, :not_found}
+        end
 
       {:ok, json} when is_binary(json) ->
         {:ok, json}
@@ -83,7 +91,11 @@ defmodule Cache.KeyValueStore do
         {:error, :not_found}
 
       {:error, _} ->
-        load_from_persistence(key, cache)
+        if Config.xcode_database_interactions_enabled?() do
+          load_from_persistence(key, cache)
+        else
+          {:error, :not_found}
+        end
     end
   end
 

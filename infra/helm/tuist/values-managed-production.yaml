@@ -100,6 +100,12 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  telemetry:
+    deploymentEnvironment: production
+  sentry:
+    externalSecret:
+      enabled: true
+      item: kura-sentry
   sharedSecrets:
     externalSecret:
       enabled: true
@@ -113,14 +119,75 @@ kuraController:
 # climbs faster than expected. Backups land in the
 # `tuist-prod-pg-backups` Tigris bucket.
 postgresql:
+  mode: cnpg
   cnpg:
     instances: 3
+    # Route the processor through the transaction-mode PgBouncer pooler.
+    # Web tier stays direct on `-rw` (it holds a long-lived ~75-conn pool
+    # that wouldn't benefit from session-mode bouncing); the processor's
+    # short, ingestion-burst connections get pooled.
+    pooler:
+      enabled: true
+      # Stand up a Tailscale operator-managed proxy in front of the
+      # pooler so the xcresult-processor (macOS Tart VMs whose only
+      # interface is Tailscale) can reach the in-cluster pooler without
+      # routing the K8s service CIDR through the existing subnet router.
+      # The processor's ExternalSecret renders an additional URL key
+      # for that hostname; xcresultProcessor.databaseUrlSecretKey below
+      # opts the Tart VM Deployment into using it.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-production
+        tags: tag:tuist-k8s-production
+    # PostgreSQL config sized against the 16 GiB memory limit below. The
+    # CNPG operator otherwise leaves Postgres on its 128 MiB shared_buffers
+    # default, which on a 16 GiB instance means ~99% of the page cache
+    # lives in the Linux file cache instead of Postgres's own buffer pool.
+    # That's functional (the kernel still caches hot pages) but it leaves
+    # Postgres's query planner pessimistic and wastes the headroom; pick
+    # sizes that fit the instance.
+    #   - shared_buffers ≈ 25% of memory limit (Postgres rule of thumb)
+    #   - effective_cache_size ≈ 75% (planner hint; counts Linux page cache)
+    #   - work_mem sized so 200 connections × work_mem stays << memory
+    #     limit even when several sorts run concurrently (here 200 × 32 MB
+    #     = 6.4 GB max footprint, comfortably below 16 GB)
+    #   - maintenance_work_mem bumped from the 64 MB default so VACUUM
+    #     and index rebuilds aren't artificially slow
+    #
+    # The web tier autoscales to 5 replicas, each holding a direct pool of
+    # TUIST_DATABASE_POOL_SIZE (15): 5 x 15 = 75, plus the processor, the
+    # migration job, and replication/monitoring/superuser overhead. The
+    # operator default max_connections of 100 is too tight for that at peak
+    # (and during a deploy surge). Raise it so the direct topology fits with
+    # headroom; ~200 connections cost ~2 GiB, well inside the 16Gi limit.
+    #
+    # pg_stat_statements is preloaded for per-query latency observability:
+    # queries grouped by parameterized fingerprint, with calls / mean /
+    # stddev / max.
+    parameters:
+      max_connections: "200"
+      shared_buffers: "4GB"
+      effective_cache_size: "12GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+    # `shared_preload_libraries` is a fixed parameter managed by the CNPG
+    # operator and rejected by the admission webhook if listed under
+    # `parameters` above — extra libs go in this list instead and the
+    # chart renders them to `spec.postgresql.shared_preload_libraries`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
     storage:
-      size: "100Gi"
+      # Steady-state usage is ~30-40 GiB; oversized to absorb WAL spikes
+      # during large background operations (REINDEX, VACUUM FULL, bulk
+      # imports) without bumping pvc size mid-flight.
+      size: "250Gi"
+    # Requests sized to fit three instances under hard pod anti-affinity
+    # alongside the rest of the pool tenants; limits left generous so
+    # Postgres runtime peaks aren't capped by the scheduling budget.
     resources:
       requests:
-        cpu: "2000m"
-        memory: "8Gi"
+        cpu: "1500m"
+        memory: "6Gi"
       limits:
         cpu: "4000m"
         memory: "16Gi"
@@ -136,12 +203,31 @@ objectStorage:
     buckets:
       default: tuist-prod-storage
 
+cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
+  s3:
+    bucket: tuist-cas-production
+    xcodeCacheBucket: tuist-xcode-cache-production
+    registryBucket: tuist-registry
+
+# Docker Hub pull-through cache. Reuses the production object-storage
+# bucket under a `docker-mirror` prefix. Runner `docker pull`s route
+# through it (runnersController.features.registryMirror below).
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-prod-storage
+    rootDirectory: docker-mirror
+
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`.
-  database:
-    host: db.yltsvvtmlktxdgpcbylg.supabase.co
   extraEnv:
     # Must match the server's TUIST_DEPLOY_ENV above so the processor pod
     # decrypts the same priv/secrets/<env>.yml.enc file the web tier does.
@@ -205,6 +291,18 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  # Opt into the Tailscale-fronted URL the processor's ExternalSecret
+  # renders when postgresql.cnpg.pooler.tailscale.enabled is true.
+  # Linux processors keep the direct in-cluster URL via the default
+  # key.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  # Join each Tart VM to the production tailnet so it can dial the
+  # operator-managed pooler proxy at
+  # `postgresql.cnpg.pooler.tailscale.hostname`. The auth key reuses
+  # the macOS-fleet TAILSCALE item (same `tag:tuist-macmini-production`
+  # ACL binding the bootstrap uses for the Mac mini hosts).
+  tailscale:
+    enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
@@ -263,11 +361,38 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
-  pools:
-    - name: default
-      replicas: 9
-      runnerImage: "ghcr.io/tuist/tuist-runner@sha256:d4824d8b6a8c7b6d1c2e87dda7f4c4b751ef87f03f87a9c409cfa15756fb198c"
-      dispatchLabel: "tuist-macos"
+  # macOS catalog (shapes + xcodeVersions) is shared across managed
+  # envs via `values-managed-common.yaml`. Per-env tuning lives in
+  # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart
+  # template merges each catalog entry with its override at render
+  # time. Every active profile runs through the runners-controller's
+  # fleet allocator, which apportions the `hostCount` slot budget
+  # across all macOS pools using the three-tier (floor / load /
+  # headroom) policy. `minWarmPoolFloor` is the always-on warm
+  # guarantee; `maxReplicas: 9` lets either pool absorb the whole
+  # fleet under skewed demand and the allocator caps the joint sum
+  # so the pools don't double-book.
+  #
+  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
+  # dynamically apportioned by queue depth across the two pools.
+  # The default (26.5) keeps the warm baseline since most traffic
+  # lands there; 26.4.1 sits cold (floor 0) so an unused runner
+  # doesn't tie up a host. Revisit once we open the runners to
+  # general signups where the pool mix is unpredictable in advance.
+  xcodeOverrides:
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 3
+        maxReplicas: 9
+    "26.4.1":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 9
+  # Resolved at deploy time from the latest `runner-image@` git tag.
+  runnerImageSemver: ""
+  pools: []
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
@@ -298,6 +423,11 @@ buildersFleet:
 kataContainers:
   enabled: true
 
+runnersController:
+  features:
+    dindImage: true
+    registryMirror: true
+
 # Linux runner fleet on Hetzner Robot AX162-R hosts (FSN1).
 #
 # Each AX162-R (48c/96t EPYC Genoa, 256 GB ECC, 2x1.92 TB NVMe DC
@@ -320,9 +450,10 @@ runnersFleetLinux:
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero (the `shapeAutoscaling` floor of 0); the
   # default shape keeps the warm floor the legacy pool used to carry,
-  # since it absorbs both new `tuist-default` traffic and the aliased
-  # legacy `tuist-production-linux` jobs.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:67212f8ba79ac62507cc839bc701c2639fbde3c15aa8e5e2431866651bea0b11"
+  # since it absorbs both `tuist-default` traffic and the `linux`
+  # default-profile (`tuist-linux`) jobs that route through it.
+  # Resolved at deploy time from the latest `linux-runner-image@` git tag.
+  shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true
@@ -332,15 +463,17 @@ runnersFleetLinux:
   shapes:
     - { vcpus: 1, memoryGb: 2 }
     - { vcpus: 2, memoryGb: 4 }
-    - { vcpus: 2, memoryGb: 8 }
-    - { vcpus: 4, memoryGb: 8 }
     # Default shape: ~50% of P95 warm floor (the legacy pool's value),
-    # since all `tuist-default` + aliased legacy traffic lands here.
-    - vcpus: 4
-      memoryGb: 16
+    # since all `tuist-default` + `linux` default-profile (`tuist-linux`)
+    # traffic lands here. The floor is a slot count, so it absorbs the
+    # same concurrent cold starts at 2/8 as it did at 4/16, for less RAM.
+    - vcpus: 2
+      memoryGb: 8
       default: true
       autoscaling:
         minWarmPoolFloor: 30
+    - { vcpus: 4, memoryGb: 8 }
+    - { vcpus: 4, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 16 }
     - { vcpus: 8, memoryGb: 32 }
     - { vcpus: 16, memoryGb: 32 }

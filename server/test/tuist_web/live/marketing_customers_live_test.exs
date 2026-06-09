@@ -1,6 +1,6 @@
 defmodule TuistWeb.Marketing.MarketingCustomersLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
 
   import Phoenix.LiveViewTest
 

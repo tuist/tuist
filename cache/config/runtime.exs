@@ -154,6 +154,7 @@ if config_env() == :prod do
     analytics_cooldown_ms: Cache.Config.int_env("ANALYTICS_COOLDOWN_MS", 60_000),
     analytics_receive_timeout_ms: Cache.Config.int_env("ANALYTICS_RECEIVE_TIMEOUT_MS", 2_000),
     analytics_pool_timeout_ms: Cache.Config.int_env("ANALYTICS_POOL_TIMEOUT_MS", 1_000),
+    xcode_database_interactions_enabled: Cache.Config.bool_env("XCODE_DATABASE_INTERACTIONS_ENABLED", true),
     registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
     registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
     key_value_max_db_size_bytes: String.to_integer(System.get_env("KEY_VALUE_MAX_DB_SIZE_BYTES") || "26843545600"),

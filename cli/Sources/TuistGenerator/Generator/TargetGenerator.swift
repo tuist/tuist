@@ -122,6 +122,18 @@ struct TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Generating post-scripts for aggregate target \(target.name)")
+            try await buildPhaseGenerator.generateScripts(
+                target.scripts.postScripts,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                sourceRootPath: project.sourceRootPath
+            )
+            Logger.current.debug("TargetGenerator: Finished generation for aggregate target \(target.name)")
+            return (pbxTarget, [])
+        }
+
         // Build phases
         Logger.current.debug("TargetGenerator: Generating build phases for \(target.name)")
         try await buildPhaseGenerator.generateBuildPhases(

@@ -30,18 +30,56 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
+alias Tuist.Runners.Catalog
+
 case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
   nil ->
     :ok
 
   json ->
-    case Tuist.Runners.Catalog.parse_shapes_json(json) do
+    case Catalog.parse_shapes_json(json) do
       :error ->
         raise "TUIST_RUNNER_LINUX_SHAPES is set but is not a valid JSON array of shapes " <>
                 "(Helm renders it from runnersFleetLinux.shapes via toJson). Got: #{inspect(json)}"
 
       shapes ->
         config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleet.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_macos_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_xcode_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_XCODE_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.xcodeVersions via toJson). Got: #{inspect(json)}"
+
+      xcodes ->
+        config :tuist, :runner_macos_xcode_versions, xcodes
     end
 end
 
@@ -72,12 +110,12 @@ if Enum.member?([:prod, :stag, :can], env) do
   # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
   # half-dead sockets long after a cloud-egress NAT drops the idle TCP
   # connection — surfaced as `DBConnection.ConnectionError: ssl recv
-  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` after the
-  # Render→K8s migration added NAT hops on the Supabase egress path.
-  # Postgres-side `tcp_keepalives_idle: "60"` only helps when those
-  # probes actually reach the client across the new path; mirror the
-  # same 60s/15s/4-probe cadence on the client socket so dead idles
-  # get reaped within ~2 min, well under any cloud NAT timeout.
+  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` once NAT
+  # hops sat on the Postgres egress path. Postgres-side
+  # `tcp_keepalives_idle: "60"` only helps when those probes actually
+  # reach the client across the path; mirror the same 60s/15s/4-probe
+  # cadence on the client socket so dead idles get reaped within ~2 min,
+  # well under any cloud NAT timeout.
   # Postgrex hands `socket_options` straight to `:gen_tcp` / `:ssl`,
   # so the `{:raw, _, _, _}` 4-tuples work here (unlike Mint, whose
   # `Keyword.merge/2` normalization rejects them — see commit d803ae28cd).
@@ -102,10 +140,10 @@ if Enum.member?([:prod, :stag, :can], env) do
   # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
   # chart on processor pods, unset on server pods). Direct Postgres keeps
   # `:named` prepares + tcp_keepalives_* startup parameters; transaction-
-  # mode poolers (Supabase Supavisor on 6543, PgBouncer, etc.) drop both
-  # — they reject non-standard startup parameters with `protocol_violation`
-  # and can't reuse named prepares across transactions that land on
-  # different backend connections.
+  # mode poolers (PgBouncer, PgCat, etc.) drop both — they reject
+  # non-standard startup parameters with `protocol_violation` and can't
+  # reuse named prepares across transactions that land on different
+  # backend connections.
   pooled? = Tuist.Environment.database_pooled?()
 
   postgres_parameters =
@@ -467,7 +505,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
-base_queues = [default: 10, vcs_comments: 20, webhooks: 20]
+base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 

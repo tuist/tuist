@@ -4,19 +4,14 @@ Describe 'eventual-consistency fault recovery'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-faults"
-    export KURA_US_PORT=4501
-    export KURA_US_2_PORT=4502
-    export TEMPO_PORT=3305
-    export OTLP_PORT=4422
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_US_2_URL="http://localhost:${KURA_US_2_PORT}"
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/test/e2e/docker-compose.discovery.yml"
     )
     setup_suite_tmpdir
+
+    suite_env COMPOSE_PROJECT_NAME kura-faults
+    ephemeral_ports KURA_US_PORT KURA_US_2_PORT KURA_US_GRPC_PORT KURA_US_2_GRPC_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us kura-us-2 >/dev/null 2>&1
@@ -25,6 +20,7 @@ Describe 'eventual-consistency fault recovery'
   reset_cluster() {
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc up -d kura-us >/dev/null 2>&1
+    resolve_http_node KURA_US kura-us
     wait_for_http "${KURA_US_URL}/up"
     capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
     [[ "${us_up}" == *'"ring_members":1'* ]]
@@ -56,6 +52,7 @@ Describe 'eventual-consistency fault recovery'
     The variable delete_status should eq 204
 
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
     capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
     capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
@@ -73,6 +70,7 @@ Describe 'eventual-consistency fault recovery'
 
   It 'converges after a node rejoins and queued retries race with bootstrap'
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
     capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
     capture_into us2_ring wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1
@@ -94,6 +92,7 @@ Describe 'eventual-consistency fault recovery'
     The variable artifact_status should eq 204
 
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US_2 kura-us-2
     wait_for_http "${KURA_US_2_URL}/up" || return 1
     capture_into us_ring_after wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
     capture_into us2_ring_after wait_for_contains "${KURA_US_2_URL}/up" '"ring_members":2' || return 1

@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    error::Error as _,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -18,7 +19,7 @@ use mlua::{Function, Lua, LuaSerdeExt, SerializeOptions, Table};
 const SERIALIZE_NONE_AS_NIL: SerializeOptions = SerializeOptions::new()
     .serialize_none_to_null(false)
     .serialize_unit_to_null(false);
-use reqwest::{Client, Method};
+use reqwest::{Client, Method, RequestBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
@@ -224,7 +225,7 @@ struct SignInstruction {
     payload: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 struct HttpJsonRequest {
     #[serde(default = "default_http_method")]
     method: String,
@@ -267,7 +268,7 @@ impl ExtensionEngine {
                 )
             })?;
         let script_hash = fingerprint(&script);
-        let runtime = LuaRuntime::load(&script, &config).await?;
+        let runtime = LuaRuntime::load(&script, &config, metrics.clone()).await?;
 
         Ok(Self {
             config,
@@ -639,9 +640,13 @@ fn evict_expired_authorize(cache: &mut HashMap<String, CachedAuthorizeResult>) {
 }
 
 impl LuaRuntime {
-    async fn load(script: &str, config: &ExtensionConfig) -> Result<Self, String> {
+    async fn load(
+        script: &str,
+        config: &ExtensionConfig,
+        metrics: Metrics,
+    ) -> Result<Self, String> {
         let lua = Lua::new();
-        install_host_api(&lua, config).await?;
+        install_host_api(&lua, config, metrics).await?;
         lua.load(script)
             .set_name("kura-extension")
             .exec_async()
@@ -667,7 +672,11 @@ fn has_hook(globals: &Table, name: &str) -> bool {
     )
 }
 
-async fn install_host_api(lua: &Lua, config: &ExtensionConfig) -> Result<(), String> {
+async fn install_host_api(
+    lua: &Lua,
+    config: &ExtensionConfig,
+    metrics: Metrics,
+) -> Result<(), String> {
     let kura = lua
         .create_table()
         .map_err(|error| format!("failed to create extension API table: {error}"))?;
@@ -695,10 +704,11 @@ async fn install_host_api(lua: &Lua, config: &ExtensionConfig) -> Result<(), Str
     let http_json = lua
         .create_async_function(move |lua, (id, request): (String, mlua::Value)| {
             let http_clients = http_clients.clone();
+            let metrics = metrics.clone();
             async move {
                 let request: HttpJsonRequest =
                     lua.from_value(request).map_err(mlua::Error::external)?;
-                let response = execute_http_json(&http_clients, &id, request)
+                let response = execute_http_json(&http_clients, &metrics, &id, request)
                     .await
                     .map_err(mlua::Error::external)?;
                 lua.to_value(&response)
@@ -774,6 +784,7 @@ fn verify_jwt(
 
 async fn execute_http_json(
     http_clients: &HashMap<String, ExtensionHttpClient>,
+    metrics: &Metrics,
     client_id: &str,
     request: HttpJsonRequest,
 ) -> Result<HttpJsonResponse, String> {
@@ -793,18 +804,48 @@ async fn execute_http_json(
         url.push_str(&request.path);
     }
 
-    let mut builder = client.client.request(method, &url).query(&request.query);
-    for (name, value) in request.headers {
-        builder = builder.header(name, value);
-    }
-    if let Some(body) = request.body {
-        builder = builder.json(&body);
-    }
-
-    let response = builder
-        .send()
-        .await
-        .map_err(|error| format!("HTTP client '{client_id}' request failed: {error}"))?;
+    let route = extension_http_route_label(&request.path);
+    let normalized_client_id = normalize_id(client_id);
+    let mut attempt = 0;
+    let response = loop {
+        attempt += 1;
+        let start = Instant::now();
+        let result = build_http_json_request(client, method.clone(), &url, &request)
+            .send()
+            .await;
+        match result {
+            Ok(response) => {
+                metrics.record_extension_http_client(
+                    &normalized_client_id,
+                    route,
+                    "ok",
+                    status_class(response.status().as_u16()),
+                    "none",
+                    start.elapsed(),
+                );
+                break response;
+            }
+            Err(error) => {
+                let error_kind = classify_reqwest_error(&error);
+                metrics.record_extension_http_client(
+                    &normalized_client_id,
+                    route,
+                    "error",
+                    "none",
+                    error_kind,
+                    start.elapsed(),
+                );
+                if attempt < 2 && retryable_reqwest_error(error_kind) {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    continue;
+                }
+                return Err(format!(
+                    "HTTP client '{client_id}' request failed after {attempt} attempt(s): {}",
+                    format_reqwest_error(&error)
+                ));
+            }
+        }
+    };
     let status = response.status();
     let headers = response
         .headers()
@@ -826,6 +867,109 @@ async fn execute_http_json(
         headers,
         body,
     })
+}
+
+fn build_http_json_request(
+    client: &ExtensionHttpClient,
+    method: Method,
+    url: &str,
+    request: &HttpJsonRequest,
+) -> RequestBuilder {
+    let mut builder = client.client.request(method, url).query(&request.query);
+    for (name, value) in &request.headers {
+        builder = builder.header(name, value);
+    }
+    if let Some(body) = &request.body {
+        builder = builder.json(body);
+    }
+    builder
+}
+
+fn extension_http_route_label(path: &str) -> &'static str {
+    match path {
+        "/oauth2/introspect" => "oauth2_introspect",
+        "/api/cache/access" => "api_cache_access",
+        _ => "other",
+    }
+}
+
+fn status_class(status: u16) -> &'static str {
+    match status {
+        100..=199 => "1xx",
+        200..=299 => "2xx",
+        300..=399 => "3xx",
+        400..=499 => "4xx",
+        500..=599 => "5xx",
+        _ => "other",
+    }
+}
+
+fn classify_reqwest_error(error: &reqwest::Error) -> &'static str {
+    let chain = error_chain_string(error);
+    if error.is_timeout() {
+        "timeout"
+    } else if chain.contains("dns") {
+        "dns"
+    } else if chain.contains("tls") || chain.contains("certificate") {
+        "tls"
+    } else if chain.contains("connection closed")
+        || chain.contains("closed for writing")
+        || chain.contains("server closed")
+    {
+        "closed"
+    } else if error.is_connect() {
+        "connect"
+    } else if error.is_request() {
+        "request"
+    } else if error.is_body() {
+        "body"
+    } else if error.is_decode() {
+        "decode"
+    } else {
+        "unknown"
+    }
+}
+
+fn retryable_reqwest_error(error_kind: &str) -> bool {
+    matches!(
+        error_kind,
+        "timeout" | "dns" | "tls" | "closed" | "connect" | "request" | "unknown"
+    )
+}
+
+fn format_reqwest_error(error: &reqwest::Error) -> String {
+    let mut message = format!(
+        "{error}; kind={}; is_timeout={}; is_connect={}; is_request={}; is_body={}; is_decode={}; status={}",
+        classify_reqwest_error(error),
+        error.is_timeout(),
+        error.is_connect(),
+        error.is_request(),
+        error.is_body(),
+        error.is_decode(),
+        error
+            .status()
+            .map(|status| status.as_u16().to_string())
+            .unwrap_or_else(|| "none".to_owned())
+    );
+
+    let mut source = error.source();
+    while let Some(current) = source {
+        message.push_str("; caused_by=");
+        message.push_str(&current.to_string());
+        source = current.source();
+    }
+    message
+}
+
+fn error_chain_string(error: &reqwest::Error) -> String {
+    let mut chain = error.to_string().to_lowercase();
+    let mut source = error.source();
+    while let Some(current) = source {
+        chain.push_str("; ");
+        chain.push_str(&current.to_string().to_lowercase());
+        source = current.source();
+    }
+    chain
 }
 
 impl ExtensionConfig {
@@ -1503,7 +1647,16 @@ end
         }
 
         async fn engine_pointing_at(base_url: &str, introspection_client: bool) -> SharedExtension {
+            engine_pointing_at_with_timeout(base_url, introspection_client, "4000").await
+        }
+
+        async fn engine_pointing_at_with_timeout(
+            base_url: &str,
+            introspection_client: bool,
+            request_timeout_ms: &str,
+        ) -> SharedExtension {
             let url = base_url.to_owned();
+            let request_timeout_ms = request_timeout_ms.to_owned();
             test_engine(&script(), move |_| unsafe {
                 std::env::set_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", &url);
                 std::env::set_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000");
@@ -1515,7 +1668,7 @@ end
                 std::env::set_var("KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER", "tuist");
                 std::env::set_var(
                     "KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS",
-                    "4000",
+                    &request_timeout_ms,
                 );
 
                 if introspection_client {
@@ -1847,6 +2000,44 @@ end
         }
 
         #[tokio::test]
+        async fn retries_introspection_transport_failures_once() {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                move |_headers, _payload| {
+                    let mut calls = calls_for_handler.lock().unwrap();
+                    *calls += 1;
+                    if *calls == 1 {
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/ios"],
+                            &["acme/ios"],
+                        )),
+                    )
+                },
+                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+            )
+            .await;
+            let engine = engine_pointing_at_with_timeout(&base, true, "10").await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context.namespace_id = Some("ios".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 2);
+        }
+
+        #[tokio::test]
         async fn falls_back_to_legacy_cache_access_for_project_requests_when_introspection_client_is_missing()
          {
             let calls = Arc::new(Mutex::new(0usize));
@@ -1987,10 +2178,42 @@ end
         }
 
         #[tokio::test]
+        async fn falls_back_to_legacy_cache_access_when_introspection_marks_project_token_inactive()
+        {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (StatusCode::OK, cache_access_payload(&[], &["acme/ios"]))
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer legacy-token".into());
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
         async fn denies_when_introspection_returns_inactive() {
             let base = spawn_tuist_auth_mock(
                 |_headers, _payload| (StatusCode::OK, json!({ "active": false })),
-                |_| (StatusCode::OK, cache_access_payload(&[], &[])),
+                |_| {
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        json!({ "message": "Invalid or expired token" }),
+                    )
+                },
             )
             .await;
             let engine = engine_pointing_at(&base, true).await;

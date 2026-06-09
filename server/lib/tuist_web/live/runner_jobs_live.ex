@@ -17,6 +17,7 @@ defmodule TuistWeb.RunnerJobsLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Billing
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -614,14 +615,19 @@ defmodule TuistWeb.RunnerJobsLive do
 
   @doc """
   Resolves the localized platform label for a job's `fleet_name` so
-  the Platform column can replace the raw `macos-large-arm64`-style
-  fleet identifier with "macOS" / "Linux".
+  the Platform column can replace the raw fleet identifier with
+  "macOS" / "Linux".
   """
   def platform_label_from_fleet(fleet_name) when is_binary(fleet_name) do
     cond do
-      String.starts_with?(fleet_name, "macos-") -> dgettext("dashboard_runners", "macOS")
-      String.starts_with?(fleet_name, "linux-") -> dgettext("dashboard_runners", "Linux")
-      true -> dgettext("dashboard_runners", "Unknown")
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        dgettext("dashboard_runners", "macOS")
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        dgettext("dashboard_runners", "Linux")
+
+      true ->
+        dgettext("dashboard_runners", "Unknown")
     end
   end
 
@@ -635,9 +641,14 @@ defmodule TuistWeb.RunnerJobsLive do
   """
   def platform_badge_color(fleet_name) when is_binary(fleet_name) do
     cond do
-      String.starts_with?(fleet_name, "macos-") -> "information"
-      String.starts_with?(fleet_name, "linux-") -> "attention"
-      true -> "neutral"
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        "information"
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        "attention"
+
+      true ->
+        "neutral"
     end
   end
 

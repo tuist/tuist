@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Constants {
-    @TaskLocal public static var version: String! = "4.195.13"
+    @TaskLocal public static var version: String! = "4.197.1"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
@@ -21,7 +21,6 @@ public enum Constants {
     public static let templatesDirectoryName: String = "Templates"
     public static let resourceSynthesizersDirectoryName: String = "ResourceSynthesizers"
     public static let stencilsDirectoryName: String = "Stencils"
-    public static let vendorDirectoryName: String = "vendor"
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
@@ -67,6 +66,7 @@ public enum Constants {
         public static let githubAPIToken = "TUIST_CONFIG_GITHUB_API_TOKEN"
         public static let detailedLog = "TUIST_CONFIG_DETAILED_LOG"
         public static let osLog = "TUIST_CONFIG_OS_LOG"
+        public static let useSwifterPM = "TUIST_USE_SWIFTERPM"
         /// `tuistBinaryPath` is used for specifying the exact tuist binary in tuist tasks.
         public static let tuistBinaryPath = "TUIST_CONFIG_BINARY_PATH"
         public static let token = "TUIST_TOKEN"

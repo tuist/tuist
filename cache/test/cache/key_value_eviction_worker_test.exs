@@ -21,6 +21,13 @@ defmodule Cache.KeyValueEvictionWorkerTest do
     :ok
   end
 
+  test "skips eviction when Xcode database interactions are disabled" do
+    expect(Config, :xcode_database_interactions_enabled?, fn -> false end)
+    reject(KeyValueRepo, :query, 1)
+
+    assert :ok = KeyValueEvictionWorker.perform(%Oban.Job{args: %{}})
+  end
+
   test "deletes entries older than 30 days and keeps fresh ones" do
     now = DateTime.utc_now()
     old_time = DateTime.add(now, -31, :day)

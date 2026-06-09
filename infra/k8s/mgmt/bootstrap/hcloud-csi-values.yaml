@@ -1,7 +1,7 @@
 # hcloud-csi-driver values.
-# Installed even though no PVCs exist on any workload cluster today
-# (Tigris is the object store; Postgres is on Supabase). Future-proofs
-# the cluster so a new workload that wants a PVC just gets one.
+# Installed so a workload that wants a PVC just gets one. CNPG (the
+# main PVC consumer on workload clusters) carries its own StorageClass
+# config, so this is mostly future-proofing for ad-hoc workloads.
 #
 # HCLOUD_TOKEN comes from the chart's default secretKeyRef
 # (kube-system/hcloud, key `token`), which caph provisions when it

@@ -149,17 +149,16 @@ defmodule Tuist.Kura.Usage do
   end
 
   @doc """
-  Per-node traffic breakdown within `[start_dt, end_dt]`. Returns one row per
-  `(node_id, region)` with egress + ingress bytes and request totals, sorted
-  by total bytes desc.
+  Per-region traffic breakdown within `[start_dt, end_dt]`. Returns one row per
+  region with egress + ingress bytes and request totals, sorted by total bytes
+  desc.
   """
-  def per_node(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
+  def per_region(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
     rows =
       ClickHouseRepo.all(
         from(e in subquery(deduped_event_query(account_id, start_dt, end_dt, opts)),
-          group_by: [e.node_id, e.region, e.direction],
+          group_by: [e.region, e.direction],
           select: %{
-            node_id: e.node_id,
             region: e.region,
             direction: e.direction,
             bytes: fragment("sum(?)", e.bytes),
@@ -169,8 +168,8 @@ defmodule Tuist.Kura.Usage do
       )
 
     rows
-    |> Enum.group_by(fn r -> {r.node_id, r.region} end)
-    |> Enum.map(fn {{node_id, region}, direction_rows} ->
+    |> Enum.group_by(& &1.region)
+    |> Enum.map(fn {region, direction_rows} ->
       egress =
         Enum.find(direction_rows, &(&1.direction == "egress")) || %{bytes: 0, request_count: 0}
 
@@ -178,7 +177,6 @@ defmodule Tuist.Kura.Usage do
         Enum.find(direction_rows, &(&1.direction == "ingress")) || %{bytes: 0, request_count: 0}
 
       %{
-        node_id: node_id,
         region: region,
         egress_bytes: zeroed(egress.bytes),
         ingress_bytes: zeroed(ingress.bytes),

@@ -1,5 +1,7 @@
 ARG ELIXIR_VERSION=1.19.5
 ARG OTP_VERSION=28.4.3
+ARG DOCKER_IMAGE_PREFIX=
+ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
 # hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
 # linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
 ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
@@ -7,8 +9,10 @@ ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
 # bookworm-slim tag for the runner base so the final image supports both
 # amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
 ARG DEBIAN_RUNNER_VERSION=bookworm-slim
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
-ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
+ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_BUILDER_VERSION}"
+ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
+ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
+ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 
 # ========================================
 # Stage: Swift NIF builder
@@ -17,7 +21,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_RUNNER_VERSION}"
 # bundled into every runtime image — the same release boots as the web
 # server or as an Oban processor pod depending on TUIST_PROCESSOR_MODE.
 # ========================================
-FROM swift:6.2-bookworm AS swift-builder
+FROM ${SWIFT_IMAGE} AS swift-builder
 
 RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -38,7 +42,7 @@ RUN swift build -c release --replace-scm-with-registry && \
 # ========================================
 # Stage 1: NPM dependencies
 # ========================================
-FROM node:22-slim AS npm-deps
+FROM ${NODE_IMAGE} AS npm-deps
 ENV CI=1
 ENV XDG_DATA_HOME="/aube-data"
 RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
@@ -75,6 +79,14 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 # Longer per-request hex.pm timeout to absorb transient network hiccups
 # during the first resolver fetch. No measurable effect on fast networks.
 ENV HEX_HTTP_TIMEOUT=120
+
+# Cap the BEAM at 2 schedulers for every compile in this stage and the two
+# that branch from it. og-images and builder compile concurrently, so the
+# default (4 schedulers each on the 4-core runner) oversubscribes to 8
+# threads holding ~8 in-flight module copies, which OOM-kills the 16 GB
+# runner mid-build ("lost communication"). 2 each = 4 total still saturates
+# the cores, without the memory spike.
+ENV ELIXIR_ERL_OPTIONS="+S 2"
 
 COPY server/mix.exs server/mix.lock ./
 RUN mkdir config

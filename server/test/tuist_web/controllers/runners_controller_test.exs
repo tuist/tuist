@@ -2,18 +2,16 @@ defmodule TuistWeb.RunnersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
     test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
-      account = enabled_account_fixture()
+      account = account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -100,15 +98,27 @@ defmodule TuistWeb.RunnersControllerTest do
     end
   end
 
-  defp enabled_account_fixture do
-    account = account_fixture()
+  describe "POST /api/internal/runners/dispatch" do
+    test "returns the jit, workflow_job_id, and a per-job log token", %{conn: conn} do
+      account = account_fixture()
 
-    {1, _} =
-      Repo.update_all(
-        from(a in Account, where: a.id == ^account.id),
-        set: [runner_max_concurrent: 10]
-      )
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
 
-    Repo.reload!(account)
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok, %{jit: "JITCONFIG", account: account, runner_name: "pod-1", workflow_job_id: 4242}}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["encoded_jit_config"] == "JITCONFIG"
+      assert body["owner"] == account.name
+      assert body["workflow_job_id"] == 4242
+    end
   end
 end

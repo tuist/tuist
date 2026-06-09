@@ -60,13 +60,24 @@ ingress:
           pathType: Prefix
   tls: []
 
+grpcIngress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kura-grpc.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
 persistence:
   enabled: true
   # Prefer ReadWriteOncePod to enforce one Kura writer per PVC.
   # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
     - ReadWriteOncePod
-  size: 20Gi
+  size: 200Gi
   storageClass: ""
   annotations: {}
 
@@ -97,9 +108,17 @@ config:
   tenantId: default
   region: fr-par
   fileDescriptors:
-    poolSize: 128
+    # Leave unset to derive from the process RLIMIT_NOFILE after Kura raises
+    # the soft limit to the hard limit at startup.
+    poolSize: null
     acquireTimeoutMs: 5000
-    segmentHandleCacheSize: 32
+    # Leave unset to derive from the effective file descriptor pool size.
+    segmentHandleCacheSize: null
+  acceleratedFileServing:
+    enabled: true
+    mode: splice
+    maxConcurrent: 32
+    chunkBytes: 1048576
   memory:
     softLimitBytes: 536870912
     hardLimitBytes: 805306368
@@ -110,6 +129,14 @@ config:
   metadataStore:
     maxOpenFiles: 1024
     maxBackgroundJobs: 4
+  replication:
+    # Positive values are adaptive ceilings: Kura lowers the effective sync
+    # rate under public inflight load or elevated public request latency.
+    # Set to 0 to disable application-level peer artifact body throttling.
+    bandwidthLimitBytesPerSecond: 536870912
+    # Public request latency target used to further back off peer sync traffic.
+    # Set to 0 to disable latency-based pressure.
+    publicLatencyTargetMs: 100
   telemetry:
     otlpTracesEndpoint: http://otel-collector:4318/v1/traces
     deploymentEnvironment: production

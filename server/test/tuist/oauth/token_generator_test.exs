@@ -1,8 +1,9 @@
 defmodule Tuist.OAuth.TokenGeneratorTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Boruta.Ecto.Token
+  alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.OAuth.Clients
   alias Tuist.OAuth.TokenGenerator
@@ -39,6 +40,48 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert claims["type"] == "account"
       assert claims["all_projects"] == true
       assert is_map(claims["cache_grants"])
+    end
+
+    test "does not embed account-scoped cache grants for user-issued OAuth tokens", %{
+      user: user,
+      project: project
+    } do
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      project_handle = "#{user.account.name}/#{project.name}"
+
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+      assert project_handle in claims["cache_grants"]["project"]["read"]
+      assert project_handle in claims["cache_grants"]["project"]["write"]
+    end
+
+    test "keeps OAuth token size independent from accessible account count", %{user: user} do
+      for _ <- 1..20 do
+        organization = AccountsFixtures.organization_fixture()
+        Accounts.add_user_to_organization(user, organization, role: :admin)
+      end
+
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+
+      refute Map.has_key?(claims, "accounts")
+      assert claims["cache_grants"]["account"]["read"] == []
+      assert claims["cache_grants"]["account"]["write"] == []
+      assert byte_size(jwt_token) < 5_000
     end
 
     test "includes user_id claim", %{user: user} do

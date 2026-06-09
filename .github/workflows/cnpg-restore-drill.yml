@@ -13,8 +13,6 @@ name: CNPG Restore Drill
 # never touches the live cluster (read-only baseline query) or its backup
 # path (the recovery cluster has no backup stanza, so it doesn't archive).
 #
-# Mirrors the manual procedure in infra/cnpg/MIGRATION.md (the soak gate).
-#
 # Required secrets: OP_SERVICE_ACCOUNT_TOKEN per GitHub Environment
 # server-k8s-<env> (read-only on the tuist-k8s-<env> vault, where the
 # cluster kubeconfig is stored as `kubeconfig: tuist-<env>`).
@@ -40,7 +38,7 @@ permissions:
 jobs:
   restore-drill:
     name: Restore drill (${{ inputs.environment || 'staging' }})
-    runs-on: tuist-production-linux
+    runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment || 'staging' }}
     concurrency:

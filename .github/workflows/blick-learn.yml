@@ -20,7 +20,7 @@ env:
 jobs:
   learn:
     name: Learn
-    runs-on: ubuntu-24.04
+    runs-on: tuist-linux
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
