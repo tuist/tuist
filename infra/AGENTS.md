@@ -26,10 +26,12 @@ README: [`helm/k8s-monitoring/README.md`](helm/k8s-monitoring/README.md).
 cert-manager + external-dns + ESO + metrics-server controllers, installed once per workload cluster. ingress-nginx is enabled only on app-serving clusters; Kura regional clusters use direct `LoadBalancer` Services instead. Provider-specific LB annotations live in per-provider overlays (e.g., `values-hetzner.yaml`).
 
 ### `k8s/` — CAPI cluster manifests
-Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph stack we operate on Hetzner:
+Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI stack. Hetzner clusters use caph today; Vultr Kura regions should use CAPVULTR once the provider is installed on the management cluster:
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
 - `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
 - `clusters/cluster-production-us-{east,west}.yaml` — production Kura regional workload clusters mapped to Hetzner `ash` / `hil`.
+- `clusters/vultr/images.yaml` — Git-pinned Vultr CAPI node snapshot and plan catalog used by the regional templates.
+- `clusters/vultr/*.yaml.tmpl` — production Kura regional workload cluster templates rendered by `k8s:apply-vultr-regionals` with the Vultr CAPI snapshot and plan IDs from `images.yaml`.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).
@@ -48,6 +50,9 @@ SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarati
 
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
+
+### `vultr-capi-image/` — Vultr Cluster API node snapshot
+Build recipe and runbook for the Vultr snapshot consumed by CAPVULTR. The Vultr API token stays in 1Password; the selected snapshot ID is committed under `k8s/clusters/vultr/images.yaml`, mirroring how macOS runner image tags are committed through Helm values.
 
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.

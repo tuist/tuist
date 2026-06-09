@@ -1,0 +1,45 @@
+name: Vultr CAPI Image
+
+# Manual build of the Vultr snapshot consumed by CAPVULTR. This mirrors
+# runner-image.yml's operator path: build the artifact from a repo-owned
+# recipe, then commit the selected artifact reference to Git. The Vultr
+# API token is read from 1Password; the snapshot ID is not written back
+# to 1Password.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_builder_ref:
+        description: "kubernetes-sigs/image-builder ref to use"
+        required: false
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vultr-capi-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: mgmt-cluster-apply
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 1password/install-cli-action@v2
+      - name: Build Vultr CAPI snapshot
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          IMAGE_BUILDER_REF: ${{ inputs.image_builder_ref }}
+        run: |
+          set -euo pipefail
+          export VULTR_API_KEY="$(
+            op item get vultr-tuist-workloads \
+              --vault Founders \
+              --fields password \
+              --reveal
+          )"
+          infra/vultr-capi-image/build.sh

@@ -7,7 +7,8 @@ defmodule Tuist.Kura.Regions do
   A region carries:
 
     * `id` — stable opaque identifier (`"eu-central"`, `"us-east"`,
-      `"us-west"`, `"local-controller"`).
+      `"us-west"`, `"au-southeast"`, `"br-south"`,
+      `"local-controller"`).
       Stored on `kura_servers.region`. Never renamed once published
       because URLs and `account_cache_endpoints` reference it.
     * `display_name` — the customer-facing region label.
@@ -75,7 +76,15 @@ defmodule Tuist.Kura.Regions do
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
 
-  defp managed_regions, do: [us_east_region(), us_west_region(), eu_central_region()]
+  defp managed_regions do
+    [
+      us_east_region(),
+      us_west_region(),
+      eu_central_region(),
+      au_southeast_region(),
+      br_south_region()
+    ]
+  end
 
   defp us_east_region do
     %__MODULE__{
@@ -137,6 +146,54 @@ defmodule Tuist.Kura.Regions do
             global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
             storage_class: "hcloud-volumes",
             tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+          },
+          cross_region_runtime_config()
+        )
+    }
+  end
+
+  defp au_southeast_region do
+    %__MODULE__{
+      id: "au-southeast",
+      display_name: "Australia Southeast",
+      provisioner: KubernetesController,
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "au-southeast-1",
+            provider: :vultr,
+            vultr_region: "syd",
+            kubernetes_client: [mode: :kubeconfig, cluster_id: "au-southeast-1"],
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            storage_class: "vultr-block-storage",
+            node_selector: %{"kubernetes.io/os" => "linux"}
+          },
+          cross_region_runtime_config()
+        )
+    }
+  end
+
+  defp br_south_region do
+    %__MODULE__{
+      id: "br-south",
+      display_name: "Brazil South",
+      provisioner: KubernetesController,
+      provisioner_config:
+        Map.merge(
+          %{
+            cluster_id: "br-south-1",
+            provider: :vultr,
+            vultr_region: "sao",
+            kubernetes_client: [mode: :kubeconfig, cluster_id: "br-south-1"],
+            public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+            grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+            peer_public_host_template: "peer.{account_handle}-{cluster_id}.kura.tuist.dev",
+            global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
+            storage_class: "vultr-block-storage",
+            node_selector: %{"kubernetes.io/os" => "linux"}
           },
           cross_region_runtime_config()
         )

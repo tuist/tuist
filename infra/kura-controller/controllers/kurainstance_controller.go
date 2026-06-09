@@ -89,6 +89,13 @@ const (
 	peerTLSKeyFile    = "tls.key"
 )
 
+type LoadBalancerProvider string
+
+const (
+	LoadBalancerProviderHetzner LoadBalancerProvider = "hetzner"
+	LoadBalancerProviderVultr   LoadBalancerProvider = "vultr"
+)
+
 type KuraInstanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -100,10 +107,11 @@ type KuraInstanceReconciler struct {
 	// for both the public HTTPS LoadBalancer and the gRPC LoadBalancer.
 	// The name is historical; the controller uses the same issuer for
 	// every cert it asks cert-manager to mint.
-	GRPCClusterIssuer   string
-	OTLPTracesEndpoint  string
-	Environment         string
-	RuntimeStatusClient RuntimeStatusClient
+	GRPCClusterIssuer    string
+	OTLPTracesEndpoint   string
+	Environment          string
+	RuntimeStatusClient  RuntimeStatusClient
+	LoadBalancerProvider LoadBalancerProvider
 }
 
 type RuntimeStatusClient interface {
@@ -119,6 +127,25 @@ type runtimeStatus struct {
 
 type httpRuntimeStatusClient struct {
 	client *http.Client
+}
+
+func ParseLoadBalancerProvider(value string) (LoadBalancerProvider, error) {
+	switch LoadBalancerProvider(strings.TrimSpace(strings.ToLower(value))) {
+	case "", LoadBalancerProviderHetzner:
+		return LoadBalancerProviderHetzner, nil
+	case LoadBalancerProviderVultr:
+		return LoadBalancerProviderVultr, nil
+	default:
+		return "", fmt.Errorf("unsupported load balancer provider %q", value)
+	}
+}
+
+func (r *KuraInstanceReconciler) loadBalancerProvider() LoadBalancerProvider {
+	provider, err := ParseLoadBalancerProvider(string(r.LoadBalancerProvider))
+	if err != nil {
+		return LoadBalancerProviderHetzner
+	}
+	return provider
 }
 
 func certificateGVK() schema.GroupVersionKind {
@@ -298,7 +325,7 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 		}
 		service.Labels = labels(instance)
 		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
-		service.Annotations = publicServiceAnnotations(instance)
+		service.Annotations = r.publicServiceAnnotations(instance)
 
 		if instance.Spec.PublicHost == "" {
 			service.Spec.Type = corev1.ServiceTypeClusterIP
@@ -341,7 +368,7 @@ func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, insta
 			return err
 		}
 		service.Labels = labels(instance)
-		service.Annotations = grpcServiceAnnotations(instance)
+		service.Annotations = r.grpcServiceAnnotations(instance)
 		service.Spec.Type = corev1.ServiceTypeLoadBalancer
 		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
 		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
@@ -1048,20 +1075,41 @@ func defaultResources() corev1.ResourceRequirements {
 	}
 }
 
-// publicServiceAnnotations returns the Hetzner Cloud LoadBalancer
+// publicServiceAnnotations returns the provider-specific LoadBalancer
 // annotations for the public Service. The LB runs in tcp-passthrough
 // mode and TLS is terminated inside the Kura pod from a cert-manager-
 // issued Secret. Health checks use TCP against the Service NodePort
-// because Hetzner targets nodes, not pods; HTTP health checks would
+// because the LB targets nodes, not pods; HTTP health checks would
 // speak cleartext to the TLS passthrough port.
-func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
+func (r *KuraInstanceReconciler) publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if instance.Spec.PublicHost == "" {
 		return nil
 	}
 
+	return loadBalancerAnnotations(r.loadBalancerProvider(), instance.Name, instance.Spec.PublicHost)
+}
+
+func (r *KuraInstanceReconciler) grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
+	if instance.Spec.GRPCPublicHost == "" {
+		return nil
+	}
+
+	return loadBalancerAnnotations(r.loadBalancerProvider(), grpcServiceName(instance), instance.Spec.GRPCPublicHost)
+}
+
+func loadBalancerAnnotations(provider LoadBalancerProvider, name string, host string) map[string]string {
+	switch provider {
+	case LoadBalancerProviderVultr:
+		return vultrLoadBalancerAnnotations(name, host)
+	default:
+		return hetznerLoadBalancerAnnotations(name, host)
+	}
+}
+
+func hetznerLoadBalancerAnnotations(name string, host string) map[string]string {
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.PublicHost,
-		"load-balancer.hetzner.cloud/name":                  instance.Name,
+		"external-dns.alpha.kubernetes.io/hostname":         host,
+		"load-balancer.hetzner.cloud/name":                  name,
 		"load-balancer.hetzner.cloud/protocol":              "tcp",
 		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
 		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
@@ -1069,18 +1117,14 @@ func publicServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]st
 	}
 }
 
-func grpcServiceAnnotations(instance *kurav1alpha1.KuraInstance) map[string]string {
-	if instance.Spec.GRPCPublicHost == "" {
-		return nil
-	}
-
+func vultrLoadBalancerAnnotations(name string, host string) map[string]string {
 	return map[string]string{
-		"external-dns.alpha.kubernetes.io/hostname":         instance.Spec.GRPCPublicHost,
-		"load-balancer.hetzner.cloud/name":                  grpcServiceName(instance),
-		"load-balancer.hetzner.cloud/protocol":              "tcp",
-		"load-balancer.hetzner.cloud/algorithm-type":        "least_connections",
-		"load-balancer.hetzner.cloud/node-selector":         "node.cluster.x-k8s.io/pool=kura",
-		"load-balancer.hetzner.cloud/health-check-protocol": "tcp",
+		"external-dns.alpha.kubernetes.io/hostname":                          host,
+		"service.beta.kubernetes.io/vultr-loadbalancer-label":                name,
+		"service.beta.kubernetes.io/vultr-loadbalancer-protocol":             "tcp",
+		"service.beta.kubernetes.io/vultr-loadbalancer-backend-protocol":     "tcp",
+		"service.beta.kubernetes.io/vultr-loadbalancer-algorithm":            "least_connections",
+		"service.beta.kubernetes.io/vultr-loadbalancer-healthcheck-protocol": "tcp",
 	}
 }
 

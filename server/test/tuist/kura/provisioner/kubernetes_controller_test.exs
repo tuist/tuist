@@ -185,6 +185,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
+
+    test "renders Vultr storage and scheduling overrides" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-au-southeast-1",
+          "0.5.2",
+          %{name: "tuist"},
+          vultr_region(),
+          %Server{},
+          "return true"
+        )
+
+      spec = manifest["spec"]
+      assert spec["region"] == "au-southeast"
+      assert spec["publicHost"] == "tuist-au-southeast-1.kura.tuist.dev"
+      assert spec["grpcPublicHost"] == "grpc.tuist-au-southeast-1.kura.tuist.dev"
+      assert spec["storageClassName"] == "vultr-block-storage"
+      assert spec["nodeSelector"] == %{"kubernetes.io/os" => "linux"}
+    end
   end
 
   describe "rollout/2" do
@@ -343,6 +368,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         global_discovery_dns_template: "{account_handle}.kura-peers.tuist.dev",
         peer_tls_secret_name: "kura-cross-region-peer-tls",
         storage_class: "hcloud-volumes"
+      }
+    }
+  end
+
+  defp vultr_region do
+    %Regions{
+      id: "au-southeast",
+      provisioner_config: %{
+        cluster_id: "au-southeast-1",
+        kubernetes_client: [mode: :kubeconfig, cluster_id: "au-southeast-1"],
+        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
+        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
+        storage_class: "vultr-block-storage",
+        node_selector: %{"kubernetes.io/os" => "linux"}
       }
     }
   end
