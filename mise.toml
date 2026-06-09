@@ -2,7 +2,7 @@
     aube = "1.6.2"
     # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
     # See https://github.com/tuist/tuist/issues/10754.
-    tuist = "4.196.1"
+    tuist = "4.197.1"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"
@@ -34,6 +34,7 @@
     _.source = ["{{config_root}}/mise/utilities/dev_instance_env.sh", "{{config_root}}/mise/utilities/cache_ee_env.sh"]
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
+    TUIST_USE_SWIFTERPM = "1"
     TUIST_INSPECT_TEST_MODE = "remote"
     TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"

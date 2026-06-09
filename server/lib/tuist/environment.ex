@@ -185,6 +185,12 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
+  def kura_cross_region_replication_enabled? do
+    "TUIST_KURA_CROSS_REGION_REPLICATION_ENABLED"
+    |> System.get_env("0")
+    |> truthy?()
+  end
+
   def prometheus_enabled? do
     prometheus_enabled = System.get_env("TUIST_PROMETHEUS_ENABLED")
 
@@ -782,10 +788,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))

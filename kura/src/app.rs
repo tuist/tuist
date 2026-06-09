@@ -26,7 +26,7 @@ use crate::{
     memory::{MemoryController, MemoryPressure},
     metrics::Metrics,
     node_location::resolve_node_location,
-    peer_tls::{build_internal_rustls_config, build_peer_client, build_public_rustls_config},
+    peer_tls::{build_internal_rustls_config, build_public_rustls_config},
     reapi,
     replication::{spawn_membership_task, spawn_outbox_task},
     runtime::{DataDirLock, RuntimeState},
@@ -62,6 +62,8 @@ impl ShutdownBudget {
 }
 
 pub async fn run() -> Result<(), String> {
+    let nofile_raise_error = raise_nofile_soft_to_hard().err();
+
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
     let node_location = resolve_node_location(
@@ -72,6 +74,9 @@ pub async fn run() -> Result<(), String> {
     )
     .await;
     let telemetry = init_tracing(&config, &node_location);
+    if let Some(error) = nofile_raise_error {
+        warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
+    }
     let log_context = log_context_span(&config, &node_location);
     let result = run_with_config(config, geoip, node_location)
         .instrument(log_context)
@@ -86,10 +91,6 @@ async fn run_with_config(
     geoip: Option<GeoIp>,
     node_location: crate::node_location::NodeLocation,
 ) -> Result<(), String> {
-    if let Err(error) = raise_nofile_soft_to_hard() {
-        tracing::warn!("failed to raise RLIMIT_NOFILE soft limit: {error}");
-    }
-
     config
         .ensure_directories()
         .await
@@ -120,7 +121,8 @@ async fn run_with_config(
         config.memory_hard_limit_bytes,
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
-    let client = build_peer_client(&config).await?;
+    let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
+    let client = peer_client_factory.build()?;
     let runtime = RuntimeState::new();
     let replication_bandwidth_limiter = BandwidthLimiter::new(
         config.replication_bandwidth_limit_bytes_per_second,
@@ -144,6 +146,7 @@ async fn run_with_config(
         usage,
         geoip,
         client,
+        peer_client_factory,
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),

@@ -1,6 +1,7 @@
 package podtemplate
 
 import (
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +34,7 @@ func basePool(os string) *tuistv1.RunnerPool {
 
 func build(t *testing.T, p *tuistv1.RunnerPool) *corev1.Pod {
 	t.Helper()
-	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 	// dindImage) is allowed to fall back to the default runtime.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -134,13 +135,13 @@ func TestBuild_LinuxDindWithoutKataFailsClosed(t *testing.T) {
 	// microVM boundary.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "")
 	if err == nil {
 		t.Fatal("Build returned nil error; want refusal for Linux+dind without kata-qemu")
 	}
 
 	pool.Spec.RuntimeClass = "some-other-runtime"
-	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage); err == nil {
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, ""); err == nil {
 		t.Fatal("Build accepted non-kata runtimeClass for Linux+dind; want refusal")
 	}
 }
@@ -242,6 +243,34 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
+	// With a mirror URL configured, dockerd launches with
+	// --registry-mirror plus a matching --insecure-registry (the
+	// in-cluster cache is plain http).
+	const mirror = "http://registry-cache.svc:5000"
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, mirror)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	if !strings.Contains(args, "--registry-mirror="+mirror) {
+		t.Errorf("dind args missing --registry-mirror=%s; got %v", mirror, args)
+	}
+	if !strings.Contains(args, "--insecure-registry=registry-cache.svc:5000") {
+		t.Errorf("dind args missing --insecure-registry for the cache host (scheme must be stripped); got %v", args)
+	}
+}
+
+func TestBuild_LinuxDindNoRegistryMirrorByDefault(t *testing.T) {
+	// Empty mirror → no --registry-mirror flag; dockerd pulls docker.io
+	// directly.
+	pod := build(t, basePool("linux"))
+	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	if strings.Contains(args, "--registry-mirror") {
+		t.Errorf("dind args must not carry --registry-mirror when none configured; got %v", args)
+	}
+}
+
 func TestBuild_LinuxPodHasNoKataVirtioFsAnnotation(t *testing.T) {
 	// The dind sidecar's entrypoint loop-mounts an ext4 file
 	// onto /var/lib/docker, so dockerd never touches virtio-fs
@@ -286,7 +315,7 @@ func TestBuild_MacOSPodHasNoKataKernelParamsAnnotation(t *testing.T) {
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.
-	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}

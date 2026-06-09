@@ -1,10 +1,27 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in xcresult-processor-image@0.13.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add cross-region peer gateway discovery ([#11173](https://github.com/tuist/tuist/pull/11173))
+### 🐛 Bug Fixes
+
+* show runner job platforms ([#11147](https://github.com/tuist/tuist/pull/11147))
+* runner log spacing ([#11142](https://github.com/tuist/tuist/pull/11142))
+* tailnet-expose CNPG pooler for xcresult-processor ([#11134](https://github.com/tuist/tuist/pull/11134))
+* stop OrphanedStampedPodsWorker from killing live runner pods ([#11133](https://github.com/tuist/tuist/pull/11133))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.2...xcresult-processor-image@0.13.0
+
 ## What's Changed in xcresult-processor-image@0.12.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
+* handle GitHub log redirects manually ([#11126](https://github.com/tuist/tuist/pull/11126))
 * stop leaking component release titles into the CLI deprecation warning ([#11122](https://github.com/tuist/tuist/pull/11122))
 
 

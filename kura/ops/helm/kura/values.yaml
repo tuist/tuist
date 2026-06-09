@@ -77,7 +77,7 @@ persistence:
   # Override to ReadWriteOnce only when the CSI driver does not support it.
   accessModes:
     - ReadWriteOncePod
-  size: 20Gi
+  size: 200Gi
   storageClass: ""
   annotations: {}
 
@@ -108,9 +108,12 @@ config:
   tenantId: default
   region: fr-par
   fileDescriptors:
-    poolSize: 128
+    # Leave unset to derive from the process RLIMIT_NOFILE after Kura raises
+    # the soft limit to the hard limit at startup.
+    poolSize: null
     acquireTimeoutMs: 5000
-    segmentHandleCacheSize: 32
+    # Leave unset to derive from the effective file descriptor pool size.
+    segmentHandleCacheSize: null
   acceleratedFileServing:
     enabled: true
     mode: splice

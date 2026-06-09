@@ -81,10 +81,28 @@ objectStorage:
       default: tuist-can-storage
 
 cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
   s3:
     bucket: tuist-cas-canary
     xcodeCacheBucket: tuist-xcode-cache-canary
     registryBucket: tuist-registry-canary
+
+# Docker Hub pull-through cache. Reuses the canary object-storage bucket
+# under a `docker-mirror` prefix. Runner `docker pull`s route through it
+# (runnersController.features.registryMirror below).
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-can-storage
+    rootDirectory: docker-mirror
 
 kuraController:
   telemetry:
@@ -134,6 +152,17 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
+      # See values-managed-production.yaml for the rationale. Canary's
+      # only Mac mini is on the production tailnet (single shared
+      # tailnet across canary + production), so the proxy needs to land
+      # on the same tag as production's `tag:tuist-k8s-production`
+      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
+      # by the operator's OAuth client. Hostname is env-scoped to
+      # keep production's stable.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-canary
+        tags: tag:tuist-k8s-production
     storage:
       size: "10Gi"
     resources:
@@ -147,11 +176,6 @@ postgresql:
       destinationPath: s3://tuist-can-pg-backups/
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`.
-  database:
-    host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1
   podDisruptionBudget:
     enabled: false
@@ -182,6 +206,10 @@ xcresultProcessor:
   # Mac mini and replicaCount=2 the second pod has nowhere to land
   # without violating Apple's 2-VM SLA cap that Tart enforces.
   replicaCount: 1
+  # Tailnet-fronted URL key — see values-managed-production.yaml.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  tailscale:
+    enabled: true
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the
@@ -247,7 +275,7 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-  runnerImageSemver: "0.2.1"
+  runnerImageSemver: "0.3.2"
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
@@ -270,6 +298,7 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
+    registryMirror: true
 
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline

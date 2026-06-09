@@ -1,0 +1,241 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-autoscaler
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cluster-autoscaler-management
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+rules:
+  - apiGroups:
+      - cluster.x-k8s.io
+    resources:
+      - clusters
+      - machines
+      - machinedeployments
+      - machinedeployments/scale
+      - machinesets
+      - machinepools
+    verbs:
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - infrastructure.cluster.x-k8s.io
+    resources:
+      - hcloudmachinetemplates
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-autoscaler-management
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: cluster-autoscaler
+    namespace: org-tuist
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cluster-autoscaler-management
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler-tuist
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+    app.kubernetes.io/instance: tuist
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-autoscaler
+      app.kubernetes.io/instance: tuist
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-autoscaler
+        app.kubernetes.io/instance: tuist
+    spec:
+      serviceAccountName: cluster-autoscaler
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cluster-autoscaler
+          image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.34.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /cluster-autoscaler
+          args:
+            - --cloud-provider=clusterapi
+            - --clusterapi-cloud-config-authoritative
+            - --kubeconfig=/etc/cluster-autoscaler/workload/value
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist,autoscaling.tuist.dev/group=kura
+            - --scale-down-unneeded-time=10m
+            - --scale-down-delay-after-add=10m
+            - --max-node-provision-time=15m
+            - --v=4
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: workload-kubeconfig
+              mountPath: /etc/cluster-autoscaler/workload
+              readOnly: true
+      volumes:
+        - name: workload-kubeconfig
+          secret:
+            secretName: tuist-kubeconfig
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler-tuist-kura-us-east
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+    app.kubernetes.io/instance: tuist-kura-us-east
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-autoscaler
+      app.kubernetes.io/instance: tuist-kura-us-east
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-autoscaler
+        app.kubernetes.io/instance: tuist-kura-us-east
+    spec:
+      serviceAccountName: cluster-autoscaler
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cluster-autoscaler
+          image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.34.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /cluster-autoscaler
+          args:
+            - --cloud-provider=clusterapi
+            - --clusterapi-cloud-config-authoritative
+            - --kubeconfig=/etc/cluster-autoscaler/workload/value
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist-kura-us-east,autoscaling.tuist.dev/group=kura
+            - --scale-down-unneeded-time=10m
+            - --scale-down-delay-after-add=10m
+            - --max-node-provision-time=15m
+            - --v=4
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: workload-kubeconfig
+              mountPath: /etc/cluster-autoscaler/workload
+              readOnly: true
+      volumes:
+        - name: workload-kubeconfig
+          secret:
+            secretName: tuist-kura-us-east-kubeconfig
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler-tuist-kura-us-west
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+    app.kubernetes.io/instance: tuist-kura-us-west
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cluster-autoscaler
+      app.kubernetes.io/instance: tuist-kura-us-west
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cluster-autoscaler
+        app.kubernetes.io/instance: tuist-kura-us-west
+    spec:
+      serviceAccountName: cluster-autoscaler
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cluster-autoscaler
+          image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.34.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /cluster-autoscaler
+          args:
+            - --cloud-provider=clusterapi
+            - --clusterapi-cloud-config-authoritative
+            - --kubeconfig=/etc/cluster-autoscaler/workload/value
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist-kura-us-west,autoscaling.tuist.dev/group=kura
+            - --scale-down-unneeded-time=10m
+            - --scale-down-delay-after-add=10m
+            - --max-node-provision-time=15m
+            - --v=4
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+          volumeMounts:
+            - name: workload-kubeconfig
+              mountPath: /etc/cluster-autoscaler/workload
+              readOnly: true
+      volumes:
+        - name: workload-kubeconfig
+          secret:
+            secretName: tuist-kura-us-west-kubeconfig

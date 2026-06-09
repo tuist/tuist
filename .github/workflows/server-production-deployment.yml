@@ -22,9 +22,10 @@ name: Server Production Deployment
 # Kura regional controller/platform rollouts are handled by
 # server-kura-regional-deployment.yml after production succeeds so
 # regional capacity incidents do not mark the main production deploy as
-# failed. Kura runtime rollouts are release-driven via
-# kura-release-deployment.yml after the `kura@...` tag exists, so the
-# server promotion path never races ahead of the published runtime tag.
+# failed. The Kura runtime image is pinned in values-managed-common.yaml
+# (kuraRuntime.image.tag) and bumped by release.yml's commit-and-release on
+# each kura@ release; that bump commit promotes through this same cascade,
+# so the runtime rolls forward like every other pinned component.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -164,6 +165,11 @@ jobs:
   # hotfix fast-path is to ship straight to production without waiting on
   # the canary cascade, and running canary in parallel just doubles the
   # rollout surface (and noise) for a push that explicitly opted out.
+  #
+  # kura_runtime_image_tag is normally empty: the runtime is pinned in
+  # values-managed-common.yaml (kuraRuntime.image.tag) and bumped by
+  # commit-and-release on each kura@ release. It is only set on a manual
+  # re-roll dispatch, where it overrides the pin.
   # --------------------------------------------------------------------------
   canary:
     needs: build
@@ -201,7 +207,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}

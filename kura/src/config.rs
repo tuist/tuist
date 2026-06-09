@@ -17,8 +17,10 @@ const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
 const KURA_NODE_URL: &str = "KURA_NODE_URL";
+const KURA_PEER_GATEWAY_URL: &str = "KURA_PEER_GATEWAY_URL";
 const KURA_PEERS: &str = "KURA_PEERS";
 const KURA_DISCOVERY_DNS_NAME: &str = "KURA_DISCOVERY_DNS_NAME";
+const KURA_GLOBAL_DISCOVERY_DNS_NAME: &str = "KURA_GLOBAL_DISCOVERY_DNS_NAME";
 const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
@@ -109,8 +111,10 @@ pub struct Config {
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
     pub node_url: String,
+    pub peer_gateway_url: Option<String>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
+    pub global_discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
     pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
@@ -270,8 +274,8 @@ impl DerivedRuntimeDefaults {
             .file_descriptor_limit
             .saturating_sub(reserved_fds.max(64))
             .max(256);
-        let file_descriptor_pool_size = clamp_usize(usable_fds / 8, 64, 256);
-        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 4, 16, 64)
+        let file_descriptor_pool_size = clamp_usize(usable_fds / 2, 128, 4096);
+        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 8, 16, 256)
             .min(file_descriptor_pool_size.saturating_sub(1).max(1));
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
@@ -380,6 +384,9 @@ impl Config {
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
         let data_dir = required_value(&mut lookup, KURA_DATA_DIR, &mut missing).map(PathBuf::from);
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
+        let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let peers = lookup(KURA_PEERS)
             .map(|value| {
                 value
@@ -391,6 +398,9 @@ impl Config {
             })
             .or_else(|| node_url.as_ref().map(|value| vec![value.clone()]));
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let global_discovery_dns_name = lookup(KURA_GLOBAL_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
         let accelerated_file_serving_enabled = optional_parsed_value(
@@ -1223,6 +1233,29 @@ impl Config {
             }
         }
 
+        if let (Some(peer_gateway_url), Some(internal_port)) =
+            (peer_gateway_url.as_ref(), internal_port)
+        {
+            let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
+            match reqwest::Url::parse(peer_gateway_url) {
+                Ok(url) => {
+                    if url.scheme() != expected_scheme {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must use {expected_scheme}"
+                        ));
+                    }
+                    if url.port_or_known_default() != Some(internal_port) {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must target port {internal_port}"
+                        ));
+                    }
+                }
+                Err(error) => invalid.push(format!(
+                    "{KURA_PEER_GATEWAY_URL} must be a valid URL: {error}"
+                )),
+            }
+        }
+
         if !missing.is_empty() || !invalid.is_empty() {
             let mut errors = Vec::new();
             if !missing.is_empty() {
@@ -1245,8 +1278,10 @@ impl Config {
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
             node_url: node_url.expect("node_url should be present when configuration is valid"),
+            peer_gateway_url,
             peers: peers.expect("peers should be present when configuration is valid"),
             discovery_dns_name,
+            global_discovery_dns_name,
             peer_tls,
             grpc_tls,
             public_tls,
@@ -1507,10 +1542,10 @@ mod tests {
             config.peers,
             vec!["http://kura.example.com:7443".to_owned()]
         );
-        assert_eq!(config.file_descriptor_pool_size, 256);
+        assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
-        assert_eq!(config.segment_handle_cache_size, 64);
+        assert_eq!(config.segment_handle_cache_size, 224);
         assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
@@ -1548,6 +1583,19 @@ mod tests {
             }
         );
         assert_eq!(config.sentry_dsn, None);
+    }
+
+    #[test]
+    fn derived_file_descriptor_defaults_scale_with_high_process_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 16_384,
+            memory_limit_bytes: 1024 * 1024 * 1024,
+            cpu_count: 6,
+        });
+
+        assert_eq!(defaults.file_descriptor_pool_size, 4096);
+        assert_eq!(defaults.segment_handle_cache_size, 256);
+        assert_eq!(defaults.file_descriptor_acquire_timeout_ms, 5_000);
     }
 
     #[test]
@@ -1789,8 +1837,10 @@ mod tests {
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
             (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEER_GATEWAY_URL, "http://peer.kura.example.com:7443"),
             (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_DISCOVERY_DNS_NAME, "kura-ring.internal"),
+            (KURA_GLOBAL_DISCOVERY_DNS_NAME, "acme.kura-peers.internal"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1812,6 +1862,14 @@ mod tests {
         assert_eq!(
             config.discovery_dns_name.as_deref(),
             Some("kura-ring.internal")
+        );
+        assert_eq!(
+            config.global_discovery_dns_name.as_deref(),
+            Some("acme.kura-peers.internal")
+        );
+        assert_eq!(
+            config.peer_gateway_url.as_deref(),
+            Some("http://peer.kura.example.com:7443")
         );
     }
 

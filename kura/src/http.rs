@@ -1666,11 +1666,24 @@ async fn clean_namespace(
     }
 }
 
-async fn internal_status(State(state): State<SharedState>) -> impl IntoResponse {
+async fn internal_status(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> impl IntoResponse {
+    let node_url = if params.get("scope").map(String::as_str) == Some("global") {
+        state
+            .config
+            .peer_gateway_url
+            .clone()
+            .unwrap_or_else(|| state.config.node_url.clone())
+    } else {
+        state.config.node_url.clone()
+    };
+
     Json(serde_json::json!({
         "region": state.config.region.clone(),
         "tenant_id": state.config.tenant_id.clone(),
-        "node_url": state.config.node_url.clone(),
+        "node_url": node_url,
     }))
 }
 
@@ -2833,6 +2846,48 @@ mod tests {
             .expect("request failed");
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn internal_status_advertises_gateway_url_for_global_discovery() {
+        let context = test_context(|config| {
+            config.node_url =
+                "https://kura-eu-0.kura-eu-headless.kura.svc.cluster.local:7443".into();
+            config.peer_gateway_url = Some("https://peer.tuist-eu-1.kura.tuist.dev:7443".into());
+        })
+        .await;
+
+        let local_response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        let local_body: Value = serde_json::from_str(&response_text(local_response).await)
+            .expect("failed to decode local status response");
+        assert_eq!(
+            local_body["node_url"],
+            "https://kura-eu-0.kura-eu-headless.kura.svc.cluster.local:7443"
+        );
+
+        let global_response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status?scope=global")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+        let global_body: Value = serde_json::from_str(&response_text(global_response).await)
+            .expect("failed to decode global status response");
+        assert_eq!(
+            global_body["node_url"],
+            "https://peer.tuist-eu-1.kura.tuist.dev:7443"
+        );
     }
 
     #[tokio::test]

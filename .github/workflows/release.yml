@@ -92,7 +92,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
     runs-on: macos-26
-    timeout-minutes: 50
+    timeout-minutes: 75
     permissions:
       contents: write
       id-token: write
@@ -122,7 +122,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
@@ -248,7 +248,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
 
       - name: Get release notes
         id: release-notes
@@ -344,7 +344,7 @@ jobs:
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Generate TuistApp
         run: tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect
@@ -1916,21 +1916,30 @@ jobs:
           name: cli-artifacts
 
       - name: Download CLI Linux x86_64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-x86_64-artifacts
           path: build-linux-x86_64
 
       - name: Download CLI Linux aarch64 artifacts
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: cli-linux-aarch64-artifacts
           path: build-linux-aarch64
 
       - name: Merge Linux artifacts into build directory
-        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        if: |
+          needs.check-releases.outputs.cli-should-release == 'true' &&
+          needs.release-cli.result == 'success' &&
+          needs.release-cli-linux.result == 'success'
         run: |
           # Append Linux checksums to main checksum files
           cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
@@ -2111,6 +2120,13 @@ jobs:
           if [ "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" == "true" ] && [ "${{ needs.release-xcresult-processor-image.result }}" == "success" ]; then
             sed -i '/repository: ghcr.io\/tuist\/tuist-xcresult-processor/,/tag:/{
               s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"|
+            }' infra/helm/tuist/values-managed-common.yaml
+          fi
+          if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
+            # Anchor the repository with `$` so it matches the kuraRuntime
+            # pin and not the kuraController one (ghcr.io/tuist/kura-controller).
+            sed -i '/repository: ghcr.io\/tuist\/kura$/,/tag:/{
+              s|tag: "[^"]*"|tag: "${{ needs.check-releases.outputs.kura-next-version-number }}"|
             }' infra/helm/tuist/values-managed-common.yaml
           fi
           if [ "${{ needs.check-releases.outputs.hetzner-robot-controller-should-release }}" == "true" ] && [ "${{ needs.release-hetzner-robot-controller.result }}" == "success" ]; then
@@ -2409,7 +2425,7 @@ jobs:
           fi
 
           if [ "${{ needs.check-releases.outputs.kura-should-release }}" == "true" ] && [ "${{ needs.release-kura-prepare.result }}" == "success" ] && [ "${{ needs.release-kura-binaries.result }}" == "success" ] && [ "${{ needs.release-kura-docker.result }}" == "success" ]; then
-            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock
+            git add kura/CHANGELOG.md kura/Cargo.toml kura/Cargo.lock infra/helm/tuist/values-managed-common.yaml
             FILES_ADDED=true
           fi
 

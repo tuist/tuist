@@ -1,0 +1,29 @@
+name: Pomerium Deployment
+
+# STUB on main. The real workflow (build + per-env helm upgrade to
+# the Pomerium kube-gateway chart) lands with PR #10988 alongside
+# the chart itself in infra/helm/pomerium/.
+#
+# Why a stub: GitHub Actions only surfaces workflow_dispatch in
+# the UI for workflows that exist on the default branch. Landing
+# the stub first lets us dispatch the real workflow from the
+# feature branch (the feature branch supplies the actual workflow
+# file at run time) so we can validate each env's Pomerium rollout
+# ahead of #10988's merge — without committing the in-flight
+# workflow contents to main behind reviewers' backs.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - run: |
+          echo "Stub workflow on main. The real workflow lands with PR #10988."
+          echo "Dispatch this from a branch that already has the Pomerium chart"
+          echo "+ real workflow file to exercise it."
