@@ -73,21 +73,19 @@ data:
               and:
                 - domain:
                     is: tuist.dev
-        # Static set_request_headers handles the always-applied
-        # pieces; the per-request Impersonate-User / Impersonate-
-        # Group injection comes from the ext_authz response.
+        # TEMPORARY: static view-tier group. Pomerium's per-route
+        # config does set Impersonate-User automatically from the
+        # OIDC claim email when `kubernetes_service_account_token_file`
+        # is set, but Impersonate-Group has to be supplied
+        # separately. Setting tuist-admins here gives every
+        # authenticated user the view tier (accessBindings in the
+        # tailscale-operator chart bind tuist-admins -> view).
+        # Per-request dynamic group selection based on the
+        # tuist-ops elevation table is the follow-up — that needs
+        # Pomerium's PPL `external_policy` or Envoy
+        # `extra_envoy_filters` ext_authz, neither of which the
+        # invented `ext_authz_service_url` key I had before
+        # actually wired up.
         set_request_headers:
           X-Tuist-Env: {{ .Values.tuistEnv | quote }}
-
-    # Per-route external authorization — Pomerium calls this URL on
-    # every request after the policy block above passes. The
-    # response shape is Envoy ExtAuthz v3 (CheckResponse), and the
-    # ok_response.headers field is injected into the upstream
-    # request. tuist-ops's /api/v1/policy controller returns
-    # Impersonate-User + Impersonate-Group headers that the
-    # apiserver consumes to decide RBAC.
-    #
-    # Reached over the tailnet — tuist-ops's Service is annotated
-    # `tailscale.com/expose: true` which provisions the FQDN below.
-    # No bearer on this call; auth is "you're on the tailnet."
-    ext_authz_service_url: "http://{{ .Values.extAuthzHost }}:{{ .Values.extAuthzPort }}/api/v1/policy"
+          Impersonate-Group: "tuist-admins"
