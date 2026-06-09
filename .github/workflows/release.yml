@@ -1232,7 +1232,7 @@ jobs:
       # pin doesn't move to a partially-published set.
       fail-fast: true
       matrix:
-        xcode: ["26.5", "26.4.1"]
+        xcode: ["26.5", "26.4.1", "26.3"]
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
