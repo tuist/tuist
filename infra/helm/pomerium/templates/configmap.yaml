@@ -46,6 +46,14 @@ data:
     # @tuist.dev accounts can pass the OIDC step.
     idp_scopes: ["openid", "profile", "email"]
 
+    # Pomerium 0.32's `pass_identity_headers: true` only adds the
+    # signed JWT (`X-Pomerium-Jwt-Assertion`). Concrete per-claim
+    # headers must be configured explicitly. The sidecar reads
+    # X-Pomerium-Claim-Email to identify the user when calling
+    # tuist-ops's policy endpoint.
+    jwt_claims_headers:
+      X-Pomerium-Claim-Email: email
+
     routes:
       - from: "https://{{ .Values.publicHostname }}"
         # Route to the kube-impersonator sidecar in the same pod.
