@@ -27,6 +27,18 @@ if [ "${usage_mode:-}" = "check" ]; then
     exit 1
   fi
 else
+  # Snapshot the lock so we can report whether the repin actually changed it (an unconditional
+  # "repinned — commit it" is misleading when the pin was already current).
+  lock="Cargo.Bazel.lock"
+  before="$(mktemp)"
+  trap 'rm -f "$before"' EXIT
+  [ -f "$lock" ] && cp "$lock" "$before"
+
   CARGO_BAZEL_REPIN=1 bazel query '@crates//:all' >/dev/null
-  echo "✔ Cargo.Bazel.lock repinned — commit it"
+
+  if cmp -s "$before" "$lock"; then
+    echo "Cargo.Bazel.lock already up to date — nothing to commit."
+  else
+    echo "✔ Cargo.Bazel.lock updated — commit it."
+  fi
 fi
