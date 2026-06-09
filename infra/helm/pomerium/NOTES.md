@@ -26,10 +26,11 @@ into each workload cluster (NOT mgmt).
 ## Manual prereqs (per env)
 
 1. **Create the Pomerium 1P item** `POMERIUM_<TUIST_ENV>` in the matching env's vault with these fields:
-   - `shared_secret` (32 bytes base64): `openssl rand -base64 32`
+   - `shared_secret` (32 bytes base64): `openssl rand -base64 32` (Pomerium's internal RPC signing key, not the databroker store)
    - `cookie_secret` (32 bytes base64): same
-   - `databroker_storage_connection_string`: `postgres://...` to a small Postgres for session state (can share the env's CNPG)
    - `idp_client_id` / `idp_client_secret`: Google Workspace OIDC credentials (created via Workspace admin → APIs & Services → Credentials → OAuth client ID. Type: web. Authorised redirect URI: `https://authenticate.kube-<env>.tuist.dev/oauth2/callback`)
+
+   No `databroker_storage_connection_string` is required — the chart configures Pomerium to use memory-backed databroker (trade-off: a Pomerium pod restart invalidates sessions, users re-auth via browser; acceptable at our scale). Switch to Postgres-backed when there's an operational reason.
 2. **Create the DNS records** at Cloudflare for `kube-<env>.tuist.dev` and `authenticate.kube-<env>.tuist.dev` pointing at the cluster's ingress.
 3. **cert-manager** must already have a `letsencrypt` ClusterIssuer (it does — used by the existing Tuist server ingress).
 4. **Tailscale operator** must already be deployed in the cluster with egress enabled (it is — used by the apiserver proxy for view-tier access today).
