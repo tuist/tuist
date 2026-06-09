@@ -103,7 +103,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
 
       - name: Get release notes
         id: release-notes
@@ -199,7 +199,7 @@ jobs:
           sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
           sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Generate TuistApp
         run: tuist generate TuistApp --no-binary-cache
       - name: Upload iOS App to App Store Connect

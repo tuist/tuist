@@ -87,7 +87,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
