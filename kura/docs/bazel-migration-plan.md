@@ -787,22 +787,25 @@ ERROR: error evaluating module extension @@rules_rust+//crate_universe:extension
   `Cargo.toml`/`Cargo.lock` that the branch's `Cargo.Bazel.lock` doesn't yet match. This bit
   us on the 2026-06-08 rebase (all three jobs red at analysis); fixed by repinning.
 
-**How (run in the Debian dev container — the macOS host can't analyze the Linux graph,
-`No matching toolchains for @@bazel_tools//tools/cpp:toolchain_type`):**
+**How — `mise run repin` (runs on the host; no Docker):**
 
 ```bash
-# from kura/, dev image already built as kura-bazel-dev (bazel/linux-dev.Dockerfile)
-docker run --rm -v "$PWD:/workspace/kura" \
-  -v "$HOME/.cache/kura-bazel-repo-container:/bazelrepo" \
-  kura-bazel-dev bash -c '
-    cd /workspace/kura
-    echo "common --repository_cache=/bazelrepo" > /root/.bazelrc
-    CARGO_BAZEL_REPIN=true bazel build //:kura --platforms=//bazel/platforms:linux_x86_64 -c opt --nobuild'
+mise run repin          # = CARGO_BAZEL_REPIN=1 bazel query '@crates//:all'
 ```
 
-`--nobuild` keeps it to load+analysis (the repin runs in the `crate_universe` module
-extension, before any compile), so it's fast and needs no full build. It rewrites
-`Cargo.Bazel.lock`; **commit that file**. Verify before pushing by re-running the same
-`bazel build … --nobuild` **without** `CARGO_BAZEL_REPIN` — clean analysis means the
-committed pin matches. (In CI, `kura-bazel.yml` does *not* set `CARGO_BAZEL_REPIN`, by
-design: a stale pin should fail loudly rather than silently re-resolve.)
+The repin runs inside the `crate_universe` module extension, which is evaluated **before**
+any target analysis or cc-toolchain resolution — so it does **not** need the Debian dev
+container. (The earlier container-only instruction was an artifact of repinning via
+`bazel build //:kura --platforms=//bazel/platforms:linux_x86_64 --nobuild`, which forces
+analysis of a *Linux target* and so needs the cross-GCC toolchain the macOS host lacks —
+`No matching toolchains for @@bazel_tools//tools/cpp:toolchain_type`.) `bazel query
+'@crates//:all'` only materializes the `@crates` repo: it touches no cc toolchain and runs
+on macOS or Linux. Verified the host-generated lock is byte-identical to the in-container
+one. It rewrites `Cargo.Bazel.lock`; **commit that file**.
+
+Verify before pushing with `mise run repin:check` (= `bazel query '@crates//:all'` **without**
+`CARGO_BAZEL_REPIN`): clean means the committed pin matches; a "Digests do not match" failure
+means it's still stale. CI runs that same check as a fast `lockfile` job (≈1 min, host —
+no dev container) so a stale pin fails **early** with an actionable message instead of deep
+in the compile job's analysis (~40 min in). Neither CI nor the check sets `CARGO_BAZEL_REPIN`,
+by design: a stale pin should fail loudly rather than silently re-resolve.
