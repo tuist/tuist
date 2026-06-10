@@ -51,6 +51,17 @@ kuraController:
     # still be created so envFrom doesn't 404, and stringData will be
     # absent, which Kubernetes accepts.
     data: {}
+    # Internal OAuth client shared by the Tuist server and Kura runtime
+    # for Kura control-plane calls and token introspection. When enabled,
+    # both the server namespace and the Kura namespace receive the same
+    # client id and secret. Provide them inline for self-hosted/local
+    # installs, or enable the ExternalSecret below for managed installs.
+    kuraIntrospection:
+      enabled: false
+      clientId: ""
+      # Required when kuraIntrospection.enabled is true unless
+      # sharedSecrets.externalSecret.enabled is also true.
+      clientSecret: ""
     externalSecret:
       enabled: false
       refreshInterval: "1h"
@@ -59,7 +70,8 @@ kuraController:
         name: onepassword
       item: ""
       fields:
-        introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   sentry:
     externalSecret:
       enabled: false
@@ -73,7 +85,7 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "<Kura OAuth introspection secret>"
+    #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
   image:
@@ -141,9 +153,13 @@ server:
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
       item: ""
+      # Non-secret OAuth client id. When set, the chart renders this value
+      # into the ESO-managed Secret and only fetches the client secret from
+      # the external store.
+      clientIdValue: ""
       fields:
-        clientId: TUIST_KURA_INTROSPECTION_CLIENT_ID
-        clientSecret: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+        clientId: KURA_CONTROL_PLANE_CLIENT_ID
+        clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -196,6 +212,11 @@ server:
   # Kura cache technology. Self-hosted installs can point this at Kura
   # instances running in the same cluster or network.
   kuraEndpointUrls: []
+  # Optional account handles that should get server-driven dedicated
+  # Kura gateway infrastructure even if billing metadata has not yet
+  # marked them Enterprise. Leave empty in committed managed values;
+  # prefer wiring this through external runtime config when needed.
+  kuraDedicatedGatewayAccounts: []
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
@@ -1647,3 +1668,4 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+

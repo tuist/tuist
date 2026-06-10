@@ -28,6 +28,8 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - VCS connections (`vcs_connections` table): the link between a Tuist project and an external repository handle (provider, repository full name, the originating GitHub App installation, and the user who created the connection)
 - Artifact retention cursors (`artifact_retention_cursors` table): per-account cleanup progress for DB-backed artifact families. Exports include the artifact type plus the last processed metadata cursor (`after_inserted_at`, `after_id`) used to avoid re-processing blobs that have already been purged from object storage.
 
+- (Internal Tuist-team JIT elevation tables previously documented here moved out of this server's Postgres entirely. They now live in the standalone `tuist-ops` service on its own CNPG cluster in the mgmt cluster. The data is operator-side audit about Tuist staff only — never customer data — and is out of scope for this server's data export. See `tuist-ops/AGENTS.md` for where it lives now.)
+
 ### Projects & Development
 - Project information (account relationship, handle/name, build system, default branch, visibility/settings, repositories, and timestamps)
 - Command events (CLI usage, build data, performance metrics)

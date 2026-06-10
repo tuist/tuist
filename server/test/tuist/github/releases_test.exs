@@ -94,6 +94,39 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.name == "CLI 4.196.0"
     end
 
+    test "returns the highest-semver release even when a lower backport was published most recently" do
+      # Given: GitHub orders releases by publish date, so a backport patch
+      # (4.192.1) cut after a newer minor (4.195.1) is listed first. The latest
+      # CLI version must be selected by semver, not by publish recency.
+      backport = %{
+        "published_at" => Timex.format!(DateTime.utc_now(), "{ISO:Extended}"),
+        "name" => "CLI 4.192.1",
+        "tag_name" => "4.192.1",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/4.192.1",
+        "assets" => []
+      }
+
+      newer = %{
+        "published_at" => Timex.format!(DateTime.add(DateTime.utc_now(), -7, :day), "{ISO:Extended}"),
+        "name" => "CLI 4.195.1",
+        "tag_name" => "4.195.1",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/4.195.1",
+        "assets" => []
+      }
+
+      releases_url = Releases.releases_url()
+
+      stub(Req, :get, fn ^releases_url, _opts ->
+        {:ok, %Req.Response{status: 200, body: [backport, newer]}}
+      end)
+
+      # When
+      release = Releases.get_latest_cli_release()
+
+      # Then
+      assert release.tag_name == "4.195.1"
+    end
+
     test "returns cached release when update: false and cache exists" do
       # Given
       published_at = DateTime.utc_now()

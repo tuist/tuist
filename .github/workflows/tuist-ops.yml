@@ -1,28 +1,124 @@
 name: Tuist Ops
 
-# STUB: this file exists on `main` so the workflow_dispatch UI exposes
-# "Tuist Ops" before the full tuist-ops/ tree lands (PR #10988). When
-# that PR merges, this file is replaced with the real format / credo /
-# test / build pipeline; until then, dispatching this workflow only
-# runs the placeholder job below.
-#
-# Why a stub: GitHub Actions only shows workflow_dispatch in the UI for
-# workflows that exist on the default branch. Landing the stub first
-# lets us dispatch the real workflow from a feature branch (the feature
-# branch supplies the actual workflow file at run time) without waiting
-# for the full PR to merge.
-
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - tuist-ops/**
+      - infra/helm/tuist-ops/**
+      - .github/workflows/tuist-ops.yml
+  merge_group: {}
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
+concurrency:
+  group: tuist-ops-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+
+defaults:
+  run:
+    working-directory: tuist-ops
+
 jobs:
-  placeholder:
-    runs-on: ubuntu-latest
-    timeout-minutes: 1
+  format:
+    name: Format
+    runs-on: tuist-linux
+    timeout-minutes: 15
     steps:
-      - run: |
-          echo "Stub workflow on main. The real workflow lands with PR #10988."
-          echo "Dispatch this from a branch that already has the real version to exercise it."
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check format
+        run: mix format --check-formatted
+
+  credo:
+    name: Credo
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Run Credo
+        run: mix credo
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tuist_ops_test
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            tuist-ops/deps
+            tuist-ops/_build
+          key: tuist-ops-mix-${{ hashFiles('tuist-ops/mix.lock') }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "erlang elixir"
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: tuist-ops
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Test
+        env:
+          MIX_ENV: test
+        run: mix test

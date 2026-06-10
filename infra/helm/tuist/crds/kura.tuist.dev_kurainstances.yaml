@@ -82,12 +82,8 @@ spec:
                 grpcPublicHost:
                   type: string
                   maxLength: 253
-                peerPublicHost:
+                ingressClassName:
                   type: string
-                  maxLength: 253
-                globalDiscoveryDNSName:
-                  type: string
-                  maxLength: 253
                 peerTLSSecretName:
                   type: string
                 storageClassName:

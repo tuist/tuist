@@ -81,6 +81,7 @@ jobs:
       runner-image-should-release: ${{ steps.check.outputs.runner-image-should-release }}
       runner-image-next-version: ${{ steps.check.outputs.runner-image-next-version }}
       runner-image-next-version-number: ${{ steps.check.outputs.runner-image-next-version-number }}
+      runner-image-matrix: ${{ steps.runner-image-matrix.outputs.matrix }}
       linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
       linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
       linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
@@ -103,6 +104,14 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - id: check
         run: mise run release:check
+      # The runner-image build matrix is data-driven from
+      # infra/runner-image/profiles.json so the active Xcode list lives
+      # under the component's own path. Editing the list both triggers a
+      # runner-image release (path is in components.json's include_paths)
+      # and reshapes the build matrix below — no workflow edit needed.
+      - id: runner-image-matrix
+        run: |
+          echo "matrix=$(jq -c '{xcode: .}' infra/runner-image/profiles.json)" >> "$GITHUB_OUTPUT"
 
   release-server:
     name: Release Server (amd64)
@@ -1162,8 +1171,8 @@ jobs:
         # runner profiles, so the Xcode here should be at least as new
         # as the newest active runner-image profile (xcresulttool's
         # JSON schema changes across Xcode majors). Promotion rule:
-        # when you bump the first matrix entry in runner-image-build
-        # above, bump this too.
+        # when you bump the first entry in
+        # infra/runner-image/profiles.json, bump this too.
         env:
           XCODE_VERSION: "26.5"
         run: |
@@ -1212,13 +1221,16 @@ jobs:
     # in parallel; adding more hosts scales linearly without any
     # workflow change.
     #
-    # The active-profile list is declared inline below. Keep it
-    # aligned with `runnersFleet.xcodeVersions` in
-    # values-managed-common.yaml — every Xcode that ships a pool
-    # needs a runner image published for it, and the post-job reads
-    # that file to build the Release notes image list.
+    # The active-profile list is the single source of truth in
+    # infra/runner-image/profiles.json; check-releases reads it into
+    # the `runner-image-matrix` output and the matrix below expands it.
+    # Keep it aligned with `runnersFleet.xcodeVersions` in
+    # values-managed-common.yaml — every Xcode that ships a pool needs
+    # a runner image published for it. That alignment is a deploy
+    # concern now, not a build trigger: only changes under
+    # infra/runner-image/** (profiles.json included) release the image.
     #
-    # To refresh an out-of-rotation profile (one not in the matrix),
+    # To refresh an out-of-rotation profile (one not in profiles.json),
     # use `gh workflow run runner-image.yml -f xcode_version=26.X.Y` —
     # that path keeps publishing tags without going through the full
     # release flow.
@@ -1231,8 +1243,7 @@ jobs:
       # If any profile build fails, abort sibling builds so the chart
       # pin doesn't move to a partially-published set.
       fail-fast: true
-      matrix:
-        xcode: ["26.5", "26.4.1", "26.3"]
+      matrix: ${{ fromJSON(needs.check-releases.outputs.runner-image-matrix) }}
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1370,20 +1381,17 @@ jobs:
           install_args: "git-cliff"
 
       - name: Render active profile image refs
-        # `runnersFleet.xcodeVersions` lives in
-        # values-managed-common.yaml — the shared catalog every
-        # managed env layers `xcodeOverrides` on top of, and the same
-        # source `runner-pool.yaml` iterates over. The Release body
-        # lists exactly the tags the chart will render pools for.
-        # `yq` is preinstalled on ubuntu-latest.
+        # The active Xcode list is the single source of truth in
+        # infra/runner-image/profiles.json — the same list the build
+        # matrix expands. The Release body lists exactly the tags the
+        # build published. `jq` is preinstalled on ubuntu-latest.
         id: images
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           {
             echo "images<<EOF"
-            yq -r '.runnersFleet.xcodeVersions[].xcodeVersion' \
-              infra/helm/tuist/values-managed-common.yaml |
+            jq -r '.[]' infra/runner-image/profiles.json |
               while IFS= read -r v; do
                 tag=$(echo "$v" | tr '.' '-')
                 echo "- \`ghcr.io/tuist/tuist-runner:macos-${tag}-${VERSION}\`"
@@ -1393,19 +1401,13 @@ jobs:
 
       - name: Get release notes
         id: release-notes
-        # Keep these include paths aligned with `runner-image` in
-        # `mise/tasks/release/components.json` — the active Xcode
-        # manifest is split across the Packer template and the
-        # chart's `runnersFleet.xcodeVersions` catalog, and a future
-        # commit that only promotes or removes an Xcode version
-        # should still trigger a runner-image release.
+        # Keep this include path aligned with `runner-image` in
+        # `mise/tasks/release/components.json`. The active Xcode list
+        # lives under this path (profiles.json), so promoting or
+        # removing a version still triggers a runner-image release.
         run: |
           LATEST_VERSION=$(git tag -l | grep -E "^runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=(
-            --include-path "infra/runner-image/**/*"
-            --include-path "infra/helm/tuist/values-managed-common.yaml"
-            --include-path ".github/workflows/release.yml"
-          )
+          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -1418,11 +1420,7 @@ jobs:
       - name: Update CHANGELOG.md
         working-directory: infra/runner-image
         run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/runner-image/**/*"
-            --include-path "infra/helm/tuist/values-managed-common.yaml"
-            --include-path ".github/workflows/release.yml"
-          )
+          INCLUDE_PATHS=( --include-path "infra/runner-image/**/*" )
 
           git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.runner-image-next-version }}" -o CHANGELOG.md 2>/dev/null
 

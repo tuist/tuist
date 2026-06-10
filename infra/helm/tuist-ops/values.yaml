@@ -1,0 +1,124 @@
+# Defaults for the tuist-ops chart. The per-env overlay
+# `values-managed-production.yaml` only sets nodeSelector / scheduling
+# overrides; image.tag comes from the deploy workflow. There is
+# exactly one deploy of tuist-ops, into the production cluster
+# (alongside server/ and slack/, in its own namespace + Helm release).
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/tuist/tuist-ops
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Phoenix endpoint shape. host is the canonical public URL (also
+# used for OAuth callback URLs when LiveView features migrate in).
+host: ops.tuist.dev
+port: 8080
+
+# Internal name used by the tailscale operator to expose this
+# Service as a tailnet device. Pomerium pods in workload clusters
+# dial this hostname through their cluster's tailscale-egress
+# Service to reach the impersonation policy endpoint.
+tailnetHostname: ops
+
+# CNPG cluster sized for tuist-ops only. Three tables, a few
+# hundred rows over its lifetime; single instance is enough.
+# Backups go to S3 (Tigris).
+postgresql:
+  instances: 1
+  storageSize: 5Gi
+  storageClass: ""
+  database: tuist_ops
+  owner: tuist_ops
+  image:
+    repository: ghcr.io/cloudnative-pg/postgresql
+    tag: "16.4"
+  backup:
+    enabled: true
+    # Tuist-wide CNPG backup bucket; tuist-ops gets its own prefix.
+    destinationPath: s3://tuist-cnpg-backups/tuist-ops
+    endpointURL: https://fly.storage.tigris.dev
+    retentionPolicy: "30d"
+    # Credentials are ESO-synced from the shared
+    # `S3_BACKUP_CREDENTIALS` 1P item — same one the main Tuist
+    # server uses. See `infra/helm/tuist/templates/postgresql-cnpg.yaml`
+    # for the established pattern.
+    credentialsSecretName: tuist-ops-backup-credentials
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ops.tuist.dev
+  tlsSecretName: tuist-ops-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    # Slack webhook bodies stay small (a few KB), but bump just in
+    # case Pomerium ever proxies through (it doesn't today).
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+  # Public ingress ONLY routes the Slack webhook paths. Everything
+  # else (notably /api/v1/policy) is reachable only on the tailnet
+  # via the Service annotation below — keeps the policy endpoint
+  # off the public internet.
+  paths:
+    - path: /webhooks/slack
+      pathType: Prefix
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  # Tailscale operator exposes the Service on the tailnet under
+  # this hostname when set. Reachable from any tailnet device,
+  # which is how Pomerium pods in workload clusters dial us.
+  tailscaleExpose: true
+
+# ESO ExternalSecret for the bot's credentials. Single 1P item per
+# Fields expected on TUIST_OPS_BOT:
+#   tailscale_client_id, tailscale_client_secret, tailscale_tailnet,
+#   slack_signing_secret, slack_bot_token, slack_approvals_channel_id
+externalSecret:
+  enabled: true
+  refreshInterval: "1h"
+  item: TUIST_OPS_BOT
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+
+# Phoenix release needs SECRET_KEY_BASE; generated once per env and
+# stored in the same 1P item to keep all per-env secrets together.
+appSecret:
+  externalSecret:
+    enabled: true
+    item: TUIST_OPS_BOT
+    field: secret_key_base
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Pod-level scheduling. Overridable in the per-env values file.
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}
+
+probes:
+  startup:
+    path: /api/v1/healthz
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    failureThreshold: 24
+  readiness:
+    path: /api/v1/healthz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+  liveness:
+    path: /api/v1/healthz
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    failureThreshold: 3

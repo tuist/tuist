@@ -12,6 +12,12 @@ defmodule Tuist.Kura.RegionsTest do
       ids = Enum.map(Regions.all(), & &1.id)
       hetzner_locations = %{"eu-central" => "fsn1", "us-east" => "ash", "us-west" => "hil"}
 
+      ingress_classes = %{
+        "eu-central" => "kura-eu-central",
+        "us-east" => "kura-us-east",
+        "us-west" => "kura-us-west"
+      }
+
       assert "us-east" in ids
       assert "us-west" in ids
       assert "eu-central" in ids
@@ -23,21 +29,26 @@ defmodule Tuist.Kura.RegionsTest do
         refute Regions.get(id).display_name =~ "Hetzner"
         assert config.cluster_id == "#{id}-1"
         assert config.hetzner_location == hetzner_locations[id]
+        assert config.ingress_class_name == ingress_classes[id]
         assert config.storage_class == "hcloud-volumes"
-        assert config.peer_tls_secret_name == "kura-cross-region-peer-tls"
       end
 
-      assert Regions.get("us-east").provisioner_config.kubernetes_client == [
-               mode: :kubeconfig,
-               cluster_id: "us-east-1"
-             ]
+      assert Regions.get("us-east").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-us-east"
+             }
 
-      assert Regions.get("us-west").provisioner_config.kubernetes_client == [
-               mode: :kubeconfig,
-               cluster_id: "us-west-1"
-             ]
+      assert Regions.get("us-west").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura-us-west"
+             }
 
-      refute Map.has_key?(Regions.get("eu-central").provisioner_config, :kubernetes_client)
+      assert Regions.get("eu-central").provisioner_config.node_selector == %{
+               "node.cluster.x-k8s.io/pool" => "kura"
+             }
+
+      for id <- ["us-east", "us-west", "eu-central"] do
+        refute Map.has_key?(Regions.get(id).provisioner_config, :kubernetes_client)
+        refute Map.has_key?(Regions.get(id).provisioner_config, :peer_tls_secret_name)
+      end
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do
@@ -64,6 +75,38 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Regions.get("eu-central").provisioner_config.tuist_base_url ==
                "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"
+    end
+
+    test "keeps managed regions aligned with platform ingress classes and production node pools" do
+      platform_values = read_repo_yaml("infra/helm/platform/values.yaml")
+      production_cluster = read_repo_yaml("infra/k8s/clusters/cluster-production.yaml")
+
+      platform_ingress_keys = %{
+        "eu-central" => "kura-eu-central-ingress-nginx",
+        "us-east" => "kura-us-east-ingress-nginx",
+        "us-west" => "kura-us-west-ingress-nginx"
+      }
+
+      for {id, platform_ingress_key} <- platform_ingress_keys do
+        assert %Regions{provisioner_config: config} = Regions.get(id)
+        node_pool = config.node_selector["node.cluster.x-k8s.io/pool"]
+
+        assert get_in(platform_values, [
+                 platform_ingress_key,
+                 "controller",
+                 "ingressClass"
+               ]) == config.ingress_class_name
+
+        assert get_in(platform_values, [
+                 platform_ingress_key,
+                 "controller",
+                 "ingressClassResource",
+                 "name"
+               ]) == config.ingress_class_name
+
+        assert production_node_pool_location(production_cluster, node_pool) ==
+                 config.hetzner_location
+      end
     end
   end
 
@@ -176,5 +219,24 @@ defmodule Tuist.Kura.RegionsTest do
       assert controller_region.provisioner_config.kubernetes_client[:context] == "kind-kura-dev-0"
       assert controller_region.provisioner_config.public_url == "http://localhost:4100"
     end
+  end
+
+  defp read_repo_yaml(path) do
+    "../../../.."
+    |> Path.expand(__DIR__)
+    |> Path.join(path)
+    |> File.read!()
+    |> YamlElixir.read_from_string!()
+  end
+
+  defp production_node_pool_location(production_cluster, node_pool) do
+    production_cluster
+    |> get_in(["spec", "topology", "workers", "machineDeployments"])
+    |> Enum.find_value(fn machine_deployment ->
+      if get_in(machine_deployment, ["metadata", "labels", "node.cluster.x-k8s.io/pool"]) ==
+           node_pool do
+        machine_deployment["failureDomain"]
+      end
+    end)
   end
 end

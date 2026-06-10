@@ -101,17 +101,12 @@ Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`.
 
 Managed deploys use the latest `kura@...` GitHub release as the visible Kura version. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.5.2` maps to `ghcr.io/tuist/kura:0.5.2`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
 
-Production maps those product regions to Hetzner-backed workload clusters:
+Production maps those product regions to Hetzner-backed node pools inside the `tuist` workload cluster:
 
-| Product region | Cluster ID | Kubernetes client | Hetzner location |
-| --- | --- | --- | --- |
-| `eu-central` | `eu-central-1` | in-cluster ServiceAccount on `tuist` | `fsn1` |
-| `us-east` | `us-east-1` | `TUIST_KURA_KUBECONFIG_US_EAST_1` | `ash` |
-| `us-west` | `us-west-1` | `TUIST_KURA_KUBECONFIG_US_WEST_1` | `hil` |
+| Product region | Cluster ID | Kubernetes client | Node pool | Hetzner location |
+| --- | --- | --- | --- | --- |
+| `eu-central` | `eu-central-1` | in-cluster ServiceAccount on `tuist` | `kura` | `fsn1` |
+| `us-east` | `us-east-1` | in-cluster ServiceAccount on `tuist` | `kura-us-east` | `ash` |
+| `us-west` | `us-west-1` | in-cluster ServiceAccount on `tuist` | `kura-us-west` | `hil` |
 
-The regional kubeconfig variables are synced by the production deploy workflow from the `tuist-k8s-production` 1Password vault documents `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`. Bootstrap those regional clusters with:
-
-```bash
-mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-us-east-1"
-mise run k8s:bootstrap-workload tuist-kura-us-west production "kubeconfig: kura-us-west-1"
-```
+The Kura controller creates shared-ingress routes for the customer-specific hostnames and schedules each region onto its configured node pool.

@@ -25,11 +25,11 @@ defmodule Tuist.OAuth.ClientsTest do
   describe "get_client/1" do
     test "returns the dedicated Kura control-plane client" do
       stub(Environment, :kura_control_plane_configured?, fn -> true end)
-      stub(Environment, :kura_control_plane_client_id, fn -> "kura-control-plane" end)
+      stub(Environment, :kura_control_plane_client_id, fn -> "00000000-0000-0000-0000-000000000001" end)
       stub(Environment, :kura_control_plane_client_secret, fn -> "kura-secret" end)
 
-      assert %Client{} = client = Clients.get_client("kura-control-plane")
-      assert client.id == "kura-control-plane"
+      assert %Client{} = client = Clients.get_client("00000000-0000-0000-0000-000000000001")
+      assert client.id == "00000000-0000-0000-0000-000000000001"
       assert client.secret == "kura-secret"
       assert client.confidential == true
       assert client.supported_grant_types == ["introspect", "kura_usage"]

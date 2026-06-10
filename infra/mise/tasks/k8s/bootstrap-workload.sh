@@ -26,9 +26,7 @@
 #  10. Install the monitoring chart (Grafana Cloud agent).
 #  11. App-serving clusters: pre-create the app namespace.
 #  12. App-serving clusters: install the Cloudflare origin cert TLS Secret.
-#  13. App-serving clusters: smoke ingress. Kura regional clusters
-#      instead verify the shared platform bits, then upload the workload
-#      kubeconfig to 1Password.
+#  13. Smoke ingress + upload the workload kubeconfig to 1Password.
 #
 # Idempotent: re-running is safe; helm upgrades in-place, kubectl
 # create | apply uses --dry-run + apply.
@@ -37,9 +35,9 @@ set -euo pipefail
 
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
   echo "Usage: $0 <cluster_name> <env> [kubeconfig_item]" >&2
-  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview, tuist-kura-us-east" >&2
+  echo "  cluster_name:     tuist-staging-2, tuist-canary, tuist, tuist-preview" >&2
   echo "  env:              staging | canary | production | preview" >&2
-  echo "  kubeconfig_item:  optional 1Password document title, e.g. 'kubeconfig: kura-us-east-1'" >&2
+  echo "  kubeconfig_item:  optional 1Password document title, defaults to 'kubeconfig: tuist-<env>'" >&2
   exit 64
 fi
 
@@ -51,11 +49,6 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 BOOTSTRAP_DIR="$REPO_ROOT/infra/k8s/mgmt/bootstrap"
 MGMT_KUBECONFIG="${MGMT_KUBECONFIG:-$HOME/.kube/tuist-mgmt.yaml}"
 WL_KUBECONFIG="$HOME/.kube/${CLUSTER_NAME}.yaml"
-IS_KURA_REGIONAL_CLUSTER=false
-
-if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
-  IS_KURA_REGIONAL_CLUSTER=true
-fi
 
 case "$ENV" in
   staging|canary|production|preview) ;;
@@ -352,49 +345,11 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace observability --dry-run=cli
   KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
 
 MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-${ENV}.yaml"
-MONITORING_SET_ARGS=()
-if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
-  # Regional Kura clusters share production Grafana labels but must keep
-  # their own cluster identity so Grafana distinguishes us-east/us-west.
-  MONITORING_VALUES_FILE="$REPO_ROOT/infra/helm/k8s-monitoring/values-production.yaml"
-  MONITORING_SET_ARGS+=(--set "k8s-monitoring.cluster.name=${CLUSTER_NAME}")
-fi
 
 KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install k8s-monitoring "$REPO_ROOT/infra/helm/k8s-monitoring" \
   --namespace observability \
   -f "$MONITORING_VALUES_FILE" \
-  "${MONITORING_SET_ARGS[@]}" \
   --wait --timeout 5m || echo "WARN: monitoring chart didn't go Ready in 5min; continuing (not blocking the cluster)"
-
-if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
-  # ---------------------------------------------------------------------------
-  log "Step 11/11: verify Kura regional platform + upload workload kubeconfig to 1Password"
-
-  KUBECONFIG="$WL_KUBECONFIG" kubectl wait \
-    --for=condition=Ready clusterissuer/letsencrypt-cloudflare --timeout=2m
-  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform wait \
-    --for=condition=Available deploy -l app.kubernetes.io/name=external-dns --timeout=2m
-
-  upload_workload_kubeconfig
-
-  echo
-
-  cat <<DONE
-
-================================================================
-Bootstrap of $CLUSTER_NAME complete.
-
-  Workload kubeconfig: $WL_KUBECONFIG
-
-Kura regional clusters do not get an app ingress or Cloudflare origin
-certificate. Their per-account LoadBalancer Services carry
-external-dns annotations and publish hosts like
-{account}-{cluster_id}.kura.tuist.dev after the controller deploys.
-================================================================
-DONE
-
-  exit 0
-fi
 
 # ---------------------------------------------------------------------------
 log "Step 11/13: pre-create the app namespace (CI deploys the app itself)"
@@ -458,8 +413,8 @@ log "Step 13/13: smoke ingress + upload workload kubeconfig to 1Password"
 # Wait for HCCM to provision the LB and write the IP back.
 echo -n "Waiting for ingress-nginx LB IP"
 for i in $(seq 1 60); do
-  LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get svc -l app.kubernetes.io/name=ingress-nginx \
-    -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+  LB_IP=$(KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get svc platform-ingress-nginx-controller \
+    -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
   if [ -n "$LB_IP" ]; then
     break
   fi
@@ -508,9 +463,7 @@ echo "ingress LB responded HTTP $SMOKE_HTTP. Routing is healthy."
 # invoked against a half-built cluster.
 # By default, app cluster document names follow env, not cluster_name,
 # so the deploy workflow can look up `kubeconfig: tuist-${env}`
-# uniformly across all environments. Regional Kura production clusters
-# pass an explicit title such as `kubeconfig: kura-us-east-1`, matching
-# the product cluster_id consumed by TUIST_KURA_KUBECONFIG_*.
+# uniformly across all environments.
 upload_workload_kubeconfig
 
 echo
@@ -530,10 +483,6 @@ to point at $LB_IP.
   canary    -> canary.tuist.dev
   production -> tuist.dev (and any apex aliases)
   preview   -> *.preview.tuist.dev (or whatever wildcard pattern is used)
-
-Kura regional clusters do not get an app DNS cut. Their per-account
-LoadBalancer Services carry external-dns annotations and publish hosts
-like {account}-{cluster_id}.kura.tuist.dev after the controller deploys.
 
 Verify cert + ingress on the new cluster (DNS cut not needed for this):
   curl -k --resolve "staging.tuist.dev:443:$LB_IP" https://staging.tuist.dev/health

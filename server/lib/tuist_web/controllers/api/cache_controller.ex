@@ -15,6 +15,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -72,10 +73,18 @@ defmodule TuistWeb.API.CacheController do
   def endpoints(conn, params) do
     endpoints =
       params[:account_handle]
-      |> Accounts.get_cache_endpoints_for_handle()
+      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
       |> Enum.reject(&is_nil/1)
 
     json(conn, %{endpoints: endpoints})
+  end
+
+  defp technology(conn) do
+    if Headers.get_client_feature_flag(conn, "kura") do
+      :kura
+    else
+      :default
+    end
   end
 
   operation(:access,
