@@ -111,6 +111,49 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "private runner-cache regions" do
+    test "scaleway and hetzner-staging runner regions are registered as private" do
+      assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
+      assert scw_config.private == true
+      assert scw_config.storage_class == "scw-bssd"
+      assert scw_config.replicas == 1
+      assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
+      refute Map.has_key?(scw_config, :public_host_template)
+      refute Map.has_key?(scw_config, :ingress_class_name)
+
+      assert %Regions{provisioner_config: hetzner_config} = Regions.get("hetzner-staging-runners")
+      assert hetzner_config.private == true
+      assert hetzner_config.storage_class == "hcloud-volumes"
+      assert hetzner_config.replicas == 1
+      assert hetzner_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura"}
+    end
+  end
+
+  describe "private?/1" do
+    test "is true only for private regions" do
+      assert Regions.private?(Regions.get("scw-fr-par-runners"))
+      assert Regions.private?(Regions.get("hetzner-staging-runners"))
+      refute Regions.private?(Regions.get("eu-central"))
+      refute Regions.private?(Regions.get("local-controller"))
+      refute Regions.private?(nil)
+    end
+  end
+
+  describe "selectable/0" do
+    test "excludes private regions a customer cannot pick" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "hetzner-staging-runners"] end)
+
+      available_ids = Enum.map(Regions.available(), & &1.id)
+      selectable_ids = Enum.map(Regions.selectable(), & &1.id)
+
+      assert "hetzner-staging-runners" in available_ids
+      refute "hetzner-staging-runners" in selectable_ids
+      assert "eu-central" in selectable_ids
+    end
+  end
+
   describe "available_region/1" do
     test "returns the region when it is available in the current runtime" do
       assert %Regions{id: "local-controller"} = Regions.available_region("local-controller")

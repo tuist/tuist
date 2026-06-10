@@ -33,10 +33,15 @@
 #
 # Server contract (matches the macOS image):
 #   POST <url>
-#     200 with { encoded_jit_config, pool, owner }
-#       → stage the JIT for the runner container, exit 0
-#       → (env unset) exec ./run.sh --jitconfig <jit> --disableupdate
-#         (single job, ephemeral, no auto-upgrade)
+#     200 with { encoded_jit_config, pool, owner, cache_endpoint_url? }
+#       → (TUIST_RUNNER_JIT_OUTPUT_PATH set, split-container shape):
+#         stage the JIT for the sibling runner container; when
+#         cache_endpoint_url is present, also stage it at
+#         <jit>.cache-endpoint for run-job.sh to export as
+#         TUIST_CACHE_ENDPOINT. Exit 0.
+#       → (env unset, rollout bridge): export TUIST_CACHE_ENDPOINT when
+#         cache_endpoint_url is present, then exec ./run.sh --jitconfig
+#         <jit> --disableupdate (single job, ephemeral, no auto-upgrade)
 #     204 → no work; sleep + retry
 #     401/403 → auth failed; abort (the SA is GC'd or invalid)
 #     410 → stale image; exit 0 without staging a JIT so the Pod
@@ -119,8 +124,34 @@ while true; do
           echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage JIT to ${JIT_OUTPUT_PATH}; aborting"
           exit 1
         fi
+        # When the server routes the account through a runner-local Kura
+        # node, stage the URL next to the JIT so run-job.sh can export it
+        # as TUIST_CACHE_ENDPOINT in the runner container. This is a
+        # routing optimization: a staging failure degrades to the CLI's
+        # default cache resolution, it does not strand the claimed job.
+        cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
+        if [ -n "${cache_endpoint}" ]; then
+          cache_endpoint_path="${JIT_OUTPUT_PATH}.cache-endpoint"
+          cache_tmp="${cache_endpoint_path}.tmp"
+          if { printf '%s' "${cache_endpoint}" >"${cache_tmp}" && chmod 0644 "${cache_tmp}" && mv -f "${cache_tmp}" "${cache_endpoint_path}"; }; then
+            echo "$(date -u +%FT%TZ) dispatch-poll: cache endpoint staged at ${cache_endpoint_path}"
+          else
+            rm -f "${cache_tmp}" 2>/dev/null || true
+            echo "$(date -u +%FT%TZ) dispatch-poll: failed to stage cache endpoint; runner will fall back to default cache resolution"
+          fi
+        fi
         echo "$(date -u +%FT%TZ) dispatch-poll: claimed, JIT staged for runner container"
         exit 0
+      fi
+      # Rollout-bridge single-container exec path: route the job's Tuist
+      # cache at the account's private runner-cache Kura node when the
+      # server includes it. Exported before exec so the GitHub Actions
+      # runner — and every job step — inherits it; the Tuist CLI honors
+      # TUIST_CACHE_ENDPOINT as a cache-endpoint override.
+      cache_endpoint=$(jq -r '.cache_endpoint_url // empty' /tmp/dispatch.json)
+      if [ -n "${cache_endpoint}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # Forensic vitals (rollout-bridge single-container mode only; the

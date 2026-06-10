@@ -327,7 +327,7 @@ defmodule TuistWeb.AccountSettingsLive do
   defp load_kura_state(socket, opts \\ []) do
     account = socket.assigns.selected_account
     servers = Kura.list_servers_for_account(account.id)
-    regions = Regions.available()
+    regions = Regions.selectable()
     available_regions = available_kura_regions(regions, servers)
     latest = Keyword.get_lazy(opts, :latest_kura_version, fn -> List.first(Kura.latest_versions(1)) end)
 

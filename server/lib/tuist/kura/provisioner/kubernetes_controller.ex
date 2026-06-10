@@ -62,7 +62,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def public_url(handle, %Regions{provisioner_config: config}, _ref) do
+  def public_url(handle, %Regions{provisioner_config: config} = region, _ref) do
     cond do
       template = config[:public_host_template] ->
         "https://" <> interpolate_host(template, dns_handle(handle), config)
@@ -70,10 +70,23 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       url = config[:public_url] ->
         url
 
+      template = config[:private_url_template] ->
+        # Private region: build the in-cluster Service DNS URL. The
+        # KuraInstance's primary Service is named after instance_name(),
+        # which `{instance}` interpolates to.
+        interpolate_private_url(template, handle, region)
+
       true ->
         raise ArgumentError,
-              "region #{inspect(config[:cluster_id])} has neither :public_host_template nor :public_url"
+              "region #{inspect(config[:cluster_id])} has neither :public_host_template, :public_url, nor :private_url_template"
     end
+  end
+
+  defp interpolate_private_url(template, handle, %Regions{provisioner_config: config} = region) do
+    template
+    |> String.replace("{instance}", instance_name(handle, region))
+    |> String.replace("{account_handle}", dns_handle(handle))
+    |> String.replace("{cluster_id}", config[:cluster_id] || "")
   end
 
   @impl true
@@ -174,6 +187,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "grpcPublicHost" => grpc_public_host(account_handle, region),
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(region),
+          "private" => Regions.private?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -181,7 +195,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "extensionScript" => hook_script,
           "extraEnv" => extension_env(region)
         }
-        |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
+        |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
     }
   end

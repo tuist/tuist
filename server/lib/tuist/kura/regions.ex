@@ -51,6 +51,30 @@ defmodule Tuist.Kura.Regions do
     end
   end
 
+  @doc """
+  Regions a customer may explicitly select in the UI. This is
+  `available/0` minus regions the control plane manages on the
+  customer's behalf (the private runner-cache regions, which are
+  provisioned automatically when an account turns on runners and are
+  reachable only over the cluster's internal DNS — there is no public
+  endpoint for a developer to point the CLI at). `create_server/1`
+  still accepts these regions through `available/0`; they're only
+  hidden from the picker.
+  """
+  def selectable, do: Enum.reject(available(), &private?/1)
+
+  @doc """
+  True iff the region has no public endpoint and is reachable only over
+  the cluster's internal DNS (today: the runner-cache regions, which
+  serve the in-cluster runner fleet). Private regions are managed by
+  the control plane rather than picked by customers, skip the public
+  DNS/HTTPS readiness probe at activation, and never mirror their URL
+  into `account_cache_endpoints` (CLI-facing; developer machines can't
+  reach the in-cluster endpoint).
+  """
+  def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
+  def private?(_), do: false
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -75,7 +99,61 @@ defmodule Tuist.Kura.Regions do
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
 
-  defp managed_regions, do: [us_east_region(), us_west_region(), eu_central_region()]
+  defp managed_regions,
+    do: [
+      us_east_region(),
+      us_west_region(),
+      eu_central_region(),
+      scaleway_runners_region(),
+      hetzner_staging_runners_region()
+    ]
+
+  # Private runner-cache regions. Both share the same model: a single-
+  # replica `KuraInstance` pinned to a specific node pool of the umbrella
+  # cluster, exposed only as a `ClusterIP` Service (no public host, no
+  # ingress, no certificate, no LoadBalancer). The runner pool reaches
+  # the cache pod by Kubernetes Service DNS, so cache traffic never
+  # leaves the cluster. The control plane provisions exactly one of
+  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
+  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+
+  defp scaleway_runners_region do
+    %__MODULE__{
+      id: "scw-fr-par-runners",
+      display_name: "Scaleway fr-par (runner cache)",
+      provisioner: KubernetesController,
+      provisioner_config: %{
+        cluster_id: "scw-fr-par",
+        private: true,
+        # In-cluster Service DNS the runner Pods resolve. `{instance}`
+        # interpolates to `instance_name(handle, region)`.
+        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
+        storage_class: "scw-bssd",
+        storage_size: "50Gi",
+        replicas: 1,
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+      }
+    }
+  end
+
+  defp hetzner_staging_runners_region do
+    %__MODULE__{
+      id: "hetzner-staging-runners",
+      display_name: "Hetzner staging (runner cache)",
+      provisioner: KubernetesController,
+      provisioner_config: %{
+        cluster_id: "staging",
+        private: true,
+        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
+        storage_class: "hcloud-volumes",
+        storage_size: "20Gi",
+        replicas: 1,
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+      }
+    }
+  end
 
   defp us_east_region do
     %__MODULE__{

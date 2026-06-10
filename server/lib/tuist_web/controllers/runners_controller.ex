@@ -29,11 +29,7 @@ defmodule TuistWeb.RunnersController do
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id}} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, %{
-        encoded_jit_config: jit,
-        owner: account.name,
-        workflow_job_id: workflow_job_id
-      })
+      json(conn, dispatch_response(jit, account, workflow_job_id))
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -128,6 +124,26 @@ defmodule TuistWeb.RunnersController do
 
   def desired_replicas(conn, _params) do
     conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
+  end
+
+  # Hands the polling Pod its JIT config plus, when the account runs a
+  # private runner-cache Kura node, the in-cluster URL the job should
+  # use. The runner image exports it as `TUIST_CACHE_ENDPOINT` so cache
+  # traffic stays on the cluster's internal network next to the runner
+  # instead of going through the public Kura ingress. Absent
+  # (non-runner-cache accounts), the Pod falls back to normal
+  # server-side cache resolution.
+  defp dispatch_response(jit, account, workflow_job_id) do
+    base = %{
+      encoded_jit_config: jit,
+      owner: account.name,
+      workflow_job_id: workflow_job_id
+    }
+
+    case Tuist.Kura.runner_cache_endpoint_url(account) do
+      url when is_binary(url) and url != "" -> Map.put(base, :cache_endpoint_url, url)
+      _ -> base
+    end
   end
 
   defp bearer_token(conn) do
