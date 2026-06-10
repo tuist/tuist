@@ -14,6 +14,7 @@
 go 1.25.0
 
 use (
+	./grafana-datasource
 	./infra/cluster-api-provider-scaleway-applesilicon
 	./infra/hetzner-robot-controller
 	./infra/kura-controller
