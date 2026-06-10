@@ -1779,7 +1779,10 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
-        .package(url: "https://github.com/tuist/swifterpm", exact: "0.8.1"),
+        .package(
+            url: "https://github.com/tuist/swifterpm",
+            revision: "06a24eb8d17e5ec4ff04de6222511fe9e4e9e966"
+        ),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]
