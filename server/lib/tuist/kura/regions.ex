@@ -30,6 +30,62 @@ defmodule Tuist.Kura.Regions do
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.
   @local_controller_kura_base_port 4100
+  @managed_region_node_pool_label "node.cluster.x-k8s.io/pool"
+  @managed_region_public_host_template "{account_handle}-{cluster_id}.kura.tuist.dev"
+  @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+  @managed_region_storage_class "hcloud-volumes"
+  @managed_region_specs [
+    %{
+      id: "us-east",
+      display_name: "US East",
+      cluster_id: "us-east-1",
+      hetzner_location: "ash",
+      ingress_class_name: "kura-us-east",
+      node_pool: "kura-us-east"
+    },
+    %{
+      id: "us-west",
+      display_name: "US West",
+      cluster_id: "us-west-1",
+      hetzner_location: "hil",
+      ingress_class_name: "kura-us-west",
+      node_pool: "kura-us-west"
+    },
+    %{
+      id: "eu-central",
+      display_name: "EU Central",
+      cluster_id: "eu-central-1",
+      hetzner_location: "fsn1",
+      ingress_class_name: "kura-eu-central",
+      node_pool: "kura"
+    }
+  ]
+  # Private runner-cache regions. Both share the same model: a single-
+  # replica `KuraInstance` pinned to a specific node pool of the umbrella
+  # cluster, exposed only as a `ClusterIP` Service (no public host, no
+  # ingress, no certificate, no LoadBalancer). The runner pool reaches
+  # the cache pod by Kubernetes Service DNS, so cache traffic never
+  # leaves the cluster. The control plane provisions exactly one of
+  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
+  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  @private_region_specs [
+    %{
+      id: "scw-fr-par-runners",
+      display_name: "Scaleway fr-par (runner cache)",
+      cluster_id: "scw-fr-par",
+      node_pool: "kura-scw-fr-par",
+      storage_class: "scw-bssd",
+      storage_size: "50Gi"
+    },
+    %{
+      id: "hetzner-staging-runners",
+      display_name: "Hetzner staging (runner cache)",
+      cluster_id: "staging",
+      node_pool: "kura",
+      storage_class: @managed_region_storage_class,
+      storage_size: "20Gi"
+    }
+  ]
 
   @doc "All registered regions."
   def all, do: managed_regions() ++ [local_controller_region()]
@@ -99,115 +155,46 @@ defmodule Tuist.Kura.Regions do
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
 
-  defp managed_regions,
-    do: [
-      us_east_region(),
-      us_west_region(),
-      eu_central_region(),
-      scaleway_runners_region(),
-      hetzner_staging_runners_region()
-    ]
+  defp managed_regions do
+    Enum.map(@managed_region_specs, &managed_region/1) ++
+      Enum.map(@private_region_specs, &private_region/1)
+  end
 
-  # Private runner-cache regions. Both share the same model: a single-
-  # replica `KuraInstance` pinned to a specific node pool of the umbrella
-  # cluster, exposed only as a `ClusterIP` Service (no public host, no
-  # ingress, no certificate, no LoadBalancer). The runner pool reaches
-  # the cache pod by Kubernetes Service DNS, so cache traffic never
-  # leaves the cluster. The control plane provisions exactly one of
-  # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
-  # and the runner dispatch hands the URL back as `cache_endpoint_url`.
-
-  defp scaleway_runners_region do
+  defp managed_region(spec) do
     %__MODULE__{
-      id: "scw-fr-par-runners",
-      display_name: "Scaleway fr-par (runner cache)",
+      id: spec.id,
+      display_name: spec.display_name,
       provisioner: KubernetesController,
       provisioner_config: %{
-        cluster_id: "scw-fr-par",
+        cluster_id: spec.cluster_id,
+        hetzner_location: spec.hetzner_location,
+        public_host_template: @managed_region_public_host_template,
+        grpc_public_host_template: @managed_region_grpc_public_host_template,
+        ingress_class_name: spec.ingress_class_name,
+        storage_class: @managed_region_storage_class,
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
+      }
+    }
+  end
+
+  defp private_region(spec) do
+    %__MODULE__{
+      id: spec.id,
+      display_name: spec.display_name,
+      provisioner: KubernetesController,
+      provisioner_config: %{
+        cluster_id: spec.cluster_id,
         private: true,
         # In-cluster Service DNS the runner Pods resolve. `{instance}`
         # interpolates to `instance_name(handle, region)`.
         private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
-        storage_class: "scw-bssd",
-        storage_size: "50Gi",
+        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        storage_class: spec.storage_class,
+        storage_size: spec.storage_size,
         replicas: 1,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url()
-      }
-    }
-  end
-
-  defp hetzner_staging_runners_region do
-    %__MODULE__{
-      id: "hetzner-staging-runners",
-      display_name: "Hetzner staging (runner cache)",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "staging",
-        private: true,
-        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
-        storage_class: "hcloud-volumes",
-        storage_size: "20Gi",
-        replicas: 1,
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
-      }
-    }
-  end
-
-  defp us_east_region do
-    %__MODULE__{
-      id: "us-east",
-      display_name: "US East",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-east-1",
-        hetzner_location: "ash",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        ingress_class_name: "kura-us-east",
-        storage_class: "hcloud-volumes",
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-us-east"},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
-      }
-    }
-  end
-
-  defp us_west_region do
-    %__MODULE__{
-      id: "us-west",
-      display_name: "US West",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-west-1",
-        hetzner_location: "hil",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        ingress_class_name: "kura-us-west",
-        storage_class: "hcloud-volumes",
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-us-west"},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
-      }
-    }
-  end
-
-  defp eu_central_region do
-    %__MODULE__{
-      id: "eu-central",
-      display_name: "EU Central",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "eu-central-1",
-        hetzner_location: "fsn1",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        ingress_class_name: "kura-eu-central",
-        storage_class: "hcloud-volumes",
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
       }
     }
   end

@@ -28,30 +28,7 @@ if [ ! -r "$WL_KUBECONFIG" ]; then
   exit 1
 fi
 
-derive_region_from_nodes() {
-  KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
-    -o jsonpath='{range .items[*]}{.metadata.labels.topology\.kubernetes\.io/region}{"\n"}{end}' |
-    awk 'NF { print; exit }'
-}
-
-derive_region_from_ingress_service() {
-  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get service platform-ingress-nginx-controller \
-    -o jsonpath='{.metadata.annotations.load-balancer\.hetzner\.cloud/location}' 2>/dev/null || true
-}
-
-# HCCM stamps hcloud-backed nodes with topology.kubernetes.io/region
-# (e.g. ash, hil, fsn1). Mixed clusters can also carry bare-metal
-# runner nodes that do not have that label, so scan all nodes instead
-# of assuming `.items[0]` is an hcloud VM.
-REGION="$(derive_region_from_nodes)"
-if [ -z "$REGION" ]; then
-  REGION="$(derive_region_from_ingress_service)"
-fi
-if [ -z "$REGION" ]; then
-  echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on any node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
-  exit 1
-fi
-log "Platform install for $CLUSTER_NAME (region $REGION)"
+log "Platform install for $CLUSTER_NAME"
 
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
@@ -69,7 +46,6 @@ unset CLOUDFLARE_API_TOKEN
 
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
-  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
 )
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")

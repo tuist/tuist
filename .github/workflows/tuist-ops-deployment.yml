@@ -22,11 +22,10 @@ permissions:
   packages: write
 
 concurrency:
-  group: tuist-ops-deploy-mgmt
+  group: tuist-ops-deploy-production
   cancel-in-progress: false
 
 env:
-  MISE_VERSION: "2026.4.18"
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist-ops
@@ -70,19 +69,19 @@ jobs:
           cache-to: type=gha,mode=max,scope=tuist-ops
 
   deploy:
-    name: Deploy to mgmt
+    name: Deploy to production
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
-      # Reuses the existing environment from mgmt-cluster-apply.yml
-      # — same OP_SERVICE_ACCOUNT_TOKEN scope (read on the
-      # tuist-k8s-mgmt 1P vault) and same access gates. Any approval
-      # rules attached to mgmt-cluster-apply apply here too, which
-      # is the right posture for any workflow that mutates the mgmt
-      # cluster.
-      name: mgmt-cluster-apply
+      # Reuses the existing environment from slack-deployment.yml +
+      # server-deployment.yml — same OP_SERVICE_ACCOUNT_TOKEN scope
+      # (read on the tuist-k8s-production 1P vault, where
+      # `kubeconfig: tuist-production` lives) and same access gates.
+      # Any approval rules attached to server-k8s-production apply
+      # here too.
+      name: server-k8s-production
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -92,7 +91,6 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v4.0.1
         with:
-          version: ${{ env.MISE_VERSION }}
           install_args: "helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
@@ -103,8 +101,8 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           # Matches the pattern used by slack-deployment.yml + the
           # main server deploy: a 1P-stored kubeconfig per env.
-          op document get "kubeconfig: tuist-mgmt" \
-            --vault "tuist-k8s-mgmt" --output "$KUBECONFIG"
+          op document get "kubeconfig: tuist-production" \
+            --vault "tuist-k8s-production" --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Verify cluster reachability
         run: |
@@ -135,7 +133,7 @@ jobs:
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
-            -f "$HELM_CHART_PATH/values-managed-mgmt.yaml" \
+            -f "$HELM_CHART_PATH/values-managed-production.yaml" \
             --set image.tag="$IMAGE_TAG" \
             --atomic --timeout 10m --wait
       - name: Diagnostics on failure

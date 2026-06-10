@@ -6,12 +6,14 @@ defmodule TuistWeb.TestsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  @render_async_timeout 1_000
+
   test "renders a searchable scheme dropdown", %{
     conn: conn,
     project: project
   } do
     {:ok, lv, _html} = live(conn, ~p"/#{project.account.name}/#{project.name}/tests")
-    render_async(lv)
+    render_async(lv, @render_async_timeout)
 
     assert has_element?(lv, "#tests-analytics-scheme-dropdown [data-part='search-input']")
   end

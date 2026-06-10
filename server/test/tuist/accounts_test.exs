@@ -4044,7 +4044,7 @@ defmodule Tuist.AccountsTest do
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
     end
 
-    test "returns account Kura endpoints by default when the account has ready Kura endpoints" do
+    test "returns account Kura endpoints when the client requests Kura and the account is opted in" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4062,15 +4062,16 @@ defmodule Tuist.AccountsTest do
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
       assert endpoints == ["https://kura-cache.example.com"]
     end
 
-    test "returns custom endpoints when account is opted out of Kura cache endpoints" do
+    test "returns custom endpoints when the client requests Kura but the account is not opted in" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4086,7 +4087,30 @@ defmodule Tuist.AccountsTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_opted_out?, fn %{id: account_id} -> account_id == account.id end)
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
+
+      # Then
+      assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "returns custom endpoints when the client does not request Kura even if the account is opted in" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache.example.com",
+          technology: :kura
+        })
+
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
@@ -4095,7 +4119,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns default endpoints when account is opted out of Kura and has no custom endpoints" do
+    test "returns default endpoints when the account is not opted in to Kura and has no custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4109,10 +4133,8 @@ defmodule Tuist.AccountsTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_opted_out?, fn %{id: account_id} -> account_id == account.id end)
-
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
 
       # Then
       assert endpoints == default_endpoints

@@ -15,12 +15,17 @@ permissions:
   pull-requests: read
   statuses: write
   packages: write
+  # Required so the reusable cli-build-publish.yml's release-cli job can mint an
+  # OIDC token: a called workflow's job permissions are capped by the caller's.
+  id-token: write
 
 concurrency:
-  # Serialize CLI releases against each other (check-releases derives the
-  # next version from the latest cli tag), queueing rather than cancelling so
-  # each release publishes atomically.
-  group: cli-release-${{ github.ref }}
+  # Serialize all CLI publishing — normal releases AND backports — through one
+  # ref-independent group. check-releases derives the next version from the
+  # latest cli tag, and both paths create tags and push the Homebrew formula,
+  # so they must never run concurrently. Queue rather than cancel so each
+  # release publishes atomically. cli-backport.yml shares this group.
+  group: cli-publish
   cancel-in-progress: false
 
 env:
@@ -52,187 +57,15 @@ jobs:
       - id: check
         run: mise run release:check
 
-  release-cli:
-    name: Release CLI
+  build-publish:
+    name: Build and publish CLI
     needs: check-releases
     if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: macos-26
-    timeout-minutes: 75
-    permissions:
-      contents: write
-      id-token: write
-      pull-requests: read
-      statuses: write
-      packages: write
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    outputs:
-      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "tuist git-cliff 1password-cli"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Authenticate with Tuist
-        run: tuist auth login
-      - name: Setup Tuist
-        run: tuist setup
-      - name: Install Tuist dependencies
-        run: tuist install --force-resolved-versions
-      - name: Initialize TuistCacheEE submodule
-        env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: mise run --no-deps cli:ee
-      - name: Get release notes
-        id: release-notes
-        working-directory: cli
-        run: |
-          # Get the latest CLI version tag dynamically
-          LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update version in Constants.swift
-        run: |
-          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
-
-      - name: Update CHANGELOG.md
-        working-directory: cli
-        # Use the authoritative version from check-releases via --tag instead of
-        # --bump. Full-history --bump can't anchor on CLI tags that landed on
-        # non-cli commits (it filters them out), so it froze the top heading at
-        # an old version while real releases advanced.
-        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cli-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Bundle CLI
-        run: mise run --no-deps cli:bundle
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-
-      - name: Upload CLI artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-artifacts
-          path: |
-            cli/CHANGELOG.md
-            cli/Sources/TuistConstants/Constants.swift
-            mise.toml
-            build/ProjectDescription.xcframework.zip
-            build/tuist.zip
-            build/tuist.spec.json
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
-          retention-days: 1
-
-  release-cli-linux:
-    name: Release CLI (Linux ${{ matrix.arch }})
-    needs: check-releases
-    if: needs.check-releases.outputs.cli-should-release == 'true'
-    runs-on: ${{ matrix.runner }}
-    container:
-      image: swift:6.2
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        include:
-          - arch: x86_64
-            runner: ubuntu-latest
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-
-      - name: Update version in Constants.swift
-        run: |
-          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
-
-      - name: Bundle CLI
-        run: ./mise/tasks/cli/bundle-linux.sh
-
-      - name: Upload CLI Linux artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-linux-${{ matrix.arch }}-artifacts
-          path: |
-            build/tuist-linux-${{ matrix.arch }}.tar.gz
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
-          retention-days: 1
-
-  publish-cli:
-    name: Publish CLI release
-    needs: [check-releases, release-cli, release-cli-linux]
-    if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli.result == 'success' && needs.release-cli-linux.result == 'success'
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-      - name: Download CLI artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-artifacts
-      - name: Download CLI Linux x86_64 artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-linux-x86_64-artifacts
-          path: build-linux-x86_64
-      - name: Download CLI Linux aarch64 artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-linux-aarch64-artifacts
-          path: build-linux-aarch64
-      - name: Merge Linux artifacts into build directory
-        run: |
-          # Append Linux checksums to main checksum files
-          cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
-          cat build-linux-x86_64/SHASUMS512.txt >> build/SHASUMS512.txt
-          cat build-linux-aarch64/SHASUMS256.txt >> build/SHASUMS256.txt
-          cat build-linux-aarch64/SHASUMS512.txt >> build/SHASUMS512.txt
-          # Move Linux tarballs to build directory
-          mv build-linux-x86_64/tuist-linux-x86_64.tar.gz build/
-          mv build-linux-aarch64/tuist-linux-aarch64.tar.gz build/
-      - name: Create CLI GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: CLI ${{ needs.check-releases.outputs.cli-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.cli-next-version }}
-          body: ${{ needs.release-cli.outputs.release-notes }}
-          files: |
-            build/tuist.zip
-            build/tuist-linux-x86_64.tar.gz
-            build/tuist-linux-aarch64.tar.gz
-            build/SHASUMS256.txt
-            build/SHASUMS512.txt
-            build/ProjectDescription.xcframework.zip
-            build/tuist.spec.json
-      - name: Trigger Homebrew Formula Update
-        run: |
-          SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
-          mise run --no-deps cli:release:homebrew-formula --version "${{ needs.check-releases.outputs.cli-next-version }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"
+    uses: ./.github/workflows/cli-build-publish.yml
+    with:
+      version: ${{ needs.check-releases.outputs.cli-next-version }}
+      # Build and tag the exact commit that triggered this run.
+      ref: ${{ github.sha }}
+      make_latest: true
+      update_homebrew: true
+    secrets: inherit

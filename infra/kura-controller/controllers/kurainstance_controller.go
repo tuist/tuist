@@ -328,19 +328,22 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 }
 
 func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-	return nil
+	return r.deleteLegacyServiceIfExists(ctx, grpcServiceName(instance), instance.Namespace)
 }
 
 func (r *KuraInstanceReconciler) reconcilePeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: peerServiceName(instance), Namespace: instance.Namespace}}
-	if err := r.Delete(ctx, service); err != nil && !apierrors.IsNotFound(err) {
+	return r.deleteLegacyServiceIfExists(ctx, peerServiceName(instance), instance.Namespace)
+}
+
+func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context, name string, namespace string) error {
+	service := &corev1.Service{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, service); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
-	return nil
+	return r.Delete(ctx, service)
 }
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {

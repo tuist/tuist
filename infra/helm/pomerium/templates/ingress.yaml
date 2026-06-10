@@ -1,0 +1,49 @@
+{{- /*
+Single Ingress fronting both:
+  - kube-<env>.tuist.dev          (kubectl gateway)
+  - authenticate.kube-<env>.tuist.dev  (OIDC callback hostname
+                                        Pomerium issues redirect_uri
+                                        against)
+
+cert-manager issues one cert covering both hosts via Cloudflare
+DNS-01. external-dns watches this Ingress and creates the two
+Cloudflare A records pointing at ingress-nginx's external IP.
+*/}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pomerium.fullname" . }}
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.publicHostname }}
+        - {{ .Values.authenticateHostname }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  rules:
+    - host: {{ .Values.publicHostname }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pomerium.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+    - host: {{ .Values.authenticateHostname }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pomerium.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}

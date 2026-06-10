@@ -48,7 +48,7 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
          trigger_config: %{"window_type" => "rolling"},
          baseline_established_at: %DateTime{}
        })
-       when monitor_type in ["flakiness_rate", "flaky_run_count"], do: false
+       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"], do: false
 
   defp scheduled_alert?(_alert), do: true
 

@@ -1,0 +1,6 @@
+tuistEnv: production
+publicHostname: kube-prod.tuist.dev
+authenticateHostname: authenticate.kube-prod.tuist.dev
+
+ingress:
+  tlsSecretName: pomerium-production-tls

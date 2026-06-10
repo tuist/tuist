@@ -1,0 +1,46 @@
+{{- /*
+Tailscale egress: lets Pomerium pods reach tuist-ops over the
+tailnet without putting Pomerium itself on the tailnet. The
+tailscale operator (already deployed in this cluster) sees this
+Service annotation, provisions a tailnet device that proxies to
+the named tailnet FQDN, and exposes it inside the cluster as a
+regular ClusterIP. Pomerium's policy URL points at this
+service hostname.
+
+ExternalName + the operator annotation is the documented egress
+pattern: https://tailscale.com/kb/1438/kubernetes-operator-cluster-egress
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: tuist-ops-egress
+  labels:
+    app.kubernetes.io/component: pomerium
+    app.kubernetes.io/managed-by: helm
+  annotations:
+    # tuist.ts.net was wrong — Tuist's tailnet doesn't have a
+    # vanity domain configured, so the canonical MagicDNS FQDN is
+    # ops.<tailnet>.ts.net where the tailnet name is taild6d7bb.
+    # `tailnetName` is templatable so a future move to a vanity
+    # domain only edits values, not the template.
+    tailscale.com/tailnet-fqdn: "ops.{{ .Values.tailnetName }}.ts.net"
+    # Without this the operator defaults to `tag:k8s`, which the
+    # OAuth client doesn't have permission to mint. Match the env's
+    # cluster tag set in
+    # infra/helm/tailscale-operator/values-<env>.yaml.
+    tailscale.com/tags: "tag:tuist-k8s-{{ .Values.tuistEnv }}"
+spec:
+  # ExternalName is the trigger Tailscale's operator watches for.
+  # The value is a placeholder on first install; the operator
+  # rewrites it to point at the in-cluster operator-managed proxy
+  # Service once the tailnet device is up. On subsequent upgrades
+  # we look up the operator's current value and reassert it
+  # verbatim — without that, Helm's server-side apply hits a field
+  # ownership conflict with the operator on every redeploy.
+  type: ExternalName
+  {{- $existing := lookup "v1" "Service" .Release.Namespace "tuist-ops-egress" }}
+  {{- $current := "" }}
+  {{- if and $existing $existing.spec }}
+    {{- $current = $existing.spec.externalName | default "" }}
+  {{- end }}
+  externalName: {{ $current | default "placeholder.tuist.ts.net" | quote }}

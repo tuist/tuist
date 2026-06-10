@@ -385,6 +385,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 return try await map(
                     target: target,
                     targetToProducts: targetToProducts,
+                    targetsByName: targetsByName,
                     packageInfo: packageInfo,
                     packageType: packageType,
                     packageSettings: packageSettings,
@@ -464,7 +465,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveProductName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -474,7 +475,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let productName = singleProduct.name
         let wrapsProductFramework = wrapsProductNamedFramework(
-            targetName: targetName, productName: productName, packageTargets: packageTargets
+            targetName: targetName, productName: productName, targetsByName: targetsByName
         )
 
         if targetName == productName {
@@ -495,7 +496,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func effectiveModuleName(
         targetName: String,
         products: Set<PackageInfo.Product>,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> String {
         guard products.count == 1,
               let singleProduct = products.first,
@@ -505,7 +506,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
         let productName = singleProduct.name
         let wrapsProductFramework = wrapsProductNamedFramework(
-            targetName: targetName, productName: productName, packageTargets: packageTargets
+            targetName: targetName, productName: productName, targetsByName: targetsByName
         )
 
         if targetName == productName {
@@ -525,9 +526,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private static func wrapsProductNamedFramework(
         targetName: String,
         productName: String,
-        packageTargets: [PackageInfo.Target]
+        targetsByName: [String: PackageInfo.Target]
     ) -> Bool {
-        let targetsByName = Dictionary(uniqueKeysWithValues: packageTargets.map { ($0.name, $0) })
         var visited = Set<String>()
         var queue = [targetName]
 
@@ -681,6 +681,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
     private func map(
         target: PackageInfo.Target,
         targetToProducts: [String: Set<PackageInfo.Product>],
+        targetsByName: [String: PackageInfo.Target],
         packageInfo: PackageInfo,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
@@ -752,7 +753,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
             moduleMap = ModuleMap.custom(moduleMapPath, umbrellaHeaderPath: nil)
         case .regular, .test:
             let moduleName = PackageInfoMapper.effectiveModuleName(
-                targetName: target.name, products: products, packageTargets: packageInfo.targets
+                targetName: target.name, products: products, targetsByName: targetsByName
             )
             let swiftPackageManagerScratchDirectory: AbsolutePath? = if packageType.isRemoteExternal {
                 SwiftPackageManagerPaths.scratchDirectory(containingCheckout: path)
@@ -911,13 +912,13 @@ public struct PackageInfoMapper: PackageInfoMapping {
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
         let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
         let effectiveModuleName = PackageInfoMapper.effectiveModuleName(
-            targetName: target.name, products: products, packageTargets: packageInfo.targets
+            targetName: target.name, products: products, targetsByName: targetsByName
         )
         let aliasedEffectiveModuleName = packageModuleAliases[packageInfo.name]?[effectiveModuleName] ?? effectiveModuleName
         let moduleName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveModuleName)
             .replacingOccurrences(of: "-", with: "_")
         let effectiveProductName = PackageInfoMapper.effectiveProductName(
-            targetName: target.name, products: products, packageTargets: packageInfo.targets
+            targetName: target.name, products: products, targetsByName: targetsByName
         )
         let aliasedEffectiveProductName = packageModuleAliases[packageInfo.name]?[effectiveProductName] ?? effectiveProductName
         let productName = PackageInfoMapper.sanitize(targetName: aliasedEffectiveProductName)
@@ -1646,6 +1647,11 @@ extension ProjectDescription.Settings {
             )
             settingsDictionary.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "LD_RUNPATH_SEARCH_PATHS",
                 values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )

@@ -3,39 +3,23 @@
 {{- $namespace := .Values.kuraController.namespace }}
 {{- $kuraSharedSecretName := "kura-shared-secrets" }}
 {{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
-{{- $existingKuraSharedSecret := lookup "v1" "Secret" $namespace $kuraSharedSecretName }}
-{{- $existingServerSharedSecret := lookup "v1" "Secret" .Release.Namespace $kuraSharedSecretName }}
-{{- $existingKuraSharedSecretData := dict }}
-{{- $existingServerSharedSecretData := dict }}
-{{- if $existingKuraSharedSecret }}
-{{- $existingKuraSharedSecretData = $existingKuraSharedSecret.data | default dict }}
-{{- end }}
-{{- if $existingServerSharedSecret }}
-{{- $existingServerSharedSecretData = $existingServerSharedSecret.data | default dict }}
-{{- end }}
+{{- $kuraSharedSecretsExternalSecret := .Values.kuraController.sharedSecrets.externalSecret }}
+{{- $kuraIntrospectionClientId := $kuraIntrospection.clientId | default "" }}
 {{- $kuraIntrospectionClientSecret := $kuraIntrospection.clientSecret | default "" }}
-{{- if eq $kuraIntrospectionClientSecret "" }}
-{{- if hasKey $existingKuraSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" }}
-{{- $kuraIntrospectionClientSecret = index $existingKuraSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" | b64dec }}
-{{- else if hasKey $existingKuraSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}
-{{- $kuraIntrospectionClientSecret = index $existingKuraSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" | b64dec }}
-{{- else if hasKey $existingServerSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" }}
-{{- $kuraIntrospectionClientSecret = index $existingServerSharedSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" | b64dec }}
-{{- else if hasKey $existingServerSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}
-{{- $kuraIntrospectionClientSecret = index $existingServerSharedSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" | b64dec }}
-{{- else }}
-{{- $kuraIntrospectionClientSecret = randAlphaNum 64 }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientId "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientId is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
 {{- end }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientSecret "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientSecret is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
 {{- end }}
 {{- $kuraIntrospectionSecretData := dict }}
 {{- if $kuraIntrospection.enabled }}
-{{- $kuraIntrospectionClientId := required "kuraController.sharedSecrets.kuraIntrospection.clientId is required when kuraController.sharedSecrets.kuraIntrospection.enabled is true" $kuraIntrospection.clientId }}
+{{- if ne $kuraIntrospectionClientId "" }}
 {{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" $kuraIntrospectionClientId }}
+{{- end }}
+{{- if ne $kuraIntrospectionClientSecret "" }}
 {{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
-{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID" $kuraIntrospectionClientId }}
-{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
-{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_ID" $kuraIntrospectionClientId }}
-{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- end }}
 {{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
 {{- $gatewayIngressServiceAccountName := printf "%s-gateway-ingress-nginx" $name }}
@@ -379,36 +363,84 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura
 type: Opaque
+{{- with $kuraIntrospectionSecretData }}
 stringData:
   {{- toYaml $kuraIntrospectionSecretData | nindent 2 }}
 {{- end }}
-{{- if .Values.kuraController.sharedSecrets.externalSecret.enabled }}
+{{- end }}
+{{- if $kuraSharedSecretsExternalSecret.enabled }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: kura-shared-secrets
+  name: {{ $kuraSharedSecretName }}
   namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura
 spec:
-  refreshInterval: {{ .Values.kuraController.sharedSecrets.externalSecret.refreshInterval | default "1h" | quote }}
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
   secretStoreRef:
-    name: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.name | default "onepassword" }}
-    kind: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
   target:
-    name: kura-shared-secrets
+    name: {{ $kuraSharedSecretName }}
     creationPolicy: Merge
     template:
       engineVersion: v2
       data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
         KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
-        KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
   data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
     - secretKey: kura_introspection_client_secret
       remoteRef:
-        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ .Values.kuraController.sharedSecrets.externalSecret.fields.introspectionClientSecret | default "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}"
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $kuraSharedSecretName }}
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+  data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
+    - secretKey: kura_introspection_client_secret
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- end }}
 {{- end }}
 {{- if .Values.kuraController.sentry.externalSecret.enabled }}
 ---

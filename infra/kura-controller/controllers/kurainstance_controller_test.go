@@ -390,7 +390,7 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	}
 
 	service := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayServiceName(gateway), Namespace: gateway.Namespace}, service); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
 		t.Fatalf("expected dedicated gateway LoadBalancer Service: %v", err)
 	}
 	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
@@ -413,9 +413,16 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	if got := ingressClass.Spec.Controller; got != "k8s.io/kura-us-east-kgw-abc123-ingress-nginx" {
 		t.Fatalf("expected dedicated controller class, got %q", got)
 	}
+	updatedGateway := &kurav1alpha1.KuraGateway{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, updatedGateway); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedGateway.Status.IngressClassName; got != "kura-us-east-kgw-abc123" {
+		t.Fatalf("expected reconciled ingress class name to be persisted immediately, got %q", got)
+	}
 
 	configMap := &corev1.ConfigMap{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayConfigMapName(gateway), Namespace: gateway.Namespace}, configMap); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, configMap); err != nil {
 		t.Fatalf("expected dedicated gateway ConfigMap: %v", err)
 	}
 	if got := configMap.Data["use-proxy-protocol"]; got != "true" {
@@ -426,7 +433,7 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	}
 
 	deployment := &appsv1.Deployment{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayDeploymentName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
 		t.Fatalf("expected dedicated gateway Deployment: %v", err)
 	}
 	if got := *deployment.Spec.Replicas; got != 3 {

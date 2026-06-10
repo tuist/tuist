@@ -56,6 +56,14 @@ tailscale-operator:
     defaultTags:
       - "tag:tuist-k8s-staging"
 
+  # Human kubectl access does NOT flow through the operator's API
+  # server proxy anymore — that path was replaced by Pomerium per
+  # env (`infra/helm/pomerium/`) which gives us Google OIDC auth +
+  # per-request impersonation via tuist-ops's PolicyController. The
+  # apiServerProxyConfig knob is intentionally absent here; if it's
+  # ever needed again, re-add it with mode/allowImpersonation set
+  # to "false" as the default and opt in per env.
+
 # Connector CR — the operator-managed `tailscaled` subnet router
 # that announces the cluster's reachability to the tailnet's
 # 100.64.0.0/10 range. Lets tailnet devices dial in-cluster Services

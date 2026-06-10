@@ -47,7 +47,7 @@ reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
-egress IPs.
+egress IPs and managed-cluster LoadBalancer locations.
 
 ## Local validation
 
@@ -107,7 +107,7 @@ connections should use the new gateway once the policy is re-applied.
 
 ## Notes
 
-- The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Adjust `ingress-nginx.controller.service.annotations` when the cluster lands on a different provider.
+- The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
 - Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

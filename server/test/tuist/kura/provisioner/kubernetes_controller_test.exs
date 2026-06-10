@@ -56,9 +56,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
-
-      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
-               "00000000-0000-0000-0000-000000000001"
+      refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
 
       refute Map.has_key?(env, "KURA_PEERS")
 
@@ -228,9 +226,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
                "http://host.docker.internal:8080"
 
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
-
-      assert env["KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID"] ==
-               "00000000-0000-0000-0000-000000000001"
+      refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
     end
@@ -240,7 +236,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "applies the KuraInstance without waiting for controller readiness" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
-      expect(Client, :apply, fn manifest ->
+      expect(Client, :apply, fn manifest, [] ->
         assert manifest["metadata"]["name"] == "kura-tuist-eu-central-1"
         assert manifest["spec"]["image"] == "ghcr.io/tuist/kura:0.5.2"
         {:ok, manifest}
@@ -261,7 +257,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       region = us_east_region()
 
-      expect(Client, :apply, fn manifest ->
+      expect(Client, :apply, fn manifest, [] ->
         assert manifest["metadata"]["name"] == "kura-tuist-us-east-1"
         assert manifest["spec"]["region"] == "us-east"
         assert manifest["spec"]["ingressClassName"] == "kura-us-east"
@@ -289,7 +285,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       test_process = self()
 
-      expect(Client, :apply, 2, fn manifest ->
+      expect(Client, :apply, 2, fn manifest, [] ->
         send(test_process, {:applied, manifest})
         {:ok, manifest}
       end)
@@ -316,11 +312,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
   describe "destroy/2" do
     test "deletes the KuraInstance and treats already-missing resources as gone" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-eu-central-1", [] ->
         {:error, :not_found}
       end)
 
-      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1" ->
+      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-eu-central-1", [] ->
         {:error, :not_found}
       end)
 
@@ -328,7 +324,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
 
     test "deletes an assigned dedicated KuraGateway before deleting the KuraInstance" do
-      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1" ->
+      expect(Client, :get_kura_instance, fn "kura", "kura-tuist-us-east-1", [] ->
         {:ok,
          %{
            "metadata" => %{
@@ -337,11 +333,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
          }}
       end)
 
-      expect(Client, :delete_kura_gateway, fn "kura", "kgw-abc123-us-east" ->
+      expect(Client, :delete_kura_gateway, fn "kura", "kgw-abc123-us-east", [] ->
         :ok
       end)
 
-      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-us-east-1" ->
+      expect(Client, :delete_kura_instance, fn "kura", "kura-tuist-us-east-1", [] ->
         :ok
       end)
 
@@ -420,57 +416,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
-  describe "manifest/6 for a private runner-cache region" do
-    test "marks the instance private and omits public/ingress fields" do
-      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
-
-      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
-        "00000000-0000-0000-0000-000000000001"
-      end)
-
-      spec =
-        KubernetesController.manifest(
-          "kura-tuist-scw-fr-par",
-          "0.5.2",
-          %{name: "tuist"},
-          scaleway_region(),
-          %Server{},
-          "return true"
-        )["spec"]
-
-      assert spec["private"] == true
-      assert spec["storageClassName"] == "scw-bssd"
-      assert spec["replicas"] == 1
-      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
-      # No public endpoint, no ingress, no cert — runners reach the
-      # pod by Kubernetes Service DNS over the cluster's internal net.
-      refute Map.has_key?(spec, "publicHost")
-      refute Map.has_key?(spec, "grpcPublicHost")
-      refute Map.has_key?(spec, "ingressClassName")
-    end
-  end
-
-  describe "public_url/3 for a private region" do
-    test "returns the in-cluster Service DNS URL built from private_url_template" do
-      assert KubernetesController.public_url("TUIST", scaleway_region(), "any-ref") ==
-               "http://kura-tuist-scw-fr-par.kura.svc.cluster.local:4000"
-    end
-  end
-
-  defp scaleway_region do
-    %Regions{
-      id: "scw-fr-par-runners",
-      provisioner_config: %{
-        cluster_id: "scw-fr-par",
-        private: true,
-        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
-        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
-        storage_class: "scw-bssd",
-        replicas: 1
-      }
-    }
-  end
-
   defp eu_region(extra_config \\ %{}) do
     %Regions{
       id: "eu-central",
@@ -526,4 +471,55 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       }
     }
   end
+  describe "manifest/6 for a private runner-cache region" do
+    test "marks the instance private and omits public/ingress fields" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par",
+          "0.5.2",
+          %{name: "tuist"},
+          scaleway_region(),
+          %Server{},
+          "return true"
+        )["spec"]
+
+      assert spec["private"] == true
+      assert spec["storageClassName"] == "scw-bssd"
+      assert spec["replicas"] == 1
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
+      # No public endpoint, no ingress, no cert — runners reach the
+      # pod by Kubernetes Service DNS over the cluster's internal net.
+      refute Map.has_key?(spec, "publicHost")
+      refute Map.has_key?(spec, "grpcPublicHost")
+      refute Map.has_key?(spec, "ingressClassName")
+    end
+  end
+
+  describe "public_url/3 for a private region" do
+    test "returns the in-cluster Service DNS URL built from private_url_template" do
+      assert KubernetesController.public_url("TUIST", scaleway_region(), "any-ref") ==
+               "http://kura-tuist-scw-fr-par.kura.svc.cluster.local:4000"
+    end
+  end
+
+  defp scaleway_region do
+    %Regions{
+      id: "scw-fr-par-runners",
+      provisioner_config: %{
+        cluster_id: "scw-fr-par",
+        private: true,
+        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
+        storage_class: "scw-bssd",
+        replicas: 1
+      }
+    }
+  end
+
 end
