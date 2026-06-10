@@ -384,6 +384,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     reject(&FlakyTestsMonitor.evaluate/1)
     reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+    reject(&FlakyTestsMonitor.evaluate_by_reliability_rate/1)
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
@@ -560,6 +561,44 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     expect(Automations, :create_alert_event, fn %{
                                                   alert_id: id,
                                                   test_case_id: ^cleanup_id,
+                                                  status: "triggered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "dispatches reliability-rate alerts to the reliability evaluator" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      )
+
+    unreliable_id = Ecto.UUID.generate()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn ^automation ->
+      %{triggered: [unreliable_id], all: [unreliable_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+    expected_entity = %{type: :test_case, id: unreliable_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.trigger_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^unreliable_id,
                                                   status: "triggered"
                                                 } ->
       assert id == automation.id

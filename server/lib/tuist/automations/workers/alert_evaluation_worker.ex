@@ -277,6 +277,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     FlakyTestsMonitor.evaluate_by_run_count(alert, test_case_ids)
   end
 
+  defp evaluate_monitor(%{monitor_type: "reliability_rate"} = alert, nil) do
+    FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
+  end
+
+  defp evaluate_monitor(%{monitor_type: "reliability_rate"} = alert, test_case_ids) do
+    FlakyTestsMonitor.evaluate_by_reliability_rate(alert, test_case_ids)
+  end
+
   # Event-driven monitors are dispatched directly from the originating event
   # (see `Tuist.Automations.dispatch_test_case_event/2`), so the scheduled
   # evaluator has nothing to do for them.

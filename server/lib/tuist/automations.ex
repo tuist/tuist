@@ -20,7 +20,7 @@ defmodule Tuist.Automations do
   # its own counter and concurrent updates don't interfere.
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
-  @flaky_monitor_types ~w(flakiness_rate flaky_run_count)
+  @flaky_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
   @scoped_evaluation_chunk_size 1000
 
   def list_alerts(project_id) do
