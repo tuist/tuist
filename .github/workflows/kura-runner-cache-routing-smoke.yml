@@ -1,35 +1,31 @@
 name: Kura Runner Cache Routing Smoke
 
-# Re-fire: CH schema fixed; full staging claim path expected green.
-# Manual A/B measurement workflow comparing two Kura cache paths from a
-# staging Linux runner Pod using REAL Gradle build-cache traffic. We
-# repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
-# between an in-cluster Kura URL and the public Kura URL, and report
-# wall-clock for each phase. The Tuist Gradle plugin already honours
-# `TUIST_CACHE_ENDPOINT` (TuistConfigReader.kt) and reads the auth
-# token from the local credential store written by `tuist auth login`
-# (TokenProvider.kt), so no plugin change is needed — we just override
-# the endpoint env per phase.
+# A/B measurement of the runner-local Kura build cache using REAL
+# Gradle build-cache traffic, exercising this PR's product flow
+# end-to-end:
 #
-# Validates the runner Pod NetworkPolicy carve-out (egress to the kura
-# namespace on cache ports) and quantifies the in-cluster speedup with
-# REAL artifact traffic (compiled JARs from the Tuist Gradle plugin
-# project) rather than a synthetic `/up` probe.
+#   1. The RunnerCache reconciler provisions a private (in-cluster
+#      only) Kura node for every account with Runner Profiles.
+#   2. Runner dispatch includes `cache_endpoint_url` in the claim
+#      response once that node is active.
+#   3. The runner image (`run-job.sh`) exports it as
+#      `TUIST_CACHE_ENDPOINT`, which the Tuist Gradle plugin honours
+#      (TuistConfigReader.kt) for every remote build-cache request.
 #
-# Prereqs:
-#   * NetworkPolicy carve-out deployed to staging (this PR's
-#     `infra/helm/tuist/templates/runners-namespace.yaml`).
-#   * The Tuist Gradle plugin project (`tuist/gradle-plugin`, set in
-#     `gradle/tuist.toml`) is registered on staging.tuist.dev and the
-#     `tuistrocks@tuist.dev` acceptance account has access to it.
+# Phases:
+#   * routed   — the build uses the dispatch-provided endpoint as-is
+#                (the PR's actual routing; in-cluster Service DNS).
+#   * baseline — `TUIST_CACHE_ENDPOINT` is unset, so the plugin falls
+#                back to its default cache resolution through
+#                staging.tuist.dev (the status quo this PR improves).
 #
-# Triggers:
-#   - workflow_dispatch: full control over the URLs + iterations.
-#   - push to the feat branch when this file changes: lets us run the
-#     smoke before the workflow lands on the default branch (GitHub
-#     `workflow_dispatch` requires the workflow file to be on main). A
-#     trivial edit to this file (e.g. bumping a comment) re-fires the
-#     smoke with the env-level defaults below.
+# Each phase runs `ITERATIONS` cold (cache-miss: all local caches
+# purged, artifacts pulled from the remote) and warm (cache-hit)
+# builds of the Tuist Gradle plugin and reports wall-clock stats.
+#
+# Auth: `tuist auth login` in CI uses GitHub OIDC; staging maps the
+# repo claim (tuist/tuist) to the staging `tuist/tuist` project via
+# its `vcs_connections` row. Requires `id-token: write`.
 
 on:
   workflow_dispatch:
@@ -37,15 +33,11 @@ on:
       project_handle:
         description: Staging project handle the build is attributed to
         required: false
-        default: tuist/gradle-plugin
+        default: tuist/tuist
         type: string
-      public_kura_url:
-        description: Public Kura URL (e.g. `https://tuist-eu-central-1.kura.tuist.dev`)
-        required: true
-        type: string
-      private_kura_url:
-        description: In-cluster Kura URL (e.g. `http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000`)
-        required: true
+      cache_endpoint_override:
+        description: Optional explicit cache endpoint for the routed phase (defaults to the dispatch-provided TUIST_CACHE_ENDPOINT)
+        required: false
         type: string
       iterations:
         description: Repetitions per phase (each is a clean build that round-trips Gradle's cache)
@@ -60,11 +52,8 @@ on:
 
 permissions:
   contents: read
-  # `tuist auth login` detects CI and switches to GitHub OIDC, which
-  # needs this scope to mint a workflow-scoped JWT to exchange with
-  # staging.tuist.dev for an access token. Staging needs to trust GH
-  # OIDC for `tuist/tuist`; if it doesn't, `tuist auth login` errors
-  # with a clear message and we adjust there.
+  # `tuist auth login` detects CI and mints a GitHub OIDC id-token to
+  # exchange with staging.tuist.dev for an access token.
   id-token: write
 
 env:
@@ -76,15 +65,8 @@ env:
   # acceptance-test server some runner shapes bake in via
   # TUIST_SERVER_URL.
   TUIST_URL: https://staging.tuist.dev
-  # Fallbacks so the `push` trigger (no workflow inputs available) runs
-  # against the *only* staging Kura instance we currently have — the
-  # `kura-smoke-staging-regional` account's regional eu-central node.
-  # The `tuist` staging account has no Kura provisioned (and its
-  # template-derived public hostname would collide with production DNS).
-  # `workflow_dispatch` overrides each via its input.
-  PROJECT_HANDLE: ${{ inputs.project_handle || 'kura-smoke-staging-regional/gradle-bench' }}
-  PUBLIC_KURA_URL: ${{ inputs.public_kura_url || 'https://kura-smoke-staging-regional-eu-central-1.kura.tuist.dev' }}
-  PRIVATE_KURA_URL: ${{ inputs.private_kura_url || 'http://kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000' }}
+  PROJECT_HANDLE: ${{ inputs.project_handle || 'tuist/tuist' }}
+  CACHE_ENDPOINT_OVERRIDE: ${{ inputs.cache_endpoint_override || '' }}
   ITERATIONS: ${{ inputs.iterations || '3' }}
 
 jobs:
@@ -100,45 +82,28 @@ jobs:
     runs-on: tuist-staging-linux
     timeout-minutes: 30
     steps:
-      - name: Early diagnostics — before any other step
+      - name: Resolve cache endpoint
         shell: bash {0}
         run: |
-          # `shell: bash {0}` — NOT the default `bash -e` — so a probe
-          # whose curl exits non-zero can't kill the diagnostics step.
+          # `TUIST_CACHE_ENDPOINT` is exported by the runner image's
+          # run-job.sh when the dispatch response carried
+          # `cache_endpoint_url` — i.e. when this account's private
+          # runner-cache Kura node is active. That inherited value IS
+          # the system under test.
           echo "pod(hostname)=$(hostname) at $(date -u +%FT%TZ)"
-          echo "::group::which network namespace are the steps in?"
-          # If the Actions runner uses a container hook, steps run in a
-          # docker container on the dind bridge (172.17.x) instead of
-          # the runner container (pod IP 192.168.110.x). One IP decides.
-          echo "ips: $(hostname -I 2>/dev/null || hostname -i 2>/dev/null)"
-          echo "dockerenv: $(ls -la /.dockerenv 2>/dev/null || echo none)"
-          echo "cgroup: $(head -3 /proc/1/cgroup 2>/dev/null)"
-          echo "default route + ifaces:"
-          awk 'NR==1 || $2=="00000000"' /proc/net/route 2>/dev/null
-          ls /sys/class/net 2>/dev/null
-          echo "::endgroup::"
-          echo "::group::dns against each CoreDNS replica directly"
-          for ns in 192.168.0.26 192.168.0.199; do
-            echo "--- replica $ns ---"
-            nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local "$ns" 2>&1 | tail -4
-          done
-          echo "::endgroup::"
-          echo "::group::self-heal watch — kura DNS + clusterIP for up to 120s"
-          start=$(date +%s)
-          for i in $(seq 1 24); do
-            t=$(( $(date +%s) - start ))
-            dnsok=no
-            nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local >/dev/null 2>&1 && dnsok=yes
-            code=$(curl -sS -o /dev/null --max-time 4 -w '%{http_code}' http://10.140.109.22:4000/up 2>/dev/null) || code=000
-            echo "t=${t}s dns=${dnsok} clusterIP=HTTP ${code}"
-            if [ "$dnsok" = yes ] && [ "$code" = "200" ]; then
-              echo "RECOVERED at t=${t}s"
-              break
-            fi
-            sleep 5
-          done
-          echo "::endgroup::"
-          exit 0
+          endpoint="${CACHE_ENDPOINT_OVERRIDE:-${TUIST_CACHE_ENDPOINT:-}}"
+          if [ -z "$endpoint" ]; then
+            echo "::error::no cache endpoint: dispatch did not include cache_endpoint_url (private Kura node not active yet?) and no override input was provided"
+            exit 1
+          fi
+          echo "routed endpoint: $endpoint"
+          echo "ROUTED_ENDPOINT=$endpoint" >> "$GITHUB_ENV"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "$endpoint/up" 2>/dev/null) || code=000
+          if [ "$code" = "000" ]; then
+            echo "::error::routed endpoint unreachable: $endpoint/up"
+            exit 1
+          fi
+          echo "reachability: $endpoint/up -> HTTP $code"
 
       - uses: actions/checkout@v4
 
@@ -156,142 +121,93 @@ jobs:
       - name: Show environment
         run: |
           set -euo pipefail
-          echo "Hostname:     $(hostname)"
-          echo "Kernel:       $(uname -a)"
-          echo "Architecture: $(uname -m)"
-          echo "Project:      $PROJECT_HANDLE"
-          echo "Server:       $TUIST_URL"
-          echo "Public URL:   $PUBLIC_KURA_URL"
-          echo "Private URL:  $PRIVATE_KURA_URL"
-          echo "Iterations:   $ITERATIONS"
-
-      - name: Network diagnostics
-        run: |
-          set -uo pipefail
-          echo "::group::resolv.conf"
-          cat /etc/resolv.conf || true
-          echo "::endgroup::"
-          echo "::group::nslookup kube-dns control plane (sanity)"
-          nslookup kubernetes.default.svc.cluster.local 2>&1 | head -10 || true
-          echo "::endgroup::"
-          echo "::group::nslookup against private hostname"
-          nslookup "$(echo "$PRIVATE_KURA_URL" | sed -E 's|^https?://||;s|:.*$||')" 2>&1 | head -20 || true
-          echo "::endgroup::"
-          echo "::group::nslookup against the smoke kura headless"
-          nslookup kura-kura-smoke-staging-regional-eu-central-1-headless.kura.svc.cluster.local 2>&1 | head -10 || true
-          echo "::endgroup::"
-          echo "::group::route table (via /proc since iproute2 missing)"
-          (command -v ip >/dev/null && ip route) || cat /proc/net/route || true
-          echo "::endgroup::"
-          echo "::group::curl with raw ClusterIP (rules out DNS)"
-          curl -v --max-time 8 --resolve "kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000:10.140.109.22" \
-            "http://kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000/up" 2>&1 | head -30 || true
-          echo "::endgroup::"
-          echo "::group::curl raw IP no host header (truly DNS-free)"
-          curl -v --max-time 8 -H "Host: kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local" \
-            "http://10.140.109.22:4000/up" 2>&1 | head -30 || true
-          echo "::endgroup::"
-          echo "::group::curl -v against private hostname (verbose)"
-          curl -v --max-time 8 "$PRIVATE_KURA_URL/up" 2>&1 | head -30 || true
-          echo "::endgroup::"
-
-      - name: Reachability probe
-        run: |
-          set -uo pipefail
-          # Surface routing issues before we burn 10+ minutes of Gradle
-          # builds against an unreachable endpoint. /up needs no auth.
-          # `--write-out` is THE source of truth here; the `|| echo 000`
-          # only fires on transport failure when curl writes nothing —
-          # `%{http_code}` always emits exactly 3 chars on success.
-          for label in public private; do
-            if [ "$label" = public ]; then url="$PUBLIC_KURA_URL"; fi
-            if [ "$label" = private ]; then url="$PRIVATE_KURA_URL"; fi
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "$url/up" 2>/dev/null)
-            : "${code:=000}"
-            if [ "$code" = "000" ]; then
-              echo "::error::$label probe FAILED — $url/up unreachable. Check the NetworkPolicy carve-out / DNS."
-              exit 1
-            fi
-            echo "$label probe OK — $url/up -> HTTP $code"
-          done
+          echo "Hostname:   $(hostname)"
+          echo "Kernel:     $(uname -a)"
+          echo "Project:    $PROJECT_HANDLE"
+          echo "Server:     $TUIST_URL"
+          echo "Routed URL: $ROUTED_ENDPOINT"
+          echo "Iterations: $ITERATIONS"
 
       - name: Authenticate with staging Tuist
         run: |
-          # `tuist auth login` detects CI (via the GH Actions env vars)
-          # and uses GitHub OIDC: it requests an id-token from the
-          # workflow, hands it to staging.tuist.dev, and writes the
-          # returned Tuist access + refresh tokens into the local
-          # credential store keyed by TUIST_URL. The Gradle plugin's
-          # TokenProvider reads from that same store on every cache
-          # request. Some acceptance-test runner shapes export
-          # TUIST_SERVER_URL=http://localhost:8223 which would override
-          # TUIST_URL inside the CLI; clear it before login so the
-          # token is keyed against staging.
+          # CI mode → GitHub OIDC: the CLI requests an id-token from
+          # the workflow and exchanges it with staging.tuist.dev for an
+          # access token scoped to the projects connected to this repo
+          # (staging project tuist/tuist). The token lands in the local
+          # credential store keyed by TUIST_URL, where the Gradle
+          # plugin's TokenProvider picks it up. Clear the acceptance
+          # shape's localhost server env first so the token is keyed
+          # against staging.
           unset TUIST_SERVER_URL TUIST_HOSTED
-          tuist auth login
+          if ! tuist auth login; then
+            echo "::group::tuist session logs"
+            cat "$HOME"/.local/state/tuist/sessions/*/logs.txt 2>/dev/null | tail -80
+            echo "::endgroup::"
+            exit 1
+          fi
 
       - name: Configure Gradle project handle
         run: |
           set -euo pipefail
-          # Override the in-repo gradle/tuist.toml so the plugin attributes
-          # this build to the input project on staging.
+          # Attribute the build to the staging project the OIDC token
+          # covers.
           cat > gradle/tuist.toml <<TOML
           project = "${PROJECT_HANDLE}"
           TOML
 
       - name: Run A/B benchmark
+        shell: bash {0}
         run: |
-          set -uo pipefail
           IT="$ITERATIONS"
 
-          # Clears every layer Gradle would hit before talking to Kura,
-          # so each measured build round-trips both the local
+          # Clears every layer Gradle would hit before talking to the
+          # remote, so each "miss" build round-trips both the local
           # build-cache and the remote Tuist build-cache.
           purge_gradle_caches() {
             rm -rf gradle/build gradle/.gradle ~/.gradle/caches/build-cache-1 || true
           }
 
-          # Runs `./gradlew assemble --build-cache` and captures total
-          # wall-clock. We use `assemble` not `build` to keep the run
-          # cache-bound rather than test-bound (the plugin's tests boot
-          # an embedded server, which would dominate timing). Returns
-          # seconds with millisecond precision.
+          # Runs `./gradlew assemble --build-cache` and prints total
+          # wall-clock seconds. `assemble` not `build`: keeps the run
+          # cache-bound rather than test-bound. For the routed phase
+          # the dispatch-provided endpoint is exported; for baseline
+          # the variable is removed so the plugin uses its default
+          # cache resolution.
           measure_one() {
-            local label=$1
-            local url=$2
-            local kind=$3   # "miss" (purge first) or "hit" (warm cache)
+            local path=$1
+            local kind=$2   # "miss" (purge first) or "hit" (warm cache)
             if [ "$kind" = "miss" ]; then purge_gradle_caches; fi
-            # GRADLE_USER_HOME stays default so the daemon is reused
-            # across phases. The cache state is what we vary.
             local started ended
             started=$(date +%s.%N)
-            ( cd gradle && TUIST_CACHE_ENDPOINT="$url" \
-                ./gradlew --no-daemon -Dorg.gradle.caching=true \
-                          --build-cache assemble \
-                          >>/tmp/gradle-${label}-${kind}.log 2>&1 ) || true
+            if [ "$path" = routed ]; then
+              ( cd gradle && TUIST_CACHE_ENDPOINT="$ROUTED_ENDPOINT" \
+                  ./gradlew --no-daemon -Dorg.gradle.caching=true \
+                            --build-cache assemble \
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || true
+            else
+              ( cd gradle && env -u TUIST_CACHE_ENDPOINT \
+                  ./gradlew --no-daemon -Dorg.gradle.caching=true \
+                            --build-cache assemble \
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || true
+            fi
             ended=$(date +%s.%N)
             python3 -c "import sys; print(f'{float(sys.argv[1]) - float(sys.argv[2]):.3f}')" "$ended" "$started"
           }
 
           declare -A results
           for kind in miss hit; do
-            for path in private public; do
-              if [ "$path" = public ]; then url="$PUBLIC_KURA_URL"; fi
-              if [ "$path" = private ]; then url="$PRIVATE_KURA_URL"; fi
+            for path in routed baseline; do
               for i in $(seq 1 "$IT"); do
                 echo "::group::$path / $kind / iteration $i"
-                t=$(measure_one "$path" "$url" "$kind")
+                t=$(measure_one "$path" "$kind")
                 results["$path|$kind|$i"]=$t
                 echo "wall-clock: ${t}s"
-                # Surface the last 30 lines of the Gradle log inside the
-                # group so a failed build is visible without a re-run.
-                tail -30 "/tmp/gradle-${path}-${kind}.log" || true
+                tail -30 "/tmp/gradle-${path}-${kind}.log"
                 echo "::endgroup::"
               done
             done
           done
 
-          # Dump CSV for the summarizer.
           {
             echo "path,kind,iter,seconds"
             for key in "${!results[@]}"; do
@@ -299,6 +215,7 @@ jobs:
               echo "$path,$kind,$iter,${results[$key]}"
             done
           } | tee /tmp/results.csv
+          exit 0
 
       - name: Summarize
         run: |
@@ -326,24 +243,24 @@ jobs:
               }
 
           print()
-          print(f"{'phase':<10} {'path':<8} {'n':>3} {'min':>8} {'median':>8} {'mean':>8} {'max':>8}   (seconds wall-clock)")
-          print("-" * 64)
+          print(f"{'phase':<10} {'path':<10} {'n':>3} {'min':>8} {'median':>8} {'mean':>8} {'max':>8}   (seconds wall-clock)")
+          print("-" * 66)
           for kind in ["miss", "hit"]:
-              for path in ["public", "private"]:
+              for path in ["baseline", "routed"]:
                   s = stats(col(kind, path))
                   if s is None:
-                      print(f"{kind:<10} {path:<8} {'-':>3}")
+                      print(f"{kind:<10} {path:<10} {'-':>3}")
                       continue
-                  print(f"{kind:<10} {path:<8} {s['n']:>3} {s['min']:>8.2f} {s['median']:>8.2f} {s['mean']:>8.2f} {s['max']:>8.2f}")
+                  print(f"{kind:<10} {path:<10} {s['n']:>3} {s['min']:>8.2f} {s['median']:>8.2f} {s['mean']:>8.2f} {s['max']:>8.2f}")
               print()
 
           for kind in ["miss", "hit"]:
-              pub = stats(col(kind, "public"))
-              priv = stats(col(kind, "private"))
-              if pub and priv and priv["median"] > 0:
-                  saved = pub["median"] - priv["median"]
-                  ratio = pub["median"] / priv["median"]
-                  print(f"{kind}: private median is {ratio:.2f}x the speed of public ({saved:+.2f}s saved per build)")
+              base = stats(col(kind, "baseline"))
+              routed = stats(col(kind, "routed"))
+              if base and routed and routed["median"] > 0:
+                  saved = base["median"] - routed["median"]
+                  ratio = base["median"] / routed["median"]
+                  print(f"{kind}: routed median is {ratio:.2f}x the speed of baseline ({saved:+.2f}s saved per build)")
           PY
 
       - name: Upload Gradle logs
