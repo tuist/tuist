@@ -39,17 +39,24 @@ the bundle is already at the major-minor path.
 
 ```
 ghcr.io/cirruslabs/macos-tahoe-base:latest   <- vendor base
-        ↓ + Xcode + dev tools + WWDR certs   <- this image (Layer 1)
+        ↓ + Xcode + dev tools + WWDR certs   <- this image, full (Layer 1)
 ghcr.io/tuist/macos-tahoe-xcode:26-4-1
         ↓ + runner agent + dispatch loop     <- infra/runner-image (Layer 2a)
 ghcr.io/tuist/tuist-runner:macos-26-4-1
                                               <- shipped to customer runner Macs
 
-ghcr.io/tuist/macos-tahoe-xcode:26-4-1       <- same Layer 1
+ghcr.io/cirruslabs/macos-tahoe-base:latest   <- same vendor base
+        ↓ + Xcode only (slim=true)           <- this image, slim (Layer 1')
+ghcr.io/tuist/macos-tahoe-xcode-slim:26-5
         ↓ + Erlang release + launchd unit    <- infra/xcresult-processor-image (Layer 2b)
 ghcr.io/tuist/tuist-xcresult-processor:<server-semver>
                                               <- runs on internal macOS fleet
 ```
+
+The runner and xcresult-processor bases diverge: runners get the
+**full** image (customer CI needs the sims + tools); the
+xcresult-processor gets the **slim** image (it only parses bundles).
+See [Slim variant](#slim-variant) below.
 
 Why split this layer out: the Xcode install is ~30 min of work
 (unxip, license accept, runFirstLaunch, downloadAllPlatforms). If
@@ -79,6 +86,48 @@ thin runtime on top — ~2 min instead of ~30.
 
 The Tuist CLI is **not** preinstalled. Customer workflows install
 it themselves via mise / brew so the version is theirs to pin.
+
+## Slim variant
+
+`gh workflow run macos-xcode-image.yml -f xcode_version=26.5 -f slim=true`
+produces `ghcr.io/tuist/macos-tahoe-xcode-slim:<tag>` from the same
+template (`slim = true`). It keeps `Xcode.app` fully intact — the
+xcresult-processor's NIF shells out to `xcrun xcresulttool`, which
+only ships in full Xcode, and stripping bits out of the bundle would
+break the framework closure it loads at parse time — but skips:
+
+- the simulator runtimes (`xcodebuild -downloadAllPlatforms`),
+- the brew CI dev-tool grab-bag,
+- the Apple WWDR / Developer ID signing certs.
+
+Only the **xcresult-processor** consumes it. That service merely
+*parses* `.xcresult` bundles (it never runs tests), so it has no use
+for sims, CI tools, or signing certs. Runners MUST stay on the full
+image — customer CI needs all of that.
+
+Why bother: the processor runs as a k8s Deployment on Scaleway Mac
+minis with a fixed **1 GbE** NIC (~125 MB/s). A rolled Pod boots a
+fresh Tart VM = a cold image pull, and the Deployment's progress
+deadline trips if that pull is too slow, which fails the server
+deploy under `helm --atomic` and thrashes. Measured compressed pull
+sizes (sum of OCI layer sizes ÷ 125 MB/s):
+
+| Image | Pull | Time |
+|---|---|---|
+| `cirruslabs/macos-tahoe-base` (macOS floor) | 27 GB | 3.6 min |
+| `macos-tahoe-xcode` (full: +sims +tools +certs) | 60 GB | 8.0 min |
+| `tuist-xcresult-processor` on the full base | 60 GB | 8.0 min |
+
+Dropping the sims (the single biggest removable chunk) + tools +
+certs is what gets the processor's pull comfortably under the
+deadline. The processor Deployment also widens its
+`progressDeadlineSeconds` (chart value `xcresultProcessor.progressDeadlineSeconds`)
+as belt-and-braces for VM-create + boot + 1 GbE variance.
+
+The slim base is needed only for the one Xcode version the processor
+pins (`release.yml`'s `XCODE_VERSION`, kept ≥ the newest active
+runner profile). Build it with `slim=true` *before* the processor
+image builds against it — see the promotion runbook below.
 
 ## Apple-auth-free CI: the `xcode-xips` mirror
 
@@ -130,11 +179,14 @@ auto-download entirely:
    merge. The release flow rebuilds every matrix entry against its
    matching base and moves the chart's `runnersFleet.runnerImage`
    digest pin to the first-entry profile. For the xcresult-processor,
-   bump the inline `XCODE_VERSION` env var on `release.yml`'s
+   first publish the **slim** base for that Xcode
+   (`gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y -f slim=true`),
+   then bump the inline `XCODE_VERSION` env var on `release.yml`'s
    `release-xcresult-processor-image.Build image` step in the same
    commit — it should track at least as new an Xcode as the newest
    active runner-image profile (xcresulttool's JSON schema changes
-   across Xcode majors).
+   across Xcode majors). The processor builds on
+   `macos-tahoe-xcode-slim`, not the full runner base.
 
 The Apple ID used for the local mint is the one stored in 1Password
 under `Tuist Apple ID` (Employee vault). `mise.toml` pins the
@@ -147,12 +199,17 @@ gets the same toolchain.
 gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.3
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
+# slim variant for the xcresult-processor base:
+gh workflow run macos-xcode-image.yml -f xcode_version=26.5 -f slim=true
 ```
 
 Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.5 → `:26-5`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
-fleet's profile picker chooses between them.
+fleet's profile picker chooses between them. The `slim=true`
+dispatch publishes `macos-tahoe-xcode-slim:<tag>` instead; full and
+slim builds of the same version can run concurrently (distinct tags,
+distinct concurrency groups).
 
 The current Tahoe-era profile set is:
 - `:26-5` (latest 26.5.x, no patch released yet)
@@ -185,9 +242,13 @@ automatically roll customer runners to Xcode 26.5. To promote:
    its matrix entry — the `:macos-<dashes>` tag stays in GHCR for
    lingering pins; use `runner-image.yml` dispatch for one-off
    refreshes.
-3. Bump the inline `XCODE_VERSION` on `release.yml`'s
+3. Publish the **slim** base for the processor's Xcode
+   (`gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y -f slim=true`),
+   then bump the inline `XCODE_VERSION` on `release.yml`'s
    `release-xcresult-processor-image.Build image` step in the same
    commit so the processor doesn't lag a newly-active runner profile.
+   The processor builds on `macos-tahoe-xcode-slim`, so its base must
+   exist before `release-xcresult-processor-image` runs.
 4. After merge, `release-runner-image` rebuilds
    `tuist-runner:macos-<xcode-version-dashes>` against the new
    base and rewrites the chart's `runnersFleet.runnerImage`

@@ -15,12 +15,17 @@ packer {
 # (TUIST_XCRESULT_PROCESSOR_MODE=1, TUIST_WEB=0) under launchd,
 # draining the `:process_xcresult` Oban queue.
 #
-# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
-# (built by `infra/macos-xcode-image`). Xcode lives in the base —
-# the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
-# ships in full Xcode (not the Command Line Tools), so the base
-# must carry the bundle. This build just lays the Erlang release
-# and the launchd unit on top.
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode-slim:<xcode-version-dashes>`
+# (the slim variant from `infra/macos-xcode-image`). Xcode lives in
+# the base — the NIF shells out to `/usr/bin/xcrun xcresulttool`,
+# which only ships in full Xcode (not the Command Line Tools), so the
+# base must carry the bundle. The *slim* base keeps Xcode.app intact
+# but drops the simulator runtimes and CI dev tools the runner image
+# needs: the processor only *parses* .xcresult bundles, it never runs
+# tests. That trims the cold pull enough to clear the Deployment's
+# pull deadline on the fleet's 1 GbE NIC (see the slim-variant note
+# in `infra/macos-xcode-image/macos-xcode.pkr.hcl`). This build just
+# lays the Erlang release and the launchd unit on top.
 #
 # Image layout:
 #   /opt/tuist/release/        <- Erlang release (built upstream by CI)
@@ -35,8 +40,8 @@ packer {
 
 variable "base_image" {
   type        = string
-  description = "Base Tart image, e.g. ghcr.io/tuist/macos-tahoe-xcode:26-5. The release workflow declares the Xcode version inline; the dispatch workflow and local mise task take it as input. Should be at least as new as the newest active runner-image profile (xcresulttool's JSON schema changes across Xcode majors)."
-  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
+  description = "Base Tart image, e.g. ghcr.io/tuist/macos-tahoe-xcode-slim:26-5 — the slim variant (Xcode, no sims, no CI tools) built by infra/macos-xcode-image with `slim=true`. The release workflow declares the Xcode version inline; the dispatch workflow and local mise task take it as input. Should be at least as new as the newest active runner-image profile (xcresulttool's JSON schema changes across Xcode majors)."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode-slim:26-5"
 }
 
 variable "output_image" {
@@ -118,15 +123,50 @@ build {
     ]
   }
 
-  # Sanity check: xcresulttool has to be reachable before the
-  # processor ever calls it. The macos-tahoe-xcode base installs
-  # Xcode + xcode-select's it; a regression there would silently
-  # break ingestion at runtime. Fail loudly here so the image
-  # build catches it.
+  # Sanity check: xcresulttool has to be reachable AND able to parse
+  # a real bundle before the processor ever calls it. `version`
+  # alone is not enough — the NIF shells out to `xcresulttool get
+  # test-results tests`, and a missing private framework in the
+  # bundle (the failure mode that would follow from over-trimming
+  # Xcode) surfaces only at parse time, not at `version`. The slim
+  # base keeps Xcode.app whole specifically to avoid that, so we
+  # prove it here: generate a real .xcresult from a throwaway macOS
+  # unit test (macOS destination needs no simulator runtime, which
+  # the slim base doesn't carry) and run the exact command the NIF
+  # uses against it. Fail the build loudly if either step breaks.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — macos-tahoe-xcode base image regression' >&2 && exit 1)"
+      "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable — slim base image regression' >&2 && exit 1)",
+      "WORKDIR=$(mktemp -d)",
+      "BUNDLE=$WORKDIR/verify.xcresult",
+      "mkdir -p $WORKDIR/Sources/Smoke $WORKDIR/Tests/SmokeTests",
+      "cat > $WORKDIR/Package.swift <<'PKG'",
+      "// swift-tools-version:5.9",
+      "import PackageDescription",
+      "let package = Package(",
+      "  name: \"Smoke\",",
+      "  targets: [",
+      "    .target(name: \"Smoke\"),",
+      "    .testTarget(name: \"SmokeTests\", dependencies: [\"Smoke\"]),",
+      "  ]",
+      ")",
+      "PKG",
+      "cat > $WORKDIR/Sources/Smoke/Smoke.swift <<'SRC'",
+      "public func smokeAnswer() -> Int { 42 }",
+      "SRC",
+      "cat > $WORKDIR/Tests/SmokeTests/SmokeTests.swift <<'TST'",
+      "import XCTest",
+      "@testable import Smoke",
+      "final class SmokeTests: XCTestCase {",
+      "  func testSmoke() { XCTAssertEqual(smokeAnswer(), 42) }",
+      "}",
+      "TST",
+      "cd $WORKDIR",
+      "xcodebuild test -scheme Smoke -destination 'platform=macOS' -resultBundlePath $BUNDLE",
+      "/usr/bin/xcrun xcresulttool get test-results tests --path $BUNDLE > /dev/null || (echo 'xcresulttool could not parse a real .xcresult — slim base is missing something xcresulttool needs at parse time' >&2 && exit 1)",
+      "echo 'xcresulttool parsed a real macOS-test .xcresult bundle'",
+      "rm -rf $WORKDIR"
     ]
   }
 

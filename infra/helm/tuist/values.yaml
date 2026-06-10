@@ -450,6 +450,17 @@ xcresultProcessor:
     limits:
       cpu: "3000m"
       memory: "4Gi"
+  # Each rolled Pod boots a fresh Tart VM = a cold image pull over
+  # the Mac mini's fixed 1 GbE NIC (~125 MB/s) + first boot. The
+  # slim macos-tahoe-xcode-slim base keeps that pull to ~7 min, but
+  # VM-create + boot + 1 GbE variance can still exceed Kubernetes'
+  # default 600s progress deadline — at which point `helm --wait
+  # --atomic` fails the release and rolls back (often re-pulling a
+  # GC'd image, so the fleet thrashes). 1200s leaves comfortable
+  # margin over the worst-case cold pull while staying well inside
+  # the deploy job's `helm --timeout`. Raise it if you serve this
+  # image from slower infra than a 1 GbE LAN.
+  progressDeadlineSeconds: 1200
   strategy:
     type: RollingUpdate
     rollingUpdate:

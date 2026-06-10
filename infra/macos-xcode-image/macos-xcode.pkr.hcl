@@ -47,6 +47,19 @@ packer {
 # the Xcode-install tax on every CI rebuild; it just re-clones
 # this image and lays the runner agent on top in ~2 min.
 #
+# Slim variant (`slim = true`, pushed as `macos-tahoe-xcode-slim`).
+# The xcresult-processor only *parses* .xcresult bundles — it never
+# runs tests — so it needs Xcode (for `xcresulttool`) but neither
+# the simulator runtimes nor the CI dev-tool grab-bag the runner
+# image carries. The slim variant keeps `Xcode.app` fully intact
+# (xcresulttool's framework closure must stay complete) but skips
+# `-downloadAllPlatforms`, the brew tool layer, and the signing
+# certs. That's the difference between a ~60 GB and a ~50 GB pull,
+# which matters because the processor's Mac mini fleet sits behind
+# a fixed 1 GbE NIC (~125 MB/s) and its Deployment has a pull
+# deadline a fat image blows past. Runners MUST stay on the full
+# image (customer CI needs the sims + tools); slim is processor-only.
+#
 # Inputs come from the image-build workflow on the bare-metal Mac
 # mini. The workflow pulls Xcode_<version>.xip from our in-house
 # mirror at `ghcr.io/tuist/xcode-xips:<version>`, populated by
@@ -76,6 +89,12 @@ variable "xcode_version" {
   description = "Xcode version installed from the .xip (e.g. \"26.4.1\" or \"26.5\"). Drives the bundle path /Applications/Xcode_<version>.app and the major-minor alias (only when the version has a patch component)."
 }
 
+variable "slim" {
+  type        = bool
+  default     = false
+  description = "Build the slim variant (xcresult-processor base): full Xcode for xcresulttool, but no simulator runtimes, no CI dev tools, no signing certs. Pushed as macos-tahoe-xcode-slim. Leave false for the runner-image base."
+}
+
 variable "cpu_count" {
   type    = number
   default = 4
@@ -92,7 +111,10 @@ variable "memory_gb" {
 # 140 GB matches what Cirrus provisions for their equivalent image
 # and leaves headroom for the downstream runner-image /
 # xcresult-processor builds + customer DerivedData when the image
-# is in service.
+# is in service. The slim variant skips the sims + dev tools, so
+# `local.disk_size_gb` trims it to 100 GB — still room for the
+# .xip (~12 GB) staged alongside the extracted Xcode (~40 GB) on
+# top of the macOS base during the build.
 variable "disk_size_gb" {
   type    = number
   default = 140
@@ -106,6 +128,17 @@ locals {
   # equals the real path so the symlink step is skipped at build
   # time.
   xcode_major_minor = regex("^[0-9]+\\.[0-9]+", var.xcode_version)
+
+  # Slim drops the sims (~15 GB) + dev tools (~5 GB), so it doesn't
+  # need the full 140 GB envelope — 100 GB covers macOS + Xcode +
+  # the .xip staged during install with headroom.
+  disk_size_gb = var.slim ? 100 : var.disk_size_gb
+
+  # Final-sanity tool set. The slim variant doesn't install the CI
+  # grab-bag, so it only asserts the base tools (inherited from
+  # macos-tahoe-base) plus xcrun; xcresulttool itself is checked
+  # separately below.
+  sanity_tools = var.slim ? "brew mise gh git-lfs jq yq xcodes xcrun" : "brew mise gh git-lfs jq yq xcodes xcrun swiftlint swiftformat xcbeautify fastlane pod carthage mint idevice_id ideviceinstaller ios-deploy"
 }
 
 source "tart-cli" "macos_xcode" {
@@ -113,7 +146,7 @@ source "tart-cli" "macos_xcode" {
   vm_name      = var.output_image
   cpu_count    = var.cpu_count
   memory_gb    = var.memory_gb
-  disk_size_gb = var.disk_size_gb
+  disk_size_gb = local.disk_size_gb
   ssh_username = "admin"
   ssh_password = "admin"
   ssh_timeout  = "120s"
@@ -156,7 +189,10 @@ build {
   # `-downloadAllPlatforms` pulls iOS / tvOS / watchOS / visionOS
   # simulator runtimes at image build so the first job on a fresh
   # VM doesn't pay the runtime download cost. Matches what
-  # GitHub-hosted's macos-26 image ships.
+  # GitHub-hosted's macos-26 image ships. Skipped for slim: the
+  # xcresult-processor never runs tests, so it has no use for the
+  # sim runtimes, and they're the single biggest removable chunk
+  # of the image's pull weight.
   #
   # `echo 'admin' | sudo -S` on the first sudo call primes the
   # admin sudo timestamp cache; subsequent bare `sudo` calls in
@@ -175,7 +211,7 @@ build {
       "sudo xcode-select -s /Applications/Xcode_${var.xcode_version}.app",
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
-      "sudo xcodebuild -downloadAllPlatforms",
+      "if [ \"${var.slim}\" != \"true\" ]; then sudo xcodebuild -downloadAllPlatforms; else echo 'slim: skipping simulator runtime download'; fi",
       "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable after install' >&2 && exit 1)"
     ]
   }
@@ -208,9 +244,14 @@ build {
   # Customer workflows install it themselves via mise / brew so
   # the version is theirs to pin; baking it in just creates a
   # stale default that drifts behind every Tuist release.
+  #
+  # Skipped for slim: this grab-bag exists for customer CI on the
+  # runner image. The xcresult-processor only parses bundles, so it
+  # carries none of it.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
+      "if [ \"${var.slim}\" = \"true\" ]; then echo 'slim: skipping CI dev tools'; exit 0; fi",
       "source ~/.zprofile",
       "brew install libimobiledevice ideviceinstaller ios-deploy carthage",
       "brew install xcbeautify swiftformat swiftlint swiftgen licenseplist mint",
@@ -223,9 +264,14 @@ build {
   # need these in the system trust store. Installed via the same
   # swift helper the GitHub-hosted macOS image uses so the trust
   # path matches.
+  #
+  # Skipped for slim: xcresulttool reads bundles off disk and never
+  # touches the signing trust store, so the processor doesn't need
+  # these.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
+      "if [ \"${var.slim}\" = \"true\" ]; then echo 'slim: skipping signing certs'; exit 0; fi",
       "source ~/.zprofile",
       "cd /tmp",
       "curl -fsSL -o AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer",
@@ -247,7 +293,7 @@ build {
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "/bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq xcodes xcrun swiftlint swiftformat xcbeautify fastlane pod carthage mint idevice_id ideviceinstaller ios-deploy; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool missing from PATH\" >&2; exit 1; }; done'",
+      "/bin/zsh -lc 'for tool in ${local.sanity_tools}; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool missing from PATH\" >&2; exit 1; }; done'",
       # xcresulttool lives inside the Xcode bundle and isn't on
       # $PATH directly — it's reached via `xcrun xcresulttool`.
       # The `command -v` loop above checks `xcrun`'s presence;
