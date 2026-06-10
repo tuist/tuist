@@ -15,6 +15,13 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   require Logger
 
+  # Re-arm dwell applied when recovery is disabled. There is no per-alert knob
+  # for this case (recovery_config is only validated when recovery is on), so a
+  # disabled alert always falls back to this fixed window. Kept explicit rather
+  # than relying on filter_recovered_candidates' default so the value is
+  # discoverable; revisit if a customer needs "never re-arm" or a faster one.
+  @disabled_recovery_rearm_window "14d"
+
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
@@ -131,18 +138,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
 
-    # Event-driven monitors (`test_updated`) have no triggered/recovered ledger
-    # — each event is a discrete one-shot (see
-    # `Automations.dispatch_test_case_event/2`). They never accrue `triggered`
-    # events through this worker, so recovery bookkeeping must not run for them,
-    # even if a monitor-type change left stale events behind.
-    if !event_driven_monitor?(alert) do
+    # Only metric monitors use this worker's scheduled triggered/recovered
+    # ledger. Event-driven (`test_updated`) monitors keep their own ledger via
+    # `Automations.dispatch_test_case_event/2` — discrete one-shots with no
+    # dwell or recovery — and unknown/legacy monitor types have no evaluator
+    # here, so neither participates in recovery. Gating positively also stops a
+    # monitor-type change from running recovery over stale `triggered` events.
+    if Alert.recovery_ledger?(alert) do
       handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
     end
   end
-
-  defp event_driven_monitor?(%{monitor_type: "test_updated"}), do: true
-  defp event_driven_monitor?(_alert), do: false
 
   defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
 
@@ -169,7 +174,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       if alert.recovery_enabled do
         {alert.recovery_config || %{}, alert.recovery_actions}
       else
-        {%{}, []}
+        {%{"window" => @disabled_recovery_rearm_window}, []}
       end
 
     recovered = filter_recovered_candidates(alert, candidates, recovery_config)

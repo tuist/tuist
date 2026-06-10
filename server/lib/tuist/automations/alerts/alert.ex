@@ -6,7 +6,9 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count reliability_rate test_updated)
+  @event_driven_monitor_types ~w(test_updated)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -37,6 +39,25 @@ defmodule Tuist.Automations.Alerts.Alert do
   can apply the same constraint at the input level.
   """
   def max_rolling_window_size, do: @max_rolling_window_size
+
+  @doc """
+  Event-driven monitors (`test_updated`) fire from
+  `Tuist.Automations.dispatch_test_case_event/2` the instant a test case
+  changes and keep their own one-shot ledger. They are not scheduled and have
+  no dwell or recovery semantics. Accepts an alert struct or a monitor-type
+  string.
+  """
+  def event_driven?(%{monitor_type: monitor_type}), do: event_driven?(monitor_type)
+  def event_driven?(monitor_type), do: monitor_type in @event_driven_monitor_types
+
+  @doc """
+  Metric monitors evaluated by the scheduled `AlertEvaluationWorker` via
+  `FlakyTestsMonitor`. These drive the triggered/recovered ledger this worker
+  maintains (baseline, transition firing, re-arming). Accepts an alert struct
+  or a monitor-type string.
+  """
+  def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
+  def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
 
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
