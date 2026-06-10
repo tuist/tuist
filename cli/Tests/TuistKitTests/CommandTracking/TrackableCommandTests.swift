@@ -45,7 +45,7 @@ final class TrackableCommandTests: TuistTestCase {
             .willReturn(.test())
 
         given(gitHubActionsJobSummaryService)
-            .writeJobSummary(gitRef: .any, hasReport: .any, fullHandle: .any, serverURL: .any)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
             .willReturn()
     }
 
@@ -362,7 +362,7 @@ final class TrackableCommandTests: TuistTestCase {
 
         // Then
         verify(gitHubActionsJobSummaryService)
-            .writeJobSummary(gitRef: .any, hasReport: .any, fullHandle: .value("tuist/tuist"), serverURL: .any)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
             .called(1)
     }
 
@@ -379,7 +379,7 @@ final class TrackableCommandTests: TuistTestCase {
 
         // Then
         verify(gitHubActionsJobSummaryService)
-            .writeJobSummary(gitRef: .any, hasReport: .any, fullHandle: .any, serverURL: .any)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
             .called(0)
     }
 }

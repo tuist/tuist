@@ -177,6 +177,7 @@ struct XcodeBuildTestCommandService {
                 quarantinedTests: allQuarantinedTests,
                 shardPlanId: shardPlanId,
                 shardIndex: shardIndex,
+                scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
                 mode: mode
             )
 
@@ -376,9 +377,12 @@ extension XcodeBuildTestCommandService {
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
+        scheme: String? = nil,
         mode: TestProcessingMode = .local
     ) async {
         guard config.fullHandle != nil else { return }
+
+        await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
 
         do {
             switch mode {
@@ -412,6 +416,29 @@ extension XcodeBuildTestCommandService {
         } catch {
             AlertController.current.warning(.alert("Failed to upload test results: \(error.localizedDescription)"))
         }
+    }
+
+    /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions
+    /// job summary can be rendered locally, without waiting for the server to finish parsing the
+    /// uploaded result bundle. Best-effort: any failure is ignored.
+    private func captureTestRunReport(scheme: String?, resultBundlePath: AbsolutePath?) async {
+        guard let scheme, let resultBundlePath,
+              let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return }
+
+        let failedTestNames = statuses.testCases
+            .filter { $0.status == .failed }
+            .map { "\($0.testSuite).\($0.name)" }
+        let skippedTests = statuses.testCases.filter { $0.status == .skipped }.count
+
+        await RunMetadataStorage.current.add(
+            testRunReport: RunReportTestRun(
+                scheme: scheme,
+                totalTests: statuses.testCases.count,
+                skippedTests: skippedTests,
+                failedTestNames: failedTestNames
+            )
+        )
     }
 
     private func loadQuarantinedTests(

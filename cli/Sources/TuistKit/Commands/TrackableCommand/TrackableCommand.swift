@@ -203,11 +203,12 @@ public class TrackableCommand {
                         )
                 }
 
+                let testRunReports = await runMetadataStorage.testRunReports
+                let buildRunReports = await runMetadataStorage.buildRunReports
                 await gitHubActionsJobSummaryService.writeJobSummary(
-                    gitRef: commandEvent.gitRef,
-                    hasReport: info.testRunId != nil || info.buildRunId != nil || info.previewId != nil,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
+                    testRunReports: testRunReports,
+                    buildRunReports: buildRunReports,
+                    runURL: serverCommandEvent.url
                 )
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")

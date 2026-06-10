@@ -9,12 +9,15 @@ defmodule Tuist.VCS.Workers.CommentWorker do
     queue: :vcs_comments,
     unique: [keys: [:project_id, :git_ref], states: [:available], period: :infinity]
 
+  use Phoenix.VerifiedRoutes,
+    endpoint: TuistWeb.Endpoint,
+    router: TuistWeb.Router
+
   import Ecto.Query
 
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.VCS
-  alias Tuist.VCS.RunReportURLs
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -39,14 +42,39 @@ defmodule Tuist.VCS.Workers.CommentWorker do
       git_ref: git_ref,
       git_remote_url_origin: git_remote_url_origin,
       project: project,
-      preview_url: &RunReportURLs.preview_url/1,
-      preview_qr_code_url: &RunReportURLs.preview_qr_code_url/1,
-      test_run_url: &RunReportURLs.test_run_url/1,
-      bundle_url: &RunReportURLs.bundle_url/1,
-      build_url: &RunReportURLs.build_url/1
+      preview_url: &preview_url/1,
+      preview_qr_code_url: &preview_qr_code_url/1,
+      command_run_url: &command_run_url/1,
+      test_run_url: &test_run_url/1,
+      bundle_url: &bundle_url/1,
+      build_url: &build_url/1
     })
 
     :ok
+  end
+
+  defp preview_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}")
+  end
+
+  defp preview_qr_code_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png")
+  end
+
+  defp command_run_url(%{project: %{account: account} = project, command_event: command_event}) do
+    url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+  end
+
+  defp test_run_url(%{project: %{account: account} = project, test_run: test_run}) do
+    url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+  end
+
+  defp bundle_url(%{project: %{account: account} = project, bundle: bundle}) do
+    url(~p"/#{account.name}/#{project.name}/bundles/#{bundle.id}")
+  end
+
+  defp build_url(%{project: %{account: account} = project, build: build}) do
+    url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}")
   end
 
   defp cancel_competing_jobs(current_job_id, project_id, git_ref) do

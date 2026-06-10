@@ -25,7 +25,6 @@ defmodule Tuist.VCS do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS.GitHubAppInstallation
-  alias Tuist.VCS.RunReportURLs
   alias Tuist.VCS.Workers.CommentWorker
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
@@ -421,7 +420,7 @@ defmodule Tuist.VCS do
       issue_id = get_issue_id_from_git_ref(git_ref)
 
       vcs_comment_body =
-        get_run_report_body(%{
+        get_vcs_comment_body(%{
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
@@ -514,28 +513,7 @@ defmodule Tuist.VCS do
     end
   end
 
-  @doc """
-  Builds the "Tuist Run Report" markdown for a project and `git_ref`.
-
-  This is the single source of truth behind both the GitHub pull request comment
-  and the GitHub Actions job summary. It is not gated on a `refs/pull/` ref, so it
-  also renders for merge-queue and branch refs. Returns the markdown string, or
-  `nil` when there is nothing to report.
-  """
-  def render_run_report(%{project: project, git_ref: git_ref, git_remote_url_origin: git_remote_url_origin}) do
-    get_run_report_body(%{
-      git_ref: git_ref,
-      git_remote_url_origin: git_remote_url_origin,
-      preview_url: &RunReportURLs.preview_url/1,
-      preview_qr_code_url: &RunReportURLs.preview_qr_code_url/1,
-      test_run_url: &RunReportURLs.test_run_url/1,
-      build_url: &RunReportURLs.build_url/1,
-      bundle_url: &RunReportURLs.bundle_url/1,
-      project: project
-    })
-  end
-
-  defp get_run_report_body(%{
+  defp get_vcs_comment_body(%{
          git_ref: git_ref,
          git_remote_url_origin: git_remote_url_origin,
          preview_url: preview_url,

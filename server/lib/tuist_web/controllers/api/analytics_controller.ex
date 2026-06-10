@@ -4,7 +4,6 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
-  alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.VCS
@@ -16,7 +15,6 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEvent
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.RunJobSummary
   alias TuistWeb.Authentication
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
@@ -525,47 +523,6 @@ defmodule TuistWeb.API.AnalyticsController do
       url: url,
       test_run_url: test_run_url
     })
-  end
-
-  operation(:job_summary,
-    summary: "Render the Tuist Run Report for a git ref as a CI job summary.",
-    operation_id: "getRunJobSummary",
-    parameters: [
-      account_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the account."
-      ],
-      project_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the project."
-      ],
-      git_ref: [
-        in: :query,
-        type: :string,
-        required: true,
-        description: "The git ref the report should be rendered for (e.g. a merge queue or branch ref)."
-      ]
-    ],
-    responses: %{
-      ok: {"The rendered job summary", "application/json", RunJobSummary},
-      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"You don't have permission to access runs for the project.", "application/json", Error}
-    }
-  )
-
-  def job_summary(%{assigns: %{selected_project: selected_project}, params: %{git_ref: git_ref}} = conn, _params) do
-    markdown =
-      VCS.render_run_report(%{
-        project: selected_project,
-        git_ref: git_ref,
-        git_remote_url_origin: Projects.get_repository_url(selected_project)
-      })
-
-    json(conn, %{markdown: markdown})
   end
 
   defp cache_metadata(params) do
