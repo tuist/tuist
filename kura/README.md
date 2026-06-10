@@ -570,3 +570,11 @@ documented with the hook implementation rather than in the generic
 runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.
+
+Hook results are cached per credentials: the cache key fingerprints only the
+credential-bearing request headers (`authorization`, `proxy-authorization`,
+`cookie`, `x-api-key`), so per-request noise such as gRPC deadlines
+(`grpc-timeout`) or trace propagation (`traceparent`) does not defeat the
+cache. Hooks that authenticate from other inputs must return a short
+`ttl_seconds` (or none) instead of relying on the cache key to separate
+requests.
