@@ -62,10 +62,11 @@ CI:
 - **Steady state.** `feat(runner-image)` / `fix(runner-image)`
   conventional commits on `main` trigger a two-job chain in
   `release.yml`:
-  1. `runner-image-build` is a matrix job; its `matrix.xcode` is a
-     literal list (currently `["26.5", "26.4.1"]`) declared in the
-     workflow itself. One entry runs per profile, fanned out across
-     every available `vm-image-builder`-labelled host. Each entry
+  1. `runner-image-build` is a matrix job; its `matrix.xcode` is
+     read from `infra/runner-image/profiles.json` (the single source
+     of truth) by `check-releases` and expanded via `fromJSON`. One
+     entry runs per profile, fanned out across every available
+     `vm-image-builder`-labelled host. Each entry
      builds against `ghcr.io/tuist/macos-tahoe-xcode:<dashes>` and
      pushes both immutable (`:macos-<dashes>-<semver>`) and rolling
      (`:macos-<dashes>`) tags. `fail-fast: true` — if any profile
@@ -109,15 +110,21 @@ of the ~30 min an all-in-one rebuild used to cost.
 
 ## Active profiles + the default
 
-Active profiles are declared in `release.yml`:
+Active profiles are the single source of truth in
+`infra/runner-image/profiles.json` — a JSON array, newest first:
 
-```yaml
-# .github/workflows/release.yml
-runner-image-build:
-  strategy:
-    matrix:
-      xcode: ["26.5", "26.4.1"]   # first entry = default profile
+```json
+// infra/runner-image/profiles.json
+["26.5", "26.4.1", "26.3"]   // first entry = newest / default profile
 ```
+
+`check-releases` reads this into the `runner-image-matrix` output and
+`runner-image-build`'s `matrix` expands it via `fromJSON`. Because the
+file lives under `infra/runner-image/**` — the component's only
+include path in `mise/tasks/release/components.json` — editing the
+list both reshapes the build matrix and triggers a runner-image
+release, with no `release.yml` edit. Unrelated `release.yml` churn no
+longer rebuilds the images.
 
 - **Active.** Rebuilt on every `release-runner-image` run (every
   `feat(runner-image)` / `fix(runner-image)` commit landing on
@@ -150,19 +157,21 @@ Bumping the Xcode customers see on their runners:
    the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
    `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
    See `infra/macos-xcode-image/AGENTS.md` for the runbook.
-2. Edit `release.yml`'s `runner-image-build.strategy.matrix.xcode`:
-   add the new Xcode as an additional entry (most common — gives
-   customers it alongside the existing default), or put it first to
-   make it the chart's default profile. **If you move the first
-   entry, also update `release-runner-image`'s "Resolve default
-   profile image" step (the `PROFILE="macos-26-5"` line) to match.**
-   Commit with a
-   `feat(runner-image): ...` message so check-releases triggers the
-   rebuild.
+2. Edit `infra/runner-image/profiles.json`: add the new Xcode as an
+   additional entry (most common — gives customers it alongside the
+   existing default), or put it first to make it the newest / default
+   profile. **If you move the first entry, also bump
+   `release.yml`'s xcresult-processor `XCODE_VERSION` to match** —
+   that image must be at least as new as the newest runner profile.
+   Also add the matching `runnersFleet.xcodeVersions` entry in
+   `values-managed-common.yaml` so the fleet renders a pool for it.
+   Commit with a `feat(runner-image): ...` message so check-releases
+   triggers the rebuild.
 3. Once customers have migrated off an older Xcode, drop its entry
-   from the matrix. The `:macos-<dashes>` tag stays in GHCR for any
-   lingering pin; the dispatch path above stays available for a
-   one-off refresh if security work needs to land there.
+   from `profiles.json` (and its `values-managed-common.yaml` pool).
+   The `:macos-<dashes>` tag stays in GHCR for any lingering pin; the
+   dispatch path above stays available for a one-off refresh if
+   security work needs to land there.
 
 ## Profile tagging
 
