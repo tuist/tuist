@@ -4,6 +4,7 @@ defmodule TuistWeb.API.TestsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Tests
+  alias Tuist.Tests.TestRunQuery
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -40,6 +41,12 @@ defmodule TuistWeb.API.TestsController do
         in: :query,
         type: :string,
         description: "Filter by git branch."
+      ],
+      query: [
+        in: :query,
+        type: :string,
+        description:
+          ~s(Search query for richer filtering. Supports exact matches with `field:"value"` and substring matches with `field~"value"`. Prefix a field with `-` to negate the filter, for example `-git_branch~"gh-readonly-queue"`. Query filters compose with the explicit query parameters using AND semantics.)
       ],
       status: [
         in: :query,
@@ -113,7 +120,8 @@ defmodule TuistWeb.API.TestsController do
            },
            required: [:test_runs, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
 
@@ -121,71 +129,67 @@ defmodule TuistWeb.API.TestsController do
         %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
         _params
       ) do
-    filters = [%{field: :project_id, op: :==, value: selected_project.id}]
+    case TestRunQuery.filters(Map.get(params, :query)) do
+      {:ok, query_filters} ->
+        filters =
+          [%{field: :project_id, op: :==, value: selected_project.id}]
+          |> maybe_add_filter(:git_branch, :==, Map.get(params, :git_branch))
+          |> maybe_add_filter(:status, :==, Map.get(params, :status))
+          |> maybe_add_filter(:scheme, :==, Map.get(params, :scheme))
+          |> Kernel.++(query_filters)
 
-    filters =
-      if Map.get(params, :git_branch) do
-        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
-      else
-        filters
-      end
+        attrs = %{
+          filters: filters,
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          page: page,
+          page_size: page_size
+        }
 
-    filters =
-      if Map.get(params, :status) do
-        filters ++ [%{field: :status, op: :==, value: params.status}]
-      else
-        filters
-      end
+        {test_runs, meta} = Tests.list_test_runs(attrs)
+        metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
+        metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
 
-    filters =
-      if Map.get(params, :scheme) do
-        filters ++ [%{field: :scheme, op: :==, value: params.scheme}]
-      else
-        filters
-      end
+        json(conn, %{
+          test_runs:
+            Enum.map(test_runs, fn run ->
+              run_metrics = Map.get(metrics_map, run.id, %{})
 
-    attrs = %{
-      filters: filters,
-      order_by: [:ran_at],
-      order_directions: [:desc],
-      page: page,
-      page_size: page_size
-    }
-
-    {test_runs, meta} = Tests.list_test_runs(attrs)
-    metrics_list = Tests.Analytics.test_runs_metrics(selected_project.id, test_runs)
-    metrics_map = Map.new(metrics_list, &{&1.test_run_id, &1})
-
-    json(conn, %{
-      test_runs:
-        Enum.map(test_runs, fn run ->
-          run_metrics = Map.get(metrics_map, run.id, %{})
-
-          %{
-            id: run.id,
-            duration: run.duration,
-            status: to_string(run.status),
-            is_ci: run.is_ci,
-            is_flaky: run.is_flaky,
-            scheme: run.scheme,
-            git_branch: run.git_branch,
-            git_commit_sha: run.git_commit_sha,
-            ran_at: format_ran_at(run.ran_at),
-            total_test_count: Map.get(run_metrics, :total_tests, 0),
-            ran_tests: Map.get(run_metrics, :ran_tests, 0),
-            skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+              %{
+                id: run.id,
+                duration: run.duration,
+                status: to_string(run.status),
+                is_ci: run.is_ci,
+                is_flaky: run.is_flaky,
+                scheme: run.scheme,
+                git_branch: run.git_branch,
+                git_commit_sha: run.git_commit_sha,
+                ran_at: format_ran_at(run.ran_at),
+                total_test_count: Map.get(run_metrics, :total_tests, 0),
+                ran_tests: Map.get(run_metrics, :ran_tests, 0),
+                skipped_tests: Map.get(run_metrics, :skipped_tests, 0)
+              }
+            end),
+          pagination_metadata: %{
+            has_next_page: meta.has_next_page?,
+            has_previous_page: meta.has_previous_page?,
+            current_page: meta.current_page,
+            page_size: meta.page_size,
+            total_count: meta.total_count,
+            total_pages: meta.total_pages
           }
-        end),
-      pagination_metadata: %{
-        has_next_page: meta.has_next_page?,
-        has_previous_page: meta.has_previous_page?,
-        current_page: meta.current_page,
-        page_size: meta.page_size,
-        total_count: meta.total_count,
-        total_pages: meta.total_pages
-      }
-    })
+        })
+
+      {:error, :invalid_query} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Invalid query parameter"})
+    end
   end
+
+  defp maybe_add_filter(filters, _field, _op, nil), do: filters
+  defp maybe_add_filter(filters, _field, _op, ""), do: filters
+  defp maybe_add_filter(filters, field, op, value), do: filters ++ [%{field: field, op: op, value: value}]
 
   operation(:create,
     summary: "Create a new test run.",

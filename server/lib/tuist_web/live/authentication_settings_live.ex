@@ -28,7 +28,6 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "authentication")
       |> assign(organization: organization)
       |> assign(sso_enabled: sso_enabled)
       |> assign(sso_enforced: organization.sso_enforced)

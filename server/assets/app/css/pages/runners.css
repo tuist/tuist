@@ -1,0 +1,82 @@
+#runners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & [data-part="filters"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="search"] {
+      width: 280px;
+    }
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="recent-jobs-card-section"],
+  & [data-part="recent-workflows-card-section"] {
+    gap: var(--noora-spacing-8);
+  }
+
+  & [data-part="date-picker-bar"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  & [data-part="analytics-card-chart-section"] {
+    & .noora-chart {
+      height: 280px;
+    }
+  }
+
+  & [data-part="recent-jobs-section"],
+  & [data-part="recent-workflows-section"] {
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-9);
+
+    & [data-part="recent-jobs-chart"],
+    & [data-part="recent-workflows-chart"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-4);
+
+      & [data-part="legends"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-5);
+
+        & > * {
+          flex-grow: 1;
+        }
+      }
+
+      & .noora-chart {
+        height: 148px;
+      }
+    }
+  }
+}

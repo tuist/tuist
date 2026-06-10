@@ -33,9 +33,9 @@ clusters/
 | Cluster | CP | Workers |
 |---|---|---|
 | `tuist-staging` | 3× cpx22 | md-0: 2× cpx31 |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx31 |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; kura: 3× ccx13 (`pool=kura`) |
 | `tuist` (production) | 3× cpx22 | md-0: 2× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
-| `tuist-kura-us-east` (production Kura `us-east-1`) | 3× ccx13 in `ash` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
+| `tuist-kura-us-east` (production Kura `us-east-1`) | 3× ccx13 in `ash` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→32) |
 | `tuist-kura-us-west` (production Kura `us-west-1`) | 3× ccx13 in `hil` | kura: 3× ccx13 (`pool=kura`, autoscaled 3→12) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
 

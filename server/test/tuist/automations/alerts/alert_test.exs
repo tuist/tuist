@@ -93,6 +93,26 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert changeset.valid?
     end
 
+    test "accepts a reliability_rate alert with percent threshold" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "monitor_type" => "reliability_rate",
+            "trigger_config" => %{
+              "threshold" => 90,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "comparison" => "lt"
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "rejects an unknown comparison" do
       project = ProjectsFixtures.project_fixture()
 
@@ -209,7 +229,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         )
 
       refute changeset.valid?
-      assert errors_on(changeset).trigger_config
+      assert "rolling_window_size must be at most 1000" in errors_on(changeset).trigger_config
     end
 
     test "rejects rolling window_type with non-positive rolling_window_size" do

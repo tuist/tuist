@@ -5,6 +5,7 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
+  alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
   alias TuistWeb.API.Schemas
@@ -13,7 +14,7 @@ defmodule TuistWeb.API.CacheController do
   alias TuistWeb.API.Schemas.CacheArtifactDownloadURL
   alias TuistWeb.API.Schemas.CacheCategory
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.Headers
+  alias TuistWeb.Authentication
 
   plug(
     TuistWeb.Plugs.CastAndValidate,
@@ -21,7 +22,7 @@ defmodule TuistWeb.API.CacheController do
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug TuistWeb.Plugs.LoaderPlug when action not in [:endpoints]
+  plug TuistWeb.Plugs.LoaderPlug when action not in [:access, :endpoints]
 
   plug TuistWeb.API.Authorization.AuthorizationPlug,
        [
@@ -29,9 +30,11 @@ defmodule TuistWeb.API.CacheController do
          caching: true,
          cache_ttl: to_timeout(minute: 1)
        ]
-       when action not in [:endpoints]
+       when action not in [:access, :endpoints]
 
-  plug TuistWeb.API.Authorization.BillingPlug when action not in [:endpoints]
+  plug TuistWeb.API.Authorization.BillingPlug when action not in [:access, :endpoints]
+
+  plug :sign
 
   tags(["Cache"])
 
@@ -68,17 +71,45 @@ defmodule TuistWeb.API.CacheController do
 
   def endpoints(conn, params) do
     endpoints =
-      Accounts.get_cache_endpoints_for_handle(params[:account_handle], technology(conn))
+      params[:account_handle]
+      |> Accounts.get_cache_endpoints_for_handle()
+      |> Enum.reject(&is_nil/1)
 
     json(conn, %{endpoints: endpoints})
   end
 
-  defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
-    end
+  operation(:access,
+    summary: "Get first-class cache access scopes.",
+    description: "Returns the authenticated subject's account-scoped and project-scoped cache access handles.",
+    operation_id: "getCacheAccess",
+    responses: %{
+      ok:
+        {"Cache access handles", "application/json",
+         %Schema{
+           title: "CacheAccess",
+           description: "Account-scoped and project-scoped cache access handles",
+           type: :object,
+           required: [:accounts, :projects],
+           properties: %{
+             accounts: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             },
+             projects: %Schema{
+               type: :array,
+               items: %Schema{type: :string}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated to access this resource", "application/json", Error}
+    }
+  )
+
+  def access(conn, _params) do
+    conn
+    |> Authentication.authenticated_subject()
+    |> Cache.accessible_handles()
+    |> then(&json(conn, &1))
   end
 
   operation(:get_cache_action_item,
@@ -691,6 +722,18 @@ defmodule TuistWeb.API.CacheController do
       "#{String.downcase(project_slug)}/#{hash}/#{name}"
     else
       "#{String.downcase(project_slug)}/#{cache_category}/#{hash}/#{name}"
+    end
+  end
+
+  defp sign(%{query_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(%{path_params: %{"hash" => hash}} = conn, _opts), do: sign_conn(conn, hash)
+  defp sign(conn, _opts), do: conn
+
+  defp sign_conn(conn, hash) do
+    if Tuist.Environment.test?() or Tuist.Environment.dev?() do
+      put_resp_header(conn, "x-tuist-signature", "tuist")
+    else
+      put_resp_header(conn, "x-tuist-signature", Tuist.License.sign(hash))
     end
   end
 end

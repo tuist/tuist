@@ -17,22 +17,42 @@ public struct DerivedDataLocator: DerivedDataLocating {
     public func locate(
         for projectPath: AbsolutePath
     ) async throws -> AbsolutePath {
-        let defaultDerivedDataDirectory = try await Environment.current.derivedDataDirectory()
+        let root: AbsolutePath
+        let usesHash: Bool
+        switch try await Environment.current.derivedDataLocation() {
+        case .default:
+            root = try await Environment.current.derivedDataDirectory()
+            usesHash = true
+        case let .custom(path):
+            root = path
+            usesHash = true
+        case let .relativeToWorkspace(relativePath):
+            root = projectPath.parentDirectory.appending(relativePath)
+            usesHash = false
+        }
+
+        // When `inspect` runs as an Xcode build/test post-action, these variables point directly
+        // at the build's derived data and take precedence over the location inferred from Xcode's
+        // preferences.
         if let derivedDataDir = Environment.current.variables["DERIVED_DATA_DIR"] {
             let path = try AbsolutePath(validating: derivedDataDir)
-            if path != defaultDerivedDataDirectory {
+            if path != root {
                 return path
             }
         }
         if let buildDir = Environment.current.variables["BUILD_DIR"],
-           let root = Self.derivedDataRoot(from: buildDir),
-           root != defaultDerivedDataDirectory
+           let buildRoot = Self.derivedDataRoot(from: buildDir),
+           buildRoot != root
         {
-            return root
+            return buildRoot
         }
-        let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
-        return defaultDerivedDataDirectory
-            .appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
+
+        if usesHash {
+            let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
+            return root.appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
+        } else {
+            return root.appending(component: projectPath.basenameWithoutExt)
+        }
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.

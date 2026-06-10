@@ -1,5 +1,5 @@
 defmodule Tuist.Projects.VCSConnectionTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Projects.VCSConnection
   alias TuistTestSupport.Fixtures.AccountsFixtures

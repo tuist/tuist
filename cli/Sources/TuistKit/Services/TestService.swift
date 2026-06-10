@@ -631,7 +631,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runShard(
         shardIndex: Int,
-        schemeName _: String?,
+        schemeName: String?,
         path: AbsolutePath,
         config: Tuist,
         deviceName: String?,
@@ -726,6 +726,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
+            scheme: schemeName,
             shardPlanId: shard.shardPlanId,
             shardIndex: shardIndex,
             mode: mode
@@ -863,6 +864,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             action: .testWithoutBuilding,
+            scheme: schemeName,
             mode: mode
         )
 
@@ -1572,6 +1574,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             action: action
         )
         else {
+            if action == .build {
+                Logger.current.notice(
+                    "The scheme \(scheme.name) has no testable targets to build, skipping."
+                )
+                return
+            }
             throw TestServiceError.schemeWithoutTestableTargets(
                 scheme: scheme.name, testPlan: testPlanConfiguration?.testPlan
             )
@@ -1661,6 +1669,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 projectDerivedDataDirectory: projectDerivedDataDirectory,
                 config: config,
                 action: action,
+                scheme: scheme.name,
                 quarantinedTests: quarantinedTests,
                 mode: mode
             )
@@ -1699,6 +1708,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return testQuarantineService.markQuarantinedTests(testSummary: parsed, quarantinedTests: quarantinedTests)
     }
 
+    /// Captures a lightweight per-scheme test summary into `RunMetadataStorage` so the GitHub Actions
+    /// job summary can be rendered locally, without waiting for the server to finish parsing the
+    /// uploaded result bundle. Best-effort: any failure is ignored.
+    private func captureTestRunReport(scheme: String?, resultBundlePath: AbsolutePath?) async {
+        guard let scheme, let resultBundlePath,
+              let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
+        else { return }
+
+        await RunMetadataStorage.current.add(
+            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
+        )
+    }
+
     private func uploadBuildRunIfNeeded(
         projectDerivedDataDirectory: AbsolutePath?,
         projectPath: AbsolutePath,
@@ -1735,6 +1757,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         projectDerivedDataDirectory: AbsolutePath?,
         config: Tuist,
         action: XcodeBuildTestAction,
+        scheme: String? = nil,
         quarantinedTests: [TestIdentifier] = [],
         shardPlanId: String? = nil,
         shardIndex: Int? = nil,
@@ -1742,6 +1765,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
     ) async {
         guard config.fullHandle != nil, action != .build
         else { return }
+
+        await captureTestRunReport(scheme: scheme, resultBundlePath: resultBundlePath)
 
         do {
             switch mode {

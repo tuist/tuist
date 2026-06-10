@@ -38,7 +38,6 @@ defmodule TuistWeb.IntegrationsLive do
 
     socket =
       socket
-      |> assign(selected_tab: "integrations")
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
       |> assign(vcs_connections: vcs_connections)

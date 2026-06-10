@@ -2,7 +2,7 @@
 #members {
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-9);
+  gap: var(--noora-spacing-10);
 
   & > [data-part="title"],
   & > [data-part="row"] > [data-part="title"] {
@@ -32,18 +32,28 @@
   }
 }
 
+#projects,
+#members {
+  & > [data-part="page-title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-2xlarge);
+  }
+}
+
 #projects {
+
   & > [data-part="recent-section"],
   & > [data-part="all-section"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-9);
+    gap: var(--noora-spacing-7);
   }
 
   & > [data-part="recent-section"] > [data-part="section-title"],
   & > [data-part="all-section"] > [data-part="section-title"] {
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    font: var(--noora-font-weight-regular) var(--noora-font-heading-medium);
   }
 
   & > [data-part="all-section"] > [data-part="search-form"] {

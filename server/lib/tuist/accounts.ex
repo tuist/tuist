@@ -10,6 +10,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AccountTokenProject
+  alias Tuist.Accounts.AgentAuth
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
@@ -25,13 +26,34 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.Kura
+  alias Tuist.FeatureFlags
   alias Tuist.Namespace
   alias Tuist.Repo
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
 
   @reset_password_delivery_cooldown_in_minutes 5
+
+  # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
+  # These delegators keep `Tuist.Accounts` as the single context facade.
+  defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+
+  defdelegate revoke_agent_registrations(logout_token, audience),
+    to: AgentAuth,
+    as: :revoke_registrations
+
+  defdelegate agent_registration_credential_revoked?(claims),
+    to: AgentAuth,
+    as: :credential_revoked?
+
+  defdelegate resend_agent_registration_claim(attrs), to: AgentAuth, as: :resend_claim
+  defdelegate complete_agent_registration_claim(attrs), to: AgentAuth, as: :complete_claim
+
+  defdelegate get_agent_registration_claim_view(claim_view_token),
+    to: AgentAuth,
+    as: :get_claim_view
 
   def new_organizations_in_last_hour do
     Repo.all(from(o in Organization, where: o.created_at > ago(1, "hour"), preload: [:account]))
@@ -79,6 +101,22 @@ defmodule Tuist.Accounts do
 
   def get_account_by_handle(handle) do
     Repo.one(from(a in Account, where: ilike(a.name, ^handle)))
+  end
+
+  @doc """
+  Batch lookup for `get_account_by_handle/1`. Returns a map of
+  `handle => account_id` for every handle that resolves. Handles that
+  don't match an account are simply absent from the map.
+
+  Use this instead of mapping over `get_account_by_handle/1` to avoid
+  the N+1 query pattern when resolving Kura-style handle batches.
+  """
+  def get_account_ids_by_handles(handles) when is_list(handles) do
+    handles = Enum.uniq(handles)
+
+    from(a in Account, where: a.name in ^handles, select: {a.name, a.id})
+    |> Repo.all()
+    |> Map.new()
   end
 
   @doc ~S"""
@@ -317,7 +355,8 @@ defmodule Tuist.Accounts do
 
         {:ok, organization}
 
-      {:error, part, changeset, _changes} when part in [:organization, :account] ->
+      {:error, part, changeset, _changes}
+      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -367,6 +406,12 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_for_account(account)
+    end)
+    |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+      RunnerProfiles.create_default_macos_for_account(account)
     end)
     |> Multi.run(:role, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -518,7 +563,7 @@ defmodule Tuist.Accounts do
 
     query =
       if provider in [:okta, :oauth2] do
-        from o in query, where: o.provider_organization_id == ^provider_organization_id
+        from(o in query, where: o.provider_organization_id == ^provider_organization_id)
       else
         query
       end
@@ -651,6 +696,12 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_for_account(account)
+      end)
+      |> Multi.run(:default_macos_runner_profile, fn _repo, %{account: account} ->
+        RunnerProfiles.create_default_macos_for_account(account)
+      end)
 
     user_account =
       if is_nil(oauth2_identity) do
@@ -686,6 +737,10 @@ defmodule Tuist.Accounts do
         else
           {:error, changeset}
         end
+
+      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
+        {:error, :internal_server_error}
     end
   end
 
@@ -1193,6 +1248,54 @@ defmodule Tuist.Accounts do
     Repo.exists?(oauth2_identity_query)
   end
 
+  @doc """
+  Returns true when SSO is enforced for the given email — either because an
+  existing user belongs to at least one organization with `sso_enforced: true`,
+  or because no user exists yet but the email's domain maps to an SSO-enforced
+  organization (Okta or generic OAuth2 / OIDC, the providers whose org id is
+  derived from the email domain).
+
+  Used by the auth.md agent-registration flow to refuse minting MCP credentials
+  for SSO-managed users via mailbox proof or trusted agent-provider assertions:
+  those paths bypass the configured IdP and would otherwise be a back door
+  around the organization's SSO policy.
+  """
+  def sso_enforced_for_email?(email) when is_binary(email) do
+    case get_user_by_email(email) do
+      {:ok, user} -> user_has_sso_enforced_organization?(user)
+      {:error, :not_found} -> email_domain_has_sso_enforced_organization?(email)
+    end
+  end
+
+  def sso_enforced_for_email?(_email), do: false
+
+  defp user_has_sso_enforced_organization?(user) do
+    user
+    |> get_user_organization_accounts()
+    |> Enum.any?(fn %{organization: organization} -> organization.sso_enforced end)
+  end
+
+  defp email_domain_has_sso_enforced_organization?(email) do
+    case String.split(email, "@") do
+      [_username, domain] ->
+        okta_domain = String.replace(domain, ".com", ".okta.com")
+        url_domain = "https://#{domain}"
+
+        Repo.exists?(
+          from(o in Organization,
+            where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
+            where:
+              o.sso_organization_id == ^domain or
+                o.sso_organization_id == ^okta_domain or
+                o.sso_organization_id == ^url_domain
+          )
+        )
+
+      _ ->
+        false
+    end
+  end
+
   def organization_admin?(%User{id: user_id}, %Organization{} = %{id: organization_id}) do
     query =
       from(u in UserRole,
@@ -1528,11 +1631,12 @@ defmodule Tuist.Accounts do
 
   defp recently_sent_reset_password_instructions?(%User{id: user_id}) do
     Repo.exists?(
-      from t in UserToken,
+      from(t in UserToken,
         where:
           t.user_id == ^user_id and
             t.context == "reset_password" and
             t.inserted_at > ago(@reset_password_delivery_cooldown_in_minutes, "minute")
+      )
     )
   end
 
@@ -1839,41 +1943,51 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle and cache technology.
+  Returns cache endpoint URLs for the given account handle.
 
-  For the default cache technology, custom endpoints are only returned when:
+  Ready account Kura endpoints are preferred when present unless the account is
+  opted out through `:kura_cache_opt_out`. Kura servers mirror their public URL
+  into `account_cache_endpoints` only after the public endpoint is ready, so
+  clients do not need explicit opt-in once an account has an available server.
+
+  When there is no ready account Kura endpoint, custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
-
-  For Kura, account-specific endpoints are returned only when they have been configured.
   """
-  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
-
-  def get_cache_endpoints_for_handle(account_handle, :default) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      account_handle
-      |> get_account_by_handle()
-      |> custom_cache_endpoints()
-      |> case do
-        [] -> CacheEndpoints.active_endpoint_urls()
-        endpoints -> Enum.map(endpoints, & &1.url)
-      end
+      hosted_cache_endpoints_for_handle(account_handle)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(account_handle, :kura) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+
+  defp hosted_cache_endpoints_for_handle(account_handle) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> kura_cache_endpoint_urls(account)
-      _ -> []
+      %Account{} = account -> cache_endpoint_urls(account)
+      _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_, :default), do: CacheEndpoints.active_endpoint_urls()
-  def get_cache_endpoints_for_handle(_, :kura), do: []
+  defp cache_endpoint_urls(%Account{} = account) do
+    case kura_cache_endpoint_urls(account) do
+      [] -> custom_cache_endpoint_urls(account)
+      endpoints -> endpoints
+    end
+  end
+
+  defp custom_cache_endpoint_urls(%Account{} = account) do
+    account
+    |> custom_cache_endpoints()
+    |> case do
+      [] -> CacheEndpoints.active_endpoint_urls()
+      endpoints -> Enum.map(endpoints, & &1.url)
+    end
+  end
 
   defp custom_cache_endpoints(%Account{custom_cache_endpoints_enabled: true} = account) do
     if custom_cache_endpoints_available?(account) do
@@ -1885,18 +1999,20 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(%Account{} = account) do
+    if FeatureFlags.kura_cache_opted_out?(account) do
+      []
+    else
+      list_account_cache_endpoints(account, :kura)
+    end
+  end
+
   defp kura_cache_endpoints(_), do: []
 
   defp kura_cache_endpoint_urls(%Account{} = account) do
-    endpoints = kura_cache_endpoints(account)
-    global_candidate_url = Kura.global_cache_endpoint_candidate_url(account)
-
-    case {endpoints, Kura.global_cache_endpoint_url(account)} do
-      {[], _global_url} -> []
-      {_endpoints, global_url} when is_binary(global_url) -> [global_url]
-      {endpoints, _global_url} -> endpoints |> Enum.map(& &1.url) |> Enum.reject(&(&1 == global_candidate_url))
-    end
+    account
+    |> kura_cache_endpoints()
+    |> Enum.map(& &1.url)
   end
 
   @doc """

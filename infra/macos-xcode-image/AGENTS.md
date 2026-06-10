@@ -25,6 +25,7 @@ Published to `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`:
 |-----------------|--------------------|--------------------------------------|--------------------------------|
 | 26.5            | `:26-5`            | `/Applications/Xcode_26.5.app`       | _(none — already major-minor)_ |
 | 26.4.1          | `:26-4-1`          | `/Applications/Xcode_26.4.1.app`     | `Xcode_26.4.app` → `Xcode_26.4.1.app` |
+| 26.3            | `:26-3`            | `/Applications/Xcode_26.3.app`       | _(none — already major-minor)_ |
 | 26.0.1          | `:26-0-1`          | `/Applications/Xcode_26.0.1.app`     | `Xcode_26.0.app` → `Xcode_26.0.1.app` |
 
 When `xcode_version` carries a patch component (three-segment
@@ -115,7 +116,7 @@ sizes (sum of OCI layer sizes ÷ 125 MB/s):
 |---|---|---|
 | `cirruslabs/macos-tahoe-base` (macOS floor) | 27 GB | 3.6 min |
 | `macos-tahoe-xcode` (full: +sims +tools +certs) | 60 GB | 8.0 min |
-| `tuist-xcresult-processor` on the full base | 68 GB | 9.1 min |
+| `tuist-xcresult-processor` on the full base | 60 GB | 8.0 min |
 
 Dropping the sims (the single biggest removable chunk) + tools +
 certs is what gets the processor's pull comfortably under the
@@ -196,12 +197,13 @@ gets the same toolchain.
 
 ```
 gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
+gh workflow run macos-xcode-image.yml -f xcode_version=26.3
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
 # slim variant for the xcresult-processor base:
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5 -f slim=true
 ```
 
-Push tag: 26.4.1 → `:26-4-1`, 26.5 → `:26-5`. Each invocation
+Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.5 → `:26-5`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them. The `slim=true`
@@ -212,7 +214,7 @@ distinct concurrency groups).
 The current Tahoe-era profile set is:
 - `:26-5` (latest 26.5.x, no patch released yet)
 - `:26-4-1`
-- `:26-3-y` (latest 26.3 patch — bump the workflow input as Apple ships patches)
+- `:26-3`
 - `:26-2-y`
 - `:26-1-y`
 - `:26-0-y`

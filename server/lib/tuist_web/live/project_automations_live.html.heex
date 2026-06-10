@@ -123,6 +123,14 @@
                         <:right_icon><.check /></:right_icon>
                       </.dropdown_item>
                       <.dropdown_item
+                        value="reliability_rate"
+                        label={dgettext("dashboard_projects", "Test reliability")}
+                        on_click="update_create_automation_form_metric"
+                        data-selected={@create_automation_form_metric == "reliability_rate"}
+                      >
+                        <:right_icon><.check /></:right_icon>
+                      </.dropdown_item>
+                      <.dropdown_item
                         value="test_updated"
                         label={dgettext("dashboard_projects", "Test updated")}
                         on_click="update_create_automation_form_metric"

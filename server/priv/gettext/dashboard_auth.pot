@@ -46,7 +46,7 @@ msgstr ""
 msgid "Binary caching"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:32
+#: lib/tuist_web/live/user_reset_password_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Change your password"
 msgstr ""
@@ -66,7 +66,7 @@ msgstr ""
 msgid "Choose a username"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:53
+#: lib/tuist_web/live/user_reset_password_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
 msgstr ""
@@ -203,7 +203,7 @@ msgstr ""
 msgid "Log in to your enterprise account via SSO"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:45
+#: lib/tuist_web/live/user_reset_password_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "New password"
 msgstr ""
@@ -224,7 +224,7 @@ msgstr ""
 msgid "Password"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:97
+#: lib/tuist_web/live/user_reset_password_live.ex:100
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
 msgstr ""
@@ -240,7 +240,7 @@ msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:63
-#: lib/tuist_web/live/user_reset_password_live.ex:60
+#: lib/tuist_web/live/user_reset_password_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "Reset password"
 msgstr ""
@@ -290,7 +290,7 @@ msgstr ""
 #: lib/tuist_web/live/user_login_live.ex:40
 #: lib/tuist_web/live/user_registration_live.ex:67
 #: lib/tuist_web/live/user_registration_live.ex:211
-#: lib/tuist_web/live/user_reset_password_live.ex:24
+#: lib/tuist_web/live/user_reset_password_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -382,7 +382,7 @@ msgstr ""
 msgid "Your account has been confirmed. You will be redirected shortly..."
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:34
+#: lib/tuist_web/live/user_reset_password_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
 msgstr ""

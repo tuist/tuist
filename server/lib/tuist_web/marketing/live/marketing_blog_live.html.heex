@@ -17,9 +17,11 @@
         data-part="main"
         href={
           TuistWeb.Marketing.MarketingHTML.localized_href(
-            Content.get_entry_slug(@highlighted_post)
+            Content.get_entry_href(@highlighted_post)
           )
         }
+        target={if Content.external_link?(@highlighted_post), do: "_blank"}
+        rel={if Content.external_link?(@highlighted_post), do: "noopener noreferrer"}
       >
         <img data-part="image" src={Content.get_entry_image_url(@highlighted_post)} />
         <div data-part="content">
@@ -87,7 +89,9 @@
       <.link
         :for={post <- @filtered_posts}
         data-part="post"
-        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_slug(post))}
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_href(post))}
+        target={if Content.external_link?(post), do: "_blank"}
+        rel={if Content.external_link?(post), do: "noopener noreferrer"}
       >
         <img data-part="image" src={Content.get_entry_image_url(post)} />
         <div data-part="content">

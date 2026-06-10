@@ -67,32 +67,7 @@ jobs:
         working-directory: infra/runner-image
         run: packer init -upgrade runner.pkr.hcl
 
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM on this host, not just the
-        # one this workflow produces. The sibling
-        # `xcresult-processor-image` workflow runs on the same host
-        # and leaves its working VM behind (and vice versa); each
-        # VM is ~80 GB, and on an M1-M's 256 GB SSD they accumulate
-        # fast and the next `tart clone` fails with "The file
-        # couldn't be saved because there isn't enough space."
-        # Filtering on `Source=local` keeps the cached OCI base
-        # image (`ghcr.io/cirruslabs/macos-tahoe-xcode:26.4`,
-        # ~70 GB) so the next clone is still fast — `tart prune`
-        # below is what reclaims that cache when an image is
-        # upgraded. The `--older-than 1` vms prune doesn't catch
-        # the clones because `tart list` updates the access time.
-        # New image-bake workflows on this host don't need this
-        # step updated; their VMs get cleaned up the same way.
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
+      - uses: ./.github/actions/reclaim-tart-disk
 
       - name: Build image
         id: build
@@ -116,22 +91,71 @@ jobs:
             runner.pkr.hcl
           echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
 
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ inputs.xcode_version }}
+        # packer-plugin-tart v1.20.0 builds leave the VM bundle
+        # without `nvram.bin`, so the very next `tart push` uploads
+        # config + disk successfully then fails with
+        # `Error: The file "nvram.bin" doesn't exist.` Restore it
+        # from a fresh clone of the base image (no provisioner ever
+        # mutates auxiliary storage from inside the guest, so the
+        # base's nvram is equivalent for our purposes).
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
+
       - name: Push image to GHCR
         id: push
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # Tart's OCI-cache prune fires opportunistically during
+          # `tart push`'s internal staging step and races the push
+          # of the source VM bundle — when it loses, nvram.bin is
+          # truncated mid-upload (see cirruslabs/tart#860). Disable
+          # the prune for the duration of the push; the cache was
+          # already trimmed at the start of the job by the
+          # `reclaim-tart-disk` composite action and won't grow
+          # before push completes.
+          TART_NO_AUTO_PRUNE: "1"
+        # Direct tart push. Cirrus uses the same path to publish
+        # macos-tahoe-xcode at the same size; the prior bridge through
+        # a local registry was an unsuccessful workaround on a
+        # different host's structurally bad network. Outer 3× retry
+        # stays as belt-and-braces; blob uploads are content-
+        # addressed so a re-push only re-uploads layers that didn't
+        # make it on the previous attempt.
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           PROFILE="${{ steps.build.outputs.profile }}"
-          # Per-profile sha tag so a dispatch build is clearly
-          # distinguishable from the official `:macos-<dashes>` rolling
-          # tag that release.yml owns.
-          tart push tuist-runner "ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
-          echo "Pushed ghcr.io/tuist/tuist-runner:${PROFILE}-${GIT_SHA}"
-          echo "tag=${PROFILE}-${GIT_SHA}" >> "$GITHUB_OUTPUT"
+          TAG="${PROFILE}-${GIT_SHA}"
+          for attempt in 1 2 3; do
+            echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
+            if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
+              echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
+              echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
+            sleep 60
+          done
+          echo "tart push failed three times in a row" >&2
+          exit 1
 
       - name: Cleanup
         if: always()

@@ -319,16 +319,6 @@ impl IoController {
         .await
     }
 
-    pub async fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
-        let path = self.validate_path(path)?;
-        self.run("read", 0, async {
-            fs::read(&path)
-                .await
-                .map_err(|error| format!("failed to read {}: {error}", path.display()))
-        })
-        .await
-    }
-
     pub async fn remove_file_if_exists(&self, path: &Path) {
         match self.path_exists(path).await {
             Ok(true) => {

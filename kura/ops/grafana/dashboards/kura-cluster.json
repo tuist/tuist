@@ -301,8 +301,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, region, route) (rate(kura_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{region}} {{route}}",
+          "expr": "histogram_quantile(0.95, sum by (le, region) (rate(kura_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{region}}",
           "refId": "A"
         }
       ],
@@ -489,8 +489,8 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, region, target, operation) (rate(kura_replication_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{region}} -> {{target}} {{operation}}",
+          "expr": "histogram_quantile(0.95, sum by (le, region, operation) (rate(kura_replication_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{region}} {{operation}}",
           "refId": "A"
         }
       ],

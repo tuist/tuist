@@ -1286,6 +1286,78 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_skips_scheme_without_buildable_targets_for_build_action() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.default)
+
+            let projectPath = try temporaryPath().appending(component: "Project")
+            let scheme = Scheme.test(
+                name: "AllTests",
+                testAction: .test(
+                    targets: [
+                        .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                    ]
+                )
+            )
+            // Reset so testableTarget resolves to nil; setUp registers a default non-nil stub that
+            // would otherwise be matched first.
+            buildGraphInspector.reset()
+            given(buildGraphInspector)
+                .testableSchemes(graphTraverser: .any)
+                .willReturn([])
+            given(buildGraphInspector)
+                .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+                .willReturn([])
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([scheme])
+            // The scheme still references a test target, but every testable is excluded (e.g. by
+            // selective testing or --skip-test-targets), so there is nothing buildable left.
+            given(buildGraphInspector)
+                .testableTarget(
+                    scheme: .any,
+                    testPlan: .any,
+                    testTargets: .any,
+                    skipTestTargets: .any,
+                    graphTraverser: .any,
+                    action: .any
+                )
+                .willReturn(nil)
+
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(
+                            projects: [
+                                projectPath: .test(
+                                    path: projectPath,
+                                    targets: [.test(name: "TargetA")],
+                                    schemes: [scheme]
+                                ),
+                            ]
+                        ),
+                        MapperEnvironment()
+                    )
+                }
+
+            // When / Then: finishes successfully without throwing schemeWithoutTestableTargets
+            try await testRun(
+                path: try temporaryPath(),
+                action: .build,
+                skipTestTargets: [try TestIdentifier(string: "TargetA")]
+            )
+
+            XCTAssertEmpty(testedSchemes)
+            XCTAssertStandardOutput(pattern: "has no testable targets to build, skipping")
+        }
+    }
+
     func test_run_tests_when_part_is_cached() async throws {
         try await withMockedDependencies {
             // Given
@@ -3689,6 +3761,9 @@ final class TestServiceTests: TuistUnitTestCase {
             given(xcResultService)
                 .parse(path: .any, rootDirectory: .any)
                 .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
 
             uploadResultBundleService.reset()
             given(uploadResultBundleService)

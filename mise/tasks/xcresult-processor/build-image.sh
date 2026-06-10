@@ -24,6 +24,9 @@ done
 echo "==> Building xcresult NIF..."
 "${SERVER_DIR}/native/xcresult_nif/build.sh"
 
+echo "==> Building xcactivitylog NIF..."
+"${SERVER_DIR}/native/xcactivitylog_nif/build.sh"
+
 echo "==> Building server release (MIX_ENV=prod)..."
 cd "${SERVER_DIR}"
 MIX_ENV=prod mix deps.get --only prod

@@ -58,7 +58,7 @@ defmodule Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting do
     ## Available MCP tools
 
     - **list_projects**: List all accessible projects.
-    - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters).
+    - **list_test_runs**: List test runs for a project (supports git_branch, status, scheme filters, and richer query expressions such as `-git_branch~"gh-readonly-queue"`).
     - **get_test_run**: Get detailed test run info including `xcode_selective_testing_targets`, `xcode_selective_testing_local_hits`, and `xcode_selective_testing_remote_hits`.
     - **list_xcode_test_targets**: List per-target selective testing hit/miss status and hash for a test run. Supports `hit_status` filter (miss, local, remote).
 

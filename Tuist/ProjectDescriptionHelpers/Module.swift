@@ -42,6 +42,7 @@ public enum Module: String, CaseIterable {
     case cas = "TuistCAS"
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
+    case jobSummary = "TuistJobSummary"
     case http = "TuistHTTP"
     case har = "TuistHAR"
     case cacheCommand = "TuistCacheCommand"
@@ -413,6 +414,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testCommand.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "XcodeProj"),
                 ]
             case .dependencies:
                 [
@@ -507,7 +509,7 @@ public enum Module: String, CaseIterable {
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
              .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
              .xcodeBuildProducts,
-             .http, .har, .configLoader, .machineMetrics, .appleArchiver:
+             .http, .har, .configLoader, .machineMetrics, .appleArchiver, .jobSummary:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
@@ -735,11 +737,13 @@ public enum Module: String, CaseIterable {
                     .external(name: "XCLogParser"),
                     .external(name: "OrderedSet"),
                     .external(name: "Crypto"),
+                    .external(name: "SwifterPMCore"),
                 ]
             case .kit:
                 [
                     .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.jobSummary.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
@@ -1105,6 +1109,14 @@ public enum Module: String, CaseIterable {
             case .launchctl:
                 [
                     .external(name: "Command"),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .jobSummary:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.ci.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .external(name: "FileSystem"),
@@ -1630,6 +1642,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
                 ]
             case .tuistFixtureGenerator:
                 [
@@ -1646,6 +1660,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
+                    .external(name: "SwifterPMCore"),
                 ]
             case .projectDescription:
                 [
@@ -1658,6 +1673,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
+                    .target(name: Module.jobSummary.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
@@ -1976,6 +1992,14 @@ public enum Module: String, CaseIterable {
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
+                ]
+            case .jobSummary:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.ci.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
                 ]
             case .oidc:
                 [

@@ -1,0 +1,117 @@
+name: ESO Token Refresh
+
+# Break-glass remediation for a stale External Secrets Operator credential.
+#
+# The `onepassword` ClusterSecretStore authenticates to 1Password with a
+# Service Account token stamped into the `onepassword/onepassword-sa-token`
+# Secret once per cluster at bootstrap (bootstrap-workload.sh). If that token
+# later expires / is rotated out from under the cluster, EVERY ExternalSecret
+# starts failing auth ("bad credentials: failed to authenticate") and anything
+# gated on a synced secret (server deploy, observability, tailscale) stalls.
+#
+# Two things have to happen to recover, and this workflow does both:
+#   1. Re-stamp onepassword-sa-token from the env's OP_SERVICE_ACCOUNT_TOKEN —
+#      the same service account, scoped to the tuist-k8s-<env> vault the store
+#      reads, that CI already uses to fetch the kubeconfig (so it's current by
+#      construction).
+#   2. Restart the ESO controller. Its onepasswordSDK provider builds its
+#      1Password client once and caches it for the controller's lifetime; it
+#      does NOT re-read the token on a plain reconcile, so a rotated token only
+#      takes effect after a restart.
+#
+# It's a manual dispatch, not a per-deploy step: a stale token is a rare
+# out-of-band event, and gating every deploy on it would put a rarely-needed
+# remediation on the critical path. Run it when ExternalSecrets show
+# SecretSyncedError / "bad credentials".
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - canary
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: Refresh ESO 1Password token (${{ inputs.environment }})
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-${{ inputs.environment }}
+    timeout-minutes: 10
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ inputs.environment }}" \
+            --vault "tuist-k8s-${{ inputs.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Re-stamp onepassword-sa-token
+        # The token flows through the pipe into `kubectl apply`, never echoed;
+        # GHA also masks secrets.OP_SERVICE_ACCOUNT_TOKEN in step output. Same
+        # create-secret shape as bootstrap-workload.sh:338.
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          kubectl create namespace onepassword \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n onepassword create secret generic onepassword-sa-token \
+            --from-literal=token="$OP_SERVICE_ACCOUNT_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+      - name: Restart ESO so it reloads the token
+        # Always restart: this workflow is invoked because ESO is misbehaving,
+        # so even an unchanged token may be paired with a stale cached client.
+        run: |
+          set -euo pipefail
+          kubectl -n platform rollout restart deployment platform-external-secrets
+          kubectl -n platform rollout status deployment platform-external-secrets --timeout=180s
+      - name: Force reconcile + verify ExternalSecrets recover
+        run: |
+          set -euo pipefail
+          kubectl get externalsecrets.external-secrets.io -A \
+            -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' \
+            | while IFS=/ read -r ns name; do
+                [ -n "$ns" ] || continue
+                kubectl -n "$ns" annotate externalsecrets.external-secrets.io "$name" \
+                  force-sync="$(date +%s%N)" --overwrite >/dev/null 2>&1 || true
+              done
+          deadline=$(( $(date +%s) + 180 ))
+          while :; do
+            errored="$(kubectl get externalsecrets.external-secrets.io -A --no-headers 2>/dev/null \
+              | grep -c 'SecretSyncedError' || true)"
+            total="$(kubectl get externalsecrets.external-secrets.io -A --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+            echo "ExternalSecrets still erroring: ${errored}/${total}"
+            [ "${errored}" = "0" ] && break
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::ExternalSecrets still failing after restamp + restart. The OP_SERVICE_ACCOUNT_TOKEN itself may be invalid or lack vault access."
+              kubectl get externalsecrets.external-secrets.io -A
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "All ExternalSecrets synced."

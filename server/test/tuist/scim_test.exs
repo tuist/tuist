@@ -6,6 +6,7 @@ defmodule Tuist.SCIMTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
   alias Tuist.SCIM
+  alias Tuist.SCIM.Workers.AttachmentNotifierWorker
 
   describe "tokens" do
     test "create_token/2 issues a usable bearer and persists only its hash" do
@@ -110,17 +111,62 @@ defmodule Tuist.SCIMTest do
       assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
     end
 
-    test "provision_user/2 rejects existing users outside the organization", %{organization: org} do
-      _existing = user_fixture(email: "outsider@example.com")
+    test "provision_user/2 attaches an existing Tuist user to the organization", %{organization: org} do
+      existing = user_fixture(email: "outsider@example.com")
+      refute Accounts.belongs_to_organization?(existing, org)
 
-      assert {:error, :email_taken} = SCIM.provision_user(org, %{user_name: "outsider@example.com"})
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "outsider@example.com", role: :admin})
+      assert user.id == existing.id
+      assert Accounts.belongs_to_organization?(user, org)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+
+      assert_enqueued(
+        worker: AttachmentNotifierWorker,
+        args: %{"user_id" => existing.id, "organization_id" => org.id}
+      )
     end
 
-    test "provision_user/2 with active: false does not add the user to the organization", %{organization: org} do
+    test "provision_user/2 does not enqueue a notification when a brand-new user is created", %{organization: org} do
+      assert {:ok, _user} = SCIM.provision_user(org, %{user_name: "fresh@example.com"})
+
+      refute_enqueued(worker: AttachmentNotifierWorker)
+    end
+
+    test "provision_user/2 does not re-notify an existing org member on idempotent calls", %{organization: org} do
+      existing = user_fixture(email: "member@example.com")
+      :ok = Accounts.add_user_to_organization(existing, org, role: :user)
+
+      assert {:ok, _} = SCIM.provision_user(org, %{user_name: "member@example.com", role: :admin})
+
+      refute_enqueued(worker: AttachmentNotifierWorker)
+    end
+
+    test "provision_user/2 with active: false does not add a brand-new user to the organization", %{organization: org} do
       assert {:ok, user} = SCIM.provision_user(org, %{user_name: "carol@example.com", active: false})
       assert user.active == false
       assert Accounts.get_user_by_id(user.id).active == true
       refute Accounts.belongs_to_organization?(user, org)
+    end
+
+    test "provision_user/2 with active: false rejects an existing user who isn't a member of the org", %{
+      organization: org
+    } do
+      _existing = user_fixture(email: "stranger@example.com")
+
+      # 201 + Location for a user we never attach would point at a SCIM
+      # resource that immediately 404s on GET. Reject with 409 so the IdP
+      # uses PATCH (the verb actually meant for deactivation) instead.
+      assert {:error, :email_taken} =
+               SCIM.provision_user(org, %{user_name: "stranger@example.com", active: false})
+    end
+
+    test "provision_user/2 with active: false deactivates an existing member", %{organization: org} do
+      existing = user_fixture(email: "leaving@example.com")
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      assert {:ok, user} = SCIM.provision_user(org, %{user_name: "leaving@example.com", active: false})
+      assert user.active == false
+      refute Accounts.belongs_to_organization?(existing, org)
     end
 
     test "list_users/2 paginates with a userName filter", %{organization: org} do

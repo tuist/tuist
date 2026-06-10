@@ -94,6 +94,35 @@ build {
     ]
   }
 
+  # Install tailscale + tailscaled inside the VM. Homebrew's tailscale
+  # formula builds the open-source variant from upstream Go source (no
+  # GUI app, no .pkg postinstall scripts) — same headless-server shape
+  # the Mac mini host bootstrap uses, just compiled locally in the VM
+  # rather than cross-compiled in the operator image.
+  #
+  # tart-cri's vmnet networking gives the VM NAT-style outbound only;
+  # without tailscaled inside the VM there is no path from VM userspace
+  # to a tailnet CGNAT address (the Mac mini host's tailscaled lives
+  # outside the vmnet bridge). Putting tailscaled in the image makes
+  # each VM a first-class tailnet member that can dial the Tailscale
+  # operator-managed pooler proxy directly. Linux runner microVMs reach
+  # in-cluster Services the same way modulo network: their Kata CNI
+  # gives them an overlay identity, ours gives them a tailnet identity.
+  #
+  # `install-system-daemon` lays the canonical
+  # /Library/LaunchDaemons/com.tailscale.tailscaled.plist that the
+  # tailscaled binary itself ships and load. tailscale-up.sh (run from
+  # the xcresult-processor plist below) authenticates against the
+  # per-VM auth key the K8s Deployment injects via TAILSCALE_AUTH_KEY.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/opt/homebrew/bin/brew install tailscale",
+      "echo 'admin' | sudo -S /opt/homebrew/bin/tailscaled install-system-daemon",
+      "/opt/homebrew/bin/tailscale version"
+    ]
+  }
+
   # Sanity check: xcresulttool has to be reachable AND able to parse
   # a real bundle before the processor ever calls it. `version`
   # alone is not enough — the NIF shells out to `xcresulttool get
@@ -165,6 +194,18 @@ build {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "rm -f /tmp/inject-env.sh"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/tailscale-up.sh"
+    destination = "/tmp/tailscale-up.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tailscale-up.sh /opt/tuist/tailscale-up.sh",
+      "rm -f /tmp/tailscale-up.sh"
     ]
   }
 

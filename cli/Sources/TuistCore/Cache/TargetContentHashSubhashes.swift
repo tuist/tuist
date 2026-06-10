@@ -36,6 +36,10 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
     public let additionalStrings: [String]
     /// Hash for external project targets (e.g., Swift packages).
     public let external: String?
+    /// Hash of the resolved set of products embedded into the target (resource bundles and embedded
+    /// frameworks). This is an emergent property of the dependency closure that isn't captured by the
+    /// per-dependency content hashes, so it's tracked separately.
+    public let embeddedProductReferences: String?
 
     public init(
         sources: String? = nil,
@@ -53,7 +57,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         targetSettings: String? = nil,
         buildableFolders: String? = nil,
         additionalStrings: [String] = [],
-        external: String? = nil
+        external: String? = nil,
+        embeddedProductReferences: String? = nil
     ) {
         self.sources = sources
         self.resources = resources
@@ -71,6 +76,7 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
         self.buildableFolders = buildableFolders
         self.additionalStrings = additionalStrings
         self.external = external
+        self.embeddedProductReferences = embeddedProductReferences
     }
 
     #if DEBUG
@@ -90,7 +96,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
             targetSettings: String? = nil,
             buildableFolders: String? = nil,
             additionalStrings: [String] = [],
-            external: String? = nil
+            external: String? = nil,
+            embeddedProductReferences: String? = nil
         ) -> TargetContentHashSubhashes {
             TargetContentHashSubhashes(
                 sources: sources,
@@ -108,7 +115,8 @@ public struct TargetContentHashSubhashes: Codable, Hashable, Sendable {
                 targetSettings: targetSettings,
                 buildableFolders: buildableFolders,
                 additionalStrings: additionalStrings,
-                external: external
+                external: external,
+                embeddedProductReferences: embeddedProductReferences
             )
         }
     #endif

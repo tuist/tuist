@@ -25,6 +25,24 @@ func TestRenderLaunchdPlist_OmitsNodeLabelsWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_OmitsProviderIDWhenEmpty(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--provider-id") {
+		t.Fatalf("expected --provider-id to be absent when ProviderID is empty\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersProviderID(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:   "n1",
+		SSHUser:    "m1",
+		ProviderID: "scw-applesilicon://fr-par-1/abc-123",
+	})
+	if !strings.Contains(out, "<string>--provider-id=scw-applesilicon://fr-par-1/abc-123</string>") {
+		t.Fatalf("expected --provider-id flag in plist\n%s", out)
+	}
+}
+
 func TestRenderLaunchdPlist_RendersFleetLabel(t *testing.T) {
 	out := renderLaunchdPlist(Config{
 		NodeName:   "n1",
@@ -50,6 +68,24 @@ func TestRenderLaunchdPlist_RendersMultipleLabelsSorted(t *testing.T) {
 	want := "--node-labels=tuist.dev/fleet=tuist-runners,tuist.dev/instance-type=large"
 	if !strings.Contains(out, want) {
 		t.Fatalf("expected %q in plist\n%s", want, out)
+	}
+}
+
+func TestRenderLaunchdPlist_OmitsDisableVMGCForPureNode(t *testing.T) {
+	out := renderLaunchdPlist(Config{NodeName: "n1", SSHUser: "m1"})
+	if strings.Contains(out, "--disable-vm-gc") {
+		t.Fatalf("expected --disable-vm-gc to be absent on a pure Node (no GHActionsRunner)\n%s", out)
+	}
+}
+
+func TestRenderLaunchdPlist_RendersDisableVMGCForBuilder(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:        "n1",
+		SSHUser:         "m1",
+		GHActionsRunner: &GHActionsRunnerConfig{},
+	})
+	if !strings.Contains(out, "<string>--disable-vm-gc</string>") {
+		t.Fatalf("expected --disable-vm-gc in plist for a builder host\n%s", out)
 	}
 }
 

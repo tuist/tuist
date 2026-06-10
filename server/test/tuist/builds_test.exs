@@ -1,5 +1,5 @@
 defmodule Tuist.BuildsTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Builds
@@ -1560,6 +1560,7 @@ defmodule Tuist.BuildsTest do
       assert "node1" in node_ids
       assert "node3" in node_ids
       refute "node2" in node_ids
+      assert Enum.all?(outputs, &(&1.project_id == build.project_id))
     end
 
     test "returns empty list when node_ids is empty" do

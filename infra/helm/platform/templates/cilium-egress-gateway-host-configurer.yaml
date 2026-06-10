@@ -1,0 +1,64 @@
+{{- with .Values.ciliumEgressGateway.server }}
+{{- if and .enabled .hostConfigurator.enabled }}
+{{- $egressIP := required "ciliumEgressGateway.server.egressIP is required when ciliumEgressGateway.server.hostConfigurator.enabled=true" .egressIP }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ printf "%s-host-configurer" .name | quote }}
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: {{ printf "%s-host-configurer" .name | quote }}
+    app.kubernetes.io/component: stable-egress
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ printf "%s-host-configurer" .name | quote }}
+      app.kubernetes.io/component: stable-egress
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ printf "%s-host-configurer" .name | quote }}
+        app.kubernetes.io/component: stable-egress
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        {{- toYaml .gatewayNodeSelector | nindent 8 }}
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: host-configurer
+          image: {{ .hostConfigurator.image | quote }}
+          imagePullPolicy: {{ .hostConfigurator.imagePullPolicy | quote }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          env:
+            - name: EGRESS_IP
+              value: {{ $egressIP | quote }}
+            - name: INTERFACE
+              value: {{ .hostConfigurator.interface | quote }}
+            - name: GATEWAY
+              value: {{ .hostConfigurator.gateway | quote }}
+            - name: ROUTE_TABLE
+              value: {{ .hostConfigurator.routeTable | quote }}
+            - name: RULE_PRIORITY
+              value: {{ .hostConfigurator.rulePriority | quote }}
+            - name: RECONCILE_INTERVAL_SECONDS
+              value: {{ .hostConfigurator.reconcileIntervalSeconds | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              while true; do
+                ip addr replace "${EGRESS_IP}/32" dev "${INTERFACE}"
+                ip route replace "${GATEWAY}" dev "${INTERFACE}" scope link table "${ROUTE_TABLE}"
+                ip route replace default via "${GATEWAY}" dev "${INTERFACE}" src "${EGRESS_IP}" table "${ROUTE_TABLE}"
+
+                if ! ip rule show | grep -q "from ${EGRESS_IP} lookup ${ROUTE_TABLE}"; then
+                  ip rule add from "${EGRESS_IP}/32" table "${ROUTE_TABLE}" priority "${RULE_PRIORITY}" 2>/dev/null || true
+                fi
+
+                sleep "${RECONCILE_INTERVAL_SECONDS}"
+              done
+{{- end }}
+{{- end }}

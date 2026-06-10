@@ -24,6 +24,9 @@ This file provides guidance to AI agents when working with code in this reposito
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
 - `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
+- `infra/cnpg/` - CloudNativePG bootstrap SQL for the in-cluster Postgres on managed envs. The chart renders the cluster CR whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`. See `infra/cnpg/README.md`.
+- `tuist-ops/` - Internal ops Phoenix app: Slack-driven JIT elevation bot (`/webhooks/slack/*`) plus the impersonation policy endpoint (`/api/v1/policy`) called by the kubectl gateway. Single-replica deploy in the production cluster, decoupled from `server/`. See `tuist-ops/AGENTS.md`.
+- `kube-impersonator/` - Tiny Go sidecar deployed alongside Pomerium in each env's `pomerium` namespace. Reads `X-Pomerium-Claim-Email` per kubectl request, calls `tuist-ops/api/v1/policy` over the tailnet to resolve the right `Impersonate-User` + `Impersonate-Group(s)`, attaches the pod SA bearer, reverse-proxies to the apiserver. Fails closed if the policy call fails. See `kube-impersonator/AGENTS.md`.
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
@@ -337,7 +340,7 @@ When creating or modifying security policies:
 3. **Key considerations**:
    - Keep policies practical for a 4-person company
    - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Render, Supabase, Tigris, Cloudflare) handle their own layer security
+   - Infrastructure providers (Hetzner, Tigris, Cloudflare) handle their own layer security
    - Focus on application-layer responsibilities
 
 ## Navigation Configuration
@@ -387,8 +390,8 @@ description: Brief description of the page content
    - Practical implementation requirements
 
 3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Render for application hosting
-   - Supabase for database services
+   - Hetzner for compute (CAPI-managed Kubernetes clusters)
+   - CloudNativePG for in-cluster Postgres
    - Tigris for data storage
    - Cloudflare for CDN and edge services
 

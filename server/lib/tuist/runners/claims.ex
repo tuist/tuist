@@ -10,8 +10,6 @@ defmodule Tuist.Runners.Claims do
        inside a single Postgres transaction, holding an
        advisory lock keyed on `account_id` for the duration:
 
-         * cap re-check against `accounts.runner_max_concurrent`
-           and a SELECT count(*) over this account's live rows
          * pod-in-use rejection if the polling Pod already owns
            a live claim (defends against the SA-token reuse
            attack: customer workflow code can read
@@ -22,16 +20,14 @@ defmodule Tuist.Runners.Claims do
            collapses concurrent attempts for the same job;
            the loser sees zero rows and bails with `:lost_race`
 
-       The advisory lock is the bit that makes the cap atomic
-       across pollers in different fleets — two warm pods for
-       the same account can't both pass the count check and
-       INSERT in parallel because they serialise on the lock.
+       The advisory lock serialises concurrent claim attempts
+       for the same account so the pod-in-use check and the
+       INSERT land atomically.
 
-    2. **Per-account cap count.** `counts_per_account/0` is a
-       single indexed `GROUP BY account_id` against this table.
-       Cap is account-level (NOT fleet-level), so this query
-       does not filter by fleet — an account at cap=1 can't run
-       one job per pool.
+    2. **Per-account inflight count.** `counts_per_account/0` is
+       a single indexed `GROUP BY account_id` against this table
+       — a cheap read of how many runners each account is
+       currently using, across all fleets.
 
   Lifecycle column (`lifecycle_state`):
 
@@ -62,7 +58,6 @@ defmodule Tuist.Runners.Claims do
 
   import Ecto.Query
 
-  alias Tuist.Accounts.Account
   alias Tuist.Repo
   alias Tuist.Runners.Claim
 
@@ -86,22 +81,13 @@ defmodule Tuist.Runners.Claims do
       JIT and call `mark_running/2` on success.
     * `{:error, :lost_race}` — another pod beat us to the
       `workflow_job_id` PK.
-    * `{:error, :over_cap}` — account is already at
-      `runner_max_concurrent`.
-    * `{:error, :runners_disabled}` — account's
-      `runner_max_concurrent` is 0 or nil. Cap-check fires
-      even if dispatch let the candidate through, in case ops
-      flipped the knob between webhook arrival and claim.
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
-    * `{:error, :unknown_account}` — `account_id` has no row.
   """
   def attempt(workflow_job_id, account_id, fleet_name, pod_name)
       when is_integer(workflow_job_id) and is_integer(account_id) and is_binary(fleet_name) and is_binary(pod_name) do
     Repo.transaction(fn ->
       with :ok <- acquire_account_lock(account_id),
-           {:ok, cap} <- fetch_cap(account_id),
-           :ok <- check_cap(account_id, cap),
            :ok <- check_pod_not_in_use(pod_name) do
         case insert_claim(workflow_job_id, account_id, fleet_name, pod_name) do
           {:ok, claim} -> claim
@@ -120,20 +106,6 @@ defmodule Tuist.Runners.Claims do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, {:lock_failed, reason}}
     end
-  end
-
-  defp fetch_cap(account_id) do
-    case Repo.one(from(a in Account, where: a.id == ^account_id, select: a.runner_max_concurrent)) do
-      nil -> {:error, :unknown_account}
-      cap -> {:ok, cap}
-    end
-  end
-
-  defp check_cap(_account_id, cap) when is_nil(cap) or cap <= 0, do: {:error, :runners_disabled}
-
-  defp check_cap(account_id, cap) when is_integer(cap) and cap > 0 do
-    inflight = Repo.one(from(c in Claim, where: c.account_id == ^account_id, select: count(c.workflow_job_id)))
-    if inflight >= cap, do: {:error, :over_cap}, else: :ok
   end
 
   defp check_pod_not_in_use(pod_name) do
@@ -257,18 +229,13 @@ defmodule Tuist.Runners.Claims do
 
   @doc """
   Counts active claims per account **across all fleets**. Returns
-  `%{account_id => count}`. Powers the cap_lookup the dispatch
-  path builds before each claim attempt.
+  `%{account_id => count}` — how many runners each account is
+  currently using. Not fleet-scoped: an account's jobs spread
+  across pools all roll up to one per-account total.
 
-  Cap is account-level — `accounts.runner_max_concurrent` is the
-  customer's total concurrent runner budget across every pool
-  they reach. If we filtered by fleet, an account at cap=1 could
-  run one job per pool simultaneously (one in `default`, one in
-  `xcode-15`, etc.), breaching the contract.
-
-  Counts `claimed` and `running` together — both occupy a cap
-  slot. The lifecycle distinction matters for the stale reaper,
-  not for cap accounting.
+  Counts `claimed` and `running` together — both occupy a Pod.
+  The lifecycle distinction matters for the stale reaper, not
+  for this rollup.
   """
   def counts_per_account do
     from(c in Claim,
@@ -307,5 +274,19 @@ defmodule Tuist.Runners.Claims do
         }
       )
     )
+  end
+
+  @doc """
+  Returns the set of `pod_name`s that currently hold a live claim
+  (`claimed` or `running`). `OrphanedStampedPodsWorker` diffs the
+  owner-stamped Pods in Kubernetes against this set: a stamped Pod
+  absent here has no claim backing its label and is therefore a
+  leak the runner-pool reconciler can't see (the reconciler only
+  reaps idle, un-stamped Pods).
+  """
+  def live_pod_names do
+    from(c in Claim, select: c.pod_name, distinct: true)
+    |> Repo.all()
+    |> MapSet.new()
   end
 end

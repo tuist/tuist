@@ -78,11 +78,28 @@ spec:
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            # CNPG creates a `<cluster>-app` Secret carrying the owner
+            # role's URI. Override DATABASE_URL from the priv/secrets
+            # bundle so it points at the in-cluster cluster. The
+            # service hostname (`<cluster>-rw`) only ever resolves to the
+            # current primary; CNPG fails the Service over during a
+            # promotion.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  key: uri
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
             {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
             - name: DATABASE_URL
               value: {{ include "tuist.databaseUrl" . | quote }}
             - name: TUIST_USE_SSL_FOR_DATABASE
               value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
             - name: TUIST_CLICKHOUSE_URL
               value: {{ include "tuist.clickhouseUrl" . | quote }}
             - name: TUIST_SECRET_KEY_BASE
@@ -120,15 +137,91 @@ spec:
             - name: TUIST_DELEGATE_PROCESS_XCRESULT
               value: "1"
             {{- end }}
-            {{- if .Values.runnersFleet.enabled }}
+            {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
             # Runners namespace. The server reads RunnerPool CRs at
-            # dispatch time to discover the fleet name; per-customer
-            # config is `accounts.runner_max_concurrent` and has no
-            # chart-level setting.
+            # dispatch time to discover the fleet name; runner
+            # availability is gated by the `:runners` feature flag and
+            # has no chart-level setting.
             - name: TUIST_RUNNERS_NAMESPACE
               value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            # Identity gate for `POST /api/internal/runners/pods/stopped`:
+            # only the rendered runners-controller SA can close billing
+            # sessions. Mirrors the deployment-time identity defined in
+            # `runners-controller-deployment.yaml`.
+            - name: TUIST_RUNNERS_CONTROLLER_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            {{- end }}
+            {{- if .Values.runnersFleetLinux.enabled }}
+            # Prefix the dispatch path prepends to a shape key to address
+            # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+            # Injected from the same helper that names the CRs in
+            # runner-pool.yaml so the server always resolves to a pool a
+            # Pod actually polls, regardless of the helm release name.
+            - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.shapes }}
+            # Single source of truth for the shape catalog: inject the
+            # same `runnersFleetLinux.shapes` list that renders the
+            # RunnerPool CRs so the server's catalog (dashboard dropdown,
+            # profile validation, dispatch) can't drift from the pools
+            # that exist. Projected to the fields the server reads;
+            # config/runtime.exs parses it into `:runner_linux_shapes`.
+            {{- $serverShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverShapes = append $serverShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_SHAPES
+              value: {{ $serverShapes | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # macOS analogue of the Linux pool name prefix above. The
+            # chart's macOS RunnerPool CRs are named
+            # `<componentName>-runner-pool-macos-<xcode-dashes>` (per
+            # Xcode profile); injecting the prefix here keeps
+            # `Catalog.pool_name/1` in lockstep with the rendered CRs.
+            - name: TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") | quote }}
+            {{- with .Values.runnersFleet.shapes }}
+            # Same projection as the Linux shapes above, for the macOS
+            # fleet. M2-L is the only shape today; this is wired now so
+            # future shape diversity doesn't need a chart change.
+            {{- $serverMacosShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverMacosShapes = append $serverMacosShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_SHAPES
+              value: {{ $serverMacosShapes | toJson | quote }}
+            {{- end }}
+            {{- with .Values.runnersFleet.xcodeVersions }}
+            # macOS Xcode catalog injection. Mirrors the shape pattern:
+            # one source for the chart pool rendering (planned) and the
+            # server's `:runner_macos_xcode_versions` validation.
+            {{- $serverXcodeVersions := list }}
+            {{- range . }}
+            {{- $entry := dict "xcodeVersion" (.xcodeVersion | toString) }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverXcodeVersions = append $serverXcodeVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
+              value: {{ $serverXcodeVersions | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+            # Namespace of the CNPG Cluster + Backup CRs (this release's
+            # namespace). The /ops/db Backups tab lists those CRs via the
+            # K8s API; the server SA's read grant is in postgresql-cnpg.yaml.
+            - name: TUIST_CNPG_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
             {{- end }}
             {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
             {{- include "tuist.githubEnv" . | nindent 12 }}
             {{- if or .Values.server.masterKey .Values.server.managedSecrets }}
             - name: MASTER_KEY
@@ -188,12 +281,20 @@ spec:
             - name: TUIST_CACHE_ENDPOINTS
               value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
             {{- end }}
+            - name: TUIST_CACHE_S3_BUCKET_NAME
+              value: {{ .Values.cache.s3.bucket | quote }}
+            - name: TUIST_CACHE_XCODE_S3_BUCKET_NAME
+              value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            {{- with .Values.server.kuraEndpointUrls }}
+            - name: TUIST_KURA_ENDPOINTS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- if .Values.kuraRuntime.image.tag }}
             - name: TUIST_KURA_RUNTIME_IMAGE_TAG
               value: {{ .Values.kuraRuntime.image.tag | quote }}
             {{- end }}
-            - name: TUIST_KURA_REQUIRE_GLOBAL_ENDPOINTS
-              value: {{ ternary "true" "false" .Values.kuraGlobalEndpointsRequired | quote }}
+            - name: TUIST_KURA_TUIST_BASE_URL
+              value: {{ printf "http://%s.%s.svc.cluster.local:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
             {{- $redisUrl := include "tuist.redisUrl" . }}
             {{- if and .Values.redis.enabled $redisUrl }}
             - name: TUIST_REDIS_URL

@@ -20,7 +20,11 @@ MCP and <.localized_link href="/guides/features/agentic-coding/skills">Skills</.
 
 ## Configuration
 
-Add `https://tuist.dev/mcp` as a remote MCP server in your client. Authentication happens through OAuth automatically. The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
+Add `https://tuist.dev/mcp` as a remote MCP server in your client. Tuist advertises both OAuth discovery metadata and an `auth.md` file at `https://tuist.dev/auth.md`.
+
+Clients that already support remote MCP OAuth can continue authenticating in the browser. Clients and agents that support `auth.md` can use Tuist's agent registration endpoints. Tuist supports agent-verified ID-JAG registration, user-claimed anonymous start with an API key, and user-claimed email-required registration with either an access token or API key.
+
+The MCP endpoint uses the `mcp` scope group, which grants read-only access to all your projects. The resulting credential is still user-scoped, so account setup tools are only available when the authenticated user has the required permissions. See the <.localized_link href="/guides/server/authentication#scope-groups">scope groups documentation</.localized_link> for details.
 
 <details>
 <summary>Claude Code</summary>
@@ -105,6 +109,8 @@ Open **Agent panel → Settings → Add Custom Server**, then set:
 
 </details>
 
+If your agent supports `auth.md`, you can connect without opening a browser. Depending on the agent, Tuist will either confirm with the agent provider directly or email you a secure link with a six-digit code to read back to the agent.
+
 
 ## Capabilities
 
@@ -145,7 +151,7 @@ The following tools are available through the Tuist MCP server:
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `list_test_runs` | List test runs for a project. | `account_handle`, `project_handle` |
+| `list_test_runs` | List test runs for a project. Supports exact filters such as `git_branch`, `status`, and `scheme`, plus richer `query` expressions such as `-git_branch~"gh-readonly-queue"`. | `account_handle`, `project_handle` |
 | `get_test_run` | Get detailed metrics for a test run. | `test_run_id` |
 | `list_test_module_runs` | List test module runs for a specific test run. | `test_run_id` |
 | `list_test_suite_runs` | List test suite runs for a specific test run, optionally filtered by module. | `test_run_id` |

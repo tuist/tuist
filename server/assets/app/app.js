@@ -37,6 +37,10 @@ import StopRowNavigate from "./js/StopRowNavigate.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import SubmitOnCmdEnter from "./js/SubmitOnCmdEnter.js";
+import CopyToClipboard from "./js/CopyToClipboard.js";
+import DownloadAsFile from "./js/DownloadAsFile.js";
+import ScrollToTail from "./js/ScrollToTail.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
 import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
@@ -58,13 +62,22 @@ Hooks.StopRowNavigate = StopRowNavigate;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 Hooks.TextAttachmentContent = TextAttachmentContent;
+Hooks.SubmitOnCmdEnter = SubmitOnCmdEnter;
+Hooks.CopyToClipboard = CopyToClipboard;
+Hooks.DownloadAsFile = DownloadAsFile;
+Hooks.ScrollToTail = ScrollToTail;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 Hooks.ThemeToggle = ThemeToggle;
 
+// On localhost, the WS drops every time the dev server restarts or the
+// live reloader fires. With longpoll fallback enabled, the client gives
+// up on WS too quickly and pins itself to longpoll, which then loops
+// into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
+// https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : 2500,
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,

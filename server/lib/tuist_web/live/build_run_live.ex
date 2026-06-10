@@ -109,10 +109,12 @@ defmodule TuistWeb.BuildRunLive do
     project = socket.assigns.selected_project
     run_id = run.id
 
-    has_binary_cache_data = command_event != nil and Xcode.has_binary_cache_data?(command_event)
+    binary_cache_command_event = binary_cache_command_event(run, command_event)
+    has_binary_cache_data = binary_cache_command_event != nil
 
     socket
     |> assign(:command_event, command_event)
+    |> assign(:binary_cache_command_event, binary_cache_command_event)
     |> assign(:has_binary_cache_data, has_binary_cache_data)
     |> assign(:test_run, test_run)
     |> assign(:cas_metrics, cas_metrics)
@@ -132,6 +134,26 @@ defmodule TuistWeb.BuildRunLive do
       storage_key = Builds.build_storage_key(project.account.name, project.name, run_id)
       {:ok, %{has_build_download: Tuist.Storage.object_exists?(storage_key, project.account)}}
     end)
+  end
+
+  # The Module Cache breakdown lives on the command event that carries the xcode_graph.
+  # `tuist test`/`tuist xcodebuild build` builds have it on their own command event (linked by
+  # build_run_id). Builds made straight from Xcode have no such command event, so they point at the
+  # graph uploaded by the last `tuist generate` via `generation_id`, which is that generate command
+  # event's id. The project check guards against a build referencing another project's command event.
+  defp binary_cache_command_event(run, command_event) do
+    if command_event != nil and Xcode.has_binary_cache_data?(command_event) do
+      command_event
+    else
+      with generation_id when not is_nil(generation_id) <- run.generation_id,
+           {:ok, event} <- CommandEvents.get_command_event_by_id(generation_id),
+           true <- event.project_id == run.project_id,
+           true <- Xcode.has_binary_cache_data?(event) do
+        event
+      else
+        _ -> nil
+      end
+    end
   end
 
   @impl true
@@ -1357,7 +1379,7 @@ defmodule TuistWeb.BuildRunLive do
          %{
            assigns: %{
              selected_tab: "module-cache",
-             command_event: command_event,
+             binary_cache_command_event: command_event,
              binary_cache_available_filters: available_filters
            }
          } = socket,

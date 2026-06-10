@@ -36,6 +36,14 @@ packer {
 # a rebuild on every runner-image commit costs ~2 min instead of
 # ~30 min.
 #
+# Active Xcode versions baked per release are listed in
+# `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml`. `release.yml`'s
+# `runner-image-build` job fans out across those versions, publishing
+# one `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag
+# per profile that each managed env's chart references via
+# `runnersFleet.runnerImageSemver`.
+#
 # Image layout (mirrors GitHub-hosted macOS paths so on-disk
 # artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
 # Xcode DerivedData, `actions/cache` payloads — work interchangeably

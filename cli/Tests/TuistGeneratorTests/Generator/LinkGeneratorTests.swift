@@ -396,7 +396,7 @@ final class LinkGeneratorTests: XCTestCase {
             .willReturn(dependencies)
 
         // When
-        try subject.generateLinks(
+        _ = try subject.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -533,49 +533,6 @@ final class LinkGeneratorTests: XCTestCase {
             "$(inherited)",
             "my/custom/path",
             "$(SRCROOT)/Dependencies/Frameworks",
-            "$(SRCROOT)/Dependencies/XCFrameworks",
-        ])
-    }
-
-    func test_setupFrameworkSearchPath() throws {
-        // Given
-        let dependencies = [
-            GraphDependencyReference.testFramework(path: "/path/Dependencies/Frameworks/A.framework"),
-            GraphDependencyReference.testFramework(path: "/path/Dependencies/Frameworks/B.framework"),
-            GraphDependencyReference.testLibrary(path: "/path/Dependencies/Libraries/libC.a"),
-            GraphDependencyReference.testLibrary(path: "/path/Dependencies/Libraries/libD.a"),
-            GraphDependencyReference.testXCFramework(path: "/path/Dependencies/XCFrameworks/E.xcframework"),
-            GraphDependencyReference.testSDK(path: "/libc++.tbd"),
-            GraphDependencyReference.testSDK(path: "/CloudKit.framework"),
-            GraphDependencyReference.testSDK(path: "/XCTest.framework", source: .developer),
-            GraphDependencyReference.testProduct(target: "Foo", productName: "Foo.framework"),
-        ].shuffled()
-        let sourceRootPath = try AbsolutePath(validating: "/path")
-        let xcodeprojElements = createXcodeprojElements()
-        xcodeprojElements.config.buildSettings["FRAMEWORK_SEARCH_PATHS"] = "my/custom/path"
-        let target = Target.test()
-        let path = try AbsolutePath(validating: "/path/")
-        let graphTraverser = MockGraphTraversing()
-        given(graphTraverser)
-            .searchablePathDependencies(path: .any, name: .any)
-            .willReturn(Set(dependencies))
-        // When
-        try subject.setupFrameworkSearchPath(
-            target: target,
-            pbxTarget: xcodeprojElements.pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
-        // Then
-        let config = xcodeprojElements.config
-        XCTAssertEqual(config.buildSettings["FRAMEWORK_SEARCH_PATHS"]?.arrayValue, [
-            "$(inherited)",
-            "my/custom/path",
-            "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-            "$(SRCROOT)/Dependencies/Frameworks",
-            "$(SRCROOT)/Dependencies/Libraries",
             "$(SRCROOT)/Dependencies/XCFrameworks",
         ])
     }

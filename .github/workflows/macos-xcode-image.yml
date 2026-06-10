@@ -132,20 +132,7 @@ jobs:
             fi
           done
 
-      - name: Reclaim Tart disk
-        # Delete every locally-cloned VM; see runner-image.yml's
-        # same step for the rationale (sibling image-bake workflows
-        # on this host leave their VMs behind, ~80 GB each).
-        run: |
-          set -uo pipefail
-          tart list || true
-          df -h /
-          tart list | awk '$1 == "local" { print $2 }' | while read -r vm; do
-            tart stop "$vm" 2>/dev/null || true
-            tart delete "$vm" 2>/dev/null || true
-          done
-          tart prune --entries caches --older-than 0
-          df -h /
+      - uses: ./.github/actions/reclaim-tart-disk
 
       - name: Build image
         id: build

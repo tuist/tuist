@@ -47,7 +47,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
 #     when actions/setup-{node,python,ruby,...} compiles them
 #   - archive: zip + bzip2 + p7zip-full (unzip + xz-utils already
 #     covered above)
-#   - VCS extras: git-lfs (assumed present by many CI workflows)
+#   - VCS extras: git-lfs (assumed present by many CI workflows),
+#     openssh-client for ssh-agent / scp / git-over-ssh (required by
+#     webfactory/ssh-agent and any workflow step that talks SSH)
 #   - DB clients: client-only — services land in containers in
 #     workflows that need them
 #   - common CLI utilities: ripgrep, fd-find, tree, less, vim,
@@ -105,6 +107,7 @@ RUN apt-get update \
         p7zip-full \
         file \
         git-lfs \
+        openssh-client \
         postgresql-client \
         mariadb-client \
         redis-tools \
@@ -124,9 +127,11 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# kubectl + helm: GitHub's Ubuntu runner image pre-installs both
-# via `install-kubernetes-tools.sh` so every k8s deploy / sweep
-# workflow in the repo assumes they're on `/usr/local/bin`.
+# kubectl + helm + gh: GitHub's Ubuntu runner image pre-installs all
+# three (kubectl/helm via `install-kubernetes-tools.sh`, gh via
+# `install-github-cli.sh`), so workflow steps assume they're on
+# `/usr/local/bin` — k8s deploy / sweep jobs reach for kubectl/helm,
+# and jobs that dispatch workflows or comment on PRs reach for gh.
 # Mirror that posture here. Versions are Renovate-managed; bumps
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
@@ -134,6 +139,8 @@ RUN apt-get update \
 ARG KUBECTL_VERSION=1.36.1
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.2.0
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION=2.93.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \
@@ -145,14 +152,40 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && mv "/tmp/linux-${ARCH}/helm" /usr/local/bin/helm \
     && rm -rf /tmp/helm.tgz "/tmp/linux-${ARCH}" \
     && chmod 0755 /usr/local/bin/helm \
-    && helm version --short
+    && helm version --short \
+    && curl -fSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+         -o /tmp/gh.tgz \
+    && tar -xzf /tmp/gh.tgz -C /tmp \
+    && mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh \
+    && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${ARCH}" \
+    && chmod 0755 /usr/local/bin/gh \
+    && gh --version
+
+# Docker CLI + buildx + compose plugins. The daemon runs in the
+# `dind` native sidecar (`docker:dind`); this image carries only
+# the client side. `docker-buildx-plugin` isn't in Ubuntu's repos
+# and `docker.io` lags upstream, so we use download.docker.com.
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && . /etc/os-release \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        docker-ce-cli \
+        docker-buildx-plugin \
+        docker-compose-plugin \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. `actions/runner` refuses to register as
-# root unless `RUNNER_ALLOW_RUNASROOT=1` is set — explicitly opt
-# out by creating a dedicated user. The user gets passwordless
-# sudo so workflow steps can install packages without prompting,
-# matching the GitHub-hosted runner experience.
-RUN useradd -m -d /home/runner -s /bin/bash runner \
+# root unless `RUNNER_ALLOW_RUNASROOT=1` is set. Passwordless sudo
+# matches the hosted-runner experience. The `docker` group GID is
+# pinned to 123 to match the `--group=123` arg the controller
+# passes to dockerd in the sidecar, so the runner can reach
+# /var/run/docker.sock without sudo.
+RUN groupadd -g 123 docker \
+    && useradd -m -d /home/runner -s /bin/bash -G docker runner \
     && echo "runner ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
     && mkdir -p /home/runner/actions-runner \
     && chown -R runner:runner /home/runner
@@ -170,11 +203,20 @@ RUN curl -fSL "https://github.com/actions/runner/releases/download/v${RUNNER_VER
     && rm /tmp/actions-runner.tar.gz
 
 USER root
+# dispatch-poll.sh runs in the `poller` init container (holds the SA
+# token, stages the JIT); run-job.sh runs in the `runner` main
+# container (no token, runs the staged JIT). The controller's
+# podtemplate wires which container runs which. See
+# infra/runners-controller/AGENTS.md for the split-credential shape.
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh
+COPY run-job.sh /usr/local/bin/run-job.sh
+COPY vitals.sh /usr/local/bin/vitals.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh
 
 USER runner
 
-# PID 1 is the polling script. It exec's the runner once a JIT
-# config lands, and exits normally when `./run.sh` returns.
+# Default CMD is the poll loop, used by the poller init container.
+# The runner main container overrides this with run-job.sh via the
+# controller's podtemplate. On a single-container (non-split)
+# deployment dispatch-poll.sh execs the runner itself.
 CMD ["/usr/local/bin/dispatch-poll.sh"]

@@ -14,7 +14,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-
+  @manifest_revision "2026-06-09-cross-region-peer-gateway-v1"
+  @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -74,15 +75,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def global_public_url(name, %Regions{} = region) do
-    case client_get_kura_instance(@namespace, name, region) do
-      {:ok, %{"status" => %{"globalPublicURL" => url}}} when is_binary(url) and url != "" -> url
-      {:ok, _} -> nil
-      {:error, _reason} -> nil
-    end
-  end
-
-  @impl true
   def current_image_tag(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
       {:ok, %{"status" => %{"observedImage" => image}}} -> {:ok, image_tag_from_image(image)}
@@ -90,6 +82,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  @impl true
+  def current_manifest_revision(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"metadata" => %{"annotations" => %{@manifest_revision_annotation => revision}}}} -> {:ok, revision}
+      {:ok, _} -> {:ok, nil}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @impl true
+  def manifest_revision, do: @manifest_revision
 
   @impl true
   def resources_for(%Server{}), do: %{}
@@ -122,31 +126,36 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{}, hook_script) do
+    account_handle = dns_handle(account.name)
+    peer_public_host = peer_public_host(account_handle, region)
+
     %{
       "apiVersion" => "kura.tuist.dev/v1alpha1",
       "kind" => "KuraInstance",
       "metadata" => %{
         "name" => name,
         "namespace" => @namespace,
+        "annotations" => %{
+          @manifest_revision_annotation => @manifest_revision
+        },
         "labels" => %{
           "app.kubernetes.io/name" => "kura",
           "app.kubernetes.io/instance" => name,
-          "tuist.dev/account" => account.name,
+          "tuist.dev/account" => account_handle,
           "tuist.dev/region" => region.id
         }
       },
       "spec" =>
         %{
-          "accountHandle" => account.name,
-          "tenantID" => account.name,
+          "accountHandle" => account_handle,
+          "tenantID" => account_handle,
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
-          "publicHost" => public_host(account.name, region),
-          "grpcPublicHost" => grpc_public_host(account.name, region),
-          "globalPublicHost" => global_public_host(account.name, region),
-          "globalGrpcPublicHost" => global_grpc_public_host(account.name, region),
-          "cloudflarePoolLatitude" => cloudflare_pool_latitude(region),
-          "cloudflarePoolLongitude" => cloudflare_pool_longitude(region),
+          "publicHost" => public_host(account_handle, region),
+          "grpcPublicHost" => grpc_public_host(account_handle, region),
+          "peerPublicHost" => peer_public_host,
+          "globalDiscoveryDNSName" => global_discovery_dns_name(account_handle, region),
+          "peerTLSSecretName" => peer_tls_secret_name(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -171,49 +180,51 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp grpc_public_host(_handle, _region), do: nil
 
-  def global_public_url_for_handle(handle, %Regions{} = region) do
-    case global_public_host(handle, region) do
-      nil -> nil
-      host -> "https://" <> host
-    end
-  end
-
-  defp global_public_host(handle, %Regions{provisioner_config: %{global_public_host_template: template} = config}) do
+  defp peer_public_host(handle, %Regions{provisioner_config: %{peer_public_host_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
   end
 
-  defp global_public_host(_handle, _region), do: nil
+  defp peer_public_host(_handle, _region), do: nil
 
-  defp global_grpc_public_host(handle, %Regions{
-         provisioner_config: %{global_grpc_public_host_template: template} = config
-       }) do
+  defp global_discovery_dns_name(handle, %Regions{provisioner_config: %{global_discovery_dns_template: template} = config}) do
     interpolate_host(template, dns_handle(handle), config)
   end
 
-  defp global_grpc_public_host(_handle, _region), do: nil
+  defp global_discovery_dns_name(_handle, _region), do: nil
 
-  defp cloudflare_pool_latitude(%Regions{provisioner_config: %{cloudflare_pool_latitude: latitude}}), do: latitude
-  defp cloudflare_pool_latitude(_), do: nil
+  defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
+       when is_binary(secret_name) and secret_name != "", do: secret_name
 
-  defp cloudflare_pool_longitude(%Regions{provisioner_config: %{cloudflare_pool_longitude: longitude}}), do: longitude
-  defp cloudflare_pool_longitude(_), do: nil
+  defp peer_tls_secret_name(_region), do: nil
 
-  # Tuist-platform-wide secrets (JWT verifier) are
+  # Tuist-platform-wide secrets (JWT verifier, control-plane client
+  # secret) are
   # mounted into the Kura pod from the shared kura-shared-secrets
   # Secret in the kura namespace, not embedded in the KuraInstance
   # spec. Anyone with list/watch on kurainstances can read its spec, so
-  # putting the global JWT secret there would leak forging material to
-  # every account that ever runs Kura. The controller's envFrom on the
-  # StatefulSet picks up that Secret automatically.
+  # putting global credentials there would leak them to every account
+  # that ever runs Kura. The controller's envFrom on the StatefulSet
+  # picks up that Secret automatically. Non-secret knobs such as the
+  # introspection client ID are safe to keep in the spec.
   defp extension_env(%Regions{} = region) do
     [
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
       env_var("KURA_EXTENSION_HOOK_TIMEOUT_MS", "5000"),
+      env_var("KURA_CONTROL_PLANE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL", tuist_base_url(region)),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_CONNECT_TIMEOUT_MS", "3000"),
       env_var("KURA_EXTENSION_HTTP_CLIENT_TUIST_REQUEST_TIMEOUT_MS", "4000")
-    ] ++ telemetry_env(region)
+    ] ++
+      maybe_env_var(
+        "KURA_CONTROL_PLANE_CLIENT_ID",
+        Tuist.Environment.kura_control_plane_client_id()
+      ) ++
+      maybe_env_var(
+        "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
+        Tuist.Environment.kura_control_plane_client_id()
+      ) ++
+      telemetry_env(region)
   end
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
@@ -224,6 +235,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp telemetry_env(_), do: []
 
   defp env_var(name, value), do: %{"name" => name, "value" => value}
+  defp maybe_env_var(_name, nil), do: []
+  defp maybe_env_var(_name, ""), do: []
+  defp maybe_env_var(name, value), do: [env_var(name, value)]
 
   defp tuist_base_url(%Regions{id: "local-controller"}) do
     Tuist.Environment.app_url()
@@ -231,6 +245,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     |> rewrite_loopback("host.docker.internal")
     |> URI.to_string()
   end
+
+  defp tuist_base_url(%Regions{provisioner_config: %{tuist_base_url: url}}) when is_binary(url) and url != "", do: url
 
   defp tuist_base_url(_), do: Tuist.Environment.app_url()
 
@@ -241,6 +257,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp rewrite_loopback(uri, _), do: uri
 
   defp storage_class(%Regions{provisioner_config: %{storage_class: storage_class}}), do: storage_class
+
   defp storage_class(_), do: nil
 
   defp storage_size(%Regions{provisioner_config: %{storage_size: storage_size}}), do: storage_size
@@ -250,6 +267,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp replicas(_), do: nil
 
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
+
   defp node_selector(_), do: nil
 
   defp interpolate_host(template, handle, %{cluster_id: cluster_id}) do

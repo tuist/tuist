@@ -39,7 +39,7 @@ jobs:
   build:
     name: Build and push Storybook image
     if: inputs.image_tag == ''
-    runs-on: namespace-profile-default-with-volume
+    runs-on: tuist-linux
     timeout-minutes: 30
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
@@ -69,7 +69,7 @@ jobs:
     name: Deploy production
     needs: build
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 20
     environment:
       name: server-k8s-production

@@ -19,7 +19,8 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // OS/arch triple stamped on the GitHub runner at JIT mint time.
 //
 // No customer fields here — customers are not modeled on the K8s
-// side. Per-customer config lives in `accounts.runner_max_concurrent`.
+// side. Runner availability is gated server-side by the `:runners`
+// feature flag.
 type RunnerPoolSpec struct {
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
@@ -87,13 +88,12 @@ type RunnerPoolSpec struct {
 	PodMemoryMB int32 `json:"podMemoryMB,omitempty"`
 
 	// RuntimeClass, when set, is stamped on the runner Pod's
-	// `spec.runtimeClassName`. The chart's `kata-fc` RuntimeClass
-	// routes Pod containers through Kata Containers + Firecracker
-	// so each runner Pod becomes a microVM with its own kernel,
-	// real per-tenant isolation, and ~5 MiB snapshot overhead. Empty
-	// (the v1 default) uses the cluster default runtime (runc on
-	// containerd), which is fine for macOS pools and single-tenant
-	// bare-metal Linux pools.
+	// `spec.runtimeClassName`. The chart's `kata-qemu` RuntimeClass
+	// wraps each Pod in a microVM with its own kernel — required on
+	// Linux pools because the controller attaches a privileged
+	// docker:dind sidecar to every Linux runner Pod. The microVM
+	// keeps the sidecar's privileged surface off the bare-metal
+	// host.
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
@@ -116,10 +116,15 @@ type RunnerPoolAutoscaling struct {
 	// +optional
 	Enabled bool `json:"enabled,omitempty"`
 
-	// MinWarmPoolFloor is the lower bound for the desired warm
-	// pool size. The server's rolling p95 of concurrent claims
-	// can lift the effective floor higher; this value only floors
-	// the floor.
+	// MinWarmPoolFloor is the preferred lower bound (target) for the
+	// desired warm pool size; the server's rolling p95 of concurrent
+	// claims can lift the effective target higher. It is a target, not
+	// a hard floor: in a shared Linux fleet (multiple shape pools
+	// bin-packing on one bare-metal node pool), the fleet allocator can
+	// squeeze an idle pool's desired below this value under memory
+	// contention to admit another shape's real queued work. macOS pools
+	// and uncontended Linux pools honor it as a floor; real load
+	// (claimed + queued) is always funded above it.
 	// +optional
 	MinWarmPoolFloor int32 `json:"minWarmPoolFloor,omitempty"`
 

@@ -1,0 +1,58 @@
+{{/*
+  Render a CNPG Pooler (PgBouncer) in front of the cluster's primary when
+  `postgresql.cnpg.pooler.enabled` is true. It is a transaction-mode
+  pooler for the PROCESSOR only, matching the processor's
+  `prepare: :unnamed` connection shape.
+
+  The web tier is intentionally not routed through it. It runs Oban,
+  whose PG notifier and Postgres-peer leader election need a session, so
+  *transaction* pooling is off-limits — a *session* pooler would be fine.
+  But the `-rw` Service is already the native session endpoint with
+  primary failover, so the web tier connects straight to it; adding a
+  session-mode PgBouncer hop wouldn't free up any backend slots.
+
+  Enabling is just a flag flip: because this Pooler sets no custom
+  certificate secrets, CNPG's built-in PgBouncer integration manages
+  authentication itself (it creates the `cnpg_pooler_pgbouncer` role and
+  the `user_search` function in the `postgres` database on reconcile and
+  issues the pooler's TLS cert). See infra/cnpg/README.md.
+*/}}
+{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.pooler.enabled }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: {{ include "tuist.cnpgServicePooler" . }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+spec:
+  cluster:
+    name: {{ include "tuist.cnpgClusterName" . }}
+  # `rw` targets the primary: the processor writes oban_jobs, so it can't
+  # be served from a read-only replica.
+  type: rw
+  instances: {{ .Values.postgresql.cnpg.pooler.instances }}
+  pgbouncer:
+    poolMode: {{ .Values.postgresql.cnpg.pooler.poolMode }}
+    {{- with .Values.postgresql.cnpg.pooler.parameters }}
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+    {{- end }}
+  {{- if .Values.postgresql.cnpg.pooler.tailscale.enabled }}
+  # CNPG renders these annotations onto the Pooler's Service. The
+  # Tailscale operator watches Services and, when `expose=true` is set,
+  # provisions a userspace proxy node on the tailnet that fronts the
+  # Service's ClusterIP. The result: the in-cluster pooler is reachable
+  # by Tailnet-only clients (macOS Tart VM xcresult-processor pods)
+  # without joining them to the K8s overlay or routing the pod/service
+  # CIDR through the existing subnet router.
+  serviceTemplate:
+    metadata:
+      annotations:
+        tailscale.com/expose: "true"
+        tailscale.com/hostname: {{ required "postgresql.cnpg.pooler.tailscale.hostname is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.hostname | quote }}
+        tailscale.com/tags: {{ required "postgresql.cnpg.pooler.tailscale.tags is required when tailscale.enabled is true" .Values.postgresql.cnpg.pooler.tailscale.tags | quote }}
+  {{- end }}
+{{- end }}

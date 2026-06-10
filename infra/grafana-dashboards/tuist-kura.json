@@ -26,7 +26,20 @@
     "fiscalYearStartMonth": 0,
     "graphTooltip": 1,
     "id": null,
-    "links": [],
+    "links": [
+      {
+        "asDropdown": false,
+        "icon": "external link",
+        "includeVars": false,
+        "keepTime": false,
+        "tags": [],
+        "targetBlank": true,
+        "title": "Source (GitHub)",
+        "tooltip": "View source file in repository",
+        "type": "link",
+        "url": "https://github.com/tuist/tuist/blob/main/infra/grafana-dashboards/tuist-kura.json"
+      }
+    ],
     "panels": [
       {
         "collapsed": false,
@@ -49,27 +62,22 @@
             "color": {
               "mode": "thresholds"
             },
-            "mappings": [
-              {
-                "options": {
-                  "0": {
-                    "color": "red",
-                    "text": "DOWN"
-                  },
-                  "1": {
-                    "color": "green",
-                    "text": "UP"
-                  }
-                },
-                "type": "value"
-              }
-            ],
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "footer": {
+                "reducers": []
+              },
+              "inspect": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
                 {
                   "color": "red",
-                  "value": null
+                  "value": 0
                 },
                 {
                   "color": "green",
@@ -78,44 +86,138 @@
               ]
             }
           },
-          "overrides": []
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Pod"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 260
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Cluster"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 160
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "Status"
+              },
+              "properties": [
+                {
+                  "id": "custom.width",
+                  "value": 90
+                },
+                {
+                  "id": "custom.cellOptions",
+                  "value": {
+                    "type": "color-background"
+                  }
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {
+                      "type": "value",
+                      "options": {
+                        "0": {
+                          "color": "red",
+                          "index": 1,
+                          "text": "DOWN"
+                        },
+                        "1": {
+                          "color": "green",
+                          "index": 0,
+                          "text": "UP"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
-          "h": 4,
-          "w": 6,
+          "h": 6,
+          "w": 24,
           "x": 0,
           "y": 1
         },
         "id": 27,
         "options": {
-          "colorMode": "background",
-          "graphMode": "none",
-          "justifyMode": "auto",
-          "orientation": "auto",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          },
-          "textMode": "value_and_name",
-          "wideLayout": true
+          "cellHeight": "sm",
+          "showHeader": true,
+          "sortBy": [
+            {
+              "displayName": "Pod"
+            }
+          ]
         },
         "pluginVersion": "11.0.0",
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "up{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "expr": "up{job=\"kura\", cluster=~\"$cluster\", instance=~\"$instance\", pod=~\"kura-(${tenant})-.*\"}",
             "instant": true,
-            "legendFormat": "{{instance}}",
+            "legendFormat": "__auto",
             "range": false,
-            "refId": "A"
+            "refId": "A",
+            "queryType": "instant"
           }
         ],
         "title": "Scrape Status",
-        "type": "stat"
+        "type": "table",
+        "transformations": [
+          {
+            "id": "labelsToFields",
+            "options": {
+              "mode": "columns"
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "container": true,
+                "endpoint": true,
+                "env": true,
+                "instance": true,
+                "job": true,
+                "k8s_cluster_name": true,
+                "namespace": true,
+                "service": true,
+                "tenant_id": true
+              },
+              "indexByName": {
+                "cluster": 1,
+                "pod": 0,
+                "up": 2
+              },
+              "renameByName": {
+                "cluster": "Cluster",
+                "pod": "Pod",
+                "up": "Status"
+              }
+            }
+          }
+        ]
       },
       {
         "datasource": "$datasource",
@@ -146,8 +248,8 @@
         "gridPos": {
           "h": 4,
           "w": 6,
-          "x": 6,
-          "y": 1
+          "x": 0,
+          "y": 7
         },
         "id": 28,
         "options": {
@@ -170,7 +272,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "instant": true,
             "legendFormat": "req/s",
             "range": false,
@@ -212,8 +314,8 @@
         "gridPos": {
           "h": 4,
           "w": 6,
-          "x": 12,
-          "y": 1
+          "x": 6,
+          "y": 7
         },
         "id": 29,
         "options": {
@@ -236,7 +338,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "expr": "sum((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"5..\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "instant": true,
             "legendFormat": "errors/s",
             "range": false,
@@ -278,8 +380,8 @@
         "gridPos": {
           "h": 4,
           "w": 6,
-          "x": 18,
-          "y": 1
+          "x": 12,
+          "y": 7
         },
         "id": 30,
         "options": {
@@ -302,7 +404,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "instant": true,
             "legendFormat": "p95",
             "range": false,
@@ -399,8 +501,8 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}}",
+            "expr": "sum by (pod) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "legendFormat": "{{pod}}",
             "refId": "A"
           }
         ],
@@ -465,7 +567,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"$route\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "topk(10, sum by (route) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", route=~\"$route\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "{{route}}",
             "refId": "A"
           }
@@ -531,7 +633,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"$status\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "expr": "sum by (status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", status=~\"$status\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{status}}",
             "refId": "A"
           }
@@ -597,21 +699,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_http_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -690,7 +792,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "expr": "sum by (result) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -756,7 +858,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
+            "expr": "sum by (result) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"result\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{result}}",
             "refId": "A"
           }
@@ -822,7 +924,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "expr": "sum by (producer) ((rate(kura_artifact_reads_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -888,7 +990,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
+            "expr": "sum by (producer) ((rate(kura_artifact_writes_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) or on() label_replace(vector(0), \"producer\", \"no_writes\", \"__name__\", \".*\")",
             "legendFormat": "{{producer}}",
             "refId": "A"
           }
@@ -967,8 +1069,8 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (outcome, instance) ((rate(kura_replication_apply_results_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}} {{outcome}}",
+            "expr": "sum by (outcome, pod) ((rate(kura_replication_apply_results_total_total{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "legendFormat": "{{pod}} {{outcome}}",
             "refId": "A"
           }
         ],
@@ -1033,21 +1135,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.50, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.95, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
+            "expr": "histogram_quantile(0.99, sum by (le) ((rate(kura_replication_request_duration_seconds_bucket{cluster=~\"$cluster\", instance=~\"$instance\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))) or on() vector(0)",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -1113,8 +1215,8 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance, route, status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route=~\"/_internal/.*\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}} {{route}} {{status}}",
+            "expr": "sum by (pod, route, status) ((rate(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", route=~\"/_internal/.*\"}[$__rate_interval])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
+            "legendFormat": "{{pod}} {{route}} {{status}}",
             "refId": "A"
           }
         ],
@@ -1143,14 +1245,33 @@
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1178,37 +1299,55 @@
         },
         "id": 42,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
-            "displayMode": "list",
-            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
             "showLegend": true
           },
           "tooltip": {
-            "mode": "single",
-            "sort": "none"
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
           }
         },
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}} usage",
-            "refId": "A"
+            "expr": "kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}} pinned",
-            "refId": "B"
+            "expr": "kura_rocksdb_block_cache_pinned_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "legendFormat": "{{pod}} pinned",
+            "refId": "B",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}} capacity",
-            "refId": "C"
+            "expr": "kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "legendFormat": "{{pod}} capacity",
+            "refId": "C",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
         "title": "RocksDB Block Cache Usage",
@@ -1223,14 +1362,33 @@
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1258,30 +1416,45 @@
         },
         "id": 43,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
-            "displayMode": "list",
-            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
             "showLegend": true
           },
           "tooltip": {
-            "mode": "single",
-            "sort": "none"
+            "hideZeros": false,
+            "mode": "multi",
+            "sort": "desc"
           }
         },
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}} usage",
-            "refId": "A"
+            "expr": "kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}} capacity",
-            "refId": "B"
+            "expr": "kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "legendFormat": "{{pod}} capacity",
+            "refId": "B",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
         "title": "RocksDB Write Buffer Usage",
@@ -1311,7 +1484,10 @@
                 }
               ]
             },
-            "unit": "percentunit"
+            "unit": "percentunit",
+            "color": {
+              "mode": "thresholds"
+            }
           },
           "overrides": []
         },
@@ -1323,7 +1499,18 @@
         },
         "id": 44,
         "options": {
-          "orientation": "auto",
+          "displayMode": "gradient",
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": false
+          },
+          "maxVizHeight": 300,
+          "minVizHeight": 10,
+          "minVizWidth": 0,
+          "namePlacement": "auto",
+          "orientation": "horizontal",
           "reduceOptions": {
             "calcs": [
               "lastNotNull"
@@ -1331,22 +1518,24 @@
             "fields": "",
             "values": false
           },
-          "showThresholdLabels": false,
-          "showThresholdMarkers": true
+          "showUnfilled": true,
+          "sizing": "auto",
+          "valueMode": "color"
         },
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "(kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "expr": "sort_desc(max by (pod) ((kura_rocksdb_block_cache_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_block_cache_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "instant": true,
-            "legendFormat": "{{instance}}",
+            "legendFormat": "{{pod}}",
             "range": false,
-            "refId": "A"
+            "refId": "A",
+            "queryType": "instant"
           }
         ],
         "title": "Block Cache Utilization",
-        "type": "gauge"
+        "type": "bargauge"
       },
       {
         "datasource": "$datasource",
@@ -1372,7 +1561,10 @@
                 }
               ]
             },
-            "unit": "percentunit"
+            "unit": "percentunit",
+            "color": {
+              "mode": "thresholds"
+            }
           },
           "overrides": []
         },
@@ -1384,7 +1576,18 @@
         },
         "id": 45,
         "options": {
-          "orientation": "auto",
+          "displayMode": "gradient",
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": false
+          },
+          "maxVizHeight": 300,
+          "minVizHeight": 10,
+          "minVizWidth": 0,
+          "namePlacement": "auto",
+          "orientation": "horizontal",
           "reduceOptions": {
             "calcs": [
               "lastNotNull"
@@ -1392,22 +1595,24 @@
             "fields": "",
             "values": false
           },
-          "showThresholdLabels": false,
-          "showThresholdMarkers": true
+          "showUnfilled": true,
+          "sizing": "auto",
+          "valueMode": "color"
         },
         "targets": [
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "(kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
+            "expr": "sort_desc(max by (pod) ((kura_rocksdb_write_buffer_usage_bytes{cluster=~\"$cluster\", instance=~\"$instance\"} / kura_rocksdb_write_buffer_capacity_bytes{cluster=~\"$cluster\", instance=~\"$instance\"}) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
             "instant": true,
-            "legendFormat": "{{instance}}",
+            "legendFormat": "{{pod}}",
             "range": false,
-            "refId": "A"
+            "refId": "A",
+            "queryType": "instant"
           }
         ],
         "title": "Write Buffer Utilization",
-        "type": "gauge"
+        "type": "bargauge"
       },
       {
         "collapsed": false,
@@ -1424,21 +1629,40 @@
       },
       {
         "datasource": "$datasource",
-        "description": "CPU busy per selected instance.",
+        "description": "CPU cores consumed per kura pod. No CPU limits are set, so absolute cores are shown.",
         "fieldConfig": {
           "defaults": {
             "color": {
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1454,7 +1678,7 @@
                 }
               ]
             },
-            "unit": "percentunit"
+            "unit": "short"
           },
           "overrides": []
         },
@@ -1466,12 +1690,17 @@
         },
         "id": 46,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
             "displayMode": "list",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
+            "hideZeros": false,
             "mode": "single",
             "sort": "none"
           }
@@ -1480,9 +1709,12 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}}",
-            "refId": "A"
+            "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
         "title": "CPU Usage",
@@ -1490,21 +1722,40 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Memory utilization per selected instance.",
+        "description": "Memory working set as % of configured limit per kura pod.",
         "fieldConfig": {
           "defaults": {
             "color": {
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1532,12 +1783,17 @@
         },
         "id": 47,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
             "displayMode": "list",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
+            "hideZeros": false,
             "mode": "single",
             "sort": "none"
           }
@@ -1546,9 +1802,12 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - ((node_memory_MemAvailable_bytes and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) / (node_memory_MemTotal_bytes and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
-            "legendFormat": "{{instance}}",
-            "refId": "A"
+            "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"}) / sum by (pod) (kube_pod_container_resource_limits{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\", resource=\"memory\"})",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
         "title": "Memory Usage",
@@ -1556,21 +1815,40 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Root filesystem space consumed per selected instance.",
+        "description": "Total disk reads + writes bytes per second per kura pod.",
         "fieldConfig": {
           "defaults": {
             "color": {
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1594,7 +1872,7 @@
                 }
               ]
             },
-            "unit": "percentunit"
+            "unit": "Bps"
           },
           "overrides": []
         },
@@ -1606,12 +1884,17 @@
         },
         "id": 48,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
             "displayMode": "list",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
+            "hideZeros": false,
             "mode": "single",
             "sort": "none"
           }
@@ -1620,12 +1903,15 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "1 - ((node_filesystem_avail_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})) / (node_filesystem_size_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})))",
-            "legendFormat": "{{instance}}",
-            "refId": "A"
+            "expr": "sum by (pod) (rate(container_fs_reads_bytes_total{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"}[$__rate_interval]) + rate(container_fs_writes_bytes_total{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
-        "title": "Disk Usage (root)",
+        "title": "Disk I/O",
         "type": "timeseries"
       },
       {
@@ -1637,14 +1923,33 @@
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1672,12 +1977,17 @@
         },
         "id": 49,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
             "displayMode": "list",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
+            "hideZeros": false,
             "mode": "single",
             "sort": "none"
           }
@@ -1686,16 +1996,22 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_receive_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}} rx",
-            "refId": "A"
+            "expr": "sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"kura\", pod=~\"kura-(${tenant})-.*\", cluster=~\"$cluster\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}} rx",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{device!~\"lo\"}[$__rate_interval]) and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"}))",
-            "legendFormat": "{{instance}} tx",
-            "refId": "B"
+            "expr": "sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"kura\", pod=~\"kura-(${tenant})-.*\", cluster=~\"$cluster\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}} tx",
+            "refId": "B",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
         "title": "Network Throughput",
@@ -1703,21 +2019,40 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Open file descriptors allocated by the OS per selected instance.",
+        "description": "Cumulative container restarts per kura pod - spikes indicate crashes or OOM kills.",
         "fieldConfig": {
           "defaults": {
             "color": {
               "mode": "palette-classic"
             },
             "custom": {
+              "axisBorderShow": false,
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
               "axisPlacement": "auto",
+              "barAlignment": 0,
+              "barWidthFactor": 0.6,
               "drawStyle": "line",
               "fillOpacity": 0,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
               "showPoints": "auto",
+              "showValues": false,
+              "spanNulls": false,
               "stacking": {
+                "group": "A",
                 "mode": "none"
               },
               "thresholdsStyle": {
@@ -1745,12 +2080,17 @@
         },
         "id": 50,
         "options": {
+          "annotations": {
+            "clustering": -1,
+            "multiLane": false
+          },
           "legend": {
             "displayMode": "list",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
+            "hideZeros": false,
             "mode": "single",
             "sort": "none"
           }
@@ -1759,12 +2099,15 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "node_filefd_allocated and on (instance) max by (instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})",
-            "legendFormat": "{{instance}}",
-            "refId": "A"
+            "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"kura\", container=\"kura\", cluster=~\"$cluster\", pod=~\"kura-(${tenant})-.*\"})",
+            "legendFormat": "{{pod}}",
+            "refId": "A",
+            "instant": false,
+            "range": true,
+            "queryType": "range"
           }
         ],
-        "title": "Open File Descriptors",
+        "title": "Container Restarts",
         "type": "timeseries"
       },
       {
@@ -1810,7 +2153,7 @@
           {
             "datasource": "$traces_datasource",
             "limit": 50,
-            "query": "{ resource.service.namespace = \"kura\" && span.http.route =~ \"/api/cache.*|/api/metro/cache.*|/v1/cache.*\" } with (most_recent=true)",
+            "query": "{ resource.service.namespace = \"kura\" && resource.service.name =~ \"kura-(${tenant})-.*\" && span.http.route =~ \"/api/cache.*|/api/metro/cache.*|/v1/cache.*\" } with (most_recent=true)",
             "queryType": "traceql",
             "refId": "A",
             "tableType": "traces"
@@ -1848,14 +2191,19 @@
         "id": 52,
         "options": {
           "dedupStrategy": "none",
+          "enableInfiniteScrolling": false,
           "enableLogDetails": true,
           "prettifyLogMessage": true,
           "showCommonLabels": false,
+          "showControls": false,
+          "showFieldSelector": false,
           "showLabels": false,
           "showLevel": true,
           "showLogAttributes": true,
           "showTime": true,
           "sortOrder": "Descending",
+          "timestampResolution": "ms",
+          "unwrappedColumns": false,
           "wrapLogMessage": false
         },
         "targets": [
@@ -1883,7 +2231,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Request origins for the selected tenant over the selected time range, alongside the tenant's serving regions.",
+        "description": "Server locations (blue squares) and request traffic volume (amber bubbles sized by req/s) on the same map. Fly.io-style: infrastructure markers sit on top of load bubbles.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1896,20 +2244,24 @@
                 "viz": false
               }
             },
-            "mappings": [],
             "thresholds": {
               "mode": "absolute",
               "steps": [
                 {
-                  "color": "blue",
+                  "color": "#f59e0b",
                   "value": null
                 },
                 {
-                  "color": "green",
-                  "value": 1
+                  "color": "#f97316",
+                  "value": 30
+                },
+                {
+                  "color": "#ef4444",
+                  "value": 80
                 }
               ]
-            }
+            },
+            "unit": "reqps"
           },
           "overrides": []
         },
@@ -1940,20 +2292,60 @@
                 "showLegend": true,
                 "style": {
                   "color": {
-                    "fixed": "#1d4ed8"
+                    "field": "Value",
+                    "fixed": "#f59e0b"
                   },
-                  "opacity": 0.8,
-                  "rotation": {
-                    "fixed": 0,
-                    "max": 360,
-                    "min": -360,
-                    "mode": "mod"
-                  },
+                  "opacity": 0.35,
                   "size": {
                     "field": "Value",
-                    "fixed": 12,
-                    "max": 18,
-                    "min": 10
+                    "fixed": 20,
+                    "max": 80,
+                    "min": 20
+                  },
+                  "symbol": {
+                    "fixed": "img/icons/marker/circle.svg",
+                    "mode": "fixed"
+                  },
+                  "symbolAlign": {
+                    "horizontal": "center",
+                    "vertical": "center"
+                  },
+                  "text": {
+                    "fixed": "",
+                    "mode": "fixed"
+                  },
+                  "textConfig": {
+                    "fontSize": 12,
+                    "offsetX": 0,
+                    "offsetY": 0
+                  }
+                }
+              },
+              "filterData": {
+                "id": "byRefId",
+                "options": "E"
+              },
+              "location": {
+                "latitude": "lat",
+                "longitude": "lon",
+                "mode": "coords"
+              },
+              "name": "Request traffic",
+              "tooltip": true,
+              "type": "markers"
+            },
+            {
+              "config": {
+                "showLegend": true,
+                "style": {
+                  "color": {
+                    "fixed": "#ffffff"
+                  },
+                  "opacity": 1,
+                  "size": {
+                    "fixed": 14,
+                    "max": 14,
+                    "min": 14
                   },
                   "symbol": {
                     "fixed": "img/icons/marker/circle.svg",
@@ -1969,9 +2361,9 @@
                     "mode": "field"
                   },
                   "textConfig": {
-                    "fontSize": 11,
+                    "fontSize": 12,
                     "offsetX": 0,
-                    "offsetY": -14,
+                    "offsetY": -18,
                     "textAlign": "center",
                     "textBaseline": "middle"
                   }
@@ -1979,123 +2371,14 @@
               },
               "filterData": {
                 "id": "byRefId",
-                "options": "A"
+                "options": "G"
               },
               "location": {
-                "gazetteer": "public/gazetteer/usa-states.json",
-                "lookup": "lookup",
-                "mode": "lookup"
+                "latitude": "lat",
+                "longitude": "lon",
+                "mode": "coords"
               },
-              "name": "US regions",
-              "tooltip": true,
-              "type": "markers"
-            },
-            {
-              "config": {
-                "showLegend": true,
-                "style": {
-                  "color": {
-                    "fixed": "#60a5fa"
-                  },
-                  "opacity": 0.8,
-                  "rotation": {
-                    "fixed": 0,
-                    "max": 360,
-                    "min": -360,
-                    "mode": "mod"
-                  },
-                  "size": {
-                    "field": "Value",
-                    "fixed": 12,
-                    "max": 18,
-                    "min": 10
-                  },
-                  "symbol": {
-                    "fixed": "img/icons/marker/circle.svg",
-                    "mode": "fixed"
-                  },
-                  "symbolAlign": {
-                    "horizontal": "center",
-                    "vertical": "center"
-                  },
-                  "text": {
-                    "field": "region",
-                    "fixed": "",
-                    "mode": "field"
-                  },
-                  "textConfig": {
-                    "fontSize": 11,
-                    "offsetX": 0,
-                    "offsetY": -14,
-                    "textAlign": "center",
-                    "textBaseline": "middle"
-                  }
-                }
-              },
-              "filterData": {
-                "id": "byRefId",
-                "options": "B"
-              },
-              "location": {
-                "gazetteer": "public/gazetteer/countries.json",
-                "lookup": "lookup",
-                "mode": "lookup"
-              },
-              "name": "Global regions",
-              "tooltip": true,
-              "type": "markers"
-            },
-            {
-              "config": {
-                "showLegend": true,
-                "style": {
-                  "color": {
-                    "fixed": "#d97706"
-                  },
-                  "opacity": 0.7,
-                  "rotation": {
-                    "fixed": 0,
-                    "max": 360,
-                    "min": -360,
-                    "mode": "mod"
-                  },
-                  "size": {
-                    "field": "Value",
-                    "fixed": 8,
-                    "max": 32,
-                    "min": 6
-                  },
-                  "symbol": {
-                    "fixed": "img/icons/marker/circle.svg",
-                    "mode": "fixed"
-                  },
-                  "symbolAlign": {
-                    "horizontal": "center",
-                    "vertical": "center"
-                  },
-                  "text": {
-                    "fixed": "",
-                    "mode": "fixed"
-                  },
-                  "textConfig": {
-                    "fontSize": 11,
-                    "offsetX": 0,
-                    "offsetY": -12,
-                    "textAlign": "center",
-                    "textBaseline": "middle"
-                  }
-                }
-              },
-              "filterData": {
-                "id": "byRefId",
-                "options": "C"
-              },
-              "location": {
-                "gazetteer": "public/gazetteer/countries.json",
-                "lookup": "lookup",
-                "mode": "lookup"
-              },
-              "name": "Request origins",
+              "name": "Server nodes",
               "tooltip": true,
               "type": "markers"
             }
@@ -2105,10 +2388,12 @@
           },
           "view": {
             "allLayers": true,
+            "dashboardVariable": false,
             "id": "coords",
-            "lat": 24,
-            "lon": 10,
-            "zoom": 1.2
+            "lat": 35,
+            "lon": -20,
+            "noRepeat": false,
+            "zoom": 1.5
           }
         },
         "pluginVersion": "11.0.0",
@@ -2116,32 +2401,45 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (region, country, subdivision, lookup) (label_replace(kura_node_geo_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\", country=\"US\", subdivision=~\"US-.*\"}, \"lookup\", \"$1\", \"subdivision\", \"US-(.*)\"))",
-            "format": "table",
+            "expr": "sum by (region) (\n  sum by (pod) (rate(kura_http_requests_total_total{cluster=~\"$cluster\", tenant_id=~\"$tenant\"}[5m]))\n  * on (pod) group_left(region) max by (pod, region) (kura_node_geo_info)\n) or sum by (region) (max by (pod, region) (kura_node_geo_info) * 0)",
+            "hide": true,
             "instant": true,
+            "legendFormat": "{{region}}",
+            "queryType": "instant",
             "range": false,
-            "refId": "A"
+            "refId": "D"
+          },
+          {
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "SELECT __value__ AS Value, region,\n  CASE region\n    WHEN 'us-east'    THEN 37.926868\n    WHEN 'us-west'    THEN 45.523064\n    WHEN 'eu-central' THEN 50.110922\n    ELSE 0\n  END AS lat,\n  CASE region\n    WHEN 'us-east'    THEN -77.054743\n    WHEN 'us-west'    THEN -122.676483\n    WHEN 'eu-central' THEN 8.682127\n    ELSE 0\n  END AS lon\nFROM D LIMIT 10",
+            "refId": "E",
+            "type": "sql"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (region, country, subdivision, lookup) (label_replace(kura_node_geo_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\", country!=\"unknown\", country!=\"US\"}, \"lookup\", \"$1\", \"country\", \"(.*)\"))",
-            "format": "table",
+            "expr": "max by (region) (kura_node_geo_info)",
+            "hide": true,
             "instant": true,
+            "legendFormat": "{{region}}",
+            "queryType": "instant",
             "range": false,
-            "refId": "B"
+            "refId": "F"
           },
           {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "label_replace(sum by (client_country) ((increase(kura_http_requests_total_total{cluster=~\"$cluster\", instance=~\"$instance\", region=~\"$region\", route!~\"/_internal/.*|/up|/ready|/status/rollout|/metrics|/_unmatched\", client_country!=\"unknown\"}[$__range])) and on (cluster, instance) max by (cluster, instance) (kura_node_info{cluster=~\"$cluster\", tenant_id=~\"$tenant\", instance=~\"$instance\", region=~\"$region\"})), \"lookup\", \"$1\", \"client_country\", \"(.*)\")",
-            "format": "table",
-            "instant": true,
-            "range": false,
-            "refId": "C"
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "SELECT region,\n  CASE region\n    WHEN 'us-east'    THEN 37.926868\n    WHEN 'us-west'    THEN 45.523064\n    WHEN 'eu-central' THEN 50.110922\n    ELSE 0\n  END AS lat,\n  CASE region\n    WHEN 'us-east'    THEN -77.054743\n    WHEN 'us-west'    THEN -122.676483\n    WHEN 'eu-central' THEN 8.682127\n    ELSE 0\n  END AS lon\nFROM F LIMIT 10",
+            "refId": "G",
+            "type": "sql"
           }
         ],
-        "title": "Tenant Geography",
+        "title": "Server Regions & Request Traffic",
         "type": "geomap"
       }
     ],
@@ -2155,7 +2453,7 @@
       "list": [
         {
           "current": {
-            "text": "grafanacloud-prom",
+            "text": "grafanacloud-tuist-prom",
             "value": "grafanacloud-prom"
           },
           "hide": 0,
@@ -2166,11 +2464,12 @@
           "query": "prometheus",
           "refresh": 1,
           "regex": "",
-          "type": "datasource"
+          "type": "datasource",
+          "options": []
         },
         {
           "current": {
-            "text": "grafanacloud-logs",
+            "text": "grafanacloud-tuist-logs",
             "value": "grafanacloud-logs"
           },
           "hide": 0,
@@ -2181,11 +2480,12 @@
           "query": "loki",
           "refresh": 1,
           "regex": "",
-          "type": "datasource"
+          "type": "datasource",
+          "options": []
         },
         {
           "current": {
-            "text": "grafanacloud-traces",
+            "text": "grafanacloud-tuist-traces",
             "value": "grafanacloud-traces"
           },
           "hide": 0,
@@ -2196,7 +2496,8 @@
           "query": "tempo",
           "refresh": 1,
           "regex": "",
-          "type": "datasource"
+          "type": "datasource",
+          "options": []
         },
         {
           "allValue": ".*",
@@ -2219,14 +2520,21 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": ".*",
           "current": {
             "selected": true,
-            "text": "All",
-            "value": "$__all"
+            "text": [
+              "bumble"
+            ],
+            "value": [
+              "bumble"
+            ]
           },
           "datasource": "$datasource",
           "definition": "label_values(kura_node_info{cluster=~\"$cluster\"}, tenant_id)",
@@ -2242,7 +2550,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": null,
@@ -2265,7 +2576,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": null,
@@ -2288,7 +2602,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": ".*",
@@ -2312,7 +2629,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": ".*",
@@ -2335,7 +2655,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         },
         {
           "allValue": ".*",
@@ -2358,7 +2681,10 @@
           "refresh": 1,
           "regex": "",
           "sort": 1,
-          "type": "query"
+          "type": "query",
+          "options": [],
+          "regexApplyTo": "value",
+          "skipUrlSync": false
         }
       ]
     },

@@ -19,10 +19,17 @@ render with a clear message; disabled fleet renders nothing.
 {{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
 {{- $hostFleetName := include "tuist.runnersFleetName" . }}
 {{- $pools := .Values.runnersFleet.pools | default list }}
-{{- if not $pools }}
-  {{- fail "runnersFleet.pools must contain at least one entry when runnersFleet.enabled is true" }}
+{{- $xcodeVersions := .Values.runnersFleet.xcodeVersions | default list }}
+{{- if and (not $pools) (not $xcodeVersions) }}
+  {{- fail "runnersFleet.pools or runnersFleet.xcodeVersions must contain at least one entry when runnersFleet.enabled is true" }}
 {{- end }}
 {{- $defaultRunnerLabels := list "self-hosted" "macOS" "ARM64" }}
+{{- /*
+Explicit `pools` entries — the legacy path. Used when an operator
+wants to render a pool with a hand-written runnerImage / dispatchLabel
+(e.g. an out-of-rotation runner pinned to a specific SHA). The
+catalog-driven xcodeVersions block below is the steady-state path.
+*/}}
 {{- range $pool := $pools }}
 {{- $name := required "runnersFleet.pools[].name required" $pool.name }}
 {{- $image := required (printf "runnersFleet.pools[%s].runnerImage required" $name) $pool.runnerImage }}
@@ -43,6 +50,7 @@ metadata:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
     tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
 spec:
   labels: []
   replicas: {{ $replicas }}
@@ -64,14 +72,117 @@ spec:
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- end }}
 {{- end }}
+
+{{- /*
+Per-Xcode macOS pools (Runner Profiles backend). Each entry in
+`runnersFleet.xcodeVersions` renders a RunnerPool CR with a
+deterministic name (`<release>-runner-pool-macos-<xcode-dashes>`)
+mirroring how `runnersFleetLinux.shapes` produces per-shape pools.
+Customers don't reference these labels directly; they create
+account-scoped Profiles in the Tuist UI, and the server's dispatch
+path resolves (account, requested-label) → profile → pool, with
+the pool name formed via `Catalog.pool_name/1`.
+
+The `runnerImage` for each pool is derived from a shared
+`runnerImageRepository` + per-semver tag computed as
+`<repository>:macos-<xcode-dashes>-<semver>`, so the release flow
+only bumps a single `runnerImageSemver` value at release time and
+every Xcode pool's image updates in lockstep. An xcodeVersion entry
+can override `imageTag` to pin a specific tag (useful for an
+out-of-rotation Xcode refreshed via `runner-image.yml` dispatch with
+a `:<profile>-<git-sha>` tag).
+*/}}
+{{- $imageRepo := .Values.runnersFleet.runnerImageRepository | default "" }}
+{{- $imageSemver := .Values.runnersFleet.runnerImageSemver | default "" }}
+{{- /*
+Per-env tuning (replicas, pod sizing, autoscaling, runtime class)
+lives in `runnersFleet.xcodeOverrides`, a map keyed by
+`xcodeVersion`. The catalog (`xcodeVersions`) stays shared in
+values-managed-common.yaml; each managed env supplies only its
+fleet-specific overrides without redeclaring the catalog list, so
+Helm's no-merge-on-lists doesn't force a full re-paste. An xcode
+entry that has no matching override renders as a pool with the
+chart defaults (replicas: 0, the long-standing pod sizing).
+*/}}
+{{- $overrides := .Values.runnersFleet.xcodeOverrides | default dict }}
+{{- /*
+Pod sizing defaults follow the catalog's default shape so a pool
+inherits 6 vCPU / 14 GB from the M2-L catalog without each env
+re-stating it. An override can still pin custom pod sizing if a
+future shape moves off the default.
+*/}}
+{{- $defaultShape := dict }}
+{{- range $.Values.runnersFleet.shapes | default list }}
+  {{- if .default }}
+    {{- $defaultShape = . }}
+  {{- end }}
+{{- end }}
+{{- $defaultCPU := mul (dig "vcpus" 8 $defaultShape) 1000 }}
+{{- $defaultMem := mul (dig "memoryGb" 14 $defaultShape) 1024 }}
+{{- range $xcode := $xcodeVersions }}
+{{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
+{{- $xcodeTag := $xcodeVersion | replace "." "-" }}
+{{- $profile := printf "macos-%s" $xcodeTag }}
+{{- $override := dig $xcodeVersion (dict) $overrides }}
+{{- $imageTag := dig "imageTag" (printf "%s-%s" $profile $imageSemver) $override }}
+{{- if not $imageRepo }}
+  {{- fail "runnersFleet.runnerImageRepository required when runnersFleet.xcodeVersions is non-empty" }}
+{{- end }}
+{{- if and (not (dig "imageTag" "" $override)) (not $imageSemver) }}
+  {{- fail (printf "runnersFleet.runnerImageSemver required when runnersFleet.xcodeVersions is non-empty and override %s has no imageTag" $xcodeVersion) }}
+{{- end }}
+{{- $image := printf "%s:%s" $imageRepo $imageTag }}
+{{- $replicas := dig "replicas" 0 $override }}
+{{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $override }}
+{{- $podMem := dig "pod" "memoryMB" $defaultMem $override }}
+{{- $runnerLabels := dig "runnerLabels" $defaultRunnerLabels $override }}
+{{- $autoscaling := $override.autoscaling }}
+{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-macos")) $xcodeTag }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
+    tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    {{- if $xcode.default }}
+    tuist.dev/xcode-default: "true"
+    {{- end }}
+spec:
+  labels: []
+  replicas: {{ $replicas }}
+  image: {{ $image | quote }}
+  os: darwin
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ printf "shape-macos-%s" $xcodeTag | quote }}
+  runnerLabels:
+    {{- range $runnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
+  podCPUMilli: {{ $podCPU }}
+  podMemoryMB: {{ $podMem }}
+  {{- if $autoscaling }}
+  autoscaling:
+    enabled: {{ dig "enabled" false $autoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
+  {{- end }}
+{{- end }}
 {{- end }}
 
 {{- if .Values.runnersFleetLinux.enabled }}
 {{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
 {{- $hostFleetName := include "tuist.runnersFleetLinuxName" . }}
 {{- $pools := .Values.runnersFleetLinux.pools | default list }}
-{{- if not $pools }}
-  {{- fail "runnersFleetLinux.pools must contain at least one entry when runnersFleetLinux.enabled is true" }}
+{{- $shapes := .Values.runnersFleetLinux.shapes | default list }}
+{{- if and (not $pools) (not $shapes) }}
+  {{- fail "runnersFleetLinux.pools or runnersFleetLinux.shapes must contain at least one entry when runnersFleetLinux.enabled is true" }}
 {{- end }}
 {{- $defaultRunnerLabels := list "self-hosted" "Linux" "X64" }}
 {{- range $pool := $pools }}
@@ -95,6 +206,7 @@ metadata:
     {{- $labels | nindent 4 }}
     app.kubernetes.io/component: runners-controller
     tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
 spec:
   labels: []
   replicas: {{ $replicas }}
@@ -118,5 +230,74 @@ spec:
     maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
     scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
   {{- end }}
+{{- end }}
+
+{{- /*
+Shape-keyed Linux pools (Runner Profiles backend). Each entry in
+`runnersFleetLinux.shapes` renders a RunnerPool CR with a
+deterministic name (`<release>-runner-pool-linux-<vcpus>vcpu-<gb>gb`)
+and an internal dispatch label (`shape-linux-<vcpus>vcpu-<gb>gb`).
+Customers don't reference these labels directly; they create
+account-scoped Profiles in the Tuist UI, and the server's dispatch
+path resolves (account, requested-label) → profile → shape → pool.
+
+Image, runtimeClass, and autoscaling defaults are shared across
+shapes via `runnersFleetLinux.shape*` fields; each entry can override
+autoscaling per-shape (a popular shape may want a higher floor).
+*/}}
+{{- $shapeImage := .Values.runnersFleetLinux.shapeRunnerImage | default "" }}
+{{- $shapeRuntimeClass := .Values.runnersFleetLinux.shapeRuntimeClass | default "" }}
+{{- $shapeAutoscalingDefaults := .Values.runnersFleetLinux.shapeAutoscaling | default dict }}
+{{- range $shape := $shapes }}
+{{- $vcpus := required "runnersFleetLinux.shapes[].vcpus required" $shape.vcpus | int }}
+{{- $memoryGb := required "runnersFleetLinux.shapes[].memoryGb required" $shape.memoryGb | int }}
+{{- if not $shapeImage }}
+  {{- fail "runnersFleetLinux.shapeRunnerImage required when runnersFleetLinux.shapes is non-empty" }}
+{{- end }}
+{{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
+{{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $shapeKey }}
+{{- $dispatchLabel := printf "shape-linux-%s" $shapeKey }}
+{{- $podCPU := mul $vcpus 1000 }}
+{{- $podMem := mul $memoryGb 1024 }}
+{{- $isDefault := dig "default" false $shape }}
+{{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
+---
+apiVersion: tuist.dev/v1alpha1
+kind: RunnerPool
+metadata:
+  name: {{ $poolName | quote }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- $labels | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+    tuist.dev/runner-pool: {{ $poolName | quote }}
+    tuist.dev/managed-by: helm
+    tuist.dev/shape: {{ $shapeKey | quote }}
+    tuist.dev/shape-vcpus: {{ $vcpus | quote }}
+    tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
+    {{- if $isDefault }}
+    tuist.dev/shape-default: "true"
+    {{- end }}
+spec:
+  labels: []
+  replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+  image: {{ $shapeImage | quote }}
+  os: linux
+  fleetSelector: {{ $hostFleetName | quote }}
+  dispatchLabel: {{ $dispatchLabel | quote }}
+  runnerLabels:
+    {{- range $defaultRunnerLabels }}
+    - {{ . | quote }}
+    {{- end }}
+  podCPUMilli: {{ $podCPU }}
+  podMemoryMB: {{ $podMem }}
+  {{- if $shapeRuntimeClass }}
+  runtimeClass: {{ $shapeRuntimeClass | quote }}
+  {{- end }}
+  autoscaling:
+    enabled: {{ dig "enabled" true $autoscaling }}
+    minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
+    maxReplicas: {{ dig "maxReplicas" 0 $autoscaling }}
+    scaleDownCooldownSeconds: {{ dig "scaleDownCooldownSeconds" 300 $autoscaling }}
 {{- end }}
 {{- end }}

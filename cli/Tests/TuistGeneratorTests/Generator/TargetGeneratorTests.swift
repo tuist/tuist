@@ -77,7 +77,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -145,7 +145,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -216,7 +216,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -274,7 +274,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -395,7 +395,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await subject.generateTarget(
+        let (pbxTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -416,6 +416,70 @@ struct TargetGeneratorTests {
         #expect(postBuildPhase?.name == "post")
         #expect(postBuildPhase?.shellPath == "/bin/sh")
         #expect(postBuildPhase?.shellScript == "\"$SRCROOT\"/script.sh arg")
+    }
+
+    @Test func generateTarget_whenAggregateTarget_generatesOnlyScriptPhases() async throws {
+        // Given
+        let outputPath = path.appending(component: "SharedKMP.xcframework")
+        let target = Target.test(
+            name: "SharedKMP",
+            product: .framework,
+            sources: [],
+            resources: .init([]),
+            scripts: [
+                TargetScript(
+                    name: "Foreign Build: SharedKMP",
+                    order: .pre,
+                    script: .embedded("gradle build")
+                ),
+                TargetScript(
+                    name: "post",
+                    order: .post,
+                    script: .embedded("echo post")
+                ),
+            ],
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (pbxTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: project.settings,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(pbxTarget is PBXAggregateTarget)
+        #expect(pbxTarget.buildPhases.count == 2)
+        #expect(pbxTarget.buildPhases.compactMap { $0 as? PBXShellScriptBuildPhase }.count == 2)
+        #expect(pbxTarget.buildPhases.map { $0.name() } == ["Foreign Build: SharedKMP", "post"])
     }
 
     // MARK: - Helpers

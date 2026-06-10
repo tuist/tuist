@@ -24,6 +24,7 @@ let differenceDependency: Target.Dependency = .product(name: "Difference", packa
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
 let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", package: "dduan.TOMLDecoder")
 let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
+let swifterPMCoreDependency: Target.Dependency = .product(name: "SwifterPMCore", package: "swifterpm")
 
 // MARK: - Targets
 
@@ -855,6 +856,7 @@ var targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             commandDependency,
+            swifterPMCoreDependency,
             "TuistConstants",
             "TuistLogging",
             "TuistEnvironment",
@@ -1246,6 +1248,7 @@ targets.append(contentsOf: [
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
+            "TuistJobSummary",
             .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
@@ -1594,6 +1597,22 @@ targets.append(contentsOf: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistJobSummary",
+        dependencies: [
+            "TuistCore",
+            "TuistCI",
+            "TuistEnvironment",
+            "TuistLogging",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistJobSummary",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ])
 #endif
 
@@ -1610,6 +1629,9 @@ targets.append(contentsOf: [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
+            "SwifterPMCore": .staticFramework,
+            "Subprocess": .staticFramework,
+            "_NIOFileSystem": .staticFramework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
@@ -1739,7 +1761,7 @@ let package = Package(
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
         .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.17.3")),
-        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.5")),
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.14.8")),
         .package(id: "apple.swift-crypto", from: "3.0.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.55.0"),
@@ -1752,7 +1774,7 @@ let package = Package(
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.47")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.48")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.7.22")),
@@ -1774,6 +1796,7 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
+        .package(url: "https://github.com/tuist/swifterpm", exact: "0.8.3"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]
