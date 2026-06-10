@@ -22,7 +22,13 @@ name: Kura Runner Cache Routing Smoke
 #     `gradle/tuist.toml`) is registered on staging.tuist.dev and the
 #     `tuistrocks@tuist.dev` acceptance account has access to it.
 #
-# Manual-trigger only.
+# Triggers:
+#   - workflow_dispatch: full control over the URLs + iterations.
+#   - push to the feat branch when this file changes: lets us run the
+#     smoke before the workflow lands on the default branch (GitHub
+#     `workflow_dispatch` requires the workflow file to be on main). A
+#     trivial edit to this file (e.g. bumping a comment) re-fires the
+#     smoke with the env-level defaults below.
 
 on:
   workflow_dispatch:
@@ -45,6 +51,11 @@ on:
         required: false
         default: '3'
         type: string
+  push:
+    branches:
+      - feat/kura-scaleway-runner-cache
+    paths:
+      - .github/workflows/kura-runner-cache-routing-smoke.yml
 
 permissions:
   contents: read
@@ -60,6 +71,13 @@ env:
   TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
   TUIST_AUTH_PASSWORD: tuistrocks
   TUIST_URL: https://staging.tuist.dev
+  # Fallbacks so the `push` trigger (no workflow inputs available) runs
+  # against the staging tuist account's eu-central Kura instance. The
+  # `workflow_dispatch` path overrides each via its input.
+  PROJECT_HANDLE: ${{ inputs.project_handle || 'tuist/gradle-plugin' }}
+  PUBLIC_KURA_URL: ${{ inputs.public_kura_url || 'https://tuist-eu-central-1.kura.tuist.dev' }}
+  PRIVATE_KURA_URL: ${{ inputs.private_kura_url || 'http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000' }}
+  ITERATIONS: ${{ inputs.iterations || '3' }}
 
 jobs:
   routing-smoke:
@@ -85,11 +103,11 @@ jobs:
           echo "Hostname:     $(hostname)"
           echo "Kernel:       $(uname -a)"
           echo "Architecture: $(uname -m)"
-          echo "Project:      ${{ inputs.project_handle }}"
+          echo "Project:      $PROJECT_HANDLE"
           echo "Server:       $TUIST_URL"
-          echo "Public URL:   ${{ inputs.public_kura_url }}"
-          echo "Private URL:  ${{ inputs.private_kura_url }}"
-          echo "Iterations:   ${{ inputs.iterations }}"
+          echo "Public URL:   $PUBLIC_KURA_URL"
+          echo "Private URL:  $PRIVATE_KURA_URL"
+          echo "Iterations:   $ITERATIONS"
 
       - name: Reachability probe
         run: |
@@ -97,8 +115,8 @@ jobs:
           # Surface routing issues before we burn 10+ minutes of Gradle
           # builds against an unreachable endpoint. /up needs no auth.
           for label in public private; do
-            if [ "$label" = public ]; then url="${{ inputs.public_kura_url }}"; fi
-            if [ "$label" = private ]; then url="${{ inputs.private_kura_url }}"; fi
+            if [ "$label" = public ]; then url="$PUBLIC_KURA_URL"; fi
+            if [ "$label" = private ]; then url="$PRIVATE_KURA_URL"; fi
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url/up" 2>/dev/null || echo 000)
             if [ "$code" = "000" ]; then
               echo "::error::$label probe FAILED — $url/up unreachable. Check the NetworkPolicy carve-out / DNS."
@@ -123,13 +141,13 @@ jobs:
           # Override the in-repo gradle/tuist.toml so the plugin attributes
           # this build to the input project on staging.
           cat > gradle/tuist.toml <<TOML
-          project = "${{ inputs.project_handle }}"
+          project = "${PROJECT_HANDLE}"
           TOML
 
       - name: Run A/B benchmark
         run: |
           set -uo pipefail
-          IT=${{ inputs.iterations }}
+          IT="$ITERATIONS"
 
           # Clears every layer Gradle would hit before talking to Kura,
           # so each measured build round-trips both the local
@@ -163,8 +181,8 @@ jobs:
           declare -A results
           for kind in miss hit; do
             for path in private public; do
-              if [ "$path" = public ]; then url="${{ inputs.public_kura_url }}"; fi
-              if [ "$path" = private ]; then url="${{ inputs.private_kura_url }}"; fi
+              if [ "$path" = public ]; then url="$PUBLIC_KURA_URL"; fi
+              if [ "$path" = private ]; then url="$PRIVATE_KURA_URL"; fi
               for i in $(seq 1 "$IT"); do
                 echo "::group::$path / $kind / iteration $i"
                 t=$(measure_one "$path" "$url" "$kind")
