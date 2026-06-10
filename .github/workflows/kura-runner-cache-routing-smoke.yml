@@ -1,48 +1,82 @@
 name: Kura Runner Cache Routing Smoke
 
-# Manual measurement workflow comparing two Kura cache paths from a
-# staging Linux runner Pod:
+# Manual A/B measurement workflow comparing two Kura cache paths from a
+# staging Linux runner Pod using REAL Gradle build-cache traffic. We
+# repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
+# between an in-cluster Kura URL and the public Kura URL, and report
+# wall-clock for each phase. The Tuist Gradle plugin already honours
+# `TUIST_CACHE_ENDPOINT` (TuistConfigReader.kt) and `TUIST_TOKEN`
+# (TokenProvider.kt), so no plugin change is needed — we just override
+# env per phase.
 #
-#   * public:  client -> regional Hetzner LB -> ingress-nginx -> Kura pod
-#   * private: client -> ClusterIP Service -> Kura pod (in-cluster)
+# Validates the runner Pod NetworkPolicy carve-out (egress to the kura
+# namespace on cache ports) and quantifies the in-cluster speedup with
+# REAL artifact traffic (compiled JARs from the Tuist Gradle plugin
+# project) rather than a synthetic `/up` probe.
 #
-# Validates the NetworkPolicy carve-out (runner Pods can reach the kura
-# namespace on cache ports) and quantifies the in-cluster speedup. Hits
-# `/up` so no auth is required — the signal is pure network RTT,
-# isolating the path difference that the cache routing introduces.
+# Prereqs (see `## Setup` in the runbook):
+#   * `TUIST_TOKEN` secret on this repo with read+write access to the
+#     staging project named in `inputs.project_handle`.
+#   * NetworkPolicy carve-out deployed to staging (this PR's
+#     `infra/helm/tuist/templates/runners-namespace.yaml`).
 #
 # Manual-trigger only.
 
 on:
   workflow_dispatch:
     inputs:
+      project_handle:
+        description: Staging project handle, e.g. `tuist/tuist-gradle-cache-bench`
+        required: true
+        type: string
       public_kura_url:
-        description: Public Kura URL, e.g. `https://tuist-eu-central-1.kura.tuist.dev`
+        description: Public Kura URL (e.g. `https://tuist-eu-central-1.kura.tuist.dev`)
         required: true
         type: string
       private_kura_url:
-        description: In-cluster Kura URL, e.g. `http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000`
+        description: In-cluster Kura URL (e.g. `http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000`)
         required: true
         type: string
       iterations:
-        description: Number of `/up` roundtrips per path
+        description: Repetitions per phase (each is a clean build that round-trips Gradle's cache)
         required: false
-        default: '50'
+        default: '3'
         type: string
 
-permissions: {}
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_TASK_RUN_AUTO_INSTALL: 0
+  MISE_GITHUB_ATTESTATIONS: 0
 
 jobs:
   routing-smoke:
     runs-on: tuist-staging-linux
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "java gradle"
+          cache: "true"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Show environment
         run: |
           set -euo pipefail
           echo "Hostname:     $(hostname)"
           echo "Kernel:       $(uname -a)"
           echo "Architecture: $(uname -m)"
+          echo "Project:      ${{ inputs.project_handle }}"
           echo "Public URL:   ${{ inputs.public_kura_url }}"
           echo "Private URL:  ${{ inputs.private_kura_url }}"
           echo "Iterations:   ${{ inputs.iterations }}"
@@ -50,120 +84,158 @@ jobs:
       - name: Reachability probe
         run: |
           set -uo pipefail
-          # 5s timeout per probe — connection-refused/blocked surfaces
-          # immediately, true public-RTT reaches well under 1s.
+          # Surface routing issues before we burn 10+ minutes of Gradle
+          # builds against an unreachable endpoint. /up needs no auth.
           for label in public private; do
             if [ "$label" = public ]; then url="${{ inputs.public_kura_url }}"; fi
             if [ "$label" = private ]; then url="${{ inputs.private_kura_url }}"; fi
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url/up" 2>/dev/null || echo 000)
             if [ "$code" = "000" ]; then
-              echo "::error::$label probe FAILED — $url/up unreachable (HTTP 000)"
-              # Don't bail yet for the private path: if the NetworkPolicy
-              # is the only thing missing, we still want to see the diff
-              # against the public path. Surface as an annotation.
-              if [ "$label" = public ]; then exit 1; fi
-            else
-              echo "$label probe OK — $url/up -> HTTP $code"
+              echo "::error::$label probe FAILED — $url/up unreachable. Check the NetworkPolicy carve-out / DNS."
+              exit 1
             fi
+            echo "$label probe OK — $url/up -> HTTP $code"
           done
 
-      - name: Benchmark /up roundtrips
-        id: bench
+      - name: Configure Gradle to point at the staging project
+        run: |
+          set -euo pipefail
+          # Rewrite the in-repo gradle/tuist.toml so the plugin treats
+          # this build as belonging to the staging project. We're inside
+          # the Gradle project directory's parent, so cd in.
+          cd gradle
+          cat > tuist.toml <<TOML
+          [fullHandle]
+          fullHandle = "${{ inputs.project_handle }}"
+          TOML
+          # Belt and suspenders: also force the URL via env so the plugin
+          # never silently falls back to https://tuist.dev.
+          echo "TUIST_URL=https://staging.tuist.dev" >>"$GITHUB_ENV"
+          echo "TUIST_TOKEN_PRESENT=$([ -n \"$TUIST_TOKEN\" ] && echo yes || echo no)" >>"$GITHUB_ENV"
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+
+      - name: Fail if TUIST_TOKEN is not configured
+        run: |
+          if [ "${TUIST_TOKEN_PRESENT}" != "yes" ]; then
+            echo "::error::TUIST_TOKEN secret is not set on this repo. The Tuist Gradle plugin needs it to authenticate against staging Kura. Set it via 'gh secret set TUIST_TOKEN --repo tuist/tuist' with a token that has access to '${{ inputs.project_handle }}'."
+            exit 1
+          fi
+
+      - name: Run A/B benchmark
+        env:
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: |
           set -uo pipefail
           IT=${{ inputs.iterations }}
-          # Pure connection+request timing per call. /up has no auth
-          # and a tiny body so the times reflect network RTT, not
-          # backend CPU. `-o /dev/null` drops the body to stdout.
-          # `-w` extracts the timing fields curl computes; we print
-          # them one per line for downstream parsing. Failures (HTTP
-          # 000 transport) emit `FAIL`, which the summarizer drops.
-          measure() {
-            local label=$1 url=$2
-            local out=/tmp/bench-${label}.txt
-            : >"$out"
-            for i in $(seq 1 "$IT"); do
-              line=$(curl -sS -o /dev/null --max-time 10 \
-                -w '%{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total} %{http_code}' \
-                "$url/up" 2>/dev/null) || line="FAIL"
-              printf '%s\n' "$line" >>"$out"
-            done
-            echo "Captured $(wc -l <"$out") samples for $label"
+
+          # Clears every layer Gradle would hit before talking to Kura,
+          # so each measured build round-trips both the local
+          # build-cache and the remote Tuist build-cache.
+          purge_gradle_caches() {
+            rm -rf gradle/build gradle/.gradle ~/.gradle/caches/build-cache-1 || true
           }
-          measure public "${{ inputs.public_kura_url }}"
-          measure private "${{ inputs.private_kura_url }}"
+
+          # Runs `./gradlew assemble --build-cache` and captures total
+          # wall-clock. We use `assemble` not `build` to keep the run
+          # cache-bound rather than test-bound (the plugin's tests boot
+          # an embedded server, which would dominate timing). Returns
+          # seconds with millisecond precision.
+          measure_one() {
+            local label=$1
+            local url=$2
+            local kind=$3   # "miss" (purge first) or "hit" (warm cache)
+            if [ "$kind" = "miss" ]; then purge_gradle_caches; fi
+            # GRADLE_USER_HOME stays default so the daemon is reused
+            # across phases. The cache state is what we vary.
+            local started ended
+            started=$(date +%s.%N)
+            ( cd gradle && TUIST_CACHE_ENDPOINT="$url" \
+                ./gradlew --no-daemon -Dorg.gradle.caching=true \
+                          --build-cache assemble \
+                          >>/tmp/gradle-${label}-${kind}.log 2>&1 ) || true
+            ended=$(date +%s.%N)
+            python3 -c "import sys; print(f'{float(sys.argv[1]) - float(sys.argv[2]):.3f}')" "$ended" "$started"
+          }
+
+          declare -A results
+          for kind in miss hit; do
+            for path in private public; do
+              if [ "$path" = public ]; then url="${{ inputs.public_kura_url }}"; fi
+              if [ "$path" = private ]; then url="${{ inputs.private_kura_url }}"; fi
+              for i in $(seq 1 "$IT"); do
+                echo "::group::$path / $kind / iteration $i"
+                t=$(measure_one "$path" "$url" "$kind")
+                results["$path|$kind|$i"]=$t
+                echo "wall-clock: ${t}s"
+                # Surface the last 30 lines of the Gradle log inside the
+                # group so a failed build is visible without a re-run.
+                tail -30 "/tmp/gradle-${path}-${kind}.log" || true
+                echo "::endgroup::"
+              done
+            done
+          done
+
+          # Dump CSV for the summarizer.
+          {
+            echo "path,kind,iter,seconds"
+            for key in "${!results[@]}"; do
+              IFS='|' read -r path kind iter <<<"$key"
+              echo "$path,$kind,$iter,${results[$key]}"
+            done
+          } | tee /tmp/results.csv
 
       - name: Summarize
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import statistics
-          paths = [("public", "/tmp/bench-public.txt"),
-                   ("private", "/tmp/bench-private.txt")]
-          fields = ["dns", "tcp_connect", "tls_handshake", "ttfb", "total"]
-          # curl reports cumulative timing in seconds — the diffs between
-          # adjacent fields are the per-phase durations, but the
-          # individual values are what's interesting too. We print both
-          # the raw mean of each cumulative field and the implied phase
-          # durations.
+          import csv, statistics
+          rows = []
+          with open('/tmp/results.csv') as f:
+              for r in csv.DictReader(f):
+                  rows.append({"path": r["path"], "kind": r["kind"], "iter": int(r["iter"]), "seconds": float(r["seconds"])})
 
-          def stats(values_ms):
-              if not values_ms:
+          def col(kind, path):
+              return [r["seconds"] for r in rows if r["kind"] == kind and r["path"] == path]
+
+          def stats(vs):
+              if not vs:
                   return None
-              sv = sorted(values_ms)
-              n = len(sv)
-              def p(q):
-                  i = min(n - 1, int(round(q * (n - 1))))
-                  return sv[i]
+              sv = sorted(vs)
               return {
-                  "n": n,
+                  "n": len(sv),
                   "min": sv[0],
                   "max": sv[-1],
                   "mean": statistics.mean(sv),
-                  "p50": p(0.50),
-                  "p95": p(0.95),
-                  "p99": p(0.99),
+                  "median": statistics.median(sv),
               }
 
-          results = {}
-          for label, path in paths:
-              with open(path) as f:
-                  rows = []
-                  for raw in f:
-                      parts = raw.strip().split()
-                      if len(parts) < 6:
-                          continue
-                      try:
-                          dns, conn, tls, ttfb, total = (float(p) * 1000 for p in parts[:5])
-                          code = int(parts[5])
-                      except ValueError:
-                          continue
-                      if code < 200 or code >= 300:
-                          continue
-                      rows.append({"dns": dns, "tcp_connect": conn, "tls_handshake": tls, "ttfb": ttfb, "total": total})
-                  results[label] = rows
-
-          def col(rows, key):
-              return [r[key] for r in rows if r[key] >= 0]
-
           print()
-          print(f"{'metric':<14} {'path':<8} {'n':>5} {'min':>8} {'p50':>8} {'mean':>8} {'p95':>8} {'p99':>8} {'max':>8}   (ms)")
-          print("-" * 84)
-          for metric in ["total", "ttfb", "tcp_connect", "tls_handshake", "dns"]:
-              for label, _ in paths:
-                  s = stats(col(results[label], metric))
+          print(f"{'phase':<10} {'path':<8} {'n':>3} {'min':>8} {'median':>8} {'mean':>8} {'max':>8}   (seconds wall-clock)")
+          print("-" * 64)
+          for kind in ["miss", "hit"]:
+              for path in ["public", "private"]:
+                  s = stats(col(kind, path))
                   if s is None:
-                      print(f"{metric:<14} {label:<8} {'-':>5}")
+                      print(f"{kind:<10} {path:<8} {'-':>3}")
                       continue
-                  print(f"{metric:<14} {label:<8} {s['n']:>5} {s['min']:>8.2f} {s['p50']:>8.2f} {s['mean']:>8.2f} {s['p95']:>8.2f} {s['p99']:>8.2f} {s['max']:>8.2f}")
+                  print(f"{kind:<10} {path:<8} {s['n']:>3} {s['min']:>8.2f} {s['median']:>8.2f} {s['mean']:>8.2f} {s['max']:>8.2f}")
               print()
 
-          # Speedup summary against the median.
-          for metric in ["total", "ttfb", "tcp_connect"]:
-              pub = stats(col(results["public"], metric))
-              priv = stats(col(results["private"], metric))
-              if pub and priv and priv["p50"] > 0:
-                  ratio = pub["p50"] / priv["p50"]
-                  saved_ms = pub["p50"] - priv["p50"]
-                  print(f"{metric}: private p50 is {ratio:.2f}x faster ({saved_ms:+.2f}ms saved per request)")
+          for kind in ["miss", "hit"]:
+              pub = stats(col(kind, "public"))
+              priv = stats(col(kind, "private"))
+              if pub and priv and priv["median"] > 0:
+                  saved = pub["median"] - priv["median"]
+                  ratio = pub["median"] / priv["median"]
+                  print(f"{kind}: private median is {ratio:.2f}x the speed of public ({saved:+.2f}s saved per build)")
           PY
+
+      - name: Upload Gradle logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: /tmp/gradle-*.log
+          if-no-files-found: ignore
+          retention-days: 7
