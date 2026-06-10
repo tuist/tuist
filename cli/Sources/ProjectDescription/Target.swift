@@ -178,10 +178,25 @@ public struct Target: Codable, Equatable, Sendable {
             public let path: Path
             /// Whether the artifact is statically or dynamically linked.
             public let linking: Linking
+
+            /// Creates an XCFramework build.
+            ///
+            /// - Parameters:
+            ///   - script: The shell script that builds the XCFramework.
+            ///   - path: The path where the script produces the XCFramework.
+            ///   - linking: Whether the artifact is statically or dynamically linked. Defaults to `.dynamic`.
+            public init(script: String, path: Path, linking: Linking = .dynamic) {
+                self.script = script
+                self.path = path
+                self.linking = linking
+            }
         }
 
         /// Describes the binary artifact produced by a foreign (non-Xcode) build system.
         public enum Output: Codable, Hashable, Sendable {
+            /// Describes how a binary artifact is linked. Preserved for source compatibility; prefer ``ForeignBuild/Linking``.
+            public typealias Linking = ForeignBuild.Linking
+
             /// An XCFramework output.
             ///
             /// - Parameters:
@@ -288,11 +303,11 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target becomes an aggregate target that builds the Kotlin XCFramework. Other targets depend
     /// on it with `.target(name:)`.
     ///
-    /// Tuist owns the build strategy: when warming the binary cache it runs `compileKotlinXCFrameworkScript`
-    /// to build the universal XCFramework (all slices). During regular generation, if a development build
-    /// is declared, it runs `compileKotlinDevelopmentXCFrameworkScript` to build a thinner XCFramework for
-    /// the current destination instead, so local iteration is fast. Both are XCFrameworks, so consumers
-    /// link and embed them the same way at any dependency depth. You don't choose; Tuist picks per context.
+    /// Tuist owns the build strategy: when warming the binary cache it builds the universal `xcframework` (all
+    /// slices). During regular generation, if a `developmentXCFramework` is declared, it builds that thinner
+    /// XCFramework for the current destination instead, so local iteration is fast (otherwise it falls back to the
+    /// universal build). Both are XCFrameworks, so consumers link and embed them the same way at any dependency
+    /// depth. You don't choose; Tuist picks per context.
     ///
     /// ### Example
     ///
@@ -301,10 +316,14 @@ public struct Target: Codable, Equatable, Sendable {
     ///     name: "SharedKMP",
     ///     destinations: .iOS,
     ///     gradleProject: "SharedKMP",
-    ///     compileKotlinXCFrameworkScript: "gradle assembleSharedKMPReleaseXCFramework",
-    ///     xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
-    ///     compileKotlinDevelopmentXCFrameworkScript: "gradle assembleSharedKMPDebugXCFramework",
-    ///     developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework",
+    ///     xcframework: .init(
+    ///         script: "gradle assembleSharedKMPReleaseXCFramework",
+    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"
+    ///     ),
+    ///     developmentXCFramework: .init(
+    ///         script: "gradle assembleSharedKMPDebugXCFramework",
+    ///         path: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"
+    ///     ),
     ///     inputs: [
     ///         .folder("SharedKMP/src"),
     ///         .file("SharedKMP/build.gradle.kts"),
@@ -316,32 +335,24 @@ public struct Target: Codable, Equatable, Sendable {
     ///   - name: A unique name for this target. Consumers depend on it with `.target(name:)`.
     ///   - destinations: The destinations the framework supports.
     ///   - gradleProject: Directory the build scripts run in (where the Gradle wrapper and the framework's module live).
-    ///   - linking: How consumers link the framework. Defaults to `.dynamic`.
-    ///   - compileKotlinXCFrameworkScript: Builds the universal XCFramework, used when warming the binary cache.
-    ///   - xcframeworkPath: Where `compileKotlinXCFrameworkScript` produces the XCFramework. Tuist captures it for the cache and
-    /// links it.
-    ///   - compileKotlinDevelopmentXCFrameworkScript: Builds a thinner XCFramework for the current destination, used during
-    /// regular generation. When omitted, regular generation falls back to the universal build.
-    ///   - developmentXCFrameworkPath: Where `compileKotlinDevelopmentXCFrameworkScript` produces the XCFramework. Required when
-    /// the development script is set.
+    ///   - xcframework: The universal XCFramework build, used when warming the binary cache.
+    ///   - developmentXCFramework: A thinner XCFramework build for the current destination, used during regular
+    /// generation. When omitted, regular generation falls back to the universal build.
     ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
     ///   - metadata: The target's metadata.
     public static func kotlinMultiplatform(
         name: String,
         destinations: Destinations,
         gradleProject: Path,
-        linking: ForeignBuild.Linking = .dynamic,
-        compileKotlinXCFrameworkScript: String,
-        xcframeworkPath: Path,
-        compileKotlinDevelopmentXCFrameworkScript: String? = nil,
-        developmentXCFrameworkPath: Path? = nil,
+        xcframework: ForeignBuild.XCFramework,
+        developmentXCFramework: ForeignBuild.XCFramework? = nil,
         inputs: [ForeignBuild.Input] = [],
         metadata: TargetMetadata = .default
     ) -> Self {
         var target = self.init(
             name: name,
             destinations: destinations,
-            product: linking.product,
+            product: xcframework.linking.product,
             productName: nil,
             bundleId: "tuist.foreign-build.\(name)",
             deploymentTargets: nil,
@@ -365,19 +376,10 @@ public struct Target: Codable, Equatable, Sendable {
             metadata: metadata,
             buildableFolders: []
         )
-        let developmentXCFramework = compileKotlinDevelopmentXCFrameworkScript.flatMap { developmentScript in
-            developmentXCFrameworkPath.map { developmentPath in
-                ForeignBuild.XCFramework(script: developmentScript, path: developmentPath, linking: linking)
-            }
-        }
         target.foreignBuild = ForeignBuild(
             inputs: inputs,
             workingDirectory: gradleProject,
-            xcframework: ForeignBuild.XCFramework(
-                script: compileKotlinXCFrameworkScript,
-                path: xcframeworkPath,
-                linking: linking
-            ),
+            xcframework: xcframework,
             developmentXCFramework: developmentXCFramework
         )
         return target

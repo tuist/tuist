@@ -447,4 +447,47 @@ struct TargetContentHasherTests {
             )
         )
     }
+
+    @Test func hash_when_foreignBuild_excludesGeneratedScriptPhaseFromTheHash() async throws {
+        // Given a foreign build target carrying its generated "Foreign Build" script phase. The phase's contents
+        // depend on the build mode (development vs universal script), so it must not feed the content hash; otherwise
+        // a warmed universal artifact would never match the target during regular generation.
+        let foreignBuild = ForeignBuild(
+            inputs: [],
+            workingDirectory: nil,
+            xcframework: .init(
+                script: "gradle assembleReleaseXCFramework",
+                path: try AbsolutePath(validating: "/SharedKMP/release/SharedKMP.xcframework"),
+                linking: .dynamic
+            ),
+            developmentXCFramework: .init(
+                script: "gradle assembleDebugXCFramework",
+                path: try AbsolutePath(validating: "/SharedKMP/debug/SharedKMP.xcframework"),
+                linking: .dynamic
+            )
+        )
+        let target = GraphTarget.test(
+            target: .test(
+                scripts: [
+                    TargetScript(
+                        name: "Foreign Build: SharedKMP",
+                        order: .pre,
+                        script: .embedded("gradle assembleDebugXCFramework")
+                    ),
+                ],
+                foreignBuild: foreignBuild
+            )
+        )
+        given(foreignBuildHasher)
+            .hash(inputs: .any, hashedPaths: .any)
+            .willReturn((hash: "foreign_build_hash", hashedPaths: [:]))
+
+        // When
+        _ = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:], destination: nil)
+
+        // Then: the generated foreign build phase is not hashed as a regular target script
+        verify(targetScriptsContentHasher)
+            .hash(targetScripts: .matching { $0.isEmpty }, sourceRootPath: .any)
+            .called(1)
+    }
 }

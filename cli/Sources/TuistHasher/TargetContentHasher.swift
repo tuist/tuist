@@ -207,8 +207,13 @@ public struct TargetContentHasher: TargetContentHashing {
         let coreDataModelHash = try await coreDataModelsContentHasher.hash(
             coreDataModels: graphTarget.target.coreDataModels
         )
+        // Foreign build targets carry a generated "Foreign Build" script phase whose contents depend on the build
+        // mode (the development script during regular generation, the universal one when warming the cache). Hashing
+        // it would give the same target two different hashes across modes, so a warmed artifact would never be reused
+        // during regular generation. The foreign build is hashed instead through its dedicated component below, keyed
+        // off the universal build, so it stays mode-independent.
         let targetScriptsHash = try await targetScriptsContentHasher.hash(
-            targetScripts: graphTarget.target.scripts,
+            targetScripts: graphTarget.target.foreignBuild == nil ? graphTarget.target.scripts : [],
             sourceRootPath: graphTarget.project.sourceRootPath
         )
 

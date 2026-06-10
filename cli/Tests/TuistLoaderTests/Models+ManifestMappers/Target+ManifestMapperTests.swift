@@ -222,10 +222,14 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                 name: "SharedKMP",
                 destinations: .iOS,
                 gradleProject: "SharedKMP",
-                compileKotlinXCFrameworkScript: "gradle assembleSharedKMPReleaseXCFramework",
-                xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
-                compileKotlinDevelopmentXCFrameworkScript: "gradle assembleSharedKMPDebugXCFramework",
-                developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"
+                xcframework: .init(
+                    script: "gradle assembleSharedKMPReleaseXCFramework",
+                    path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"
+                ),
+                developmentXCFramework: .init(
+                    script: "gradle assembleSharedKMPDebugXCFramework",
+                    path: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"
+                )
             ),
             generatorPaths: generatorPaths,
             externalDependencies: [:],

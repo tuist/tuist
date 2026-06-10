@@ -29,16 +29,20 @@ let project = Project(
             name: "SharedKMP",
             destinations: .iOS,
             gradleProject: "SharedKMP",
-            compileKotlinXCFrameworkScript: """
-            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-            gradle assembleSharedKMPReleaseXCFramework
-            """,
-            xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
-            compileKotlinDevelopmentXCFrameworkScript: """
-            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-            gradle assembleSharedKMPDebugXCFramework
-            """,
-            developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework",
+            xcframework: .init(
+                script: """
+                eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+                gradle assembleSharedKMPReleaseXCFramework
+                """,
+                path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"
+            ),
+            developmentXCFramework: .init(
+                script: """
+                eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+                gradle assembleSharedKMPDebugXCFramework
+                """,
+                path: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"
+            ),
             inputs: [
                 .folder("SharedKMP/src"),
                 .file("SharedKMP/build.gradle.kts"),
