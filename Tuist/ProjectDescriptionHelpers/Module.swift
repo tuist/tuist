@@ -1673,6 +1673,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
                     .target(name: Module.config.targetName),
+                    .target(name: Module.jobSummary.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.xcodeBuildProducts.targetName),
