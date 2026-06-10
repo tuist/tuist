@@ -2000,6 +2000,43 @@ end
         }
 
         #[tokio::test]
+        async fn falls_back_to_legacy_cache_access_when_active_introspection_grants_do_not_cover_project()
+         {
+            let calls = Arc::new(Mutex::new(0usize));
+            let calls_for_handler = calls.clone();
+            let base = spawn_tuist_auth_mock(
+                |_headers, _payload| {
+                    (
+                        StatusCode::OK,
+                        introspection_payload(cache_grants_payload(
+                            &[],
+                            &[],
+                            &["acme/android"],
+                            &["acme/android"],
+                        )),
+                    )
+                },
+                move |_| {
+                    *calls_for_handler.lock().unwrap() += 1;
+                    (StatusCode::OK, cache_access_payload(&[], &["acme/ios"]))
+                },
+            )
+            .await;
+            let engine = engine_pointing_at(&base, true).await;
+
+            let mut context = ctx();
+            context.tenant_id = Some("acme".into());
+            context
+                .headers
+                .insert("authorization".into(), "Bearer opaque-token".into());
+            context.namespace_id = Some("ios".into());
+
+            let decision = engine.evaluate_access(&context).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+            assert_eq!(*calls.lock().unwrap(), 1);
+        }
+
+        #[tokio::test]
         async fn retries_introspection_transport_failures_once() {
             let calls = Arc::new(Mutex::new(0usize));
             let calls_for_handler = calls.clone();

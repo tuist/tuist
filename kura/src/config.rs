@@ -5,9 +5,9 @@ use tokio::fs;
 use crate::constants::{
     DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-    DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-    DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -16,6 +16,7 @@ const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
+const KURA_TMP_DIR_MAX_BYTES: &str = "KURA_TMP_DIR_MAX_BYTES";
 const KURA_NODE_URL: &str = "KURA_NODE_URL";
 const KURA_PEER_GATEWAY_URL: &str = "KURA_PEER_GATEWAY_URL";
 const KURA_PEERS: &str = "KURA_PEERS";
@@ -110,6 +111,7 @@ pub struct Config {
     pub region: String,
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
+    pub tmp_dir_max_bytes: u64,
     pub node_url: String,
     pub peer_gateway_url: Option<String>,
     pub peers: Vec<String>,
@@ -383,6 +385,16 @@ impl Config {
         let region = required_value(&mut lookup, KURA_REGION, &mut missing);
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
         let data_dir = required_value(&mut lookup, KURA_DATA_DIR, &mut missing).map(PathBuf::from);
+        let tmp_dir_max_bytes =
+            optional_parsed_value(&mut lookup, KURA_TMP_DIR_MAX_BYTES, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_TMP_DIR_MAX_BYTES} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_TMP_DIR_MAX_BYTES);
+        if tmp_dir_max_bytes == 0 {
+            invalid.push(format!("{KURA_TMP_DIR_MAX_BYTES} must be greater than 0"));
+        }
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
@@ -1277,6 +1289,7 @@ impl Config {
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
+            tmp_dir_max_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
             peers: peers.expect("peers should be present when configuration is valid"),
@@ -1572,6 +1585,7 @@ mod tests {
             config.replication_bandwidth_limit_bytes_per_second,
             512 * BYTES_PER_MIB
         );
+        assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(
             config.accelerated_file_serving,
@@ -1618,6 +1632,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
@@ -1664,6 +1679,7 @@ mod tests {
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1767,6 +1783,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "invalid"),
@@ -1799,6 +1816,7 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_OPEN_FILES));
@@ -1813,6 +1831,15 @@ mod tests {
         assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
         assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
         assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_tmp_dir_max_bytes() {
+        let error = config_from(&[(KURA_TMP_DIR_MAX_BYTES, "0")])
+            .expect_err("expected zero tmp dir budget to fail");
+
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
+        assert!(error.contains("must be greater than 0"));
     }
 
     #[test]

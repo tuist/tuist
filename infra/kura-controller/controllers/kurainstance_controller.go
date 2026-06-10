@@ -66,6 +66,10 @@ const (
 	// without fanning the read path across the eventually-consistent mesh.
 	podNameLabel = "statefulset.kubernetes.io/pod-name"
 
+	// minPrimaryPodAge gives a restarted pod time to bootstrap from peers
+	// before the public Services can route cache reads to it.
+	minPrimaryPodAge = 10 * time.Minute
+
 	sharedSecretsName         = "kura-shared-secrets"
 	otlpTracesEndpointEnvVar  = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
 	environmentEnvVar         = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
@@ -457,8 +461,9 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 
 func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
 	kubernetesReady := map[string]bool{}
+	now := time.Now()
 	for i := range pods {
-		if podReady(&pods[i]) {
+		if podReady(&pods[i]) && podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
 			kubernetesReady[pods[i].Name] = true
 		}
 	}
@@ -587,6 +592,13 @@ func podReady(pod *corev1.Pod) bool {
 		}
 	}
 	return false
+}
+
+func podOldEnoughForPrimary(pod *corev1.Pod, now time.Time, replicas int32) bool {
+	if replicas <= 1 || pod.CreationTimestamp.IsZero() {
+		return true
+	}
+	return now.Sub(pod.CreationTimestamp.Time) >= minPrimaryPodAge
 }
 
 func podOrdinal(podName, instanceName string) (int, bool) {
@@ -1195,7 +1207,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_GRPC_PORT", Value: fmt.Sprintf("%d", grpcPort)},
 		{Name: "KURA_TENANT_ID", Value: instance.Spec.TenantID},
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
-		{Name: "KURA_TMP_DIR", Value: "/tmp/kura"},
+		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
 		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
@@ -1246,7 +1258,6 @@ func containerPorts(instance *kurav1alpha1.KuraInstance) []corev1.ContainerPort 
 
 func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 	mounts := []corev1.VolumeMount{
-		{Name: "tmp", MountPath: "/tmp/kura"},
 		{Name: "data", MountPath: "/var/cache/kura"},
 		{Name: peerTLSVolumeName, MountPath: peerTLSMountPath, ReadOnly: true},
 	}
@@ -1257,13 +1268,7 @@ func volumeMounts(instance *kurav1alpha1.KuraInstance) []corev1.VolumeMount {
 }
 
 func volumes(instance *kurav1alpha1.KuraInstance) []corev1.Volume {
-	tmpSize := resource.MustParse("4Gi")
 	volumes := []corev1.Volume{{
-		Name: "tmp",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: &tmpSize},
-		},
-	}, {
 		Name: peerTLSVolumeName,
 		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
 			SecretName: peerTLSSecretName(instance),

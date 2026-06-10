@@ -1232,7 +1232,7 @@ jobs:
       # pin doesn't move to a partially-published set.
       fail-fast: true
       matrix:
-        xcode: ["26.5", "26.4.1"]
+        xcode: ["26.5", "26.4.1", "26.3"]
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -2006,13 +2006,14 @@ jobs:
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
       )
-    runs-on: tuist-linux
+    # ubuntu-latest for the preinstalled gh CLI; the dispatch needs no
+    # checkout, so the repo is targeted explicitly via --repo.
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       HEAD_MSG: ${{ github.event.head_commit.message }}
     steps:
-      - uses: actions/checkout@v4
       - name: Dispatch server production deployment
         # Dispatched as its own workflow run (not a needs edge) so
         # release.yml's concurrency can never interrupt an in-flight
@@ -2028,6 +2029,7 @@ jobs:
           esac
           echo "Dispatching production deployment for ${{ github.sha }} (hotfix=$HOTFIX)"
           gh workflow run server-production-deployment.yml \
+            --repo "${{ github.repository }}" \
             --ref main \
             -f commit_sha="${{ github.sha }}" \
             -f hotfix="$HOTFIX"

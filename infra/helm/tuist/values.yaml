@@ -847,6 +847,7 @@ runnersFleet:
     - xcodeVersion: "26.5"
       default: true
     - xcodeVersion: "26.4.1"
+    - xcodeVersion: "26.3"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
   # common values file; each managed env layers its overrides here

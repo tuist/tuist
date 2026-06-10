@@ -71,7 +71,9 @@ spec:
             - name: KURA_REGION
               value: {{ .Values.config.region | quote }}
             - name: KURA_TMP_DIR
-              value: /tmp/kura
+              value: /var/cache/kura/tmp
+            - name: KURA_TMP_DIR_MAX_BYTES
+              value: {{ printf "%d" (int64 .Values.config.tmpDirMaxBytes) | quote }}
             - name: KURA_DATA_DIR
               value: /var/cache/kura
             - name: KURA_NODE_URL
@@ -152,8 +154,6 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
-            - name: tmp
-              mountPath: /tmp/kura
             - name: data
               mountPath: /var/cache/kura
             {{- if .Values.peerTls.enabled }}
@@ -205,12 +205,8 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- if or (not .Values.persistence.enabled) .Values.extension.enabled .Values.peerTls.enabled .Values.extraVolumes }}
       volumes:
-        - name: tmp
-          emptyDir:
-            {{- if .Values.tmpStorage.sizeLimit }}
-            sizeLimit: {{ .Values.tmpStorage.sizeLimit }}
-            {{- end }}
         {{- if not .Values.persistence.enabled }}
         - name: data
           emptyDir: {}
@@ -228,6 +224,7 @@ spec:
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

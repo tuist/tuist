@@ -368,7 +368,8 @@ config :tuist, :runner_macos_shapes, [
 # entry should carry `default: true`.
 config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
-  %{xcode_version: "26.4.1"}
+  %{xcode_version: "26.4.1"},
+  %{xcode_version: "26.3"}
 ]
 
 config :tuist, :urls,

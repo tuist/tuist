@@ -48,8 +48,9 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        artifact_storage_id, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
+        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
+        temp_file_path,
     },
 };
 
@@ -63,6 +64,7 @@ pub struct Store {
     memory: MemoryController,
     tenant_id: String,
     tmp_dir: PathBuf,
+    tmp_dir_max_bytes: u64,
     data_dir: PathBuf,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
@@ -331,6 +333,7 @@ impl Store {
             memory,
             tenant_id: config.tenant_id.clone(),
             tmp_dir: config.tmp_dir.clone(),
+            tmp_dir_max_bytes: config.tmp_dir_max_bytes,
             data_dir: config.data_dir.clone(),
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
@@ -1726,6 +1729,10 @@ impl Store {
         if uploaded.is_empty() || uploaded != expected_parts {
             return Err(MultipartError::PartsMismatch);
         }
+        let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
+        ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
+            .await
+            .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
         let mut assembled = self
@@ -2798,6 +2805,7 @@ mod tests {
             region: "local".into(),
             tmp_dir: temp_dir.path().join("tmp"),
             data_dir: temp_dir.path().join("data"),
+            tmp_dir_max_bytes: 8 * 1024 * 1024 * 1024,
             node_url: "http://127.0.0.1:7443".into(),
             peer_gateway_url: None,
             peers: vec!["http://127.0.0.1:7443".into()],

@@ -26,7 +26,7 @@ use crate::{
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{replication_target_label, temp_file_path, url_encode},
+    utils::{ensure_tmp_dir_capacity, replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -436,6 +436,14 @@ async fn stream_response_to_temp(
             "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
         ));
     }
+    ensure_tmp_dir_capacity(
+        &state.config.tmp_dir,
+        response
+            .content_length()
+            .unwrap_or(MAX_REPLICATION_BODY_BYTES),
+        state.config.tmp_dir_max_bytes,
+    )
+    .await?;
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
     let mut total: u64 = 0;

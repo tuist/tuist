@@ -34,6 +34,7 @@ use crate::{
     store::Store,
     telemetry::{init_tracing, log_context_span},
     usage::Usage,
+    utils::directory_size_bytes,
 };
 
 const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
@@ -645,28 +646,6 @@ fn raise_nofile_soft_to_hard() -> Result<(), String> {
 #[cfg(not(unix))]
 fn raise_nofile_soft_to_hard() -> Result<(), String> {
     Ok(())
-}
-
-fn directory_size_bytes(path: &std::path::Path) -> u64 {
-    let mut total = 0_u64;
-    let mut stack = vec![path.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            if file_type.is_dir() {
-                stack.push(entry.path());
-            } else if let Ok(metadata) = entry.metadata() {
-                total = total.saturating_add(metadata.len());
-            }
-        }
-    }
-    total
 }
 
 #[cfg(unix)]
