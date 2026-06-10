@@ -89,15 +89,15 @@ env:
 
 jobs:
   routing-smoke:
-    # Pinned directly at the shape pool's dispatch label instead of the
-    # `tuist-staging-linux` profile. The profile path requires the
-    # server's `Tuist.Runners.Dispatch.resolve_dispatch_target` to map
-    # the label to a pool; while debugging that resolution we observed
-    # the staging profile's webhooks never reached a successful claim,
-    # so we side-step by targeting the pool shape directly. The shape
-    # advertises the same Ubuntu 22.04 LTS runner image as the profile
-    # would have resolved to (`runnersFleetLinux.shapeRunnerImage`).
-    runs-on: shape-linux-2vcpu-8gb
+    # MUST be the staging-scoped profile label, not a `shape-*` label.
+    # Both production and staging receive the tuist/tuist webhooks and
+    # advertise identical `shape-linux-*` dispatch labels (same chart),
+    # so a shape-labeled job races both environments' pollers and prod's
+    # warm fleet wins — the job then runs in the production cluster
+    # where staging's in-cluster Kura Service doesn't exist (NXDOMAIN /
+    # dead ClusterIPs). `tuist-staging-<profile>` labels resolve only on
+    # staging, pinning the job to staging kata runners.
+    runs-on: tuist-staging-linux
     timeout-minutes: 30
     steps:
       - name: Early diagnostics — before any other step
