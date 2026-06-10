@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-10-shared-kura-introspection-v1"
+  @manifest_revision "2026-06-10-uuid-kura-introspection-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"

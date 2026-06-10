@@ -412,14 +412,14 @@ jobs:
           printf 'kura staging smoke %s %s/%s\n' "$SMOKE_GATEWAY_MODE" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$payload_file"
           cas_url="$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT"
 
-          for attempt in $(seq 1 80); do
+          for attempt in $(seq 1 24); do
             : > "$post_body_file"
             : > "$post_error_file"
             : > "$get_error_file"
             post_status="$(
               curl -sS \
               --connect-timeout 10 \
-              --max-time 60 \
+              --max-time 20 \
               -o "$post_body_file" \
               -w "%{http_code}" \
               -X POST \
@@ -440,7 +440,7 @@ jobs:
               get_status="$(
                 curl -sS \
                 --connect-timeout 10 \
-                --max-time 60 \
+                --max-time 20 \
                 -o "$downloaded_file" \
                 -w "%{http_code}" \
                 -H "authorization: Bearer $SMOKE_TOKEN" \
@@ -466,11 +466,11 @@ jobs:
               cat "$get_error_file"
             fi
 
-            if [ "$attempt" = "80" ]; then
+            if [ "$attempt" = "24" ]; then
               echo "Kura public cache roundtrip did not succeed for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"
               curl -fsS "$SMOKE_URL/ready" || true
               exit 1
             fi
 
-            sleep 15
+            sleep 10
           done

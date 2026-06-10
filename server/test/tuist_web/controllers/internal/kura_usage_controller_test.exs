@@ -14,7 +14,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
   setup do
     kura_client = %Client{
-      id: "kura-control-plane",
+      id: "00000000-0000-0000-0000-000000000001",
       secret: "kura-secret",
       confidential: true,
       supported_grant_types: ["introspect", "kura_usage"],
@@ -26,7 +26,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     stub(Environment, :kura_control_plane_client_secret, fn -> kura_client.secret end)
 
     stub(Clients, :get_client, fn
-      "kura-control-plane" -> kura_client
+      "00000000-0000-0000-0000-000000000001" -> kura_client
       _ -> nil
     end)
 

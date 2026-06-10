@@ -29,11 +29,11 @@
 {{- end }}
 {{- $kuraIntrospectionSecretData := dict }}
 {{- if $kuraIntrospection.enabled }}
-{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" ($kuraIntrospection.clientId | default "00000000-0000-0000-0000-000000000001") }}
 {{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
-{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID" ($kuraIntrospection.clientId | default "00000000-0000-0000-0000-000000000001") }}
 {{- $_ := set $kuraIntrospectionSecretData "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
-{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_ID" ($kuraIntrospection.clientId | default "kura-control-plane") }}
+{{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_ID" ($kuraIntrospection.clientId | default "00000000-0000-0000-0000-000000000001") }}
 {{- $_ := set $kuraIntrospectionSecretData "TUIST_KURA_INTROSPECTION_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
 {{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
