@@ -74,9 +74,6 @@ jobs:
 
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$KURA_NAMESPACE" rollout status deploy/tuist-tuist-kura-controller --timeout=10m
-          kubectl -n "$KURA_NAMESPACE" wait \
-            --for=condition=Ready externalsecret/kura-shared-secrets \
-            --timeout=5m
           kubectl -n "$KURA_NAMESPACE" get secret kura-shared-secrets
       - id: provision
         name: Provision smoke Kura server
@@ -371,14 +368,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          for attempt in $(seq 1 80); do
-            if curl -fsS "$SMOKE_URL/up" > /tmp/kura-up.json; then
-              cat /tmp/kura-up.json
+          ready_file="$(mktemp)"
+
+          for attempt in $(seq 1 120); do
+            if curl -fsS "$SMOKE_URL/ready" > "$ready_file" && grep -q '"ready":true' "$ready_file"; then
+              cat "$ready_file"
               break
             fi
 
-            if [ "$attempt" = "80" ]; then
-              echo "Public Kura /up did not become reachable at $SMOKE_URL"
+            if [ "$attempt" = "120" ]; then
+              echo "Public Kura /ready did not become reachable at $SMOKE_URL"
+              cat "$ready_file" 2>/dev/null || true
               exit 1
             fi
 
@@ -389,17 +389,28 @@ jobs:
           payload_file="$(mktemp)"
           downloaded_file="$(mktemp)"
           printf 'kura staging smoke %s %s/%s\n' "$SMOKE_GATEWAY_MODE" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$payload_file"
+          cas_url="$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT"
 
-          curl -fsS \
-            -X POST \
-            -H "authorization: Bearer $SMOKE_TOKEN" \
-            --data-binary "@$payload_file" \
-            "$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT"
+          for attempt in $(seq 1 80); do
+            if curl -fsS \
+              -X POST \
+              -H "authorization: Bearer $SMOKE_TOKEN" \
+              --data-binary "@$payload_file" \
+              "$cas_url" && \
+              curl -fsS \
+                -H "authorization: Bearer $SMOKE_TOKEN" \
+                "$cas_url" \
+                > "$downloaded_file" && \
+              cmp -s "$payload_file" "$downloaded_file"; then
+              echo "Kura public cache roundtrip succeeded for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"
+              exit 0
+            fi
 
-          curl -fsS \
-            -H "authorization: Bearer $SMOKE_TOKEN" \
-            "$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT" \
-            > "$downloaded_file"
+            if [ "$attempt" = "80" ]; then
+              echo "Kura public cache roundtrip did not succeed for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"
+              curl -fsS "$SMOKE_URL/ready" || true
+              exit 1
+            fi
 
-          cmp -s "$payload_file" "$downloaded_file"
-          echo "Kura public cache roundtrip succeeded for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"
+            sleep 15
+          done
