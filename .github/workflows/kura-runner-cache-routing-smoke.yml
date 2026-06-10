@@ -124,15 +124,35 @@ jobs:
           echo "Private URL:  $PRIVATE_KURA_URL"
           echo "Iterations:   $ITERATIONS"
 
+      - name: Network diagnostics
+        run: |
+          set -uo pipefail
+          echo "::group::resolv.conf"
+          cat /etc/resolv.conf || true
+          echo "::endgroup::"
+          echo "::group::nslookup against private hostname"
+          nslookup "$(echo "$PRIVATE_KURA_URL" | sed -E 's|^https?://||;s|:.*$||')" 2>&1 | head -20 || true
+          echo "::endgroup::"
+          echo "::group::ip route"
+          ip route 2>&1 || true
+          echo "::endgroup::"
+          echo "::group::curl -v against private (verbose, will fail surfaced)"
+          curl -v --max-time 8 "$PRIVATE_KURA_URL/up" 2>&1 | head -30 || true
+          echo "::endgroup::"
+
       - name: Reachability probe
         run: |
           set -uo pipefail
           # Surface routing issues before we burn 10+ minutes of Gradle
           # builds against an unreachable endpoint. /up needs no auth.
+          # `--write-out` is THE source of truth here; the `|| echo 000`
+          # only fires on transport failure when curl writes nothing —
+          # `%{http_code}` always emits exactly 3 chars on success.
           for label in public private; do
             if [ "$label" = public ]; then url="$PUBLIC_KURA_URL"; fi
             if [ "$label" = private ]; then url="$PRIVATE_KURA_URL"; fi
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url/up" 2>/dev/null || echo 000)
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "$url/up" 2>/dev/null)
+            : "${code:=000}"
             if [ "$code" = "000" ]; then
               echo "::error::$label probe FAILED — $url/up unreachable. Check the NetworkPolicy carve-out / DNS."
               exit 1
