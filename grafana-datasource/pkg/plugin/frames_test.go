@@ -32,13 +32,16 @@ func TestFramesFromMetricsSelectsRequestedSeries(t *testing.T) {
 	}
 }
 
-func TestFramesFromMetricsDefaultsToPercentiles(t *testing.T) {
+func TestFramesFromMetricsDefaultsToAverageAndPercentiles(t *testing.T) {
 	metrics := &durationMetrics{Dates: []int64{1714262400}}
 	frame := framesFromMetrics(queryModel{}, metrics)
 
-	// time + p50 + p90 + p99
-	if got := len(frame.Fields); got != 4 {
-		t.Fatalf("expected 4 fields by default, got %d", got)
+	// time + average + p50 + p90 + p99 (must match the frontend default query)
+	if got := len(frame.Fields); got != 5 {
+		t.Fatalf("expected 5 fields by default, got %d", got)
+	}
+	if frame.Fields[1].Name != "average" {
+		t.Fatalf("expected average as the first default series, got %q", frame.Fields[1].Name)
 	}
 }
 

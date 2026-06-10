@@ -6,7 +6,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 )
 
-var defaultSeries = []string{"p50", "p90", "p99"}
+var defaultSeries = []string{"average", "p50", "p90", "p99"}
 
 // framesFromMetrics turns a DurationMetrics response into a wide time-series
 // frame: a time field plus one numeric field per requested series.
