@@ -13,11 +13,13 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
     assert_enqueued(worker: AlertEvaluationWorker, args: %{alert_id: alert.id})
   end
 
-  test "does not schedule established rolling alerts" do
-    AutomationsFixtures.automation_alert_fixture(
-      monitor_type: "flaky_run_count",
-      trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
-    )
+  test "does not schedule established rolling scoped-monitor alerts" do
+    for monitor_type <- ["flakiness_rate", "flaky_run_count", "reliability_rate"] do
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: monitor_type,
+        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
+      )
+    end
 
     assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})
 

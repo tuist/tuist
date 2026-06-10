@@ -595,6 +595,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType
     ) -> Set<String> {
         guard !packageType.packagePrebuilts.isEmpty else { return [] }
+        guard !packageType.isLocalExternal else { return [] }
 
         let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
         let allTargetNames = Set(targetsByName.keys)
@@ -1645,6 +1646,11 @@ extension ProjectDescription.Settings {
             )
             settingsDictionary.appendArraySetting(
                 key: "LIBRARY_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
+                key: "LD_RUNPATH_SEARCH_PATHS",
                 values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
                 includeInherited: true
             )

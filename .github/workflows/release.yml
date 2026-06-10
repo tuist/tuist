@@ -1232,7 +1232,7 @@ jobs:
       # pin doesn't move to a partially-published set.
       fail-fast: true
       matrix:
-        xcode: ["26.5", "26.4.1"]
+        xcode: ["26.5", "26.4.1", "26.3"]
     env:
       MISE_GITHUB_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1738,6 +1738,11 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          # Pin every component tag to the commit this run built, not main's
+          # HEAD. Without this, action-gh-release defaults target_commitish to
+          # the default branch, so a push landing during the run drifts the tag
+          # onto a newer commit than the release notes and artifacts describe.
+          target_commitish: ${{ github.sha }}
           name: Server ${{ needs.check-releases.outputs.server-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.server-next-version }}
           body: |
@@ -1751,6 +1756,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Cache ${{ needs.check-releases.outputs.cache-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.cache-next-version }}
           body: |
@@ -1764,6 +1770,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Skills ${{ needs.check-releases.outputs.skills-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.skills-next-version }}
           body: |
@@ -1777,6 +1784,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Noora ${{ needs.check-releases.outputs.noora-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.noora-next-version }}
           body: |
@@ -1790,6 +1798,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Helm Chart ${{ needs.check-releases.outputs.helm-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.helm-next-version }}
           body: |
@@ -1805,6 +1814,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: CAPI Scaleway ${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.capi-scaleway-next-version }}
           body: |
@@ -1818,6 +1828,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Runners Controller ${{ needs.check-releases.outputs.runners-controller-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runners-controller-next-version }}
           body: |
@@ -1831,6 +1842,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Hetzner Robot Controller ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}
           body: |
@@ -1844,6 +1856,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
           body: |
@@ -1857,6 +1870,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Runner Image ${{ needs.check-releases.outputs.runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.runner-image-next-version }}
           body: |
@@ -1871,6 +1885,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Linux Runner Image ${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.linux-runner-image-next-version }}
           body: |
@@ -1896,6 +1911,7 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
           name: Kura ${{ needs.check-releases.outputs.kura-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.kura-next-version }}
           body: |
@@ -2006,9 +2022,9 @@ jobs:
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
       )
-    # ubuntu-latest for the preinstalled gh CLI; the dispatch needs no
+    # gh ships in the tuist-linux runner image; the dispatch needs no
     # checkout, so the repo is targeted explicitly via --repo.
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}

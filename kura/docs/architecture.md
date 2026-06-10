@@ -188,7 +188,7 @@ All configuration is environment-driven (`src/config.rs`). The full table lives 
 
 - Required identity and addressing: `KURA_TENANT_ID`, `KURA_REGION`, `KURA_NODE_URL`, `KURA_PORT`, `KURA_GRPC_PORT`, `KURA_INTERNAL_PORT`, `KURA_DATA_DIR`, `KURA_TMP_DIR`.
 - Peer plane: `KURA_PEERS`, `KURA_DISCOVERY_DNS_NAME`, optional `KURA_INTERNAL_TLS_*` for peer mTLS.
-- Resource budgets: file-descriptor pool, memory soft/hard limits, manifest cache, RocksDB write buffer pool, all with `auto` defaults derived from the host.
+- Resource budgets: file-descriptor pool, memory soft/hard limits, tmp staging, manifest cache, RocksDB write buffer pool, all with defaults derived from Kura's bounded runtime model.
 - Peer sync bandwidth: `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` sets the aggregate peer artifact body traffic ceiling per node when set above `0`; Kura adapts the effective rate downward under public HTTP or gRPC load, and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` controls the latency target for additional backoff.
 - Same-port accelerated file serving: `KURA_ACCELERATED_FILE_SERVING_ENABLED`, `KURA_ACCELERATED_FILE_SERVING_MODE`, `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT`, and `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` bound the Linux plaintext HTTP/1 artifact fast path while preserving the Axum/Hyper fallback path on the same public port.
 - Drain timing: `KURA_DRAIN_COMPLETION_TIMEOUT_MS`.

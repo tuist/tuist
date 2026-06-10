@@ -6,7 +6,7 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
+  @monitor_types ~w(flakiness_rate flaky_run_count reliability_rate test_updated)
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -146,6 +146,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       case monitor_type do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
@@ -201,6 +202,10 @@ defmodule Tuist.Automations.Alerts.Alert do
     else
       validate_window_config(changeset, trigger_config)
     end
+  end
+
+  defp validate_reliability_rate_config(changeset, trigger_config) do
+    validate_flakiness_rate_config(changeset, trigger_config)
   end
 
   # `window_type` selects between a calendar window ("last_days", configured

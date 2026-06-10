@@ -11,9 +11,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunDailyStatsPerCaseMv do
   `<=` direction still requires the full count of every run (flaky and
   non-flaky) to compute either rate or "no flakes in window."
 
-  This new MV keeps a per-`(project_id, date, test_case_id)` row with
-  total runs and flaky runs, so the monitor can answer all four
-  comparisons via a small prefix scan keyed on the project.
+  This MV keeps a per-`(project_id, date, test_case_id)` row with total runs
+  and flaky runs, so the monitor can answer all four comparisons via a small
+  prefix scan keyed on the project. A later migration adds successful-run
+  states into the same table for reliability-rate automations.
 
   Mirrors the explicit storage-table pattern used by
   `flaky_test_case_runs` so the backfill writes directly to the
