@@ -114,6 +114,20 @@ public actor RunMetadataStorage {
         self.cacheEndpoint = cacheEndpoint
     }
 
+    /// Per-scheme test run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded result bundle.
+    public private(set) var testRunReports: [RunReportTestRun] = []
+    public func add(testRunReport: RunReportTestRun) {
+        testRunReports.append(testRunReport)
+    }
+
+    /// Per-scheme build run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded activity log.
+    public private(set) var buildRunReports: [RunReportBuildRun] = []
+    public func add(buildRunReport: RunReportBuildRun) {
+        buildRunReports.append(buildRunReport)
+    }
+
     /// Canonical command metadata derived during command execution.
     public private(set) var resolvedCommandMetadata: AnalyticsCommandMetadata?
     public func update(resolvedCommandMetadata: AnalyticsCommandMetadata?) {

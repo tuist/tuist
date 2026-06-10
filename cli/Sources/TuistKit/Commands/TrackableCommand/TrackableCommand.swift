@@ -7,6 +7,7 @@ import TuistAlert
 import TuistCache
 import TuistCore
 import TuistEnvironment
+import TuistJobSummary
 import TuistLogging
 import TuistProcess
 import TuistServer
@@ -45,6 +46,7 @@ public class TrackableCommand {
     private let uploadAnalyticsService: UploadAnalyticsServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
+    private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
     private let sessionDirectory: AbsolutePath
 
     public init(
@@ -56,6 +58,7 @@ public class TrackableCommand {
         uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
+        gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
         sessionDirectory: AbsolutePath
     ) {
         self.command = command
@@ -66,6 +69,7 @@ public class TrackableCommand {
         self.uploadAnalyticsService = uploadAnalyticsService
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
+        self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
         self.sessionDirectory = sessionDirectory
     }
 
@@ -199,6 +203,14 @@ public class TrackableCommand {
                             "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
                         )
                 }
+
+                let testRunReports = await runMetadataStorage.testRunReports
+                let buildRunReports = await runMetadataStorage.buildRunReports
+                await gitHubActionsJobSummaryService.writeJobSummary(
+                    testRunReports: testRunReports,
+                    buildRunReports: buildRunReports,
+                    runURL: serverCommandEvent.url
+                )
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
                 let commandEventPath = tempDirectory.appending(component: "command-event.json")

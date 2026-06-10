@@ -5,6 +5,7 @@ import Path
 import TuistAlert
 import TuistCore
 import TuistGit
+import TuistJobSummary
 import TuistLogging
 import TuistProcess
 import TuistServer
@@ -20,6 +21,7 @@ final class TrackableCommandTests: TuistTestCase {
     private var gitController: MockGitControlling!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var uploadAnalyticsService: MockUploadAnalyticsServicing!
+    private var gitHubActionsJobSummaryService: MockGitHubActionsJobSummaryServicing!
 
     override func setUp() {
         super.setUp()
@@ -27,6 +29,7 @@ final class TrackableCommandTests: TuistTestCase {
         backgroundProcessRunner = MockBackgroundProcessRunning()
         serverAuthenticationController = MockServerAuthenticationControlling()
         uploadAnalyticsService = MockUploadAnalyticsServicing()
+        gitHubActionsJobSummaryService = MockGitHubActionsJobSummaryServicing()
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -41,6 +44,10 @@ final class TrackableCommandTests: TuistTestCase {
         given(uploadAnalyticsService)
             .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
             .willReturn(.test())
+
+        given(gitHubActionsJobSummaryService)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
+            .willReturn()
     }
 
     override func tearDown() {
@@ -49,6 +56,7 @@ final class TrackableCommandTests: TuistTestCase {
         backgroundProcessRunner = nil
         serverAuthenticationController = nil
         uploadAnalyticsService = nil
+        gitHubActionsJobSummaryService = nil
         super.tearDown()
     }
 
@@ -74,6 +82,7 @@ final class TrackableCommandTests: TuistTestCase {
             backgroundProcessRunner: backgroundProcessRunner,
             uploadAnalyticsService: uploadAnalyticsService,
             serverAuthenticationController: serverAuthenticationController,
+            gitHubActionsJobSummaryService: gitHubActionsJobSummaryService,
             sessionDirectory: temporaryPath
         )
     }
@@ -339,6 +348,40 @@ final class TrackableCommandTests: TuistTestCase {
                 environment: .any
             )
             .called(1)
+    }
+
+    func test_whenForegroundUpload_writesGitHubActionsJobSummary() async throws {
+        // Given
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(gitHubActionsJobSummaryService)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
+            .called(1)
+    }
+
+    func test_whenBackgroundUpload_doesNotWriteGitHubActionsJobSummary() async throws {
+        // Given
+        try makeSubject(analyticsRequired: false)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(gitHubActionsJobSummaryService)
+            .writeJobSummary(testRunReports: .any, buildRunReports: .any, runURL: .any)
+            .called(0)
     }
 }
 
