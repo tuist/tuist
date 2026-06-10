@@ -194,21 +194,73 @@ defmodule Tuist.Authorization.Checks do
     end
   end
 
-  def ops_access(%User{} = user, _) do
-    if Tuist.Environment.dev?() do
-      true
-    else
-      user.account.name in Tuist.Environment.ops_user_handles()
+  @doc """
+  Gates the INTERNAL ops admin panel (`/ops`, the `:ops` policy
+  object). Unlike `ops_access/2` this is not tied to a customer
+  account and is not grant-based — it's the "is this person Tuist
+  staff" check. The object is ignored (the panel passes `nil`/`:ops`).
+  """
+  def internal_ops_access(%User{} = user, _object) do
+    Accounts.tuist_operator?(user)
+  end
+
+  def internal_ops_access(_, _), do: false
+
+  @doc """
+  Operator READ access to a customer's data. Granted only by an
+  active, unexpired operator grant (minted at ops.tuist.dev, verified
+  offline, attached to `user.operator_grant`) that covers the object's
+  account. Fail-closed: no grant, wrong account, wrong tier, expired,
+  or unknown object shape → false.
+  """
+  def ops_access(%User{} = user, object) do
+    operator_grant_covers?(user, object, [:read, :admin])
+  end
+
+  def ops_access(_, _), do: false
+
+  @doc """
+  Operator ADMIN access to a customer's data ("sign in as admins").
+  Requires an `:admin`-tier grant (which only exists after a Slack
+  approval), covering the object's account.
+  """
+  def ops_write_access(%User{} = user, object) do
+    operator_grant_covers?(user, object, [:admin])
+  end
+
+  def ops_write_access(_, _), do: false
+
+  defp operator_grant_covers?(%User{operator_grant: %{} = grant}, object, allowed_tiers) do
+    account_id = object_account_id(object)
+
+    not is_nil(account_id) and
+      grant[:account_id] == account_id and
+      grant[:tier] in allowed_tiers and
+      not grant_expired?(grant)
+  end
+
+  defp operator_grant_covers?(_user, _object, _allowed_tiers), do: false
+
+  defp grant_expired?(%{exp: exp}) when is_integer(exp), do: exp <= System.system_time(:second)
+  defp grant_expired?(_), do: true
+
+  # Resolves any object passed to ops_access/ops_write_access to the
+  # customer account id it belongs to (mirrors user_role/3's object
+  # handling). Unknown shapes return nil so the grant check fails
+  # closed.
+  defp object_account_id(%Project{account_id: account_id}), do: account_id
+  defp object_account_id(%Account{id: id}), do: id
+  defp object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
+  defp object_account_id(%{account: %Account{id: id}}), do: id
+
+  defp object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
+    case Tuist.Projects.get_project_by_id(project_id) do
+      %Project{account_id: account_id} -> account_id
+      _ -> nil
     end
   end
 
-  def ops_access(_, _) do
-    false
-  end
-
-  def ops_write_access(subject, object) do
-    ops_access(subject, object)
-  end
+  defp object_account_id(_), do: nil
 
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
     user_role(user, project, :user)

@@ -15,4 +15,45 @@ defmodule TuistOps.Environment do
   def slack_signing_secret, do: System.get_env("SLACK_SIGNING_SECRET")
   def slack_bot_token, do: System.get_env("SLACK_BOT_TOKEN")
   def approvals_channel_id, do: System.get_env("SLACK_APPROVALS_CHANNEL_ID")
+
+  # --- Operator project-access grants -----------------------------------
+
+  @doc """
+  PEM-encoded Ed25519 private key used to sign operator access grant
+  tokens. The customer server holds the matching public key and
+  verifies offline. nil when unset (signing then raises — a missing
+  key is a deploy bug, not a runtime fallback).
+  """
+  def project_access_signing_key, do: System.get_env("PROJECT_ACCESS_SIGNING_KEY")
+
+  @doc """
+  The `aud` claim stamped on grant tokens. The customer server pins
+  this to reject a token minted for a different environment. Defaults
+  to `"tuist-server"`; set `OPERATOR_GRANT_AUDIENCE` per env.
+  """
+  def operator_grant_audience, do: System.get_env("OPERATOR_GRANT_AUDIENCE") || "tuist-server"
+
+  @doc """
+  Allowed `return_to` origins for the redirect-back after a grant is
+  minted. Prevents a signed admin token from being redirected to an
+  attacker-controlled host. Comma-separated `scheme://host[:port]`
+  entries in `PROJECT_ACCESS_RETURN_TO_ALLOWLIST`; defaults to the
+  production app host.
+  """
+  def project_access_return_to_allowlist do
+    case System.get_env("PROJECT_ACCESS_RETURN_TO_ALLOWLIST") do
+      value when is_binary(value) and value != "" ->
+        value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        ["https://tuist.dev"]
+    end
+  end
+
+  @doc """
+  Local-development fallback for the operator identity when there is
+  no Pomerium in front of ops to set `X-Pomerium-Claim-Email`. nil in
+  production, so a missing Pomerium header there means "no subject".
+  """
+  def dev_operator_email, do: System.get_env("TUIST_OPS_DEV_OPERATOR_EMAIL")
 end

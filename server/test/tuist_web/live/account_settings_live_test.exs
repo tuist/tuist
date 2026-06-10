@@ -55,14 +55,30 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     end
   end
 
-  test "allows ops users to access settings for any account", %{conn: conn} do
+  test "allows an operator holding an admin grant to access settings for any account", %{
+    conn: conn
+  } do
     organization =
       AccountsFixtures.organization_fixture(preload: [:account])
 
     user = AccountsFixtures.user_fixture()
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    now = System.system_time(:second)
 
-    conn = log_in_user(conn, user)
+    conn =
+      conn
+      |> log_in_user(user)
+      |> Plug.Conn.put_session("operator_grants", %{
+        organization.account.name => %{
+          tier: :admin,
+          account_id: organization.account.id,
+          account_handle: organization.account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+      })
 
     {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings")
 
@@ -94,7 +110,6 @@ defmodule TuistWeb.AccountSettingsLiveTest do
   end
 
   test "does not render Kura controls when the account does not have Kura enabled", %{conn: conn, account: account} do
-    stub(Environment, :ops_user_handles, fn -> [] end)
     disable_kura(account)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
@@ -258,8 +273,8 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert [%{region: "local-controller", current_image_tag: nil}] = Kura.list_servers_for_account(account.id)
   end
 
-  defp enable_ops_for(user) do
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+  defp enable_ops_for(_user) do
+    stub(Accounts, :tuist_operator?, fn _ -> true end)
   end
 
   defp enable_kura(account) do

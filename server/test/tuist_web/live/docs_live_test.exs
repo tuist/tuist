@@ -6,14 +6,14 @@ defmodule TuistWeb.DocsLiveTest do
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Environment
+  alias Tuist.Accounts
 
   setup do
     stub(Req, :get, fn _url, _opts ->
       {:ok, %{status: 200, body: %{"data" => []}}}
     end)
 
-    stub(Environment, :ops_user_handles, fn -> [] end)
+    stub(Accounts, :tuist_operator?, fn _ -> false end)
 
     :ok
   end

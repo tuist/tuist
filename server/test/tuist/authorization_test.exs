@@ -10,21 +10,34 @@ defmodule Tuist.AuthorizationTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  test "can.update.account when the subject has ops access" do
+  test "can.update.account when the subject has an admin operator grant" do
     # Given
     user = AccountsFixtures.user_fixture()
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    now = System.system_time(:second)
+
+    user = %{
+      user
+      | operator_grant: %{
+          tier: :admin,
+          account_id: account.id,
+          account_handle: account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+    }
 
     # When
     assert Authorization.authorize(:account_update, user, account) == :ok
   end
 
-  test "cannot.update.account when the subject is not an admin or ops user" do
+  test "cannot.update.account when the subject is not an admin or operator" do
     # Given
     user = AccountsFixtures.user_fixture()
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
-    stub(Environment, :ops_user_handles, fn -> [] end)
 
     # When
     assert Authorization.authorize(:account_update, user, account) == {:error, :forbidden}
@@ -1291,21 +1304,19 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
 
-  test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
+  test "cannot.user.read.ops when the user is not an operator" do
     # Given
-    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Environment, :ops_user_handles, fn -> [] end)
+    stub(Accounts, :tuist_operator?, fn _ -> false end)
 
     # Then
     assert Authorization.authorize(:command_event_read, user, :ops) == {:error, :forbidden}
   end
 
-  test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
+  test "can.user.read.ops when the user is an operator" do
     # Given
-    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     # Then
     assert Authorization.authorize(:ops_read, user, :ops) == :ok

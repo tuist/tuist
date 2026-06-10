@@ -20,6 +20,23 @@ defmodule TuistOpsWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :grants do
+    # The operator reason-form surface. Fronted by Pomerium (Google
+    # Workspace OIDC) on the public ingress; identity arrives as the
+    # `X-Pomerium-Claim-Email` header, there is no session.
+    plug :accepts, ["html", "json"]
+    plug :fetch_query_params
+  end
+
+  scope "/grants", TuistOpsWeb do
+    pipe_through :grants
+
+    get "/new", GrantController, :new
+    post "/", GrantController, :create
+    get "/:id/pending", GrantController, :pending
+    get "/:id/status", GrantController, :status
+  end
+
   scope "/webhooks/slack", TuistOpsWeb do
     pipe_through :slack_webhook
 

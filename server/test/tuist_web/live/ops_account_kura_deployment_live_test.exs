@@ -5,7 +5,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Environment
+  alias Tuist.Accounts
   alias Tuist.Kura
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -15,7 +15,7 @@ defmodule TuistWeb.OpsAccountKuraDeploymentLiveTest do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
 
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     %{conn: conn, user: user}
   end

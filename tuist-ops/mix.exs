@@ -30,6 +30,7 @@ defmodule TuistOps.MixProject do
       {:ecto_sql, "~> 3.10"},
       {:floki, ">= 0.30.0", only: :test},
       {:jason, "~> 1.4"},
+      {:jose, "~> 1.11"},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.18"},
       {:phoenix, "~> 1.7.12"},
