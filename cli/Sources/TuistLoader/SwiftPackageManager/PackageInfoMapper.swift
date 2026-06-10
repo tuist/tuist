@@ -1650,6 +1650,11 @@ extension ProjectDescription.Settings {
                 includeInherited: true
             )
             settingsDictionary.appendArraySetting(
+                key: "LD_RUNPATH_SEARCH_PATHS",
+                values: [prebuilt.librarySearchPath.quotedIfContainsSpaces],
+                includeInherited: true
+            )
+            settingsDictionary.appendArraySetting(
                 key: "OTHER_LDFLAGS",
                 values: ["-l\(prebuilt.libraryName)"],
                 includeInherited: true
