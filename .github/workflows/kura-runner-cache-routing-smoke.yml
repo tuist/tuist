@@ -101,29 +101,35 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Early diagnostics — before any other step
+        shell: bash {0}
         run: |
-          set -uo pipefail
+          # `shell: bash {0}` — NOT the default `bash -e` — so a probe
+          # whose curl exits non-zero can't kill the diagnostics step.
           echo "pod(hostname)=$(hostname) at $(date -u +%FT%TZ)"
+          echo "::group::which network namespace are the steps in?"
+          # If the Actions runner uses a container hook, steps run in a
+          # docker container on the dind bridge (172.17.x) instead of
+          # the runner container (pod IP 192.168.110.x). One IP decides.
+          echo "ips: $(hostname -I 2>/dev/null || hostname -i 2>/dev/null)"
+          echo "dockerenv: $(ls -la /.dockerenv 2>/dev/null || echo none)"
+          echo "cgroup: $(head -3 /proc/1/cgroup 2>/dev/null)"
+          echo "default route + ifaces:"
+          awk 'NR==1 || $2=="00000000"' /proc/net/route 2>/dev/null
+          ls /sys/class/net 2>/dev/null
+          echo "::endgroup::"
           echo "::group::dns against each CoreDNS replica directly"
-          # Distinguishes stale-informer-per-replica from path problems:
-          # the kube-dns ClusterIP load-balances between these two.
           for ns in 192.168.0.26 192.168.0.199; do
             echo "--- replica $ns ---"
-            nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local "$ns" 2>&1 | tail -4 || true
+            nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local "$ns" 2>&1 | tail -4
           done
           echo "::endgroup::"
           echo "::group::self-heal watch — kura DNS + clusterIP for up to 120s"
-          # Theory under test: every claiming Pod has a fresh per-Pod
-          # ServiceAccount → brand-new Cilium identity seconds before
-          # the job starts. If kura-side ipcache/identity propagation
-          # lag is the cause, both checks flip to OK within a minute.
           start=$(date +%s)
           for i in $(seq 1 24); do
             t=$(( $(date +%s) - start ))
             dnsok=no
             nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local >/dev/null 2>&1 && dnsok=yes
-            code=$(curl -sS -o /dev/null --max-time 4 -w '%{http_code}' http://10.140.109.22:4000/up 2>/dev/null)
-            : "${code:=000}"
+            code=$(curl -sS -o /dev/null --max-time 4 -w '%{http_code}' http://10.140.109.22:4000/up 2>/dev/null) || code=000
             echo "t=${t}s dns=${dnsok} clusterIP=HTTP ${code}"
             if [ "$dnsok" = yes ] && [ "$code" = "200" ]; then
               echo "RECOVERED at t=${t}s"
@@ -132,6 +138,7 @@ jobs:
             sleep 5
           done
           echo "::endgroup::"
+          exit 0
 
       - uses: actions/checkout@v4
 
