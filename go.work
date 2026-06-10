@@ -20,4 +20,5 @@ use (
 	./infra/macos-host-bootstrap
 	./infra/runners-controller
 	./infra/tart-kubelet
+	./kube-impersonator
 )

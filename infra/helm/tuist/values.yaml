@@ -1647,3 +1647,4 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+

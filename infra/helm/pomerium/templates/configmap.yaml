@@ -1,0 +1,81 @@
+{{- /*
+Pomerium config file. Mounted at /etc/pomerium/config.yaml on the
+pod, read by the binary at startup. Most secrets stay out of this
+file (Pomerium reads them from SHARED_SECRET / COOKIE_SECRET /
+IDP_CLIENT_* env vars sourced from the ESO-synced Secret); this
+file holds the structural config (routes, OIDC provider, JWT
+claim header mapping, the sidecar route target).
+
+Pomerium runs in all-in-one mode (no `services:` block) — single
+process handles authenticate, authorize, databroker, proxy in one
+binary. Right shape for our scale.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pomerium.fullname" . }}-config
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # Pomerium serves HTTP internally; ingress-nginx in front of it
+    # terminates TLS via the cert-manager cert. Pomerium trusts the
+    # X-Forwarded-Proto header to know the original request was
+    # HTTPS (needed for OIDC redirect URI construction).
+    insecure_server: true
+    use_proxy_protocol: false
+    address: ":8080"
+
+    # Authenticate service URL: where Pomerium hosts its own OIDC
+    # callback. cert-manager issues a cert covering both this host
+    # and the kubectl gateway host on the same Ingress.
+    authenticate_service_url: "https://{{ .Values.authenticateHostname }}"
+    authenticate_callback_path: "/oauth2/callback"
+
+    # IdP — Google Workspace OIDC.
+    # client_id / client_secret come from env vars
+    # (POMERIUM_IDP_CLIENT_ID / POMERIUM_IDP_CLIENT_SECRET).
+    idp_provider: "google"
+
+    # Databroker storage: memory backing. Pod restart = users
+    # re-auth via browser. Acceptable at our scale (see values.yaml
+    # comment).
+    databroker_storage_type: "memory"
+
+    # Allowed authentication domain — Workspace org gate. Without
+    # this, any Google user could attempt sign-in; with it, only
+    # @tuist.dev accounts can pass the OIDC step.
+    idp_scopes: ["openid", "profile", "email"]
+
+    # Pomerium 0.32's `pass_identity_headers: true` only adds the
+    # signed JWT (`X-Pomerium-Jwt-Assertion`). Concrete per-claim
+    # headers must be configured explicitly. The sidecar reads
+    # X-Pomerium-Claim-Email to identify the user when calling
+    # tuist-ops's policy endpoint.
+    jwt_claims_headers:
+      X-Pomerium-Claim-Email: email
+
+    routes:
+      - from: "https://{{ .Values.publicHostname }}"
+        # Route to the kube-impersonator sidecar in the same pod.
+        # The sidecar does the policy lookup against tuist-ops,
+        # injects Impersonate-User + Impersonate-Group(s), strips
+        # the Pomerium session bearer, attaches the pod SA token,
+        # and forwards to kubernetes.default.svc:443. Pomerium's
+        # responsibility ends at OIDC + session issuance.
+        to: "http://127.0.0.1:{{ .Values.kubeImpersonator.port }}"
+        pass_identity_headers: true
+        preserve_host_header: true
+        timeout: 90s
+        # Coarse domain gate. Per-request fine-grained decision
+        # (which Impersonate-Group(s) the user gets) lives in
+        # tuist-ops's PolicyController, which the sidecar dials.
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
+        # Stamp the env name so the sidecar's policy call carries
+        # it through to PolicyController.
+        set_request_headers:
+          X-Tuist-Env: {{ .Values.tuistEnv | quote }}

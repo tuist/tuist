@@ -1,0 +1,6 @@
+tuistEnv: staging
+publicHostname: kube-staging.tuist.dev
+authenticateHostname: authenticate.kube-staging.tuist.dev
+
+ingress:
+  tlsSecretName: pomerium-staging-tls
