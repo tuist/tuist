@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { InlineField, InlineFieldRow, MultiSelect, RadioButtonGroup, Select } from '@grafana/ui';
@@ -20,7 +20,7 @@ const seriesOptions: Array<SelectableValue<TuistSeries>> = [
   { label: 'p99', value: 'p99' },
 ];
 
-const ciOptions: Array<SelectableValue<string>> = [
+const environmentOptions: Array<SelectableValue<string>> = [
   { label: 'Any', value: 'any' },
   { label: 'CI', value: 'ci' },
   { label: 'Local', value: 'local' },
@@ -81,15 +81,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     };
   }, [datasource, entity, query.projectHandle]);
 
-  const ciValue = useMemo(() => {
-    if (query.isCi === true) {
-      return 'ci';
-    }
-    if (query.isCi === false) {
-      return 'local';
-    }
-    return 'any';
-  }, [query.isCi]);
+  const environment = query.environment ?? 'any';
 
   const update = (patch: Partial<TuistQuery>) => {
     onChange({ ...query, ...patch });
@@ -127,9 +119,9 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
         </InlineField>
         <InlineField label="Environment" labelWidth={16}>
           <RadioButtonGroup
-            options={ciOptions}
-            value={ciValue}
-            onChange={(v) => update({ isCi: v === 'ci' ? true : v === 'local' ? false : undefined })}
+            options={environmentOptions}
+            value={environment}
+            onChange={(v) => update({ environment: v })}
           />
         </InlineField>
       </InlineFieldRow>

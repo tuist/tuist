@@ -5,12 +5,16 @@ export type TuistQueryType = 'buildDuration' | 'testDuration';
 
 export type TuistSeries = 'average' | 'p50' | 'p90' | 'p99';
 
+// Where the run executed. Mirrors the Tuist dashboard's Environment filter.
+// A template variable (e.g. "$environment") is also accepted.
+export type TuistEnvironment = 'any' | 'ci' | 'local';
+
 export interface TuistQuery extends DataQuery {
   queryType: TuistQueryType;
   // "account/project" handle, sourced from the projects resource.
   projectHandle?: string;
   series?: TuistSeries[];
-  isCi?: boolean;
+  environment?: string;
   scheme?: string;
   configuration?: string;
   category?: string;

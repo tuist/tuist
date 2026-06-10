@@ -76,8 +76,11 @@ func (c *tuistClient) durationMetrics(ctx context.Context, entity, projectHandle
 	q := url.Values{}
 	q.Set("from", strconv.FormatInt(from, 10))
 	q.Set("to", strconv.FormatInt(to, 10))
-	if qm.IsCI != nil {
-		q.Set("is_ci", strconv.FormatBool(*qm.IsCI))
+	switch qm.Environment {
+	case "ci":
+		q.Set("is_ci", "true")
+	case "local":
+		q.Set("is_ci", "false")
 	}
 	setIfNotEmpty(q, "scheme", qm.Scheme)
 	if entity == entityBuilds {

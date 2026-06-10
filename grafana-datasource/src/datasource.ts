@@ -1,5 +1,5 @@
-import { CoreApp, DataSourceInstanceSettings } from '@grafana/data';
-import { DataSourceWithBackend } from '@grafana/runtime';
+import { CoreApp, DataSourceInstanceSettings, ScopedVars } from '@grafana/data';
+import { DataSourceWithBackend, getTemplateSrv } from '@grafana/runtime';
 
 import { defaultQuery, TuistDataSourceOptions, TuistProject, TuistQuery } from './types';
 
@@ -34,5 +34,17 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
 
   filterQuery(query: TuistQuery): boolean {
     return Boolean(query.projectHandle);
+  }
+
+  applyTemplateVariables(query: TuistQuery, scopedVars: ScopedVars): TuistQuery {
+    const srv = getTemplateSrv();
+    const replace = (value?: string) => (value ? srv.replace(value, scopedVars) : value);
+    return {
+      ...query,
+      projectHandle: replace(query.projectHandle),
+      environment: replace(query.environment),
+      scheme: replace(query.scheme),
+      configuration: replace(query.configuration),
+    };
   }
 }

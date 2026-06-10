@@ -18,11 +18,12 @@ type queryModel struct {
 	QueryType     string   `json:"queryType"`
 	ProjectHandle string   `json:"projectHandle"`
 	Series        []string `json:"series"`
-	IsCI          *bool    `json:"isCi"`
-	Scheme        string   `json:"scheme"`
-	Configuration string   `json:"configuration"`
-	Category      string   `json:"category"`
-	Status        string   `json:"status"`
+	// Environment mirrors the dashboard filter: "any" (default), "ci", or "local".
+	Environment   string `json:"environment"`
+	Scheme        string `json:"scheme"`
+	Configuration string `json:"configuration"`
+	Category      string `json:"category"`
+	Status        string `json:"status"`
 }
 
 // series mirrors a single duration series in the DurationMetrics API response.
