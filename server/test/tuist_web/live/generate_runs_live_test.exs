@@ -166,7 +166,6 @@ defmodule TuistWeb.GenerateRunsLiveTest do
           "filter_git_branch_val" => "gh-readonly-queue"
         })
 
-      # Before the fix, the UI-only `!=~` operator reached Flop and raised Flop.InvalidParamsError.
       {:ok, lv, html} =
         live(
           conn,
