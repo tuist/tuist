@@ -1943,42 +1943,48 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle.
+  Returns cache endpoint URLs for the given account handle and cache technology.
 
-  Kura endpoints are only returned when the account has explicitly opted in
-  through the `:kura_cache` flag and has at least one ready Kura endpoint.
-  Otherwise the previous custom endpoint and default endpoint fallback
-  behavior is preserved.
+  The `technology` argument is driven by the `kura` client feature flag header.
+  When `:kura`, ready account Kura endpoints are returned only if the account
+  has the `:kura_cache` flag enabled. In every other case (technology is
+  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
+  endpoint fallback behavior is preserved.
 
-  When the account is not opted in to Kura (or has no ready Kura endpoint),
-  custom endpoints are only returned when:
+  Custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
   """
-  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
+
+  def get_cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      hosted_cache_endpoints_for_handle(account_handle)
+      hosted_cache_endpoints_for_handle(account_handle, technology)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
 
-  defp hosted_cache_endpoints_for_handle(account_handle) do
+  defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> cache_endpoint_urls(account)
+      %Account{} = account -> cache_endpoint_urls(account, technology)
       _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  defp cache_endpoint_urls(%Account{} = account) do
+  defp cache_endpoint_urls(%Account{} = account, :kura) do
     case kura_cache_endpoint_urls(account) do
       [] -> custom_cache_endpoint_urls(account)
       endpoints -> endpoints
     end
+  end
+
+  defp cache_endpoint_urls(%Account{} = account, :default) do
+    custom_cache_endpoint_urls(account)
   end
 
   defp custom_cache_endpoint_urls(%Account{} = account) do
