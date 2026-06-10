@@ -54,6 +54,9 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      linux_runner_image_tag:
+        description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
+        required: false
   workflow_call:
     inputs:
       environment:
@@ -76,6 +79,15 @@ on:
           Pre-built Kura runtime image tag to deploy. When unset, the
           deploy job resolves the latest kura@ release tag and strips the
           tag prefix before passing it to Helm.
+        required: false
+        type: string
+      linux_runner_image_tag:
+        description: >-
+          Pre-built Linux runner image tag to pin (e.g.
+          `sha-7ed4b250bfb5`). When unset, the deploy job resolves the
+          latest `linux-runner-image@*` semver tag. Useful for
+          validating an in-flight runner-image change on staging before
+          tagging a release.
         required: false
         type: string
 
@@ -433,6 +445,7 @@ jobs:
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -618,9 +631,20 @@ jobs:
           add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
           add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
-          if [ -n "${LINUX_RUNNER_IMAGE_VERSION:-}" ]; then
+          # The explicit linux_runner_image_tag input wins over the
+          # resolved linux-runner-image@ semver — same pattern as
+          # kura_runtime_image_tag below. Used to pin staging at an
+          # in-flight `:sha-<git-sha>` build before the runner image is
+          # tagged.
+          linux_runner_image_version="${LINUX_RUNNER_IMAGE_TAG_INPUT:-}"
+          if [ -n "$linux_runner_image_version" ]; then
+            echo "Overriding resolved Linux runner image tag with input ${linux_runner_image_version}"
+          else
+            linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
+          fi
+          if [ -n "$linux_runner_image_version" ]; then
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${LINUX_RUNNER_IMAGE_VERSION}"
+              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
           fi
 
           # The explicit kura_runtime_image_tag input (manual re-roll) wins
