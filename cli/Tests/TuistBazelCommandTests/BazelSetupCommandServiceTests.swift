@@ -13,7 +13,7 @@ import TuistHTTP
 import TuistServer
 import TuistTesting
 
-@testable import TuistCacheCommand
+@testable import TuistBazelCommand
 
 struct BazelSetupCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!

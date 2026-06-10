@@ -8,7 +8,7 @@ import TuistEnvironmentTesting
 import TuistServer
 import TuistTesting
 
-@testable import TuistCacheCommand
+@testable import TuistBazelCommand
 
 struct BazelCredentialHelperCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!

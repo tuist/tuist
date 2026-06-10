@@ -6,6 +6,7 @@ import Path
 import TuistAccountCommand
 import TuistAlert
 import TuistAuthCommand
+import TuistBazelCommand
 import TuistBuildCommand
 import TuistBundleCommand
 import TuistCacheCommand
