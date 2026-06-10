@@ -3,12 +3,19 @@ defmodule Tuist.Kura.RunnerCache do
   Keeps a private runner-cache Kura node provisioned for exactly the
   accounts that have runners-as-a-service turned on.
 
-  The identity rule is simple and converges both directions every tick:
+  The identity rule converges both directions every tick:
 
-    * an account with `runner_max_concurrent > 0` should have exactly one
-      non-destroyed Kura server in the active runner-cache region, and
-    * an account with runners off (`runner_max_concurrent <= 0`) should
-      have none.
+    * an account with at least one Runner Profile whose `:runners`
+      feature flag is enabled (`Tuist.FeatureFlags.runners_enabled?/1`)
+      should have exactly one non-destroyed Kura server in the active
+      runner-cache region, and
+    * an account with no profiles — or with the flag off — should have
+      none.
+
+  Profiles are the durable "this account uses runners" marker: dispatch
+  resolves every `runs-on` through them, so an account without profiles
+  cannot receive jobs and a cache node would idle. The feature flag
+  covers the production paywall on top (it is always on outside prod).
 
   This runs inside `Tuist.Kura.Reconciler`'s tick rather than on its own
   cron, so it shares the same cadence and self-heals after a BEAM
@@ -26,10 +33,12 @@ defmodule Tuist.Kura.RunnerCache do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
+  alias Tuist.Runners.Profile
 
   require Logger
 
@@ -86,26 +95,57 @@ defmodule Tuist.Kura.RunnerCache do
         select: 1
       )
 
-    Repo.all(
-      from(a in Account,
-        as: :account,
-        where: a.runner_max_concurrent > 0,
-        where: not exists(server_exists),
-        select: a.id
+    profile_exists =
+      from(p in Profile,
+        where: p.account_id == parent_as(:account).id,
+        select: 1
       )
+
+    # The SQL narrows to "has profiles, lacks a node"; the feature-flag
+    # check runs per account in Elixir because FunWithFlags gates are
+    # actor-scoped, not a column. The candidate set is tiny (runner
+    # customers), so the N flag lookups per tick are negligible.
+    from(a in Account,
+      as: :account,
+      where: exists(profile_exists),
+      where: not exists(server_exists)
     )
+    |> Repo.all()
+    |> Enum.filter(&FeatureFlags.runners_enabled?/1)
+    |> Enum.map(& &1.id)
   end
 
   defp nodes_to_tear_down(region_id) do
-    Repo.all(
+    profile_exists =
+      from(p in Profile,
+        where: p.account_id == parent_as(:server).account_id,
+        select: 1
+      )
+
+    no_profiles =
+      Repo.all(
+        from(s in Server,
+          as: :server,
+          where: s.region == ^region_id,
+          where: s.status not in [:destroying, :destroyed],
+          where: not exists(profile_exists),
+          select: s
+        )
+      )
+
+    flag_off =
       from(s in Server,
+        as: :server,
         join: a in assoc(s, :account),
         where: s.region == ^region_id,
         where: s.status not in [:destroying, :destroyed],
-        where: a.runner_max_concurrent <= 0,
-        select: s
+        where: exists(profile_exists),
+        preload: [account: a]
       )
-    )
+      |> Repo.all()
+      |> Enum.reject(&FeatureFlags.runners_enabled?(&1.account))
+
+    no_profiles ++ flag_off
   end
 
   defp provision(account_id, region_id, image_tag) do
