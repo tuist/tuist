@@ -13,6 +13,10 @@ spec:
     name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
   minReplicas: {{ .Values.server.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.server.autoscaling.maxReplicas }}
+  {{- with .Values.server.autoscaling.behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   metrics:
     {{- with .Values.server.autoscaling.targetCPUUtilizationPercentage }}
     - type: Resource

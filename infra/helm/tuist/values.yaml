@@ -224,6 +224,10 @@ server:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
+    # Optional autoscaling/v2 behavior block. Managed production uses this
+    # to dampen scale-down churn so in-flight HTTP requests are less likely
+    # to land on pods that are terminating.
+    behavior: {}
   podDisruptionBudget:
     enabled: false
     minAvailable: 1

@@ -56,6 +56,14 @@ server:
     maxReplicas: 5
     targetCPUUtilizationPercentage: 70
     targetMemoryUtilizationPercentage: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 900
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
+        selectPolicy: Min
 
   podDisruptionBudget:
     enabled: true
