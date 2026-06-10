@@ -1,0 +1,169 @@
+name: Kura Runner Cache Routing Smoke
+
+# Manual measurement workflow comparing two Kura cache paths from a
+# staging Linux runner Pod:
+#
+#   * public:  client -> regional Hetzner LB -> ingress-nginx -> Kura pod
+#   * private: client -> ClusterIP Service -> Kura pod (in-cluster)
+#
+# Validates the NetworkPolicy carve-out (runner Pods can reach the kura
+# namespace on cache ports) and quantifies the in-cluster speedup. Hits
+# `/up` so no auth is required — the signal is pure network RTT,
+# isolating the path difference that the cache routing introduces.
+#
+# Manual-trigger only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_kura_url:
+        description: Public Kura URL, e.g. `https://tuist-eu-central-1.kura.tuist.dev`
+        required: true
+        type: string
+      private_kura_url:
+        description: In-cluster Kura URL, e.g. `http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000`
+        required: true
+        type: string
+      iterations:
+        description: Number of `/up` roundtrips per path
+        required: false
+        default: '50'
+        type: string
+
+permissions: {}
+
+jobs:
+  routing-smoke:
+    runs-on: tuist-staging-linux
+    timeout-minutes: 10
+    steps:
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          echo "Hostname:     $(hostname)"
+          echo "Kernel:       $(uname -a)"
+          echo "Architecture: $(uname -m)"
+          echo "Public URL:   ${{ inputs.public_kura_url }}"
+          echo "Private URL:  ${{ inputs.private_kura_url }}"
+          echo "Iterations:   ${{ inputs.iterations }}"
+
+      - name: Reachability probe
+        run: |
+          set -uo pipefail
+          # 5s timeout per probe — connection-refused/blocked surfaces
+          # immediately, true public-RTT reaches well under 1s.
+          for label in public private; do
+            if [ "$label" = public ]; then url="${{ inputs.public_kura_url }}"; fi
+            if [ "$label" = private ]; then url="${{ inputs.private_kura_url }}"; fi
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url/up" 2>/dev/null || echo 000)
+            if [ "$code" = "000" ]; then
+              echo "::error::$label probe FAILED — $url/up unreachable (HTTP 000)"
+              # Don't bail yet for the private path: if the NetworkPolicy
+              # is the only thing missing, we still want to see the diff
+              # against the public path. Surface as an annotation.
+              if [ "$label" = public ]; then exit 1; fi
+            else
+              echo "$label probe OK — $url/up -> HTTP $code"
+            fi
+          done
+
+      - name: Benchmark /up roundtrips
+        id: bench
+        run: |
+          set -uo pipefail
+          IT=${{ inputs.iterations }}
+          # Pure connection+request timing per call. /up has no auth
+          # and a tiny body so the times reflect network RTT, not
+          # backend CPU. `-o /dev/null` drops the body to stdout.
+          # `-w` extracts the timing fields curl computes; we print
+          # them one per line for downstream parsing. Failures (HTTP
+          # 000 transport) emit `FAIL`, which the summarizer drops.
+          measure() {
+            local label=$1 url=$2
+            local out=/tmp/bench-${label}.txt
+            : >"$out"
+            for i in $(seq 1 "$IT"); do
+              line=$(curl -sS -o /dev/null --max-time 10 \
+                -w '%{time_namelookup} %{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total} %{http_code}' \
+                "$url/up" 2>/dev/null) || line="FAIL"
+              printf '%s\n' "$line" >>"$out"
+            done
+            echo "Captured $(wc -l <"$out") samples for $label"
+          }
+          measure public "${{ inputs.public_kura_url }}"
+          measure private "${{ inputs.private_kura_url }}"
+
+      - name: Summarize
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import statistics
+          paths = [("public", "/tmp/bench-public.txt"),
+                   ("private", "/tmp/bench-private.txt")]
+          fields = ["dns", "tcp_connect", "tls_handshake", "ttfb", "total"]
+          # curl reports cumulative timing in seconds — the diffs between
+          # adjacent fields are the per-phase durations, but the
+          # individual values are what's interesting too. We print both
+          # the raw mean of each cumulative field and the implied phase
+          # durations.
+
+          def stats(values_ms):
+              if not values_ms:
+                  return None
+              sv = sorted(values_ms)
+              n = len(sv)
+              def p(q):
+                  i = min(n - 1, int(round(q * (n - 1))))
+                  return sv[i]
+              return {
+                  "n": n,
+                  "min": sv[0],
+                  "max": sv[-1],
+                  "mean": statistics.mean(sv),
+                  "p50": p(0.50),
+                  "p95": p(0.95),
+                  "p99": p(0.99),
+              }
+
+          results = {}
+          for label, path in paths:
+              with open(path) as f:
+                  rows = []
+                  for raw in f:
+                      parts = raw.strip().split()
+                      if len(parts) < 6:
+                          continue
+                      try:
+                          dns, conn, tls, ttfb, total = (float(p) * 1000 for p in parts[:5])
+                          code = int(parts[5])
+                      except ValueError:
+                          continue
+                      if code < 200 or code >= 300:
+                          continue
+                      rows.append({"dns": dns, "tcp_connect": conn, "tls_handshake": tls, "ttfb": ttfb, "total": total})
+                  results[label] = rows
+
+          def col(rows, key):
+              return [r[key] for r in rows if r[key] >= 0]
+
+          print()
+          print(f"{'metric':<14} {'path':<8} {'n':>5} {'min':>8} {'p50':>8} {'mean':>8} {'p95':>8} {'p99':>8} {'max':>8}   (ms)")
+          print("-" * 84)
+          for metric in ["total", "ttfb", "tcp_connect", "tls_handshake", "dns"]:
+              for label, _ in paths:
+                  s = stats(col(results[label], metric))
+                  if s is None:
+                      print(f"{metric:<14} {label:<8} {'-':>5}")
+                      continue
+                  print(f"{metric:<14} {label:<8} {s['n']:>5} {s['min']:>8.2f} {s['p50']:>8.2f} {s['mean']:>8.2f} {s['p95']:>8.2f} {s['p99']:>8.2f} {s['max']:>8.2f}")
+              print()
+
+          # Speedup summary against the median.
+          for metric in ["total", "ttfb", "tcp_connect"]:
+              pub = stats(col(results["public"], metric))
+              priv = stats(col(results["private"], metric))
+              if pub and priv and priv["p50"] > 0:
+                  ratio = pub["p50"] / priv["p50"]
+                  saved_ms = pub["p50"] - priv["p50"]
+                  print(f"{metric}: private p50 is {ratio:.2f}x faster ({saved_ms:+.2f}ms saved per request)")
+          PY

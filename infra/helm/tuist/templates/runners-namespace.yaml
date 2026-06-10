@@ -248,6 +248,31 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+    # Kura runner-cache egress: lets a runner Pod reach the account's
+    # in-cluster Kura node on the cache ports. Without this rule the
+    # in-cluster cache URL (`TUIST_CACHE_ENDPOINT=<svc-dns>:4000`,
+    # staged by the server dispatch when the account has a runner-cache
+    # node) would DNS-resolve but TCP-connect-fail against the cluster
+    # Service CIDR carve-out above. Auth is unchanged: the same
+    # `tuist.lua` hook on the Kura pod authenticates per-tenant via the
+    # Tuist server, exactly as it does behind the public ingress. The
+    # peer set is constant across server rollouts (Kura Pods don't roll
+    # on every Helm `upgrade`), so a mid-job Pod's egress datapath
+    # never churns from this rule. Scoped to Kura Pods by
+    # `app.kubernetes.io/name: kura` so it doesn't widen access to
+    # anything else in the namespace.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kura
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kura
+      ports:
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50051
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy
