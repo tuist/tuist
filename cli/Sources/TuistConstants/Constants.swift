@@ -1,6 +1,7 @@
 import Foundation
 
 public enum Constants {
+    // Overridden at build time by the release pipeline (cli-release.yml); the value committed here lags real releases.
     @TaskLocal public static var version: String! = "4.197.1"
     public static let versionFileName = ".tuist-version"
     public static let binFolderName = ".tuist-bin"
