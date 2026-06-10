@@ -282,6 +282,8 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          # Pin the tag to the commit this run built (see cli-release.yml).
+          target_commitish: ${{ github.sha }}
           name: App ${{ needs.check-releases.outputs.app-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.app-next-version }}
           body: ${{ needs.release-app.outputs.release-notes }}

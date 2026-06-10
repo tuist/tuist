@@ -221,6 +221,11 @@ jobs:
         with:
           draft: false
           repository: tuist/tuist
+          # Pin the tag to the commit this run built, not main's HEAD. Without
+          # this, action-gh-release defaults target_commitish to the default
+          # branch, so a push landing during the run drifts the tag onto a
+          # newer commit than the one the release notes and binaries describe.
+          target_commitish: ${{ github.sha }}
           name: CLI ${{ needs.check-releases.outputs.cli-next-version-number }}
           tag_name: ${{ needs.check-releases.outputs.cli-next-version }}
           body: ${{ needs.release-cli.outputs.release-notes }}
