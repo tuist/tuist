@@ -3,12 +3,20 @@ name: CLI Backport Release
 # Cut a patch release on an older CLI line (e.g. 4.192.x) without touching main
 # or moving the "latest" pointers (GitHub "Latest" badge, Homebrew formula).
 #
-# Prerequisite (done by a human/agent, outside CI): create the release branch
-# off the base tag and apply the fix(es) onto it, resolving any conflicts there:
+# Prerequisite (done by humans/agents, outside CI): land the fix(es) on the
+# protected release branch via PR — never a direct push. CI never cherry-picks
+# and never resolves conflicts; that happens in the PR.
 #
+#   # 1. One-time: create the line's release branch off the base tag.
 #   git switch -c releases/4.192.x 4.192.0
-#   git cherry-pick <fix-sha>          # resolve conflicts here, not in CI
 #   git push -u origin releases/4.192.x
+#
+#   # 2. Cherry-pick the fix on a topic branch, then open a PR INTO the release
+#   #    branch (resolve any conflicts here). Review and merge it.
+#   git switch -c backport/<fix>-4.192.x releases/4.192.x
+#   git cherry-pick <fix-sha>
+#   git push -u origin backport/<fix>-4.192.x
+#   gh pr create --base releases/4.192.x --head backport/<fix>-4.192.x
 #
 # Then dispatch this workflow (it lives on and runs from main) with
 # branch=releases/4.192.x. It derives the next PATCH version (patch only —
