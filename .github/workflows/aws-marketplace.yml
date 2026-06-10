@@ -1,0 +1,120 @@
+name: AWS Marketplace
+
+# Validates the AWS Marketplace deployment packaging without requiring a live
+# buyer account. The CloudFormation template uses AWSQS public extensions for
+# Kubernetes resources, so cfn-lint runs with the extension-type rule ignored
+# unless those extensions are activated in the CI region.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/aws-marketplace/**
+      - infra/helm/tuist/**
+      - .github/workflows/aws-marketplace.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/aws-marketplace/**
+      - infra/helm/tuist/**
+      - .github/workflows/aws-marketplace.yml
+  workflow_dispatch: {}
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-marketplace-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  HELM_VERSION: "4.1.4"
+  KUBECONFORM_VERSION: "0.7.0"
+  AWS_REGION: us-east-1
+  MARKETPLACE_TEMPLATE: infra/aws-marketplace/cloudformation/tuist-existing-eks.yaml
+  MARKETPLACE_VALUES: infra/aws-marketplace/helm/values-existing-eks.yaml
+
+jobs:
+  offline:
+    name: Offline Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: "false"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install tools
+        run: |
+          set -euo pipefail
+          mise use -g "helm@${HELM_VERSION}" "yq@4.52.5"
+          python3 -m pip install --user "cfn-lint>=1,<2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          archive="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}" \
+            -o "$archive"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$archive" kubeconform
+          install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Parse CloudFormation template
+        run: yq '.' "$MARKETPLACE_TEMPLATE" >/dev/null
+      - name: cfn-lint
+        run: |
+          cfn-lint \
+            --non-zero-exit-code error \
+            --ignore-checks E3006 W1011 \
+            --regions "$AWS_REGION" \
+            --template "$MARKETPLACE_TEMPLATE"
+      - name: Helm lint
+        run: helm lint infra/helm/tuist -f "$MARKETPLACE_VALUES"
+      - name: Helm template
+        run: |
+          helm template tuist infra/helm/tuist \
+            -f "$MARKETPLACE_VALUES" \
+            > rendered.yaml
+          echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
+      - name: kubeconform
+        run: |
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered.yaml
+
+  aws-validate-template:
+    name: AWS Validate Template
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: offline
+    if: >-
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      vars.AWS_MARKETPLACE_VALIDATE_ROLE_ARN != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_MARKETPLACE_VALIDATE_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Validate CloudFormation template
+        run: |
+          aws cloudformation validate-template \
+            --template-body "file://${MARKETPLACE_TEMPLATE}"

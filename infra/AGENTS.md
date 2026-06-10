@@ -46,6 +46,9 @@ Geo-routes cache registry requests to the nearest healthy cache origin based on 
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
 
+### `aws-marketplace/` — AWS Marketplace one-click deployment assets
+AWS-specific packaging for buyer-owned Tuist deployments. Starts with an existing-EKS CloudFormation path that provisions AWS dependencies and installs the Tuist Helm chart, then grows toward Marketplace Quick Launch. Keep AWS Marketplace review constraints, CloudFormation templates, and AWS-specific values here rather than baking provider assumptions into `helm/tuist/`.
+
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
