@@ -258,6 +258,31 @@ impl ExtensionEngine {
         Ok(Some(Arc::new(engine)))
     }
 
+    // Build an engine from a script file directly, bypassing the global-env
+    // parsing of `from_env`. Lets other modules' tests exercise the gRPC/HTTP
+    // handlers with a known policy script without racing on process env.
+    #[cfg(test)]
+    pub(crate) async fn from_script_for_test(
+        script_path: PathBuf,
+        metrics: Metrics,
+    ) -> Result<SharedExtension, String> {
+        let config = ExtensionConfig {
+            script_path,
+            hook_timeout: Duration::from_millis(1000),
+            allow_ttl: Duration::from_secs(600),
+            deny_ttl: Duration::from_secs(3),
+            fail_closed_authenticate: true,
+            fail_closed_authorize: true,
+            fail_open_response_headers: true,
+            cache_max_entries: 1000,
+            signers: Arc::new(HashMap::new()),
+            jwt_verifiers: Arc::new(HashMap::new()),
+            http_clients: Arc::new(HashMap::new()),
+            env: Arc::new(HashMap::new()),
+        };
+        Ok(Arc::new(Self::new(config, metrics).await?))
+    }
+
     async fn new(config: ExtensionConfig, metrics: Metrics) -> Result<Self, String> {
         let script = tokio::fs::read_to_string(&config.script_path)
             .await
