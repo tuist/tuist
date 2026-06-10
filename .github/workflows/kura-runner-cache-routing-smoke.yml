@@ -1,6 +1,6 @@
 name: Kura Runner Cache Routing Smoke
 
-# Re-fire after Cilium enable-endpoint-routes=true on staging (burn stale poller A).
+# Re-fire after Cilium enable-endpoint-routes=true on staging (burn stale poller B).
 # Manual A/B measurement workflow comparing two Kura cache paths from a
 # staging Linux runner Pod using REAL Gradle build-cache traffic. We
 # repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
