@@ -19,7 +19,7 @@ export interface TuistQuery extends DataQuery {
 
 export const defaultQuery: Partial<TuistQuery> = {
   queryType: 'buildDuration',
-  series: ['p50', 'p90', 'p99'],
+  series: ['average', 'p50', 'p90', 'p99'],
 };
 
 // Non-secret options stored as jsonData.
