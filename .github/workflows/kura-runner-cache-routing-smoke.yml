@@ -72,11 +72,14 @@ env:
   TUIST_AUTH_PASSWORD: tuistrocks
   TUIST_URL: https://staging.tuist.dev
   # Fallbacks so the `push` trigger (no workflow inputs available) runs
-  # against the staging tuist account's eu-central Kura instance. The
-  # `workflow_dispatch` path overrides each via its input.
-  PROJECT_HANDLE: ${{ inputs.project_handle || 'tuist/gradle-plugin' }}
-  PUBLIC_KURA_URL: ${{ inputs.public_kura_url || 'https://tuist-eu-central-1.kura.tuist.dev' }}
-  PRIVATE_KURA_URL: ${{ inputs.private_kura_url || 'http://kura-tuist-eu-central-1.kura.svc.cluster.local:4000' }}
+  # against the *only* staging Kura instance we currently have — the
+  # `kura-smoke-staging-regional` account's regional eu-central node.
+  # The `tuist` staging account has no Kura provisioned (and its
+  # template-derived public hostname would collide with production DNS).
+  # `workflow_dispatch` overrides each via its input.
+  PROJECT_HANDLE: ${{ inputs.project_handle || 'kura-smoke-staging-regional/gradle-bench' }}
+  PUBLIC_KURA_URL: ${{ inputs.public_kura_url || 'https://kura-smoke-staging-regional-eu-central-1.kura.tuist.dev' }}
+  PRIVATE_KURA_URL: ${{ inputs.private_kura_url || 'http://kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000' }}
   ITERATIONS: ${{ inputs.iterations || '3' }}
 
 jobs:
