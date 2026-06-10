@@ -92,6 +92,101 @@ struct ProjectDescriptorGeneratorTests {
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func generate_buildableFolders_anchorsConfigsAndAddsCrossTargetMembership() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let buildableFolder = temporaryPath.appending(component: "App")
+        let xcconfig = buildableFolder.appending(components: "Supporting", "Configurations", "App-Debug.xcconfig")
+        let infoPlist = buildableFolder.appending(components: "Supporting", "App-Info.plist")
+        let sharedStub = buildableFolder.appending(component: "SharedStub.swift")
+
+        let app = Target.test(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            infoPlist: .file(path: infoPlist),
+            settings: Settings(
+                base: [:],
+                configurations: [.debug: Configuration(settings: [:], xcconfig: xcconfig)]
+            ),
+            buildableFolders: [
+                BuildableFolder(
+                    path: buildableFolder,
+                    exceptions: BuildableFolderExceptions(exceptions: [
+                        BuildableFolderException(
+                            excluded: [],
+                            compilerFlags: [:],
+                            publicHeaders: [],
+                            privateHeaders: [],
+                            platformFilters: [:],
+                            target: "AppTests",
+                            included: [sharedStub]
+                        ),
+                    ]),
+                    resolvedFiles: [BuildableFolderFile(path: sharedStub, compilerFlags: nil)]
+                ),
+            ]
+        )
+        let appTests = Target.test(name: "AppTests", platform: .iOS, product: .unitTests)
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            name: "Project",
+            targets: [app, appTests]
+        )
+        let appGraphTarget = GraphTarget(path: project.path, target: app, project: project)
+        let appTestsGraphTarget = GraphTarget(path: project.path, target: appTests, project: project)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: appTestsGraphTarget.target.name, path: appTestsGraphTarget.path): [
+                    .target(name: appGraphTarget.target.name, path: appGraphTarget.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(15, 0, 0))
+
+        // When
+        let generatedProject = try await subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxproj = generatedProject.xcodeProj.pbxproj
+        let appTarget = try #require(pbxproj.nativeTargets.first { $0.name == "App" })
+
+        // The xcconfig is referenced through the synchronized root group anchor, not a flat file reference.
+        let debugConfig = try #require(appTarget.buildConfigurationList?.configuration(name: "Debug"))
+        #expect(debugConfig.baseConfiguration == nil)
+        #expect(debugConfig.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+
+        // The cross-target membership is a foreign-target exception set, not a flat reference.
+        let group = try #require(
+            appTarget.fileSystemSynchronizedGroups?
+                .compactMap { $0 as? PBXFileSystemSynchronizedRootGroup }
+                .first { $0.path == "App" }
+        )
+        let foreignSet = try #require(
+            group.exceptions?
+                .compactMap { $0 as? PBXFileSystemSynchronizedBuildFileExceptionSet }
+                .first { $0.target?.name == "AppTests" }
+        )
+        #expect(foreignSet.membershipExceptions == ["SharedStub.swift"])
+
+        // None of the buildable-folder files leak as flat file references at the project root.
+        let fileReferenceNames = pbxproj.fileReferences.compactMap(\.path) + pbxproj.fileReferences.compactMap(\.name)
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.xcconfig") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Info.plist") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("SharedStub.swift") })
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func objectVersion_when_xcode11_and_spm() async throws {
         let xcodeControllerMock = try #require(XcodeController.mocked)
         given(xcodeControllerMock)
