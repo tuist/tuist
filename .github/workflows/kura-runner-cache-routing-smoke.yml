@@ -100,6 +100,21 @@ jobs:
     runs-on: shape-linux-2vcpu-8gb
     timeout-minutes: 30
     steps:
+      - name: Early diagnostics — before any other step
+        run: |
+          set -uo pipefail
+          echo "::group::early-resolv.conf"
+          cat /etc/resolv.conf 2>&1 | head -10 || true
+          echo "::endgroup::"
+          echo "::group::early-dns Kura"
+          nslookup kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local 2>&1 | tail -8 || true
+          echo "::endgroup::"
+          echo "::group::early-clusterIP probe"
+          curl -sS -o /dev/null --max-time 6 -w "early clusterIP -> HTTP %{http_code}\n" \
+            -H "Host: kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local" \
+            http://10.140.109.22:4000/up 2>&1 || true
+          echo "::endgroup::"
+
       - uses: actions/checkout@v4
 
       - uses: jdx/mise-action@v4.0.1
