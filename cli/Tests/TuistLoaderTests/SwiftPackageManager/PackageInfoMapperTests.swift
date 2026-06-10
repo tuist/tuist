@@ -7132,6 +7132,12 @@ struct PackageInfoMapperTests {
                 prebuiltPath.appending(component: "lib").pathString,
             ])
         )
+        #expect(
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
         #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
     }
 
