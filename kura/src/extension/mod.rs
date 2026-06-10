@@ -1192,8 +1192,12 @@ fn ttl_for_authorize(config: &ExtensionConfig, result: &AuthorizeOutcome) -> Dur
 // would key the cache on per-request noise such as `grpc-timeout` (REAPI
 // clients send the remaining deadline on every RPC) or `traceparent`, turning
 // almost every request into a cache miss and an authentication backend call.
-const CREDENTIAL_HEADER_NAMES: [&str; 4] =
-    ["authorization", "proxy-authorization", "cookie", "x-api-key"];
+const CREDENTIAL_HEADER_NAMES: [&str; 4] = [
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "x-api-key",
+];
 
 fn credentials_fingerprint(headers: &BTreeMap<String, String>) -> String {
     let filtered = headers
@@ -1514,12 +1518,13 @@ end
         for (noise_name, noise_value) in [
             ("grpc-timeout", "119999996u"),
             ("grpc-timeout", "119231422u"),
-            ("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+            (
+                "traceparent",
+                "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            ),
         ] {
             let mut noisy = context.clone();
-            noisy
-                .headers
-                .insert(noise_name.into(), noise_value.into());
+            noisy.headers.insert(noise_name.into(), noise_value.into());
             let decision = engine.evaluate_access(&noisy).await;
             assert!(matches!(decision, AccessDecision::Allow(Some(_))));
         }
