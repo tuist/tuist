@@ -5,20 +5,22 @@ name: Kura Runner Cache Routing Smoke
 # repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
 # between an in-cluster Kura URL and the public Kura URL, and report
 # wall-clock for each phase. The Tuist Gradle plugin already honours
-# `TUIST_CACHE_ENDPOINT` (TuistConfigReader.kt) and `TUIST_TOKEN`
+# `TUIST_CACHE_ENDPOINT` (TuistConfigReader.kt) and reads the auth
+# token from the local credential store written by `tuist auth login`
 # (TokenProvider.kt), so no plugin change is needed — we just override
-# env per phase.
+# the endpoint env per phase.
 #
 # Validates the runner Pod NetworkPolicy carve-out (egress to the kura
 # namespace on cache ports) and quantifies the in-cluster speedup with
 # REAL artifact traffic (compiled JARs from the Tuist Gradle plugin
 # project) rather than a synthetic `/up` probe.
 #
-# Prereqs (see `## Setup` in the runbook):
-#   * `TUIST_TOKEN` secret on this repo with read+write access to the
-#     staging project named in `inputs.project_handle`.
+# Prereqs:
 #   * NetworkPolicy carve-out deployed to staging (this PR's
 #     `infra/helm/tuist/templates/runners-namespace.yaml`).
+#   * The Tuist Gradle plugin project (`tuist/gradle-plugin`, set in
+#     `gradle/tuist.toml`) is registered on staging.tuist.dev and the
+#     `tuistrocks@tuist.dev` acceptance account has access to it.
 #
 # Manual-trigger only.
 
@@ -26,8 +28,9 @@ on:
   workflow_dispatch:
     inputs:
       project_handle:
-        description: Staging project handle, e.g. `tuist/tuist-gradle-cache-bench`
-        required: true
+        description: Staging project handle the build is attributed to
+        required: false
+        default: tuist/gradle-plugin
         type: string
       public_kura_url:
         description: Public Kura URL (e.g. `https://tuist-eu-central-1.kura.tuist.dev`)
@@ -51,6 +54,12 @@ env:
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
+  # Same shared acceptance account used by server-production-deployment.yml.
+  # tuistrocks has access to the Tuist Gradle plugin project on every
+  # environment, and we authenticate against staging via TUIST_URL.
+  TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+  TUIST_AUTH_PASSWORD: tuistrocks
+  TUIST_URL: https://staging.tuist.dev
 
 jobs:
   routing-smoke:
@@ -62,7 +71,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "java gradle"
+          install_args: "java gradle tuist"
           cache: "true"
 
       - uses: actions/setup-java@v4
@@ -77,6 +86,7 @@ jobs:
           echo "Kernel:       $(uname -a)"
           echo "Architecture: $(uname -m)"
           echo "Project:      ${{ inputs.project_handle }}"
+          echo "Server:       $TUIST_URL"
           echo "Public URL:   ${{ inputs.public_kura_url }}"
           echo "Private URL:  ${{ inputs.private_kura_url }}"
           echo "Iterations:   ${{ inputs.iterations }}"
@@ -97,34 +107,26 @@ jobs:
             echo "$label probe OK — $url/up -> HTTP $code"
           done
 
-      - name: Configure Gradle to point at the staging project
+      - name: Authenticate with staging Tuist
+        run: |
+          # `tuist auth login` reads TUIST_AUTH_EMAIL/PASSWORD from env
+          # and writes the access + refresh tokens into the local
+          # credential store keyed by TUIST_URL. The Gradle plugin's
+          # TokenProvider reads from that same store, so the build is
+          # authenticated as `tuistrocks` against staging Kura without
+          # any token secret on the workflow.
+          tuist auth login
+
+      - name: Configure Gradle project handle
         run: |
           set -euo pipefail
-          # Rewrite the in-repo gradle/tuist.toml so the plugin treats
-          # this build as belonging to the staging project. We're inside
-          # the Gradle project directory's parent, so cd in.
-          cd gradle
-          cat > tuist.toml <<TOML
-          [fullHandle]
-          fullHandle = "${{ inputs.project_handle }}"
+          # Override the in-repo gradle/tuist.toml so the plugin attributes
+          # this build to the input project on staging.
+          cat > gradle/tuist.toml <<TOML
+          project = "${{ inputs.project_handle }}"
           TOML
-          # Belt and suspenders: also force the URL via env so the plugin
-          # never silently falls back to https://tuist.dev.
-          echo "TUIST_URL=https://staging.tuist.dev" >>"$GITHUB_ENV"
-          echo "TUIST_TOKEN_PRESENT=$([ -n \"$TUIST_TOKEN\" ] && echo yes || echo no)" >>"$GITHUB_ENV"
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
-
-      - name: Fail if TUIST_TOKEN is not configured
-        run: |
-          if [ "${TUIST_TOKEN_PRESENT}" != "yes" ]; then
-            echo "::error::TUIST_TOKEN secret is not set on this repo. The Tuist Gradle plugin needs it to authenticate against staging Kura. Set it via 'gh secret set TUIST_TOKEN --repo tuist/tuist' with a token that has access to '${{ inputs.project_handle }}'."
-            exit 1
-          fi
 
       - name: Run A/B benchmark
-        env:
-          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
         run: |
           set -uo pipefail
           IT=${{ inputs.iterations }}
