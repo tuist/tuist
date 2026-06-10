@@ -51,11 +51,17 @@ only — they are intentionally not part of the generated CLI client.
   with the zip + SHA1 for catalog submission.
 - Catalog readiness was checked with `@grafana/plugin-validator`. Outstanding
   item: the validator wants the **latest** `grafana-plugin-sdk-go` (clears the
-  "SDK older than 5 months" check and the grpc/otel CVEs), but the latest SDK
-  requires **go 1.26.3** while this monorepo is on go 1.25. Fully clearing it
-  needs either the monorepo on go 1.26 or extracting this plugin into its own
-  repo (which is also the cleaner home for the release/signing cadence). Do this
-  before submitting to the catalog, not as part of in-monorepo development.
+  "SDK older than 5 months" check and the grpc/otel CVEs). The latest SDK cannot
+  be adopted from inside this monorepo for two reasons, both verified:
+  1. It requires **go 1.26.3**, so `go.work` would have to move off go 1.25.
+  2. Even on go 1.26, it pulls newer k8s/transitive deps (e.g. structured-merge-diff
+     v6, newer grpc) that the shared `go.work` then forces onto every module via
+     MVS, which breaks the infra controllers' build (the `infra/tart-kubelet`
+     build fails with a `structured-merge-diff` v4-vs-v6 type error).
+  So the SDK update requires an **isolated module graph** — extract this plugin
+  into its own repository (also the cleaner home for the release/signing cadence)
+  before submitting to the catalog. This is a pre-submission step, not in-monorepo
+  development. The plugin builds and works on the pinned v0.250.0 + go 1.25 today.
 
 ## Conventions
 
