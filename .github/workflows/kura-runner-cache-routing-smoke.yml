@@ -1,6 +1,6 @@
 name: Kura Runner Cache Routing Smoke
 
-# Re-fire: 3 warm kata pollers ready; expect a bm Cilium claim.
+# Re-fire: CH schema fixed; full staging claim path expected green.
 # Manual A/B measurement workflow comparing two Kura cache paths from a
 # staging Linux runner Pod using REAL Gradle build-cache traffic. We
 # repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
