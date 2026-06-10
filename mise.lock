@@ -613,17 +613,6 @@ url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
 [tools.xcodes."platforms.macos-x64"]
 url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
 
-[[tools.xcodes]]
-version = "1.6.0"
-backend = "aqua:XcodesOrg/xcodes"
-
-[tools.xcodes."platforms.macos-arm64"]
-checksum = "blake3:efa423dc3ecc1da1decdc10fe4f2afec2918c8469eb0e894aa4a80a21f2c3a99"
-url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
-
-[tools.xcodes."platforms.macos-x64"]
-url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
-
 [[tools.yq]]
 version = "4.52.5"
 backend = "aqua:mikefarah/yq"
