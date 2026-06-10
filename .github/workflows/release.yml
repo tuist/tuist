@@ -2020,9 +2020,9 @@ jobs:
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
       )
-    # gh ships in the tuist-linux runner image; the dispatch needs no
-    # checkout, so the repo is targeted explicitly via --repo.
-    runs-on: tuist-linux
+    # GitHub-hosted Ubuntu includes gh; the dispatch needs no checkout, so
+    # the repo is targeted explicitly via --repo.
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
