@@ -59,8 +59,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Project settings.
     public var settings: Settings
 
-    /// The group to place project files within
-    public var filesGroup: ProjectGroup
+    /// The group to place project files within. If nil, files will be placed at the root level.
+    public var filesGroup: ProjectGroup?
 
     /// Additional files to include in the project
     public var additionalFiles: [FileElement]
@@ -116,7 +116,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         developmentRegion: String?,
         options: Options,
         settings: Settings,
-        filesGroup: ProjectGroup,
+        filesGroup: ProjectGroup?,
         targets: [Target],
         packages: [Package],
         schemes: [Scheme],
@@ -189,7 +189,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             developmentRegion: String? = nil,
             options: Options = .test(automaticSchemesOptions: .disabled),
             settings: Settings = Settings.test(),
-            filesGroup: ProjectGroup = .group(name: "Project"),
+            filesGroup: ProjectGroup? = nil,
             targets: [Target] = [Target.test()],
             packages: [Package] = [],
             schemes: [Scheme] = [],
@@ -236,7 +236,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             developmentRegion: String? = nil,
             options: Options = .test(automaticSchemesOptions: .disabled),
             settings: Settings = .default,
-            filesGroup: ProjectGroup = .group(name: "Project"),
+            filesGroup: ProjectGroup? = nil,
             targets: [Target] = [],
             packages: [Package] = [],
             schemes: [Scheme] = [],
