@@ -235,6 +235,7 @@ struct XcodeBuildTestCommandService {
             quarantinedTests: allQuarantinedTests,
             shardPlanId: shardPlanId,
             shardIndex: shardIndex,
+            scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
             mode: mode
         )
         if let shardTestProductsPath {
@@ -426,18 +427,8 @@ extension XcodeBuildTestCommandService {
               let statuses = try? await xcResultService.parseTestStatuses(path: resultBundlePath)
         else { return }
 
-        let failedTestNames = statuses.testCases
-            .filter { $0.status == .failed }
-            .map { "\($0.testSuite).\($0.name)" }
-        let skippedTests = statuses.testCases.filter { $0.status == .skipped }.count
-
         await RunMetadataStorage.current.add(
-            testRunReport: RunReportTestRun(
-                scheme: scheme,
-                totalTests: statuses.testCases.count,
-                skippedTests: skippedTests,
-                failedTestNames: failedTestNames
-            )
+            testRunReport: RunReportTestRun(scheme: scheme, testStatuses: statuses)
         )
     }
 
