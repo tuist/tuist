@@ -38,7 +38,18 @@ import (
 )
 
 const (
-	defaultListenAddr      = ":8081"
+	// Internal listener — Pomerium dials this inside the same pod
+	// via loopback. Binding to 127.0.0.1 (NOT pod IP / 0.0.0.0) is
+	// the auth: only same-pod traffic can reach the proxy. Any pod
+	// that could reach the pod IP would otherwise be able to spoof
+	// Host + X-Pomerium-Claim-Email and get the apiserver
+	// impersonation forwarded with the Pomerium pod's SA bearer.
+	defaultListenAddr = "127.0.0.1:8081"
+	// Health listener — kubelet probes go to the pod IP, not
+	// loopback, so /healthz lives on a separate listener bound to
+	// 0.0.0.0. This listener has no proxy logic; an attacker
+	// reaching it can only get an "ok" string.
+	defaultHealthAddr      = ":8082"
 	defaultApiserverURL    = "https://kubernetes.default.svc:443"
 	defaultSATokenFile     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	defaultCACertFile      = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
@@ -49,6 +60,7 @@ const (
 
 type config struct {
 	listenAddr    string
+	healthAddr    string
 	apiserverURL  string
 	saTokenFile   string
 	caCertFile    string
@@ -60,6 +72,7 @@ type config struct {
 func configFromEnv() config {
 	return config{
 		listenAddr:    envOr("LISTEN_ADDR", defaultListenAddr),
+		healthAddr:    envOr("HEALTH_ADDR", defaultHealthAddr),
 		apiserverURL:  envOr("APISERVER_URL", defaultApiserverURL),
 		saTokenFile:   envOr("SA_TOKEN_FILE", defaultSATokenFile),
 		caCertFile:    envOr("CA_CERT_FILE", defaultCACertFile),
@@ -131,23 +144,39 @@ func main() {
 		ErrorLog:  log.New(os.Stderr, "[proxy] ", log.LstdFlags),
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+	// Internal mux — proxy only, no /healthz. Lives on
+	// 127.0.0.1 so only same-pod (Pomerium) can dial it.
+	internalMux := http.NewServeMux()
+	internalMux.Handle("/", impersonatingHandler(policyClient, cfg.policyURL, proxy))
+
+	// Health mux — exposed on the pod IP so kubelet probes
+	// reach it. Only serves /healthz; the impersonator proxy is
+	// NOT mounted here. An attacker reaching this listener can
+	// only get the "ok" string.
+	healthMux := http.NewServeMux()
+	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	mux.Handle("/", impersonatingHandler(policyClient, cfg.policyURL, proxy))
 
-	log.Printf("kube-impersonator: listen=%s policy=%s apiserver=%s",
-		cfg.listenAddr, cfg.policyURL, cfg.apiserverURL)
-	srv := &http.Server{
+	internalSrv := &http.Server{
 		Addr:              cfg.listenAddr,
-		Handler:           mux,
+		Handler:           internalMux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("listen: %v", err)
+	healthSrv := &http.Server{
+		Addr:              cfg.healthAddr,
+		Handler:           healthMux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
+
+	log.Printf("kube-impersonator: internal=%s health=%s policy=%s apiserver=%s",
+		cfg.listenAddr, cfg.healthAddr, cfg.policyURL, cfg.apiserverURL)
+
+	errs := make(chan error, 2)
+	go func() { errs <- fmt.Errorf("internal listener: %w", internalSrv.ListenAndServe()) }()
+	go func() { errs <- fmt.Errorf("health listener: %w", healthSrv.ListenAndServe()) }()
+	log.Fatal(<-errs)
 }
 
 func refreshTokenLoop(t *tokenStore, ttl time.Duration) {

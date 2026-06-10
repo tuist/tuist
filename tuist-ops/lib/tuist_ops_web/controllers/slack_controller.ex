@@ -38,8 +38,8 @@ defmodule TuistOpsWeb.SlackController do
   @env_to_group %{
     "staging" => "group:tuist-staging-write",
     "canary" => "group:tuist-canary-write",
-    "prod" => "group:tuist-prod-write",
-    "production" => "group:tuist-prod-write"
+    "prod" => "group:tuist-production-write",
+    "production" => "group:tuist-production-write"
   }
 
   @valid_envs Map.keys(@env_to_group)

@@ -40,7 +40,7 @@ rules:
       - tuist-eng
       - tuist-staging-write
       - tuist-canary-write
-      - tuist-prod-write
+      - tuist-production-write
   # ServiceAccount impersonation is NOT granted: humans never
   # need to act as a workload identity, and the sidecar is the
   # sole source of truth for impersonation. If a future feature

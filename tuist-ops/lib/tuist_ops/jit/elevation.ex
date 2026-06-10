@@ -37,6 +37,15 @@ defmodule TuistOps.JIT.Elevation do
     |> validate_required([:request_id, :requester_email, :target_group, :expires_at])
     |> validate_inclusion(:status, @statuses)
     |> foreign_key_constraint(:request_id)
+    # One Elevation per Request. Pairs with the unique index in
+    # priv/repo/migrations/20260609160000_unique_elevation_per_request.exs
+    # — Postgres rejects a duplicate insert with `unique_violation`,
+    # Ecto surfaces it here as a changeset error, and the approve
+    # transaction reads the existing Elevation + returns it as the
+    # already-approved branch. Defence-in-depth alongside the
+    # `SELECT ... FOR UPDATE` on the Request row in
+    # `TuistOps.JIT.Approvals.approve/2`.
+    |> unique_constraint(:request_id)
   end
 
   def transition_changeset(elevation, attrs) do

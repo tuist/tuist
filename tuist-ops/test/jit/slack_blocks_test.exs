@@ -69,7 +69,7 @@ defmodule TuistOps.JIT.SlackBlocksTest do
       id: 1,
       requester_slack_id: "U_ALICE",
       approver_slack_id: nil,
-      target_group: "group:tuist-prod-write",
+      target_group: "group:tuist-production-write",
       intent: "Restart deploy/tuist-tuist-server in tuist namespace",
       ttl_seconds: 900,
       slack_channel_id: "C_APPROVALS",

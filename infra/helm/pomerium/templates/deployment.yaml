@@ -97,21 +97,31 @@ spec:
           image: "{{ .Values.kubeImpersonator.image.repository }}:{{ .Values.kubeImpersonator.image.tag }}"
           imagePullPolicy: {{ .Values.kubeImpersonator.image.pullPolicy }}
           env:
+            # 127.0.0.1 binding (not :PORT / 0.0.0.0) so the proxy
+            # is only reachable from same-pod loopback — Pomerium.
+            # If a pod on the cluster network could reach the pod
+            # IP on this port, it could spoof Host +
+            # X-Pomerium-Claim-Email and get the apiserver
+            # impersonation forwarded with the Pomerium pod SA.
             - name: LISTEN_ADDR
-              value: ":{{ .Values.kubeImpersonator.port }}"
+              value: "127.0.0.1:{{ .Values.kubeImpersonator.port }}"
+            # Pod-IP binding so kubelet probes can reach /healthz.
+            # No proxy mounted on this listener; only /healthz.
+            - name: HEALTH_ADDR
+              value: ":{{ .Values.kubeImpersonator.healthPort }}"
           ports:
-            - name: imp
-              containerPort: {{ .Values.kubeImpersonator.port }}
+            - name: imp-health
+              containerPort: {{ .Values.kubeImpersonator.healthPort }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: imp
+              port: imp-health
             initialDelaySeconds: 2
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
-              port: imp
+              port: imp-health
             initialDelaySeconds: 10
             periodSeconds: 30
           resources:

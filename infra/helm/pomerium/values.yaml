@@ -48,7 +48,14 @@ kubeImpersonator:
     repository: ghcr.io/tuist/kube-impersonator
     tag: ""
     pullPolicy: IfNotPresent
+  # Internal proxy listener — bound to 127.0.0.1 inside the pod
+  # so only Pomerium (in the same pod) can reach it. Any other
+  # bind would let pods on the cluster network spoof Host +
+  # X-Pomerium-Claim-Email and bypass Pomerium entirely.
   port: 8081
+  # Health listener — bound to the pod IP so kubelet probes reach
+  # it. Only serves /healthz, not the impersonator proxy.
+  healthPort: 8082
   resources:
     requests:
       cpu: 25m

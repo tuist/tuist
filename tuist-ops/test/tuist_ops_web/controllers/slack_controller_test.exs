@@ -175,7 +175,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
     end
 
     test "approver-not-authorized surfaces ephemeral hint, still 200" do
-      request = insert_pending_request!(%{target_group: "group:tuist-prod-write"})
+      request = insert_pending_request!(%{target_group: "group:tuist-production-write"})
 
       stub(Approvals, :approve, fn _, _ -> {:error, :approver_not_authorized} end)
 

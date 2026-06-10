@@ -112,7 +112,7 @@ defmodule TuistOps.JIT.ApprovalsTest do
         insert_request!(%{
           requester_email: "marek@tuist.dev",
           requester_slack_id: "U_MAREK",
-          target_group: "group:tuist-prod-write"
+          target_group: "group:tuist-production-write"
         })
 
       assert {:error, :approver_not_authorized} =

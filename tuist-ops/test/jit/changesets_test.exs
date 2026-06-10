@@ -52,6 +52,37 @@ defmodule TuistOps.JIT.ChangesetsTest do
     end
   end
 
+  describe "Elevation unique-per-request constraint" do
+    test "two Elevations for the same request_id are rejected by the DB" do
+      request =
+        %Request{
+          requester_email: "marek@tuist.dev",
+          requester_slack_id: "U_M",
+          target_group: "group:tuist-staging-write",
+          intent: "race test",
+          ttl_seconds: 600,
+          slack_channel_id: "C_T",
+          expires_at:
+            DateTime.add(DateTime.utc_now(), 600, :second) |> DateTime.truncate(:second),
+          status: "pending"
+        }
+        |> Repo.insert!()
+
+      attrs = %{
+        request_id: request.id,
+        requester_email: request.requester_email,
+        target_group: request.target_group,
+        expires_at: DateTime.add(DateTime.utc_now(), 600, :second) |> DateTime.truncate(:second)
+      }
+
+      assert {:ok, _} = attrs |> Elevation.create_changeset() |> Repo.insert()
+
+      assert {:error, changeset} = attrs |> Elevation.create_changeset() |> Repo.insert()
+
+      assert {"has already been taken", _} = changeset.errors[:request_id]
+    end
+  end
+
   describe "Elevation transitions" do
     defp build_elevation do
       %Elevation{

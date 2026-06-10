@@ -15,7 +15,7 @@ defmodule TuistOps.JIT.PolicyTest do
 
   @staging "group:tuist-staging-write"
   @canary "group:tuist-canary-write"
-  @prod "group:tuist-prod-write"
+  @prod "group:tuist-production-write"
 
   # Stubs `TailscaleClient.user_role/1` against an in-test role map.
   # Off-map emails return {:error, :not_found} which is what the live

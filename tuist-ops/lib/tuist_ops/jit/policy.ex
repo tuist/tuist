@@ -34,7 +34,7 @@ defmodule TuistOps.JIT.Policy do
   @group_to_env %{
     "group:tuist-staging-write" => "staging",
     "group:tuist-canary-write" => "canary",
-    "group:tuist-prod-write" => "production"
+    "group:tuist-production-write" => "production"
   }
 
   # Roles that map to the "engineer / member" tier — staging and

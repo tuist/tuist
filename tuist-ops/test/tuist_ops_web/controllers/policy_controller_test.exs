@@ -217,7 +217,7 @@ defmodule TuistOpsWeb.PolicyControllerTest do
     test "Member + active PROD elevation → NO write group (Policy denies prod for Member)",
          %{conn: conn} do
       stub_role(@member, :member)
-      insert_active_elevation!(@member, "group:tuist-prod-write")
+      insert_active_elevation!(@member, "group:tuist-production-write")
 
       c = policy_get(conn, "kube-prod.tuist.dev", [{"x-pomerium-claim-email", @member}])
       assert c.status == 200

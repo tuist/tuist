@@ -21,6 +21,8 @@ defmodule TuistOps.JIT.Approvals do
   a DB status update.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias TuistOps.Repo
   alias TuistOps.JIT.Elevation
   alias TuistOps.JIT.Policy
@@ -84,7 +86,15 @@ defmodule TuistOps.JIT.Approvals do
   """
   def approve(request_id, %{slack_id: actor_slack_id, email: actor_email}) do
     fn ->
-      case Repo.get(Request, request_id) do
+      # `SELECT ... FOR UPDATE` on the Request row serialises
+      # concurrent Approve clicks against the same request. The
+      # first transaction holds the lock while it transitions the
+      # row to "approved" and inserts the Elevation; the second
+      # blocks until commit, then re-reads and falls through to
+      # the `status: "approved"` branch (idempotent). The unique
+      # index on `tailscale_jit_elevations.request_id` is the
+      # belt-and-suspenders if the lock is ever bypassed.
+      case Repo.one(from r in Request, where: r.id == ^request_id, lock: "FOR UPDATE") do
         nil ->
           Repo.rollback(:not_found)
 

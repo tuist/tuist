@@ -138,7 +138,7 @@ defmodule TuistOpsWeb.PolicyController do
 
   defp env_write_group("staging"), do: "tuist-staging-write"
   defp env_write_group("canary"), do: "tuist-canary-write"
-  defp env_write_group("production"), do: "tuist-prod-write"
+  defp env_write_group("production"), do: "tuist-production-write"
 
   # `expires_at > now` enforced at the DB layer so a stale row with
   # status="active" but past expiry never returns elevated headers
@@ -161,7 +161,7 @@ defmodule TuistOpsWeb.PolicyController do
 
   defp group_for_env("staging"), do: "group:tuist-staging-write"
   defp group_for_env("canary"), do: "group:tuist-canary-write"
-  defp group_for_env("production"), do: "group:tuist-prod-write"
+  defp group_for_env("production"), do: "group:tuist-production-write"
 
   defp elevated_allowed?(role, env) do
     case Policy.env_access(role, env) do
