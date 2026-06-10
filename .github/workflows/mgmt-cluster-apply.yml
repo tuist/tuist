@@ -59,7 +59,11 @@ permissions: {}
 jobs:
   apply:
     name: kubectl apply
-    runs-on: tuist-linux
+    # The self-hosted tuist-linux runners are customer runner Pods
+    # governed by a NetworkPolicy that only allows public egress on
+    # ports 80/443. The mgmt apiserver is reached on 6443, so this
+    # deploy job needs a GitHub-hosted runner outside that policy.
+    runs-on: ubuntu-latest
     environment:
       name: mgmt-cluster-apply
     # `kubectl diff` can be slow against the Cluster API CRDs when many
