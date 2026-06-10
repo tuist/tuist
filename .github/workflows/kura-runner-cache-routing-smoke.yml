@@ -2,7 +2,7 @@ name: Kura Runner Cache Routing Smoke
 
 # A/B measurement of the runner-local Kura build cache using REAL
 # Gradle build-cache traffic, exercising this PR's product flow
-# end-to-end:
+# end-to-end (fire: private node active):
 #
 #   1. The RunnerCache reconciler provisions a private (in-cluster
 #      only) Kura node for every account with Runner Profiles.
