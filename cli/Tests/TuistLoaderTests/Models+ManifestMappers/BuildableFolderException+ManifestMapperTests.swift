@@ -48,6 +48,23 @@ struct BuildableFolderExceptionManifestMapperTests {
         )
     }
 
+    @Test(.inTemporaryDirectory) func from_withForeignTargetInclusion() async throws {
+        let buildableFolder = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.touch(buildableFolder.appending(component: "SharedStub.swift"))
+
+        let got = try await XcodeGraph.BuildableFolderException.from(
+            manifest: ProjectDescription.BuildableFolderException
+                .exception(target: "AppTests", included: ["SharedStub.swift"]),
+            buildableFolder: buildableFolder,
+            fileSystem: fileSystem
+        )
+
+        #expect(got.target == "AppTests")
+        #expect(got.included == [buildableFolder.appending(component: "SharedStub.swift")])
+        #expect(got.excluded.isEmpty)
+    }
+
     @Test(.inTemporaryDirectory) func from_withGlobPattern() async throws {
         let buildableFolder = try #require(FileSystem.temporaryTestDirectory)
 

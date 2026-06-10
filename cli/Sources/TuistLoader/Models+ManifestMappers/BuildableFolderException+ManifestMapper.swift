@@ -17,6 +17,12 @@ extension XcodeGraph.BuildableFolderException {
             excluded.append(contentsOf: expandedPaths)
         }
 
+        var included: [AbsolutePath] = []
+        for pattern in manifest.included {
+            let expandedPaths = try await fileSystem.glob(directory: buildableFolder, include: [pattern]).collect()
+            included.append(contentsOf: expandedPaths)
+        }
+
         let compilerFlags = Dictionary(uniqueKeysWithValues: try manifest.compilerFlags.map {
             (buildableFolder.appending(try RelativePath(validating: $0.0)), $0.1)
         })
@@ -32,7 +38,9 @@ extension XcodeGraph.BuildableFolderException {
             compilerFlags: compilerFlags,
             publicHeaders: publicHeaders,
             privateHeaders: privateHeaders,
-            platformFilters: platformFilters
+            platformFilters: platformFilters,
+            target: manifest.target,
+            included: included
         )
     }
 }
