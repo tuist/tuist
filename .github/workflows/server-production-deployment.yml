@@ -49,6 +49,7 @@ on:
       - infra/kura-controller/**
       - infra/helm/tuist/**
       - infra/helm/k8s-monitoring/**
+      - .github/workflows/release.yml
       - .github/workflows/server-deployment.yml
       - .github/workflows/server-production-deployment.yml
       - server/pnpm-lock.yaml
