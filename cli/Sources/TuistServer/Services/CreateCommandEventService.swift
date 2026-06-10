@@ -30,29 +30,9 @@
     }
 
     public struct CreateCommandEventService: CreateCommandEventServicing {
-        private let retryProvider: RetryProviding
-
-        public init(
-            retryProvider: RetryProviding = RetryProvider()
-        ) {
-            self.retryProvider = retryProvider
-        }
+        public init() {}
 
         public func createCommandEvent(
-            commandEvent: CommandEvent,
-            projectId: String,
-            serverURL: URL
-        ) async throws -> ServerCommandEvent {
-            try await retryProvider.runWithRetries {
-                try await sendCreateCommandEvent(
-                    commandEvent: commandEvent,
-                    projectId: projectId,
-                    serverURL: serverURL
-                )
-            }
-        }
-
-        private func sendCreateCommandEvent(
             commandEvent: CommandEvent,
             projectId: String,
             serverURL: URL
