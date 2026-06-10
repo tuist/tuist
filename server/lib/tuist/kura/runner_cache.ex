@@ -59,8 +59,17 @@ defmodule Tuist.Kura.RunnerCache do
     Enum.each(nodes_to_tear_down(region_id), &tear_down/1)
 
     case image_tag() do
-      nil -> :ok
-      image_tag -> Enum.each(accounts_needing_node(region_id), &provision(&1, region_id, image_tag))
+      nil ->
+        :ok
+
+      image_tag ->
+        Enum.each(accounts_needing_node(region_id), &provision(&1, region_id, image_tag))
+        # A node that failed before its first successful deployment
+        # (transient apiserver error, missing CRD field, ...) would
+        # otherwise strand its account forever: the server row exists,
+        # so provisioning never re-runs, and nothing else retries
+        # failed servers. Self-heal them on the same cadence.
+        Enum.each(nodes_to_retry(region_id), &retry(&1, image_tag))
     end
 
     :ok
@@ -158,6 +167,34 @@ defmodule Tuist.Kura.RunnerCache do
         Logger.warning(
           "[Kura.RunnerCache] could not provision runner-cache node for account #{account_id} in #{region_id}: #{inspect(reason)}"
         )
+
+        :ok
+    end
+  end
+
+  # Failed servers that never had a successful deployment
+  # (`current_image_tag` nil) — the only state `Kura.retry_server/2`
+  # accepts. Failures after a successful deploy keep their node and are
+  # an operator concern, not ours.
+  defp nodes_to_retry(region_id) do
+    Repo.all(
+      from(s in Server,
+        where: s.region == ^region_id,
+        where: s.status == :failed,
+        where: is_nil(s.current_image_tag),
+        select: s
+      )
+    )
+  end
+
+  defp retry(%Server{} = server, image_tag) do
+    case Kura.retry_server(server, image_tag) do
+      {:ok, _server} ->
+        Logger.info("[Kura.RunnerCache] retrying failed runner-cache node #{server.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] could not retry runner-cache node #{server.id}: #{inspect(reason)}")
 
         :ok
     end
