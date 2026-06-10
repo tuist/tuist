@@ -145,7 +145,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 let hash: String?
                 switch dependency.packageRef.kind {
                 case "remote", "remoteSourceControl":
-                    packageFolder = checkoutsFolder.appending(component: sanitizedSwiftPackageManagerPath(dependency.subpath))
+                    packageFolder = checkoutsFolder.appending(component: dependency.subpath)
                     hash = dependency.state?.checkoutState?.revision
                 case "local", "fileSystem", "localSourceControl":
                     // Depending on the swift version, the information is available either in `path` or in `location`
@@ -155,13 +155,13 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
                     // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
                     // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                    packageFolder = try AbsolutePath(validating: sanitizedSwiftPackageManagerPath(path))
+                    packageFolder = try AbsolutePath(
+                        validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+                    )
                     hash = nil
                 case "registry":
                     let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                    packageFolder = registryFolder.appending(
-                        try RelativePath(validating: sanitizedSwiftPackageManagerPath(dependency.subpath))
-                    )
+                    packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
                     hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
                 default:
                     throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
@@ -177,9 +177,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 let targetToArtifactPaths = try workspaceState.object.artifacts
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }
                     .reduce(into: [:]) { result, artifact in
-                        result[artifact.targetName] = try AbsolutePath(
-                            validating: sanitizedSwiftPackageManagerPath(artifact.path)
-                        )
+                        result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
                     }
 
                 return SwiftPackageManagerResolvedPackageInfo(
@@ -463,14 +461,10 @@ private func mapPackagePrebuilts(
                 identity: prebuilt.identity,
                 version: prebuilt.version,
                 libraryName: prebuilt.libraryName,
-                path: try AbsolutePath(validating: sanitizedSwiftPackageManagerPath(prebuilt.path)),
-                checkoutPath: try prebuilt.checkoutPath.map {
-                    try AbsolutePath(validating: sanitizedSwiftPackageManagerPath($0))
-                },
+                path: try AbsolutePath(validating: prebuilt.path),
+                checkoutPath: try prebuilt.checkoutPath.map { try AbsolutePath(validating: $0) },
                 products: prebuilt.products,
-                includePath: try prebuilt.includePath?.map {
-                    try RelativePath(validating: sanitizedSwiftPackageManagerPath($0))
-                },
+                includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
                 cModules: prebuilt.cModules
             )
 
@@ -609,13 +603,8 @@ private struct SwifterPMPackageInfoCache {
     }
 
     private static func normalizedPackagePath(_ path: String) -> String {
-        sanitizedSwiftPackageManagerPath(path)
+        path.replacingOccurrences(of: "/private/var", with: "/var")
     }
-}
-
-private func sanitizedSwiftPackageManagerPath(_ path: String) -> String {
-    String(path.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-        .replacingOccurrences(of: "/private/var", with: "/var")
 }
 
 extension ProjectDescription.Platform {

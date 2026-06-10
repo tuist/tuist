@@ -593,7 +593,7 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test
-    func load_whenWorkspaceStateContainsPrebuilts_sanitizesPathsAndPassesPackagePrebuiltsToMapper() async throws {
+    func load_whenWorkspaceStateContainsPrebuilts_passesPackagePrebuiltsToMapper() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in
                 // Given
@@ -638,10 +638,10 @@ struct SwiftPackageManagerGraphLoaderTests {
                             "identity" : "swift-syntax",
                             "version" : "601.0.0",
                             "libraryName" : "SwiftSyntax",
-                            "path" : "\(prebuiltPath.pathString)\\u0000",
-                            "checkoutPath" : "\(checkoutPath.pathString)\\u0000",
+                            "path" : "\(prebuiltPath.pathString)",
+                            "checkoutPath" : "\(checkoutPath.pathString)",
                             "products" : ["SwiftSyntax"],
-                            "includePath" : ["Sources/_SwiftSyntaxCShims/include\\u0000"],
+                            "includePath" : ["Sources/_SwiftSyntaxCShims/include"],
                             "cModules" : ["_SwiftSyntaxCShims"]
                           }
                         ]
