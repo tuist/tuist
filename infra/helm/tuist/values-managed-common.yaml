@@ -344,12 +344,12 @@ observability:
 #   `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON projections in
 #   server-deployment.yaml), so the Profiles dropdown + validation
 #   stay in lockstep with the rendered pools.
-# - `release.yml`'s `release-runner-image` reads `xcodeVersions`
-#   from THIS file to build the Release notes image list.
-#
-# Keep `xcodeVersions` aligned with `runner-image-build.strategy.matrix.xcode`
-# in `.github/workflows/release.yml` so every active Xcode tag has a
-# pool that pins to it.
+# Keep `xcodeVersions` aligned with the build matrix in
+# `infra/runner-image/profiles.json` (the single source of truth for
+# which Xcode runner images are built) so every active Xcode tag has a
+# pool that pins to it. This alignment is a deploy concern: editing
+# THIS file does not trigger a runner-image rebuild — only changes
+# under `infra/runner-image/**` do.
 runnersFleet:
   shapes:
     - vcpus: 6
