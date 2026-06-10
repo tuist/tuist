@@ -59,17 +59,21 @@ on:
 
 permissions:
   contents: read
+  # `tuist auth login` detects CI and switches to GitHub OIDC, which
+  # needs this scope to mint a workflow-scoped JWT to exchange with
+  # staging.tuist.dev for an access token. Staging needs to trust GH
+  # OIDC for `tuist/tuist`; if it doesn't, `tuist auth login` errors
+  # with a clear message and we adjust there.
+  id-token: write
 
 env:
   MISE_VERSION: "2026.4.18"
   MISE_GITHUB_TOKEN: ${{ github.token }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
-  # Same shared acceptance account used by server-production-deployment.yml.
-  # tuistrocks has access to the Tuist Gradle plugin project on every
-  # environment, and we authenticate against staging via TUIST_URL.
-  TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
-  TUIST_AUTH_PASSWORD: tuistrocks
+  # Force the CLI + Gradle plugin to talk to staging, not the local
+  # acceptance-test server some runner shapes bake in via
+  # TUIST_SERVER_URL.
   TUIST_URL: https://staging.tuist.dev
   # Fallbacks so the `push` trigger (no workflow inputs available) runs
   # against the *only* staging Kura instance we currently have — the
@@ -138,12 +142,17 @@ jobs:
 
       - name: Authenticate with staging Tuist
         run: |
-          # `tuist auth login` reads TUIST_AUTH_EMAIL/PASSWORD from env
-          # and writes the access + refresh tokens into the local
+          # `tuist auth login` detects CI (via the GH Actions env vars)
+          # and uses GitHub OIDC: it requests an id-token from the
+          # workflow, hands it to staging.tuist.dev, and writes the
+          # returned Tuist access + refresh tokens into the local
           # credential store keyed by TUIST_URL. The Gradle plugin's
-          # TokenProvider reads from that same store, so the build is
-          # authenticated as `tuistrocks` against staging Kura without
-          # any token secret on the workflow.
+          # TokenProvider reads from that same store on every cache
+          # request. Some acceptance-test runner shapes export
+          # TUIST_SERVER_URL=http://localhost:8223 which would override
+          # TUIST_URL inside the CLI; clear it before login so the
+          # token is keyed against staging.
+          unset TUIST_SERVER_URL TUIST_HOSTED
           tuist auth login
 
       - name: Configure Gradle project handle
