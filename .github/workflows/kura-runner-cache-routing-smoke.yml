@@ -1,6 +1,6 @@
 name: Kura Runner Cache Routing Smoke
 
-# Re-fire with dispatch-egress fixed: claims should land on warm kata pollers.
+# Re-fire: 3 warm kata pollers ready; expect a bm Cilium claim.
 # Manual A/B measurement workflow comparing two Kura cache paths from a
 # staging Linux runner Pod using REAL Gradle build-cache traffic. We
 # repeatedly run the same Gradle build, swapping `TUIST_CACHE_ENDPOINT`
