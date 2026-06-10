@@ -99,7 +99,7 @@ defmodule TuistWeb.Endpoint do
   # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
   # for projects with thousands of files. 50MB should accommodate most projects.
   # TODO: Consider streaming large arrays instead of loading everything into memory.
-  plug Plug.Parsers,
+  plug TuistWeb.Plugs.RequestBodyParserPlug,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
