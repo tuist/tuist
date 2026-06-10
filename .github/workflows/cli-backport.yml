@@ -1,0 +1,161 @@
+name: CLI Backport Release
+
+# Cut a patch release on an older CLI line (e.g. 4.192.x) without touching main
+# or moving the "latest" pointers (GitHub "Latest" badge, Homebrew formula).
+#
+# Prerequisite (done by a human/agent, outside CI): create the release branch
+# off the base tag and apply the fix(es) onto it, resolving any conflicts there:
+#
+#   git switch -c releases/4.192.x 4.192.0
+#   git cherry-pick <fix-sha>          # resolve conflicts here, not in CI
+#   git push -u origin releases/4.192.x
+#
+# Then dispatch this workflow (it lives on and runs from main) with
+# branch=releases/4.192.x. It derives the next PATCH version (patch only —
+# never a minor/major bump), builds the branch HEAD, and publishes the release.
+#
+# What runs from where: this workflow YAML and the reusable build/publish
+# workflow resolve from main (current tooling), while the source and build
+# scripts (cli:bundle, bundle-linux.sh, .xcode-version-releases,
+# Package.resolved, the TuistCacheEE submodule pointer) come from the checked-out
+# branch — i.e. the version being patched builds with its own scripts. If the
+# line's pinned Xcode is not on the macos-26 runner image (or the submodule
+# pointer no longer resolves), the build fails; that means the line is too old
+# to build on current infra.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Release branch to cut from (e.g. releases/4.192.x)"
+        required: true
+        type: string
+      version:
+        description: "Optional explicit version override (must stay on the branch's major.minor)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  # Capped down into the reusable workflow's release-cli job (which mints an
+  # OIDC token); a called workflow's job permissions can't exceed the caller's.
+  id-token: write
+
+concurrency:
+  # Shared with cli-release.yml so a backport and a normal release never create
+  # tags or push the Homebrew formula at the same time.
+  group: cli-publish
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  prepare:
+    name: Resolve backport version
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - id: resolve
+        env:
+          BRANCH: ${{ inputs.branch }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          # 1. Guard the ref: never cut a "patch" off main / the default branch.
+          if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            echo "::error::Refusing to backport from '$BRANCH'. Dispatch with a release branch (e.g. releases/4.192.x)." >&2
+            exit 1
+          fi
+
+          # 2. Latest CLI semver tag reachable from the branch HEAD. The
+          #    '[0-9]*' glob excludes scoped component tags (server@1.2.3 etc.).
+          BASE_TAG=$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
+          if [ -z "$BASE_TAG" ]; then
+            echo "::error::No CLI semver tag is reachable from '$BRANCH'. Is it rooted on a CLI release?" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$BASE_TAG" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Nearest tag '$BASE_TAG' is not a bare CLI semver tag." >&2
+            exit 1
+          fi
+          MAJOR=$(printf '%s' "$BASE_TAG" | cut -d. -f1)
+          MINOR=$(printf '%s' "$BASE_TAG" | cut -d. -f2)
+
+          # 3. Force a PATCH bump off the highest tag on this line. Never use
+          #    git-cliff/--bumped-version (a feat: would bump minor/major).
+          LATEST_ON_LINE=$(git tag -l | grep -E "^${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V | tail -n1)
+          LATEST_PATCH=$(printf '%s' "$LATEST_ON_LINE" | cut -d. -f3)
+          NEXT_VERSION="${MAJOR}.${MINOR}.$((LATEST_PATCH + 1))"
+
+          # 4. Optional explicit override, pinned to the same line and higher
+          #    than the latest existing tag on it.
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            if ! printf '%s' "$VERSION_OVERRIDE" | grep -qE "^${MAJOR}\.${MINOR}\.[0-9]+$"; then
+              echo "::error::Override '$VERSION_OVERRIDE' must stay on ${MAJOR}.${MINOR}.x" >&2
+              exit 1
+            fi
+            HIGHEST=$(printf '%s\n%s\n' "$LATEST_ON_LINE" "$VERSION_OVERRIDE" | sort -V | tail -n1)
+            if [ "$HIGHEST" != "$VERSION_OVERRIDE" ] || [ "$VERSION_OVERRIDE" = "$LATEST_ON_LINE" ]; then
+              echo "::error::Override '$VERSION_OVERRIDE' must be greater than the latest tag on the line ($LATEST_ON_LINE)." >&2
+              exit 1
+            fi
+            NEXT_VERSION="$VERSION_OVERRIDE"
+          fi
+
+          # 5. Hard guard: a releases/<maj>.<min>.x branch must match the derived
+          #    line, and the computed tag must not already exist.
+          case "$BRANCH" in
+            releases/*.*.x)
+              BRANCH_LINE=${BRANCH#releases/}
+              BRANCH_LINE=${BRANCH_LINE%.x}
+              if [ "$BRANCH_LINE" != "${MAJOR}.${MINOR}" ]; then
+                echo "::error::Branch '$BRANCH' is line $BRANCH_LINE but HEAD resolves to ${MAJOR}.${MINOR}." >&2
+                exit 1
+              fi
+              ;;
+          esac
+          if git rev-parse --verify --quiet "refs/tags/${NEXT_VERSION}" >/dev/null; then
+            echo "::error::Tag ${NEXT_VERSION} already exists." >&2
+            exit 1
+          fi
+
+          SHA=$(git rev-parse HEAD)
+          echo "Backporting ${BASE_TAG} -> ${NEXT_VERSION} at ${SHA} (branch ${BRANCH})"
+          {
+            echo "version=${NEXT_VERSION}"
+            echo "sha=${SHA}"
+            echo "changelog_from=${BASE_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+  build-publish:
+    name: Build and publish backport
+    needs: prepare
+    uses: ./.github/workflows/cli-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      # An immutable SHA so every job (macOS build, Linux build, publish) builds
+      # and tags the identical commit, with no branch-advance race.
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.changelog_from }}
+      # Backports never move GitHub's "Latest" pointer or the Homebrew formula.
+      make_latest: false
+      update_homebrew: false
+    secrets: inherit
