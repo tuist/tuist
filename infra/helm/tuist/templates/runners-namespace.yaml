@@ -276,32 +276,28 @@ spec:
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy
-# and scoped to IDLE Pods only (those without a
-# `tuist.dev/runner-pool-owner` label).
+# so the server's churning peer set (its identity changes on every
+# deploy, the image tag is `sha-<commit>`) never forces an egress
+# regeneration of the constant base policy's selection.
 #
-# Why split, and why idle-only:
-#   The server Deployment rolls on every deploy (its image tag is
-#   `sha-<commit>`, set on every `helm upgrade`), so a
-#   `podSelector: component=server` rule resolves to a peer set
-#   whose identities change on every deploy. If a Pod that is
-#   mid-job were selected by that rule, Cilium would regenerate the
-#   Pod's egress datapath when the server rolled, dropping the
-#   in-flight runner's long-lived connection to GitHub. GitHub
-#   reports that as "runner lost communication" and fails the job.
-#   Linux kata Pods route GitHub egress through CNI (macOS Tart VMs
-#   do not), so they are the ones exposed.
+# Selects ALL runner Pods, including claimed ones. This used to be
+# scoped to idle Pods only (`runner-pool-owner DoesNotExist`, the
+# label the server stamps at JIT-mint), as a network-level guard
+# against untrusted workflow code calling the internal dispatch API.
+# That scoping caused a livelock in practice: the stamp lands while
+# the poller's claim response is still in flight, Cilium recomputes
+# the Pod's identity and revokes dispatch egress, and when the
+# revocation wins the race the response is lost — leaving a stamped
+# Pod whose retries are POLICY_DENIED forever. Such zombie pollers
+# pin the pool's warm floor (the reconciler counts them as healthy)
+# and every real claim falls through to cold on-demand capacity.
 #
-#   A claimed Pod carries `tuist.dev/runner-pool-owner=<account>`,
-#   stamped by the server at JIT-mint time, before the Pod execs the
-#   runner and connects to GitHub. Excluding owned Pods here means a
-#   mid-job Pod is selected only by the constant base policy above,
-#   so a server rollout cannot perturb its egress. Idle Pods (still
-#   polling, no owner label) keep dispatch egress; the occasional
-#   regeneration is harmless to them (they just retry the poll).
-#
-#   Tightening side-effect: a running customer job can no longer
-#   reach the internal dispatch API at all, which is the correct
-#   posture.
+# Dropping the idle-only scoping is sound under the split-container
+# shape: the dispatch endpoint requires the audience-scoped SA token
+# as Bearer, and only the `poller` init container mounts it. The
+# `runner` container that executes untrusted workflow code holds no
+# token, so network reachability alone does not grant API access —
+# authentication is the control, the egress rule is reachability.
 #
 # Linux runners only in practice: Hetzner Cloud LBs don't hairpin,
 # so CNI Pods hit the in-cluster Service URL, while macOS uses the
@@ -319,9 +315,6 @@ spec:
   podSelector:
     matchLabels:
       tuist.dev/runner: "true"
-    matchExpressions:
-      - key: tuist.dev/runner-pool-owner
-        operator: DoesNotExist
   policyTypes: [Egress]
   egress:
     - to:
