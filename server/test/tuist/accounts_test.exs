@@ -4044,7 +4044,7 @@ defmodule Tuist.AccountsTest do
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
     end
 
-    test "returns account Kura endpoints by default when the account has ready Kura endpoints" do
+    test "returns account Kura endpoints when the account is opted in and has ready Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4062,6 +4062,7 @@ defmodule Tuist.AccountsTest do
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
@@ -4070,7 +4071,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://kura-cache.example.com"]
     end
 
-    test "returns custom endpoints when account is opted out of Kura cache endpoints" do
+    test "returns custom endpoints by default when the account is not opted in to Kura" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4086,8 +4087,6 @@ defmodule Tuist.AccountsTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_opted_out?, fn %{id: account_id} -> account_id == account.id end)
-
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
 
@@ -4095,7 +4094,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns default endpoints when account is opted out of Kura and has no custom endpoints" do
+    test "returns default endpoints when the account is not opted in to Kura and has no custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4108,8 +4107,6 @@ defmodule Tuist.AccountsTest do
           url: "https://kura-cache.example.com",
           technology: :kura
         })
-
-      stub(FeatureFlags, :kura_cache_opted_out?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
