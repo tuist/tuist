@@ -11,6 +11,7 @@ defmodule TuistWeb.Authentication do
   alias Phoenix.LiveView.Socket
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Analytics
   alias Tuist.Authorization
@@ -60,11 +61,22 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the account that owns the authenticated subject, or `nil`.
+
+  Service subjects (`AuthenticatedService`) are not tied to an account and
+  therefore return `nil`, the same as an unauthenticated request. Callers that
+  require an account (for ownership, storage, or analytics association) must
+  handle `nil` explicitly and reject the request rather than dereferencing the
+  result or storing a `nil` account.
+  """
   def authenticated_subject_account(conn) do
     case authenticated_subject(conn) do
       %User{account: account} -> account
       %Project{account: account} -> account
       %AuthenticatedAccount{account: account} -> account
+      %AuthenticatedService{} -> nil
+      nil -> nil
     end
   end
 

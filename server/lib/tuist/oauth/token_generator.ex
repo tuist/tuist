@@ -12,6 +12,7 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   alias Boruta.Oauth.TokenGenerator
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Accounts.User
   alias Tuist.Cache
   alias Tuist.OAuth.Clients
@@ -19,43 +20,10 @@ defmodule Tuist.OAuth.TokenGenerator do
 
   @impl TokenGenerator
   def generate(token_type, %Boruta.Ecto.Token{sub: sub, client_id: client_id, scope: scope}) do
-    user_id = String.to_integer(sub)
-
-    with user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
-         client when not is_nil(client) <- Clients.get_client(client_id) do
-      ttl =
-        case token_type do
-          :access_token -> client.access_token_ttl
-          :refresh_token -> client.refresh_token_ttl
-        end
-
-      scopes = parse_scopes(scope)
-
-      claims = %{
-        "type" => "account",
-        "scopes" => scopes,
-        "all_projects" => true,
-        "user_id" => user.id,
-        "preferred_username" => user.account.name,
-        "email" => user.email
-      }
-
-      cache_subject = %AuthenticatedAccount{
-        account: user.account,
-        scopes: scopes,
-        all_projects: true,
-        issued_by: user
-      }
-
-      claims = Map.merge(claims, Cache.embedded_cache_claims(cache_subject, recent: 5))
-
-      {:ok, jwt_token, _claims} =
-        Tuist.Guardian.encode_and_sign(user.account, claims,
-          token_type: Atom.to_string(token_type),
-          ttl: {ttl, :second}
-        )
-
-      jwt_token
+    if Clients.service_client?(client_id) do
+      generate_service_token(token_type, client_id, scope)
+    else
+      generate_user_token(token_type, sub, client_id, scope)
     end
   end
 
@@ -80,6 +48,76 @@ defmodule Tuist.OAuth.TokenGenerator do
   defp parse_scopes(nil), do: @default_user_scopes
   defp parse_scopes(""), do: @default_user_scopes
   defp parse_scopes(scope), do: String.split(scope, " ", trim: true)
+
+  defp parse_service_scopes(nil), do: []
+  defp parse_service_scopes(""), do: []
+  defp parse_service_scopes(scope), do: String.split(scope, " ", trim: true)
+
+  defp parse_user_id(sub) when is_binary(sub), do: Integer.parse(sub)
+  defp parse_user_id(_sub), do: :error
+
+  defp ttl_for(:access_token, client), do: client.access_token_ttl
+  defp ttl_for(:refresh_token, client), do: client.refresh_token_ttl
+
+  defp generate_user_token(token_type, sub, client_id, scope) do
+    with {user_id, ""} <- parse_user_id(sub),
+         user when not is_nil(user) <- User |> Repo.get(user_id) |> Repo.preload(:account),
+         client when not is_nil(client) <- Clients.get_client(client_id) do
+      scopes = parse_scopes(scope)
+
+      claims = %{
+        "type" => "account",
+        "scopes" => scopes,
+        "all_projects" => true,
+        "user_id" => user.id,
+        "preferred_username" => user.account.name,
+        "email" => user.email
+      }
+
+      cache_subject = %AuthenticatedAccount{
+        account: user.account,
+        scopes: scopes,
+        all_projects: true,
+        issued_by: user
+      }
+
+      claims = Map.merge(claims, Cache.embedded_cache_claims(cache_subject, recent: 5))
+
+      {:ok, jwt_token, _claims} =
+        Tuist.Guardian.encode_and_sign(user.account, claims,
+          token_type: Atom.to_string(token_type),
+          ttl: {ttl_for(token_type, client), :second}
+        )
+
+      jwt_token
+    else
+      _ -> nil
+    end
+  end
+
+  defp generate_service_token(token_type, client_id, scope) do
+    with true <- Clients.service_client?(client_id),
+         client when not is_nil(client) <- Clients.get_client(client_id) do
+      scopes = parse_service_scopes(scope)
+      service = %AuthenticatedService{client_id: client_id, scopes: scopes}
+
+      claims = %{
+        "type" => "service",
+        "client_id" => client_id,
+        "scopes" => scopes
+      }
+
+      {:ok, jwt_token, _claims} =
+        Tuist.Guardian.encode_and_sign(service, claims,
+          token_type: Atom.to_string(token_type),
+          ttl: {ttl_for(token_type, client), :second}
+        )
+
+      jwt_token
+    else
+      _ -> nil
+    end
+  end
 
   @impl TokenGenerator
   def secret(client) do

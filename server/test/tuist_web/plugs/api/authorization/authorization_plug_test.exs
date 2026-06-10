@@ -4,6 +4,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.AuthenticatedService
   alias Tuist.Authorization
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -89,6 +90,33 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlugTest do
     # Then
     assert conn.halted == true
     assert json_response(conn, :forbidden)["message"] =~ "not authorized to read bundle"
+  end
+
+  test "returns 403 when an authenticated service is not authorized" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    {:ok, account} = Accounts.get_account_by_id(project.account_id)
+
+    opts = AuthorizationPlug.init(:bundle)
+
+    conn =
+      :get
+      |> build_conn(~p"/api/projects/#{account.name}/#{project.name}/bundles")
+      |> assign(:selected_project, project)
+      |> assign(:current_subject, %AuthenticatedService{
+        client_id: "service-client",
+        scopes: ["project:bundles:read"]
+      })
+
+    # When
+    conn = AuthorizationPlug.call(conn, opts)
+
+    # Then
+    assert conn.halted == true
+
+    assert json_response(conn, :forbidden) == %{
+             "message" => "service-client is not authorized to read bundle"
+           }
   end
 
   test "returns the connection when all_projects is false and token has access to the specific project" do
