@@ -131,8 +131,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
 
-    handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
+    # Event-driven monitors (`test_updated`) have no triggered/recovered ledger
+    # — each event is a discrete one-shot (see
+    # `Automations.dispatch_test_case_event/2`). They never accrue `triggered`
+    # events through this worker, so recovery bookkeeping must not run for them,
+    # even if a monitor-type change left stale events behind.
+    if !event_driven_monitor?(alert) do
+      handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
+    end
   end
+
+  defp event_driven_monitor?(%{monitor_type: "test_updated"}), do: true
+  defp event_driven_monitor?(_alert), do: false
 
   defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
 
@@ -141,22 +151,28 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   defp handle_recovery(alert, currently_triggered_ids, active_events, scoped_test_case_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
-    recovery_config = alert.recovery_config || %{}
 
     candidates =
       active_events
       |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
 
-    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
-
     # Re-arming (appending the "recovered" event so the next rising edge can
     # fire again) is unconditional — an alert that never re-arms is latched in
-    # `triggered` forever and silently stops acting. The undo side effects are
-    # opt-in: only `recovery_enabled` alerts reverse their trigger actions
-    # (unmute, remove label). A recovery-disabled alert still re-arms but
-    # leaves its effect in place until a human clears it.
-    recovery_actions = if alert.recovery_enabled, do: alert.recovery_actions, else: []
+    # `triggered` forever and silently stops acting. The dwell window and the
+    # undo side effects, however, stay opt-in: `Alert.changeset` only validates
+    # `recovery_config`/`recovery_actions` when recovery is enabled, so for a
+    # disabled alert we ignore the persisted (possibly stale) config — falling
+    # back to the default re-arm dwell — and run no undo actions. The test case
+    # re-arms but keeps its effect until a human clears it.
+    {recovery_config, recovery_actions} =
+      if alert.recovery_enabled do
+        {alert.recovery_config || %{}, alert.recovery_actions}
+      else
+        {%{}, []}
+      end
+
+    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
 
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}

@@ -427,6 +427,66 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
+  test "ignores a persisted rolling recovery_config when recovery is disabled" do
+    # `Alert.changeset` only validates recovery_config when recovery is enabled,
+    # so a disabled alert can carry a stale rolling window. The worker must not
+    # honor it — using it would issue a runs-since-trigger query and apply the
+    # wrong dwell instead of the default re-arm fallback.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: false,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000}
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: []}
+    end)
+
+    # Triggered 30d ago — past the default 14d fallback dwell, so it re-arms.
+    triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
+    end)
+
+    # The rolling path would batch-query runs-since-trigger; the fallback dwell
+    # must not, proving the stale rolling config is ignored.
+    reject(&ClickHouseRepo.all/1)
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "test_updated alerts skip recovery bookkeeping even with stale active triggered events" do
+    # A monitor-type change to test_updated can leave `triggered` events behind.
+    # Event-driven monitors have no recovery semantics, so those must never get
+    # a `recovered` event appended.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]}
+      )
+
+    stale_id = Ecto.UUID.generate()
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: stale_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)}]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run(automation.id)
+  end
+
   test "no-ops for event-driven test_updated alerts without invoking the monitor" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
