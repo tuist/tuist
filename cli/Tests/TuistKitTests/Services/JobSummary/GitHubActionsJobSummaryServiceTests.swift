@@ -37,16 +37,29 @@ struct GitHubActionsJobSummaryServiceTests {
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
         )
 
-        #expect(markdown.contains("### 🛠️ Tuist Run Report 🛠️"))
-        #expect(markdown.contains("#### Tests 🧪"))
-        #expect(markdown.contains("| App | ✅ | 10 | 2 | 8 |"))
-        #expect(markdown.contains("| AppUITests | ❌ | 4 | 0 | 4 |"))
-        #expect(markdown.contains("#### Failed Tests ❌"))
-        #expect(markdown.contains("- `CheckoutFlowTests.test_appliesDiscountCode`"))
-        #expect(markdown.contains("#### Builds 🔨"))
-        #expect(markdown.contains("| App | ✅ | 7m 12s |"))
-        #expect(markdown.contains("| AppUITests | ❌ | 3m 38s |"))
-        #expect(markdown.contains("[View the full report on Tuist](https://tuist.dev/acme/app/runs/123)"))
+        #expect(markdown == """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Tests | Skipped | Ran |
+        |:-:|:-:|:-:|:-:|:-:|
+        | App | ✅ | 10 | 2 | 8 |
+        | AppUITests | ❌ | 4 | 0 | 4 |
+
+        #### Failed Tests ❌
+
+        - `CheckoutFlowTests.test_appliesDiscountCode`
+
+        #### Builds 🔨
+
+        | Scheme | Status | Duration |
+        |:-:|:-:|:-:|
+        | App | ✅ | 7m 12s |
+        | AppUITests | ❌ | 3m 38s |
+
+        [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
+        """)
     }
 
     @Test func render_omits_empty_sections() {
@@ -56,9 +69,17 @@ struct GitHubActionsJobSummaryServiceTests {
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!
         )
 
-        #expect(markdown.contains("#### Tests 🧪"))
-        #expect(!markdown.contains("#### Failed Tests"))
-        #expect(!markdown.contains("#### Builds"))
+        #expect(markdown == """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Tests | Skipped | Ran |
+        |:-:|:-:|:-:|:-:|:-:|
+        | App | ✅ | 3 | 0 | 3 |
+
+        [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
+        """)
     }
 
     @Test(.withMockedEnvironment())
@@ -77,8 +98,18 @@ struct GitHubActionsJobSummaryServiceTests {
         )
 
         let content = try await fileSystem.readTextFile(at: summaryPath)
-        #expect(content.contains("### 🛠️ Tuist Run Report 🛠️"))
-        #expect(content.contains("| App | ✅ | 3 | 0 | 3 |"))
+        #expect(content == """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Tests | Skipped | Ran |
+        |:-:|:-:|:-:|:-:|:-:|
+        | App | ✅ | 3 | 0 | 3 |
+
+        [View the full report on Tuist](https://tuist.dev/acme/app/runs/123)
+
+        """)
     }
 
     @Test(.withMockedEnvironment())
