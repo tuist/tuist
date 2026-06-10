@@ -80,7 +80,11 @@ defmodule Tuist.GitHub.Releases do
 
   defp req_releases do
     headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
+    # Request the API max (100) on a single page so the highest-semver CLI
+    # release isn't pushed off the page by component releases or backports
+    # published after it (the list is ordered by publish date and we take the
+    # semver-max from whatever we fetch).
+    req_opts = [finch: Tuist.Finch, headers: headers, params: [per_page: 100]] ++ Retry.retry_options()
 
     case Req.get(releases_url(), req_opts) do
       {:ok, %Req.Response{status: 200, body: releases}} ->

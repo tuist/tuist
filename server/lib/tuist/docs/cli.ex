@@ -73,7 +73,7 @@ defmodule Tuist.Docs.CLI do
   end
 
   defp fetch_latest_cli_tag do
-    url = "https://api.github.com/repos/#{@repo}/releases?per_page=20"
+    url = "https://api.github.com/repos/#{@repo}/releases?per_page=100"
 
     case Req.get(url, headers: @headers) do
       {:ok, %{status: 200, body: releases}} ->
