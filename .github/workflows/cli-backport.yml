@@ -93,27 +93,46 @@ jobs:
             exit 1
           fi
 
-          # 2. Latest CLI semver tag reachable from the branch HEAD. The
-          #    '[0-9]*' glob excludes scoped component tags (server@1.2.3 etc.).
-          BASE_TAG=$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
-          if [ -z "$BASE_TAG" ]; then
-            echo "::error::No CLI semver tag is reachable from '$BRANCH'. Is it rooted on a CLI release?" >&2
+          # 2. The branch must follow the releases/<major>.<minor>.x convention.
+          #    The line is taken from the branch name (authoritative), not
+          #    inferred from tags — a non-matching name (typo, arbitrary branch)
+          #    must never be allowed to publish an official CLI release.
+          if ! printf '%s' "$BRANCH" | grep -qE '^releases/[0-9]+\.[0-9]+\.x$'; then
+            echo "::error::Branch must be named releases/<major>.<minor>.x (got '$BRANCH')." >&2
             exit 1
           fi
-          if ! printf '%s' "$BASE_TAG" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Nearest tag '$BASE_TAG' is not a bare CLI semver tag." >&2
-            exit 1
-          fi
-          MAJOR=$(printf '%s' "$BASE_TAG" | cut -d. -f1)
-          MINOR=$(printf '%s' "$BASE_TAG" | cut -d. -f2)
+          LINE=${BRANCH#releases/}; LINE=${LINE%.x}
+          MAJOR=${LINE%.*}
+          MINOR=${LINE#*.}
 
-          # 3. Force a PATCH bump off the highest tag on this line. Never use
-          #    git-cliff/--bumped-version (a feat: would bump minor/major).
+          # 3. Highest tag on the line (must exist).
           LATEST_ON_LINE=$(git tag -l | grep -E "^${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V | tail -n1)
-          LATEST_PATCH=$(printf '%s' "$LATEST_ON_LINE" | cut -d. -f3)
+          if [ -z "$LATEST_ON_LINE" ]; then
+            echo "::error::No CLI release exists on line ${LINE}." >&2
+            exit 1
+          fi
+
+          # 4. The branch HEAD must be rooted exactly on that latest patch: the
+          #    nearest semver tag reachable from HEAD must equal LATEST_ON_LINE.
+          #    git describe only considers ancestors, so equality proves HEAD
+          #    descends from the line's latest patch and no newer patch exists
+          #    that the branch is missing. This rejects both a branch cut from an
+          #    older base (would build code missing shipped patches and publish a
+          #    downgrade, e.g. 4.192.5 from 4.192.0) and a branch whose HEAD sits
+          #    on a newer/other line than its name claims (main is linear, so a
+          #    releases/4.197.x rooted on 4.198.1 would otherwise slip through).
+          BASE_TAG=$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*.[0-9]*' HEAD 2>/dev/null || true)
+          if [ "$BASE_TAG" != "$LATEST_ON_LINE" ]; then
+            echo "::error::Branch HEAD is rooted on '${BASE_TAG:-<none>}' but the latest release on line ${LINE} is ${LATEST_ON_LINE}. Recreate or rebase the branch on top of ${LATEST_ON_LINE} so the backport stacks on every shipped patch." >&2
+            exit 1
+          fi
+
+          # 5. Force a PATCH bump off the highest tag on the line. Never use
+          #    git-cliff/--bumped-version (a feat: would bump minor/major).
+          LATEST_PATCH=${LATEST_ON_LINE##*.}
           NEXT_VERSION="${MAJOR}.${MINOR}.$((LATEST_PATCH + 1))"
 
-          # 4. Optional explicit override, pinned to the same line and higher
+          # 6. Optional explicit override, pinned to the same line and higher
           #    than the latest existing tag on it.
           if [ -n "$VERSION_OVERRIDE" ]; then
             if ! printf '%s' "$VERSION_OVERRIDE" | grep -qE "^${MAJOR}\.${MINOR}\.[0-9]+$"; then
@@ -128,29 +147,18 @@ jobs:
             NEXT_VERSION="$VERSION_OVERRIDE"
           fi
 
-          # 5. Hard guard: a releases/<maj>.<min>.x branch must match the derived
-          #    line, and the computed tag must not already exist.
-          case "$BRANCH" in
-            releases/*.*.x)
-              BRANCH_LINE=${BRANCH#releases/}
-              BRANCH_LINE=${BRANCH_LINE%.x}
-              if [ "$BRANCH_LINE" != "${MAJOR}.${MINOR}" ]; then
-                echo "::error::Branch '$BRANCH' is line $BRANCH_LINE but HEAD resolves to ${MAJOR}.${MINOR}." >&2
-                exit 1
-              fi
-              ;;
-          esac
+          # 7. The computed tag must not already exist.
           if git rev-parse --verify --quiet "refs/tags/${NEXT_VERSION}" >/dev/null; then
             echo "::error::Tag ${NEXT_VERSION} already exists." >&2
             exit 1
           fi
 
           SHA=$(git rev-parse HEAD)
-          echo "Backporting ${BASE_TAG} -> ${NEXT_VERSION} at ${SHA} (branch ${BRANCH})"
+          echo "Backporting ${LATEST_ON_LINE} -> ${NEXT_VERSION} at ${SHA} (branch ${BRANCH})"
           {
             echo "version=${NEXT_VERSION}"
             echo "sha=${SHA}"
-            echo "changelog_from=${BASE_TAG}"
+            echo "changelog_from=${LATEST_ON_LINE}"
           } >> "$GITHUB_OUTPUT"
 
   build-publish:
