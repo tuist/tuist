@@ -15,6 +15,7 @@ overrides:
   mdast-util-to-hast: 13.2.1
   postcss: 8.5.10
   protobufjs: 7.5.8
+  shell-quote: 1.8.4
   yaml: 2.8.3
 
 time:
@@ -24,6 +25,7 @@ time:
   axios@1.16.0: 2026-05-02T15:04:00.274Z
   fast-uri@3.1.2: 2026-05-05T08:31:31.849Z
   protobufjs@7.5.8: 2026-05-12T09:40:11.300Z
+  shell-quote@1.8.4: 2026-05-22T13:13:48.633Z
 
 importers:
 
@@ -1285,8 +1287,8 @@ packages:
     resolution: {integrity: sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A==}
     engines: {node: '>=8'}
 
-  shell-quote@1.8.3:
-    resolution: {integrity: sha512-ObmnIF4hXNg1BqhnHmgbDETF8dLPCggZWBjkQfhZpbszZnYur5DUljTcCHii5LC3J5E0yeO/1LIMyH+UvHQgyw==}
+  shell-quote@1.8.4:
+    resolution: {integrity: sha512-VsC6n6vz1ihYYyZZwX7YZSF5l5x36ca17OC+a69h94YqB7X6XLwf+5MOgynYir2SLFUbl8gIYvBo8K8RoNQ6bQ==}
     engines: {node: '>= 0.4'}
 
   source-map-js@1.2.1:
@@ -1917,7 +1919,7 @@ snapshots:
       posthog-js: 1.363.2
       pretty-ms: 9.3.0
       radix-vue: 1.9.17(vue@3.5.30(typescript@5.9.3))
-      shell-quote: 1.8.3
+      shell-quote: 1.8.4
       type-fest: 5.4.4
       vite-plugin-monaco-editor: 1.1.0(monaco-editor@0.54.0)
       vue: 3.5.30(typescript@5.9.3)
@@ -3310,7 +3312,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.8.3: {}
+  shell-quote@1.8.4: {}
 
   source-map-js@1.2.1: {}
 
