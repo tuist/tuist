@@ -28,8 +28,9 @@ if [ ! -r "$WL_KUBECONFIG" ]; then
   exit 1
 fi
 
-derive_region_from_nodes() {
+derive_region_from_general_nodes() {
   KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
+    -l node.cluster.x-k8s.io/pool=general \
     -o jsonpath='{range .items[*]}{.metadata.labels.topology\.kubernetes\.io/region}{"\n"}{end}' |
     awk 'NF { print; exit }'
 }
@@ -41,14 +42,14 @@ derive_region_from_ingress_service() {
 
 # HCCM stamps hcloud-backed nodes with topology.kubernetes.io/region
 # (e.g. ash, hil, fsn1). Mixed clusters can also carry bare-metal
-# runner nodes that do not have that label, so scan all nodes instead
-# of assuming `.items[0]` is an hcloud VM.
-REGION="$(derive_region_from_nodes)"
+# runner nodes and regional Kura pools. The platform ingress belongs with
+# the general pool, not with a Kura region that happens to sort first.
+REGION="$(derive_region_from_general_nodes)"
 if [ -z "$REGION" ]; then
   REGION="$(derive_region_from_ingress_service)"
 fi
 if [ -z "$REGION" ]; then
-  echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on any node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
+  echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on a general node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
   exit 1
 fi
 log "Platform install for $CLUSTER_NAME (region $REGION)"

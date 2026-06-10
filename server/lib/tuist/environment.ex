@@ -987,10 +987,8 @@ defmodule Tuist.Environment do
   end
 
   # Kura-side env vars stay unprefixed so the implementation in Kura
-  # remains Tuist-agnostic. The server still falls back to the legacy
-  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
-  # so existing deployments and dev secrets keep working through the
-  # rename.
+  # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
+  # compatibility fallback for existing deployments and dev secrets.
   def kura_control_plane_client_id(secrets \\ secrets()) do
     System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
       get([:kura, :control_plane_client_id], secrets) ||

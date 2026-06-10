@@ -82,6 +82,12 @@ func (r *KuraGatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.reconcileGatewayIngressClass(ctx, gateway); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.rememberGatewayIngressClassName(ctx, gateway); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.Get(ctx, req.NamespacedName, gateway); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcileGatewayDeployment(ctx, gateway); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -93,7 +99,7 @@ func (r *KuraGatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	now := metav1.NewTime(time.Now().UTC())
 	gateway.Status.Phase = status.phase
 	gateway.Status.IngressClassName = gatewayIngressClassName(gateway)
-	gateway.Status.ServiceName = gatewayServiceName(gateway)
+	gateway.Status.ServiceName = gatewayWorkloadName(gateway)
 	gateway.Status.ReadyReplicas = status.readyReplicas
 	gateway.Status.LoadBalancer = status.loadBalancer
 	gateway.Status.Message = status.message
@@ -133,7 +139,7 @@ func (r *KuraGatewayReconciler) deleteRenamedIngressClass(ctx context.Context, g
 }
 
 func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, gateway *kurav1alpha1.KuraGateway) error {
-	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: gatewayConfigMapName(gateway), Namespace: gateway.Namespace}}
+	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
 		if err := controllerutil.SetControllerReference(gateway, configMap, r.Scheme); err != nil {
 			return err
@@ -160,7 +166,7 @@ func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, g
 }
 
 func (r *KuraGatewayReconciler) reconcileGatewayService(ctx context.Context, gateway *kurav1alpha1.KuraGateway) error {
-	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gatewayServiceName(gateway), Namespace: gateway.Namespace}}
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
 		if err := controllerutil.SetControllerReference(gateway, service, r.Scheme); err != nil {
 			return err
@@ -189,8 +195,17 @@ func (r *KuraGatewayReconciler) reconcileGatewayIngressClass(ctx context.Context
 	return err
 }
 
+func (r *KuraGatewayReconciler) rememberGatewayIngressClassName(ctx context.Context, gateway *kurav1alpha1.KuraGateway) error {
+	ingressClassName := gatewayIngressClassName(gateway)
+	if gateway.Status.IngressClassName == ingressClassName {
+		return nil
+	}
+	gateway.Status.IngressClassName = ingressClassName
+	return r.Status().Update(ctx, gateway)
+}
+
 func (r *KuraGatewayReconciler) reconcileGatewayDeployment(ctx context.Context, gateway *kurav1alpha1.KuraGateway) error {
-	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: gatewayDeploymentName(gateway), Namespace: gateway.Namespace}}
+	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deployment, func() error {
 		if err := controllerutil.SetControllerReference(gateway, deployment, r.Scheme); err != nil {
 			return err
@@ -216,11 +231,11 @@ func gatewayPodTemplate(gateway *kurav1alpha1.KuraGateway, serviceAccountName st
 				ImagePullPolicy: corev1.PullIfNotPresent,
 				Args: []string{
 					"/nginx-ingress-controller",
-					"--publish-service=$(POD_NAMESPACE)/" + gatewayServiceName(gateway),
+					"--publish-service=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
 					"--election-id=" + gateway.Name + "-leader",
 					"--controller-class=" + gatewayControllerClassName(gateway),
 					"--ingress-class=" + gatewayIngressClassName(gateway),
-					"--configmap=$(POD_NAMESPACE)/" + gatewayConfigMapName(gateway),
+					"--configmap=$(POD_NAMESPACE)/" + gatewayWorkloadName(gateway),
 					"--watch-namespace=$(POD_NAMESPACE)",
 				},
 				Env: gateway.Spec.Environment(),
@@ -266,7 +281,7 @@ type gatewayStatusState struct {
 
 func (r *KuraGatewayReconciler) gatewayStatus(ctx context.Context, gateway *kurav1alpha1.KuraGateway) (gatewayStatusState, error) {
 	deployment := &appsv1.Deployment{}
-	if err := r.Get(ctx, types.NamespacedName{Name: gatewayDeploymentName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
 		if apierrors.IsNotFound(err) {
 			return gatewayStatusState{phase: "Pending", message: "Deployment has not been created yet"}, nil
 		}
@@ -296,7 +311,7 @@ func (r *KuraGatewayReconciler) gatewayStatus(ctx context.Context, gateway *kura
 
 func (r *KuraGatewayReconciler) gatewayLoadBalancer(ctx context.Context, gateway *kurav1alpha1.KuraGateway) (string, error) {
 	service := &corev1.Service{}
-	if err := r.Get(ctx, types.NamespacedName{Name: gatewayServiceName(gateway), Namespace: gateway.Namespace}, service); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
 		if apierrors.IsNotFound(err) {
 			return "", nil
 		}
@@ -338,15 +353,7 @@ func gatewayControllerClassName(gateway *kurav1alpha1.KuraGateway) string {
 	return "k8s.io/" + gatewayIngressClassName(gateway) + "-ingress-nginx"
 }
 
-func gatewayConfigMapName(gateway *kurav1alpha1.KuraGateway) string {
-	return gateway.Name + "-controller"
-}
-
-func gatewayServiceName(gateway *kurav1alpha1.KuraGateway) string {
-	return gateway.Name + "-controller"
-}
-
-func gatewayDeploymentName(gateway *kurav1alpha1.KuraGateway) string {
+func gatewayWorkloadName(gateway *kurav1alpha1.KuraGateway) string {
 	return gateway.Name + "-controller"
 }
 

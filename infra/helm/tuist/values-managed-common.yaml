@@ -29,7 +29,12 @@ kuraController:
   sharedSecrets:
     kuraIntrospection:
       enabled: true
-      clientId: "00000000-0000-0000-0000-000000000001"
+    externalSecret:
+      enabled: true
+      item: kura-introspection
+      fields:
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
 
 server:
   serviceAccount:

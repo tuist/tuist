@@ -269,10 +269,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      maybe_env_var(
-        "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID",
-        Environment.kura_control_plane_client_id()
-      ) ++
       telemetry_env(region)
   end
 
@@ -486,32 +482,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
-  defp client_apply(manifest, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.apply(manifest)
-      opts -> Client.apply(manifest, opts)
-    end
-  end
+  defp client_apply(manifest, region), do: Client.apply(manifest, kubernetes_client_opts(region))
 
   defp client_get_kura_instance(namespace, name, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.get_kura_instance(namespace, name)
-      opts -> Client.get_kura_instance(namespace, name, opts)
-    end
+    Client.get_kura_instance(namespace, name, kubernetes_client_opts(region))
   end
 
   defp client_delete_kura_instance(namespace, name, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.delete_kura_instance(namespace, name)
-      opts -> Client.delete_kura_instance(namespace, name, opts)
-    end
+    Client.delete_kura_instance(namespace, name, kubernetes_client_opts(region))
   end
 
   defp client_delete_kura_gateway(namespace, name, region) do
-    case kubernetes_client_opts(region) do
-      [] -> Client.delete_kura_gateway(namespace, name)
-      opts -> Client.delete_kura_gateway(namespace, name, opts)
-    end
+    Client.delete_kura_gateway(namespace, name, kubernetes_client_opts(region))
   end
 
   defp kubernetes_client_opts(%Regions{provisioner_config: %{kubernetes_client: opts}}), do: opts

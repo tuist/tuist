@@ -53,15 +53,14 @@ kuraController:
     data: {}
     # Internal OAuth client shared by the Tuist server and Kura runtime
     # for Kura control-plane calls and token introspection. When enabled,
-    # Helm writes the same generated-and-preserved secret into both the
-    # server namespace and the Kura namespace. ESO remains available below
-    # for operators who prefer to source this credential externally.
+    # both the server namespace and the Kura namespace receive the same
+    # client id and secret. Provide them inline for self-hosted/local
+    # installs, or enable the ExternalSecret below for managed installs.
     kuraIntrospection:
       enabled: false
       clientId: ""
-      # Leave empty to generate a 64-character secret on first install and
-      # preserve it with lookup() on future upgrades. Set only for local
-      # development or self-hosted installs that intentionally inline it.
+      # Required when kuraIntrospection.enabled is true unless
+      # sharedSecrets.externalSecret.enabled is also true.
       clientSecret: ""
     externalSecret:
       enabled: false
@@ -71,7 +70,8 @@ kuraController:
         name: onepassword
       item: ""
       fields:
-        introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   sentry:
     externalSecret:
       enabled: false
@@ -85,7 +85,7 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "<Kura OAuth introspection secret>"
+    #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
   image:
@@ -158,8 +158,8 @@ server:
       # the external store.
       clientIdValue: ""
       fields:
-        clientId: TUIST_KURA_INTROSPECTION_CLIENT_ID
-        clientSecret: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+        clientId: KURA_CONTROL_PLANE_CLIENT_ID
+        clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /

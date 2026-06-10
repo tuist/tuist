@@ -323,7 +323,7 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 Kura OAuth introspection client env vars. The values are synced from
 1Password into the server-external-secrets Secret when
 server.externalSecrets.kuraIntrospection.item is set, or from the
-chart-managed kura-shared-secrets Secret when
+kura-shared-secrets Secret when
 kuraController.sharedSecrets.kuraIntrospection.enabled is true.
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
@@ -340,16 +340,6 @@ kuraController.sharedSecrets.kuraIntrospection.enabled is true.
     secretKeyRef:
       name: {{ $kuraSharedSecret | quote }}
       key: KURA_CONTROL_PLANE_CLIENT_SECRET
-- name: TUIST_KURA_INTROSPECTION_CLIENT_ID
-  valueFrom:
-    secretKeyRef:
-      name: {{ $kuraSharedSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_ID
-- name: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
-  valueFrom:
-    secretKeyRef:
-      name: {{ $kuraSharedSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
 {{- else if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
@@ -361,16 +351,6 @@ kuraController.sharedSecrets.kuraIntrospection.enabled is true.
     secretKeyRef:
       name: {{ $esoSecret | quote }}
       key: KURA_CONTROL_PLANE_CLIENT_SECRET
-- name: TUIST_KURA_INTROSPECTION_CLIENT_ID
-  valueFrom:
-    secretKeyRef:
-      name: {{ $esoSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_ID
-- name: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
-  valueFrom:
-    secretKeyRef:
-      name: {{ $esoSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
 {{- end }}
 {{- end }}
 
