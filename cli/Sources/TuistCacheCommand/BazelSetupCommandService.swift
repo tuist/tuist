@@ -64,12 +64,15 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
         } else {
             host
         }
+        // Plaintext cache endpoints (e.g. local development deployments) expose
+        // plaintext gRPC, while TLS endpoints terminate TLS for gRPC too.
+        let remoteCacheScheme = cacheURL.scheme == "http" ? "grpc" : "grpcs"
 
         let credentialHelperPath = try await createCredentialHelperScriptIfNeeded()
 
         let bazelrcPath = directoryPath.appending(component: ".bazelrc.tuist")
         let bazelrcContent = """
-        build --remote_cache=grpcs://\(endpoint)
+        build --remote_cache=\(remoteCacheScheme)://\(endpoint)
         build --remote_header=x-tuist-account-handle=\(accountHandle)
         build --credential_helper=\(host)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)

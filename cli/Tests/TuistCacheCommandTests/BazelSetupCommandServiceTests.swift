@@ -125,6 +125,29 @@ struct BazelSetupCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_uses_plaintext_grpc_for_http_cache_endpoints() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _) = makeSubject(
+            cacheURL: URL(string: "http://localhost:5091")!
+        )
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        let scriptPath = try credentialHelperPath()
+        let bazelrcContent = try await fileSystem.readTextFile(
+            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
+        )
+        #expect(bazelrcContent.contains("build --remote_cache=grpc://localhost:5091"))
+        #expect(bazelrcContent.contains("build --credential_helper=localhost=\(scriptPath.pathString)"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
     func run_does_not_overwrite_an_existing_credential_helper_script() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
