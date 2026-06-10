@@ -137,5 +137,45 @@ defmodule TuistWeb.GenerateRunsLiveTest do
       assert has_element?(lv, "span", "generate UserApp")
       refute has_element?(lv, "span", "generate OtherUserApp")
     end
+
+    test "filters generate runs whose branch does not contain a substring", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "QueuedApp"],
+        git_branch: "feature/gh-readonly-queue/main"
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "RegularApp"],
+        git_branch: "feature/main"
+      )
+
+      query =
+        URI.encode_query(%{
+          "filter_git_branch_op" => "!=~",
+          "filter_git_branch_val" => "gh-readonly-queue"
+        })
+
+      # Before the fix, the UI-only `!=~` operator reached Flop and raised Flop.InvalidParamsError.
+      {:ok, lv, html} =
+        live(
+          conn,
+          "/#{organization.account.name}/#{project.name}/module-cache/generate-runs?#{query}"
+        )
+
+      assert html =~ "does not contain"
+      assert has_element?(lv, "span", "generate RegularApp")
+      refute has_element?(lv, "span", "generate QueuedApp")
+    end
   end
 end
