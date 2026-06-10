@@ -15,6 +15,15 @@ ciliumEgressGateway:
     hostConfigurator:
       enabled: true
 
+# Main Tuist web/API ingress. Keep the Hetzner location explicit here instead
+# of deriving it from Nodes: production also carries regional Kura pools, and
+# the platform LoadBalancer should stay with the fsn1 general pool.
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+
 # Dedicated Kura ingress dataplanes. These are shared per region, not
 # per customer: customer-specific hosts route through the regional
 # ingress class and then to the selected Kura pod. Keep the controller

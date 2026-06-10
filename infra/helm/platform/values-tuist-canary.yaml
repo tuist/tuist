@@ -12,6 +12,12 @@ ciliumEgressGateway:
     hostConfigurator:
       enabled: true
 
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+
 kura-eu-central-ingress-nginx:
   enabled: true
   controller:
