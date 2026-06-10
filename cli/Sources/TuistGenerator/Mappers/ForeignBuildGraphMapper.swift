@@ -5,19 +5,31 @@ import TuistAlert
 import TuistCore
 import XcodeGraph
 
+/// Selects which XCFramework build a foreign-build mapper acts on.
+public enum ForeignBuildMode: Sendable {
+    /// Regular generation: build the thinner development XCFramework when one is declared.
+    case incremental
+    /// Cache warming: build the universal XCFramework.
+    case universal
+}
+
 /// Configures foreign build targets with script build phases and wires up linking dependencies.
 ///
 /// For each target where `target.foreignBuild != nil`:
-/// 1. Configures the target as an aggregate (adds the build script phase)
-/// 2. For each consuming target that depends on this foreign build target (via `.target(name:)` or `.project(target:path:)`),
-///    inserts a `foreignBuildOutput` graph dependency for linking
+/// 1. Configures the target as an aggregate that runs the build script for the selected XCFramework. In `.incremental`
+///    mode the development XCFramework is built when declared, otherwise the universal one.
+/// 2. For each consuming target that depends on this foreign build target, inserts a `foreignBuildOutput` graph
+///    dependency so the XCFramework is linked (and embedded when dynamic).
 ///
-/// Side effects (running the foreign build script) are handled separately by `ForeignBuildSideEffectGraphMapper`,
-/// which runs after cache and tree-shaking mappers so that cached/pruned targets don't trigger unnecessary builds.
+/// Side effects (running the build script ahead of time) are handled separately by
+/// `ForeignBuildSideEffectGraphMapper`, which runs after cache and tree-shaking mappers so that cached/pruned
+/// targets don't trigger unnecessary builds.
 public struct ForeignBuildGraphMapper: GraphMapping {
+    private let mode: ForeignBuildMode
     private let fileSystem: FileSystem
 
-    public init(fileSystem: FileSystem = FileSystem()) {
+    public init(mode: ForeignBuildMode = .incremental, fileSystem: FileSystem = FileSystem()) {
+        self.mode = mode
         self.fileSystem = fileSystem
     }
 
@@ -27,7 +39,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         var graph = graph
 
-        var foreignBuildTargets = [GraphDependency: (name: String, info: ForeignBuild)]()
+        var foreignBuildTargets = [GraphDependency: ForeignBuild.XCFrameworkBuild]()
 
         for (projectPath, project) in graph.projects {
             var updatedProject = project
@@ -35,15 +47,22 @@ public struct ForeignBuildGraphMapper: GraphMapping {
             for (targetName, target) in project.targets {
                 guard let foreignBuild = target.foreignBuild else { continue }
 
+                let build = foreignBuild.build(for: mode)
+                let effectiveScript = scriptWithWorkingDirectory(
+                    build.script,
+                    workingDirectory: foreignBuild.workingDirectory,
+                    projectPath: projectPath
+                )
                 let inputPaths = try await inputPaths(from: foreignBuild.inputs, targetName: targetName)
+
                 var updatedTarget = target
                 updatedTarget.scripts = [
                     TargetScript(
                         name: "Foreign Build: \(targetName)",
                         order: .pre,
-                        script: .embedded(foreignBuild.script),
+                        script: .embedded(effectiveScript),
                         inputPaths: inputPaths,
-                        outputPaths: [foreignBuild.output.path.pathString],
+                        outputPaths: [build.path.pathString],
                         showEnvVarsInLog: false,
                         basedOnDependencyAnalysis: inputPaths.isEmpty ? false : nil
                     ),
@@ -54,7 +73,7 @@ public struct ForeignBuildGraphMapper: GraphMapping {
                 updatedProject.targets[targetName] = updatedTarget
 
                 let graphDep = GraphDependency.target(name: targetName, path: projectPath)
-                foreignBuildTargets[graphDep] = (name: targetName, info: foreignBuild)
+                foreignBuildTargets[graphDep] = build
                 if graph.dependencies[graphDep] == nil {
                     graph.dependencies[graphDep] = Set()
                 }
@@ -65,12 +84,12 @@ public struct ForeignBuildGraphMapper: GraphMapping {
 
         for (consumer, deps) in graph.dependencies {
             for dep in deps {
-                guard let (name, foreignBuild) = foreignBuildTargets[dep] else { continue }
+                guard let build = foreignBuildTargets[dep], case let .target(name, _, _) = dep else { continue }
                 let foreignBuildOutputDep = GraphDependency.foreignBuildOutput(
                     GraphDependency.ForeignBuildOutput(
                         name: name,
-                        path: foreignBuild.output.path,
-                        linking: foreignBuild.output.linking
+                        path: build.path,
+                        linking: build.linking
                     )
                 )
                 graph.dependencies[consumer, default: Set()].insert(foreignBuildOutputDep)
@@ -78,6 +97,16 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         }
 
         return (graph, [], environment)
+    }
+
+    private func scriptWithWorkingDirectory(
+        _ script: String,
+        workingDirectory: AbsolutePath?,
+        projectPath: AbsolutePath
+    ) -> String {
+        guard let workingDirectory else { return script }
+        let relativePath = workingDirectory.relative(to: projectPath).pathString
+        return "cd \"$SRCROOT/\(relativePath)\"\n\(script)"
     }
 
     private func inputPaths(from inputs: [ForeignBuild.Input], targetName: String) async throws -> [String] {
@@ -112,5 +141,18 @@ public struct ForeignBuildGraphMapper: GraphMapping {
         }
 
         return pathStrings
+    }
+}
+
+extension ForeignBuild {
+    /// The XCFramework build to produce for the given mode: the development build in `.incremental` mode when
+    /// declared, otherwise the universal build.
+    func build(for mode: ForeignBuildMode) -> XCFrameworkBuild {
+        switch mode {
+        case .incremental:
+            return developmentXCFramework ?? xcframework
+        case .universal:
+            return xcframework
+        }
     }
 }

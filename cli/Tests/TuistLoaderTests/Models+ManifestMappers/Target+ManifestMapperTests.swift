@@ -207,4 +207,46 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
             .called(1)
     }
+
+    func test_from_kotlinMultiplatform() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: rootDirectory,
+            rootDirectory: rootDirectory
+        )
+
+        // When
+        let got = try await XcodeGraph.Target.from(
+            manifest: .kotlinMultiplatform(
+                name: "SharedKMP",
+                destinations: .iOS,
+                gradleProject: "SharedKMP",
+                compileKotlinXCFrameworkScript: "gradle assembleSharedKMPReleaseXCFramework",
+                xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+                compileKotlinDevelopmentXCFrameworkScript: "gradle assembleSharedKMPDebugXCFramework",
+                developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: MockContentHashing(),
+            type: .local
+        )
+
+        // Then
+        let foreignBuild = try XCTUnwrap(got.foreignBuild)
+        XCTAssertEqual(foreignBuild.workingDirectory, rootDirectory.appending(component: "SharedKMP"))
+        XCTAssertEqual(foreignBuild.xcframework.script, "gradle assembleSharedKMPReleaseXCFramework")
+        XCTAssertEqual(
+            foreignBuild.xcframework.path,
+            rootDirectory.appending(try RelativePath(validating: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"))
+        )
+        XCTAssertEqual(foreignBuild.xcframework.linking, .dynamic)
+        XCTAssertEqual(foreignBuild.developmentXCFramework?.script, "gradle assembleSharedKMPDebugXCFramework")
+        XCTAssertEqual(
+            foreignBuild.developmentXCFramework?.path,
+            rootDirectory.appending(try RelativePath(validating: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework"))
+        )
+    }
 }

@@ -107,14 +107,31 @@ public struct Target: Codable, Equatable, Sendable {
     public var buildableFolders: [BuildableFolder]
 
     /// Properties for a foreign build target. Set when this target was created with
-    /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
+    /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)`` or
+    /// ``kotlinMultiplatform(name:destinations:gradleProject:frameworkName:linking:compileKotlinFrameworkScript:compileKotlinXCFrameworkScript:xcframeworkPath:inputs:metadata:)``.
     public private(set) var foreignBuild: ForeignBuild?
 
     /// Describes the properties of a foreign (non-Xcode) build target.
+    ///
+    /// A foreign build can declare two XCFramework builds: a `xcframework` build that produces the
+    /// universal artifact (all slices, used when warming the binary cache) and an optional
+    /// `developmentXCFramework` build that produces a thinner artifact for the current destination
+    /// (used during regular generation, so local iteration doesn't pay for the full build). Both are
+    /// XCFrameworks, so they link and embed through the same wiring; Tuist just picks which to build
+    /// per context. Generic foreign builds leave `developmentXCFramework` unset and always build the
+    /// universal XCFramework.
     public struct ForeignBuild: Codable, Equatable, Sendable {
-        public let script: String
         public let inputs: [Input]
-        public let output: Output
+
+        /// The directory the build scripts run in. `nil` runs them in the project directory.
+        public let workingDirectory: Path?
+
+        /// The universal XCFramework build, produced when warming the binary cache.
+        public let xcframework: XCFramework
+
+        /// The thinner XCFramework build, produced during regular generation. `nil` falls back to the
+        /// universal `xcframework` build.
+        public let developmentXCFramework: XCFramework?
 
         /// Describes an input that affects a foreign build dependency's output.
         ///
@@ -144,13 +161,27 @@ public struct Target: Codable, Equatable, Sendable {
             case script(String)
         }
 
+        /// Describes how a binary artifact is linked.
+        public enum Linking: String, Codable, Hashable, Sendable {
+            case `static`, dynamic
+
+            var product: Product {
+                self == .static ? .staticFramework : .framework
+            }
+        }
+
+        /// An XCFramework build: the script that produces it and where it lands.
+        public struct XCFramework: Codable, Equatable, Sendable {
+            /// The shell script that builds the XCFramework.
+            public let script: String
+            /// The path where the script produces the XCFramework. Tuist captures it for the cache and links it.
+            public let path: Path
+            /// Whether the artifact is statically or dynamically linked.
+            public let linking: Linking
+        }
+
         /// Describes the binary artifact produced by a foreign (non-Xcode) build system.
         public enum Output: Codable, Hashable, Sendable {
-            /// Describes how a binary artifact is linked.
-            public enum Linking: String, Codable, Hashable, Sendable {
-                case `static`, dynamic
-            }
-
             /// An XCFramework output.
             ///
             /// - Parameters:
@@ -161,7 +192,7 @@ public struct Target: Codable, Equatable, Sendable {
             var product: Product {
                 switch self {
                 case let .xcframework(_, linking):
-                    return linking == .static ? .staticFramework : .framework
+                    return linking.product
                 }
             }
         }
@@ -199,7 +230,7 @@ public struct Target: Codable, Equatable, Sendable {
     ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
     /// directory.
     ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
-    ///   - output: The binary artifact produced by the script (`.xcframework` or `.framework`).
+    ///   - output: The binary artifact produced by the script.
     ///   - metadata: The target's metadata.
     public static func foreignBuild(
         name: String,
@@ -209,6 +240,13 @@ public struct Target: Codable, Equatable, Sendable {
         output: ForeignBuild.Output,
         metadata: TargetMetadata = .default
     ) -> Self {
+        let path: Path
+        let linking: ForeignBuild.Linking
+        switch output {
+        case let .xcframework(outputPath, outputLinking):
+            path = outputPath
+            linking = outputLinking
+        }
         var target = self.init(
             name: name,
             destinations: destinations,
@@ -237,9 +275,110 @@ public struct Target: Codable, Equatable, Sendable {
             buildableFolders: []
         )
         target.foreignBuild = ForeignBuild(
-            script: script,
             inputs: inputs,
-            output: output
+            workingDirectory: nil,
+            xcframework: ForeignBuild.XCFramework(script: script, path: path, linking: linking),
+            developmentXCFramework: nil
+        )
+        return target
+    }
+
+    /// Creates a target that integrates a Kotlin Multiplatform framework built with Gradle.
+    ///
+    /// The target becomes an aggregate target that builds the Kotlin XCFramework. Other targets depend
+    /// on it with `.target(name:)`.
+    ///
+    /// Tuist owns the build strategy: when warming the binary cache it runs `compileKotlinXCFrameworkScript`
+    /// to build the universal XCFramework (all slices). During regular generation, if a development build
+    /// is declared, it runs `compileKotlinDevelopmentXCFrameworkScript` to build a thinner XCFramework for
+    /// the current destination instead, so local iteration is fast. Both are XCFrameworks, so consumers
+    /// link and embed them the same way at any dependency depth. You don't choose; Tuist picks per context.
+    ///
+    /// ### Example
+    ///
+    /// ```swift
+    /// .kotlinMultiplatform(
+    ///     name: "SharedKMP",
+    ///     destinations: .iOS,
+    ///     gradleProject: "SharedKMP",
+    ///     compileKotlinXCFrameworkScript: "gradle assembleSharedKMPReleaseXCFramework",
+    ///     xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+    ///     compileKotlinDevelopmentXCFrameworkScript: "gradle assembleSharedKMPDebugXCFramework",
+    ///     developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework",
+    ///     inputs: [
+    ///         .folder("SharedKMP/src"),
+    ///         .file("SharedKMP/build.gradle.kts"),
+    ///     ]
+    /// )
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - name: A unique name for this target. Consumers depend on it with `.target(name:)`.
+    ///   - destinations: The destinations the framework supports.
+    ///   - gradleProject: Directory the build scripts run in (where the Gradle wrapper and the framework's module live).
+    ///   - linking: How consumers link the framework. Defaults to `.dynamic`.
+    ///   - compileKotlinXCFrameworkScript: Builds the universal XCFramework, used when warming the binary cache.
+    ///   - xcframeworkPath: Where `compileKotlinXCFrameworkScript` produces the XCFramework. Tuist captures it for the cache and
+    /// links it.
+    ///   - compileKotlinDevelopmentXCFrameworkScript: Builds a thinner XCFramework for the current destination, used during
+    /// regular generation. When omitted, regular generation falls back to the universal build.
+    ///   - developmentXCFrameworkPath: Where `compileKotlinDevelopmentXCFrameworkScript` produces the XCFramework. Required when
+    /// the development script is set.
+    ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
+    ///   - metadata: The target's metadata.
+    public static func kotlinMultiplatform(
+        name: String,
+        destinations: Destinations,
+        gradleProject: Path,
+        linking: ForeignBuild.Linking = .dynamic,
+        compileKotlinXCFrameworkScript: String,
+        xcframeworkPath: Path,
+        compileKotlinDevelopmentXCFrameworkScript: String? = nil,
+        developmentXCFrameworkPath: Path? = nil,
+        inputs: [ForeignBuild.Input] = [],
+        metadata: TargetMetadata = .default
+    ) -> Self {
+        var target = self.init(
+            name: name,
+            destinations: destinations,
+            product: linking.product,
+            productName: nil,
+            bundleId: "tuist.foreign-build.\(name)",
+            deploymentTargets: nil,
+            infoPlist: nil,
+            sources: nil,
+            resources: nil,
+            copyFiles: nil,
+            headers: nil,
+            entitlements: nil,
+            scripts: [],
+            dependencies: [],
+            settings: nil,
+            coreDataModels: [],
+            environmentVariables: [:],
+            launchArguments: [],
+            additionalFiles: [],
+            buildRules: [],
+            mergedBinaryType: .disabled,
+            mergeable: false,
+            onDemandResourcesTags: nil,
+            metadata: metadata,
+            buildableFolders: []
+        )
+        let developmentXCFramework = compileKotlinDevelopmentXCFrameworkScript.flatMap { developmentScript in
+            developmentXCFrameworkPath.map { developmentPath in
+                ForeignBuild.XCFramework(script: developmentScript, path: developmentPath, linking: linking)
+            }
+        }
+        target.foreignBuild = ForeignBuild(
+            inputs: inputs,
+            workingDirectory: gradleProject,
+            xcframework: ForeignBuild.XCFramework(
+                script: compileKotlinXCFrameworkScript,
+                path: xcframeworkPath,
+                linking: linking
+            ),
+            developmentXCFramework: developmentXCFramework
         )
         return target
     }

@@ -17,9 +17,10 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let aggregateTargetModel = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumerTargetModel = Target.test(
@@ -104,9 +105,10 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let aggregateTargetModel = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumer1 = Target.test(
@@ -165,9 +167,10 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let aggregateTargetModel = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumerTargetModel = Target.test(
@@ -215,9 +218,10 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let aggregateTargetModel = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumerTargetModel = Target.test(
@@ -275,17 +279,19 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let agg1 = Target.test(
             name: "AggregateA",
             foreignBuild: ForeignBuild(
-                script: "build A",
                 inputs: [],
-                output: .xcframework(path: output1, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "build A", path: output1, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let agg2 = Target.test(
             name: "AggregateB",
             foreignBuild: ForeignBuild(
-                script: "build B",
                 inputs: [],
-                output: .xcframework(path: output2, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "build B", path: output2, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumer1 = Target.test(
@@ -362,9 +368,10 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         let aggregateTargetModel = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumerTargetModel = Target.test(

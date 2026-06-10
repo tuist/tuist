@@ -19,9 +19,10 @@ struct ForeignBuildSideEffectGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -58,9 +59,10 @@ struct ForeignBuildSideEffectGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -78,6 +80,71 @@ struct ForeignBuildSideEffectGraphMapperTests {
 
         // Then
         #expect(sideEffects.isEmpty)
+    }
+
+    @Test
+    func map_incrementalMode_materializesDevelopmentXCFramework() async throws {
+        // Given a foreign build with both builds, in incremental mode the development xcframework is
+        // materialized (using its script and working directory).
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let universalPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework")
+        let developmentPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                inputs: [],
+                workingDirectory: projectPath.appending(component: "SharedKMP"),
+                xcframework: .init(script: "gradle assembleReleaseXCFramework", path: universalPath, linking: .dynamic),
+                developmentXCFramework: .init(script: "gradle assembleDebugXCFramework", path: developmentPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget])
+        let graph = Graph.test(path: projectPath, projects: [projectPath: project])
+
+        // When
+        let subject = ForeignBuildSideEffectGraphMapper(mode: .incremental)
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(sideEffects.count == 1)
+        guard case let .command(commandDescriptor) = sideEffects.first else {
+            Issue.record("Expected a command side effect")
+            return
+        }
+        #expect(commandDescriptor.command.last?.contains("gradle assembleDebugXCFramework") == true)
+        #expect(commandDescriptor.command.last?.contains("/Project/SharedKMP") == true)
+    }
+
+    @Test
+    func map_universalMode_materializesUniversalXCFramework() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let universalPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework")
+        let developmentPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                inputs: [],
+                workingDirectory: projectPath.appending(component: "SharedKMP"),
+                xcframework: .init(script: "gradle assembleReleaseXCFramework", path: universalPath, linking: .dynamic),
+                developmentXCFramework: .init(script: "gradle assembleDebugXCFramework", path: developmentPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget])
+        let graph = Graph.test(path: projectPath, projects: [projectPath: project])
+
+        // When
+        let subject = ForeignBuildSideEffectGraphMapper(mode: .universal)
+        let (_, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(sideEffects.count == 1)
+        guard case let .command(commandDescriptor) = sideEffects.first else {
+            Issue.record("Expected a command side effect")
+            return
+        }
+        #expect(commandDescriptor.command.last?.contains("gradle assembleReleaseXCFramework") == true)
+        #expect(commandDescriptor.command.last?.contains("/Project/SharedKMP") == true)
     }
 
     @Test

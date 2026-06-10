@@ -25,20 +25,26 @@ let project = Project(
                 .target(name: "SharedKMP"),
             ]
         ),
-        .foreignBuild(
+        .kotlinMultiplatform(
             name: "SharedKMP",
             destinations: .iOS,
-            script: """
-                eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
-                cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
-                """,
+            gradleProject: "SharedKMP",
+            compileKotlinXCFrameworkScript: """
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+            gradle assembleSharedKMPReleaseXCFramework
+            """,
+            xcframeworkPath: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+            compileKotlinDevelopmentXCFrameworkScript: """
+            eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+            gradle assembleSharedKMPDebugXCFramework
+            """,
+            developmentXCFrameworkPath: "SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework",
             inputs: [
                 .folder("SharedKMP/src"),
                 .file("SharedKMP/build.gradle.kts"),
                 .file("SharedKMP/settings.gradle.kts"),
                 .file("SharedKMP/gradle.properties"),
-            ],
-            output: .xcframework(path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework", linking: .dynamic)
+            ]
         ),
     ]
 )

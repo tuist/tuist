@@ -328,7 +328,7 @@ public struct TargetContentHasher: TargetContentHashing {
             )
             hashedPaths.merge(inputsResult.hashedPaths, uniquingKeysWith: { _, newValue in newValue })
             let foreignBuildHash = try contentHasher.hash(
-                "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.script)-\(inputsResult.hash)"
+                "foreignBuild-\(graphTarget.target.name)-\(foreignBuild.xcframework.script)-\(inputsResult.hash)"
             )
             stringsToHash.append(foreignBuildHash)
         }

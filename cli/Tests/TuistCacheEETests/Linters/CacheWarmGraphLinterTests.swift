@@ -61,9 +61,14 @@ struct CacheWarmGraphLinterTests {
                 .init(name: "Foreign Build", order: .pre, script: .embedded("gradle build")),
             ],
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: try AbsolutePath(validating: "/output.xcframework"), linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(
+                    script: "gradle build",
+                    path: try AbsolutePath(validating: "/output.xcframework"),
+                    linking: .dynamic
+                ),
+                developmentXCFramework: nil
             )
         )
         let project = Project.test(targets: [target])

@@ -217,7 +217,7 @@ extension XcodeGraph.XCFrameworkSignature {
 }
 
 extension XcodeGraph.BinaryLinking {
-    static func from(manifest: ProjectDescription.Target.ForeignBuild.Output.Linking) -> Self {
+    static func from(manifest: ProjectDescription.Target.ForeignBuild.Linking) -> Self {
         switch manifest {
         case .static: return .static
         case .dynamic: return .dynamic
@@ -225,17 +225,15 @@ extension XcodeGraph.BinaryLinking {
     }
 }
 
-extension XcodeGraph.ForeignBuild.Artifact {
+extension XcodeGraph.ForeignBuild.XCFrameworkBuild {
     static func from(
-        manifest: ProjectDescription.Target.ForeignBuild.Output,
+        manifest: ProjectDescription.Target.ForeignBuild.XCFramework,
         generatorPaths: GeneratorPaths
     ) throws -> Self {
-        switch manifest {
-        case let .xcframework(path, linking):
-            return .xcframework(
-                path: try generatorPaths.resolve(path: path),
-                linking: .from(manifest: linking)
-            )
-        }
+        XcodeGraph.ForeignBuild.XCFrameworkBuild(
+            script: manifest.script,
+            path: try generatorPaths.resolve(path: manifest.path),
+            linking: .from(manifest: manifest.linking)
+        )
     }
 }

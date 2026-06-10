@@ -1,18 +1,28 @@
 import Path
 
 public struct ForeignBuild: Equatable, Hashable, Codable, Sendable {
-    public let script: String
     public let inputs: [Input]
-    public let output: Artifact
+
+    /// The directory the build scripts run in. `nil` runs them in the project directory.
+    public let workingDirectory: AbsolutePath?
+
+    /// The universal XCFramework build, produced when warming the binary cache.
+    public let xcframework: XCFrameworkBuild
+
+    /// The thinner XCFramework build, produced during regular generation. `nil` falls back to the
+    /// universal `xcframework` build.
+    public let developmentXCFramework: XCFrameworkBuild?
 
     public init(
-        script: String,
         inputs: [Input],
-        output: Artifact
+        workingDirectory: AbsolutePath?,
+        xcframework: XCFrameworkBuild,
+        developmentXCFramework: XCFrameworkBuild?
     ) {
-        self.script = script
         self.inputs = inputs
-        self.output = output
+        self.workingDirectory = workingDirectory
+        self.xcframework = xcframework
+        self.developmentXCFramework = developmentXCFramework
     }
 
     public enum Input: Equatable, Hashable, Codable, Sendable {
@@ -21,19 +31,16 @@ public struct ForeignBuild: Equatable, Hashable, Codable, Sendable {
         case script(String)
     }
 
-    public enum Artifact: Equatable, Hashable, Codable, Sendable {
-        case xcframework(path: AbsolutePath, linking: BinaryLinking)
+    /// An XCFramework build: the script that produces it and where it lands.
+    public struct XCFrameworkBuild: Equatable, Hashable, Codable, Sendable {
+        public let script: String
+        public let path: AbsolutePath
+        public let linking: BinaryLinking
 
-        public var path: AbsolutePath {
-            switch self {
-            case let .xcframework(path, _): return path
-            }
-        }
-
-        public var linking: BinaryLinking {
-            switch self {
-            case let .xcframework(_, linking): return linking
-            }
+        public init(script: String, path: AbsolutePath, linking: BinaryLinking) {
+            self.script = script
+            self.path = path
+            self.linking = linking
         }
     }
 }

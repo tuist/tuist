@@ -576,10 +576,12 @@ import XcodeGraph
             var artifacts: [CacheGraphTargetBuiltArtifact] = []
             for (graphTarget, hash) in foreignBuildTargets {
                 guard let foreignBuild = graphTarget.target.foreignBuild else { continue }
-                let outputPath = foreignBuild.output.path
+                let outputPath = foreignBuild.xcframework.path
                 guard try await fileSystem.exists(outputPath) else {
                     Logger.current
-                        .warning("Foreign build artifact not found at \(outputPath.pathString) for \(graphTarget.target.name)")
+                        .warning(
+                            "No xcframework found at \(outputPath.pathString) for \(graphTarget.target.name) after running its foreign build script. Verify the script produces the xcframework at that path."
+                        )
                     continue
                 }
 

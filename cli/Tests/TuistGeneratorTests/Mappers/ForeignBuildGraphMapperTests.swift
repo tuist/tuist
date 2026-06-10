@@ -19,9 +19,10 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -59,9 +60,10 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -99,9 +101,10 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumer1 = Target.test(
@@ -157,13 +160,14 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [
                     .folder(srcFolder),
                     .file(gradleFile),
                     .script("git rev-parse HEAD"),
                 ],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -209,9 +213,10 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [.folder(emptyFolder)],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let project = Project.test(path: temporaryDirectory, targets: [foreignBuildTarget])
@@ -259,9 +264,10 @@ struct ForeignBuildGraphMapperTests {
         let foreignBuildTarget = Target.test(
             name: "SharedKMP",
             foreignBuild: ForeignBuild(
-                script: "gradle build",
                 inputs: [],
-                output: .xcframework(path: outputPath, linking: .dynamic)
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: outputPath, linking: .dynamic),
+                developmentXCFramework: nil
             )
         )
         let consumingTarget = Target.test(
@@ -279,5 +285,127 @@ struct ForeignBuildGraphMapperTests {
 
         // Then
         #expect(sideEffects.isEmpty)
+    }
+
+    @Test
+    func map_incrementalMode_buildsDevelopmentXCFrameworkAndLinksItByPath() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let universalPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework")
+        let developmentPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                inputs: [],
+                workingDirectory: projectPath.appending(component: "SharedKMP"),
+                xcframework: .init(script: "gradle assembleReleaseXCFramework", path: universalPath, linking: .dynamic),
+                developmentXCFramework: .init(script: "gradle assembleDebugXCFramework", path: developmentPath, linking: .dynamic)
+            )
+        )
+        let consumingTarget = Target.test(name: "Framework1", dependencies: [.target(name: "SharedKMP")])
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "Framework1", path: projectPath): Set([.target(name: "SharedKMP", path: projectPath)]),
+            ]
+        )
+
+        // When
+        let subject = ForeignBuildGraphMapper(mode: .incremental)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then: the development script runs (prefixed with the working directory) and produces the development path
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let aggregateScript = try #require(mappedProject.targets["SharedKMP"]?.scripts.first)
+        #expect(aggregateScript.script == .embedded("cd \"$SRCROOT/SharedKMP\"\ngradle assembleDebugXCFramework"))
+        #expect(aggregateScript.outputPaths == [developmentPath.pathString])
+
+        // And: the consumer links the development xcframework via a foreign build output dependency
+        let consumingDep = GraphDependency.target(name: "Framework1", path: projectPath)
+        let expectedOutputDep = GraphDependency.foreignBuildOutput(
+            GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: developmentPath, linking: .dynamic)
+        )
+        #expect(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
+    }
+
+    @Test
+    func map_universalMode_buildsUniversalXCFrameworkEvenWhenDevelopmentDeclared() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let universalPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework")
+        let developmentPath = try AbsolutePath(validating: "/Project/SharedKMP/build/XCFrameworks/debug/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                inputs: [],
+                workingDirectory: projectPath.appending(component: "SharedKMP"),
+                xcframework: .init(script: "gradle assembleReleaseXCFramework", path: universalPath, linking: .dynamic),
+                developmentXCFramework: .init(script: "gradle assembleDebugXCFramework", path: developmentPath, linking: .dynamic)
+            )
+        )
+        let consumingTarget = Target.test(name: "Framework1", dependencies: [.target(name: "SharedKMP")])
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "Framework1", path: projectPath): Set([.target(name: "SharedKMP", path: projectPath)]),
+            ]
+        )
+
+        // When
+        let subject = ForeignBuildGraphMapper(mode: .universal)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then: the universal script runs and produces the universal path
+        let mappedProject = try #require(mappedGraph.projects[projectPath])
+        let aggregateScript = try #require(mappedProject.targets["SharedKMP"]?.scripts.first)
+        #expect(aggregateScript.script == .embedded("cd \"$SRCROOT/SharedKMP\"\ngradle assembleReleaseXCFramework"))
+        #expect(aggregateScript.outputPaths == [universalPath.pathString])
+
+        // And: the consumer links the universal xcframework
+        let consumingDep = GraphDependency.target(name: "Framework1", path: projectPath)
+        let expectedOutputDep = GraphDependency.foreignBuildOutput(
+            GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: universalPath, linking: .dynamic)
+        )
+        #expect(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
+    }
+
+    @Test
+    func map_incrementalMode_fallsBackToUniversalWhenNoDevelopmentBuild() async throws {
+        // Given a foreign build with no development build (e.g. a generic foreign build)
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let universalPath = try AbsolutePath(validating: "/Project/build/SharedKMP.xcframework")
+        let foreignBuildTarget = Target.test(
+            name: "SharedKMP",
+            foreignBuild: ForeignBuild(
+                inputs: [],
+                workingDirectory: nil,
+                xcframework: .init(script: "gradle build", path: universalPath, linking: .dynamic),
+                developmentXCFramework: nil
+            )
+        )
+        let consumingTarget = Target.test(name: "Framework1", dependencies: [.target(name: "SharedKMP")])
+        let project = Project.test(path: projectPath, targets: [foreignBuildTarget, consumingTarget])
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "Framework1", path: projectPath): Set([.target(name: "SharedKMP", path: projectPath)]),
+            ]
+        )
+
+        // When
+        let subject = ForeignBuildGraphMapper(mode: .incremental)
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then: it uses the universal build
+        let consumingDep = GraphDependency.target(name: "Framework1", path: projectPath)
+        let expectedOutputDep = GraphDependency.foreignBuildOutput(
+            GraphDependency.ForeignBuildOutput(name: "SharedKMP", path: universalPath, linking: .dynamic)
+        )
+        #expect(mappedGraph.dependencies[consumingDep]?.contains(expectedOutputDep) == true)
     }
 }

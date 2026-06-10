@@ -203,12 +203,15 @@ extension XcodeGraph.Target {
             mappedInputs.append(contentsOf: resolved)
         }
         return XcodeGraph.ForeignBuild(
-            script: manifest.script,
             inputs: mappedInputs,
-            output: try XcodeGraph.ForeignBuild.Artifact.from(
-                manifest: manifest.output,
+            workingDirectory: try manifest.workingDirectory.map { try generatorPaths.resolve(path: $0) },
+            xcframework: try XcodeGraph.ForeignBuild.XCFrameworkBuild.from(
+                manifest: manifest.xcframework,
                 generatorPaths: generatorPaths
-            )
+            ),
+            developmentXCFramework: try manifest.developmentXCFramework.map {
+                try XcodeGraph.ForeignBuild.XCFrameworkBuild.from(manifest: $0, generatorPaths: generatorPaths)
+            }
         )
     }
 
