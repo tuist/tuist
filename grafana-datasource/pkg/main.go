@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	if err := datasource.Manage("tuist-datasource", plugin.NewDatasource, datasource.ManageOpts{}); err != nil {
+	if err := datasource.Manage("tuist-metrics-datasource", plugin.NewDatasource, datasource.ManageOpts{}); err != nil {
 		log.DefaultLogger.Error(err.Error())
 		os.Exit(1)
 	}

@@ -6,7 +6,7 @@ server's public metrics API — no aggregation happens here.
 
 ## Layout
 
-- `pkg/main.go` — entry point; `datasource.Manage("tuist-datasource", …)`.
+- `pkg/main.go` — entry point; `datasource.Manage("tuist-metrics-datasource", …)`.
 - `pkg/plugin/datasource.go` — `QueryData`, `CheckHealth`, `CallResource`.
 - `pkg/plugin/client.go` — HTTP client for the Tuist API (Bearer account token).
 - `pkg/plugin/models.go` — query model, settings, and response structs.
@@ -43,9 +43,23 @@ only — they are intentionally not part of the generated CLI client.
   `.config/` harness is committed and managed by `@grafana/create-plugin` —
   update it with `npx @grafana/create-plugin@latest update`, don't hand-edit.
 
+## Releasing / publishing
+
+- `.github/workflows/grafana-datasource-release.yml` builds the frontend +
+  multi-platform Go binaries, signs (when `GRAFANA_ACCESS_POLICY_TOKEN` is set),
+  validates, and (on a `grafana-datasource-v*` tag) publishes a GitHub release
+  with the zip + SHA1 for catalog submission.
+- Catalog readiness was checked with `@grafana/plugin-validator`. Outstanding
+  item: the validator wants the **latest** `grafana-plugin-sdk-go` (clears the
+  "SDK older than 5 months" check and the grpc/otel CVEs), but the latest SDK
+  requires **go 1.26.3** while this monorepo is on go 1.25. Fully clearing it
+  needs either the monorepo on go 1.26 or extracting this plugin into its own
+  repo (which is also the cleaner home for the release/signing cadence). Do this
+  before submitting to the catalog, not as part of in-monorepo development.
+
 ## Conventions
 
 - Keep all aggregation server-side; this plugin only shapes requests and frames.
 - The account token lives in `secureJsonData` and must never be returned to the
   browser — dropdown data flows through `CallResource`, not direct frontend calls.
-- Plugin id `tuist-datasource`; backend executable `gpx_tuist_datasource`.
+- Plugin id `tuist-metrics-datasource`; backend executable `gpx_tuist_datasource`.

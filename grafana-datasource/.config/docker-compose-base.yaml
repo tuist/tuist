@@ -1,7 +1,7 @@
 services:
   grafana:
     user: root
-    container_name: 'tuist-datasource'
+    container_name: 'tuist-metrics-datasource'
 
     build:
       context: .
@@ -19,13 +19,13 @@ services:
     cap_add:
       - SYS_PTRACE
     volumes:
-      - ../dist:/var/lib/grafana/plugins/tuist-datasource
+      - ../dist:/var/lib/grafana/plugins/tuist-metrics-datasource
       - ../provisioning:/etc/grafana/provisioning
-      - ..:/root/tuist-datasource
+      - ..:/root/tuist-metrics-datasource
 
     environment:
       NODE_ENV: development
-      GF_LOG_FILTERS: plugin.tuist-datasource:debug
+      GF_LOG_FILTERS: plugin.tuist-metrics-datasource:debug
       GF_LOG_LEVEL: debug
       GF_DATAPROXY_LOGGING: 1
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: tuist-datasource
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: tuist-metrics-datasource
