@@ -58,7 +58,7 @@ kuraController:
     # for operators who prefer to source this credential externally.
     kuraIntrospection:
       enabled: false
-      clientId: "00000000-0000-0000-0000-000000000001"
+      clientId: ""
       # Leave empty to generate a 64-character secret on first install and
       # preserve it with lookup() on future upgrades. Set only for local
       # development or self-hosted installs that intentionally inline it.
