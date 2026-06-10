@@ -64,6 +64,7 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     argumentParserDependency,
     loggingDependency,
     swiftToolsSupportDependency,
+    fileSystemDependency,
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",

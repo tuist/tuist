@@ -1164,6 +1164,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.encodable.targetName),
                     .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
                     .external(name: "Logging"),
                     .external(name: "Noora"),
                     .external(name: "SwiftToolsSupport"),
@@ -1599,6 +1600,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .userInputReader:
                 [

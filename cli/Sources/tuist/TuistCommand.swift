@@ -58,6 +58,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Develop",
                     subcommands: [
                         HashCommand.self,
+                        BazelCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CacheStartCommand.self,
@@ -100,6 +101,7 @@ public struct TuistCommand: AsyncParsableCommand {
             groups.append(CommandGroup(
                 name: "Develop",
                 subcommands: [
+                    BazelCommand.self,
                     BuildCommand.self,
                     CacheCommand.self,
                     GenerateCommand.self,
@@ -180,6 +182,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     )
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
+                        && processedArguments.prefix(2) != ["bazel", "credential-helper"]
                         && processedArguments.first != "analytics-upload"
                     let optionalAuthentication = config.project.optionalAuthentication
                     let runTrackableCommand = {
