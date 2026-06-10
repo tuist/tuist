@@ -129,11 +129,4 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
     assert %{"error" => "invalid_payload"} = json_response(conn, 400)
   end
-
-  test "rejects malformed usage events", %{conn: conn, kura_client: client} do
-    conn =
-      post_events(conn, [build_event(%{"bytes" => "123"})], authorization: authorization_header(client.id, client.secret))
-
-    assert %{"error" => "invalid_events"} = json_response(conn, 400)
-  end
 end

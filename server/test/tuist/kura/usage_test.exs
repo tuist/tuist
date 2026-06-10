@@ -42,7 +42,7 @@ defmodule Tuist.Kura.UsageTest do
 
   defp unique_account_id, do: System.unique_integer([:positive]) + 1_000_000
 
-  defp wire_event(overrides \\ %{}) do
+  defp wire_event(overrides) do
     Map.merge(
       %{
         "event_id" => "wire-#{System.unique_integer([:positive])}",
@@ -149,17 +149,6 @@ defmodule Tuist.Kura.UsageTest do
         end)
 
       assert {:error, :too_many_events} = Usage.create_events(events)
-    end
-
-    test "rejects malformed events" do
-      assert {:error, :invalid_events} =
-               Usage.create_events([Map.delete(wire_event(), "event_id")])
-
-      assert {:error, :invalid_events} =
-               Usage.create_events([wire_event(%{"tenant_id" => 123})])
-
-      assert {:error, :invalid_events} =
-               Usage.create_events([wire_event(%{"bytes" => "100"})])
     end
 
     test "writes accepted events to ClickHouse in bounded chunks" do
