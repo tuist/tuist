@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, metrics-server, and optionally ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
+#MISE description="Install or upgrade the Tuist platform chart (cert-manager, ESO, external-dns, metrics-server, and ingress-nginx) on a workload cluster. Idempotent — safe to run on every deploy."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
-#USAGE arg "<cluster_name>" help="Cluster name, used for the external-dns owner ID and, for app clusters, the ingress LoadBalancer name"
+#USAGE arg "<cluster_name>" help="Cluster name, used for the external-dns owner ID and ingress LoadBalancer name"
 
 # Brings a workload cluster to the desired state of the platform chart
 # at HEAD: cert-manager + ClusterIssuer + external-dns +
-# external-secrets + metrics-server, plus ingress-nginx on app-serving
-# clusters.
+# external-secrets + metrics-server, plus ingress-nginx.
 # Designed to run from CI on every deploy so a
 # half-bootstrapped cluster self-heals instead of silently breaking
 # downstream installs that depend on cert-manager.io/v1 Certificate.
@@ -21,11 +20,6 @@ WL_KUBECONFIG="$1"
 CLUSTER_NAME="$2"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHART_PATH="$REPO_ROOT/infra/helm/platform"
-IS_KURA_REGIONAL_CLUSTER=false
-
-if [[ "$CLUSTER_NAME" == tuist-kura-* ]]; then
-  IS_KURA_REGIONAL_CLUSTER=true
-fi
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -34,34 +28,7 @@ if [ ! -r "$WL_KUBECONFIG" ]; then
   exit 1
 fi
 
-derive_region_from_nodes() {
-  KUBECONFIG="$WL_KUBECONFIG" kubectl get nodes \
-    -o jsonpath='{range .items[*]}{.metadata.labels.topology\.kubernetes\.io/region}{"\n"}{end}' |
-    awk 'NF { print; exit }'
-}
-
-derive_region_from_ingress_service() {
-  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get service platform-ingress-nginx-controller \
-    -o jsonpath='{.metadata.annotations.load-balancer\.hetzner\.cloud/location}' 2>/dev/null || true
-}
-
-# HCCM stamps hcloud-backed nodes with topology.kubernetes.io/region
-# (e.g. ash, hil, fsn1). Mixed clusters can also carry bare-metal
-# runner nodes that do not have that label, so scan all nodes instead
-# of assuming `.items[0]` is an hcloud VM.
-REGION="$(derive_region_from_nodes)"
-if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
-  REGION="$(derive_region_from_ingress_service)"
-fi
-if [ -z "$REGION" ] && [ "$IS_KURA_REGIONAL_CLUSTER" = false ]; then
-  echo "ERROR: could not derive Hetzner location from topology.kubernetes.io/region on any node or from the existing ingress Service annotation on $WL_KUBECONFIG" >&2
-  exit 1
-fi
-if [ -n "$REGION" ]; then
-  log "Platform install for $CLUSTER_NAME (region $REGION)"
-else
-  log "Platform install for $CLUSTER_NAME"
-fi
+log "Platform install for $CLUSTER_NAME"
 
 if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
@@ -79,19 +46,10 @@ unset CLOUDFLARE_API_TOKEN
 
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
+  --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
 )
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
 CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"
-
-if [ "$IS_KURA_REGIONAL_CLUSTER" = true ]; then
-  log "Regional Kura cluster detected; skipping ingress-nginx install"
-  HELM_VALUES_ARGS+=(-f "$CHART_PATH/values-kura-region.yaml")
-else
-  HELM_SET_ARGS+=(
-    --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/location=${REGION}"
-    --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
-  )
-fi
 
 if [ -f "$CLUSTER_VALUES_FILE" ]; then
   log "Loading platform values overlay $(basename "$CLUSTER_VALUES_FILE")"
@@ -106,7 +64,7 @@ fi
 HELM_TIMEOUT="15m"
 
 # Helm installs chart CRDs only on `install`, not on `upgrade`. Some
-# regional clusters predate the platform chart's cert-manager wiring, so
+# older workload clusters can predate the platform chart's cert-manager wiring, so
 # an upgrade can see `clusterissuers.cert-manager.io` missing forever.
 # Apply the cert-manager chart CRDs explicitly before templating our
 # ClusterIssuer.
@@ -143,16 +101,40 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform delete job \
   --ignore-not-found --cascade=foreground --timeout=2m || true
 
 HELM_EXTRA_ARGS=()
-if [ "$IS_KURA_REGIONAL_CLUSTER" = false ] &&
-  KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1 &&
-  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret platform-ingress-nginx-admission >/dev/null 2>&1; then
-  HELM_EXTRA_ARGS+=(--no-hooks)
+ADMISSION_SECRETS=(platform-ingress-nginx-admission)
+case "$CLUSTER_NAME" in
+  tuist)
+    ADMISSION_SECRETS+=(
+      platform-kura-eu-central-ingress-nginx-admission
+      platform-kura-us-east-ingress-nginx-admission
+      platform-kura-us-west-ingress-nginx-admission
+    )
+    ;;
+  tuist-canary | tuist-staging)
+    ADMISSION_SECRETS+=(
+      platform-kura-eu-central-ingress-nginx-admission
+    )
+    ;;
+esac
+
+if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1; then
+  HAVE_ALL_ADMISSION_SECRETS=true
+  for secret in "${ADMISSION_SECRETS[@]}"; do
+    if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret "$secret" >/dev/null 2>&1; then
+      HAVE_ALL_ADMISSION_SECRETS=false
+      break
+    fi
+  done
+
+  if [ "$HAVE_ALL_ADMISSION_SECRETS" = true ]; then
+    HELM_EXTRA_ARGS+=(--no-hooks)
+  fi
 fi
 
 # Dump platform-namespace state when helm exits non-zero. The caller's
-# workflow-level diagnostics step targets the main tuist cluster, so a
+# workflow-level diagnostics step targets the application namespace, so a
 # failure here would otherwise produce no actionable signal about the
-# regional workload cluster (stuck certgen hook, image pull, RBAC, …).
+# platform namespace (stuck certgen hook, image pull, RBAC, ...).
 dump_diagnostics() {
   local rc=$?
   if [ "$rc" -eq 0 ]; then

@@ -266,6 +266,9 @@ defmodule Tuist.Kura.Reconciler do
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
 
+      {:error, :not_found} when latest_status == :succeeded ->
+        apply_current_manifest(server, desired)
+
       {:error, :not_found} ->
         record(server, derived_status(server, latest_status), nil, now())
 

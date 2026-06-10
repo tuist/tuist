@@ -7,6 +7,103 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+func (in *KuraGateway) DeepCopyInto(out *KuraGateway) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	in.Spec.DeepCopyInto(&out.Spec)
+	in.Status.DeepCopyInto(&out.Status)
+}
+
+func (in *KuraGateway) DeepCopy() *KuraGateway {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraGateway)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraGateway) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *KuraGatewayList) DeepCopyInto(out *KuraGatewayList) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
+	if in.Items != nil {
+		out.Items = make([]KuraGateway, len(in.Items))
+		for i := range in.Items {
+			in.Items[i].DeepCopyInto(&out.Items[i])
+		}
+	}
+}
+
+func (in *KuraGatewayList) DeepCopy() *KuraGatewayList {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraGatewayList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraGatewayList) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
+}
+
+func (in *KuraGatewaySpec) DeepCopyInto(out *KuraGatewaySpec) {
+	*out = *in
+	if in.Replicas != nil {
+		out.Replicas = new(int32)
+		*out.Replicas = *in.Replicas
+	}
+	if in.NodeSelector != nil {
+		out.NodeSelector = make(map[string]string, len(in.NodeSelector))
+		for key, value := range in.NodeSelector {
+			out.NodeSelector[key] = value
+		}
+	}
+	if in.LoadBalancerAnnotations != nil {
+		out.LoadBalancerAnnotations = make(map[string]string, len(in.LoadBalancerAnnotations))
+		for key, value := range in.LoadBalancerAnnotations {
+			out.LoadBalancerAnnotations[key] = value
+		}
+	}
+}
+
+func (in *KuraGatewaySpec) DeepCopy() *KuraGatewaySpec {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraGatewaySpec)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraGatewayStatus) DeepCopyInto(out *KuraGatewayStatus) {
+	*out = *in
+	if in.LastReconciledAt != nil {
+		out.LastReconciledAt = in.LastReconciledAt.DeepCopy()
+	}
+}
+
+func (in *KuraGatewayStatus) DeepCopy() *KuraGatewayStatus {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraGatewayStatus)
+	in.DeepCopyInto(out)
+	return out
+}
+
 func (in *KuraInstance) DeepCopyInto(out *KuraInstance) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta

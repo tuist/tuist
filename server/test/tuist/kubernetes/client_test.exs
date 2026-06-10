@@ -49,7 +49,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
-    test "can use a token-based kubeconfig for remote clusters" do
+    test "can use a token-based explicit kubeconfig" do
       kubeconfig = kubeconfig(%{token: "region-token"})
 
       expect(Req, :request, fn opts ->
@@ -135,7 +135,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
-    test "can use a client-certificate kubeconfig for remote clusters" do
+    test "can use a client-certificate explicit kubeconfig" do
       kubeconfig = kubeconfig(%{client_certificate: "test-cert", client_key: "test-key"})
 
       expect(Req, :request, fn opts ->

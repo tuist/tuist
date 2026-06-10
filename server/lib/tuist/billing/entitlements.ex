@@ -29,6 +29,8 @@ defmodule Tuist.Billing.Entitlements do
   # GitHub Enterprise Server connection — Enterprise only.
   defp plan_allows?(_plan, :github_enterprise_server), do: false
 
+  defp plan_allows?(_plan, _feature), do: false
+
   defp current_plan(%Account{} = account) do
     case Billing.get_current_active_subscription(account) do
       %{plan: plan} when is_atom(plan) -> plan

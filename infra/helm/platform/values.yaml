@@ -63,6 +63,75 @@ ingress-nginx:
     metrics:
       enabled: true
 
+kura-eu-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-central-ingress-nginx-leader
+    ingressClass: kura-eu-central
+    ingressClassResource:
+      name: kura-eu-central
+      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
+kura-us-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-east-ingress-nginx-leader
+    ingressClass: kura-us-east
+    ingressClassResource:
+      name: kura-us-east
+      controllerValue: k8s.io/kura-us-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
+kura-us-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-west-ingress-nginx-leader
+    ingressClass: kura-us-west
+    ingressClassResource:
+      name: kura-us-west
+      controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
 external-dns:
   enabled: true
   provider: cloudflare

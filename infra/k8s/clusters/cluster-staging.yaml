@@ -60,6 +60,35 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Dedicated Kura pool. Staging exposes eu-central so the
+        # controller-backed provisioning path can be exercised end to
+        # end before the production regional pools receive the same
+        # chart/controller changes. Kura defaults to three replicas with
+        # hard hostname spreading, so keep three workers.
+        - class: hcloud-worker
+          name: kura
+          replicas: 3
+          failureDomain: fsn1
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: kura
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: ccx13
         # Linux runner pool on Hetzner Robot bare metal. Each
         # claimable `HetznerBareMetalHost` CR (see
         # `bare-metal-staging.yaml`) gets picked up by caph, which
