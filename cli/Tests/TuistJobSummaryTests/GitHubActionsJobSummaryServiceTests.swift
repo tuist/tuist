@@ -8,7 +8,7 @@ import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 
-@testable import TuistKit
+@testable import TuistJobSummary
 
 struct GitHubActionsJobSummaryServiceTests {
     private let fileSystem = FileSystem()

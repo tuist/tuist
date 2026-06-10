@@ -7,6 +7,7 @@ import TuistAlert
 import TuistCache
 import TuistCore
 import TuistEnvironment
+import TuistJobSummary
 import TuistLogging
 import TuistProcess
 import TuistServer

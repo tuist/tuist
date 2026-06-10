@@ -5,6 +5,7 @@ import Path
 import TuistAlert
 import TuistCore
 import TuistGit
+import TuistJobSummary
 import TuistLogging
 import TuistProcess
 import TuistServer

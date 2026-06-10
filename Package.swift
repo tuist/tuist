@@ -1248,6 +1248,7 @@ targets.append(contentsOf: [
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
+            "TuistJobSummary",
             .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
             "TuistMachineMetrics",
@@ -1592,6 +1593,22 @@ targets.append(contentsOf: [
         ],
         path: "cli/Sources/TuistLaunchctl",
         exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistJobSummary",
+        dependencies: [
+            "TuistCore",
+            "TuistCI",
+            "TuistEnvironment",
+            "TuistLogging",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistJobSummary",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
