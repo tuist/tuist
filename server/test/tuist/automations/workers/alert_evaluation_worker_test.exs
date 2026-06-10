@@ -365,11 +365,63 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "does not run recovery when recovery_enabled is false" do
+  test "re-arms a cleared test case but withholds recovery actions when recovery is disabled" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: false,
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    # Triggered long enough ago to clear the default 14d re-arm dwell.
+    triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
+    end)
+
+    # The opt-in undo actions are withheld (empty list) even though the alert
+    # defines recovery_actions, because recovery is disabled.
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    # Re-arm bookkeeping still happens so the alert can fire again later.
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^recovered_id,
+                                                  status: "recovered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "does not re-arm a cleared test case until the dwell elapses, even with recovery disabled" do
     automation = AutomationsFixtures.automation_alert_fixture(recovery_enabled: false)
 
-    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
-    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: [], all: [recovered_id]}
+    end)
+
+    # Triggered 1 day ago — inside the default 14d re-arm dwell.
+    triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
