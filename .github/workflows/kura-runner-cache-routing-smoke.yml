@@ -130,13 +130,27 @@ jobs:
           echo "::group::resolv.conf"
           cat /etc/resolv.conf || true
           echo "::endgroup::"
+          echo "::group::nslookup kube-dns control plane (sanity)"
+          nslookup kubernetes.default.svc.cluster.local 2>&1 | head -10 || true
+          echo "::endgroup::"
           echo "::group::nslookup against private hostname"
           nslookup "$(echo "$PRIVATE_KURA_URL" | sed -E 's|^https?://||;s|:.*$||')" 2>&1 | head -20 || true
           echo "::endgroup::"
-          echo "::group::ip route"
-          ip route 2>&1 || true
+          echo "::group::nslookup against the smoke kura headless"
+          nslookup kura-kura-smoke-staging-regional-eu-central-1-headless.kura.svc.cluster.local 2>&1 | head -10 || true
           echo "::endgroup::"
-          echo "::group::curl -v against private (verbose, will fail surfaced)"
+          echo "::group::route table (via /proc since iproute2 missing)"
+          (command -v ip >/dev/null && ip route) || cat /proc/net/route || true
+          echo "::endgroup::"
+          echo "::group::curl with raw ClusterIP (rules out DNS)"
+          curl -v --max-time 8 --resolve "kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000:10.140.109.22" \
+            "http://kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local:4000/up" 2>&1 | head -30 || true
+          echo "::endgroup::"
+          echo "::group::curl raw IP no host header (truly DNS-free)"
+          curl -v --max-time 8 -H "Host: kura-kura-smoke-staging-regional-eu-central-1.kura.svc.cluster.local" \
+            "http://10.140.109.22:4000/up" 2>&1 | head -30 || true
+          echo "::endgroup::"
+          echo "::group::curl -v against private hostname (verbose)"
           curl -v --max-time 8 "$PRIVATE_KURA_URL/up" 2>&1 | head -30 || true
           echo "::endgroup::"
 
