@@ -369,11 +369,29 @@ jobs:
           set -euo pipefail
 
           ready_file="$(mktemp)"
+          ready_error_file="$(mktemp)"
 
           for attempt in $(seq 1 120); do
-            if curl -fsS "$SMOKE_URL/ready" > "$ready_file" && grep -q '"ready":true' "$ready_file"; then
+            : > "$ready_error_file"
+            ready_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 30 \
+                -o "$ready_file" \
+                -w "%{http_code}" \
+                "$SMOKE_URL/ready" \
+                2>"$ready_error_file" || true
+            )"
+            ready_status="${ready_status:-000}"
+
+            if [ "$ready_status" = "200" ] && grep -q '"ready":true' "$ready_file"; then
               cat "$ready_file"
               break
+            fi
+
+            echo "Kura /ready attempt=$attempt status=$ready_status"
+            if [ -s "$ready_error_file" ]; then
+              cat "$ready_error_file"
             fi
 
             if [ "$attempt" = "120" ]; then
@@ -388,22 +406,64 @@ jobs:
           artifact_id="smoke-${SMOKE_GATEWAY_MODE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           payload_file="$(mktemp)"
           downloaded_file="$(mktemp)"
+          post_body_file="$(mktemp)"
+          post_error_file="$(mktemp)"
+          get_error_file="$(mktemp)"
           printf 'kura staging smoke %s %s/%s\n' "$SMOKE_GATEWAY_MODE" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" > "$payload_file"
           cas_url="$SMOKE_URL/api/cache/cas/$artifact_id?tenant_id=$SMOKE_ACCOUNT"
 
           for attempt in $(seq 1 80); do
-            if curl -fsS \
+            : > "$post_body_file"
+            : > "$post_error_file"
+            : > "$get_error_file"
+            post_status="$(
+              curl -sS \
+              --connect-timeout 10 \
+              --max-time 60 \
+              -o "$post_body_file" \
+              -w "%{http_code}" \
               -X POST \
               -H "authorization: Bearer $SMOKE_TOKEN" \
               --data-binary "@$payload_file" \
-              "$cas_url" && \
-              curl -fsS \
+              "$cas_url" \
+              2>"$post_error_file" || true
+            )"
+            post_status="${post_status:-000}"
+            post_ok=false
+            case "$post_status" in
+              2*) post_ok=true ;;
+            esac
+
+            get_status="skipped"
+            if [ "$post_ok" = "true" ]; then
+              : > "$get_error_file"
+              get_status="$(
+                curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                -o "$downloaded_file" \
+                -w "%{http_code}" \
                 -H "authorization: Bearer $SMOKE_TOKEN" \
                 "$cas_url" \
-                > "$downloaded_file" && \
-              cmp -s "$payload_file" "$downloaded_file"; then
+                2>"$get_error_file" || true
+              )"
+              get_status="${get_status:-000}"
+            fi
+
+            if [ "$post_ok" = "true" ] && [ "$get_status" = "200" ] && cmp -s "$payload_file" "$downloaded_file"; then
               echo "Kura public cache roundtrip succeeded for $SMOKE_GATEWAY_MODE gateway at $SMOKE_URL"
               exit 0
+            fi
+
+            echo "Kura cache roundtrip attempt=$attempt post_status=$post_status get_status=$get_status"
+            if [ -s "$post_error_file" ]; then
+              cat "$post_error_file"
+            fi
+            if [ -s "$post_body_file" ]; then
+              sed -n '1,20p' "$post_body_file"
+            fi
+            if [ -s "$get_error_file" ]; then
+              cat "$get_error_file"
             fi
 
             if [ "$attempt" = "80" ]; then
