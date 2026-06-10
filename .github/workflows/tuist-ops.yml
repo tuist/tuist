@@ -74,9 +74,6 @@ jobs:
 
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$KURA_NAMESPACE" rollout status deploy/tuist-tuist-kura-controller --timeout=10m
-          kubectl -n "$KURA_NAMESPACE" wait \
-            --for=condition=Ready externalsecret/kura-shared-secrets \
-            --timeout=5m
           kubectl -n "$KURA_NAMESPACE" get secret kura-shared-secrets
       - id: provision
         name: Provision smoke Kura server
