@@ -1091,6 +1091,34 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Runner platforms whose fleets can resolve and reach the cluster's
+  internal Service network (`*.svc.cluster.local`) — the per-environment
+  input behind `Tuist.Runners.Catalog.fleet_on_cluster_network?/1`.
+
+  Comma-separated platform names in
+  `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS`. The default is `linux`
+  (kata Pods always ride the CNI). An environment adds `macos` only once
+  its Mac mini fleet has the tailnet route into the cluster
+  (subnet-router Connector advertising the Service CIDR, host
+  `--accept-routes`, and the VM egress firewall carve-out — see
+  `infra/helm/tailscale-operator` and `infra/macos-host-bootstrap`).
+  Unknown tokens are ignored so a typo degrades to "no cache routing for
+  that platform" rather than crashing dispatch.
+  """
+  def runners_cluster_network_platforms do
+    "TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS"
+    |> System.get_env("linux")
+    |> String.split(",")
+    |> Enum.flat_map(fn token ->
+      case String.trim(token) do
+        "linux" -> [:linux]
+        "macos" -> [:macos]
+        _ -> []
+      end
+    end)
+  end
+
+  @doc """
   Namespace where the CNPG `Cluster` and its `Backup` / `ScheduledBackup`
   CRs live — the chart sets it to the release namespace when CNPG is
   enabled. `nil` when unset (dev, or CNPG not provisioned), which makes

@@ -73,6 +73,9 @@ func main() {
 		nodeExporterBinaryPath       string
 		tailscaleAuthKeySecretName   string
 		tailscaleTagsRaw             string
+		tailscaleAcceptRoutes        bool
+		vmKuraEgressCIDR             string
+		vmClusterDNSIP               string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -150,6 +153,27 @@ func main() {
 			"(see infra/tailscale/acls.json). Per-env values flow through "+
 			"macosFleet.tailscale.tags in the Helm values. Empty falls back "+
 			"to whatever default tag the auth key carries.")
+	flag.BoolVar(&tailscaleAcceptRoutes, "tailscale-accept-routes",
+		envOrDefault("CAPI_TAILSCALE_ACCEPT_ROUTES", "") == "true",
+		"Run `tailscale up --accept-routes` on every Mac mini, installing the "+
+			"subnet routes the cluster-side Connector advertises (the cluster's "+
+			"Service CIDR) so Tart runner VMs can reach the in-cluster Kura "+
+			"runner-cache Service through the host's tailnet route. Enable only "+
+			"in an env whose Connector is the single advertiser of that CIDR — "+
+			"see infra/helm/tailscale-operator/values.yaml.")
+	flag.StringVar(&vmKuraEgressCIDR, "vm-kura-egress-cidr",
+		envOrDefault("CAPI_VM_KURA_EGRESS_CIDR", ""),
+		"IPv4 CIDR (the cluster's Service CIDR, e.g. 10.128.0.0/12) the VM "+
+			"egress firewall lets Tart VMs reach on the Kura cache ports "+
+			"4000/50051. Empty keeps the firewall a pure RFC1918 blocklist. "+
+			"Pairs with --tailscale-accept-routes; flows from the chart's "+
+			"macosFleet.vmClusterEgress.kuraServiceCIDR.")
+	flag.StringVar(&vmClusterDNSIP, "vm-cluster-dns-ip",
+		envOrDefault("CAPI_VM_CLUSTER_DNS_IP", ""),
+		"IPv4 ClusterIP of kube-dns (e.g. 10.128.0.10) the VM egress firewall "+
+			"lets Tart VMs reach on port 53, so the runner VM's /etc/resolver "+
+			"entry can resolve *.svc.cluster.local. Requires --vm-kura-egress-cidr; "+
+			"flows from the chart's macosFleet.vmClusterEgress.clusterDNSIP.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -391,6 +415,9 @@ func main() {
 		// scrape ports; cross-env scraping is blocked once the
 		// wide-open catch-all is removed.
 		TailscaleTags:                parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:        tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:             vmKuraEgressCIDR,
+		VMClusterDNSIP:               vmClusterDNSIP,
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,

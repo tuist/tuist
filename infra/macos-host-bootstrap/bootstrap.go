@@ -131,6 +131,38 @@ type Config struct {
 	// uses the auth key's default tag.
 	TailscaleTags []string
 
+	// TailscaleAcceptRoutes adds `--accept-routes` to `tailscale up`,
+	// so the host installs subnet routes advertised into the tailnet
+	// by the cluster-side Connector (infra/helm/tailscale-operator) —
+	// today the cluster's Service CIDR, which is what lets Tart
+	// runner VMs on this host reach the in-cluster Kura runner-cache
+	// Service (the VM's traffic NATs through the host's routing
+	// table, so a host route via the tailnet is a VM route). Off by
+	// default: a host that accepts routes will steer 10.128.0.0/12
+	// into whichever env's Connector advertises it, and the shared
+	// Service CIDR across envs makes that ambiguous unless exactly
+	// one env advertises (see the tailscale-operator chart values).
+	TailscaleAcceptRoutes bool
+
+	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
+	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
+	// may reach this CIDR — the cluster's Service CIDR, where the
+	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
+	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
+	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// the RFC1918 blocklist stays blocked; per-account isolation is
+	// the Kura app layer's JWT tenant check, exactly as on Linux.
+	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
+	VMKuraEgressCIDR string
+
+	// VMClusterDNSIP, when non-empty (requires VMKuraEgressCIDR),
+	// additionally allows VM egress to this single IP on port 53
+	// (TCP+UDP) — the cluster's kube-dns ClusterIP, so the runner
+	// VM's /etc/resolver entry (written by dispatch-poll.sh when the
+	// runners-controller stages TUIST_CLUSTER_DNS_IP) can resolve
+	// `*.svc.cluster.local` names. Must parse as an IPv4 address.
+	VMClusterDNSIP string
+
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
 	// (cross-compiled in the operator image from
 	// github.com/prometheus/node_exporter at build time). Installed
@@ -234,7 +266,7 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
-	if err := installVMEgressFirewall(ctx, client); err != nil {
+	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install vm egress firewall: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
@@ -280,10 +312,15 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 // bumps via the same operator-image-bump → drift-reconcile path),
 // and reloads the launchd job.
 //
-// Skips one-shot host prep (sudo, auto-login, hostname, Tart, pf
-// firewall) — those don't change between updates and re-running them
-// would either be wasted SSH work or risk disrupting the running VMs
-// (Tart). The launchd `bootout`+`bootstrap` cycle runs unconditionally
+// Skips one-shot host prep (sudo, auto-login, hostname, Tart) —
+// those don't change between updates and re-running them would
+// either be wasted SSH work or risk disrupting the running VMs
+// (Tart). The pf VM-egress firewall IS re-run: its ruleset is now
+// config-shaped (the Kura/DNS carve-out CIDRs), the install is
+// idempotent, and `pfctl -f` swaps rulesets atomically without
+// dropping established states — so a values change reaches existing
+// hosts on the next drift roll instead of waiting for
+// re-provisioning. The launchd `bootout`+`bootstrap` cycle runs unconditionally
 // — it's a ~1-second agent restart and Tart VMs survive
 // `nohup`-detached, so workloads are unaffected. The kubelet's startup
 // state-recovery pass re-binds them on the new agent.
@@ -309,6 +346,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh vm egress firewall: %w", err)
 	}
 	if err := installTailscale(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install tailscale: %w", err)
@@ -950,10 +990,52 @@ sudo chmod 0755 /usr/local/bin/tart
 // on 192.168. Since cluster CIDRs in production are 10.x, the
 // blocklist is precise rather than maximal.
 //
+// One optional carve-out punches through the blocklist: when
+// cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
+// cluster's Service CIDR, advertised to the host over the tailnet
+// by the cluster-side subnet router) on the Kura cache ports
+// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
+// VM. pf is first-match-wins across `quick` rules, so the pass
+// lines render BEFORE the block lines. The inputs are validated as
+// CIDR/IP literals before being rendered into the root-owned pf
+// anchor (they come from operator flags, but a parse gate keeps a
+// chart typo from producing an unparseable — or worse, creative —
+// ruleset).
+//
 // Idempotent: writes the same anchor file on every call. Enables
 // pf if not already enabled. The launchd plist re-loads the
 // rules on every boot so a reboot doesn't drop the filter.
-func installVMEgressFirewall(ctx context.Context, client *ssh.Client) error {
+func installVMEgressFirewall(ctx context.Context, client *ssh.Client, cfg Config) error {
+	carveOut := ""
+	if cfg.VMKuraEgressCIDR != "" {
+		ip, _, err := net.ParseCIDR(cfg.VMKuraEgressCIDR)
+		if err != nil || ip.To4() == nil {
+			return fmt.Errorf("vm kura egress cidr %q is not an IPv4 CIDR: %v", cfg.VMKuraEgressCIDR, err)
+		}
+		carveOut = fmt.Sprintf(`
+# Runner-cache carve-out: VMs may dial the cluster's Kura cache
+# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# cluster DNS on 53 — through the host's tailnet route. These pass
+# rules are evaluated before the block rules below (first 'quick'
+# match wins). Per-account isolation is Kura's app-layer JWT tenant
+# check, mirroring the Linux runner namespace's NetworkPolicy
+# carve-out.
+pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
+`, cfg.VMKuraEgressCIDR)
+
+		if cfg.VMClusterDNSIP != "" {
+			dnsIP := net.ParseIP(cfg.VMClusterDNSIP)
+			if dnsIP == nil || dnsIP.To4() == nil {
+				return fmt.Errorf("vm cluster dns ip %q is not an IPv4 address", cfg.VMClusterDNSIP)
+			}
+			carveOut += fmt.Sprintf(`pass out quick proto { tcp, udp } from <vm_sources> to %s port 53 keep state
+`, cfg.VMClusterDNSIP)
+		}
+	} else if cfg.VMClusterDNSIP != "" {
+		return fmt.Errorf("vm cluster dns ip set without vm kura egress cidr; refusing a DNS-only carve-out")
+	}
+
 	script := `set -euo pipefail
 
 # Idempotent install of the pf anchor file. The anchor namespaces
@@ -973,7 +1055,7 @@ sudo tee /etc/pf.anchors/tuist.runners >/dev/null <<'PFCONF'
 
 table <vm_sources> { 192.168.64.0/22 }
 table <blocked_dst> { 10.0.0.0/8, 172.16.0.0/12, 169.254.0.0/16 }
-
+@CARVEOUT@
 # Drop VM→private destinations at the host edge.
 block drop out quick from <vm_sources> to <blocked_dst>
 
@@ -1067,6 +1149,7 @@ sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
+	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
 	return RunCommand(ctx, client, script)
 }
 
@@ -1121,6 +1204,14 @@ sudo chmod 0600 /etc/tuist/tailscale-auth-key`
 	hostnameArg := ""
 	if cfg.NodeName != "" {
 		hostnameArg = fmt.Sprintf(" --hostname=%s", shellQuote(cfg.NodeName))
+	}
+	acceptRoutesArg := ""
+	if cfg.TailscaleAcceptRoutes {
+		// Install subnet routes the cluster-side Connector advertises
+		// (the Service CIDR for the runner-cache path). Host routes
+		// are VM routes: vmnet NATs VM egress through the host's
+		// routing table.
+		acceptRoutesArg = " --accept-routes"
 	}
 
 	// Stage 2: extract binaries, register daemon, bring up.
@@ -1242,7 +1333,7 @@ trap 'sudo rm -f /etc/tuist/tailscale-auth-key "$TS_UP_LOG"' EXIT
 if ! sudo /usr/local/bin/tailscale up \
     --authkey="$(sudo cat /etc/tuist/tailscale-auth-key)" \
     --reset \
-    --ssh=false%[1]s%[2]s >"$TS_UP_LOG" 2>&1; then
+    --ssh=false%[1]s%[2]s%[3]s >"$TS_UP_LOG" 2>&1; then
   echo "tailscale up failed (output below):" >&2
   sudo cat "$TS_UP_LOG" >&2
   exit 1
@@ -1261,7 +1352,7 @@ done
 echo "tailscale up returned but no tailnet IPv4 within 30s; current status:" >&2
 sudo /usr/local/bin/tailscale status >&2 || true
 exit 1
-`, hostnameArg, tagsArg)
+`, hostnameArg, tagsArg, acceptRoutesArg)
 	return RunCommandWithStdin(ctx, client, script, bytes.NewReader(cfg.TailscaleBinaries))
 }
 

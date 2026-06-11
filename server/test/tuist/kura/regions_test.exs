@@ -171,6 +171,30 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "serves_runner_platform?/2" do
+    test "scaleway region serves only the co-located macOS fleet" do
+      scw = Regions.get("scw-fr-par-runners")
+
+      assert scw.runner_platforms == [:macos]
+      assert Regions.serves_runner_platform?(scw, :macos)
+      refute Regions.serves_runner_platform?(scw, :linux)
+    end
+
+    test "staging region serves both fleets of its single cluster" do
+      staging = Regions.get("hetzner-staging-runners")
+
+      assert staging.runner_platforms == [:linux, :macos]
+      assert Regions.serves_runner_platform?(staging, :linux)
+      assert Regions.serves_runner_platform?(staging, :macos)
+    end
+
+    test "public regions and nil serve no runner platform" do
+      refute Regions.serves_runner_platform?(Regions.get("eu-central"), :linux)
+      refute Regions.serves_runner_platform?(Regions.get("local-controller"), :macos)
+      refute Regions.serves_runner_platform?(nil, :linux)
+    end
+  end
+
   describe "selectable/0" do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)

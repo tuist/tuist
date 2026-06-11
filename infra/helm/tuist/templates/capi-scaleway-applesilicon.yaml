@@ -272,6 +272,33 @@ spec:
             # infra/tailscale/acls.json's tagOwners block.
             - --tailscale-tags={{ join "," . }}
             {{- end }}
+            {{- if .Values.macosFleet.tailscale.acceptRoutes }}
+            # Install the subnet routes this env's cluster-side
+            # Connector advertises into the tailnet (the cluster's
+            # Service CIDR — see infra/helm/tailscale-operator's
+            # per-env values). Host routes are VM routes (vmnet NATs
+            # VM egress through the host routing table), so this is
+            # the route half of the macOS runner-cache path; the
+            # firewall carve-out below is the policy half.
+            - --tailscale-accept-routes=true
+            {{- end }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
+            # Punch the runner-cache carve-out through the VM egress
+            # firewall: Tart VMs may reach the cluster's Service CIDR
+            # on the Kura cache ports (4000 HTTP / 50051 gRPC),
+            # mirroring the Linux runner namespace's NetworkPolicy
+            # egress rule. Source of truth for the CIDR:
+            # infra/k8s/clusters/cluster-<env>.yaml
+            # (.spec.clusterNetwork.services).
+            - --vm-kura-egress-cidr={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmClusterEgress.clusterDNSIP }}
+            # kube-dns ClusterIP, additionally reachable on :53 so the
+            # runner VM's /etc/resolver entry resolves
+            # `*.svc.cluster.local`. Verify with
+            # `kubectl -n kube-system get svc kube-dns`.
+            - --vm-cluster-dns-ip={{ . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the

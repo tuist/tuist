@@ -119,6 +119,67 @@ defmodule TuistWeb.RunnersControllerTest do
       assert body["encoded_jit_config"] == "JITCONFIG"
       assert body["owner"] == account.name
       assert body["workflow_job_id"] == 4242
+      refute Map.has_key?(body, "cache_endpoint_url")
+    end
+
+    test "routes cache_endpoint_url by fleet platform and cluster-network reachability", %{conn: conn} do
+      account = account_fixture()
+
+      # Active runner-cache nodes in both private regions: the
+      # macOS-serving Scaleway one and the linux+macos staging one.
+      scw_url = "http://kura-#{account.name}-scw-fr-par.kura.svc.cluster.local:4000"
+      staging_url = "http://kura-#{account.name}-staging.kura.svc.cluster.local:4000"
+
+      for {region, url} <- [{"scw-fr-par-runners", scw_url}, {"hetzner-staging-runners", staging_url}] do
+        Tuist.Repo.insert!(%Tuist.Kura.Server{
+          account_id: account.id,
+          region: region,
+          status: :active,
+          url: url,
+          provisioner_node_ref: "kura-#{account.name}-#{region}"
+        })
+      end
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      dispatch = fn fleet_on_cluster_network, fleet_platform ->
+        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+          {:ok,
+           %{
+             jit: "JITCONFIG",
+             account: account,
+             runner_name: "pod-1",
+             workflow_job_id: 4242,
+             fleet_on_cluster_network: fleet_on_cluster_network,
+             fleet_platform: fleet_platform
+           }}
+        end)
+
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+      end
+
+      # Locality: each platform only ever sees a region that serves
+      # it. The Linux fleet must never receive the Scaleway URL —
+      # that node is co-located with the macOS fleet on the other
+      # side of a WAN.
+      assert dispatch.(true, :linux)["cache_endpoint_url"] == staging_url
+      # macOS is served by both regions here; the lookup is
+      # deterministic (region asc). In practice regions serving the
+      # same platform never coexist in one environment — staging
+      # serves both platforms from its single cluster, prod serves
+      # macOS from the co-located Scaleway region only.
+      assert dispatch.(true, :macos)["cache_endpoint_url"] == staging_url
+
+      # Reachability: a fleet off the cluster network gets no URL at
+      # all — clients treat TUIST_CACHE_ENDPOINT as a hard override,
+      # so an unreachable URL would break caching outright.
+      refute Map.has_key?(dispatch.(false, :macos), "cache_endpoint_url")
+      refute Map.has_key?(dispatch.(true, nil), "cache_endpoint_url")
     end
   end
 end

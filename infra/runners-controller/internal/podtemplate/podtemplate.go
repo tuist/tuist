@@ -56,6 +56,14 @@ const (
 // every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
 // the sidecar, which is fine for macOS-only installs.
 //
+// `clusterDNSIP` + `clusterDomain`, when set, ride to macOS Pods as
+// TUIST_CLUSTER_DNS_IP / TUIST_CLUSTER_DOMAIN: tart-kubelet stages
+// the Pod env into the VM's /etc/tuist.env, and dispatch-poll.sh
+// writes an /etc/resolver/<domain> entry from them so the
+// dispatch-provided `cache_endpoint_url` (`*.svc.cluster.local`)
+// resolves inside the VM. Linux Pods are on the CNI's DNS already
+// and don't get them.
+//
 // Returns an error (fails closed) when a Linux pool would get the
 // privileged dind sidecar without `spec.runtimeClass == kata-qemu`.
 // The sidecar runs `privileged: true`; that's only safe because the
@@ -63,7 +71,7 @@ const (
 // class the Pod falls back to runc on the host kernel and the
 // privileged container escapes onto the bare-metal host — so refuse
 // to build it rather than ship an unbounded privileged container.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror string) (*corev1.Pod, error) {
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
@@ -102,6 +110,17 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
 			},
 		},
+	}
+
+	if !linuxPod && clusterDNSIP != "" {
+		// In-VM cluster DNS for the runner-cache path (macOS only:
+		// Linux Pods resolve cluster names via the CNI's DNS).
+		// dispatch-poll.sh writes /etc/resolver/<domain> from these
+		// before its first poll.
+		dispatchEnv = append(dispatchEnv,
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DNS_IP", Value: clusterDNSIP},
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DOMAIN", Value: clusterDomain},
+		)
 	}
 
 	resources := corev1.ResourceRequirements{

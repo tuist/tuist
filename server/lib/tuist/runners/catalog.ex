@@ -174,18 +174,24 @@ defmodule Tuist.Runners.Catalog do
   can resolve and reach `*.svc.cluster.local` URLs.
 
   This is a runtime-networking property, not a platform policy: Linux
-  pools run as kata Pods on the CNI; macOS pools run Tart VMs on vmnet,
-  which bypasses cluster DNS/routing entirely. Today the two correlate
-  exactly, so the platform is the implementation — but callers (e.g.
-  the runner-cache `cache_endpoint_url` handoff) must gate on THIS
-  predicate, so that giving macOS VMs cluster networking (planned for
-  the Scaleway Apple-Silicon fleet) only requires changing this one
-  function. Unrecognized fleets answer `false`: handing an unreachable
-  hard override to an unknown runtime breaks caching outright, while
-  withholding it merely falls back to default cache resolution.
+  pools run as kata Pods on the CNI, so they always qualify. macOS
+  pools run Tart VMs on vmnet, which bypasses cluster DNS/routing — but
+  an environment can give its Mac mini fleet a route into the cluster
+  (tailnet subnet router + host `--accept-routes` + VM firewall
+  carve-out + the in-VM `/etc/resolver` cluster-DNS entry), at which
+  point its macOS fleets qualify too. That per-environment fact is
+  declared via `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS` (see
+  `Tuist.Environment.runners_cluster_network_platforms/0`), so flipping
+  an environment on is a values change, not a code change. Unrecognized
+  fleets answer `false`: handing an unreachable hard override to an
+  unknown runtime breaks caching outright, while withholding it merely
+  falls back to default cache resolution.
   """
   def fleet_on_cluster_network?(fleet_name) do
-    fleet_platform(fleet_name) == :linux
+    case fleet_platform(fleet_name) do
+      nil -> false
+      platform -> platform in Tuist.Environment.runners_cluster_network_platforms()
+    end
   end
 
   @doc """

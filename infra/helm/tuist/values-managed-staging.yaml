@@ -37,6 +37,26 @@ server:
       # nodes there for accounts with runner profiles, and runner
       # dispatch routes their build-cache traffic to it in-cluster.
       value: eu-central,hetzner-staging-runners
+    # Runner platforms whose fleets can reach `*.svc.cluster.local` —
+    # the dispatch gate for handing out `cache_endpoint_url`
+    # (Catalog.fleet_on_cluster_network?/1). Unset, this defaults to
+    # `linux` (kata Pods on the CNI). Flip to `linux,macos` ONLY after
+    # the macOS network path is verified end-to-end on a staging Mac
+    # mini, because clients treat TUIST_CACHE_ENDPOINT as a hard
+    # override — handing macOS VMs an unreachable URL breaks their
+    # caching outright. Verification checklist (in order):
+    #   1. infra/tailscale/acls.json synced in the Tailscale admin
+    #      console (macmini->10.128.0.0/12 grant + autoApprovers).
+    #   2. tailscale-operator chart upgraded: staging Connector
+    #      advertises 10.128.0.0/12 (route shows "approved" in the
+    #      admin console).
+    #   3. Mac mini hosts re-bootstrapped/drift-rolled with
+    #      --tailscale-accept-routes + the vmClusterEgress carve-out
+    #      (macosFleet values below), then from a runner VM:
+    #      `curl http://<kura-clusterip>:4000/up` and
+    #      `dig @10.128.0.10 kubernetes.default.svc.cluster.local`.
+    # - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+    #   value: linux,macos
 
   appUrl: https://staging.tuist.dev
 
@@ -265,6 +285,19 @@ macosFleet:
   tailscale:
     enabled: true
     tags: ["tag:tuist-macmini-staging"]
+    # Install the Service-CIDR route the staging Connector advertises
+    # (infra/helm/tailscale-operator/values-staging.yaml), so Tart
+    # runner VMs reach the in-cluster Kura runner-cache nodes. Staging
+    # is the single advertiser of 10.128.0.0/12 on the shared tailnet
+    # — keep it that way until per-env CIDRs (or 4via6) land.
+    acceptRoutes: true
+  # Firewall half of the runner-cache path: allow VM egress to the
+  # staging Service CIDR on the Kura ports + kube-dns on 53. CIDR per
+  # infra/k8s/clusters/cluster-staging.yaml; DNS IP is kube-dns's
+  # ClusterIP (verify: `kubectl -n kube-system get svc kube-dns`).
+  vmClusterEgress:
+    kuraServiceCIDR: "10.128.0.0/12"
+    clusterDNSIP: "10.128.0.10"
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
@@ -396,6 +429,12 @@ runnersController:
   features:
     dindImage: true
     registryMirror: true
+  # Stage kube-dns's ClusterIP into macOS pool Pods so the Tart VM
+  # writes /etc/resolver/cluster.local and the dispatch-provided
+  # in-cluster cache_endpoint_url resolves. Same IP as
+  # macosFleet.vmClusterEgress.clusterDNSIP above.
+  clusterDNS:
+    ip: "10.128.0.10"
 
 # Linux runner fleet on Hetzner Robot bare-metal hosts.
 #

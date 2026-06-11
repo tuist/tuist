@@ -336,7 +336,7 @@ defmodule Tuist.Kura do
   # mirror it into `account_cache_endpoints`: that table is what the
   # CLI resolves, and a developer machine can't reach the in-cluster
   # endpoint. Runner builds get the URL through
-  # `runner_cache_endpoint_url/1` instead.
+  # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
@@ -379,8 +379,10 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  In-cluster Kura URL a runner-as-a-service build should use, or `nil`
-  when the account has no active private (runner-cache) Kura node.
+  In-cluster Kura URL a runner-as-a-service build on a fleet of the
+  given platform should use, or `nil` when the account has no active
+  private (runner-cache) Kura node in a region that serves that
+  platform.
 
   Builds executing on a runner pool resolve their cache through this so
   traffic stays inside the cluster, next to the runners, instead of
@@ -390,9 +392,17 @@ defmodule Tuist.Kura do
   private `Server` row directly — `account_cache_endpoints` is
   CLI-facing and a developer machine can't reach the in-cluster
   endpoint.
+
+  The platform filter is the locality half of the handoff (which
+  region's node may serve which fleet — `Regions.runner_platforms`);
+  whether the fleet can reach in-cluster URLs at all is the caller's
+  gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}) do
-    private_region_ids = Enum.map(Enum.filter(Regions.all(), &Regions.private?/1), & &1.id)
+  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
+    private_region_ids =
+      Regions.all()
+      |> Enum.filter(&(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+      |> Enum.map(& &1.id)
 
     if private_region_ids == [] do
       nil
@@ -405,6 +415,8 @@ defmodule Tuist.Kura do
       |> Repo.one()
     end
   end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
 
   defp ensure_public_endpoint_ready(url) when is_binary(url) do
     case URI.parse(url) do

@@ -3,17 +3,24 @@ defmodule Tuist.Kura.RunnerCache do
   Keeps a private runner-cache Kura node provisioned for exactly the
   accounts that have runners-as-a-service turned on.
 
-  The identity rule converges both directions every tick:
+  The identity rule converges both directions every tick, per private
+  region:
 
-    * an account with at least one Runner Profile AND an explicit
+    * an account with at least one Runner Profile whose platform the
+      region serves (`Regions.runner_platforms`) AND an explicit
       `:runners` FunWithFlags toggle should have exactly one
-      non-destroyed Kura server in the active runner-cache region, and
-    * an account with no profiles — or without the flag — should have
-      none.
+      non-destroyed Kura server in that region, and
+    * an account with no such profiles — or without the flag — should
+      have none there.
 
   Profiles are the durable "this account uses runners" marker: dispatch
   resolves every `runs-on` through them, so an account without profiles
-  cannot receive jobs and a cache node would idle.
+  cannot receive jobs and a cache node would idle. The platform match
+  keeps the node next to the fleet it serves: a region pinned beside
+  the Scaleway Mac mini fleet provisions only for accounts with macOS
+  profiles, and an account that drops its last macOS profile frees that
+  node even while its Linux profiles keep a node in a Linux-serving
+  region.
 
   The flag check is the explicit `FunWithFlags.enabled?(:runners, for:
   account)` gate, deliberately NOT `FeatureFlags.runners_enabled?/1` —
@@ -31,7 +38,7 @@ defmodule Tuist.Kura.RunnerCache do
   environments stay inert.
 
   Provisioning the node does not, by itself, route any traffic to it —
-  `Tuist.Kura.runner_cache_endpoint_url/1` only returns a URL once the
+  `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
   node is `:active`, and runner dispatch resolves that lazily.
   """
 
@@ -51,23 +58,20 @@ defmodule Tuist.Kura.RunnerCache do
   every reconciler tick; returns `:ok`.
   """
   def reconcile do
-    case runner_cache_region() do
-      nil -> :ok
-      %Regions{id: region_id} -> reconcile_region(region_id)
-    end
+    Enum.each(runner_cache_regions(), &reconcile_region/1)
   end
 
-  defp reconcile_region(region_id) do
+  defp reconcile_region(%Regions{id: region_id} = region) do
     # Tear down first so an account that flips runners off frees its node
     # even when no image tag is configured to provision new ones.
-    Enum.each(nodes_to_tear_down(region_id), &tear_down/1)
+    Enum.each(nodes_to_tear_down(region), &tear_down/1)
 
     case image_tag() do
       nil ->
         :ok
 
       image_tag ->
-        Enum.each(accounts_needing_node(region_id), &provision(&1, region_id, image_tag))
+        Enum.each(accounts_needing_node(region), &provision(&1, region_id, image_tag))
         # A node that failed before its first successful deployment
         # (transient apiserver error, missing CRD field, ...) would
         # otherwise strand its account forever: the server row exists,
@@ -79,12 +83,21 @@ defmodule Tuist.Kura.RunnerCache do
     :ok
   end
 
-  # The first private (runner-cache) region available in this runtime,
-  # or nil. `available/0` is env-gated, so this stays nil until a
-  # private region is wired into `TUIST_KURA_AVAILABLE_REGIONS`.
-  defp runner_cache_region do
-    Enum.find(Regions.available(), &Regions.private?/1)
+  # The private (runner-cache) regions available in this runtime —
+  # usually zero or one per environment, but an environment may run one
+  # region per fleet locality (e.g. a Linux-serving node pool in the
+  # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
+  # `available/0` is env-gated, so this stays empty until a private
+  # region is wired into `TUIST_KURA_AVAILABLE_REGIONS`.
+  defp runner_cache_regions do
+    Enum.filter(Regions.available(), &Regions.private?/1)
   end
+
+  # Platforms a region's nodes serve. Private regions always declare
+  # `runner_platforms`; the fallback keeps a malformed region from
+  # matching every profile.
+  defp region_platforms(%Regions{runner_platforms: platforms}) when is_list(platforms), do: platforms
+  defp region_platforms(_), do: []
 
   defp image_tag do
     case Tuist.Environment.kura_runtime_image_tag() do
@@ -99,7 +112,9 @@ defmodule Tuist.Kura.RunnerCache do
     end
   end
 
-  defp accounts_needing_node(region_id) do
+  defp accounts_needing_node(%Regions{id: region_id} = region) do
+    platforms = region_platforms(region)
+
     server_exists =
       from(s in Server,
         where:
@@ -111,6 +126,7 @@ defmodule Tuist.Kura.RunnerCache do
     profile_exists =
       from(p in Profile,
         where: p.account_id == parent_as(:account).id,
+        where: p.platform in ^platforms,
         select: 1
       )
 
@@ -128,10 +144,13 @@ defmodule Tuist.Kura.RunnerCache do
     |> Enum.map(& &1.id)
   end
 
-  defp nodes_to_tear_down(region_id) do
+  defp nodes_to_tear_down(%Regions{id: region_id} = region) do
+    platforms = region_platforms(region)
+
     profile_exists =
       from(p in Profile,
         where: p.account_id == parent_as(:server).account_id,
+        where: p.platform in ^platforms,
         select: 1
       )
 
