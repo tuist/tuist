@@ -247,6 +247,18 @@ runnersFleet:
       - "10.0.0.0/8"
       - "172.16.0.0/12"
       - "192.168.0.0/16"
+    sshAllowedCIDRs:
+      - "23.88.35.139/32" # cache-eu-central-canary.tuist.dev
+      - "91.98.153.89/32" # cache-eu-central.tuist.dev
+      - "89.167.56.215/32" # cache-eu-north.tuist.dev
+      - "5.161.104.150/32" # cache-us-east.tuist.dev
+      - "5.161.59.218/32" # cache-us-east-2.tuist.dev
+      - "178.156.142.121/32" # cache-us-east-3.tuist.dev
+      - "5.78.141.100/32" # cache-us-west.tuist.dev
+      - "5.223.58.97/32" # cache-ap-southeast.tuist.dev
+      - "64.176.21.188/32" # cache-sa-west.tuist.dev
+      - "149.28.189.13/32" # cache-au-east.tuist.dev
+      - "216.128.150.29/32" # cache-us-central.tuist.dev
   # macOS catalog (shapes + xcodeVersions) is shared across managed
   # envs via `values-managed-common.yaml`. Per-env tuning lives in
   # `xcodeOverrides`, a map keyed by `xcodeVersion`; the chart

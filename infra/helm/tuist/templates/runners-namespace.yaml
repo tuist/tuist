@@ -248,6 +248,19 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+    {{- with .Values.runnersFleet.networkPolicy.sshAllowedCIDRs }}
+    # SSH egress for deploy jobs that run on Tuist Linux runners and
+    # use Kamal to connect to the cache fleet. Keep this scoped to
+    # explicit host CIDRs instead of allowing SSH to the public internet.
+    - to:
+        {{- range $cidr := . }}
+        - ipBlock:
+            cidr: {{ $cidr | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 22
+    {{- end }}
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

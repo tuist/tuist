@@ -827,6 +827,10 @@ runnersFleet:
     # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
     # databases). Override per-env with the real cluster ranges.
     exceptCIDRs: []
+    # Public host CIDRs that runner Pods may reach over SSH. This is
+    # intentionally separate from the HTTP(S) egress rule so deploy
+    # workflows can allow only the hosts they manage.
+    sshAllowedCIDRs: []
   # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
   # single source of truth for the Profiles dropdown and the server's
   # `:runner_macos_shapes` validation. Injected into the server as
