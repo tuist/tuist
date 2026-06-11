@@ -15,7 +15,7 @@ defaults:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     env:
       GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
     steps:
