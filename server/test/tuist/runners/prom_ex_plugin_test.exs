@@ -139,6 +139,27 @@ defmodule Tuist.Runners.PromExPluginTest do
                      500
     end
 
+    test "max gauge reports the autoscaling ceiling when set", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_pool_replicas())
+
+      Mimic.stub(K8sClient, :list_runner_pools, fn _ns ->
+        {:ok,
+         [
+           %{
+             "metadata" => %{"name" => "pool-autoscaled"},
+             "spec" => %{"replicas" => 10, "autoscaling" => %{"enabled" => true, "maxReplicas" => 40}},
+             "status" => %{"observedReplicas" => 10}
+           }
+         ]}
+      end)
+
+      PromExPlugin.execute_pool_replicas_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :pool, :replicas], %{desired: 10, observed: 10, max: 40},
+                      %{fleet: "pool-autoscaled"}},
+                     500
+    end
+
     test "drains a pool to zero on the tick after it disappears from the cluster",
          %{handler_id: handler_id} do
       attach_collector(handler_id, Telemetry.event_name_pool_replicas())

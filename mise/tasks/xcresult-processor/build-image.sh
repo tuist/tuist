@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #MISE description "Build the Tuist xcresult-processor Tart image locally"
 #MISE raw=true
-#USAGE arg "[base_image]" help="Base Tart image (default: ghcr.io/cirruslabs/macos-tahoe-xcode:26.0)"
+#USAGE arg "<xcode_version>" help="Xcode version of the base macos-tahoe-xcode image (e.g. 26.5, 26.4.1). The tag must already be published — `gh workflow run macos-xcode-image.yml -f xcode_version=...` if not."
 
 set -euo pipefail
 
-BASE_IMAGE="${usage_base_image:-ghcr.io/cirruslabs/macos-tahoe-xcode:26.0}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SERVER_DIR="${REPO_ROOT}/server"
 PACKER_DIR="${REPO_ROOT}/infra/xcresult-processor-image"
+BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${usage_xcode_version//./-}"
 
 for cmd in tart packer mix swift; do
   if ! command -v "$cmd" &>/dev/null; then
@@ -23,6 +23,9 @@ done
 
 echo "==> Building xcresult NIF..."
 "${SERVER_DIR}/native/xcresult_nif/build.sh"
+
+echo "==> Building xcactivitylog NIF..."
+"${SERVER_DIR}/native/xcactivitylog_nif/build.sh"
 
 echo "==> Building server release (MIX_ENV=prod)..."
 cd "${SERVER_DIR}"

@@ -1,6 +1,7 @@
 package podtemplate
 
 import (
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +34,7 @@ func basePool(os string) *tuistv1.RunnerPool {
 
 func build(t *testing.T, p *tuistv1.RunnerPool) *corev1.Pod {
 	t.Helper()
-	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	pod, err := Build(p, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 	// dindImage) is allowed to fall back to the default runtime.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	pod, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -134,13 +135,13 @@ func TestBuild_LinuxDindWithoutKataFailsClosed(t *testing.T) {
 	// microVM boundary.
 	pool := basePool("linux")
 	pool.Spec.RuntimeClass = ""
-	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage)
+	_, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "")
 	if err == nil {
 		t.Fatal("Build returned nil error; want refusal for Linux+dind without kata-qemu")
 	}
 
 	pool.Spec.RuntimeClass = "some-other-runtime"
-	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage); err == nil {
+	if _, err := Build(pool, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, ""); err == nil {
 		t.Fatal("Build accepted non-kata runtimeClass for Linux+dind; want refusal")
 	}
 }
@@ -242,6 +243,34 @@ func TestBuild_LinuxPodGetsDindSidecar(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxDindRegistryMirror(t *testing.T) {
+	// With a mirror URL configured, dockerd launches with
+	// --registry-mirror plus a matching --insecure-registry (the
+	// in-cluster cache is plain http).
+	const mirror = "http://registry-cache.svc:5000"
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, mirror)
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	if !strings.Contains(args, "--registry-mirror="+mirror) {
+		t.Errorf("dind args missing --registry-mirror=%s; got %v", mirror, args)
+	}
+	if !strings.Contains(args, "--insecure-registry=registry-cache.svc:5000") {
+		t.Errorf("dind args missing --insecure-registry for the cache host (scheme must be stripped); got %v", args)
+	}
+}
+
+func TestBuild_LinuxDindNoRegistryMirrorByDefault(t *testing.T) {
+	// Empty mirror → no --registry-mirror flag; dockerd pulls docker.io
+	// directly.
+	pod := build(t, basePool("linux"))
+	args := strings.Join(pod.Spec.InitContainers[0].Args, " ")
+	if strings.Contains(args, "--registry-mirror") {
+		t.Errorf("dind args must not carry --registry-mirror when none configured; got %v", args)
+	}
+}
+
 func TestBuild_LinuxPodHasNoKataVirtioFsAnnotation(t *testing.T) {
 	// The dind sidecar's entrypoint loop-mounts an ext4 file
 	// onto /var/lib/docker, so dockerd never touches virtio-fs
@@ -263,10 +292,30 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 	}
 }
 
+func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
+	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
+	// but the kata guest kernel boots with PSI off unless psi=1 is on
+	// the cmdline. The annotation appends it (whitelisted via the
+	// containerd kata runtime's io.katacontainers.* pod_annotations).
+	pod := build(t, basePool("linux"))
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; got != "psi=1" {
+		t.Errorf("kernel_params annotation = %q, want \"psi=1\"", got)
+	}
+}
+
+func TestBuild_MacOSPodHasNoKataKernelParamsAnnotation(t *testing.T) {
+	// psi=1 is a kata-guest concern; macOS pods aren't kata, so the
+	// annotation must not leak onto them.
+	pod := build(t, basePool(""))
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; ok {
+		t.Errorf("macOS pod should not carry kata kernel_params annotation; got %+v", pod.Annotations)
+	}
+}
+
 func TestBuild_LinuxPodWithoutDindImageSkipsSidecar(t *testing.T) {
 	// Empty dindImage (macOS-only install) must not produce a
 	// sidecar or DOCKER_HOST env even on a Linux pool.
-	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "")
+	pod, err := Build(basePool("linux"), "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "")
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -397,6 +446,28 @@ func TestBuild_MacOSHasNoPollerOrTokenVolume(t *testing.T) {
 	}
 	if pod.Spec.AutomountServiceAccountToken == nil || !*pod.Spec.AutomountServiceAccountToken {
 		t.Errorf("macOS pod must keep default SA token automount on; got %v", pod.Spec.AutomountServiceAccountToken)
+	}
+}
+
+func TestBuild_RunnerMirrorsDiagLogToStdout(t *testing.T) {
+	// ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1 streams the actions/runner
+	// _diag log to the runner's stdout so an abnormal exit's reason
+	// survives in Loki after the Pod is reaped. It belongs on the runner
+	// container in every shape, since that's where the runner binary runs.
+	for _, os := range []string{"linux", ""} {
+		pod := build(t, basePool(os))
+		runner := containerByName(t, pod, "runner")
+		if got := envValue(runner.Env, "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT"); got != "1" {
+			t.Errorf("os=%q: runner ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT = %q, want \"1\"; env %+v", os, got, runner.Env)
+		}
+	}
+
+	// The poller runs dispatch-poll.sh, not the runner binary, so it must
+	// not carry the flag.
+	pod := build(t, basePool("linux"))
+	poller := initContainerByName(t, pod, "poller")
+	if got := envValue(poller.Env, "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT"); got != "" {
+		t.Errorf("poller must not carry ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT; got %q", got)
 	}
 }
 

@@ -127,9 +127,11 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# kubectl + helm: GitHub's Ubuntu runner image pre-installs both
-# via `install-kubernetes-tools.sh` so every k8s deploy / sweep
-# workflow in the repo assumes they're on `/usr/local/bin`.
+# kubectl + helm + gh: GitHub's Ubuntu runner image pre-installs all
+# three (kubectl/helm via `install-kubernetes-tools.sh`, gh via
+# `install-github-cli.sh`), so workflow steps assume they're on
+# `/usr/local/bin` — k8s deploy / sweep jobs reach for kubectl/helm,
+# and jobs that dispatch workflows or comment on PRs reach for gh.
 # Mirror that posture here. Versions are Renovate-managed; bumps
 # land as `fix(linux-runner-image): …` and route through the
 # release flow same as `RUNNER_VERSION`.
@@ -137,6 +139,8 @@ RUN apt-get update \
 ARG KUBECTL_VERSION=1.36.1
 # renovate: datasource=github-releases depName=helm/helm
 ARG HELM_VERSION=4.2.0
+# renovate: datasource=github-releases depName=cli/cli
+ARG GH_VERSION=2.93.0
 RUN ARCH="$(dpkg --print-architecture)" \
     && curl -fSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl" \
          -o /usr/local/bin/kubectl \
@@ -148,7 +152,14 @@ RUN ARCH="$(dpkg --print-architecture)" \
     && mv "/tmp/linux-${ARCH}/helm" /usr/local/bin/helm \
     && rm -rf /tmp/helm.tgz "/tmp/linux-${ARCH}" \
     && chmod 0755 /usr/local/bin/helm \
-    && helm version --short
+    && helm version --short \
+    && curl -fSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+         -o /tmp/gh.tgz \
+    && tar -xzf /tmp/gh.tgz -C /tmp \
+    && mv "/tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh" /usr/local/bin/gh \
+    && rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${ARCH}" \
+    && chmod 0755 /usr/local/bin/gh \
+    && gh --version
 
 # Docker CLI + buildx + compose plugins. The daemon runs in the
 # `dind` native sidecar (`docker:dind`); this image carries only
@@ -199,7 +210,8 @@ USER root
 # infra/runners-controller/AGENTS.md for the split-credential shape.
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh
+COPY vitals.sh /usr/local/bin/vitals.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh
 
 USER runner
 

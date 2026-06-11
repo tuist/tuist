@@ -30,6 +30,36 @@ defmodule Tuist.Kura.Regions do
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
   # instance N runs Kura on `kura-dev-N`.
   @local_controller_kura_base_port 4100
+  @managed_region_node_pool_label "node.cluster.x-k8s.io/pool"
+  @managed_region_public_host_template "{account_handle}-{cluster_id}.kura.tuist.dev"
+  @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+  @managed_region_storage_class "hcloud-volumes"
+  @managed_region_specs [
+    %{
+      id: "us-east",
+      display_name: "US East",
+      cluster_id: "us-east-1",
+      hetzner_location: "ash",
+      ingress_class_name: "kura-us-east",
+      node_pool: "kura-us-east"
+    },
+    %{
+      id: "us-west",
+      display_name: "US West",
+      cluster_id: "us-west-1",
+      hetzner_location: "hil",
+      ingress_class_name: "kura-us-west",
+      node_pool: "kura-us-west"
+    },
+    %{
+      id: "eu-central",
+      display_name: "EU Central",
+      cluster_id: "eu-central-1",
+      hetzner_location: "fsn1",
+      ingress_class_name: "kura-eu-central",
+      node_pool: "kura"
+    }
+  ]
 
   @doc "All registered regions."
   def all, do: managed_regions() ++ [local_controller_region()]
@@ -75,52 +105,23 @@ defmodule Tuist.Kura.Regions do
   def exists?(id) when is_binary(id), do: not is_nil(get(id))
   def exists?(_), do: false
 
-  defp managed_regions, do: [us_east_region(), us_west_region(), eu_central_region()]
+  defp managed_regions, do: Enum.map(@managed_region_specs, &managed_region/1)
 
-  defp us_east_region do
+  defp managed_region(spec) do
     %__MODULE__{
-      id: "us-east",
-      display_name: "US East",
+      id: spec.id,
+      display_name: spec.display_name,
       provisioner: KubernetesController,
       provisioner_config: %{
-        cluster_id: "us-east-1",
-        hetzner_location: "ash",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-east-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
-      }
-    }
-  end
-
-  defp us_west_region do
-    %__MODULE__{
-      id: "us-west",
-      display_name: "US West",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "us-west-1",
-        hetzner_location: "hil",
-        kubernetes_client: [mode: :kubeconfig, cluster_id: "us-west-1"],
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes"
-      }
-    }
-  end
-
-  defp eu_central_region do
-    %__MODULE__{
-      id: "eu-central",
-      display_name: "EU Central",
-      provisioner: KubernetesController,
-      provisioner_config: %{
-        cluster_id: "eu-central-1",
-        hetzner_location: "fsn1",
-        public_host_template: "{account_handle}-{cluster_id}.kura.tuist.dev",
-        grpc_public_host_template: "grpc.{account_handle}-{cluster_id}.kura.tuist.dev",
-        storage_class: "hcloud-volumes",
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+        cluster_id: spec.cluster_id,
+        hetzner_location: spec.hetzner_location,
+        public_host_template: @managed_region_public_host_template,
+        grpc_public_host_template: @managed_region_grpc_public_host_template,
+        ingress_class_name: spec.ingress_class_name,
+        storage_class: @managed_region_storage_class,
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        node_selector: %{@managed_region_node_pool_label => spec.node_pool},
+        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
       }
     }
   end

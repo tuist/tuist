@@ -64,6 +64,24 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert automation.trigger_config["threshold"] == 3
     end
 
+    test "defaults reliability-rate automations to less-than 90 percent", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Low reliability"})
+      render_hook(lv, "update_create_automation_form_metric", %{"data" => "reliability_rate"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.monitor_type == "reliability_rate"
+      assert automation.trigger_config["comparison"] == "lt"
+      assert automation.trigger_config["threshold"] == 90.0
+    end
+
     test "switching the comparison to lt persists it without touching threshold or actions", %{
       conn: conn,
       organization: organization,

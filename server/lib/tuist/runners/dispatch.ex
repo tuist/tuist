@@ -37,9 +37,11 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.FetchLogsWorker
 
   require Logger
 
@@ -66,7 +68,7 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_completed(payload)
+    result = handle_completed(payload, installation_id)
     emit_webhook_telemetry("completed", result)
     result
   end
@@ -185,19 +187,20 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp handle_completed(payload) do
+  defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion)
+      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion) do
+  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -207,7 +210,22 @@ defmodule Tuist.Runners.Dispatch do
     :ok = Claims.complete(workflow_job_id)
 
     case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, _} ->
+      {:ok, %{account_id: account_id}} ->
+        # Persist steps after marking the job complete: the row's
+        # `account_id` is the denormalisation key on the step row, and
+        # an empty list (cancelled jobs sometimes ship no steps) is a
+        # safe no-op. Webhook retries collapse on the RMT key.
+        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+
+        # Fetch the full job log from GitHub's Actions Logs API and
+        # ingest it into `runner_job_logs`. The Logs API is the only
+        # stable source of step output — the runner Pod's stdout
+        # carries only Listener lifecycle, the Worker diag log only
+        # framework noise, and step content streams directly from the
+        # .NET Worker to GitHub's `ResultsLog`. See
+        # `Tuist.Runners.Workers.FetchLogsWorker`.
+        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+
         Logger.info("runners: completed",
           workflow_job_id: workflow_job_id,
           conclusion: conclusion
@@ -220,6 +238,34 @@ defmodule Tuist.Runners.Dispatch do
         # (a different provider's job, or a delivery race).
         # Nothing to mark complete; not our concern.
         :ignored
+    end
+  end
+
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+    # Cancelled / synthetic workflow_jobs sometimes ship without a
+    # repository field. Without it we can't address the Logs API.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+    %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      installation_id: installation_id,
+      repository: repository
+    }
+    |> FetchLogsWorker.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue log fetch: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
     end
   end
 
@@ -248,12 +294,17 @@ defmodule Tuist.Runners.Dispatch do
 
     1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
        e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
-       maps to its shape pool. The common path. The auto-bootstrapped
-       `linux` default profile means `<prefix>linux` (`tuist-linux` on
-       production, `tuist-<env>-linux` elsewhere) resolves here too.
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path. The auto-bootstrapped
+       `linux` and `macos` default profiles mean `<prefix>linux` /
+       `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
+       env-prefixed elsewhere) resolve here too — no separate legacy
+       alias path needed.
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Still serves macOS pools and any
-       other non-shape fleets.
+       Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
+       pool the operator manually renders via `runnersFleet.pools[]`
+       (e.g. an Xcode the catalog has removed but customer workflows
+       still pin).
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
@@ -266,7 +317,7 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           pool_name: Catalog.pool_name(profile),
            requested_dispatch_label: Profile.dispatch_label(profile)
          }}
 
@@ -462,6 +513,50 @@ defmodule Tuist.Runners.Dispatch do
       _ -> {"", ""}
     end
   end
+
+  # GitHub only populates the workflow_job's `steps` array on the
+  # `completed` event. We keep only entries with a usable name so a
+  # malformed payload doesn't leak placeholder rows.
+  defp raw_steps(job) do
+    case Map.get(job, "steps") do
+      steps when is_list(steps) -> Enum.filter(steps, &valid_step?/1)
+      _ -> []
+    end
+  end
+
+  defp valid_step?(%{"name" => name}) when is_binary(name) and name != "", do: true
+  defp valid_step?(_), do: false
+
+  # Convert each raw GitHub step into a `runner_job_steps` row,
+  # parsing the ISO timestamps into DateTime values the CH driver can
+  # bind to `DateTime64(6, 'UTC')`.
+  defp build_step_rows(workflow_job_id, account_id, raw_steps) do
+    Enum.map(raw_steps, fn step ->
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: get_integer(step, "number"),
+        name: get_string(step, "name"),
+        status: get_string(step, "status"),
+        conclusion: get_string(step, "conclusion"),
+        started_at: parse_step_time(Map.get(step, "started_at")),
+        completed_at: parse_step_time(Map.get(step, "completed_at"))
+      }
+    end)
+  end
+
+  # Step start / finish timestamps arrive as ISO-8601 strings or
+  # `null`. `DateTime64(6)` requires microsecond precision, so we
+  # promote the parsed value to 6-digit microseconds (mirrors the
+  # log ingest path).
+  defp parse_step_time(value) when is_binary(value) and value != "" do
+    case DateTime.from_iso8601(value) do
+      {:ok, %DateTime{microsecond: {us, _}} = dt, _offset} -> %{dt | microsecond: {us, 6}}
+      _ -> nil
+    end
+  end
+
+  defp parse_step_time(_), do: nil
 
   defp get_integer(map, key, default \\ 0) do
     case Map.get(map, key) do

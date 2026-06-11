@@ -1,0 +1,30 @@
+# Canary workload-cluster overlay. Loaded by k8s:install-platform when
+# CLUSTER_NAME=tuist-canary.
+
+# Stable outbound source IP for canary Tuist server traffic. The IP is a
+# Hetzner Floating IP assigned to the gateway node, so the host-configurer keeps
+# the /32 address and source route present on the host interface.
+ciliumEgressGateway:
+  server:
+    enabled: true
+    namespace: tuist-canary
+    egressIP: 78.47.174.50
+    hostConfigurator:
+      enabled: true
+
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/name: tuist-canary-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

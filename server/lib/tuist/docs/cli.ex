@@ -73,15 +73,18 @@ defmodule Tuist.Docs.CLI do
   end
 
   defp fetch_latest_cli_tag do
-    url = "https://api.github.com/repos/#{@repo}/releases?per_page=20"
+    url = "https://api.github.com/repos/#{@repo}/releases?per_page=100"
 
     case Req.get(url, headers: @headers) do
       {:ok, %{status: 200, body: releases}} ->
+        # Pick the highest-semver CLI release rather than the first one GitHub
+        # returns: the endpoint is ordered by publish date, so a backport patch
+        # published after a newer minor would otherwise win. Bare-semver CLI
+        # tags parse as a Version; scoped component tags ("server@1.2.3") don't.
         cli_release =
-          Enum.find(releases, fn release ->
-            tag = release["tag_name"] || ""
-            not String.contains?(tag, "@")
-          end)
+          releases
+          |> Enum.filter(&match?({:ok, _}, Version.parse(&1["tag_name"] || "")))
+          |> Enum.max_by(&Version.parse!(&1["tag_name"]), Version, fn -> nil end)
 
         case cli_release do
           nil -> {:error, :no_cli_release}

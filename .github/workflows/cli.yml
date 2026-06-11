@@ -79,8 +79,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -101,8 +99,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Lint
         run: |
           mise x swiftformat -- swiftformat cli/ app/ --lint
@@ -119,8 +116,6 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v4
         id: cache
         with:
@@ -141,8 +136,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
@@ -161,8 +155,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
         id: cache-restore
         uses: actions/cache/restore@v4
@@ -183,8 +175,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Cache
         run: tuist cache
       - name: Save cache
@@ -209,8 +200,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -231,8 +220,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Run tests
         run: tuist test TuistUnitTests -- -retry-tests-on-failure -test-iterations 4
 
@@ -253,8 +241,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -275,8 +261,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -306,8 +291,6 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         if: github.event.pull_request.head.repo.fork != true
         run: bash mise/tasks/cli/ee.sh
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -328,8 +311,7 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -355,8 +337,6 @@ jobs:
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache/restore@v4
         id: cache
         with:
@@ -371,8 +351,7 @@ jobs:
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Install Tuist dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Skip Xcode Macro Fingerprint Validation
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
@@ -409,7 +388,6 @@ jobs:
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
         run: swift build --target tuist --replace-scm-with-registry --force-resolved-versions
@@ -439,7 +417,6 @@ jobs:
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
       - name: Resolve dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
         run: swift test --replace-scm-with-registry

@@ -43,12 +43,12 @@ defmodule SwiftRegistry.Registry.KeyNormalizerTest do
       assert KeyNormalizer.normalize_version("v1.2") == "1.2.0"
     end
 
-    test "converts pre-release dot to plus" do
-      assert KeyNormalizer.normalize_version("1.0.0-alpha.1") == "1.0.0-alpha+1"
+    test "preserves pre-release dot identifiers" do
+      assert KeyNormalizer.normalize_version("1.0.0-alpha.1") == "1.0.0-alpha.1"
     end
 
     test "handles pre-release with v prefix" do
-      assert KeyNormalizer.normalize_version("v2.0.0-beta.2") == "2.0.0-beta+2"
+      assert KeyNormalizer.normalize_version("v2.0.0-beta.2") == "2.0.0-beta.2"
     end
 
     test "handles pre-release without dot" do
@@ -56,11 +56,16 @@ defmodule SwiftRegistry.Registry.KeyNormalizerTest do
     end
 
     test "handles incomplete version with pre-release" do
-      assert KeyNormalizer.normalize_version("1-alpha.1") == "1.0.0-alpha+1"
+      assert KeyNormalizer.normalize_version("1-alpha.1") == "1.0.0-alpha.1"
     end
 
     test "handles multiple dots in pre-release" do
-      assert KeyNormalizer.normalize_version("1.0.0-alpha.1.2") == "1.0.0-alpha+1+2"
+      assert KeyNormalizer.normalize_version("1.0.0-alpha.1.2") == "1.0.0-alpha.1.2"
+    end
+
+    test "preserves build metadata" do
+      assert KeyNormalizer.normalize_version("1.2+build.5") == "1.2.0+build.5"
+      assert KeyNormalizer.normalize_version("1.0.0-alpha.1+build.5") == "1.0.0-alpha.1+build.5"
     end
 
     test "strips leading zeros from version components" do
@@ -115,12 +120,13 @@ defmodule SwiftRegistry.Registry.KeyNormalizerTest do
     test "accepts normalized storage version formats" do
       assert KeyNormalizer.valid_storage_version?("1.2.3")
       assert KeyNormalizer.valid_storage_version?("1.2.0")
-      assert KeyNormalizer.valid_storage_version?("1.0.0-alpha+1+2")
+      assert KeyNormalizer.valid_storage_version?("1.0.0-alpha.1.2")
+      assert KeyNormalizer.valid_storage_version?("1.0.0-alpha.1+build.5")
     end
 
     test "rejects invalid storage version formats" do
       refute KeyNormalizer.valid_storage_version?("v1.2.3")
-      refute KeyNormalizer.valid_storage_version?("1.0.0-alpha.1.2")
+      refute KeyNormalizer.valid_storage_version?("1.0.0-alpha+1+2")
       refute KeyNormalizer.valid_storage_version?("0.0.24b")
     end
   end
@@ -167,7 +173,7 @@ defmodule SwiftRegistry.Registry.KeyNormalizerTest do
           path: "source_archive.zip"
         )
 
-      assert result == "registry/swift/apple/swift-syntax/1.0.0-alpha+1/source_archive.zip"
+      assert result == "registry/swift/apple/swift-syntax/1.0.0-alpha.1/source_archive.zip"
     end
 
     test "constructs key without version" do

@@ -2,29 +2,27 @@ name: Server Production Deployment
 
 # Promotion cascade: build → canary → acceptance tests → production.
 #
-# Triggers:
-#   push to main      - standard promotion. Commits whose subject contains
-#                       "(hotfix)" fast-path to production without waiting
-#                       for canary + tests.
-#   workflow_dispatch - run the cascade against a pinned SHA (useful to
-#                       re-promote a past commit or to re-roll the same
-#                       server image against a freshly released Kura tag).
+# Triggers (both routed through the `gate` job):
+#   push to main      - standard promotion. "(hotfix)" in the commit subject
+#                       fast-paths to production. The run is deferred (gate
+#                       skips it) when the push also releases a fleet/runtime
+#                       image — release.yml builds + tags it and its
+#                       trigger-deploy dispatches the deploy.
+#   workflow_dispatch - release.yml's trigger-deploy after a fleet-image
+#                       release, or a manual re-promote of a pinned SHA.
 #
 # Image architecture: the Docker image is env-agnostic (built once with
 # MIX_ENV=prod) so the same `sha-<SHA>` tag is promoted from canary to
 # production. The runtime picks its environment via TUIST_DEPLOY_ENV (set by the
-# Helm overlay) + MASTER_KEY (ESO). This used to be two ~30-min builds
-# per push; it is now one.
+# Helm overlay) + MASTER_KEY (ESO).
 #
 # Each deploy leg is delegated to server-deployment.yml via workflow_call
 # so the helm logic stays in one place. The first leg builds and
 # publishes the image; subsequent legs pass image_tag to skip rebuilding.
-# Kura regional controller/platform rollouts are handled by
-# server-kura-regional-deployment.yml after production succeeds so
-# regional capacity incidents do not mark the main production deploy as
-# failed. Kura runtime rollouts are release-driven via
-# kura-release-deployment.yml after the `kura@...` tag exists, so the
-# server promotion path never races ahead of the published runtime tag.
+# The Kura controller and regional node-pool configuration live in the
+# main production release. The Kura runtime image version is resolved at
+# deploy time by server-deployment.yml from the latest kura@ git tag (no
+# committed pin), so it rolls forward like every other fleet/runtime image.
 #
 # Slack notifications:
 #   - Any failure on main → .github/workflows/notify-failure.yml picks up
@@ -51,8 +49,9 @@ on:
       - infra/kura-controller/**
       - infra/helm/tuist/**
       - infra/helm/k8s-monitoring/**
-      - .github/workflows/server-production-deployment.yml
+      - .github/workflows/release.yml
       - .github/workflows/server-deployment.yml
+      - .github/workflows/server-production-deployment.yml
       - server/pnpm-lock.yaml
   workflow_dispatch:
     inputs:
@@ -62,10 +61,24 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      hotfix:
+        description: Skip canary + acceptance tests and ship straight to production
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
   packages: write
+
+concurrency:
+  # One cascade at a time, whoever triggered it (push, or release.yml's
+  # trigger-deploy dispatch). cancel-in-progress: false so an in-flight
+  # cascade is never killed; GitHub keeps only the latest pending run, so a
+  # burst collapses to deploying the latest commit. Its own group keeps the
+  # deploy off release.yml's build queue.
+  group: server-production-deployment
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -74,35 +87,131 @@ env:
 
 jobs:
   # --------------------------------------------------------------------------
+  # Gate - decides whether this run deploys, resolves the SHA, and detects
+  # hotfix. On push it runs release:check and DEFERS (skips the cascade)
+  # when a fleet/runtime image is releasing this push, because release.yml
+  # must build + tag it first and its trigger-deploy then dispatches the
+  # deploy. On workflow_dispatch (release.yml's fleet path, or manual) it
+  # always proceeds.
+  # --------------------------------------------------------------------------
+  gate:
+    name: Gate
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      should_deploy: ${{ steps.decide.outputs.should_deploy }}
+      deploy_sha: ${{ steps.decide.outputs.deploy_sha }}
+      is_hotfix: ${{ steps.decide.outputs.is_hotfix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          install_args: "git-cliff jq"
+          cache: "false"
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+      - id: check
+        # Only needed on push, to detect a fleet/runtime image release whose
+        # deploy release.yml owns.
+        if: github.event_name == 'push'
+        run: mise run release:check
+      - id: decide
+        env:
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "should_deploy=true"
+              echo "deploy_sha=${{ inputs.commit_sha || github.sha }}"
+              echo "is_hotfix=${{ inputs.hotfix }}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # push: defer to release.yml's trigger-deploy when a fleet/runtime
+          # image is releasing this push; otherwise deploy now.
+          should_deploy=true
+          for flag in \
+            "${{ steps.check.outputs.runner-image-should-release }}" \
+            "${{ steps.check.outputs.linux-runner-image-should-release }}" \
+            "${{ steps.check.outputs.runners-controller-should-release }}" \
+            "${{ steps.check.outputs.capi-scaleway-should-release }}" \
+            "${{ steps.check.outputs.xcresult-processor-image-should-release }}" \
+            "${{ steps.check.outputs.kura-should-release }}"; do
+            [ "$flag" = "true" ] && should_deploy=false
+          done
+          # HEAD_MSG via env, never interpolated into the shell.
+          is_hotfix=false
+          case "$HEAD_MSG" in
+            *'(hotfix)'*) is_hotfix=true ;;
+          esac
+          {
+            echo "should_deploy=$should_deploy"
+            echo "deploy_sha=${{ github.sha }}"
+            echo "is_hotfix=$is_hotfix"
+          } >> "$GITHUB_OUTPUT"
+
+  # --------------------------------------------------------------------------
   # Build once - the image is env-agnostic (MIX_ENV=prod, all env secrets
   # baked in, TUIST_DEPLOY_ENV picks the runtime behavior). Every downstream leg
   # deploys this exact tag.
   # --------------------------------------------------------------------------
   build:
     name: Build server image
+    needs: gate
+    if: needs.gate.outputs.should_deploy == 'true'
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
-    runs-on: tuist-linux-large
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha || github.sha }}
+          ref: ${{ needs.gate.outputs.deploy_sha }}
           submodules: false
       - id: tag
         env:
-          DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+          DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # The Dockerfile's `--mount=type=cache` for /og-cache is local to the
+      # BuildKit builder, which starts empty on every ephemeral runner, so
+      # Chromium re-renders every OG image (~6 min, on the critical path that
+      # gates `mix release`) on each deploy. cache-dance round-trips the mount
+      # through actions/cache so unchanged images are skipped via their
+      # .cachekey sidecars. The registry layer cache below can't do this:
+      # `mode=max` exports layers, not cache-mount contents.
+      - name: Restore OG image render cache
+        id: og-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            og-cache-marketing
+            og-cache-docs
+          key: server-og-cache-${{ needs.gate.outputs.deploy_sha }}
+          restore-keys: |
+            server-og-cache-
+      - name: Seed OG cache mounts into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "og-cache-marketing": { "target": "/og-cache/marketing", "id": "og-marketing" },
+              "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
+            }
+          skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
       - uses: docker/build-push-action@v6
         name: Build and push server image
         with:
@@ -112,10 +221,16 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Shared registry layer cache. This workflow runs on every push to
+          # main, so it keeps `buildcache:server` warm merge to merge;
+          # server-deployment.yml reads and writes the same ref. `mode=max`
+          # caches every stage (deps.compile, builder, og-images).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ inputs.commit_sha || github.sha }}
+            APT_CACHE_BUST=${{ needs.gate.outputs.deploy_sha }}
       - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
@@ -125,28 +240,30 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
   # --------------------------------------------------------------------------
-  # Canary leg - deploys the pre-built image. Runs on standard pushes and
-  # manual dispatch. Skipped on hotfix pushes: the whole point of the
-  # hotfix fast-path is to ship straight to production without waiting on
-  # the canary cascade, and running canary in parallel just doubles the
-  # rollout surface (and noise) for a push that explicitly opted out.
+  # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
+  # fast-path ships straight to production without waiting on the canary
+  # cascade, and running canary in parallel just doubles the rollout surface
+  # (and noise) for a run that explicitly opted out.
+  #
+  # kura_runtime_image_tag is normally empty: server-deployment.yml
+  # resolves the runtime version from the latest kura@ git tag at deploy
+  # time. It is only set on a manual re-roll dispatch, where it overrides
+  # the resolved value.
   # --------------------------------------------------------------------------
   canary:
-    needs: build
-    if: >-
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
-      github.event_name == 'workflow_dispatch'
+    needs: [gate, build]
+    if: ${{ needs.gate.outputs.is_hotfix != 'true' }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
-      commit_sha: ${{ inputs.commit_sha || github.sha }}
+      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   acceptance-tests:
     name: Acceptance Tests
-    needs: canary
+    needs: [gate, canary]
     runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -156,11 +273,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_sha || github.sha }}
+          ref: ${{ needs.gate.outputs.deploy_sha }}
           token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: jdx/mise-action@v4.0.1
         with:
           github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
@@ -169,7 +284,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        run: tuist install
+        run: tuist install --force-resolved-versions
       - name: Initialize TuistCacheEE submodule
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
@@ -180,37 +295,102 @@ jobs:
         run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing -- -retry-tests-on-failure -test-iterations 2
 
   # --------------------------------------------------------------------------
+  # Backward-compatibility acceptance - runs the OLDEST CLI version we still
+  # support against the freshly-deployed canary. The acceptance-tests job above
+  # always uses the CLI built from HEAD, so it can never catch a server change
+  # that breaks an older but still-supported CLI. This job pins that floor and
+  # gates production alongside acceptance-tests.
+  #
+  # The oldest supported release (3-month window) has a single source of truth:
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex.
+  # This job derives MIN_SUPPORTED_TUIST_VERSION from it, the deprecation warning
+  # enforces it, and the docs Compatibility page renders it. Bump it there as the
+  # window slides.
+  # --------------------------------------------------------------------------
+  backward-compatibility-acceptance:
+    name: Backward-Compatibility Acceptance
+    needs: [gate, canary]
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: 0
+      TUIST_URL: https://canary.tuist.dev
+      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.gate.outputs.deploy_sha }}
+          submodules: false
+      - name: Resolve oldest supported CLI version
+        # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
+        # which also drives the deprecation warning and the docs Compatibility page.
+        run: |
+          file=server/lib/tuist/cli_versions.ex
+          version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @minimum_supported_version from $file" >&2
+            exit 1
+          fi
+          echo "MIN_SUPPORTED_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Oldest supported CLI version: $version"
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "bats"
+      - name: Install oldest supported tuist
+        run: mise install "tuist@${MIN_SUPPORTED_TUIST_VERSION}"
+      - name: Resolve oldest supported tuist binary
+        id: oldtuist
+        run: |
+          install_dir="$(mise where "tuist@${MIN_SUPPORTED_TUIST_VERSION}")"
+          bin="$(find "$install_dir" -type f -name tuist | head -n1)"
+          if [ -z "$bin" ]; then
+            echo "Could not locate the tuist binary under $install_dir" >&2
+            exit 1
+          fi
+          echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
+          "$bin" version
+      - name: Run backward-compatibility acceptance test
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: mise run --no-deps e2e module_cache_backward_compat
+
+  # --------------------------------------------------------------------------
   # Production leg - standard path: canary ready + tests green. Promotes
-  # the same image bytes tests ran against.
-  # Skipped on hotfix pushes (the hotfix job below runs instead).
+  # the same image bytes tests ran against. Skipped on a hotfix (the
+  # hotfix job below runs instead).
   # --------------------------------------------------------------------------
   production:
-    needs: [build, acceptance-tests]
-    if: >-
-      (github.event_name == 'push' && !contains(github.event.head_commit.message, '(hotfix)')) ||
-      github.event_name == 'workflow_dispatch'
+    needs: [gate, build, acceptance-tests, backward-compatibility-acceptance]
+    if: ${{ needs.gate.outputs.is_hotfix != 'true' }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
-      commit_sha: ${{ inputs.commit_sha || github.sha }}
+      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
-  # Hotfix fast-path: push-to-main with "(hotfix)" in the commit subject
-  # ships production without waiting for canary + acceptance tests. Kept
-  # independent of the cascade so a flaky acceptance test can't block an
-  # urgent fix; canary is skipped above on hotfix pushes so the fast-path
+  # Hotfix fast-path: "(hotfix)" in the commit subject (push) or the hotfix
+  # dispatch input ships production without waiting for canary + acceptance
+  # tests. Kept independent of the cascade so a flaky acceptance test can't
+  # block an urgent fix; canary is skipped above on hotfix so the fast-path
   # is the only deploy in flight.
   # --------------------------------------------------------------------------
   production-hotfix:
-    needs: build
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, '(hotfix)')
+    needs: [gate, build]
+    if: ${{ needs.gate.outputs.is_hotfix == 'true' }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
-      commit_sha: ${{ github.sha }}
+      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit

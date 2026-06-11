@@ -1,0 +1,26 @@
+{{- with .Values.ciliumEgressGateway.server }}
+{{- if .enabled }}
+{{- $egressIP := required "ciliumEgressGateway.server.egressIP is required when ciliumEgressGateway.server.enabled=true" .egressIP }}
+apiVersion: cilium.io/v2
+kind: CiliumEgressGatewayPolicy
+metadata:
+  name: {{ .name | quote }}
+spec:
+  selectors:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .namespace | quote }}
+      podSelector:
+        matchLabels:
+          {{- toYaml .podSelector | nindent 10 }}
+  destinationCIDRs:
+    {{- toYaml .destinationCIDRs | nindent 4 }}
+  excludedCIDRs:
+    {{- toYaml .excludedCIDRs | nindent 4 }}
+  egressGateway:
+    nodeSelector:
+      matchLabels:
+        {{- toYaml .gatewayNodeSelector | nindent 8 }}
+    egressIP: {{ $egressIP | quote }}
+{{- end }}
+{{- end }}

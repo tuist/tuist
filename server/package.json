@@ -23,7 +23,8 @@
       "defu": "6.1.5",
       "follow-redirects": "1.16.0",
       "protobufjs": "7.5.8",
-      "postcss": "8.5.10"
+      "postcss": "8.5.10",
+      "shell-quote": "1.8.4"
     },
     "allowBuilds": {
       "core-js": true,

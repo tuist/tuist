@@ -250,8 +250,8 @@ defmodule Tuist.Kura.UsageTest do
     end
   end
 
-  describe "per_node/4" do
-    test "rolls up egress + ingress bytes per (node_id, region)" do
+  describe "per_region/4" do
+    test "rolls up egress + ingress bytes per region across nodes" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
@@ -266,7 +266,7 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        node_id: "kura-a",
+        node_id: "kura-b",
         region: "us-east-1",
         direction: "ingress",
         bytes: 200,
@@ -275,7 +275,7 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        node_id: "kura-b",
+        node_id: "kura-c",
         region: "eu-west-1",
         direction: "egress",
         bytes: 400,
@@ -283,9 +283,9 @@ defmodule Tuist.Kura.UsageTest do
       })
 
       assert [
-               %{node_id: "kura-a", region: "us-east-1", egress_bytes: 1_000, ingress_bytes: 200, request_count: 6},
-               %{node_id: "kura-b", region: "eu-west-1", egress_bytes: 400, ingress_bytes: 0, request_count: 1}
-             ] = Usage.per_node(account_id, start_dt, end_dt)
+               %{region: "us-east-1", egress_bytes: 1_000, ingress_bytes: 200, request_count: 6},
+               %{region: "eu-west-1", egress_bytes: 400, ingress_bytes: 0, request_count: 1}
+             ] = Usage.per_region(account_id, start_dt, end_dt)
     end
   end
 

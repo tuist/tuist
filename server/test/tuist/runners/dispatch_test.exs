@@ -7,7 +7,10 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -16,6 +19,17 @@ defmodule Tuist.Runners.DispatchTest do
     cache = :"runners_dispatch_#{System.unique_integer([:positive])}"
     start_supervised!({Cachex, name: cache})
     stub(Dispatch, :cache_name, fn -> cache end)
+
+    # Disable the macOS protected-profile auto-bootstrap globally for
+    # this suite. `Accounts.create_organization` and `Accounts.create_user`
+    # auto-create a `macos` profile when the macOS catalog has a
+    # default Xcode + shape; with `default_xcode_version/0 -> nil`
+    # the bootstrap short-circuits to `{:ok, :no_macos_capable}` and
+    # the resulting accounts only carry the `linux` protected
+    # profile. Test cases that care about a macOS profile add their
+    # own per-account inserts. (Stubbing Linux is unnecessary — the
+    # `linux` bootstrap reads the test-config default shape.)
+    stub(Catalog, :default_xcode_version, fn -> nil end)
     :ok
   end
 
@@ -46,6 +60,18 @@ defmodule Tuist.Runners.DispatchTest do
     %{
       "metadata" => %{"name" => Keyword.fetch!(opts, :name)},
       "spec" => %{"dispatchLabel" => Keyword.fetch!(opts, :label)}
+    }
+  end
+
+  defp completed_payload(opts) do
+    %{
+      "action" => "completed",
+      "workflow_job" => %{
+        "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
+        "conclusion" => Keyword.get(opts, :conclusion, "success"),
+        "steps" => Keyword.get(opts, :steps, [])
+      },
+      "repository" => %{"full_name" => "tuist/repo"}
     }
   end
 
@@ -123,6 +149,77 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
+  describe "handle_webhook/2 completed" do
+    test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
+      test_pid = self()
+      stub(Claims, :complete, fn _ -> :ok end)
+
+      stub(Jobs, :complete, fn _id, conclusion ->
+        send(test_pid, {:completed, conclusion})
+        {:ok, %{account_id: 777}}
+      end)
+
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
+      end)
+
+      payload =
+        completed_payload(
+          id: 4242,
+          conclusion: "success",
+          steps: [
+            %{
+              "name" => "Set up job",
+              "status" => "completed",
+              "conclusion" => "success",
+              "number" => 1,
+              "started_at" => "2026-05-28T10:00:00Z",
+              "completed_at" => "2026-05-28T10:00:05Z"
+            },
+            # A nameless entry is dropped rather than stored half-formed.
+            %{"status" => "completed"}
+          ]
+        )
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(payload, 1)
+
+      assert_receive {:completed, "success"}
+      assert_receive {:steps, rows}
+
+      assert [
+               %{
+                 workflow_job_id: 4242,
+                 account_id: 777,
+                 number: 1,
+                 name: "Set up job",
+                 status: "completed",
+                 conclusion: "success",
+                 started_at: %DateTime{} = started_at,
+                 completed_at: %DateTime{} = completed_at
+               }
+             ] = rows
+
+      assert DateTime.to_iso8601(started_at) =~ "2026-05-28T10:00:00"
+      assert DateTime.to_iso8601(completed_at) =~ "2026-05-28T10:00:05"
+    end
+
+    test "skips the steps write entirely when the payload carries no steps" do
+      test_pid = self()
+      stub(Claims, :complete, fn _ -> :ok end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+
+      stub(JobSteps, :record, fn rows ->
+        send(test_pid, {:steps, rows})
+        :ok
+      end)
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
+
+      assert_receive {:steps, []}
+    end
+  end
+
   describe "resolve_dispatch_target/2 — profile path" do
     setup do
       catalog_account = AccountsFixtures.organization_fixture(preload: [:account]).account
@@ -132,8 +229,18 @@ defmodule Tuist.Runners.DispatchTest do
         %{vcpus: 8, memory_gb: 32, key: "8vcpu-32gb", default?: false, pool_dispatch_label: ""}
       ]
 
-      stub(Catalog, :list, fn -> catalog end)
-      stub(Catalog, :default, fn -> Enum.find(catalog, & &1.default?) end)
+      stub(Catalog, :shapes, fn
+        :linux -> catalog
+        :macos -> []
+      end)
+
+      stub(Catalog, :default_shape, fn
+        :linux -> Enum.find(catalog, & &1.default?)
+        :macos -> nil
+      end)
+
+      stub(Catalog, :xcode_versions, fn -> [] end)
+      stub(Catalog, :default_xcode_version, fn -> nil end)
 
       {:ok, profile} =
         Tuist.Runners.Profiles.create(catalog_account, %{

@@ -234,6 +234,11 @@ carries `username`, `password`, `uri`, `jdbc-uri`, `host`, `port`,
 {{- printf "%s-ro" (include "tuist.cnpgClusterName" .) -}}
 {{- end -}}
 
+{{/* CNPG names the Pooler's Service after the Pooler CR's metadata.name. */}}
+{{- define "tuist.cnpgServicePooler" -}}
+{{- printf "%s-pooler-rw" (include "tuist.cnpgClusterName" .) -}}
+{{- end -}}
+
 {{- define "tuist.databaseUrl" -}}
 {{- if eq .Values.postgresql.mode "embedded" -}}
 ecto://{{ .Values.postgresql.embedded.username }}:{{ .Values.postgresql.embedded.password }}@{{ include "tuist.componentName" (dict "root" . "component" "postgresql") }}:5432/{{ .Values.postgresql.embedded.database }}
@@ -317,11 +322,25 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "otel-collect
 {{/*
 Kura OAuth introspection client env vars. The values are synced from
 1Password into the server-external-secrets Secret when
-server.externalSecrets.kuraIntrospection.item is set.
+server.externalSecrets.kuraIntrospection.item is set, or from the
+kura-shared-secrets Secret when
+kuraController.sharedSecrets.kuraIntrospection.enabled is true.
 */}}
 {{- define "tuist.kuraIntrospectionEnv" -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
-{{- if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
+{{- $kuraSharedSecret := "kura-shared-secrets" -}}
+{{- if and .Values.kuraController.enabled .Values.kuraController.sharedSecrets.enabled .Values.kuraController.sharedSecrets.kuraIntrospection.enabled }}
+- name: KURA_CONTROL_PLANE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $kuraSharedSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_ID
+- name: KURA_CONTROL_PLANE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $kuraSharedSecret | quote }}
+      key: KURA_CONTROL_PLANE_CLIENT_SECRET
+{{- else if ne (.Values.server.externalSecrets.kuraIntrospection.item | default "") "" }}
 - name: KURA_CONTROL_PLANE_CLIENT_ID
   valueFrom:
     secretKeyRef:
@@ -332,16 +351,6 @@ server.externalSecrets.kuraIntrospection.item is set.
     secretKeyRef:
       name: {{ $esoSecret | quote }}
       key: KURA_CONTROL_PLANE_CLIENT_SECRET
-- name: TUIST_KURA_INTROSPECTION_CLIENT_ID
-  valueFrom:
-    secretKeyRef:
-      name: {{ $esoSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_ID
-- name: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
-  valueFrom:
-    secretKeyRef:
-      name: {{ $esoSecret | quote }}
-      key: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
 {{- end }}
 {{- end }}
 

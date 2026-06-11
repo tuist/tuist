@@ -1,4 +1,4 @@
-use std::{io::BufReader, sync::Arc, time::Duration};
+use std::{io::BufReader, net::SocketAddr, sync::Arc, time::Duration};
 
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::{Certificate, Client, Identity};
@@ -8,12 +8,25 @@ use tokio::fs;
 
 use crate::config::{Config, PeerTlsConfig, PublicTlsConfig};
 
-pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
-    let mut builder = Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(30));
+#[derive(Clone)]
+pub struct PeerClientFactory {
+    identity_pem: Option<Vec<u8>>,
+    ca_pem: Option<Vec<u8>>,
+}
 
-    if let Some(peer_tls) = &config.peer_tls {
+impl PeerClientFactory {
+    pub fn plain() -> Self {
+        Self {
+            identity_pem: None,
+            ca_pem: None,
+        }
+    }
+
+    pub async fn from_config(config: &Config) -> Result<Self, String> {
+        let Some(peer_tls) = &config.peer_tls else {
+            return Ok(Self::plain());
+        };
+
         let ca_pem = fs::read(&peer_tls.ca_cert_path).await.map_err(|error| {
             format!(
                 "failed to read peer CA certificate {}: {error}",
@@ -39,17 +52,41 @@ pub async fn build_peer_client(config: &Config) -> Result<Client, String> {
         }
         identity_pem.extend_from_slice(&key_pem);
 
-        let identity = Identity::from_pem(&identity_pem)
-            .map_err(|error| format!("failed to parse peer identity PEM: {error}"))?;
-        let ca = Certificate::from_pem(&ca_pem)
-            .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
-
-        builder = builder.identity(identity).add_root_certificate(ca);
+        Ok(Self {
+            identity_pem: Some(identity_pem),
+            ca_pem: Some(ca_pem),
+        })
     }
 
-    builder
-        .build()
-        .map_err(|error| format!("failed to build peer HTTP client: {error}"))
+    pub fn build(&self) -> Result<Client, String> {
+        self.builder()?
+            .build()
+            .map_err(|error| format!("failed to build peer HTTP client: {error}"))
+    }
+
+    pub fn build_resolving(&self, host: &str, address: SocketAddr) -> Result<Client, String> {
+        self.builder()?
+            .resolve_to_addrs(host, &[address])
+            .build()
+            .map_err(|error| format!("failed to build peer HTTP client for {host}: {error}"))
+    }
+
+    fn builder(&self) -> Result<reqwest::ClientBuilder, String> {
+        let mut builder = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30));
+
+        if let (Some(identity_pem), Some(ca_pem)) = (&self.identity_pem, &self.ca_pem) {
+            let identity = Identity::from_pem(identity_pem)
+                .map_err(|error| format!("failed to parse peer identity PEM: {error}"))?;
+            let ca = Certificate::from_pem(ca_pem)
+                .map_err(|error| format!("failed to parse peer CA PEM: {error}"))?;
+
+            builder = builder.identity(identity).add_root_certificate(ca);
+        }
+
+        Ok(builder)
+    }
 }
 
 pub async fn build_internal_rustls_config(
@@ -88,7 +125,7 @@ pub async fn build_public_rustls_config(
     Ok(RustlsConfig::from_config(Arc::new(server_config)))
 }
 
-fn install_default_crypto_provider() {
+pub(crate) fn install_default_crypto_provider() {
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 

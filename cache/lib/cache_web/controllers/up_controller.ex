@@ -28,7 +28,11 @@ defmodule CacheWeb.UpController do
   end
 
   defp healthcheck_repos do
-    [Cache.Repo, Cache.KeyValueRepo]
+    if Cache.Config.xcode_database_interactions_enabled?() do
+      [Cache.Repo, Cache.KeyValueRepo]
+    else
+      [Cache.Repo]
+    end
   end
 
   defp query_repo(repo) do

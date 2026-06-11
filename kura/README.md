@@ -107,7 +107,7 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
 - 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
-For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests still carry their namespace explicitly.
+For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -210,14 +210,21 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
+| `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
+| `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | Yes | `KURA_NODE_URL` |
 | `KURA_DISCOVERY_DNS_NAME` | DNS name to probe for automatic peer discovery. | Yes | disabled |
+| `KURA_GLOBAL_DISCOVERY_DNS_NAME` | Optional DNS name for cross-region gateway discovery. Status checks through this path advertise `KURA_PEER_GATEWAY_URL` instead of pod-local `KURA_NODE_URL`. | Yes | disabled |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | App-managed file-descriptor budget for request and background I/O. | Yes | auto |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | Yes | `5000` |
 | `KURA_DRAIN_COMPLETION_TIMEOUT_MS` | Maximum grace window Kura gives in-flight HTTP and gRPC work to finish during shutdown before forcing exit progression. | Yes | `240000` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles; must stay below the FD pool size. | Yes | auto |
+| `KURA_ACCELERATED_FILE_SERVING_ENABLED` | Enables the same-port Linux file serving accelerator for eligible plaintext HTTP/1 public artifact downloads. Non-Linux builds, HTTPS, HTTP/2, non-GET requests, inline artifacts, unsupported routes, and denied extension decisions use the normal Axum/Hyper path. | Yes | `true` |
+| `KURA_ACCELERATED_FILE_SERVING_MODE` | Linux kernel transfer primitive used by the accelerator: `splice` or `sendfile`. | Yes | `splice` |
+| `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` | Maximum number of concurrent accelerated transfers per node. Requests above the limit fall back to the normal Axum/Hyper path before any request bytes are consumed. | Yes | `32` |
+| `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
 | `KURA_MANIFEST_CACHE_MAX_BYTES` | Maximum size of the in-memory manifest hot cache. | Yes | auto |
@@ -229,6 +236,8 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
 | `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
+| `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` | Aggregate per-node byte-per-second ceiling for peer artifact body transfers. Kura dynamically divides this ceiling by the larger of `public_inflight + 1` and recent public request latency pressure, so sync traffic backs off while public HTTP or gRPC cache work is active or slow; `0` disables throttling. | Yes | `536870912` |
+| `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` | Public HTTP/gRPC request latency target used to adapt peer artifact body bandwidth. If recent public latency exceeds the target, sync traffic backs off proportionally; `0` disables latency-based pressure. | Yes | `100` |
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
@@ -247,8 +256,9 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 
 Kura also enforces a few hard-coded budgets that are not configurable:
 
-- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each.
+- Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
 - Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
+- Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator after the request has been parsed, matched to a known artifact route, authorized through the extension hook, and resolved to a local file. The accelerator owns only a bounded pool of blocking transfer workers and falls back to the normal Axum/Hyper serving path whenever classification is incomplete or unsafe.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
 - Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.
 - On startup, the soft `RLIMIT_NOFILE` is raised to the hard limit so the FD pool, RocksDB file descriptors, and socket budget all share the maximum the container runtime allows.
@@ -269,7 +279,7 @@ Auto-derived defaults currently follow these rules:
 - `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` follows the same `memory_limit_bytes / 32` rule as the metadata-store read cache.
 - `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / 4`, rounded down to MiB boundaries and clamped to `[4 MiB, 32 MiB]`.
 - `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` is `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES / KURA_METADATA_STORE_WRITE_BUFFER_BYTES`, clamped to `[2, 8]`.
-- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`, and `KURA_DRAIN_COMPLETION_TIMEOUT_MS` defaults to `240000`.
+- `KURA_MAX_KEYVALUE_BYTES` defaults to `1048576`, `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` defaults to `5000`, `KURA_DRAIN_COMPLETION_TIMEOUT_MS` defaults to `240000`, `KURA_ACCELERATED_FILE_SERVING_ENABLED` defaults to `true`, `KURA_ACCELERATED_FILE_SERVING_MODE` defaults to `splice`, `KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT` defaults to `32`, `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` defaults to `1048576`, `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` defaults to `536870912`, and `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` defaults to `100`.
 
 A minimal direct-binary deployment still looks like:
 
@@ -279,7 +289,7 @@ KURA_GRPC_PORT=50051 \
 KURA_INTERNAL_PORT=7443 \
 KURA_TENANT_ID=default \
 KURA_REGION=eu-central \
-KURA_TMP_DIR=/tmp/kura \
+KURA_TMP_DIR=/var/cache/kura/tmp \
 KURA_DATA_DIR=/var/cache/kura \
 KURA_NODE_URL=http://cache-1.internal:7443 \
 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces \
@@ -560,3 +570,11 @@ documented with the hook implementation rather than in the generic
 runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.
+
+Hook results are cached per credentials: the cache key fingerprints only the
+credential-bearing request headers (`authorization`, `proxy-authorization`,
+`cookie`, `x-api-key`), so per-request noise such as gRPC deadlines
+(`grpc-timeout`) or trace propagation (`traceparent`) does not defeat the
+cache. Hooks that authenticate from other inputs must return a short
+`ttl_seconds` (or none) instead of relying on the cache key to separate
+requests.

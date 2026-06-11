@@ -2564,12 +2564,60 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        dump(project?.targets.first?.destinations)
-        dump(other.targets.first?.destinations)
-
         #expect(
             project ==
                 other
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenUsingSwift64_clampsPackageDeploymentTargetsToXcode27Minimums() async throws {
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        swiftVersionProviderMock.reset()
+        given(swiftVersionProviderMock)
+            .swiftVersion()
+            .willReturn("6.4")
+
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [
+                        .init(platformName: "ios", version: "9.0", options: []),
+                        .init(platformName: "macos", version: "10.10", options: []),
+                        .init(platformName: "watchos", version: "2.0", options: []),
+                        .init(platformName: "tvos", version: "9.0", options: []),
+                    ],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(
+            target.deploymentTargets == .multiplatform(
+                iOS: "15.0",
+                macOS: "12.0",
+                watchOS: "9.0",
+                tvOS: "15.0",
+                visionOS: "1.0"
+            )
         )
     }
 
@@ -7001,6 +7049,338 @@ struct PackageInfoMapperTests {
         #expect(mappedTarget.productName == "File_System")
         #expect(mappedTarget.bundleId == "File.System")
     }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenMacroTargetDependsOnPrebuiltProduct_usesPrebuiltSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let prebuiltPath = basePath.appending(components: ".build", "prebuilts", "swift-syntax")
+        let checkoutPath = basePath.appending(components: ".build", "checkouts", "swift-syntax")
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: prebuiltPath,
+                            checkoutPath: checkoutPath,
+                            products: ["SwiftSyntax"],
+                            includePath: [try RelativePath(validating: "Sources/_SwiftSyntaxCShims/include")],
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [
+                                .target(name: "MyMacro", condition: nil),
+                            ]
+                        ),
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(target.dependencies.isEmpty)
+        #expect(
+            target.settings?.base["OTHER_SWIFT_FLAGS"] == .array([
+                "$(inherited)",
+                "-I",
+                prebuiltPath.appending(component: "Modules").pathString,
+                "-I",
+                checkoutPath.appending(try RelativePath(validating: "Sources/_SwiftSyntaxCShims/include")).pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LIBRARY_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(
+            target.settings?.base["LD_RUNPATH_SEARCH_PATHS"] == .array([
+                "$(inherited)",
+                prebuiltPath.appending(component: "lib").pathString,
+            ])
+        )
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == .array(["$(inherited)", "-lSwiftSyntax"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenRegularTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/Library"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Library", type: .library(.automatic), targets: ["Library"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Library",
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first)
+        #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenLocalMacroTargetDependsOnPrebuiltProduct_keepsSourceDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                origin: .local,
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(target.dependencies == [.external(name: "SwiftSyntax", condition: nil)])
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenTestTargetOnlyDependsOnPluginTarget_keepsPrebuiltProductAsSourceDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Tests/PluginTests"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                origin: .local,
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(name: "Plugin", type: .plugin),
+                        .test(
+                            name: "PluginTests",
+                            type: .test,
+                            dependencies: [
+                                .target(name: "Plugin", condition: nil),
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: nil
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "PluginTests" }))
+        #expect(target.dependencies.contains(.external(name: "SwiftSyntax", condition: nil)))
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedSwiftVersionProvider
+    ) func map_whenPrebuiltProductDependencyHasUnsupportedCondition_skipsDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+
+        try await fileSystem.makeDirectory(
+            at: basePath.appending(try RelativePath(validating: "Package/Sources/MyMacro"))
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(
+                artifactPaths: [:],
+                packagePrebuilts: [
+                    "swift-syntax": [
+                        "SwiftSyntax": SwiftPackageManagerPrebuilt(
+                            identity: "swift-syntax",
+                            version: "601.0.0",
+                            libraryName: "SwiftSyntax",
+                            path: basePath.appending(components: ".build", "prebuilts", "swift-syntax"),
+                            checkoutPath: nil,
+                            products: ["SwiftSyntax"],
+                            includePath: nil,
+                            cModules: ["_SwiftSyntaxCShims"]
+                        ),
+                    ],
+                ]
+            ),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [],
+                    targets: [
+                        .test(
+                            name: "MyMacro",
+                            type: .macro,
+                            dependencies: [
+                                .product(
+                                    name: "SwiftSyntax",
+                                    package: "swift-syntax",
+                                    moduleAliases: nil,
+                                    condition: .init(platformNames: [], config: "debug")
+                                ),
+                            ]
+                        ),
+                    ],
+                    platforms: [.macos]
+                ),
+            ]
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "MyMacro" }))
+        #expect(target.dependencies.isEmpty)
+        #expect(target.settings?.base["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)"]))
+        #expect(target.settings?.base["LIBRARY_SEARCH_PATHS"] == nil)
+        #expect(target.settings?.base["OTHER_LDFLAGS"] == nil)
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
@@ -7181,11 +7561,12 @@ extension ProjectDescription.Target {
         case let .custom(list):
             sources = list
         case .default:
-            // swiftlint:disable:next force_try
+            guard let defaultSourcesPath = try? RelativePath(validating: "\(packageName)/Sources/\(name)/**") else {
+                fatalError("Invalid default sources path")
+            }
             sources =
                 .sourceFilesList(globs: [
-                    basePath.appending(try! RelativePath(validating: "\(packageName)/Sources/\(name)/**"))
-                        .pathString,
+                    basePath.appending(defaultSourcesPath).pathString,
                 ])
         }
 

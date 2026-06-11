@@ -8,7 +8,7 @@ defmodule SwiftRegistry.Registry.KeyNormalizer do
   """
 
   @source_tag_regex ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
-  @storage_version_regex ~r/^\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\+[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/
+  @storage_version_regex ~r/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/
 
   @doc """
   Normalizes a scope by downcasing it.
@@ -57,8 +57,7 @@ defmodule SwiftRegistry.Registry.KeyNormalizer do
 
   - Strips leading "v" prefix
   - Adds trailing zeros for incomplete versions (1 -> 1.0.0, 1.2 -> 1.2.0)
-  - Converts pre-release dot separator to plus (1.0.0-alpha.1 -> 1.0.0-alpha+1)
-  - Versions with multiple hyphens are passed through with only trailing zeros added
+  - Preserves pre-release and build metadata identifiers
 
   ## Examples
 
@@ -72,10 +71,10 @@ defmodule SwiftRegistry.Registry.KeyNormalizer do
       "1.2.0"
 
       iex> SwiftRegistry.Registry.KeyNormalizer.normalize_version("1.0.0-alpha.1")
-      "1.0.0-alpha+1"
+      "1.0.0-alpha.1"
 
       iex> SwiftRegistry.Registry.KeyNormalizer.normalize_version("v2.0.0-beta.2")
-      "2.0.0-beta+2"
+      "2.0.0-beta.2"
 
       iex> SwiftRegistry.Registry.KeyNormalizer.normalize_version("0.20.0-prerelease-5")
       "0.20.0-prerelease-5"
@@ -83,15 +82,8 @@ defmodule SwiftRegistry.Registry.KeyNormalizer do
   def normalize_version(version) when is_binary(version) do
     version = String.trim_leading(version, "v")
 
-    case String.split(version, "-") do
-      [base, prerelease] ->
-        prerelease_with_plus = String.replace(prerelease, ".", "+")
-        base = add_trailing_semantic_version_zeros(base)
-        "#{base}-#{prerelease_with_plus}"
-
-      _ ->
-        add_trailing_semantic_version_zeros(version)
-    end
+    {core, suffix} = split_version_suffix(version)
+    add_trailing_semantic_version_zeros(core) <> suffix
   end
 
   @doc """
@@ -128,6 +120,13 @@ defmodule SwiftRegistry.Registry.KeyNormalizer do
     case Integer.parse(component) do
       {int, ""} -> Integer.to_string(int)
       _ -> component
+    end
+  end
+
+  defp split_version_suffix(version) do
+    case Regex.run(~r/^([^-+]+)(.*)$/, version, capture: :all_but_first) do
+      [core, suffix] -> {core, suffix}
+      _ -> {version, ""}
     end
   end
 

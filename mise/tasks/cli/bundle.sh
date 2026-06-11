@@ -78,6 +78,22 @@ build_cli() {
     mv $BINARY_PATH $BUILD_DIRECTORY/tuist
 }
 
+bundle_swift_runtime_libraries() {
+    VENDOR_DIRECTORY=$BUILD_DIRECTORY/vendor
+    mkdir -p "$VENDOR_DIRECTORY"
+
+    xcrun swift-stdlib-tool --copy \
+        --scan-executable "$BUILD_DIRECTORY/tuist" \
+        --scan-executable "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription" \
+        --platform macosx \
+        --destination "$VENDOR_DIRECTORY"
+
+    if find "$VENDOR_DIRECTORY" -type f -name "*.dylib" -print -quit | grep -q .; then
+        install_name_tool -add_rpath "@executable_path/vendor" "$BUILD_DIRECTORY/tuist"
+        install_name_tool -add_rpath "@loader_path/../../../vendor" "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription"
+    fi
+}
+
 echo "$(format_section "Building")"
 
 echo "$(format_subsection "Generating Xcode project")"
@@ -88,6 +104,9 @@ build_cli
 
 echo "$(format_subsection "Building ProjectDescription framework")"
 build_project_desscription
+
+echo "$(format_subsection "Bundling Swift runtime libraries")"
+bundle_swift_runtime_libraries
 
 echo "$(format_section "Copying assets")"
 
@@ -100,11 +119,16 @@ echo "$(format_section "Bundling")"
     cd $BUILD_DIRECTORY || exit 1
 
     echo "$(format_subsection "Signing")"
+    if [ -d vendor ]; then
+        find vendor -type f -name "*.dylib" -print0 | while IFS= read -r -d '' library; do
+            /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose "$library"
+        done
+    fi
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
     /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
-    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework
+    zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor
 
     RAW_JSON=$(xcrun notarytool submit "notarization-bundle.zip" \
         --apple-id "$APPLE_ID" \

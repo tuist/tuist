@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pomerium.fullname" . }}
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Recreate: memory-backed databroker means a rolling restart
+  # would briefly have two Pomeriums neither holding the other's
+  # sessions; cleaner to drop the old pod and bring up a new one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "pomerium.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pomerium.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Force pod recycle whenever the config or secret changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "pomerium.serviceAccountName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: pomerium
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --config=/etc/pomerium/config.yaml
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          # Pomerium reads config-key env vars WITHOUT a POMERIUM_
+          # prefix (the prefix is only for runtime knobs like
+          # POMERIUM_CONFIG). `idp_client_id` in the YAML config
+          # file corresponds to the IDP_CLIENT_ID env var, etc.
+          env:
+            - name: SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: SHARED_SECRET
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: COOKIE_SECRET
+            - name: IDP_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: IDP_CLIENT_ID
+            - name: IDP_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: IDP_CLIENT_SECRET
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pomerium
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        # kube-impersonator sidecar — see kube-impersonator/AGENTS.md
+        # for the architecture. Pomerium's route `to:` points at
+        # 127.0.0.1:{{ .Values.kubeImpersonator.port }} so every
+        # kubectl request flows through here on the way to the
+        # apiserver. SA token is auto-mounted by Kubernetes via the
+        # ServiceAccount; the sidecar reads it for the upstream
+        # Authorization header.
+        - name: kube-impersonator
+          image: "{{ .Values.kubeImpersonator.image.repository }}:{{ .Values.kubeImpersonator.image.tag }}"
+          imagePullPolicy: {{ .Values.kubeImpersonator.image.pullPolicy }}
+          env:
+            # 127.0.0.1 binding (not :PORT / 0.0.0.0) so the proxy
+            # is only reachable from same-pod loopback — Pomerium.
+            # If a pod on the cluster network could reach the pod
+            # IP on this port, it could spoof Host +
+            # X-Pomerium-Claim-Email and get the apiserver
+            # impersonation forwarded with the Pomerium pod SA.
+            - name: LISTEN_ADDR
+              value: "127.0.0.1:{{ .Values.kubeImpersonator.port }}"
+            # Pod-IP binding so kubelet probes can reach /healthz.
+            # No proxy mounted on this listener; only /healthz.
+            - name: HEALTH_ADDR
+              value: ":{{ .Values.kubeImpersonator.healthPort }}"
+          ports:
+            - name: imp-health
+              containerPort: {{ .Values.kubeImpersonator.healthPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: imp-health
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: imp-health
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.kubeImpersonator.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "pomerium.fullname" . }}-config

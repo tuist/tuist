@@ -62,7 +62,7 @@ docker run -d --name kura \
   -e KURA_INTERNAL_PORT=7443 \
   -e KURA_TENANT_ID=default \
   -e KURA_REGION=local \
-  -e KURA_TMP_DIR=/tmp/kura \
+  -e KURA_TMP_DIR=/var/cache/kura/tmp \
   -e KURA_DATA_DIR=/var/cache/kura \
   -e KURA_NODE_URL=http://kura-1.internal:7443 \
   -e KURA_PEERS=http://kura-1.internal:7443,http://kura-2.internal:7443 \
@@ -128,7 +128,8 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used by Kura peers. | Yes | No default | `peerTls.internalPort` |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | Yes | No default | `config.tenantId` |
 | `KURA_REGION` | Region label used in metrics and replication state. | Yes | No default | `config.region` |
-| `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/tmp/kura` |
+| `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/var/cache/kura/tmp` |
+| `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | No | `8589934592` | `config.tmpDirMaxBytes` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | Yes | No default | Fixed to `/var/cache/kura` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |

@@ -125,6 +125,28 @@ defmodule Tuist.Kura.ReconcilerTest do
              Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
   end
 
+  test "reapplies a succeeded server when the backing KuraInstance is missing" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+  end
+
   test "marks destroying servers destroyed after the KuraInstance disappears" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)
@@ -191,17 +213,17 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
   end
 
-  test "marks a first-time-deploy server :failed and reports to Sentry when the cluster is unreachable" do
+  test "marks a first-time-deploy server :failed and reports to Sentry when Kubernetes is unreachable" do
     {_account, server, deployment} = create_server()
 
     expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
       assert id == server.id
-      {:error, "missing Kubernetes kubeconfig for Kura cluster us-east-1"}
+      {:error, "Kubernetes API unavailable"}
     end)
 
     expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
       assert opts[:level] == :error
-      assert opts[:extra].reason == "missing Kubernetes kubeconfig for Kura cluster us-east-1"
+      assert opts[:extra].reason == "Kubernetes API unavailable"
       :ignored
     end)
 
@@ -209,7 +231,7 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Deployment{
              status: :failed,
-             error_message: "missing Kubernetes kubeconfig for Kura cluster us-east-1"
+             error_message: "Kubernetes API unavailable"
            } = Repo.get!(Deployment, deployment.id)
 
     assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)

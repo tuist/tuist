@@ -9,7 +9,6 @@ import TuistConstants
 import TuistCore
 import TuistGit
 import TuistSupport
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -128,6 +127,7 @@ struct CommandEventFactoryTests {
             ranAt: ranAt,
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: "https://cache.tuist.dev"
         )
         let expectedEvent = CommandEvent(
@@ -248,6 +248,7 @@ struct CommandEventFactoryTests {
             ranAt: ranAt,
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: "https://cache.tuist.dev"
         )
 
@@ -325,6 +326,7 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: ""
         )
 
@@ -371,6 +373,7 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: ""
         )
 
@@ -429,6 +432,7 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: ""
         )
 
@@ -484,6 +488,7 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: cacheEndpoint
         )
 
@@ -528,6 +533,7 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: ""
         )
 
@@ -551,11 +557,26 @@ struct CommandEventFactoryTests {
 }
 
 private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
-    var clientId: String { "123" }
-    var macOSVersion: String { "10.15.0" }
-    var swiftVersion: String { "5.1" }
-    var hardwareName: String { "arm64" }
-    var isCI: Bool { false }
+    var clientId: String {
+        "123"
+    }
+
+    var macOSVersion: String {
+        "10.15.0"
+    }
+
+    var swiftVersion: String {
+        "5.1"
+    }
+
+    var hardwareName: String {
+        "arm64"
+    }
+
+    var isCI: Bool {
+        false
+    }
+
     func modelIdentifier() -> String? {
         nil
     }

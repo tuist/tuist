@@ -7,7 +7,6 @@ import TuistHasher
 import TuistServer
 import XcodeGraph
 import XCTest
-
 @testable import TuistCacheEE
 @testable import TuistTesting
 
@@ -45,32 +44,34 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
     func test_map_when_sources_are_tests() async throws {
         let path = try temporaryPath()
-        let project = Project.test(path: path)
 
         // Given
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = GraphTarget.test(path: path, target: cFramework)
         let cHash = "C"
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bGraphTarget = GraphTarget.test(path: path, target: bFramework)
         let bHash = "B"
         let bXCFrameworkPath = path.appending(component: "B.xcframework")
 
         let bUnitTests = Target.test(name: "BTests", platform: .iOS, product: .unitTests)
-        let bUnitTestsGraphTarget = GraphTarget.test(path: path, target: bUnitTests)
-
         let cUnitTests = Target.test(name: "CTests", platform: .iOS, product: .unitTests)
-        let cUnitTestsGraphTarget = GraphTarget.test(path: path, target: cUnitTests)
+        let project = Project.test(path: path, targets: [
+            bFramework,
+            bUnitTests,
+            cFramework,
+            cUnitTests,
+        ])
+        let cGraphTarget = GraphTarget(path: path, target: cFramework, project: project)
+        let bGraphTarget = GraphTarget(path: path, target: bFramework, project: project)
 
         let inputGraph = Graph.test(
             name: "input",
             projects: [path: project],
             dependencies: [
-                .target(name: bUnitTests.name, path: bUnitTestsGraphTarget.path): [
+                .target(name: bUnitTests.name, path: path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
                 ],
-                .target(name: cUnitTests.name, path: cUnitTestsGraphTarget.path): [
+                .target(name: cUnitTests.name, path: path): [
                     .target(name: cFramework.name, path: cGraphTarget.path),
                 ],
             ]
@@ -247,6 +248,104 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             got,
             outputGraph
         )
+    }
+
+    func test_map_hashes_preserved_sources_graph_and_scopes_hashes_to_current_graph() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        subject = TargetsToCacheBinariesGraphMapper(
+            config: config,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            decider: CacheProfileTargetReplacementDecider(profile: .allPossible, exceptions: [.named("Focused")]),
+            configuration: "Debug",
+            cacheGraphMutator: cacheGraphMutator,
+            cacheStorage: cacheStorage
+        )
+
+        let focusedTarget = Target.test(name: "Focused", platform: .iOS, product: .app)
+        let currentDependency = Target.test(name: "Dependency", platform: .iOS, product: .framework)
+        let currentProject = Project.test(path: path, targets: [focusedTarget, currentDependency])
+        let currentDependencyGraphTarget = GraphTarget(path: path, target: currentDependency, project: currentProject)
+        let currentGraph = Graph.test(
+            name: "current",
+            projects: [path: currentProject],
+            dependencies: [
+                .target(name: focusedTarget.name, path: path): [
+                    .target(name: currentDependency.name, path: path),
+                ],
+            ]
+        )
+
+        let preservedDependency = Target.test(
+            name: "Dependency",
+            platform: .iOS,
+            product: .framework,
+            dependencies: [.target(name: "Other")]
+        )
+        let otherTarget = Target.test(name: "Other", platform: .iOS, product: .framework)
+        let preservedProject = Project.test(path: path, targets: [focusedTarget, preservedDependency, otherTarget])
+        let preservedDependencyGraphTarget = GraphTarget(path: path, target: preservedDependency, project: preservedProject)
+        let otherGraphTarget = GraphTarget(path: path, target: otherTarget, project: preservedProject)
+        let preservedGraph = Graph.test(
+            name: "preserved",
+            projects: [path: preservedProject],
+            dependencies: [
+                .target(name: focusedTarget.name, path: path): [
+                    .target(name: preservedDependency.name, path: path),
+                ],
+                .target(name: preservedDependency.name, path: path): [
+                    .target(name: otherTarget.name, path: path),
+                ],
+            ]
+        )
+
+        let contentHashes: [GraphTarget: TargetContentHash] = [
+            preservedDependencyGraphTarget: .test(hash: "dependency-hash"),
+            otherGraphTarget: .test(hash: "other-hash"),
+        ]
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .value(preservedGraph),
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
+            .willReturn(contentHashes)
+
+        let dependencyArtifactPath = try temporaryPath()
+        given(cacheStorage).fetch(
+            .value(
+                Set([
+                    CacheStorableItem(name: "Dependency", hash: "dependency-hash"),
+                ])
+            ), cacheCategory: .value(.binaries)
+        ).willReturn([
+            .test(name: "Dependency", hash: "dependency-hash"): dependencyArtifactPath,
+        ])
+
+        let outputGraph = Graph.test(name: "output", projects: currentGraph.projects, dependencies: currentGraph.dependencies)
+        given(cacheGraphMutator)
+            .map(
+                graph: .value(currentGraph),
+                precompiledArtifacts: .value([currentDependencyGraphTarget: dependencyArtifactPath]),
+                sources: .any,
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
+            )
+            .willReturn(outputGraph)
+
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = preservedGraph
+
+        // When
+        let (got, _, gotEnvironment) = try await subject.map(graph: currentGraph, environment: environment)
+
+        // Then
+        XCTAssertEqual(got, outputGraph)
+        XCTAssertEqual(gotEnvironment.initialGraphWithSources, preservedGraph)
     }
 
     /// Targets from the same package have the same hash as instead of hashing the targets individually, we use the package
@@ -507,13 +606,11 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
 
     func test_map_stores_subhashes_in_run_metadata_storage() async throws {
         let path = try temporaryPath()
-        let project = Project.test(path: path)
         let runMetadataStorage = RunMetadataStorage()
 
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             // Given
             let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-            let cGraphTarget = GraphTarget.test(path: path, target: cFramework, project: project)
             let cHash = "C-hash"
             let cSubhashes = TargetContentHashSubhashes.test(
                 sources: "c-sources",
@@ -521,7 +618,6 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             )
 
             let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-            let bGraphTarget = GraphTarget.test(path: path, target: bFramework, project: project)
             let bHash = "B-hash"
             let bSubhashes = TargetContentHashSubhashes.test(
                 sources: "b-sources",
@@ -529,7 +625,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             )
 
             let app = Target.test(name: "App", platform: .iOS, product: .app)
-            let appGraphTarget = GraphTarget.test(path: path, target: app, project: project)
+            let project = Project.test(path: path, targets: [app, bFramework, cFramework])
+            let cGraphTarget = GraphTarget(path: path, target: cFramework, project: project)
+            let bGraphTarget = GraphTarget(path: path, target: bFramework, project: project)
+            let appGraphTarget = GraphTarget(path: path, target: app, project: project)
 
             let inputGraph = Graph.test(
                 name: "input",

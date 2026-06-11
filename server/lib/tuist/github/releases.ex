@@ -38,9 +38,16 @@ defmodule Tuist.GitHub.Releases do
           [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
         end
 
-      case Enum.find(releases, fn release ->
-             not String.contains?(release["name"], "@")
-           end) do
+      # Pick the highest-semver CLI release, not the first one GitHub returns.
+      # The releases endpoint is ordered by publish date, so a backport patch
+      # (e.g. 4.192.1) published after a newer minor (4.195.0) would otherwise
+      # be mistaken for the latest. CLI tags are bare semver ("4.196.0") while
+      # component tags are scoped ("runners-controller@0.11.0") and don't parse
+      # as a Version, so Version.parse/1 also filters those out.
+      releases
+      |> Enum.filter(&match?({:ok, _}, Version.parse(&1["tag_name"] || "")))
+      |> Enum.max_by(&Version.parse!(&1["tag_name"]), Version, fn -> nil end)
+      |> case do
         nil -> nil
         release -> map_release(release)
       end
@@ -73,7 +80,11 @@ defmodule Tuist.GitHub.Releases do
 
   defp req_releases do
     headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
+    # Request the API max (100) on a single page so the highest-semver CLI
+    # release isn't pushed off the page by component releases or backports
+    # published after it (the list is ordered by publish date and we take the
+    # semver-max from whatever we fetch).
+    req_opts = [finch: Tuist.Finch, headers: headers, params: [per_page: 100]] ++ Retry.retry_options()
 
     case Req.get(releases_url(), req_opts) do
       {:ok, %Req.Response{status: 200, body: releases}} ->

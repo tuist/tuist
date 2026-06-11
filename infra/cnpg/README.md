@@ -1,6 +1,6 @@
 # CloudNativePG
 
-In-cluster Postgres operated by the [CloudNativePG](https://cloudnative-pg.io) operator. Replaces the Supabase-managed Postgres the managed deployment previously connected to.
+In-cluster Postgres operated by the [CloudNativePG](https://cloudnative-pg.io) operator. The managed deployment's primary datastore.
 
 The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.yaml`](../helm/tuist/templates/postgresql-cnpg.yaml)) owns instance count, storage, sync replication, role lifecycle, and the WAL archive. This directory holds the SQL files that grant per-table privileges that don't fit `managed.roles[].inRoles` — they run **once per fresh cluster bootstrap** as the cluster's superuser.
 
@@ -41,7 +41,29 @@ Each file ends with a sanity-check `SELECT … information_schema.role_table_gra
 
 ## Why not an Ecto migration
 
-Same three reasons as the old [`infra/supabase/`](../supabase/) directory — `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the future operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
+Three reasons: `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
+
+## Connection pooler (PgBouncer)
+
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It is a **transaction-mode pooler for the processor only**, matching the processor's `prepare: :unnamed` connection shape.
+
+### Why the web tier is not pooled
+
+The web pods run Oban, whose PG notifier (LISTEN/NOTIFY) and Postgres-peer leader election (session advisory locks) do not survive **transaction** pooling. They do survive **session** pooling, so the constraint is specifically transaction mode, not pooling in general.
+
+CNPG's `-rw` Service is already a native session endpoint with primary failover built in, so the web tier connects straight to it. Adding a session-mode PgBouncer in front would skip no work (session pooling holds ~one backend per client connection) and would duplicate what `-rw` already does. The web tier's connection budget is therefore sized at the cluster via `max_connections`, not by a pooler.
+
+### Activation
+
+No manual SQL bootstrap is needed. The chart's `Pooler` does not set custom certificate secrets, so CNPG's built-in PgBouncer integration manages authentication itself: on reconcile it creates the `cnpg_pooler_pgbouncer` role and the `user_search` lookup function in the **`postgres`** database, issues the pooler's TLS certificate, and configures PgBouncer with `auth_user = cnpg_pooler_pgbouncer` and `auth_dbname = postgres`. (Providing custom cert secrets would *disable* that built-in integration and hand you full responsibility for auth — so don't.)
+
+To activate:
+
+1. Set `postgresql.cnpg.pooler.enabled: true` in the env values and deploy.
+2. CNPG creates the `<cluster>-pooler-rw` Deployment + Service. Wait for the pooler pods to be Ready.
+3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
+
+There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
 
 ## Password rotation
 

@@ -1,0 +1,64 @@
+# Source-of-truth Slack app manifest for the "Tuist JIT" app that
+# fronts the JIT elevation flow (`/elevate`).
+#
+# Paste this YAML into:
+#   https://api.slack.com/apps → Tuist JIT → App Manifest →
+#   replace contents → Save Changes
+#
+# Slack diffs against the live config and applies the deltas; the
+# bot user, install state, and existing tokens are preserved
+# across manifest edits.
+#
+# Update this file when scopes or endpoint URLs change, then
+# re-apply via the same UI. Slack does not auto-pull from this
+# file — repo is documentation, console is the live state.
+
+display_information:
+  name: Tuist JIT
+  description: Just-in-time elevation for kubectl access to Tuist Kubernetes clusters
+  background_color: "#101010"
+
+features:
+  bot_user:
+    display_name: Tuist JIT
+    always_online: true
+
+  slash_commands:
+    - command: /elevate
+      url: https://ops.tuist.dev/webhooks/slack/slash
+      description: Request just-in-time elevation for a cluster
+      usage_hint: <env> [duration] <intent>
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      # Slash command + interactive callbacks
+      - commands
+      # Post + update approval cards in the approvals channel
+      - chat:write
+      # Allow posting to channels the bot isn't a member of (so
+      # approvals can land in #tailscale-jit-approvals without
+      # re-invite each time the bot reinstalls)
+      - chat:write.public
+      # Resolve Slack user id -> email for the policy gate
+      # (TuistOps.JIT.Policy reads the requester / approver's
+      # tailnet identity by email)
+      - users:read
+      - users:read.email
+
+settings:
+  interactivity:
+    is_enabled: true
+    request_url: https://ops.tuist.dev/webhooks/slack/interactive
+
+  # No `event_subscriptions:` block on purpose — the bot only
+  # receives slash commands + interactive payloads, no Events API
+  # at all. Slack rejects an empty event_subscriptions block when
+  # neither a request_url nor socket_mode_enabled is set, so we
+  # omit the key entirely.
+
+  # Default-deny on everything we don't actively need.
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
