@@ -2,6 +2,7 @@ import Command
 import Foundation
 import Mockable
 import Path
+import struct TSCUtility.Version
 import TuistAlert
 import TuistAutomation
 import TuistCache
@@ -23,9 +24,6 @@ import TuistXCResultService
 import XcodeGraph
 import XCResultParser
 import XCTest
-
-import struct TSCUtility.Version
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -381,7 +379,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_planning_flags_are_passed_without_build_only() async throws {
+    func test_throws_when_shard_planning_flags_are_passed_without_build_only() async {
         await XCTAssertThrowsSpecific(
             {
                 try await testRun(
@@ -394,7 +392,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_index_is_passed_without_without_building() async throws {
+    func test_throws_when_shard_index_is_passed_without_without_building() async {
         await XCTAssertThrowsSpecific(
             {
                 try await testRun(
@@ -407,7 +405,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_throws_when_shard_index_is_passed_without_full_handle() async throws {
+    func test_throws_when_shard_index_is_passed_without_full_handle() async {
         // Given
         given(configLoader)
             .loadConfig(path: .any)
@@ -843,7 +841,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(
                     project: .testGeneratedProject(),
                     fullHandle: "tuist/tuist",
-                    url: URL(string: "https://example.com")!
+                    url: try XCTUnwrap(URL(string: "https://example.com"))
                 )
             )
 
@@ -869,7 +867,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any,
                 configuration: .any
             )
-            .willReturn(URL(string: "https://tuist.dev/test")!)
+            .willReturn(try XCTUnwrap(URL(string: "https://tuist.dev/test")))
 
         // When
         try await testRun(
@@ -2576,6 +2574,175 @@ final class TestServiceTests: TuistUnitTestCase {
         // Then — only TargetA should be passed to xcodebuild, PrunedTarget should be filtered out
         XCTAssertEqual(testedSchemes, ["App-Workspace"])
         XCTAssertEqual(capturedTestTargets, [try TestIdentifier(target: "TargetA", class: nil)])
+    }
+
+    func test_run_skips_xcodebuild_when_all_requested_test_targets_are_pruned_from_scheme() async throws {
+        // Given
+        let projectPath = try temporaryPath().appending(component: "Project")
+        let scheme = Scheme.test(
+            name: "App-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: TargetReference(projectPath: projectPath, name: "TargetA")),
+                ]
+            )
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path,
+                    .test(
+                        projects: [
+                            projectPath: .test(
+                                path: projectPath,
+                                targets: [.test(name: "TargetA")],
+                                schemes: [scheme]
+                            ),
+                        ]
+                    ),
+                    MapperEnvironment()
+                )
+            }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            testTargets: [try .init(target: "PrunedTarget", class: nil)]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, [])
+    }
+
+    func test_run_without_scheme_uses_project_schemes_when_workspace_scheme_contains_hostless_unit_tests() async throws {
+        // Given
+        let appProjectPath = try temporaryPath().appending(component: "App")
+        let featureProjectPath = try temporaryPath().appending(component: "Feature")
+        let app = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+        let appTestsReference = TargetReference(projectPath: appProjectPath, name: appTests.name)
+        let featureTestsReference = TargetReference(projectPath: featureProjectPath, name: featureTests.name)
+        let appScheme = Scheme.test(
+            name: "App",
+            testAction: .test(targets: [.test(target: appTestsReference)])
+        )
+        let featureScheme = Scheme.test(
+            name: "Feature",
+            testAction: .test(targets: [.test(target: featureTestsReference)])
+        )
+        let workspaceScheme = Scheme.test(
+            name: "Sample-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: appTestsReference),
+                    .test(target: featureTestsReference),
+                ]
+            )
+        )
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app, appTests],
+            schemes: [appScheme]
+        )
+        let featureProject = Project.test(
+            path: featureProjectPath,
+            targets: [feature, featureTests],
+            schemes: [featureScheme]
+        )
+        let workspace = Workspace.test(
+            name: "Sample",
+            projects: [appProjectPath, featureProjectPath],
+            schemes: [workspaceScheme]
+        )
+        let graph = Graph.test(
+            workspace: workspace,
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [
+                .target(name: appTests.name, path: appProjectPath): [
+                    .target(name: app.name, path: appProjectPath),
+                ],
+                .target(name: featureTests.name, path: featureProjectPath): [
+                    .target(name: feature.name, path: featureProjectPath),
+                ],
+            ]
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, MapperEnvironment()) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([appScheme, featureScheme, workspaceScheme])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([workspaceScheme])
+
+        // When
+        try await testRun(path: try temporaryPath())
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["App", "Feature"])
+
+        // When
+        testedSchemes = []
+        try await testRun(
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(target: "FeatureTests", class: nil)]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["Feature"])
     }
 
     func test_run_skips_xcodebuild_when_passthrough_skip_testing_removes_all_selective_targets() async throws {
@@ -4678,7 +4845,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 .test(
                     project: .testGeneratedProject(),
                     fullHandle: "tuist/tuist",
-                    url: URL(string: "https://tuist.dev")!
+                    url: try XCTUnwrap(URL(string: "https://tuist.dev"))
                 )
             )
         given(xcodebuildController)
