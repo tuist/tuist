@@ -33,6 +33,19 @@ server:
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central
+    # Operator project-access grants. The public key is non-secret; its
+    # matching private key signs grants minted at ops.tuist.dev. This is a
+    # throwaway pair for the staging server-half e2e until the
+    # 1Password-managed key and Pomerium-fronted ops.tuist.dev land.
+    - name: TUIST_OPERATOR_GRANT_PUBLIC_KEY
+      value: |-
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAh2RLuH3uKcpF8PsVE8CJI4onfajexC5RB/0ldQEeSO4=
+        -----END PUBLIC KEY-----
+    - name: TUIST_OPERATOR_GRANT_AUDIENCE
+      value: tuist-server-staging
+    - name: TUIST_OPS_REASON_FORM_URL
+      value: https://ops.tuist.dev/grants/new
 
   appUrl: https://staging.tuist.dev
 
