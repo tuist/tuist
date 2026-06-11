@@ -2045,7 +2045,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         case let .device(udid):
             return "\(platform.xcodebuildPlatformDestination),id=\(udid)"
         case .mac:
-            return try await simulatorController.macOSDestination()
+            return try await simulatorController.macOSDestination(catalyst: false)
         case .macCatalyst:
             return try await simulatorController.macOSDestination(catalyst: true)
         }
