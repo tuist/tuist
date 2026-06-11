@@ -36,8 +36,10 @@ only — they are intentionally not part of the generated CLI client.
 
 ## Build & test
 
-- Backend: `mage -v` (build), `go test ./...` (unit tests). The Go module is part
-  of the repo `go.work`.
+- Backend: `mage -v` (build), `go test ./...` (unit tests). The plugin has its
+  own `go.work` (`use .`), intentionally separate from the repo-root infra
+  workspace, so it tracks the latest `grafana-plugin-sdk-go` + go 1.26.3 without
+  forcing those versions onto the infra controllers.
 - Frontend: `npm install` then `npm run typecheck` / `npm run lint` /
   `npm run build` (outputs `dist/`). Node is pinned to 24 via `mise.toml`. The
   `.config/` harness is committed and managed by `@grafana/create-plugin` —
@@ -49,19 +51,17 @@ only — they are intentionally not part of the generated CLI client.
   multi-platform Go binaries, signs (when `GRAFANA_ACCESS_POLICY_TOKEN` is set),
   validates, and (on a `grafana-datasource-v*` tag) publishes a GitHub release
   with the zip + SHA1 for catalog submission.
-- Catalog readiness was checked with `@grafana/plugin-validator`. Outstanding
-  item: the validator wants the **latest** `grafana-plugin-sdk-go` (clears the
-  "SDK older than 5 months" check and the grpc/otel CVEs). The latest SDK cannot
-  be adopted from inside this monorepo for two reasons, both verified:
-  1. It requires **go 1.26.3**, so `go.work` would have to move off go 1.25.
-  2. Even on go 1.26, it pulls newer k8s/transitive deps (e.g. structured-merge-diff
-     v6, newer grpc) that the shared `go.work` then forces onto every module via
-     MVS, which breaks the infra controllers' build (the `infra/tart-kubelet`
-     build fails with a `structured-merge-diff` v4-vs-v6 type error).
-  So the SDK update requires an **isolated module graph** — extract this plugin
-  into its own repository (also the cleaner home for the release/signing cadence)
-  before submitting to the catalog. This is a pre-submission step, not in-monorepo
-  development. The plugin builds and works on the pinned v0.250.0 + go 1.25 today.
+- Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
+  the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
+  which clears the validator's "SDK older than 5 months" check and the
+  grpc/otel/kin-openapi CVEs. The latest SDK pulls k8s app-platform deps; those
+  stay inside this plugin's workspace and do not reach the infra controllers —
+  the reason the plugin is deliberately not in the repo-root `go.work`.
+- Remaining validator notes are non-blocking: a `serialize-javascript` advisory
+  in a webpack build-time dep (not shipped; refreshed by `create-plugin update`),
+  and a "Go manifest not found" line that is an artifact of running the validator
+  locally with a `file://` source URI — it resolves when submitting with the
+  public repo URL.
 
 ## Conventions
 
