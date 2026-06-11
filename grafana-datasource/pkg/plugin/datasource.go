@@ -83,8 +83,8 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	// confirm the read scopes — otherwise a token missing project:builds:read /
 	// project:tests:read reports healthy while every panel query fails with 403.
 	project := projects[0].FullName
-	_, buildErr := d.client.schemes(ctx, entityBuilds, project)
-	_, testErr := d.client.schemes(ctx, entityTests, project)
+	_, buildErr := d.client.dimensionValues(ctx, entityBuilds, "scheme", project)
+	_, testErr := d.client.dimensionValues(ctx, entityTests, "scheme", project)
 
 	switch {
 	case buildErr != nil && testErr != nil:
@@ -118,23 +118,20 @@ func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResource
 		}
 		return sendJSON(sender, http.StatusOK, projects)
 
-	case "schemes":
+	case "dimension-values":
 		entity, err := normalizeEntity(query.Get("entity"))
 		if err != nil {
 			return sendJSON(sender, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
-		schemes, err := d.client.schemes(ctx, entity, query.Get("project"))
+		dimension := query.Get("dimension")
+		if dimension == "" {
+			return sendJSON(sender, http.StatusBadRequest, map[string]string{"error": "missing dimension"})
+		}
+		values, err := d.client.dimensionValues(ctx, entity, dimension, query.Get("project"))
 		if err != nil {
 			return sendJSON(sender, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		}
-		return sendJSON(sender, http.StatusOK, schemes)
-
-	case "configurations":
-		configurations, err := d.client.configurations(ctx, query.Get("project"))
-		if err != nil {
-			return sendJSON(sender, http.StatusBadGateway, map[string]string{"error": err.Error()})
-		}
-		return sendJSON(sender, http.StatusOK, configurations)
+		return sendJSON(sender, http.StatusOK, values)
 
 	default:
 		return sendJSON(sender, http.StatusNotFound, map[string]string{"error": "unknown resource"})

@@ -18,10 +18,9 @@ defmodule TuistWeb.API.MetricsController do
 
   plug(TuistWeb.Plugs.LoaderPlug)
 
-  plug AuthorizationPlug,
-       :build when action in [:build_duration, :build_schemes, :build_configurations]
+  plug AuthorizationPlug, :build when action in [:build_duration, :build_dimension_values]
 
-  plug AuthorizationPlug, :test when action in [:test_duration, :test_schemes]
+  plug AuthorizationPlug, :test when action in [:test_duration, :test_dimension_values]
 
   tags ["Metrics"]
 
@@ -128,73 +127,71 @@ defmodule TuistWeb.API.MetricsController do
     end
   end
 
-  operation(:build_schemes,
-    summary: "List the schemes seen in a project's recent build runs.",
-    operation_id: "buildMetricSchemes",
+  operation(:build_dimension_values,
+    summary: "List the values seen for a build filter dimension.",
+    operation_id: "buildMetricDimensionValues",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
-      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."],
+      dimension: [
+        in: :path,
+        type: %Schema{type: :string, enum: ["scheme", "configuration"]},
+        required: true,
+        description: "The build dimension to list values for."
+      ]
     ],
     responses: %{
       ok:
-        {"Build schemes", "application/json",
+        {"Dimension values", "application/json",
          %Schema{
            type: :object,
-           required: [:schemes],
-           properties: %{schemes: %Schema{type: :array, items: %Schema{type: :string}}}
+           required: [:values],
+           properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}}
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def build_schemes(%{assigns: %{selected_project: project}} = conn, _params) do
-    json(conn, %{schemes: Builds.project_build_schemes(project)})
+  def build_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
+    case dimension do
+      "scheme" -> json(conn, %{values: Builds.project_build_schemes(project)})
+      "configuration" -> json(conn, %{values: Builds.project_build_configurations(project)})
+      _ -> bad_request(conn, "Unknown build dimension: #{dimension}.")
+    end
   end
 
-  operation(:build_configurations,
-    summary: "List the configurations seen in a project's recent build runs.",
-    operation_id: "buildMetricConfigurations",
+  operation(:test_dimension_values,
+    summary: "List the values seen for a test filter dimension.",
+    operation_id: "testMetricDimensionValues",
     parameters: [
       account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
-      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."],
+      dimension: [
+        in: :path,
+        type: %Schema{type: :string, enum: ["scheme"]},
+        required: true,
+        description: "The test dimension to list values for."
+      ]
     ],
     responses: %{
       ok:
-        {"Build configurations", "application/json",
+        {"Dimension values", "application/json",
          %Schema{
            type: :object,
-           required: [:configurations],
-           properties: %{configurations: %Schema{type: :array, items: %Schema{type: :string}}}
+           required: [:values],
+           properties: %{values: %Schema{type: :array, items: %Schema{type: :string}}}
          }},
+      bad_request: {"The request was invalid", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def build_configurations(%{assigns: %{selected_project: project}} = conn, _params) do
-    json(conn, %{configurations: Builds.project_build_configurations(project)})
-  end
-
-  operation(:test_schemes,
-    summary: "List the schemes seen in a project's recent test runs.",
-    operation_id: "testMetricSchemes",
-    parameters: [
-      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
-      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."]
-    ],
-    responses: %{
-      ok:
-        {"Test schemes", "application/json",
-         %Schema{
-           type: :object,
-           required: [:schemes],
-           properties: %{schemes: %Schema{type: :array, items: %Schema{type: :string}}}
-         }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
-    }
-  )
-
-  def test_schemes(%{assigns: %{selected_project: project}} = conn, _params) do
-    json(conn, %{schemes: Tests.project_test_schemes(project)})
+  def test_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
+    case dimension do
+      "scheme" -> json(conn, %{values: Tests.project_test_schemes(project)})
+      _ -> bad_request(conn, "Unknown test dimension: #{dimension}.")
+    end
   end
 
   defp bad_request(conn, message) do

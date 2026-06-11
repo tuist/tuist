@@ -107,26 +107,15 @@ func (c *tuistClient) projects(ctx context.Context) ([]project, error) {
 	return out.Projects, nil
 }
 
-func (c *tuistClient) schemes(ctx context.Context, entity, projectHandle string) ([]string, error) {
+func (c *tuistClient) dimensionValues(ctx context.Context, entity, dimension, projectHandle string) ([]string, error) {
 	var out struct {
-		Schemes []string `json:"schemes"`
+		Values []string `json:"values"`
 	}
-	path := fmt.Sprintf("/api/projects/%s/%s/metrics/schemes", projectHandle, entity)
+	path := fmt.Sprintf("/api/projects/%s/%s/metrics/dimensions/%s/values", projectHandle, entity, dimension)
 	if err := c.get(ctx, path, nil, &out); err != nil {
 		return nil, err
 	}
-	return out.Schemes, nil
-}
-
-func (c *tuistClient) configurations(ctx context.Context, projectHandle string) ([]string, error) {
-	var out struct {
-		Configurations []string `json:"configurations"`
-	}
-	path := fmt.Sprintf("/api/projects/%s/builds/metrics/configurations", projectHandle)
-	if err := c.get(ctx, path, nil, &out); err != nil {
-		return nil, err
-	}
-	return out.Configurations, nil
+	return out.Values, nil
 }
 
 func firstNonEmpty(values ...string) string {

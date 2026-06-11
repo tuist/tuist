@@ -18,18 +18,11 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
     return this.getResource('projects');
   }
 
-  async getSchemes(entity: 'builds' | 'tests', project: string): Promise<string[]> {
+  async getDimensionValues(entity: 'builds' | 'tests', dimension: string, project: string): Promise<string[]> {
     if (!project) {
       return [];
     }
-    return this.getResource('schemes', { entity, project });
-  }
-
-  async getConfigurations(project: string): Promise<string[]> {
-    if (!project) {
-      return [];
-    }
-    return this.getResource('configurations', { project });
+    return this.getResource('dimension-values', { entity, dimension, project });
   }
 
   filterQuery(query: TuistQuery): boolean {
@@ -61,11 +54,11 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
       case 'projects':
         return (await this.getProjects()).map((p) => ({ text: p.full_name, value: p.full_name }));
       case 'buildSchemes':
-        return toValues(await this.getSchemes('builds', project));
+        return toValues(await this.getDimensionValues('builds', 'scheme', project));
       case 'testSchemes':
-        return toValues(await this.getSchemes('tests', project));
+        return toValues(await this.getDimensionValues('tests', 'scheme', project));
       case 'configurations':
-        return toValues(await this.getConfigurations(project));
+        return toValues(await this.getDimensionValues('builds', 'configuration', project));
       default:
         return [];
     }

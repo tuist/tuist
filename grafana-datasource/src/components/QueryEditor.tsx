@@ -43,7 +43,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   useEffect(() => {
     let active = true;
     datasource
-      .getSchemes(entity, query.projectHandle ?? '')
+      .getDimensionValues(entity, 'scheme', query.projectHandle ?? '')
       .then((items) => {
         if (active) {
           setSchemes(items.map((s) => ({ label: s, value: s })));
@@ -63,7 +63,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     let active = true;
     const load =
       entity === 'builds' && query.projectHandle
-        ? datasource.getConfigurations(query.projectHandle)
+        ? datasource.getDimensionValues('builds', 'configuration', query.projectHandle)
         : Promise.resolve<string[]>([]);
     load
       .then((items) => {

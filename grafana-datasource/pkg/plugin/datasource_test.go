@@ -52,19 +52,19 @@ func TestCallResourceDispatchesOnPath(t *testing.T) {
 	}
 }
 
-func TestCallResourceSchemesUsesQueryParams(t *testing.T) {
+func TestCallResourceDimensionValuesUsesQueryParams(t *testing.T) {
 	var gotPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		_, _ = w.Write([]byte(`{"schemes":["App"]}`))
+		_, _ = w.Write([]byte(`{"values":["App"]}`))
 	}))
 	defer server.Close()
 
 	sender := &captureSender{}
 	req := &backend.CallResourceRequest{
 		Method: http.MethodGet,
-		Path:   "schemes",
-		URL:    "plugins/tuist-metrics-datasource/resources/schemes?entity=tests&project=acme/app",
+		Path:   "dimension-values",
+		URL:    "plugins/tuist-metrics-datasource/resources/dimension-values?entity=tests&dimension=scheme&project=acme/app",
 	}
 	if err := testDatasource(server).CallResource(context.Background(), req, sender); err != nil {
 		t.Fatalf("CallResource error: %v", err)
@@ -72,8 +72,8 @@ func TestCallResourceSchemesUsesQueryParams(t *testing.T) {
 	if sender.resp.Status != http.StatusOK {
 		t.Fatalf("expected 200, got %d", sender.resp.Status)
 	}
-	if gotPath != "/api/projects/acme/app/tests/metrics/schemes" {
-		t.Fatalf("expected the test schemes path from query params, got %q", gotPath)
+	if gotPath != "/api/projects/acme/app/tests/metrics/dimensions/scheme/values" {
+		t.Fatalf("expected the test scheme-values path from query params, got %q", gotPath)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestCheckHealthErrorsWhenMetricScopesMissing(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/projects":
 			_, _ = w.Write([]byte(`{"projects":[{"full_name":"acme/app"}]}`))
-		case strings.HasSuffix(r.URL.Path, "/metrics/schemes"):
+		case strings.HasSuffix(r.URL.Path, "/metrics/dimensions/scheme/values"):
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
 		default:
@@ -107,8 +107,8 @@ func TestCheckHealthOKWhenScopesPresent(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/projects":
 			_, _ = w.Write([]byte(`{"projects":[{"full_name":"acme/app"}]}`))
-		case strings.HasSuffix(r.URL.Path, "/metrics/schemes"):
-			_, _ = w.Write([]byte(`{"schemes":["App"]}`))
+		case strings.HasSuffix(r.URL.Path, "/metrics/dimensions/scheme/values"):
+			_, _ = w.Write([]byte(`{"values":["App"]}`))
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

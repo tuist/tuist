@@ -23,7 +23,7 @@ authorized for account tokens via `project:builds:read` / `project:tests:read`
 - `GET /builds/metrics/duration?from&to&is_ci&scheme&configuration&category&status`
 - `GET /tests/metrics/duration?from&to&is_ci&scheme`
   - Response (`DurationMetrics`): `{ dates: [unix_seconds], average:{values,total}, p50:{…}, p90:{…}, p99:{…}, trend }`, durations in milliseconds.
-- `GET /builds/metrics/schemes`, `GET /builds/metrics/configurations`, `GET /tests/metrics/schemes` → `{ schemes | configurations: [string] }`.
+- `GET /builds/metrics/dimensions/{dimension}/values` (dimension: `scheme` | `configuration`) and `GET /tests/metrics/dimensions/{dimension}/values` (dimension: `scheme`) → `{ values: [string] }`. Prometheus-style metadata endpoint backing the filter dropdowns; the plugin proxies it via the `dimension-values` resource.
 - `GET /api/projects` (account-level) → `{ projects: [{ full_name: "account/project" }] }` — backs the project dropdown.
 
 `from`/`to` are Unix seconds taken from Grafana's panel time range. The server
@@ -56,7 +56,10 @@ only — they are intentionally not part of the generated CLI client.
   `grafana-datasource@x.y.z`, and publishes a GitHub release with the zip + SHA1 for
   catalog submission. The release only tags + publishes — it never commits to `main`.
 - `CHANGELOG.md` is git-cliff-generated at release time (into the dist) and is
-  **not committed** — it's gitignored. Don't add it back to the repo.
+  **not committed** — it's gitignored. Don't add it back to the repo. The webpack
+  copy step requires the file to exist, so the `ensure:changelog` prebuild hook
+  writes a stub when it's absent (the release generates the real one first, so the
+  stub only ever appears in local/CI builds).
 - Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
   the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
   which clears the validator's "SDK older than 5 months" check and the

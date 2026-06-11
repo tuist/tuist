@@ -151,31 +151,43 @@ defmodule TuistWeb.API.MetricsControllerTest do
     end
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/builds/metrics/schemes" do
+  describe "GET /api/projects/:account_handle/:project_handle/builds/metrics/dimensions/:dimension/values" do
     test "returns the project's recent build schemes", %{conn: conn, user: user, project: project} do
       RunsFixtures.build_fixture(project_id: project.id, scheme: "App")
 
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/schemes")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/dimensions/scheme/values")
 
-      assert %{"schemes" => schemes} = json_response(conn, 200)
-      assert "App" in schemes
+      assert %{"values" => values} = json_response(conn, 200)
+      assert "App" in values
+    end
+
+    test "returns the project's recent build configurations", %{conn: conn, user: user, project: project} do
+      RunsFixtures.build_fixture(project_id: project.id, configuration: "Debug")
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/dimensions/configuration/values")
+
+      assert %{"values" => values} = json_response(conn, 200)
+      assert "Debug" in values
     end
   end
 
-  describe "GET /api/projects/:account_handle/:project_handle/tests/metrics/schemes" do
+  describe "GET /api/projects/:account_handle/:project_handle/tests/metrics/dimensions/:dimension/values" do
     test "returns the project's recent test schemes", %{conn: conn, user: user, project: project} do
       RunsFixtures.test_fixture(project_id: project.id, scheme: "AppTests")
 
       conn =
         conn
         |> Authentication.put_current_user(user)
-        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/metrics/schemes")
+        |> get(~p"/api/projects/#{project.account.name}/#{project.name}/tests/metrics/dimensions/scheme/values")
 
-      assert %{"schemes" => schemes} = json_response(conn, 200)
-      assert "AppTests" in schemes
+      assert %{"values" => values} = json_response(conn, 200)
+      assert "AppTests" in values
     end
   end
 end

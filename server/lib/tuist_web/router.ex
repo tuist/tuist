@@ -553,7 +553,7 @@ defmodule TuistWeb.Router do
 
           scope "/metrics" do
             get "/duration", MetricsController, :test_duration
-            get "/schemes", MetricsController, :test_schemes
+            get "/dimensions/:dimension/values", MetricsController, :test_dimension_values
           end
 
           scope "/test-cases" do
@@ -602,8 +602,7 @@ defmodule TuistWeb.Router do
 
           scope "/metrics" do
             get "/duration", MetricsController, :build_duration
-            get "/schemes", MetricsController, :build_schemes
-            get "/configurations", MetricsController, :build_configurations
+            get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
           end
 
           get "/:build_id", BuildsController, :show

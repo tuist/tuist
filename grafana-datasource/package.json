@@ -2,8 +2,9 @@
   "name": "tuist-metrics-datasource",
   "version": "0.1.0",
   "scripts": {
-    "build": "webpack -c ./.config/webpack/webpack.config.ts --env production",
-    "dev": "webpack -w -c ./.config/webpack/webpack.config.ts --env development",
+    "ensure:changelog": "node -e \"const fs=require('fs');fs.existsSync('CHANGELOG.md')||fs.writeFileSync('CHANGELOG.md','# Changelog\\n')\"",
+    "build": "npm run ensure:changelog && webpack -c ./.config/webpack/webpack.config.ts --env production",
+    "dev": "npm run ensure:changelog && webpack -w -c ./.config/webpack/webpack.config.ts --env development",
     "test": "jest --watch --onlyChanged",
     "test:ci": "jest --passWithNoTests --maxWorkers 4",
     "typecheck": "tsc --noEmit",
