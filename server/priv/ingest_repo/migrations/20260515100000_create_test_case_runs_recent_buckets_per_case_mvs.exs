@@ -22,6 +22,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
   @disable_migration_lock true
 
   @window_sizes [100, 250, 500, 750]
+  @historical_backfill_window_sizes [100, 250]
   @max_window_size 1000
   @project_chunk_size 25
   @chunk_throttle_ms 100
@@ -31,7 +32,16 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
       IngestRepo.query!("DROP VIEW IF EXISTS #{mv(window_size)}")
       IngestRepo.query!("DROP TABLE IF EXISTS #{table_name(window_size)}")
       create_table(window_size)
-      backfill_from_recent_per_case(window_size)
+
+      if window_size in @historical_backfill_window_sizes do
+        backfill_from_recent_per_case(window_size)
+      else
+        Logger.info(
+          "Skipping historical backfill for #{table_name(window_size)}; " <>
+            "the materialized view will populate it with new test case runs"
+        )
+      end
+
       create_materialized_view(window_size)
     end
   end
