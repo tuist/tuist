@@ -310,7 +310,7 @@ jobs:
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
     needs: [gate, canary]
-    runs-on: tuist-macos
+    runs-on: tuist-macos-26-3
     timeout-minutes: 15
     environment: server-k8s-canary
     permissions:
