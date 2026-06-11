@@ -89,8 +89,18 @@ jobs:
           if [ -z "$LATEST_VERSION" ]; then
             LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
           fi
+          INCLUDE_PATHS=(
+            --include-path "cli/**/*"
+            --include-path "mise/tasks/cli/**/*"
+            --include-path "mise/tasks/release/components.json"
+            --include-path ".github/workflows/cli-release.yml"
+            --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".xcode-version-releases"
+            --include-path "Package.swift"
+            --include-path "Package.resolved"
+          )
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Update version in Constants.swift
@@ -103,7 +113,18 @@ jobs:
         # --bump. Full-history --bump can't anchor on CLI tags that landed on
         # non-cli commits (it filters them out), so it froze the top heading at
         # an old version while real releases advanced.
-        run: git cliff --include-path "cli/**/*" --include-path ".xcode-version-releases" --include-path "Package.swift" --include-path "Package.resolved" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
+        run: |
+          INCLUDE_PATHS=(
+            --include-path "cli/**/*"
+            --include-path "mise/tasks/cli/**/*"
+            --include-path "mise/tasks/release/components.json"
+            --include-path ".github/workflows/cli-release.yml"
+            --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".xcode-version-releases"
+            --include-path "Package.swift"
+            --include-path "Package.resolved"
+          )
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
         run: mise run --no-deps cli:bundle
