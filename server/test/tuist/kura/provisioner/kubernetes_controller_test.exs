@@ -471,6 +471,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       }
     }
   end
+
   describe "manifest/6 for a private runner-cache region" do
     test "marks the instance private and omits public/ingress fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
@@ -521,5 +522,4 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       }
     }
   end
-
 end
