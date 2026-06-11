@@ -49,3 +49,6 @@ ci/
 
 # Go backend build artifacts
 /gpx_*
+
+# git-cliff-generated at release time; not committed to main
+CHANGELOG.md

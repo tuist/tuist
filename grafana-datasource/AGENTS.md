@@ -54,7 +54,9 @@ only — they are intentionally not part of the generated CLI client.
   are releasable commits — stamps the version, builds the frontend + multi-platform Go
   binaries, signs (when `GRAFANA_ACCESS_POLICY_TOKEN` is set), validates, tags
   `grafana-datasource@x.y.z`, and publishes a GitHub release with the zip + SHA1 for
-  catalog submission. `CHANGELOG.md` is git-cliff-generated — do not hand-edit it.
+  catalog submission. The release only tags + publishes — it never commits to `main`.
+- `CHANGELOG.md` is git-cliff-generated at release time (into the dist) and is
+  **not committed** — it's gitignored. Don't add it back to the repo.
 - Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
   the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
   which clears the validator's "SDK older than 5 months" check and the
