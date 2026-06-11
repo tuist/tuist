@@ -1944,7 +1944,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
             let destinationVersion = xcodebuildDestinationParameter("OS", in: explicitDestination)?.version() ?? version
-            return try await concreteShardPlanDestination(
+            return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
                 platform: simulatorPlatform,
                 version: destinationVersion,
@@ -1955,40 +1955,50 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         if let platform {
             let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
-            return try await concreteShardPlanDestination(
+            return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
                 platform: buildPlatform,
                 version: version,
                 deviceName: deviceName,
                 graphTraverser: graphTraverser
-            )
+            ) ?? buildPlatform.xcodebuildPlatformDestination
         }
 
-        for scheme in schemes {
-            guard let target = buildGraphInspector.testableTarget(
-                scheme: scheme,
-                testPlan: nil,
-                testTargets: [],
-                skipTestTargets: [],
-                graphTraverser: graphTraverser,
-                action: .build
-            ) else { continue }
+        if let inferredDestination = inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser) {
+            guard let inferredPlatform = xcodebuildPlatform(from: inferredDestination) else {
+                return inferredDestination
+            }
 
-            guard let resolvedPlatform = target.target.destinations.first?.platform,
-                  target.target.destinations.platforms.count == 1
-            else { continue }
+            return await concreteShardPlanDestinationIfAvailable(
+                schemes: schemes,
+                platform: inferredPlatform,
+                version: version,
+                deviceName: deviceName,
+                graphTraverser: graphTraverser
+            ) ?? inferredDestination
+        }
 
-            return try await xcodebuildDestination(
-                for: target,
-                scheme: scheme,
-                platform: resolvedPlatform,
+        return nil
+    }
+
+    private func concreteShardPlanDestinationIfAvailable(
+        schemes: [Scheme],
+        platform: XcodeGraph.Platform,
+        version: Version?,
+        deviceName: String?,
+        graphTraverser: GraphTraversing
+    ) async -> String? {
+        do {
+            return try await concreteShardPlanDestination(
+                schemes: schemes,
+                platform: platform,
                 version: version,
                 deviceName: deviceName,
                 graphTraverser: graphTraverser
             )
+        } catch {
+            return nil
         }
-
-        return nil
     }
 
     private func concreteShardPlanDestination(
@@ -2052,9 +2062,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func simulatorPlatform(from destination: String) -> XcodeGraph.Platform? {
+        guard let platform = xcodebuildPlatform(from: destination), platform != .macOS else { return nil }
+        return platform
+    }
+
+    private func xcodebuildPlatform(from destination: String) -> XcodeGraph.Platform? {
         switch xcodebuildDestinationParameter("platform", in: destination)?.lowercased() {
         case "ios simulator":
             return .iOS
+        case "macos":
+            return .macOS
         case "tvos simulator":
             return .tvOS
         case "watchos simulator":
@@ -2080,7 +2097,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             guard pair.count == 2 else { continue }
 
             let key = pair[0].lowercased()
-            if key == expectedKey || key.hasSuffix("/\(expectedKey)") {
+            if key == expectedKey {
                 return pair[1]
             }
         }
