@@ -33,12 +33,22 @@ postgresql:
   owner: tuist_ops
   image:
     repository: ghcr.io/cloudnative-pg/postgresql
-    tag: "16.4"
+    tag: "16.6"
+  parameters:
+    max_connections: "40"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
   backup:
     enabled: true
-    # Tuist-wide CNPG backup bucket; tuist-ops gets its own prefix.
-    destinationPath: s3://tuist-cnpg-backups/tuist-ops
-    endpointURL: https://fly.storage.tigris.dev
+    # Production CNPG backup bucket; tuist-ops gets its own prefix
+    # while reusing the production S3_BACKUP_CREDENTIALS item.
+    destinationPath: s3://tuist-prod-pg-backups/tuist-ops
+    endpointURL: https://t3.storage.dev
     retentionPolicy: "30d"
     # Credentials are ESO-synced from the shared
     # `S3_BACKUP_CREDENTIALS` 1P item — same one the main Tuist
@@ -108,12 +118,12 @@ podAnnotations: {}
 
 probes:
   startup:
-    path: /api/v1/healthz
+    path: /api/v1/readyz
     initialDelaySeconds: 5
     periodSeconds: 5
     failureThreshold: 24
   readiness:
-    path: /api/v1/healthz
+    path: /api/v1/readyz
     initialDelaySeconds: 5
     periodSeconds: 10
     failureThreshold: 3
