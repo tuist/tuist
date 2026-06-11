@@ -10,6 +10,15 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 )
 
+type captureSender struct {
+	resp *backend.CallResourceResponse
+}
+
+func (c *captureSender) Send(r *backend.CallResourceResponse) error {
+	c.resp = r
+	return nil
+}
+
 func testDatasource(server *httptest.Server) *Datasource {
 	return &Datasource{client: &tuistClient{baseURL: server.URL, http: server.Client()}}
 }
