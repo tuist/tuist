@@ -29,7 +29,10 @@ defmodule TuistWeb.RunnersController do
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id} = claim} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id, Map.get(claim, :fleet_platform)))
+      json(
+        conn,
+        dispatch_response(jit, account, workflow_job_id, Map.get(claim, :fleet_on_cluster_network, false))
+      )
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -134,19 +137,21 @@ defmodule TuistWeb.RunnersController do
   # (non-runner-cache accounts), the Pod falls back to normal
   # server-side cache resolution.
   #
-  # Linux pools only: the URL is a `*.svc.cluster.local` address that
-  # only Pods on the cluster CNI can reach. macOS pools run Tart VMs on
-  # vmnet, where the override would be unreachable — and clients treat
+  # Only fleets on the cluster pod network get the URL: it's a
+  # `*.svc.cluster.local` address, and clients treat
   # `TUIST_CACHE_ENDPOINT` as a hard override rather than a hint, so
-  # handing it out would break caching instead of degrading it.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_platform) do
+  # handing it to a runtime that can't reach it (today: macOS Tart VMs
+  # on vmnet) breaks caching instead of degrading it. The capability
+  # lives in `Catalog.fleet_on_cluster_network?/1` — macOS is excluded
+  # by its current runtime, not by policy.
+  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
       workflow_job_id: workflow_job_id
     }
 
-    with :linux <- fleet_platform,
+    with true <- fleet_on_cluster_network,
          url when is_binary(url) and url != "" <- Tuist.Kura.runner_cache_endpoint_url(account) do
       Map.put(base, :cache_endpoint_url, url)
     else

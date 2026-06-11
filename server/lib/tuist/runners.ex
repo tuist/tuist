@@ -237,7 +237,7 @@ defmodule Tuist.Runners do
              account: account,
              runner_name: runner_name,
              workflow_job_id: candidate.workflow_job_id,
-             fleet_platform: Catalog.fleet_platform(fleet_name)
+             fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name)
            }}
         else
           {:error, reason} = err ->
