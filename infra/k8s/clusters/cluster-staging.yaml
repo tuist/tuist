@@ -69,11 +69,11 @@ spec:
         # flag-enabled account, so demand varies with the dev-account
         # population: autoscale like the production pools instead of
         # pinning the size (see `autoscaling.tuist.dev/group` discovery
-        # in `infra/k8s/mgmt/cluster-autoscaler.yaml`). `replicas` is
-        # ignored once the autoscaler owns the group.
+        # in `infra/k8s/mgmt/cluster-autoscaler.yaml`). `replicas` must
+        # stay unset: CAPI rejects a MachineDeploymentTopology that
+        # pins replicas while carrying autoscaler annotations.
         - class: hcloud-worker
           name: kura
-          replicas: 3
           failureDomain: fsn1
           healthCheck:
             checks:
