@@ -365,7 +365,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "re-arms a cleared test case but withholds recovery actions when recovery is disabled" do
+  test "re-arms a cleared test case immediately, without recovery actions, when recovery is disabled" do
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: false,
@@ -375,14 +375,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     recovered_id = Ecto.UUID.generate()
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [recovered_id]}
+      %{triggered: []}
     end)
 
-    # Triggered long enough ago to clear the default 14d re-arm dwell.
-    triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)
+    # Just triggered — with recovery off there is no dwell, so it re-arms as
+    # soon as the condition clears, no matter how recent the trigger is.
+    triggered_just_now = NaiveDateTime.utc_now()
 
     expect(Automations, :list_active_alert_events, fn _id ->
-      [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
+      [%{test_case_id: recovered_id, triggered_at: triggered_just_now}]
     end)
 
     # The opt-in undo actions are withheld (empty list) even though the alert
@@ -392,7 +393,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       :ok
     end)
 
-    # Re-arm bookkeeping still happens so the alert can fire again later.
+    # Re-arm bookkeeping happens so the alert can fire again later.
     expect(Automations, :create_alert_event, fn %{
                                                   alert_id: id,
                                                   test_case_id: ^recovered_id,
@@ -405,33 +406,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "does not re-arm a cleared test case until the dwell elapses, even with recovery disabled" do
-    automation = AutomationsFixtures.automation_alert_fixture(recovery_enabled: false)
-
-    recovered_id = Ecto.UUID.generate()
-
-    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
-      %{triggered: [], all: [recovered_id]}
-    end)
-
-    # Triggered 1 day ago — inside the default 14d re-arm dwell.
-    triggered_recently = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :day)
-
-    expect(Automations, :list_active_alert_events, fn _id ->
-      [%{test_case_id: recovered_id, triggered_at: triggered_recently}]
-    end)
-
-    reject(&ActionExecutor.execute_actions/3)
-    reject(&Automations.create_alert_event/1)
-
-    assert :ok = run(automation.id)
-  end
-
-  test "ignores a persisted rolling recovery_config when recovery is disabled" do
+  test "never consults a persisted recovery_config when recovery is disabled" do
     # `Alert.changeset` only validates recovery_config when recovery is enabled,
-    # so a disabled alert can carry a stale rolling window. The worker must not
-    # honor it — using it would issue a runs-since-trigger query and apply the
-    # wrong dwell instead of the default re-arm fallback.
+    # so a disabled alert can carry a stale rolling window. The disabled path
+    # re-arms directly and must never reach filter_recovered_candidates, so the
+    # rolling runs-since-trigger query is never issued.
     automation =
       AutomationsFixtures.automation_alert_fixture(
         recovery_enabled: false,
@@ -444,15 +423,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       %{triggered: []}
     end)
 
-    # Triggered 30d ago — past the default 14d fallback dwell, so it re-arms.
-    triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)
-
     expect(Automations, :list_active_alert_events, fn _id ->
-      [%{test_case_id: recovered_id, triggered_at: triggered_long_ago}]
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.utc_now()}]
     end)
 
-    # The rolling path would batch-query runs-since-trigger; the fallback dwell
-    # must not, proving the stale rolling config is ignored.
+    # No dwell evaluation at all on the disabled path → no runs-since-trigger
+    # query, proving the stale rolling config is ignored.
     reject(&ClickHouseRepo.all/1)
 
     expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->

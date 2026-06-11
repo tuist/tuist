@@ -15,13 +15,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
   require Logger
 
-  # Re-arm dwell applied when recovery is disabled. There is no per-alert knob
-  # for this case (recovery_config is only validated when recovery is on), so a
-  # disabled alert always falls back to this fixed window. Kept explicit rather
-  # than relying on filter_recovered_candidates' default so the value is
-  # discoverable; revisit if a customer needs "never re-arm" or a faster one.
-  @disabled_recovery_rearm_window "14d"
-
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
@@ -163,21 +156,19 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> reject_unevaluated_this_tick(scoped_test_case_ids)
 
     # Re-arming (appending the "recovered" event so the next rising edge can
-    # fire again) is unconditional — an alert that never re-arms is latched in
-    # `triggered` forever and silently stops acting. The dwell window and the
-    # undo side effects, however, stay opt-in: `Alert.changeset` only validates
-    # `recovery_config`/`recovery_actions` when recovery is enabled, so for a
-    # disabled alert we ignore the persisted (possibly stale) config — falling
-    # back to the default re-arm dwell — and run no undo actions. The test case
-    # re-arms but keeps its effect until a human clears it.
-    {recovery_config, recovery_actions} =
+    # fire again) happens for every alert once its condition clears — without
+    # it, an alert latches in `triggered` forever and silently stops acting.
+    # When recovery is enabled the user's dwell and undo actions apply; when
+    # it's disabled we re-arm the moment the condition clears (no dwell, no
+    # undo) and leave any effect in place until a human clears it. The
+    # persisted recovery_config is intentionally ignored on the disabled path
+    # because `Alert.changeset` only validates it when recovery is on.
+    {recovered, recovery_actions} =
       if alert.recovery_enabled do
-        {alert.recovery_config || %{}, alert.recovery_actions}
+        {filter_recovered_candidates(alert, candidates, alert.recovery_config || %{}), alert.recovery_actions}
       else
-        {%{"window" => @disabled_recovery_rearm_window}, []}
+        {candidates, []}
       end
-
-    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
 
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
