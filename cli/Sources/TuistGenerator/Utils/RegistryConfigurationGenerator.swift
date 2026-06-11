@@ -42,7 +42,7 @@ public struct RegistryConfigurationGenerator: RegistryConfigurationGenerating {
         let registryURL = Constants.URLs.swiftRegistry(for: serverURL)
         let registryHost = registryURL.host() ?? Constants.URLs.swiftRegistry(for: Constants.URLs.production).host()!
 
-        """
+        return """
         {
           "security": {
             "default": {
