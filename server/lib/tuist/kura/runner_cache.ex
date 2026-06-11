@@ -53,6 +53,8 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
+  @max_provision_candidates_per_tick 100
+
   @doc """
   Converges runner-cache nodes with runner enablement. Safe to call on
   every reconciler tick; returns `:ok`.
@@ -87,8 +89,12 @@ defmodule Tuist.Kura.RunnerCache do
   # usually zero or one per environment, but an environment may run one
   # region per fleet locality (e.g. a Linux-serving node pool in the
   # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
-  # `available/0` is env-gated, so this stays empty until a private
-  # region is wired into `TUIST_KURA_AVAILABLE_REGIONS`.
+  # Multi-region went from unsupported-and-logged to a first-class
+  # shape when regions gained `runner_platforms`: each region now
+  # reconciles independently against the accounts whose profiles it
+  # serves, so none is ever silently un-reconciled. `available/0` is
+  # env-gated, so this stays empty until a private region is wired
+  # into `TUIST_KURA_AVAILABLE_REGIONS`.
   defp runner_cache_regions do
     Enum.filter(Regions.available(), &Regions.private?/1)
   end
@@ -132,14 +138,31 @@ defmodule Tuist.Kura.RunnerCache do
 
     # The SQL narrows to "has profiles, lacks a node"; the flag check
     # runs per account in Elixir because FunWithFlags gates are
-    # actor-scoped, not a column. The candidate set is tiny (runner
-    # customers), so the N flag lookups per tick are negligible.
-    from(a in Account,
-      as: :account,
-      where: exists(profile_exists),
-      where: not exists(server_exists)
-    )
-    |> Repo.all()
+    # actor-scoped (and can be set via a global boolean gate, so they
+    # can't be pre-joined as a column). In prod the candidate set is
+    # tiny (runner customers), but in an env with the flag globally on
+    # and many auto-profile accounts it isn't — cap the SQL load so a
+    # tick reads a bounded number of rows into BEAM. Provisioning is
+    # convergent, so any overflow is picked up on the next tick; a
+    # capped tick is logged so a growing backlog is visible.
+    candidates =
+      Repo.all(
+        from(a in Account,
+          as: :account,
+          where: exists(profile_exists),
+          where: not exists(server_exists),
+          limit: @max_provision_candidates_per_tick
+        )
+      )
+
+    if length(candidates) == @max_provision_candidates_per_tick do
+      Logger.warning("kura.runner_cache: provision candidate query hit the per-tick cap",
+        cap: @max_provision_candidates_per_tick,
+        region: region_id
+      )
+    end
+
+    candidates
     |> Enum.filter(&runner_cache_enabled?/1)
     |> Enum.map(& &1.id)
   end
