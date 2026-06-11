@@ -243,6 +243,9 @@
   }
 
   & th {
+    /* Border-box so the hook's measured column widths (which include padding) can be pinned
+     * back as `min-width` without compounding. */
+    box-sizing: border-box;
     position: sticky;
     top: 0;
     background-color: var(--noora-surface-table-header);
