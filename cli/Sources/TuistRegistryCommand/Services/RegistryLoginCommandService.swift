@@ -4,6 +4,7 @@
     import Noora
     import Path
     import TuistConfigLoader
+    import TuistConstants
     import TuistEnvironment
     import TuistHTTP
     import TuistLoader
