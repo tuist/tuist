@@ -18,8 +18,8 @@ defmodule Tuist.Runners.PromExPlugin do
     * **Polling metrics.** Three poll loops at a coarse 30s cadence
       query authoritative state and emit gauges: queue length per
       fleet from ClickHouse, inflight claim counts per fleet /
-      lifecycle state from Postgres, RunnerPool desired-vs-observed
-      replica counts from the K8s apiserver. Polled gauges are
+      lifecycle state from Postgres, RunnerPool desired / observed /
+      capacity-ceiling replica counts from the K8s apiserver. Polled gauges are
       deliberately separate from the event counters —
       `runner_pool_replicas` is a level (current capacity), not a
       flux (boot/teardown rate already covered by tart-kubelet's
@@ -261,6 +261,13 @@ defmodule Tuist.Runners.PromExPlugin do
             description: "Observed RunnerPool replicas (status.observedReplicas).",
             measurement: :observed,
             tags: [:fleet]
+          ),
+          last_value(
+            @metric_prefix ++ [:pool, :replicas, :max],
+            event_name: Telemetry.event_name_pool_replicas(),
+            description: "RunnerPool capacity ceiling (max(spec.autoscaling.maxReplicas, spec.replicas)).",
+            measurement: :max,
+            tags: [:fleet]
           )
         ]
       )
@@ -398,10 +405,10 @@ defmodule Tuist.Runners.PromExPlugin do
         current_fleets = current |> Map.keys() |> MapSet.new()
         previous_fleets = Process.get(@pool_replicas_seen_key, MapSet.new())
 
-        Enum.each(current, fn {fleet, {desired, observed}} ->
+        Enum.each(current, fn {fleet, {desired, observed, max}} ->
           :telemetry.execute(
             Telemetry.event_name_pool_replicas(),
-            %{desired: desired, observed: observed},
+            %{desired: desired, observed: observed, max: max},
             %{fleet: fleet}
           )
         end)
@@ -411,7 +418,7 @@ defmodule Tuist.Runners.PromExPlugin do
         |> Enum.each(fn fleet ->
           :telemetry.execute(
             Telemetry.event_name_pool_replicas(),
-            %{desired: 0, observed: 0},
+            %{desired: 0, observed: 0, max: 0},
             %{fleet: fleet}
           )
         end)
@@ -434,8 +441,11 @@ defmodule Tuist.Runners.PromExPlugin do
         name ->
           spec = Map.get(pool, "spec", %{})
           status = Map.get(pool, "status", %{})
+          replicas = Map.get(spec, "replicas", 0)
+          autoscaling = Map.get(spec, "autoscaling", %{})
+          ceiling = Kernel.max(Map.get(autoscaling, "maxReplicas", 0), replicas)
 
-          [{name, {Map.get(spec, "replicas", 0), Map.get(status, "observedReplicas", 0)}}]
+          [{name, {replicas, Map.get(status, "observedReplicas", 0), ceiling}}]
       end
     end)
     |> Map.new()
