@@ -6,6 +6,10 @@ on:
       - main
     paths:
       - cli/**
+      - mise/tasks/cli/**
+      - mise/tasks/release/components.json
+      - .github/workflows/cli-release.yml
+      - .github/workflows/cli-build-publish.yml
       - .xcode-version-releases
       - Package.swift
       - Package.resolved
