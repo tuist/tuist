@@ -108,7 +108,7 @@ public struct Target: Codable, Equatable, Sendable {
 
     /// Properties for a foreign build target. Set when this target was created with
     /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)`` or
-    /// ``kotlinMultiplatform(name:destinations:gradleProject:frameworkName:linking:compileKotlinFrameworkScript:compileKotlinXCFrameworkScript:xcframeworkPath:inputs:metadata:)``.
+    /// ``kotlinMultiplatform(name:destinations:gradleProjectPath:xcframework:developmentXCFramework:inputs:metadata:)``.
     public private(set) var foreignBuild: ForeignBuild?
 
     /// Describes the properties of a foreign (non-Xcode) build target.
@@ -315,7 +315,7 @@ public struct Target: Codable, Equatable, Sendable {
     /// .kotlinMultiplatform(
     ///     name: "SharedKMP",
     ///     destinations: .iOS,
-    ///     gradleProject: "SharedKMP",
+    ///     gradleProjectPath: "SharedKMP",
     ///     xcframework: .init(
     ///         script: "gradle assembleSharedKMPReleaseXCFramework",
     ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"
@@ -334,7 +334,7 @@ public struct Target: Codable, Equatable, Sendable {
     /// - Parameters:
     ///   - name: A unique name for this target. Consumers depend on it with `.target(name:)`.
     ///   - destinations: The destinations the framework supports.
-    ///   - gradleProject: Directory the build scripts run in (where the Gradle wrapper and the framework's module live).
+    ///   - gradleProjectPath: Directory the build scripts run in (where the Gradle wrapper and the framework's module live).
     ///   - xcframework: The universal XCFramework build, used when warming the binary cache.
     ///   - developmentXCFramework: A thinner XCFramework build for the current destination, used during regular
     /// generation. When omitted, regular generation falls back to the universal build.
@@ -343,7 +343,7 @@ public struct Target: Codable, Equatable, Sendable {
     public static func kotlinMultiplatform(
         name: String,
         destinations: Destinations,
-        gradleProject: Path,
+        gradleProjectPath: Path,
         xcframework: ForeignBuild.XCFramework,
         developmentXCFramework: ForeignBuild.XCFramework? = nil,
         inputs: [ForeignBuild.Input] = [],
@@ -378,7 +378,7 @@ public struct Target: Codable, Equatable, Sendable {
         )
         target.foreignBuild = ForeignBuild(
             inputs: inputs,
-            workingDirectory: gradleProject,
+            workingDirectory: gradleProjectPath,
             xcframework: xcframework,
             developmentXCFramework: developmentXCFramework
         )

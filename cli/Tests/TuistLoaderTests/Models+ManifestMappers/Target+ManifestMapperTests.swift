@@ -221,7 +221,7 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             manifest: .kotlinMultiplatform(
                 name: "SharedKMP",
                 destinations: .iOS,
-                gradleProject: "SharedKMP",
+                gradleProjectPath: "SharedKMP",
                 xcframework: .init(
                     script: "gradle assembleSharedKMPReleaseXCFramework",
                     path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework"

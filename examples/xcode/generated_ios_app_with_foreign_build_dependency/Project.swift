@@ -28,7 +28,7 @@ let project = Project(
         .kotlinMultiplatform(
             name: "SharedKMP",
             destinations: .iOS,
-            gradleProject: "SharedKMP",
+            gradleProjectPath: "SharedKMP",
             xcframework: .init(
                 script: """
                 eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
