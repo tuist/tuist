@@ -5,11 +5,14 @@ defmodule TuistWeb.API.MetricsController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias Tuist.Builds.Analytics, as: BuildAnalytics
+  alias Tuist.KeyValueStore
   alias Tuist.Tests
   alias Tuist.Tests.Analytics, as: TestAnalytics
   alias TuistWeb.API.Authorization.AuthorizationPlug
   alias TuistWeb.API.Schemas.DurationMetrics
   alias TuistWeb.API.Schemas.Error
+
+  plug TuistWeb.Plugs.MetricsRateLimitPlug
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -79,7 +82,11 @@ defmodule TuistWeb.API.MetricsController do
             :tag
           ])
 
-        metrics = BuildAnalytics.build_duration_percentiles_analytics(project.id, opts)
+        metrics =
+          cached_duration_metrics(:builds, project.id, opts, fn ->
+            BuildAnalytics.build_duration_percentiles_analytics(project.id, opts)
+          end)
+
         json(conn, format_duration_metrics(metrics))
 
       {:error, message} ->
@@ -119,7 +126,12 @@ defmodule TuistWeb.API.MetricsController do
     case validate_range(conn.params) do
       {:ok, start_datetime, end_datetime} ->
         opts = build_opts(start_datetime, end_datetime, conn.params, [:is_ci, :scheme])
-        metrics = TestAnalytics.test_run_duration_analytics(project.id, opts)
+
+        metrics =
+          cached_duration_metrics(:tests, project.id, opts, fn ->
+            TestAnalytics.test_run_duration_analytics(project.id, opts)
+          end)
+
         json(conn, format_duration_metrics(metrics))
 
       {:error, message} ->
@@ -198,6 +210,17 @@ defmodule TuistWeb.API.MetricsController do
     conn
     |> put_status(:bad_request)
     |> json(%{message: message})
+  end
+
+  # Short-lived cache so a dashboard refreshing many identical panels (or several
+  # viewers on the same dashboard) collapses to a single ClickHouse query per
+  # project/range/filters within the window.
+  defp cached_duration_metrics(entity, project_id, opts, func) do
+    KeyValueStore.get_or_update(
+      [:metrics_duration, entity, project_id, :erlang.phash2(opts)],
+      [ttl: to_timeout(minute: 1)],
+      func
+    )
   end
 
   defp validate_range(%{from: from, to: to}) do
