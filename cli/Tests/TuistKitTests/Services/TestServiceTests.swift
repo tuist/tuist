@@ -4964,8 +4964,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 "-testProductsPath", testProductsPath.pathString,
                 "-destination", "platform=iOS Simulator",
             ],
-            shardTotal: 2,
-            shardGranularity: .suite
+            shardGranularity: .suite,
+            shardTotal: 2
         )
 
         // Then
