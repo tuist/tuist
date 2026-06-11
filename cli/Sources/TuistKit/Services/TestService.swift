@@ -362,12 +362,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
-        let testableSchemes =
-            buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
-                + buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
+        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
+        let workspaceSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         Logger.current.log(
             level: .debug,
-            "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
+            "Found the following testable schemes: \(Set((testableSchemes + workspaceSchemes).map(\.name)).joined(separator: ", "))"
         )
 
         let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
@@ -453,7 +452,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
             schemes = [scheme]
         } else {
-            schemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
+            schemes = defaultSchemes(
+                testableSchemes: testableSchemes,
+                workspaceSchemes: workspaceSchemes,
+                graphTraverser: graphTraverser,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            )
             await updateTestServiceAnalytics(
                 mapperEnvironment: mapperEnvironment,
                 schemes: schemes,
@@ -1172,6 +1177,22 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         do {
             for testScheme in testSchemes {
+                let testSchemeTargetNames = Set(
+                    testActionTargetReferences(
+                        scheme: testScheme,
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action
+                    )
+                    .map(\.name)
+                )
+                let testSchemeTestTargets = testTargets.filter {
+                    testSchemeTargetNames.contains($0.target)
+                }
+
+                if !testTargets.isEmpty, testSchemeTestTargets.isEmpty {
+                    continue
+                }
+
                 try await self.testScheme(
                     scheme: testScheme,
                     graphTraverser: graphTraverser,
@@ -1185,7 +1206,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                     resultBundlePath: resultBundlePath,
                     derivedDataPath: derivedDataPath,
                     retryCount: retryCount,
-                    testTargets: testTargets,
+                    testTargets: testSchemeTestTargets,
                     skipTestTargets: skipTestTargets,
                     testPlanConfiguration: testPlanConfiguration,
                     passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
@@ -1307,6 +1328,100 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await shardMatrixOutputService.output(
                 Components.Schemas.ShardPlan(id: "", reference: "", shard_count: 0, shards: [])
             )
+        }
+    }
+
+    private func defaultSchemes(
+        testableSchemes: [Scheme],
+        workspaceSchemes: [Scheme],
+        graphTraverser: GraphTraversing,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> [Scheme] {
+        guard action != .build,
+              containsMixedHostedAndHostlessUnitTests(
+                  schemes: workspaceSchemes,
+                  graphTraverser: graphTraverser,
+                  testPlanConfiguration: testPlanConfiguration,
+                  action: action
+              )
+        else {
+            return workspaceSchemes
+        }
+
+        let workspaceSchemeNames = Set(workspaceSchemes.map(\.name))
+        let workspaceTestTargets = Set(
+            workspaceSchemes.flatMap {
+                testActionTargetReferences(
+                    scheme: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                )
+            }
+        )
+        let projectSchemes = testableSchemes.filter {
+            guard !workspaceSchemeNames.contains($0.name) else {
+                return false
+            }
+
+            let schemeTestTargets = Set(
+                testActionTargetReferences(
+                    scheme: $0,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                )
+            )
+            return !schemeTestTargets.isDisjoint(with: workspaceTestTargets)
+        }
+        guard !projectSchemes.isEmpty else {
+            return workspaceSchemes
+        }
+
+        Logger.current.debug(
+            "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
+        )
+        return projectSchemes
+    }
+
+    private func containsMixedHostedAndHostlessUnitTests(
+        schemes: [Scheme],
+        graphTraverser: GraphTraversing,
+        testPlanConfiguration: TestPlanConfiguration?,
+        action: XcodeBuildTestAction
+    ) -> Bool {
+        schemes.contains { scheme in
+            let testTargets = testActionTargetReferences(
+                scheme: scheme,
+                testPlanConfiguration: testPlanConfiguration,
+                action: action
+            )
+
+            var hasHostedTests = false
+            var hasHostlessUnitTests = false
+
+            for targetReference in testTargets {
+                guard let graphTarget = graphTraverser.target(
+                    path: targetReference.projectPath,
+                    name: targetReference.name
+                ) else {
+                    continue
+                }
+
+                let dependencies = graphTraverser
+                    .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
+
+                if dependencies.contains(where: { $0.target.product.canHostTests() }) {
+                    hasHostedTests = true
+                } else if graphTarget.target.product == .unitTests, !dependencies.isEmpty {
+                    hasHostlessUnitTests = true
+                }
+
+                if hasHostedTests, hasHostlessUnitTests {
+                    return true
+                }
+            }
+
+            return false
         }
     }
 

@@ -2557,6 +2557,110 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(capturedTestTargets, [try TestIdentifier(target: "TargetA", class: nil)])
     }
 
+    func test_run_without_scheme_uses_project_schemes_when_workspace_scheme_contains_hostless_unit_tests() async throws {
+        // Given
+        let appProjectPath = try temporaryPath().appending(component: "App")
+        let featureProjectPath = try temporaryPath().appending(component: "Feature")
+        let app = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let featureTests = Target.test(name: "FeatureTests", product: .unitTests)
+        let appTestsReference = TargetReference(projectPath: appProjectPath, name: appTests.name)
+        let featureTestsReference = TargetReference(projectPath: featureProjectPath, name: featureTests.name)
+        let appScheme = Scheme.test(
+            name: "App",
+            testAction: .test(targets: [.test(target: appTestsReference)])
+        )
+        let featureScheme = Scheme.test(
+            name: "Feature",
+            testAction: .test(targets: [.test(target: featureTestsReference)])
+        )
+        let workspaceScheme = Scheme.test(
+            name: "Sample-Workspace",
+            testAction: .test(
+                targets: [
+                    .test(target: appTestsReference),
+                    .test(target: featureTestsReference),
+                ]
+            )
+        )
+        let appProject = Project.test(
+            path: appProjectPath,
+            targets: [app, appTests],
+            schemes: [appScheme]
+        )
+        let featureProject = Project.test(
+            path: featureProjectPath,
+            targets: [feature, featureTests],
+            schemes: [featureScheme]
+        )
+        let workspace = Workspace.test(
+            name: "Sample",
+            projects: [appProjectPath, featureProjectPath],
+            schemes: [workspaceScheme]
+        )
+        let graph = Graph.test(
+            workspace: workspace,
+            projects: [
+                appProjectPath: appProject,
+                featureProjectPath: featureProject,
+            ],
+            dependencies: [
+                .target(name: appTests.name, path: appProjectPath): [
+                    .target(name: app.name, path: appProjectPath),
+                ],
+                .target(name: featureTests.name, path: featureProjectPath): [
+                    .target(name: feature.name, path: featureProjectPath),
+                ],
+            ]
+        )
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generatorFactory)
+            .testing(
+                config: .any,
+                testPlan: .any,
+                includedTargets: .any,
+                excludedTargets: .any,
+                skipUITests: .any,
+                skipUnitTests: .any,
+                configuration: .any,
+                ignoreBinaryCache: .any,
+                ignoreSelectiveTesting: .any,
+                cacheStorage: .any,
+                destination: .any,
+                schemeName: .any
+            )
+            .willReturn(generator)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in (path, graph, MapperEnvironment()) }
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([appScheme, featureScheme, workspaceScheme])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([workspaceScheme])
+
+        // When
+        try await testRun(path: try temporaryPath())
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["App", "Feature"])
+
+        // When
+        testedSchemes = []
+        try await testRun(
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(target: "FeatureTests", class: nil)]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["Feature"])
+    }
+
     func test_run_skips_xcodebuild_when_passthrough_skip_testing_removes_all_selective_targets() async throws {
         // Given — selective testing has filtered the graph so that only "SkippedTarget"
         // remains in the scheme. The user also passes `-skip-testing:SkippedTarget` as a
