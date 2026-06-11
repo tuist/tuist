@@ -21,6 +21,12 @@ RUN mkdir config
 
 COPY tuist-ops/config/config.exs tuist-ops/config/${MIX_ENV}.exs config/
 
+# Noora is a path dependency (`{:noora, path: "../noora"}`); the build
+# context is the repo root, so its source has to land at /app/noora for
+# the `../noora` path to resolve. The prebuilt noora.css/js are vendored
+# under tuist-ops/priv/static/assets, so no JS/CSS build runs here.
+COPY noora /app/noora
+
 RUN mix deps.get --only $MIX_ENV
 RUN mix deps.compile
 

@@ -20,16 +20,24 @@ defmodule TuistOpsWeb.Router do
     plug :accepts, ["json"]
   end
 
-  pipeline :grants do
-    # The operator reason-form surface. Fronted by Pomerium (Google
-    # Workspace OIDC) on the public ingress; identity arrives as the
-    # `X-Pomerium-Claim-Email` header, there is no session.
+  pipeline :browser do
+    # The operator HTML surface (reason form + audit trail). Fronted by
+    # Pomerium (Google Workspace OIDC) on the public ingress; identity
+    # arrives as the `X-Pomerium-Claim-Email` header, there is no session.
     plug :accepts, ["html", "json"]
     plug :fetch_query_params
+    plug :put_root_layout, html: {TuistOpsWeb.Layouts, :root}
+  end
+
+  scope "/", TuistOpsWeb do
+    pipe_through :browser
+
+    get "/", AuditController, :root
+    get "/audit", AuditController, :index
   end
 
   scope "/grants", TuistOpsWeb do
-    pipe_through :grants
+    pipe_through :browser
 
     get "/new", GrantController, :new
     post "/", GrantController, :create

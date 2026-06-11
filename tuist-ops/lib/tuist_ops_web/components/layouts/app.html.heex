@@ -1,0 +1,28 @@
+<main class="layout">
+  <header class="headerbar">
+    <div data-part="left-section">
+      <a href={~p"/audit"}>
+        <img src={~p"/assets/tuist_dashboard.png"} alt="Tuist" class="headerbar__logo" />
+      </a>
+      <span data-part="title">Tuist Ops</span>
+    </div>
+  </header>
+  <section class="layout__main">
+    <.sidebar>
+      <.sidebar_item
+        label="Audit trail"
+        icon="history"
+        href={~p"/audit"}
+        selected={String.starts_with?(@conn.request_path, "/audit")}
+      />
+    </.sidebar>
+    <div class={[
+      "layout__content",
+      String.starts_with?(@conn.request_path, "/grants") && "layout__content--muted"
+    ]}>
+      <div class="ops-content">
+        {@inner_content}
+      </div>
+    </div>
+  </section>
+</main>
