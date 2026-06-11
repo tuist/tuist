@@ -121,11 +121,11 @@ echo "$(format_section "Bundling")"
     echo "$(format_subsection "Signing")"
     if [ -d vendor ]; then
         find vendor -type f -name "*.dylib" -print0 | while IFS= read -r -d '' library; do
-            /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose "$library"
+            /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose "$library"
         done
     fi
-    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
-    /usr/bin/codesign --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose tuist
+    /usr/bin/codesign --force --sign "$CERTIFICATE_NAME" --timestamp --options runtime --verbose ProjectDescription.framework
 
     echo "$(format_subsection "Notarizing")"
     zip -q -r --symlinks "notarization-bundle.zip" tuist ProjectDescription.framework vendor
