@@ -121,6 +121,11 @@ defmodule Noora.Table do
     attr(:label, :string, required: false, doc: "The label of the column")
     attr(:icon, :string, doc: "An icon to render next to the label")
     attr(:patch, :string, doc: "A patch to apply to the column")
+
+    attr(:sort_order, :any,
+      doc:
+        ~s(When set to "asc" or "desc", renders a sort-direction arrow that morphs between the two directions as the value changes. Mirror your sort-state gating, e.g. `sort_order={@sort_by == "duration" && @sort_order}`.)
+    )
   end
 
   slot(:expanded_content, required: false, doc: "Content to display when a row is expanded")
@@ -145,84 +150,127 @@ defmodule Noora.Table do
       end
 
     ~H"""
-    <div id={@id} class="noora-table">
-      <table>
-        <thead>
-          <tr>
-            <th :for={col <- @col}>
-              <%= if col[:patch] do %>
-                <.link patch={col[:patch]} data-part="sort-link">
+    <div id={@id} class="noora-table" phx-hook="NooraTable">
+      <div data-part="scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th :for={{col, col_index} <- Enum.with_index(@col)}>
+                <%= if col[:patch] do %>
+                  <.link patch={col[:patch]} data-part="sort-link">
+                    <span>{col[:label]}</span>
+                    <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
+                    <.sort_indicator
+                      :if={col[:sort_order]}
+                      id={"#{@id}-sort-#{col_index}"}
+                      order={col[:sort_order]}
+                    />
+                  </.link>
+                <% else %>
                   <span>{col[:label]}</span>
                   <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
-                </.link>
-              <% else %>
-                <span>{col[:label]}</span>
-                <span :if={col[:icon]} data-part="icon"><.icon name={col[:icon]} /></span>
-              <% end %>
-            </th>
-          </tr>
-        </thead>
-        <tbody
-          id={"#{@id}-body"}
-          phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
-        >
-          <%= for row <- @rows do %>
-            <% row_key = @row_key && @row_key.(row) %>
-            <% is_expandable = @row_expandable && @row_expandable.(row) %>
-            <% is_expanded = row_key in @expanded_rows %>
+                  <.sort_indicator
+                    :if={col[:sort_order]}
+                    id={"#{@id}-sort-#{col_index}"}
+                    order={col[:sort_order]}
+                  />
+                <% end %>
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            id={"#{@id}-body"}
+            phx-update={match?(%Phoenix.LiveView.LiveStream{}, @rows) && "stream"}
+          >
+            <%= for row <- @rows do %>
+              <% row_key = @row_key && @row_key.(row) %>
+              <% is_expandable = @row_expandable && @row_expandable.(row) %>
+              <% is_expanded = row_key in @expanded_rows %>
 
-            <tr
-              id={row_key}
-              {if is_expandable,
+              <tr
+                id={row_key}
+                {if is_expandable,
                do: %{
                  "phx-click" => "toggle-expand",
                  "phx-value-row-key" => row_key
                },
                else: if(@row_click, do: @row_click.(row) || %{}, else: %{})}
-              data-expandable={is_expandable}
-              data-expanded={is_expanded}
-            >
-              <td
-                :for={{col, index} <- Enum.with_index(@col)}
-                data-selectable={
-                  !is_expandable &&
-                    (not is_nil(@row_navigate) or
-                       (not is_nil(@row_click) && not is_nil(@row_click.(row))))
-                }
+                data-expandable={is_expandable}
+                data-expanded={is_expanded}
               >
-                <%= if is_expandable && index == 0 do %>
-                  <div data-part="expand-cell">
-                    <.chevron_down :if={is_expanded} />
-                    <.chevron_right :if={!is_expanded} />
-                    {render_slot(col, row)}
-                  </div>
-                <% else %>
-                  <%= if @row_navigate do %>
-                    <.link navigate={@row_navigate.(row)} data-part="link">
+                <td
+                  :for={{col, index} <- Enum.with_index(@col)}
+                  data-selectable={
+                    !is_expandable &&
+                      (not is_nil(@row_navigate) or
+                         (not is_nil(@row_click) && not is_nil(@row_click.(row))))
+                  }
+                >
+                  <%= if is_expandable && index == 0 do %>
+                    <div data-part="expand-cell">
+                      <.chevron_down :if={is_expanded} />
+                      <.chevron_right :if={!is_expanded} />
                       {render_slot(col, row)}
-                    </.link>
+                    </div>
                   <% else %>
-                    {render_slot(col, row)}
+                    <%= if @row_navigate do %>
+                      <.link navigate={@row_navigate.(row)} data-part="link">
+                        {render_slot(col, row)}
+                      </.link>
+                    <% else %>
+                      {render_slot(col, row)}
+                    <% end %>
                   <% end %>
-                <% end %>
+                </td>
+              </tr>
+
+              <tr
+                :if={is_expandable && is_expanded}
+                data-part="expanded-row"
+                id={"#{row_key}-expanded"}
+              >
+                <td colspan={length(@col)} data-part="expanded-content">
+                  {render_slot(@expanded_content, row)}
+                </td>
+              </tr>
+            <% end %>
+
+            <tr :if={has_slot_content?(@empty_state, assigns) && Enum.empty?(@rows)}>
+              <td colspan={length(@col)}>
+                {render_slot(@empty_state)}
               </td>
             </tr>
-
-            <tr :if={is_expandable && is_expanded} data-part="expanded-row" id={"#{row_key}-expanded"}>
-              <td colspan={length(@col)} data-part="expanded-content">
-                {render_slot(@expanded_content, row)}
-              </td>
-            </tr>
-          <% end %>
-
-          <tr :if={has_slot_content?(@empty_state, assigns) && Enum.empty?(@rows)}>
-            <td colspan={length(@col)}>
-              {render_slot(@empty_state)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
+      <div data-part="scrollbar" aria-hidden="true">
+        <div data-part="scrollbar-content"></div>
+      </div>
+      <div data-part="overlay-scrollbar" aria-hidden="true">
+        <div data-part="overlay-thumb"></div>
+      </div>
     </div>
+    """
+  end
+
+  attr(:id, :string, required: true, doc: "A unique identifier for the morphing icon")
+  attr(:order, :string, required: true, doc: ~s(The current sort order: "asc" or "desc"))
+
+  # A sort-direction arrow that morphs between descending (down) and ascending (up) as `order`
+  # changes. The `order` is mirrored onto the wrapping `data-part="icon"` element as `data-state`,
+  # which the icon's morph hook watches.
+  defp sort_indicator(assigns) do
+    ~H"""
+    <span data-part="icon" data-state={@order}>
+      <.icon
+        id={@id}
+        name="square_rounded_arrow_down"
+        active_name="square_rounded_arrow_up"
+        transition="morph"
+        watch="[data-part='icon']"
+        active_state="asc"
+      />
+    </span>
     """
   end
 
