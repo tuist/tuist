@@ -55,8 +55,12 @@ server:
     #      (macosFleet values below), then from a runner VM:
     #      `curl http://<kura-clusterip>:4000/up` and
     #      `dig @10.128.0.10 kubernetes.default.svc.cluster.local`.
-    # - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
-    #   value: linux,macos
+    # Verified end-to-end on 2026-06-11: route via the staging
+    # Connector (approved + auto-approver in ACLs), host accept-routes
+    # + pf carve-out live on the runners-fleet mini, kura /up + cluster
+    # DNS reachable from the host and from inside a Tart runner VM.
+    - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
+      value: linux,macos
 
   appUrl: https://staging.tuist.dev
 
@@ -384,6 +388,13 @@ runnersFleet:
   # don't double-book the cluster.
   xcodeOverrides:
     "26.5":
+      # Pinned to the feat/kura-macos-runner-cache branch bake whose
+      # dispatch-poll exports TUIST_CACHE_ENDPOINT from the claim
+      # response and installs the in-VM /etc/resolver cluster-DNS
+      # entry — the in-VM halves of the runner-cache path. Drop this
+      # pin (back to the semver-derived tag) once a runner-image
+      # release containing those changes is cut.
+      imageTag: macos-26-5-8ab1924e
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1

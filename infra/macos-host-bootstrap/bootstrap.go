@@ -1003,6 +1003,24 @@ sudo chmod 0755 /usr/local/bin/tart
 // chart typo from producing an unparseable — or worse, creative —
 // ruleset).
 //
+// The carve-out needs a second half: NAT. vmnet's built-in NAT only
+// translates VM egress toward the default-route interface, so
+// packets the host forwards into the tailscale utun keep their
+// 192.168.64.x source — pf passes them (observed: pass-rule
+// counters increment) but Tailscale's source filtering drops
+// foreign-source packets and replies can never route back. A pf
+// `nat` rule translates VM→cluster traffic to the host's tailnet
+// address. Translation rules must land in pf's translation slot,
+// which is ordered before all filter rules — appending a
+// `nat-anchor` to /etc/pf.conf would violate that order, so the
+// rule is loaded into a `com.apple/tuist.vmnat` sub-anchor instead:
+// the stock pf.conf's `nat-anchor "com.apple/*"` line evaluates it
+// at the right point. The tailscale utun device number can change
+// across daemon restarts, so a small re-arm script re-derives the
+// interface from the routing table and reloads the rule; a
+// StartInterval LaunchDaemon keeps it converged (the rule load is
+// idempotent and pfctl swaps anchor contents atomically).
+//
 // Idempotent: writes the same anchor file on every call. Enables
 // pf if not already enabled. The launchd plist re-loads the
 // rules on every boot so a reboot doesn't drop the filter.
@@ -1150,7 +1168,72 @@ sudo launchctl bootout system/dev.tuist.pfctl-runners 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.plist
 `
 	script = strings.Replace(script, "@CARVEOUT@", carveOut, 1)
-	return RunCommand(ctx, client, script)
+	if err := RunCommand(ctx, client, script); err != nil {
+		return err
+	}
+	if cfg.VMKuraEgressCIDR == "" {
+		return nil
+	}
+	natScript := fmt.Sprintf(`set -euo pipefail
+sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
+#!/bin/sh
+# Loads the VM->cluster NAT rule into the com.apple/tuist.vmnat pf
+# sub-anchor (see installVMEgressFirewall in macos-host-bootstrap).
+# Idempotent and cheap; re-run on an interval so a tailscaled
+# restart that renumbers the utun device re-converges within a
+# minute. No tailnet route yet (tailscaled down, route unapproved)
+# -> leaves the anchor untouched and exits 0.
+CIDR="%s"
+TSIF=$(route -n get "${CIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
+case "$TSIF" in
+  utun*) ;;
+  *) exit 0 ;;
+esac
+HAVE=$(pfctl -a "com.apple/tuist.vmnat" -sn 2>/dev/null | head -1)
+case "$HAVE" in
+  "nat on $TSIF "*) exit 0 ;;
+esac
+# MSS clamp alongside the NAT: the tailscale utun MTU (1280) is
+# smaller than the VM's vmnet interface MTU (1500), and pf-NAT'd
+# flows don't reliably deliver ICMP frag-needed back to the guest,
+# so full-size segments blackhole (tiny /up probes work, bulk cache
+# reads hang). Clamping both directions keeps TCP under the tunnel
+# MTU. 1200 = 1280 - 40 (TCP/IP headers) with margin.
+pfctl -a "com.apple/tuist.vmnat" -f - <<RULES
+scrub from 192.168.64.0/22 to $CIDR max-mss 1200
+scrub from $CIDR to 192.168.64.0/22 max-mss 1200
+nat on $TSIF from 192.168.64.0/22 to $CIDR -> ($TSIF)
+RULES
+VMNAT
+sudo chmod 0755 /usr/local/bin/tuist-pf-vmnat
+sudo /usr/local/bin/tuist-pf-vmnat
+
+sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.pfctl-vmnat</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-pf-vmnat</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-pfctl-vmnat.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+sudo launchctl bootout system/dev.tuist.pfctl-vmnat 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
+`, cfg.VMKuraEgressCIDR)
+	return RunCommand(ctx, client, natScript)
 }
 
 // installTailscale joins the Mac mini to the cluster's tailnet using

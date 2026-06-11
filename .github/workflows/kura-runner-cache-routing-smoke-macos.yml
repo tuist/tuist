@@ -127,7 +127,18 @@ jobs:
           # runner-cache Kura node is active. That inherited value IS
           # the system under test.
           echo "pod(hostname)=$(hostname) at $(date -u +%FT%TZ)"
-          endpoint="${CACHE_ENDPOINT_OVERRIDE:-${TUIST_CACHE_ENDPOINT:-}}"
+          # Dispatch-provided endpoint wins: when the runner image's
+          # dispatch-poll exported TUIST_CACHE_ENDPOINT from the claim
+          # response, THAT is the product flow under test. The override
+          # input is the fallback for runner images that predate the
+          # export.
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            endpoint="${TUIST_CACHE_ENDPOINT}"
+            echo "endpoint source: dispatch (TUIST_CACHE_ENDPOINT exported by runner image)"
+          else
+            endpoint="${CACHE_ENDPOINT_OVERRIDE:-}"
+            echo "endpoint source: workflow override input (no TUIST_CACHE_ENDPOINT in VM env)"
+          fi
           if [ -z "$endpoint" ]; then
             echo "::error::no cache endpoint: dispatch did not include cache_endpoint_url (private Kura node not active yet?) and no override input was provided"
             exit 1
@@ -259,13 +270,17 @@ jobs:
             python3 -c "import sys; print(f'{float(sys.argv[1]) - float(sys.argv[2]):.3f}')" "$ended" "$started"
           }
 
-          declare -A results
+          # Flat-file aggregation, not `declare -A`: macOS ships bash
+          # 3.2 (no associative arrays) and `shell: bash {0}` means a
+          # failed declare doesn't stop the step — the Linux original
+          # silently produced a header-only CSV here.
+          echo "path,kind,iter,seconds" > /tmp/results.csv
           for kind in miss hit; do
             for path in routed baseline; do
               for i in $(seq 1 "$IT"); do
                 echo "::group::$path / $kind / iteration $i"
                 t=$(measure_one "$path" "$kind")
-                results["$path|$kind|$i"]=$t
+                echo "$path,$kind,$i,$t" >> /tmp/results.csv
                 echo "wall-clock: ${t}s"
                 tail -30 "/tmp/gradle-${path}-${kind}.log"
                 echo "::endgroup::"
@@ -273,13 +288,7 @@ jobs:
             done
           done
 
-          {
-            echo "path,kind,iter,seconds"
-            for key in "${!results[@]}"; do
-              IFS='|' read -r path kind iter <<<"$key"
-              echo "$path,$kind,$iter,${results[$key]}"
-            done
-          } | tee /tmp/results.csv
+          cat /tmp/results.csv
 
           if [ -s /tmp/gradle-build-failures ]; then
             echo "::error::Gradle build(s) failed — timings above are not trustworthy"
