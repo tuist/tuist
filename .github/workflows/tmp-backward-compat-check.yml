@@ -5,7 +5,11 @@
 name: TMP Backward-Compat Check
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - claude/jolly-hertz-e66b2d
+    paths:
+      - .github/workflows/tmp-backward-compat-check.yml
 
 jobs:
   backward-compatibility-acceptance:
