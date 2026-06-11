@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::segment::{generation::SegmentGeneration, reference::SegmentReference};
+use crate::segment::reference::SegmentReference;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SegmentState {
@@ -12,31 +12,6 @@ pub struct SegmentState {
 impl SegmentState {
     pub fn active(&self) -> Option<&SegmentReference> {
         self.new.last()
-    }
-
-    pub fn generation_of(&self, segment_id: &str) -> Option<SegmentGeneration> {
-        if self
-            .old
-            .iter()
-            .any(|segment| segment.segment_id == segment_id)
-        {
-            return Some(SegmentGeneration::Old);
-        }
-        if self
-            .current
-            .iter()
-            .any(|segment| segment.segment_id == segment_id)
-        {
-            return Some(SegmentGeneration::Current);
-        }
-        if self
-            .new
-            .iter()
-            .any(|segment| segment.segment_id == segment_id)
-        {
-            return Some(SegmentGeneration::New);
-        }
-        None
     }
 
     pub fn push_new(
@@ -86,7 +61,7 @@ fn remove_from_segments(segments: &mut Vec<SegmentReference>, segment_id: &str) 
 #[cfg(test)]
 mod tests {
     use super::SegmentState;
-    use crate::segment::{generation::SegmentGeneration, reference::SegmentReference};
+    use crate::segment::reference::SegmentReference;
 
     #[test]
     fn push_new_rebalances_generations() {
@@ -113,22 +88,5 @@ mod tests {
         let evicted = state.push_new(SegmentReference::new("new-6".into(), 6), 1, 2, 2);
         assert_eq!(evicted.len(), 1);
         assert_eq!(evicted[0].segment_id, "new-1");
-    }
-
-    #[test]
-    fn generation_of_tracks_segment_location() {
-        let state = SegmentState {
-            old: vec![SegmentReference::new("old".into(), 1)],
-            current: vec![SegmentReference::new("current".into(), 2)],
-            new: vec![SegmentReference::new("new".into(), 3)],
-        };
-
-        assert_eq!(state.generation_of("old"), Some(SegmentGeneration::Old));
-        assert_eq!(
-            state.generation_of("current"),
-            Some(SegmentGeneration::Current)
-        );
-        assert_eq!(state.generation_of("new"), Some(SegmentGeneration::New));
-        assert_eq!(state.generation_of("missing"), None);
     }
 }
