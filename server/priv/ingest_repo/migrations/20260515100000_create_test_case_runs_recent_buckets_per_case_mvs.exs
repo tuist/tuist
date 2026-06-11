@@ -105,9 +105,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
       |> Enum.chunk_every(@project_chunk_size)
       |> Enum.with_index(1)
       |> Enum.each(fn {chunk, idx} ->
-        retry_on_transient_failure(fn ->
-          backfill_chunk(window_size, partition_int, chunk, idx, cutoff)
-        end)
+        backfill_chunk_with_daily_fallback(window_size, partition_int, chunk, idx, cutoff)
 
         Process.sleep(@chunk_throttle_ms)
       end)
@@ -130,6 +128,68 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
       )
 
     Enum.map(rows, fn [project_id] -> project_id end)
+  end
+
+  defp days_for_partition_chunk(partition, project_ids, cutoff) do
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        """
+        SELECT DISTINCT toString(toDate(inserted_at)) AS day
+        FROM test_case_runs
+        WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+          AND inserted_at < parseDateTime64BestEffort({cutoff:String}, 6)
+          AND project_id IN {project_ids:Array(Int64)}
+          AND test_case_id IS NOT NULL
+        ORDER BY day
+        """,
+        %{partition: partition, cutoff: cutoff, project_ids: project_ids},
+        timeout: 600_000
+      )
+
+    Enum.map(rows, fn [day] -> day end)
+  end
+
+  defp backfill_chunk_with_daily_fallback(window_size, partition, project_ids, idx, cutoff) do
+    backfill_chunk(window_size, partition, project_ids, idx, cutoff)
+  rescue
+    e in Ch.Error ->
+      cond do
+        memory_limit_exceeded?(e) ->
+          Logger.warning(
+            "Backfilling chunk #{idx} of partition #{partition} into #{table_name(window_size)} " <>
+              "exceeded ClickHouse memory; retrying with day-sized chunks"
+          )
+
+          backfill_chunk_by_day(window_size, partition, project_ids, idx, cutoff)
+
+        table_is_read_only?(e) ->
+          retry_on_transient_failure(fn ->
+            backfill_chunk(window_size, partition, project_ids, idx, cutoff)
+          end)
+
+        true ->
+          reraise e, __STACKTRACE__
+      end
+  end
+
+  defp backfill_chunk_by_day(window_size, partition, project_ids, idx, cutoff) do
+    days = days_for_partition_chunk(partition, project_ids, cutoff)
+
+    days
+    |> Enum.with_index(1)
+    |> Enum.each(fn {day, day_idx} ->
+      backfill_day_chunk_with_project_fallback(
+        window_size,
+        partition,
+        project_ids,
+        idx,
+        day,
+        day_idx,
+        cutoff
+      )
+
+      Process.sleep(@chunk_throttle_ms)
+    end)
   end
 
   defp backfill_chunk(window_size, partition, project_ids, idx, cutoff) do
@@ -160,6 +220,93 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
       %{partition: partition, cutoff: cutoff, project_ids: project_ids},
       timeout: 1_200_000
     )
+  end
+
+  defp backfill_day_chunk(window_size, partition, project_ids, idx, day, day_idx, cutoff) do
+    day_start = "#{day} 00:00:00"
+    day_end = "#{Date.add(Date.from_iso8601!(day), 1)} 00:00:00"
+
+    Logger.debug(
+      "Backfilling day chunk #{day_idx} (#{day}) for chunk #{idx} of partition #{partition} " <>
+        "into #{table_name(window_size)}"
+    )
+
+    IngestRepo.query!(
+      """
+      INSERT INTO #{table_name(window_size)}
+      SELECT
+        project_id,
+        assumeNotNull(test_case_id) AS test_case_id,
+        groupArraySortedState(#{window_size})((-toUnixTimestamp64Micro(ran_at), toUInt8(is_flaky))) AS recent_runs
+      FROM test_case_runs
+      WHERE toYYYYMM(inserted_at) = {partition:UInt32}
+        AND inserted_at >= parseDateTime64BestEffort({day_start:String}, 6)
+        AND inserted_at < parseDateTime64BestEffort({day_end:String}, 6)
+        AND inserted_at < parseDateTime64BestEffort({cutoff:String}, 6)
+        AND project_id IN {project_ids:Array(Int64)}
+        AND test_case_id IS NOT NULL
+      GROUP BY project_id, test_case_id
+      SETTINGS
+        optimize_aggregation_in_order = 1,
+        max_threads = 1,
+        max_memory_usage = 6000000000,
+        max_bytes_before_external_group_by = 2500000000
+      """,
+      %{
+        partition: partition,
+        day_start: day_start,
+        day_end: day_end,
+        cutoff: cutoff,
+        project_ids: project_ids
+      },
+      timeout: 1_200_000
+    )
+  end
+
+  defp backfill_day_chunk_with_project_fallback(
+         window_size,
+         partition,
+         project_ids,
+         idx,
+         day,
+         day_idx,
+         cutoff
+       ) do
+    backfill_day_chunk(window_size, partition, project_ids, idx, day, day_idx, cutoff)
+  rescue
+    e in Ch.Error ->
+      cond do
+        memory_limit_exceeded?(e) and length(project_ids) > 1 ->
+          Logger.warning(
+            "Backfilling day #{day} for chunk #{idx} of partition #{partition} " <>
+              "into #{table_name(window_size)} exceeded ClickHouse memory; retrying per project"
+          )
+
+          project_ids
+          |> Enum.each(fn project_id ->
+            retry_on_transient_failure(fn ->
+              backfill_day_chunk(
+                window_size,
+                partition,
+                [project_id],
+                idx,
+                day,
+                day_idx,
+                cutoff
+              )
+            end)
+
+            Process.sleep(@chunk_throttle_ms)
+          end)
+
+        table_is_read_only?(e) ->
+          retry_on_transient_failure(fn ->
+            backfill_day_chunk(window_size, partition, project_ids, idx, day, day_idx, cutoff)
+          end)
+
+        true ->
+          reraise e, __STACKTRACE__
+      end
   end
 
   defp backfill_until_materialized_view_start(
@@ -207,8 +354,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
       message = to_string(e.message)
 
       transient? =
-        String.contains?(message, "TABLE_IS_READ_ONLY") or
-          String.contains?(message, "MEMORY_LIMIT_EXCEEDED")
+        table_is_read_only?(e) or
+          memory_limit_exceeded?(e)
 
       if attempts > 1 and transient? do
         Logger.warning(
@@ -222,4 +369,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseRunsRecentBucketsPerCaseMvs 
         reraise e, __STACKTRACE__
       end
   end
+
+  defp memory_limit_exceeded?(%Ch.Error{} = error),
+    do: String.contains?(to_string(error.message), "MEMORY_LIMIT_EXCEEDED")
+
+  defp table_is_read_only?(%Ch.Error{} = error),
+    do: String.contains?(to_string(error.message), "TABLE_IS_READ_ONLY")
 end
