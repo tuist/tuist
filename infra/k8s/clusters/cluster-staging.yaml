@@ -75,14 +75,6 @@ spec:
           name: kura
           replicas: 3
           failureDomain: fsn1
-          metadata:
-            labels:
-              autoscaling.tuist.dev/group: kura-staging
-            annotations:
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "8"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "8"
           healthCheck:
             checks:
               nodeStartupTimeoutSeconds: 600
@@ -99,6 +91,12 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: kura
+              autoscaling.tuist.dev/group: kura-staging
+            annotations:
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "8"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "8"
           variables:
             overrides:
               - name: hcloudWorkerMachineType
