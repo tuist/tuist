@@ -53,13 +53,12 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
-  defp execute_transfer(_type, %{artifact_type: :registry}), do: :ok
-
-  defp execute_transfer(:upload, %{artifact_type: :xcode_cache, key: key}) do
+  defp execute_transfer(:upload, %{artifact_type: artifact_type, key: key})
+       when artifact_type in [:registry, :xcode_cache] do
     local_path = Disk.artifact_path(key)
 
     if File.exists?(local_path) do
-      S3.upload_file(key, local_path, type: :xcode_cache)
+      S3.upload_file(key, local_path, type: artifact_type)
     else
       :ok
     end
@@ -67,8 +66,9 @@ defmodule Cache.S3TransferWorker do
 
   defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
 
-  defp execute_transfer(:download, %{artifact_type: :xcode_cache, key: key}) do
-    S3.download(key, type: :xcode_cache)
+  defp execute_transfer(:download, %{artifact_type: artifact_type, key: key})
+       when artifact_type in [:registry, :xcode_cache] do
+    S3.download(key, type: artifact_type)
   end
 
   defp execute_transfer(:download, %{key: key}), do: S3.download(key)

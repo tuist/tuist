@@ -2,12 +2,13 @@ defmodule Cache.Disk do
   @moduledoc """
   Shared disk infrastructure for cache artifact storage.
 
-  Provides common disk operations used by all cache domains (Xcode, Gradle, Module).
+  Provides common disk operations used by all cache domains (Xcode, Gradle, Registry, Module).
   Handles artifact path construction, directory sharding, file operations, and disk usage monitoring.
 
   Domain-specific disk operations are implemented in:
   - `Cache.Xcode.Disk` - Xcode compilation cache operations
   - `Cache.Gradle.Disk` - Gradle build cache operations
+  - `Cache.Registry.Disk` - Swift package registry operations
   - `Cache.XcodeModule.Disk` - Xcode module cache operations
 
   This module stores artifacts on the local filesystem with configurable storage directory.

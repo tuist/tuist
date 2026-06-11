@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-#MISE description="Trigger a registry sync for a Swift package version on the production Swift registry"
+#MISE description="Trigger a registry sync for a Swift package version on a production cache node"
 #USAGE arg "<package>" help="Package in scope/name format (e.g., onevcat/rainbow)"
 #USAGE arg "<version>" help="Version tag to sync (e.g., 4.2.1)"
+#USAGE flag "--user <user>" help="SSH username for connecting to the cache node"
 
 set -euo pipefail
 
-readonly KUBE_NAMESPACE="${TUIST_SWIFT_REGISTRY_NAMESPACE:-swift-registry}"
-readonly KUBE_CONTEXT="${TUIST_SWIFT_REGISTRY_KUBE_CONTEXT:-}"
-readonly APP_SELECTOR="app.kubernetes.io/instance=swift-registry,app.kubernetes.io/component=app"
+readonly DEPLOY_CONFIG="${MISE_PROJECT_ROOT}/cache/config/deploy.production.yml"
 
 log()  { printf '[registry:sync] %s\n' "$*"; }
 fail() { printf '[registry:sync] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -35,30 +34,24 @@ parse_package() {
 
 normalize_scope() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-# -- Kubernetes helpers --------------------------------------------------------
+# -- host discovery ------------------------------------------------------------
 
-kubectl_registry() {
-    local args=(kubectl)
+read_random_production_host() {
+    local hosts=()
 
-    if [[ -n "$KUBE_CONTEXT" ]]; then
-        args+=(--context "$KUBE_CONTEXT")
+    if [[ ! -f "$DEPLOY_CONFIG" ]]; then
+        fail "Missing production deploy config: ${DEPLOY_CONFIG}"
     fi
 
-    "${args[@]}" -n "$KUBE_NAMESPACE" "$@"
-}
+    while IFS= read -r host; do
+        hosts+=("$host")
+    done < <(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")
 
-read_random_registry_pod() {
-    local pods=()
-
-    while IFS= read -r pod; do
-        [[ -n "$pod" ]] && pods+=("$pod")
-    done < <(kubectl_registry get pods -l "$APP_SELECTOR" -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}')
-
-    if [[ "${#pods[@]}" -eq 0 ]]; then
-        fail "No running Swift registry pods found in namespace ${KUBE_NAMESPACE}"
+    if [[ "${#hosts[@]}" -eq 0 ]]; then
+        fail "No production cache hosts found in ${DEPLOY_CONFIG}"
     fi
 
-    printf '%s' "${pods[$((RANDOM % ${#pods[@]}))]}"
+    printf '%s' "${hosts[$((RANDOM % ${#hosts[@]}))]}"
 }
 
 # -- main ----------------------------------------------------------------------
@@ -66,9 +59,11 @@ read_random_registry_pod() {
 main() {
     local package="$usage_package"
     local version="$usage_version"
+    local user="${usage_user:-}"
     local normalized_scope
     local repository_full_handle
-    local selected_pod
+    local selected_host
+    local ssh_target
 
     parse_package "$package"
 
@@ -78,32 +73,98 @@ main() {
 
     normalized_scope="$(normalize_scope "$raw_scope")"
     repository_full_handle="${raw_scope}/${raw_name}"
-    selected_pod="$(read_random_registry_pod)"
+    selected_host="$(read_random_production_host)"
 
     log "Package input: ${raw_scope}/${raw_name}"
     log "Using scope \"${normalized_scope}\", name \"${raw_name}\", tag \"${version}\""
-    log "Using pod ${selected_pod} in namespace ${KUBE_NAMESPACE}"
-    log "Enqueueing SwiftRegistry.Registry.ReleaseWorker for ${repository_full_handle}@${version}"
+    if [[ -n "$user" ]]; then
+        ssh_target="${user}@${selected_host}"
+    else
+        ssh_target="$selected_host"
+    fi
+
+    log "Randomly selected production cache node from cache/config/deploy.production.yml: ${selected_host}"
+    log "Connecting to ${ssh_target}"
+
+    ssh -o BatchMode=yes "$ssh_target" bash -s -- "$normalized_scope" "$raw_name" "$repository_full_handle" "$version" <<'REMOTE'
+#!/usr/bin/env bash
+set -euo pipefail
+
+scope="$1"
+name="$2"
+repository_full_handle="$3"
+tag="$4"
+
+log()  { printf '[registry:sync.remote:%s] %s\n' "$(hostname)" "$*"; }
+fail() { printf '[registry:sync.remote:%s] ERROR: %s\n' "$(hostname)" "$*" >&2; exit 1; }
+
+[[ "$scope" =~ ^[a-z0-9._-]+$ ]] || fail "Invalid scope: ${scope}"
+[[ "$name" =~ ^[a-zA-Z0-9._-]+$ ]] || fail "Invalid name: ${name}"
+[[ "$repository_full_handle" =~ ^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$ ]] || fail "Invalid repository handle: ${repository_full_handle}"
+[[ "$tag" =~ ^[a-zA-Z0-9._+-]+$ ]] || fail "Invalid tag: ${tag}"
+
+find_cache_container() {
+    local container_name
+    local image_name
+
+    container_name="$(docker ps --filter 'label=service=cache' --filter 'label=role=web' --format '{{.Names}}' | head -n 1)"
+    if [[ -n "$container_name" ]]; then
+        printf '%s' "$container_name"
+        return 0
+    fi
+
+    container_name="$(docker ps --filter 'label=service=cache' --format '{{.Names}}' | head -n 1)"
+    if [[ -n "$container_name" ]]; then
+        printf '%s' "$container_name"
+        return 0
+    fi
+
+    while IFS='|' read -r container_name image_name; do
+        case "$container_name" in
+            cache-web*|cache-*)
+                printf '%s' "$container_name"
+                return 0
+                ;;
+        esac
+
+        case "$image_name" in
+            ghcr.io/*/cache|ghcr.io/*/cache:*|ghcr.io/*/cache@*|*/cache|*/cache:*|*/cache@*|cache|cache:*|cache@*)
+                printf '%s' "$container_name"
+                return 0
+                ;;
+        esac
+    done < <(docker ps --format '{{.Names}}|{{.Image}}')
+
+    return 1
+}
+
+log "Looking for the running cache container"
+container="$(find_cache_container)" || fail "Could not find a running cache container"
+log "Using container ${container}"
+log "Enqueueing Cache.Registry.ReleaseWorker for ${repository_full_handle}@${tag}"
 
 elixir_code=$(cat <<EOF
 args = %{
-  "scope" => "${normalized_scope}",
-  "name" => "${raw_name}",
+  "scope" => "${scope}",
+  "name" => "${name}",
   "repository_full_handle" => "${repository_full_handle}",
-  "tag" => "${version}"
+  "tag" => "${tag}"
 }
 
-case args |> SwiftRegistry.Registry.ReleaseWorker.new() |> Oban.insert() do
+case args |> Cache.Registry.ReleaseWorker.new() |> Oban.insert() do
   {:ok, job} ->
     IO.puts("Enqueued Oban job " <> Integer.to_string(job.id))
 
   {:error, reason} ->
-    raise "Failed to enqueue SwiftRegistry.Registry.ReleaseWorker: #{inspect(reason)}"
+    raise "Failed to enqueue Cache.Registry.ReleaseWorker: #{inspect(reason)}"
 end
 EOF
 )
 
-    kubectl_registry exec "$selected_pod" -- /app/bin/swift_registry rpc "$elixir_code"
+docker exec "$container" /app/bin/cache rpc "$elixir_code"
+
+log "Worker enqueue request finished"
+REMOTE
 
     log "Registry sync request completed"
 }

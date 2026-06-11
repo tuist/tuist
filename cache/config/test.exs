@@ -45,7 +45,8 @@ config :cache, :authentication_req_options, plug: {Req.Test, Cache.Authenticatio
 
 config :cache, :s3,
   bucket: "test-bucket",
-  xcode_cache_bucket: "test-xcode-cache-bucket"
+  xcode_cache_bucket: "test-xcode-cache-bucket",
+  registry_bucket: "test-registry-bucket"
 
 config :cache,
   server_url: "http://localhost:8080",

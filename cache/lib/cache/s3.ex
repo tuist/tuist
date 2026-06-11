@@ -4,9 +4,10 @@ defmodule Cache.S3 do
 
   Isolated behind a module for easy testing without mutating global config.
 
-  Artifacts are stored across two buckets:
+  Artifacts are stored across three buckets:
   - `:xcode_cache` — dedicated Xcode cache bucket (`S3_XCODE_CACHE_BUCKET`).
   - `:cache` — shared cache bucket (`S3_BUCKET`) for module and Gradle artifacts.
+  - `:registry` — registry bucket (`S3_REGISTRY_BUCKET`) for Swift package registry.
   """
 
   import Cachex.Spec, only: [limit: 1]
@@ -35,15 +36,22 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Returns `{:ok, url}` on success or `{:error, reason}` on failure.
+  Returns `{:error, :registry_disabled}` if type is `:registry` and registry storage is not configured.
   """
   def presign_download_url(key, opts \\ []) when is_binary(key) do
     type = Keyword.get(opts, :type, :cache)
 
-    config = ExAws.Config.new(:s3)
-    ExAws.S3.presigned_url(config, :get, bucket_for_type(type), key, expires_in: 600)
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
+
+      bucket ->
+        config = ExAws.Config.new(:s3)
+        ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
+    end
   end
 
   @doc """
@@ -73,7 +81,9 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
+
+  Returns `false` if type is `:registry` and registry storage is not configured.
   """
   def exists?(key, opts \\ []) when is_binary(key) do
     type = Keyword.get(opts, :type, :cache)
@@ -101,10 +111,16 @@ defmodule Cache.S3 do
   defp do_exists?(key, opts) do
     type = Keyword.get(opts, :type, :cache)
 
-    case head_object_status(bucket_for_type(type), key, http_opts: [receive_timeout: 2_000]) do
-      :exists -> {:ok, true}
-      :not_found -> {:ok, false}
-      {:error, reason} -> {:error, reason}
+    case bucket_for_type(type) do
+      nil ->
+        {:ok, false}
+
+      bucket ->
+        case head_object_status(bucket, key, http_opts: [receive_timeout: 2_000]) do
+          :exists -> {:ok, true}
+          :not_found -> {:ok, false}
+          {:error, reason} -> {:error, reason}
+        end
     end
   end
 
@@ -145,7 +161,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Returns `{:ok, :hit}` on success, `{:error, :rate_limited}` on 429 errors
   (should be retried), or `{:error, reason}` on other failures.
@@ -256,7 +272,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
 
   Lists all objects matching the prefix and deletes them in batches.
   Returns {:ok, deleted_count} on success, or {:error, reason} on failure.
@@ -306,7 +322,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
@@ -350,7 +366,7 @@ defmodule Cache.S3 do
 
   ## Options
 
-    * `:type` - The storage type: `:cache` (default) or `:xcode_cache`
+    * `:type` - The storage type: `:cache` (default), `:xcode_cache`, or `:registry`
     * `:content_type` - The content type for the uploaded object
 
   Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
@@ -408,6 +424,7 @@ defmodule Cache.S3 do
 
   defp bucket_for_type(:xcode_cache), do: Config.xcode_cache_bucket() || Config.cache_bucket()
   defp bucket_for_type(:cache), do: Config.cache_bucket()
+  defp bucket_for_type(:registry), do: Config.registry_bucket()
 
   defp head_object_status(bucket, key, request_opts \\ []) do
     {duration, result} =

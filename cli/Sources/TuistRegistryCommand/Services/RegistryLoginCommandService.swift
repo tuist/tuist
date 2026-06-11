@@ -4,7 +4,6 @@
     import Noora
     import Path
     import TuistConfigLoader
-    import TuistConstants
     import TuistEnvironment
     import TuistHTTP
     import TuistLoader
@@ -25,7 +24,7 @@
                 return
                     "A project token or OIDC account token is needed to interact with the registry on the CI. Make sure the 'TUIST_TOKEN' environment variable is present and valid, or that OIDC authentication is configured."
             case let .missingHost(url):
-                return "Failed getting host from the registry URL \(url.absoluteString)."
+                return "Failed getting host from the Tuist server URL \(url.absoluteString)."
             }
         }
     }
@@ -89,7 +88,9 @@
                 showSpinner: true
             ) { _ in
                 let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-                let registryURL = Constants.URLs.swiftRegistry(for: serverURL)
+                let registryURL = serverURL.appending(
+                    path: "api/registry/swift"
+                )
 
                 if Environment.current.isCI {
                     try await registryCILogin(
@@ -127,8 +128,8 @@
             }
 
             if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
-                guard let host = registryURL.host else {
-                    throw RegistryLoginCommandServiceError.missingHost(registryURL)
+                guard let host = serverURL.host else {
+                    throw RegistryLoginCommandServiceError.missingHost(serverURL)
                 }
                 let xcode = try await xcodeController.selected()
                 try await securityController.addInternetPassword(

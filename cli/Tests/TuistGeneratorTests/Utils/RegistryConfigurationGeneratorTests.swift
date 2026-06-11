@@ -33,8 +33,8 @@ struct RegistryConfigurationGeneratorTests {
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
         let json = try JSON(data: Data(content.utf8))
 
-        #expect(json["registries"]["[default]"]["url"].string == "https://swift-registry.tuist.dev")
-        #expect(json["authentication"]["swift-registry.tuist.dev"]["loginAPIPath"].string == "/login")
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
+        #expect(json["authentication"]["tuist.dev"]["loginAPIPath"].string == "/api/registry/swift/login")
         #expect(json["version"].int == 1)
     }
 
@@ -59,7 +59,7 @@ struct RegistryConfigurationGeneratorTests {
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
         let json = try JSON(data: Data(content.utf8))
 
-        #expect(json["registries"]["[default]"]["url"].string == "https://swift-registry.tuist.dev")
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
         #expect(!content.contains("old content"))
     }
 
@@ -82,18 +82,7 @@ struct RegistryConfigurationGeneratorTests {
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
         let json = try JSON(data: Data(content.utf8))
 
-        #expect(json["registries"]["[default]"]["url"].string == "https://swift-registry.tuist.dev")
-    }
-
-    @Test
-    func registryConfigurationJSON_mapsCanaryURLToCanaryRegistry() throws {
-        let serverURL = try #require(URL(string: "https://canary.tuist.dev"))
-
-        let jsonString = RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL)
-        let json = try JSON(data: Data(jsonString.utf8))
-
-        #expect(json["registries"]["[default]"]["url"].string == "https://swift-registry-canary.tuist.dev")
-        #expect(json["authentication"]["swift-registry-canary.tuist.dev"]["loginAPIPath"].string == "/login")
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
     }
 
     @Test
@@ -103,8 +92,8 @@ struct RegistryConfigurationGeneratorTests {
         let jsonString = RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL)
         let json = try JSON(data: Data(jsonString.utf8))
 
-        #expect(json["registries"]["[default]"]["url"].string == "https://swift-registry.tuist.dev")
-        #expect(json["authentication"]["swift-registry.tuist.dev"]["loginAPIPath"].string == "/login")
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
+        #expect(json["authentication"]["tuist.dev"]["loginAPIPath"].string == "/api/registry/swift/login")
         #expect(json["version"].int == 1)
         #expect(json["security"]["default"]["signing"]["onUnsigned"].string == "silentAllow")
     }

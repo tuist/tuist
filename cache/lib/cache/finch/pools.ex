@@ -63,7 +63,8 @@ defmodule Cache.Finch.Pools do
     if Cache.Config.s3_virtual_host() do
       [
         Cache.Config.cache_bucket(),
-        Cache.Config.xcode_cache_bucket() || Cache.Config.cache_bucket()
+        Cache.Config.xcode_cache_bucket() || Cache.Config.cache_bucket(),
+        Cache.Config.registry_bucket()
       ]
       |> Enum.filter(&is_binary/1)
       |> Enum.map(&bucket_endpoint(s3_url, &1))

@@ -27,6 +27,7 @@ config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
 config :cache, :s3,
   bucket: "tuist-development",
   xcode_cache_bucket: nil,
+  registry_bucket: nil,
   protocols: [:http1]
 
 config :cache,

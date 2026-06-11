@@ -52,8 +52,8 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 ### `kura-controller/` — Kura endpoint controller
 Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1`). It reconciles account-region Kura endpoint intent into Kubernetes workload resources and, when server policy requests it, dedicated ingress-nginx/LB gateway infrastructure on the Hetzner-backed cluster. Keep it separate from CAPI infrastructure providers; it manages product workload lifecycle, not cluster node lifecycle.
 
-### `registry-router/` — Cloudflare Worker for legacy registry URLs
-Proxies legacy `registry.tuist.dev/*` and `tuist.dev/api/registry/*` requests to the standalone `swift-registry.tuist.dev` service. This keeps existing SwiftPM registry configurations working while new configurations use the standalone host directly.
+### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
+Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.

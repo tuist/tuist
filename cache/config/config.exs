@@ -54,7 +54,9 @@ config :cache, Oban,
   queues: [
     clean: 10,
     maintenance: 1,
-    s3_transfers: 1
+    s3_transfers: 1,
+    registry_sync: 1,
+    registry_release: 5
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
@@ -64,6 +66,7 @@ config :cache, Oban,
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
+       {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]
@@ -91,7 +94,8 @@ config :cache,
   key_value_read_busy_timeout_ms: 2_000,
   key_value_maintenance_busy_timeout_ms: 50,
   key_value_eviction_max_duration_ms: 300_000,
-  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024
+  key_value_eviction_hysteresis_release_bytes: 23 * 1024 * 1024 * 1024,
+  registry_sync_limit: 1_000
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 
@@ -103,6 +107,12 @@ config :logger, :console,
     :selected_account_handle,
     :selected_project_handle
   ]
+
+config :mime, :types, %{
+  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
+  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
+  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
+}
 
 config :opentelemetry, traces_exporter: :none
 

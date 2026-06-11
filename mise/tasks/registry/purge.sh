@@ -8,10 +8,8 @@ set -euo pipefail
 readonly RCLONE_REMOTE="tigris"
 readonly REGISTRY_BUCKET="tuist-registry"
 readonly REGISTRY_ROOT="${RCLONE_REMOTE}:${REGISTRY_BUCKET}"
-readonly KUBE_NAMESPACE="${TUIST_SWIFT_REGISTRY_NAMESPACE:-swift-registry}"
-readonly KUBE_CONTEXT="${TUIST_SWIFT_REGISTRY_KUBE_CONTEXT:-}"
-readonly APP_SELECTOR="app.kubernetes.io/instance=swift-registry,app.kubernetes.io/component=app"
-readonly LOCAL_REGISTRY_ROOT="/storage/registry/swift"
+readonly DEPLOY_CONFIG="${MISE_PROJECT_ROOT}/cache/config/deploy.production.yml"
+readonly LOCAL_REGISTRY_ROOT="/cas/registry/swift"
 
 cleanup_paths=()
 
@@ -39,7 +37,7 @@ print_rclone_setup_instructions() {
     cat >&2 <<EOF
 [registry:purge] ERROR: rclone remote "${RCLONE_REMOTE}" is not configured.
 
-Set it up with the production registry Tigris credentials from the 1Password SWIFT_REGISTRY item:
+Set it up with the production registry Tigris credentials from 1Password/Kamal secrets:
   export S3_ACCESS_KEY_ID='...'
   export S3_SECRET_ACCESS_KEY='...'
   export S3_HOST='fly.storage.tigris.dev'
@@ -77,47 +75,41 @@ check_rclone_configuration() {
     fi
 }
 
-# -- Kubernetes helpers --------------------------------------------------------
+# -- host discovery ------------------------------------------------------------
 
-kubectl_registry() {
-    local args=(kubectl)
+read_all_production_hosts() {
+    local hosts
 
-    if [[ -n "$KUBE_CONTEXT" ]]; then
-        args+=(--context "$KUBE_CONTEXT")
+    if [[ ! -f "$DEPLOY_CONFIG" ]]; then
+        fail "Missing production deploy config: ${DEPLOY_CONFIG}"
     fi
 
-    "${args[@]}" -n "$KUBE_NAMESPACE" "$@"
-}
+    hosts="$(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")"
 
-read_all_registry_pods() {
-    local pods
-
-    pods="$(kubectl_registry get pods -l "$APP_SELECTOR" -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}')"
-
-    if [[ -z "$pods" ]]; then
-        fail "No running Swift registry pods found in namespace ${KUBE_NAMESPACE}"
+    if [[ -z "$hosts" ]]; then
+        fail "No production cache hosts found in ${DEPLOY_CONFIG}"
     fi
 
-    printf '%s\n' "$pods"
+    printf '%s\n' "$hosts"
 }
 
 purge_local_caches() {
     local local_path="$1"
-    local pods=()
-    local pod
+    local hosts=()
+    local host
 
-    while IFS= read -r pod; do
-        pods+=("$pod")
-    done < <(read_all_registry_pods)
+    while IFS= read -r host; do
+        hosts+=("$host")
+    done < <(read_all_production_hosts)
 
-    log "Purging local disk caches from ${#pods[@]} registry pods"
+    log "Purging local disk caches from ${#hosts[@]} production nodes"
 
-    for pod in "${pods[@]}"; do
-        log "Removing ${local_path} on ${pod}"
-        if kubectl_registry exec "$pod" -- rm -rf "$local_path"; then
-            log "Purged local cache on ${pod}"
+    for host in "${hosts[@]}"; do
+        log "Removing ${local_path} on ${host}"
+        if ssh -o BatchMode=yes "$host" rm -rf "$local_path"; then
+            log "Purged local cache on ${host}"
         else
-            warn "Failed to purge local cache on ${pod} (continuing with other pods)"
+            warn "Failed to purge local cache on ${host} (continuing with other nodes)"
         fi
     done
 }

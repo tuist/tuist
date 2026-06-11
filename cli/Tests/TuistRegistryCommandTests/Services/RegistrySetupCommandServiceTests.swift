@@ -92,15 +92,15 @@ struct RegistrySetupCommandServiceTests {
                     }
                   },
                   "authentication": {
-                    "swift-registry.test.tuist.io": {
-                      "loginAPIPath": "/login",
+                    "test.tuist.io": {
+                      "loginAPIPath": "/api/registry/swift/login",
                       "type": "token"
                     }
                   },
                   "registries": {
                     "[default]": {
                       "supportsAvailability": false,
-                      "url": "https://swift-registry.test.tuist.io"
+                      "url": "\(serverURL)/api/registry/swift"
                     }
                   },
                   "version": 1

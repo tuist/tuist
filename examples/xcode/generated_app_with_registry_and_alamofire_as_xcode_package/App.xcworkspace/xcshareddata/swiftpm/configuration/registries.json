@@ -7,15 +7,15 @@
     }
   },
   "authentication": {
-    "swift-registry-canary.tuist.dev": {
-      "loginAPIPath": "/login",
+    "canary.tuist.dev": {
+      "loginAPIPath": "/api/accounts/tuist/registry/swift/login",
       "type": "token"
     }
   },
   "registries": {
     "[default]": {
       "supportsAvailability": false,
-      "url": "https://swift-registry-canary.tuist.dev"
+      "url": "https://canary.tuist.dev/api/accounts/tuist/registry/swift"
     }
   },
   "version": 1
