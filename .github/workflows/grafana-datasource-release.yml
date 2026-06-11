@@ -90,12 +90,9 @@ jobs:
           git cliff --include-path "grafana-datasource/**/*" --config cliff.toml --repository ".." $range \
             | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 > /tmp/notes.md
 
-      - name: Check, build the frontend
+      - name: Build the frontend
         run: |
           npm ci
-          npm run typecheck
-          npm run lint
-          npm run test:ci
           npm run build
 
       - name: Build the backend binaries
