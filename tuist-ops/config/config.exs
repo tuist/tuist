@@ -26,4 +26,16 @@ config :tuist_ops, Oban,
   queues: [revert: 1],
   repo: TuistOps.Repo
 
+# Bundle the operator UI (Noora + the dead-view hook loader) with esbuild.
+# Noora resolves from the Hex package's prebuilt priv/static/noora.js via
+# NODE_PATH, so there is no node/npm step and nothing built is committed.
+config :esbuild,
+  version: "0.25.4",
+  tuist_ops: [
+    args:
+      ~w(js/app.js --bundle --target=es2022 --format=esm --outdir=../priv/static/assets),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ]
+
 import_config "#{config_env()}.exs"

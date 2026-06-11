@@ -21,19 +21,19 @@ RUN mkdir config
 
 COPY tuist-ops/config/config.exs tuist-ops/config/${MIX_ENV}.exs config/
 
-# Noora is a path dependency (`{:noora, path: "../noora"}`); the build
-# context is the repo root, so its source has to land at /app/noora for
-# the `../noora` path to resolve. The prebuilt noora.css/js are vendored
-# under tuist-ops/priv/static/assets, so no JS/CSS build runs here.
-COPY noora /app/noora
-
 RUN mix deps.get --only $MIX_ENV
 RUN mix deps.compile
 
 COPY tuist-ops/priv priv
 COPY tuist-ops/lib lib
+COPY tuist-ops/assets assets
 
 RUN mix compile --warnings-as-errors
+
+# Bundle the operator UI. esbuild resolves Noora from the Hex package's
+# prebuilt priv/static/noora.js (no node/npm), and downloads its own
+# standalone binary on first run.
+RUN mix assets.deploy
 
 COPY tuist-ops/config/runtime.exs config/
 

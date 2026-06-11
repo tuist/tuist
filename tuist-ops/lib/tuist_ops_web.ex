@@ -9,7 +9,7 @@ defmodule TuistOpsWeb do
       match the rest of the Tuist ops surface.
   """
 
-  def static_paths, do: ~w(assets)
+  def static_paths, do: ~w(assets images)
 
   def controller do
     quote do
