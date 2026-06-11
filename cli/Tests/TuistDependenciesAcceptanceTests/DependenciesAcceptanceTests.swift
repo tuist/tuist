@@ -21,7 +21,6 @@ import TuistTesting
 @Suite(.serialized)
 struct DependenciesAcceptanceTests {
     @Test(
-        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -63,7 +62,7 @@ struct DependenciesAcceptanceTests {
         try await TuistTest.run(
             TestCommand.self,
             [
-                "AppKit",
+                "App Kit",
                 "--device",
                 simulator.name,
                 "--path",
