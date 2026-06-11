@@ -11,8 +11,9 @@ defmodule Tuist.AuthorizationTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   test "can.update.account when the subject has an admin operator grant" do
-    # Given
-    user = AccountsFixtures.user_fixture()
+    # Given — the grant only authorizes a confirmed Tuist operator whose
+    # email matches the grant's subject.
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
     account = AccountsFixtures.organization_fixture(preload: [:account]).account
     now = System.system_time(:second)
 

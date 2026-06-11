@@ -46,6 +46,8 @@ defmodule TuistWeb.OperatorGrant do
 
   @issuer "ops.tuist.dev"
   @session_key "operator_grants"
+  # Tolerance for clock drift between the ops signer and this server.
+  @clock_skew_seconds 60
 
   # --- verification ------------------------------------------------------
 
@@ -96,6 +98,7 @@ defmodule TuistWeb.OperatorGrant do
          {:ok, iat} <- fetch_int(fields, "iat"),
          {:ok, exp} <- fetch_int(fields, "exp"),
          :ok <- check_not_expired(exp),
+         :ok <- check_iat_not_future(iat),
          :ok <- check_ttl_ceiling(iat, exp),
          :ok <- check_issuer(fields),
          :ok <- check_audience(fields) do
@@ -134,6 +137,16 @@ defmodule TuistWeb.OperatorGrant do
     if exp > System.system_time(:second), do: :ok, else: {:error, :expired}
   end
 
+  # A future-dated `iat` would otherwise sail past the TTL ceiling
+  # (`exp - iat` stays small while `exp` is pushed far out), yielding a
+  # long-lived grant. Pinning `iat` to "now" also bounds the absolute
+  # expiry to `now + skew + max_ttl`.
+  defp check_iat_not_future(iat) do
+    if iat <= System.system_time(:second) + @clock_skew_seconds,
+      do: :ok,
+      else: {:error, :iat_in_future}
+  end
+
   defp check_ttl_ceiling(iat, exp) do
     if exp - iat <= Environment.operator_grant_max_ttl_seconds(),
       do: :ok,
@@ -167,6 +180,7 @@ defmodule TuistWeb.OperatorGrant do
 
   defp do_accept(conn, token) do
     with {:ok, claims} <- verify(token),
+         :ok <- check_subject_is_current_operator(conn, claims),
          %{id: account_id} <- Accounts.get_account_by_handle(claims.account_handle) do
       grants =
         conn
@@ -180,10 +194,36 @@ defmodule TuistWeb.OperatorGrant do
       |> halt()
     else
       _ ->
-        # Invalid/unknown token: strip it and continue unauthenticated.
+        # Invalid/unknown token, or a valid token presented by someone
+        # who is not the operator it was minted for: strip it and
+        # continue unauthenticated. The grant is never stored.
         conn |> redirect(to: stripped_path(conn)) |> halt()
     end
   end
+
+  # The grant is a bearer token, so it must only be honoured for the
+  # confirmed operator named in `sub` — otherwise a leaked redirect-back
+  # URL would let any logged-in session attach the grant and bypass SSO.
+  defp check_subject_is_current_operator(conn, %{sub: sub}) do
+    case conn.assigns[:current_user] do
+      %User{email: email} = user ->
+        if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
+          :ok
+        else
+          Logger.warning("operator grant rejected: subject does not match the session user")
+          {:error, :subject_mismatch}
+        end
+
+      _ ->
+        {:error, :no_current_user}
+    end
+  end
+
+  defp emails_match?(a, b) when is_binary(a) and is_binary(b) do
+    String.downcase(a) == String.downcase(b)
+  end
+
+  defp emails_match?(_, _), do: false
 
   defp normalize_grants(grants) when is_map(grants), do: grants
   defp normalize_grants(_), do: %{}
@@ -235,12 +275,16 @@ defmodule TuistWeb.OperatorGrant do
   @doc """
   True when the current user holds a valid (loaded, unexpired) operator
   grant for the account on this request. Used by the SSO-enforcement
-  bypass.
+  bypass — so it carries the same operator-identity binding as the
+  authorization checks: the session user must be a confirmed Tuist
+  operator and the one the grant was minted for.
   """
   def active_grant?(conn) do
     case conn.assigns[:current_user] do
-      %User{operator_grant: %{exp: exp}} when is_integer(exp) ->
-        exp > System.system_time(:second)
+      %User{operator_grant: %{exp: exp} = grant, email: email} = user when is_integer(exp) ->
+        exp > System.system_time(:second) and
+          Accounts.tuist_operator?(user) and
+          emails_match?(email, Map.get(grant, :sub))
 
       _ ->
         false
@@ -272,12 +316,26 @@ defmodule TuistWeb.OperatorGrant do
     account_handle = conn.params["account_handle"]
     project_handle = conn.params["project_handle"]
 
-    if google_authenticated?(conn) and redirect_to_ops?(user, account_handle, project_handle) do
+    if ops_redirect_configured?() and google_authenticated?(conn) and
+         redirect_to_ops?(user, account_handle, project_handle) do
       conn
       |> redirect(external: ops_reason_form_url(conn, account_handle))
       |> halt()
     else
       conn
+    end
+  end
+
+  # The reason-form URL is opt-in per environment: until ops.tuist.dev is
+  # fronted by Pomerium and routes `/grants` (with a matching per-env
+  # audience and return_to allowlist), leave it unset so operators get
+  # the normal 404 instead of being bounced to a dead endpoint. Offline
+  # grant verification stays active regardless — only the convenience
+  # redirect is gated.
+  defp ops_redirect_configured? do
+    case Environment.ops_reason_form_url() do
+      url when is_binary(url) and byte_size(url) > 0 -> true
+      _ -> false
     end
   end
 

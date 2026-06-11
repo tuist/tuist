@@ -61,7 +61,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     organization =
       AccountsFixtures.organization_fixture(preload: [:account])
 
-    user = AccountsFixtures.user_fixture()
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
     now = System.system_time(:second)
 
     conn =

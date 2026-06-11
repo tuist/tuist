@@ -72,6 +72,20 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
       refute conn.halted
     end
+
+    test "does not redirect when the ops reason-form url is unconfigured", %{conn: conn} do
+      stub(Tuist.Environment, :ops_reason_form_url, fn -> nil end)
+      project = ProjectsFixtures.project_fixture(preload: [:account])
+      operator = operator_user()
+
+      conn =
+        conn
+        |> with_handles(project.account.name, project.name)
+        |> assign(:current_user, operator)
+        |> OperatorGrant.redirect_to_ops_if_operator([])
+
+      refute conn.halted
+    end
   end
 
   describe "accept_operator_grant/2" do
@@ -86,14 +100,16 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       {:ok, signer: jwk}
     end
 
-    test "stores a valid grant in the session and strips the param", %{signer: signer} do
+    test "stores a valid grant in the session for its operator subject", %{signer: signer} do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
-      token = mint(signer, claims(account.name))
+      operator = operator_user()
+      token = mint(signer, claims(account.name, operator.email))
 
       conn =
         :get
         |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
         |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, operator)
         |> OperatorGrant.accept_operator_grant([])
 
       assert conn.halted
@@ -104,6 +120,43 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       grant = get_session(conn, "operator_grants")[account.name]
       assert grant.tier == :read
       assert grant.account_id == account.id
+    end
+
+    test "rejects a valid grant presented by a non-operator session", %{signer: signer} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      # Token minted for an operator, but the session belongs to a regular
+      # customer user: a leaked redirect-back URL must not attach the grant.
+      token = mint(signer, claims(account.name, "operator@tuist.dev"))
+      customer = AccountsFixtures.user_fixture(preload: [:account])
+
+      conn =
+        :get
+        |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
+        |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, customer)
+        |> OperatorGrant.accept_operator_grant([])
+
+      assert conn.halted
+      assert [location] = get_resp_header(conn, "location")
+      refute location =~ "operator_grant"
+      assert get_session(conn, "operator_grants") == nil
+    end
+
+    test "rejects a grant presented by a different operator", %{signer: signer} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      subject = operator_user()
+      other_operator = operator_user()
+      token = mint(signer, claims(account.name, subject.email))
+
+      conn =
+        :get
+        |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
+        |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, other_operator)
+        |> OperatorGrant.accept_operator_grant([])
+
+      assert conn.halted
+      assert get_session(conn, "operator_grants") == nil
     end
 
     test "ignores and strips an invalid token", %{signer: _signer} do
@@ -118,6 +171,51 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       assert conn.halted
       assert get_session(conn, "operator_grants") == nil
     end
+  end
+
+  describe "active_grant?/1 (SSO bypass binding)" do
+    test "true for the operator the grant was minted for" do
+      operator = operator_user()
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant_for(operator)})
+      assert OperatorGrant.active_grant?(conn)
+    end
+
+    test "false when the holder is a different operator" do
+      grant = grant_for(operator_user())
+      other = operator_user()
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{other | operator_grant: grant})
+      refute OperatorGrant.active_grant?(conn)
+    end
+
+    test "false when the holder is not a Tuist operator" do
+      customer = AccountsFixtures.user_fixture(preload: [:account])
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{customer | operator_grant: grant_for(customer)})
+      refute OperatorGrant.active_grant?(conn)
+    end
+
+    test "false when the grant is expired" do
+      operator = operator_user()
+      grant = grant_for(operator, exp: System.system_time(:second) - 1)
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant})
+      refute OperatorGrant.active_grant?(conn)
+    end
+
+    test "false without a grant" do
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, operator_user())
+      refute OperatorGrant.active_grant?(conn)
+    end
+  end
+
+  defp grant_for(user, opts \\ []) do
+    now = System.system_time(:second)
+
+    %{
+      tier: :read,
+      account_id: 1,
+      account_handle: "acme",
+      sub: user.email,
+      exp: Keyword.get(opts, :exp, now + 600)
+    }
   end
 
   defp operator_user do
@@ -136,13 +234,13 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     %{conn | params: %{"account_handle" => account_handle, "project_handle" => project_handle}}
   end
 
-  defp claims(account_handle) do
+  defp claims(account_handle, sub) do
     now = System.system_time(:second)
 
     %{
       "iss" => "ops.tuist.dev",
       "aud" => "tuist-server",
-      "sub" => "operator@tuist.dev",
+      "sub" => sub,
       "account_handle" => account_handle,
       "tier" => "read",
       "reason" => "investigating",

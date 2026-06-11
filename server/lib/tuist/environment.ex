@@ -350,10 +350,13 @@ defmodule Tuist.Environment do
 
   @doc """
   Base URL of the ops.tuist.dev reason form a non-member operator is
-  redirected to before they can access a customer project.
+  redirected to before they can access a customer project. nil by
+  default: the redirect is opt-in per environment and stays off until
+  ops.tuist.dev is Pomerium-fronted and routes `/grants` with a
+  matching audience. Offline grant verification does not depend on this.
   """
   def ops_reason_form_url(secrets \\ secrets()) do
-    get([:ops, :reason_form_url], secrets, default_value: "https://ops.tuist.dev/grants/new")
+    get([:ops, :reason_form_url], secrets, default_value: nil)
   end
 
   def posthog_api_key(secrets \\ secrets()) do

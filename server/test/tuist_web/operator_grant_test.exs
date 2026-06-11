@@ -65,6 +65,14 @@ defmodule TuistWeb.OperatorGrantTest do
       assert {:error, :ttl_too_long} = OperatorGrant.verify(token)
     end
 
+    test "rejects a future-dated iat that would slip past the TTL ceiling", %{signer: signer} do
+      # exp - iat stays within the ceiling, but iat (and thus exp) is far
+      # in the future — without the iat check this yields a long-lived grant.
+      now = System.system_time(:second)
+      token = mint(signer, claims(%{"iat" => now + 4000, "exp" => now + 4600}))
+      assert {:error, :iat_in_future} = OperatorGrant.verify(token)
+    end
+
     test "rejects a wrong audience", %{signer: signer} do
       token = mint(signer, claims(%{"aud" => "some-other-server"}))
       assert {:error, :bad_audience} = OperatorGrant.verify(token)

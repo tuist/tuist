@@ -230,16 +230,29 @@ defmodule Tuist.Authorization.Checks do
 
   def ops_write_access(_, _), do: false
 
-  defp operator_grant_covers?(%User{operator_grant: %{} = grant}, object, allowed_tiers) do
+  defp operator_grant_covers?(%User{operator_grant: %{} = grant} = user, object, allowed_tiers) do
     account_id = object_account_id(object)
 
-    not is_nil(account_id) and
+    # The grant binds to the operator it was minted for: the current user
+    # must be a confirmed Tuist operator AND the one named in `sub`. This
+    # is the authorization-side half of the bearer-token guard in
+    # `TuistWeb.OperatorGrant` (defence in depth — a grant that somehow
+    # lands on the wrong session still authorizes nothing).
+    Accounts.tuist_operator?(user) and
+      operator_grant_subject_matches?(user, grant) and
+      not is_nil(account_id) and
       grant[:account_id] == account_id and
       grant[:tier] in allowed_tiers and
       not grant_expired?(grant)
   end
 
   defp operator_grant_covers?(_user, _object, _allowed_tiers), do: false
+
+  defp operator_grant_subject_matches?(%User{email: email}, %{sub: sub}) when is_binary(email) and is_binary(sub) do
+    String.downcase(email) == String.downcase(sub)
+  end
+
+  defp operator_grant_subject_matches?(_, _), do: false
 
   defp grant_expired?(%{exp: exp}) when is_integer(exp), do: exp <= System.system_time(:second)
   defp grant_expired?(_), do: true

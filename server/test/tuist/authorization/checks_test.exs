@@ -516,12 +516,25 @@ defmodule Tuist.Authorization.ChecksTest do
   describe "ops_access/2 (grant-based)" do
     setup %{organization: organization} do
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
-      %{project: project, account: organization.account}
+      %{project: project, account: organization.account, user: operator_user()}
     end
 
     test "true with a read grant covering the project's account", %{user: user, project: project} do
       user = put_grant(user, project.account_id, :read)
       assert Checks.ops_access(user, project) == true
+    end
+
+    test "false when the holder is not a Tuist operator", %{project: project} do
+      # A regular customer session carrying a grant (e.g. a replayed token)
+      # authorizes nothing, even though the grant's subject matches them.
+      customer = AccountsFixtures.user_fixture(preload: [:account])
+      user = put_grant(customer, project.account_id, :read)
+      assert Checks.ops_access(user, project) == false
+    end
+
+    test "false when the grant subject is a different operator", %{user: user, project: project} do
+      grant = %{put_grant(user, project.account_id, :read).operator_grant | sub: "someone-else@tuist.dev"}
+      assert Checks.ops_access(%{user | operator_grant: grant}, project) == false
     end
 
     test "true with an admin grant (admin satisfies read)", %{user: user, project: project} do
@@ -569,7 +582,7 @@ defmodule Tuist.Authorization.ChecksTest do
   describe "ops_write_access/2 (admin-tier grant only)" do
     setup %{organization: organization} do
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
-      %{project: project}
+      %{project: project, user: operator_user()}
     end
 
     test "true with an admin grant covering the account", %{user: user, project: project} do
@@ -587,6 +600,13 @@ defmodule Tuist.Authorization.ChecksTest do
     end
   end
 
+  defp operator_user do
+    AccountsFixtures.user_fixture(
+      email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+      preload: [:account]
+    )
+  end
+
   defp put_grant(user, account_id, tier, opts \\ []) do
     now = System.system_time(:second)
 
@@ -594,7 +614,7 @@ defmodule Tuist.Authorization.ChecksTest do
       tier: tier,
       account_id: account_id,
       account_handle: "acme",
-      sub: "operator@tuist.dev",
+      sub: user.email,
       reason: "investigating",
       jti: "1",
       iat: now,
