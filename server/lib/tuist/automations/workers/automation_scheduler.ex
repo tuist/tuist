@@ -41,16 +41,22 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
     :ok
   end
 
-  defp scheduled_alert?(%{monitor_type: "test_updated"}), do: false
+  defp scheduled_alert?(alert) do
+    cond do
+      Alert.event_driven?(alert) -> false
+      rolling_with_baseline?(alert) -> false
+      true -> true
+    end
+  end
 
-  defp scheduled_alert?(%{
+  defp rolling_with_baseline?(%{
          monitor_type: monitor_type,
          trigger_config: %{"window_type" => "rolling"},
          baseline_established_at: %DateTime{}
        })
-       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"], do: false
+       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"], do: true
 
-  defp scheduled_alert?(_alert), do: true
+  defp rolling_with_baseline?(_alert), do: false
 
   defp cadence_seconds(cadence) when is_binary(cadence) do
     case Integer.parse(cadence) do

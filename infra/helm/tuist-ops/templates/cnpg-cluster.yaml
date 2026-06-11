@@ -21,6 +21,14 @@ spec:
 
   enableSuperuserAccess: true
 
+  {{- with .Values.postgresql.parameters }}
+  postgresql:
+    parameters:
+      {{- range $key, $value := . }}
+      {{ $key }}: {{ $value | quote }}
+      {{- end }}
+  {{- end }}
+
   bootstrap:
     initdb:
       database: {{ .Values.postgresql.database | quote }}
@@ -35,6 +43,9 @@ spec:
     storageClass: {{ . | quote }}
     {{- end }}
 
+  resources:
+    {{- toYaml .Values.postgresql.resources | nindent 4 }}
+
   {{- if .Values.postgresql.backup.enabled }}
   backup:
     barmanObjectStore:
@@ -46,7 +57,7 @@ spec:
           key: ACCESS_KEY_ID
         secretAccessKey:
           name: {{ .Values.postgresql.backup.credentialsSecretName }}
-          key: SECRET_ACCESS_KEY
+          key: ACCESS_SECRET_KEY
     retentionPolicy: {{ .Values.postgresql.backup.retentionPolicy | quote }}
   {{- end }}
 {{- if .Values.postgresql.backup.enabled }}

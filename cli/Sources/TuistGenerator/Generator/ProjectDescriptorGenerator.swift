@@ -262,6 +262,14 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             graphTraverser: graphTraverser
         )
         Logger.current.debug("Finished generating target dependencies for project \(project.name)")
+
+        // Additive cross-target buildable-folder memberships need every PBXTarget to exist, so they run after the loop.
+        try targetGenerator.generateBuildableFolderForeignExceptions(
+            targets: Array(project.targets.values),
+            nativeTargets: nativeTargets,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
         return (nativeTargets, sideEffects)
     }
 

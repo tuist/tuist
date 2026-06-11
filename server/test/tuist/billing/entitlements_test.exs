@@ -48,6 +48,33 @@ defmodule Tuist.Billing.EntitlementsTest do
     end
   end
 
+  describe "allows?/2 — hosted features that are Enterprise only by default" do
+    setup do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "true for dedicated Kura gateways when the active subscription is enterprise" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+
+      assert Entitlements.allows?(account, :dedicated_kura_gateway)
+    end
+
+    test "false for dedicated Kura gateways when there is no active subscription" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      refute Entitlements.allows?(account, :dedicated_kura_gateway)
+    end
+
+    test "false for unknown features when the active subscription is not enterprise" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+
+      refute Entitlements.allows?(account, :unknown_hosted_feature)
+    end
+  end
+
   describe "allows?/2 — self-hosted Tuist" do
     setup do
       stub(Environment, :tuist_hosted?, fn -> false end)

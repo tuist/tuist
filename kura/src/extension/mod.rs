@@ -258,6 +258,31 @@ impl ExtensionEngine {
         Ok(Some(Arc::new(engine)))
     }
 
+    // Build an engine from a script file directly, bypassing the global-env
+    // parsing of `from_env`. Lets other modules' tests exercise the gRPC/HTTP
+    // handlers with a known policy script without racing on process env.
+    #[cfg(test)]
+    pub(crate) async fn from_script_for_test(
+        script_path: PathBuf,
+        metrics: Metrics,
+    ) -> Result<SharedExtension, String> {
+        let config = ExtensionConfig {
+            script_path,
+            hook_timeout: Duration::from_millis(1000),
+            allow_ttl: Duration::from_secs(600),
+            deny_ttl: Duration::from_secs(3),
+            fail_closed_authenticate: true,
+            fail_closed_authorize: true,
+            fail_open_response_headers: true,
+            cache_max_entries: 1000,
+            signers: Arc::new(HashMap::new()),
+            jwt_verifiers: Arc::new(HashMap::new()),
+            http_clients: Arc::new(HashMap::new()),
+            env: Arc::new(HashMap::new()),
+        };
+        Ok(Arc::new(Self::new(config, metrics).await?))
+    }
+
     async fn new(config: ExtensionConfig, metrics: Metrics) -> Result<Self, String> {
         let script = tokio::fs::read_to_string(&config.script_path)
             .await
@@ -1187,15 +1212,22 @@ fn ttl_for_authorize(config: &ExtensionConfig, result: &AuthorizeOutcome) -> Dur
     }
 }
 
+// Hook results are cached per credentials, so the fingerprint must only cover
+// headers that can carry credentials. Hashing the remaining headers instead
+// would key the cache on per-request noise such as `grpc-timeout` (REAPI
+// clients send the remaining deadline on every RPC) or `traceparent`, turning
+// almost every request into a cache miss and an authentication backend call.
+const CREDENTIAL_HEADER_NAMES: [&str; 4] = [
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "x-api-key",
+];
+
 fn credentials_fingerprint(headers: &BTreeMap<String, String>) -> String {
     let filtered = headers
         .iter()
-        .filter(|(name, _)| {
-            !matches!(
-                name.as_str(),
-                "accept" | "content-length" | "host" | "user-agent" | "x-request-id"
-            )
-        })
+        .filter(|(name, _)| CREDENTIAL_HEADER_NAMES.contains(&name.as_str()))
         .collect::<BTreeMap<_, _>>();
     fingerprint(&filtered)
 }
@@ -1505,6 +1537,32 @@ end
         let second = engine.evaluate_access(&context).await;
         assert!(matches!(second, AccessDecision::Allow(Some(_))));
         assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        // Per-request noise headers (REAPI deadlines, trace propagation) must
+        // not key the cache: same credentials, varying noise → still cached.
+        for (noise_name, noise_value) in [
+            ("grpc-timeout", "119999996u"),
+            ("grpc-timeout", "119231422u"),
+            (
+                "traceparent",
+                "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            ),
+        ] {
+            let mut noisy = context.clone();
+            noisy.headers.insert(noise_name.into(), noise_value.into());
+            let decision = engine.evaluate_access(&noisy).await;
+            assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        // Different credentials must not share the cached result.
+        let mut other_credentials = context.clone();
+        other_credentials
+            .headers
+            .insert("authorization".into(), "Bearer other".into());
+        let decision = engine.evaluate_access(&other_credentials).await;
+        assert!(matches!(decision, AccessDecision::Allow(Some(_))));
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]

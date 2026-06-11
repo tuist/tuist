@@ -14,10 +14,6 @@ server:
 
   appUrl: https://canary.tuist.dev
 
-  externalSecrets:
-    kuraIntrospection:
-      item: kura-introspection-oauth-client
-
   autoscaling:
     enabled: false
 
@@ -105,16 +101,18 @@ registryCache:
     rootDirectory: docker-mirror
 
 kuraController:
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
   telemetry:
     deploymentEnvironment: canary
   sentry:
     externalSecret:
       enabled: true
       item: kura-sentry
-  sharedSecrets:
-    externalSecret:
-      enabled: true
-      item: kura-introspection-oauth-client
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Matches the cluster's general-purpose

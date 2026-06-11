@@ -1,7 +1,10 @@
 # Shared values for the Tuist-managed deployment (tuist.dev).
 # All data services are external; the cache + embedded observability stack are off;
-# traffic flows through cert-manager + Cloudflare DNS-01 TLS and an ingress-nginx
-# LoadBalancer backed by the cloud provider's managed LB.
+# server traffic flows through cert-manager + Cloudflare DNS-01 TLS and the
+# main ingress-nginx LoadBalancer backed by the cloud provider's managed LB.
+# Kura cache traffic uses dedicated shared regional Kura ingress controllers
+# from the platform chart so artifact bytes don't contend with the web ingress
+# dataplane.
 #
 # This file is layered under values-managed-staging.yaml /
 # values-managed-canary.yaml / values-managed-production.yaml; those overlays
@@ -19,10 +22,19 @@ kuraController:
     tag: ""  # Set by CI to the commit SHA on each deploy.
   # Managed app clusters bootstrap this ClusterIssuer via the platform
   # chart. The controller uses it for the per-Kura public HTTPS and gRPC
-  # certificates mounted into each runtime pod.
+  # certificates consumed by the regional Kura ingress layer.
   tlsClusterIssuer: "letsencrypt-cloudflare"
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
+  sharedSecrets:
+    kuraIntrospection:
+      enabled: true
+    externalSecret:
+      enabled: true
+      item: kura-introspection
+      fields:
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
 
 server:
   serviceAccount:
@@ -344,12 +356,12 @@ observability:
 #   `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON projections in
 #   server-deployment.yaml), so the Profiles dropdown + validation
 #   stay in lockstep with the rendered pools.
-# - `release.yml`'s `release-runner-image` reads `xcodeVersions`
-#   from THIS file to build the Release notes image list.
-#
-# Keep `xcodeVersions` aligned with `runner-image-build.strategy.matrix.xcode`
-# in `.github/workflows/release.yml` so every active Xcode tag has a
-# pool that pins to it.
+# Keep `xcodeVersions` aligned with the build matrix in
+# `infra/runner-image/profiles.json` (the single source of truth for
+# which Xcode runner images are built) so every active Xcode tag has a
+# pool that pins to it. This alignment is a deploy concern: editing
+# THIS file does not trigger a runner-image rebuild — only changes
+# under `infra/runner-image/**` do.
 runnersFleet:
   shapes:
     - vcpus: 6

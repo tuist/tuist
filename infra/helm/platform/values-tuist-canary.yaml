@@ -11,3 +11,20 @@ ciliumEgressGateway:
     egressIP: 78.47.174.50
     hostConfigurator:
       enabled: true
+
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+
+kura-eu-central-ingress-nginx:
+  enabled: true
+  controller:
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura
+    service:
+      annotations:
+        load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/name: tuist-canary-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

@@ -144,7 +144,11 @@ class ProjectFileElements {
         var fileElements = Set<GroupFileElement>()
 
         // Config files
+        // xcconfigs inside a buildable folder are referenced through an anchored baseConfigurationReference, so a flat
+        // file reference would duplicate them at the project root (see `targetFiles`).
+        let buildableFolderPaths = project.targets.values.flatMap { $0.buildableFolders.map(\.path) }
         let configFiles = project.settings.configurations.values.compactMap { $0?.xcconfig }
+            .filter { xcconfig in !buildableFolderPaths.contains { xcconfig.isDescendant(of: $0) } }
 
         fileElements.formUnion(
             configFiles.map {
@@ -212,16 +216,21 @@ class ProjectFileElements {
         }
 
         // Support files
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+        // Info.plist, entitlements and xcconfig paths are surfaced to Xcode through build settings
+        // (INFOPLIST_FILE, CODE_SIGN_ENTITLEMENTS) or an anchored baseConfigurationReference, so when they live inside
+        // a buildable folder they are already visible nested in the synchronized group. Adding a flat file reference
+        // here would duplicate them at the project root.
+        if let infoPlist = target.infoPlist, let path = infoPlist.path, !isInsideBuildableFolder(path, of: target) {
             files.insert(path)
         }
 
-        if let entitlements = target.entitlements, let path = entitlements.path {
+        if let entitlements = target.entitlements, let path = entitlements.path, !isInsideBuildableFolder(path, of: target) {
             files.insert(path)
         }
 
         // Config files
         target.settings?.configurations.xcconfigs().forEach { configFilePath in
+            guard !isInsideBuildableFolder(configFilePath, of: target) else { return }
             files.insert(configFilePath)
         }
 
@@ -843,6 +852,29 @@ class ProjectFileElements {
 
     func file(path: AbsolutePath) -> PBXFileReference? {
         elements[path] as? PBXFileReference ?? folderReferences[path]
+    }
+
+    /// Returns the synchronized root group (buildable folder) that contains the given path, together with the path of
+    /// the file relative to that group. When the path is contained in nested buildable folders, the most specific
+    /// (deepest) one is returned. Used to reference xcconfig files through an anchored `baseConfigurationReference`
+    /// instead of a flat file reference.
+    func synchronizedRootGroup(containing path: AbsolutePath)
+        -> (group: PBXFileSystemSynchronizedRootGroup, relativePath: String)?
+    {
+        var match: (folderPath: AbsolutePath, group: PBXFileSystemSynchronizedRootGroup)?
+        for (folderPath, element) in elements {
+            guard let group = element as? PBXFileSystemSynchronizedRootGroup,
+                  path.isDescendant(of: folderPath) else { continue }
+            if match == nil || folderPath.pathString.count > match!.folderPath.pathString.count {
+                match = (folderPath, group)
+            }
+        }
+        guard let match else { return nil }
+        return (match.group, path.relative(to: match.folderPath).pathString)
+    }
+
+    private func isInsideBuildableFolder(_ path: AbsolutePath, of target: Target) -> Bool {
+        target.buildableFolders.contains { path.isDescendant(of: $0.path) }
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {

@@ -549,8 +549,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp strip_redundant_actions(actions, _), do: actions
 
-  def event_driven_monitor_type?("test_updated"), do: true
-  def event_driven_monitor_type?(_), do: false
+  def event_driven_monitor_type?(monitor_type), do: Alert.event_driven?(monitor_type)
 
   defp parse_threshold(metric, value) when metric in ["flakiness_rate", "reliability_rate"] do
     case Float.parse(value) do

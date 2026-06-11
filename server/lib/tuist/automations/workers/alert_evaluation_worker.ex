@@ -59,9 +59,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
       establish_baseline(alert, triggered_ids)
     else
-      %{triggered: triggered_ids, all: all_ids} = evaluate_monitor(alert, test_case_ids)
+      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
       triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-      run_transitions(alert, triggered_ids, all_ids, test_case_ids)
+      run_transitions(alert, triggered_ids, test_case_ids)
     end
 
     :ok
@@ -108,7 +108,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     {:ok, _} = Automations.establish_alert_baseline(alert)
   end
 
-  defp run_transitions(alert, triggered_ids, all_ids, scoped_test_case_ids) do
+  defp run_transitions(alert, triggered_ids, scoped_test_case_ids) do
     active_events = active_alert_events(alert, scoped_test_case_ids)
     already_triggered_ids = MapSet.new(active_events, & &1.test_case_id)
 
@@ -131,26 +131,44 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       end
     end)
 
-    if alert.recovery_enabled do
-      handle_recovery(alert, triggered_ids, active_events, all_ids)
+    # Only metric monitors use this worker's scheduled triggered/recovered
+    # ledger. Event-driven (`test_updated`) monitors keep their own ledger via
+    # `Automations.dispatch_test_case_event/2` — discrete one-shots with no
+    # dwell or recovery — and unknown/legacy monitor types have no evaluator
+    # here, so neither participates in recovery. Gating positively also stops a
+    # monitor-type change from running recovery over stale `triggered` events.
+    if Alert.recovery_ledger?(alert) do
+      handle_recovery(alert, triggered_ids, active_events, scoped_test_case_ids)
     end
   end
 
   defp active_alert_events(alert, nil), do: Automations.list_active_alert_events(alert.id)
-  defp active_alert_events(alert, all_ids), do: Automations.list_active_alert_events(alert.id, all_ids)
 
-  defp handle_recovery(alert, currently_triggered_ids, active_events, all_ids) do
+  defp active_alert_events(alert, scoped_test_case_ids),
+    do: Automations.list_active_alert_events(alert.id, scoped_test_case_ids)
+
+  defp handle_recovery(alert, currently_triggered_ids, active_events, scoped_test_case_ids) do
     currently_triggered_set = MapSet.new(currently_triggered_ids)
-    all_ids_set = MapSet.new(all_ids)
-    recovery_config = alert.recovery_config || %{}
 
     candidates =
-      Enum.filter(active_events, fn event ->
-        MapSet.member?(all_ids_set, event.test_case_id) and
-          not MapSet.member?(currently_triggered_set, event.test_case_id)
-      end)
+      active_events
+      |> Enum.reject(&MapSet.member?(currently_triggered_set, &1.test_case_id))
+      |> reject_unevaluated_this_tick(scoped_test_case_ids)
 
-    recovered = filter_recovered_candidates(alert, candidates, recovery_config)
+    # Re-arming (appending the "recovered" event so the next rising edge can
+    # fire again) happens for every alert once its condition clears — without
+    # it, an alert latches in `triggered` forever and silently stops acting.
+    # When recovery is enabled the user's dwell and undo actions apply; when
+    # it's disabled we re-arm the moment the condition clears (no dwell, no
+    # undo) and leave any effect in place until a human clears it. The
+    # persisted recovery_config is intentionally ignored on the disabled path
+    # because `Alert.changeset` only validates it when recovery is on.
+    {recovered, recovery_actions} =
+      if alert.recovery_enabled do
+        {filter_recovered_candidates(alert, candidates, alert.recovery_config || %{}), alert.recovery_actions}
+      else
+        {candidates, []}
+      end
 
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
@@ -159,7 +177,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       # flipped the order, a failure in the Slack ping / label removal /
       # state reset would leave the rule visually resolved while the user's
       # intended side effects never happened.
-      case ActionExecutor.execute_actions(alert.recovery_actions, alert, entity) do
+      case ActionExecutor.execute_actions(recovery_actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
 
@@ -177,6 +195,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           )
       end
     end)
+  end
+
+  # A scoped evaluation only re-checked `scoped_test_case_ids`, so a triggered
+  # test case outside that set wasn't measured this tick — leave its event
+  # alone rather than treating "absent from the triggered set" as "cleared." A
+  # full evaluation (nil) re-checks every test case, so every active event is
+  # fair game.
+  defp reject_unevaluated_this_tick(candidates, nil), do: candidates
+
+  defp reject_unevaluated_this_tick(candidates, scoped_test_case_ids) do
+    evaluated = MapSet.new(scoped_test_case_ids)
+    Enum.filter(candidates, &MapSet.member?(evaluated, &1.test_case_id))
   end
 
   # In `last_days` mode the recovery cooldown is "wait this long without a
@@ -289,12 +319,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # (see `Tuist.Automations.dispatch_test_case_event/2`), so the scheduled
   # evaluator has nothing to do for them.
   defp evaluate_monitor(%{monitor_type: "test_updated"}, _test_case_ids) do
-    %{triggered: [], all: []}
+    %{triggered: []}
   end
 
   defp evaluate_monitor(alert, _test_case_ids) do
     Logger.warning("Unknown monitor type: #{alert.monitor_type}")
-    %{triggered: [], all: []}
+    %{triggered: []}
   end
 
   defp scoped_test_case_ids(%{"test_case_ids" => test_case_ids}) when is_list(test_case_ids) do

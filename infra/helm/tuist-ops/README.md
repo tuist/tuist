@@ -19,7 +19,7 @@ cross-call this deployment via the tailnet for the policy lookup.
   (`/api/v1/policy`) and any future LiveView paths (`/db`, etc.) are
   reachable only on the tailnet, never publicly.
 - **CNPG Cluster** — single-instance Postgres, 5Gi storage, daily
-  backups to Tigris under `s3://tuist-cnpg-backups/tuist-ops`.
+  backups to Tigris under `s3://tuist-prod-pg-backups/tuist-ops`.
 - **ExternalSecrets** — three of them:
   - `tuist-ops-runtime` — Slack + Tailscale credentials from `TUIST_OPS_BOT`
   - `tuist-ops-app`     — `SECRET_KEY_BASE` from the same 1P item

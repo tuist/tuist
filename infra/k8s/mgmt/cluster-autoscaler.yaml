@@ -89,6 +89,8 @@ spec:
             - --clusterapi-cloud-config-authoritative
             - --kubeconfig=/etc/cluster-autoscaler/workload/value
             - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist,autoscaling.tuist.dev/group=kura
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist,autoscaling.tuist.dev/group=kura-us-east
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist,autoscaling.tuist.dev/group=kura-us-west
             - --scale-down-unneeded-time=10m
             - --scale-down-delay-after-add=10m
             - --max-node-provision-time=15m
@@ -116,25 +118,31 @@ spec:
           secret:
             secretName: tuist-kubeconfig
 ---
+# Staging gets its own autoscaler instance because each autoscaler
+# watches exactly one workload cluster for pending pods (via the
+# mounted kubeconfig). Staging's Kura pool sizes with the
+# runner-cache identity rule — one single-replica instance per
+# flag-enabled account — so its demand tracks the dev-account
+# population rather than a fixed replica count.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cluster-autoscaler-tuist-kura-us-east
+  name: cluster-autoscaler-tuist-staging
   namespace: org-tuist
   labels:
     app.kubernetes.io/name: cluster-autoscaler
-    app.kubernetes.io/instance: tuist-kura-us-east
+    app.kubernetes.io/instance: tuist-staging
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: cluster-autoscaler
-      app.kubernetes.io/instance: tuist-kura-us-east
+      app.kubernetes.io/instance: tuist-staging
   template:
     metadata:
       labels:
         app.kubernetes.io/name: cluster-autoscaler
-        app.kubernetes.io/instance: tuist-kura-us-east
+        app.kubernetes.io/instance: tuist-staging
     spec:
       serviceAccountName: cluster-autoscaler
       securityContext:
@@ -150,7 +158,7 @@ spec:
             - --cloud-provider=clusterapi
             - --clusterapi-cloud-config-authoritative
             - --kubeconfig=/etc/cluster-autoscaler/workload/value
-            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist-kura-us-east,autoscaling.tuist.dev/group=kura
+            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist-staging,autoscaling.tuist.dev/group=kura-staging
             - --scale-down-unneeded-time=10m
             - --scale-down-delay-after-add=10m
             - --max-node-provision-time=15m
@@ -176,66 +184,4 @@ spec:
       volumes:
         - name: workload-kubeconfig
           secret:
-            secretName: tuist-kura-us-east-kubeconfig
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cluster-autoscaler-tuist-kura-us-west
-  namespace: org-tuist
-  labels:
-    app.kubernetes.io/name: cluster-autoscaler
-    app.kubernetes.io/instance: tuist-kura-us-west
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: cluster-autoscaler
-      app.kubernetes.io/instance: tuist-kura-us-west
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: cluster-autoscaler
-        app.kubernetes.io/instance: tuist-kura-us-west
-    spec:
-      serviceAccountName: cluster-autoscaler
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: cluster-autoscaler
-          image: registry.k8s.io/autoscaling/cluster-autoscaler:v1.34.0
-          imagePullPolicy: IfNotPresent
-          command:
-            - /cluster-autoscaler
-          args:
-            - --cloud-provider=clusterapi
-            - --clusterapi-cloud-config-authoritative
-            - --kubeconfig=/etc/cluster-autoscaler/workload/value
-            - --node-group-auto-discovery=clusterapi:namespace=org-tuist,clusterName=tuist-kura-us-west,autoscaling.tuist.dev/group=kura
-            - --scale-down-unneeded-time=10m
-            - --scale-down-delay-after-add=10m
-            - --max-node-provision-time=15m
-            - --v=4
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              memory: 512Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 65532
-          volumeMounts:
-            - name: workload-kubeconfig
-              mountPath: /etc/cluster-autoscaler/workload
-              readOnly: true
-      volumes:
-        - name: workload-kubeconfig
-          secret:
-            secretName: tuist-kura-us-west-kubeconfig
+            secretName: tuist-staging-kubeconfig

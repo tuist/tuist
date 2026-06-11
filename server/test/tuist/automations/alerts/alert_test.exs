@@ -628,4 +628,25 @@ defmodule Tuist.Automations.Alerts.AlertTest do
       assert "does not exist" in errors_on(changeset_with_error).project_id
     end
   end
+
+  describe "event_driven?/1 and recovery_ledger?/1" do
+    test "test_updated is event-driven and not part of the recovery ledger" do
+      assert Alert.event_driven?("test_updated")
+      assert Alert.event_driven?(%Alert{monitor_type: "test_updated"})
+      refute Alert.recovery_ledger?("test_updated")
+    end
+
+    test "metric monitors drive the recovery ledger and are not event-driven" do
+      for monitor_type <- ~w(flakiness_rate flaky_run_count reliability_rate) do
+        assert Alert.recovery_ledger?(monitor_type)
+        assert Alert.recovery_ledger?(%Alert{monitor_type: monitor_type})
+        refute Alert.event_driven?(monitor_type)
+      end
+    end
+
+    test "unknown monitor types are neither event-driven nor recovery-ledger" do
+      refute Alert.event_driven?("legacy_unknown")
+      refute Alert.recovery_ledger?("legacy_unknown")
+    end
+  end
 end

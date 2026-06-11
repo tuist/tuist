@@ -41,7 +41,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   import Ecto.Query
 
   alias Tuist.ClickHouseRepo
-  alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRunDailyStatsPerCase
 
   @comparisons ~w(gte gt lt lte)
@@ -70,10 +69,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           rolling_triggered_test_case_ids(project_id, "flakiness_rate", size, threshold, comparison, test_case_ids)
       end
 
-    %{
-      triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
-    }
+    %{triggered: triggered_test_case_ids}
   end
 
   def evaluate_by_run_count(alert, test_case_ids \\ nil) do
@@ -94,10 +90,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           rolling_triggered_test_case_ids(project_id, "flaky_run_count", size, threshold, comparison, test_case_ids)
       end
 
-    %{
-      triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
-    }
+    %{triggered: triggered_test_case_ids}
   end
 
   def evaluate_by_reliability_rate(alert, test_case_ids \\ nil) do
@@ -118,10 +111,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
           rolling_triggered_test_case_ids(project_id, "reliability_rate", size, threshold, comparison, test_case_ids)
       end
 
-    %{
-      triggered: triggered_test_case_ids,
-      all: load_all_test_case_ids(project_id, alert.recovery_enabled, test_case_ids)
-    }
+    %{triggered: triggered_test_case_ids}
   end
 
   # The MV is keyed on `(project_id, date, test_case_id)`, so we round the
@@ -438,25 +428,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   defp filter_test_case_ids(query, test_case_ids) do
     where(query, [row], row.test_case_id in ^test_case_ids)
-  end
-
-  defp load_all_test_case_ids(_project_id, false, _test_case_ids), do: []
-
-  defp load_all_test_case_ids(_project_id, _recovery_enabled, test_case_ids) when is_list(test_case_ids) do
-    test_case_ids
-  end
-
-  # `project_id` is the leading sort key; `DISTINCT` on `id` collapses
-  # duplicate row versions from unmerged parts cheaply, avoiding the
-  # multi-part full-row merge `FINAL` would force.
-  defp load_all_test_case_ids(project_id, _recovery_enabled, _test_case_ids) do
-    ClickHouseRepo.all(
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        distinct: true,
-        select: tc.id
-      )
-    )
   end
 
   # Persisted alerts always carry an explicit `window_type` after the backfill

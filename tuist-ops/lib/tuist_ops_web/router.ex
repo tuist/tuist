@@ -60,5 +60,6 @@ defmodule TuistOpsWeb.Router do
     pipe_through :health
 
     get "/healthz", HealthController, :show
+    get "/readyz", HealthController, :ready
   end
 end

@@ -11,10 +11,6 @@ server:
 
   appUrl: https://tuist.dev
 
-  externalSecrets:
-    kuraIntrospection:
-      item: kura-introspection-oauth-client
-
   # HA scale-out needs distributed Erlang so PubSub + the in-memory rate
   # limiter work across pods. Emits a headless Service that libcluster's
   # Kubernetes.DNS strategy uses to discover peers; the chart wires
@@ -33,22 +29,11 @@ server:
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
-    # Exposes the managed Kura regions in account settings. Each region
-    # maps to a controller-backed Kura cluster_id in Tuist.Kura.Regions.
+    # Exposes the managed Kura regions in account settings. Regions now
+    # reconcile inside this workload cluster; per-region Kura node pools
+    # decide placement.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west
-    # Kubeconfigs for regional Kura clusters. CI syncs this Secret from
-    # 1Password before Helm upgrades the production server release.
-    - name: TUIST_KURA_KUBECONFIG_US_EAST_1
-      valueFrom:
-        secretKeyRef:
-          name: tuist-kura-kubeconfigs
-          key: TUIST_KURA_KUBECONFIG_US_EAST_1
-    - name: TUIST_KURA_KUBECONFIG_US_WEST_1
-      valueFrom:
-        secretKeyRef:
-          name: tuist-kura-kubeconfigs
-          key: TUIST_KURA_KUBECONFIG_US_WEST_1
 
   autoscaling:
     enabled: true
@@ -100,16 +85,18 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
   telemetry:
     deploymentEnvironment: production
   sentry:
     externalSecret:
       enabled: true
       item: kura-sentry
-  sharedSecrets:
-    externalSecret:
-      enabled: true
-      item: kura-introspection-oauth-client
 
 # CloudNativePG cluster — production shape. 3 instances (primary + 2
 # sync replicas), 100Gi per instance. Each instance is a streaming
