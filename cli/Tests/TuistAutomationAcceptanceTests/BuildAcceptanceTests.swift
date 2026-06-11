@@ -15,7 +15,6 @@ import XcodeProj
 
 struct BuildAcceptanceTestMultiplatformAppWithExtension {
     @Test(
-        .disabled(),
         .withFixture("generated_multiplatform_app_with_extension"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -51,7 +50,6 @@ struct BuildAcceptanceTestMultiplatformAppWithExtension {
 
 struct BuildAcceptanceTestFrameworkBuildableFoldersAndXcassets {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_framework_buildable_folders_and_xcassets"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -97,7 +95,7 @@ struct BuildAcceptanceTestAppWithBuildableFolders {
 }
 
 struct BuildAcceptanceTestWithTemplates {
-    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func with_templates() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let initAnswers = InitPromptAnswers(
@@ -159,7 +157,7 @@ struct BuildAcceptanceTestWithTemplates {
 }
 
 struct BuildAcceptanceTestInvalidArguments {
-    @Test(.disabled(), .inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func with_invalid_arguments() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let initAnswers = InitPromptAnswers(
@@ -265,7 +263,7 @@ struct BuildAcceptanceTestInvalidArguments {
 }
 
 struct BuildAcceptanceTestAppWithPreviews {
-    @Test(.disabled(), .withFixture("generated_app_with_previews"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_app_with_previews"), .inTemporaryDirectory)
     func with_previews() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -317,7 +315,7 @@ struct BuildAcceptanceTestAppWithFrameworkAndTests {
 // }
 
 struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_custom_configuration"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_custom_configuration"), .inTemporaryDirectory)
     func ios_app_with_custom_and_build_to_custom_directory() async throws {
         let fixturePath = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -372,7 +370,7 @@ struct BuildAcceptanceTestiOSAppWithCustomConfigurationAndBuildToCustomDirectory
 }
 
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithStandardMethod {
-    @Test(.disabled(), .withFixture("generated_framework_with_swift_macro"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_framework_with_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_standard_method() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -435,7 +433,7 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
 }
 
 struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitives {
-    @Test(.disabled(), .withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_framework_with_native_swift_macro"), .inTemporaryDirectory)
     func framework_with_swift_macro_integrated_with_xcode_proj_primitives() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -469,7 +467,7 @@ struct BuildAcceptanceTestFrameworkWithSwiftMacroIntegratedWithXcodeProjPrimitiv
 }
 
 struct BuildAcceptanceTestMultiplatformAppWithSDK {
-    @Test(.disabled(), .withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_multiplatform_app_with_sdk"), .inTemporaryDirectory)
     func test() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
@@ -496,7 +494,6 @@ struct BuildAcceptanceTestMultiplatformAppWithSDK {
 
 struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencies {
     @Test(
-        .disabled(),
         .withFixture("generated_multiplatform_µFeature_unit_tests_with_explicit_dependencies"),
         .inTemporaryDirectory
     )
@@ -534,7 +531,6 @@ struct BuildAcceptanceTestMultiplatformµFeatureUnitTestsWithExplicitDependencie
 
 struct BuildAcceptanceTestMultiplatformAppWithMacrosAndEmbeddedWatchOSApp {
     @Test(
-        .disabled(),
         .withFixture("generated_multiplatform_app_with_macros_and_embedded_watchos_app"),
         .inTemporaryDirectory
     )
@@ -594,7 +590,6 @@ struct XcodeBuildBuildCommandAcceptanceTests {
 
 struct XcodeBuildTestCommandAcceptanceTests {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -623,7 +618,6 @@ struct XcodeBuildTestCommandAcceptanceTests {
 
 struct XcodeBuildBuildForTestingCommandAcceptanceTests {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -652,7 +646,6 @@ struct XcodeBuildBuildForTestingCommandAcceptanceTests {
 
 struct XcodeBuildTestWithoutBuildingCommandAcceptanceTests {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
@@ -768,7 +761,6 @@ struct XcodeBuildArchiveCommandAcceptanceTests {
 
 struct XcodeBuildUnorderedBuildCommandAcceptanceTests {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_app_with_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment()
