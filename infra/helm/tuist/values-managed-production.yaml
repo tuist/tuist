@@ -85,6 +85,12 @@ server:
     node.cluster.x-k8s.io/pool: general
 
 kuraController:
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
   telemetry:
     deploymentEnvironment: production
   sentry:

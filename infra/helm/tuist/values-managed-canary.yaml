@@ -101,6 +101,12 @@ registryCache:
     rootDirectory: docker-mirror
 
 kuraController:
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
   telemetry:
     deploymentEnvironment: canary
   sentry:
