@@ -2,24 +2,62 @@ name: Grafana data source release
 
 on:
   push:
-    tags:
-      - "grafana-datasource-v*"
+    branches:
+      - main
+    paths:
+      - grafana-datasource/**
   workflow_dispatch:
 
 permissions:
   contents: write
 
-defaults:
-  run:
-    working-directory: grafana-datasource
+concurrency:
+  group: grafana-datasource-release
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
 
 jobs:
-  release:
+  check-releases:
+    name: Check for releasable changes
     runs-on: tuist-linux
-    env:
-      GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+    timeout-minutes: 5
+    outputs:
+      should-release: ${{ steps.check.outputs.grafana-datasource-should-release }}
+      next-version: ${{ steps.check.outputs.grafana-datasource-next-version }}
+      next-version-number: ${{ steps.check.outputs.grafana-datasource-next-version-number }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check grafana-datasource
+
+  release:
+    name: Build, sign and release
+    needs: check-releases
+    if: needs.check-releases.outputs.should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: grafana-datasource
+    env:
+      GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+      TAG: ${{ needs.check-releases.outputs.next-version }}
+      VERSION: ${{ needs.check-releases.outputs.next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -29,65 +67,82 @@ jobs:
         with:
           go-version: "1.26.3"
 
-      - name: Install frontend dependencies
-        run: npm ci
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
-      - name: Check and build frontend
+      - name: Stamp the plugin version
+        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Generate the changelog
+        run: git cliff --include-path "grafana-datasource/**/*" --config cliff.toml --repository ".." --tag "$TAG" -o CHANGELOG.md
+
+      - name: Collect release notes
+        id: notes
         run: |
+          latest=$(git -C .. tag -l | grep -E "^grafana-datasource@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1 || true)
+          range=""
+          [ -n "$latest" ] && range="-- ${latest}..HEAD"
+          # shellcheck disable=SC2086
+          git cliff --include-path "grafana-datasource/**/*" --config cliff.toml --repository ".." $range \
+            | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 > /tmp/notes.md
+
+      - name: Check, build the frontend
+        run: |
+          npm ci
           npm run typecheck
           npm run lint
           npm run test:ci
           npm run build
 
-      - name: Build backend binaries for all platforms
-        env:
-          GOWORK: "off"
+      - name: Build the backend binaries
         run: |
           go install github.com/magefile/mage@latest
           mage -v
           ls -la dist/gpx_tuist_datasource_* >/dev/null
 
-      - name: Sign plugin
+      - name: Sign the plugin
         if: ${{ env.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
         run: npm run sign
 
-      - name: Read plugin id and version
-        id: meta
-        run: |
-          echo "id=$(node -p "require('./src/plugin.json').id")" >> "$GITHUB_OUTPUT"
-          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
-
       - name: Package
         run: |
-          id=${{ steps.meta.outputs.id }}
-          version=${{ steps.meta.outputs.version }}
+          id=$(node -p "require('./src/plugin.json').id")
           mv dist "$id"
-          zip -r "$id-$version.zip" "$id"
-          sha1sum "$id-$version.zip" | cut -d' ' -f1 > "$id-$version.zip.sha1"
+          zip -r "$id-$VERSION.zip" "$id"
+          sha1sum "$id-$VERSION.zip" | cut -d' ' -f1 > "$id-$VERSION.zip.sha1"
+          {
+            echo "ZIP=grafana-datasource/$id-$VERSION.zip"
+            echo "SHA1=grafana-datasource/$id-$VERSION.zip.sha1"
+          } >> "$GITHUB_ENV"
 
-      - name: Validate plugin (informational)
+      - name: Validate the plugin (informational)
         run: |
-          id=${{ steps.meta.outputs.id }}
-          version=${{ steps.meta.outputs.version }}
-          npx -y @grafana/plugin-validator@latest -sourceCodeUri file://. "$id-$version.zip" || true
+          id=$(node -p "require('./src/plugin.json').id")
+          npx -y @grafana/plugin-validator@latest -sourceCodeUri file://. "$id-$VERSION.zip" || true
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Tag the release
+        working-directory: .
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin"
+            exit 0
+          fi
+          git tag "$TAG"
+          git push origin "refs/tags/$TAG"
+
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v2
         with:
-          name: ${{ steps.meta.outputs.id }}-${{ steps.meta.outputs.version }}
-          path: |
-            grafana-datasource/${{ steps.meta.outputs.id }}-${{ steps.meta.outputs.version }}.zip
-            grafana-datasource/${{ steps.meta.outputs.id }}-${{ steps.meta.outputs.version }}.zip.sha1
-
-      - name: Create GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          id=${{ steps.meta.outputs.id }}
-          version=${{ steps.meta.outputs.version }}
-          gh release create "${{ github.ref_name }}" \
-            "$id-$version.zip" "$id-$version.zip.sha1" \
-            --title "Grafana data source $version" \
-            --notes "Tuist Grafana data source plugin $version. Attached: signed plugin zip + SHA1 for catalog submission." \
-            --repo "${{ github.repository }}"
+          tag_name: ${{ env.TAG }}
+          name: Grafana data source ${{ env.VERSION }}
+          body_path: /tmp/notes.md
+          files: |
+            ${{ env.ZIP }}
+            ${{ env.SHA1 }}
+          repository: tuist/tuist

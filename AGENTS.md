@@ -51,6 +51,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `skills` - Changes to the Agent Skills package
 - `search` - Changes to the search infrastructure (TypeSense)
 - `status` - Changes to the public status page (Cloudflare Worker)
+- `grafana-datasource` - Changes to the Grafana data source plugin
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 

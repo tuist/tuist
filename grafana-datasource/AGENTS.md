@@ -47,10 +47,14 @@ only — they are intentionally not part of the generated CLI client.
 
 ## Releasing / publishing
 
-- `.github/workflows/grafana-datasource-release.yml` builds the frontend +
-  multi-platform Go binaries, signs (when `GRAFANA_ACCESS_POLICY_TOKEN` is set),
-  validates, and (on a `grafana-datasource-v*` tag) publishes a GitHub release
-  with the zip + SHA1 for catalog submission.
+- Releases follow the repo convention: `.github/workflows/grafana-datasource-release.yml`
+  triggers on push to `main` touching `grafana-datasource/**`, computes the next
+  version with git-cliff via `mise run release:check grafana-datasource` (config in
+  `cliff.toml`, registered in `mise/tasks/release/components.json`), and — when there
+  are releasable commits — stamps the version, builds the frontend + multi-platform Go
+  binaries, signs (when `GRAFANA_ACCESS_POLICY_TOKEN` is set), validates, tags
+  `grafana-datasource@x.y.z`, and publishes a GitHub release with the zip + SHA1 for
+  catalog submission. `CHANGELOG.md` is git-cliff-generated — do not hand-edit it.
 - Catalog readiness was checked with `@grafana/plugin-validator`. The plugin runs
   the **latest** `grafana-plugin-sdk-go` on go 1.26.3 (in its own `go.work`),
   which clears the validator's "SDK older than 5 months" check and the
