@@ -73,6 +73,7 @@ pub struct Store {
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
+    segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
     existence_cache: StdMutex<ExistenceCache>,
@@ -341,7 +342,7 @@ impl Store {
             "resolved CAS segment ring limits"
         );
 
-        Ok(Self {
+        let store = Self {
             db,
             io,
             memory,
@@ -355,6 +356,7 @@ impl Store {
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
             segment_refresh_lock: Mutex::new(()),
+            segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
             existence_cache: StdMutex::new(ExistenceCache::new(
@@ -363,7 +365,10 @@ impl Store {
             )),
             multipart_locks: std::array::from_fn(|_| Mutex::new(())),
             failpoints: Arc::new(FailpointSet::default()),
-        })
+        };
+        let segment_state = store.load_segment_state_from_db()?;
+        store.replace_segment_state_snapshot(segment_state);
+        Ok(store)
     }
 
     fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
@@ -1061,8 +1066,8 @@ impl Store {
         &self,
         incoming_size: u64,
     ) -> Result<(SegmentReference, Vec<SegmentReference>), String> {
-        let mut state = self.load_segment_state()?;
-        let needs_new_segment = match state.active() {
+        let snapshot = self.segment_state_snapshot();
+        let needs_new_segment = match snapshot.state.active() {
             Some(segment) => {
                 let path = self.segment_path(&segment.segment_id);
                 let current_size = if self.io.path_exists(&path).await? {
@@ -1086,6 +1091,7 @@ impl Store {
                 ));
             }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
+            let mut state = snapshot.state.clone();
             let evicted_segments = state.push_new(
                 segment.clone(),
                 self.segment_ring_limits.desired_old_segments,
@@ -1096,7 +1102,8 @@ impl Store {
             Ok((segment, evicted_segments))
         } else {
             Ok((
-                state
+                snapshot
+                    .state
                     .active()
                     .cloned()
                     .expect("current segment should exist when not rotating"),
@@ -1105,7 +1112,11 @@ impl Store {
         }
     }
 
-    fn load_segment_state(&self) -> Result<SegmentState, String> {
+    /// Reads the segment ring state from the metadata store. Only seeds the
+    /// in-memory snapshot at startup; runtime readers go through
+    /// [`Self::segment_state_snapshot`], which stays current because every
+    /// mutation funnels through [`Self::save_segment_state`].
+    fn load_segment_state_from_db(&self) -> Result<SegmentState, String> {
         let key = b"shared";
         let Some(bytes) = self
             .db
@@ -1119,16 +1130,37 @@ impl Store {
             .map_err(|error| format!("failed to decode segment state: {error}"))
     }
 
+    fn segment_state_snapshot(&self) -> Arc<SegmentStateSnapshot> {
+        self.segment_state_cache
+            .lock()
+            .expect("segment state cache lock poisoned")
+            .clone()
+    }
+
+    fn replace_segment_state_snapshot(&self, state: SegmentState) {
+        let snapshot = Arc::new(SegmentStateSnapshot::new(state));
+        *self
+            .segment_state_cache
+            .lock()
+            .expect("segment state cache lock poisoned") = snapshot;
+    }
+
     fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
         let bytes = serde_json::to_vec(state)
             .map_err(|error| format!("failed to encode segment state: {error}"))?;
         self.db
             .put_cf(self.cf(ROCKSDB_CF_SEGMENT_STATE), b"shared", bytes)
-            .map_err(|error| format!("failed to persist segment state: {error}"))
+            .map_err(|error| format!("failed to persist segment state: {error}"))?;
+        self.replace_segment_state_snapshot(state.clone());
+        Ok(())
     }
 
     fn segment_generation(&self, segment_id: &str) -> Result<Option<SegmentGeneration>, String> {
-        Ok(self.load_segment_state()?.generation_of(segment_id))
+        Ok(self
+            .segment_state_snapshot()
+            .generations
+            .get(segment_id)
+            .copied())
     }
 
     async fn evict_segments(&self, evicted_segments: Vec<SegmentReference>) -> Result<(), String> {
@@ -1188,7 +1220,7 @@ impl Store {
         self.io
             .remove_file_if_exists(&self.segment_path(segment_id))
             .await;
-        let mut state = self.load_segment_state()?;
+        let mut state = self.segment_state_snapshot().state.clone();
         if state.remove_segment(segment_id) {
             self.save_segment_state(&state)?;
         }
@@ -1223,7 +1255,7 @@ impl Store {
             }
         };
 
-        let state = self.load_segment_state()?;
+        let snapshot = self.segment_state_snapshot();
         let mut swept = 0;
         loop {
             let entry = entries.next_entry().await.map_err(|error| {
@@ -1242,7 +1274,7 @@ impl Store {
             else {
                 continue;
             };
-            if state.generation_of(segment_id).is_some() {
+            if snapshot.generations.contains_key(segment_id) {
                 continue;
             }
             tracing::warn!(segment_id, "removing orphaned segment");
@@ -1985,11 +2017,11 @@ impl Store {
     pub fn snapshot(&self) -> Result<StoreSnapshot, String> {
         let outbox_messages = self.outbox_message_count()?;
         let multipart_uploads = self.count_cf_entries(ROCKSDB_CF_MULTIPART_UPLOADS)?;
-        let state = self.load_segment_state()?;
+        let segment_state = self.segment_state_snapshot();
         let segment_counts = vec![
-            ("old", state.old.len()),
-            ("current", state.current.len()),
-            ("new", state.new.len()),
+            ("old", segment_state.state.old.len()),
+            ("current", segment_state.state.current.len()),
+            ("new", segment_state.state.new.len()),
         ];
         Ok(StoreSnapshot {
             outbox_messages,
@@ -2784,6 +2816,34 @@ fn rocksdb_column_family_options(
     block_based.set_pin_l0_filter_and_index_blocks_in_cache(true);
     options.set_block_based_table_factory(&block_based);
     options
+}
+
+/// Parsed segment ring state plus a by-id generation index, kept in memory so
+/// the serving path never re-reads and re-parses the persisted state. The
+/// process is the only writer of the metadata store (enforced by the data-dir
+/// writer lock), so the snapshot can only go stale if a mutation bypasses
+/// [`Store::save_segment_state`].
+#[derive(Default)]
+struct SegmentStateSnapshot {
+    state: SegmentState,
+    generations: HashMap<String, SegmentGeneration>,
+}
+
+impl SegmentStateSnapshot {
+    fn new(state: SegmentState) -> Self {
+        let mut generations =
+            HashMap::with_capacity(state.old.len() + state.current.len() + state.new.len());
+        for segment in &state.old {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::Old);
+        }
+        for segment in &state.current {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::Current);
+        }
+        for segment in &state.new {
+            generations.insert(segment.segment_id.clone(), SegmentGeneration::New);
+        }
+        Self { state, generations }
+    }
 }
 
 struct SegmentLocation {
@@ -4582,7 +4642,9 @@ mod tests {
 
         // Simulate the crash window: rotation saved the ring state without
         // the evicted segment, but the process died before the unlink.
-        let mut state = store.load_segment_state().expect("state should load");
+        let mut state = store
+            .load_segment_state_from_db()
+            .expect("state should load");
         assert!(state.remove_segment(&segment_id));
         store.save_segment_state(&state).expect("state should save");
 
@@ -4598,6 +4660,102 @@ mod tests {
                 .manifest(&manifest.artifact_id)
                 .expect("manifest lookup should succeed")
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn segment_generation_tracks_saved_state() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .save_segment_state(&SegmentState {
+                old: vec![SegmentReference::new("aged".into(), 1)],
+                current: vec![SegmentReference::new("settled".into(), 2)],
+                new: vec![SegmentReference::new("fresh".into(), 3)],
+            })
+            .expect("state should save");
+
+        assert_eq!(
+            store.segment_generation("aged").expect("lookup"),
+            Some(SegmentGeneration::Old)
+        );
+        assert_eq!(
+            store.segment_generation("settled").expect("lookup"),
+            Some(SegmentGeneration::Current)
+        );
+        assert_eq!(
+            store.segment_generation("fresh").expect("lookup"),
+            Some(SegmentGeneration::New)
+        );
+        assert_eq!(store.segment_generation("missing").expect("lookup"), None);
+    }
+
+    #[tokio::test]
+    async fn evicting_a_segment_updates_the_cached_generation() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        assert_eq!(
+            store.segment_generation(&segment_id).expect("lookup"),
+            Some(SegmentGeneration::New)
+        );
+
+        store
+            .evict_segment(&segment_id)
+            .await
+            .expect("eviction should succeed");
+
+        assert_eq!(store.segment_generation(&segment_id).expect("lookup"), None);
+    }
+
+    #[tokio::test]
+    async fn segment_state_snapshot_survives_reopen() {
+        let (_temp_dir, config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+
+        assert_eq!(
+            reopened.segment_generation(&segment_id).expect("lookup"),
+            Some(SegmentGeneration::New)
         );
     }
 }
