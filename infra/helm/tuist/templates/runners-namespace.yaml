@@ -299,6 +299,22 @@ spec:
 # token, so network reachability alone does not grant API access —
 # authentication is the control, the egress rule is reachability.
 #
+# Selecting claimed (mid-job) Pods too does NOT reintroduce the old
+# "runner lost communication" rollout disruption. That failure would
+# require the server's Cilium identity to churn on each deploy, forcing
+# every owned Pod's egress map to regenerate. It doesn't: the server
+# Pod's identity-relevant labels are app.kubernetes.io/{name,instance,
+# component} — all deploy-stable. The image tag (sha-<commit>) is a
+# container-spec field, not a label, and pod-template-hash is excluded
+# from Cilium identity by default. Verified on staging: rolling the
+# server keeps identity constant (id 6770), so a new server Pod reuses
+# it and no runner egress map regenerates. The GitHub control-plane
+# WebSocket is runner->github.com:443, governed by the default-deny
+# ipBlock rule, not this server-peer rule, so this policy never gates
+# it. The one regeneration that does occur — the runner's OWN identity
+# churning when the server stamps the owner label — happens once at
+# claim time, before the job's WebSocket exists.
+#
 # Linux runners only in practice: Hetzner Cloud LBs don't hairpin,
 # so CNI Pods hit the in-cluster Service URL, while macOS uses the
 # public path (vmnet bypasses CNI). Scoped to the server's Pod

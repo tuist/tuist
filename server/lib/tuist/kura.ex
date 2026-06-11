@@ -30,6 +30,8 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
+  require Logger
+
   @pubsub Tuist.PubSub
   @create_server_keys %{
     "account_id" => :account_id,
@@ -392,17 +394,43 @@ defmodule Tuist.Kura do
   endpoint.
   """
   def runner_cache_endpoint_url(%Account{id: account_id}) do
-    private_region_ids = Enum.map(Enum.filter(Regions.all(), &Regions.private?/1), & &1.id)
+    # `available/0`, not `all/0`: if a private region is dropped from
+    # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
+    # it, and gating here too means dispatch stops handing out the now
+    # un-reconciled region's stale `url` — config drift self-heals
+    # instead of routing jobs to an endpoint that no longer exists.
+    private_region_ids = Enum.map(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id)
 
     if private_region_ids == [] do
       nil
     else
+      # "At most one active private node per account" is a reconciler
+      # invariant, not a DB constraint, so a race could leave two rows.
+      # Fetch up to two: a duplicate is logged loudly (it's a real
+      # regression) but dispatch still routes deterministically rather
+      # than crashing the hot path — both rows are the same account's
+      # valid caches, so either URL works.
       Server
       |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^private_region_ids)
       |> order_by([s], asc: s.region)
-      |> limit(1)
+      |> limit(2)
       |> select([s], s.url)
-      |> Repo.one()
+      |> Repo.all()
+      |> case do
+        [] ->
+          nil
+
+        [url] ->
+          url
+
+        [url | _] = urls ->
+          Logger.error("kura: account has multiple active private cache nodes; routing to the first",
+            account_id: account_id,
+            urls: urls
+          )
+
+          url
+      end
     end
   end
 
