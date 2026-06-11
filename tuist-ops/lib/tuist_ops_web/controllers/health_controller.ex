@@ -1,18 +1,19 @@
 defmodule TuistOpsWeb.HealthController do
   @moduledoc """
-  Single liveness/readiness endpoint. Returns 200 with the build
-  version when the Phoenix endpoint is up and the Repo can serve a
-  trivial query.
+  Health endpoints for Kubernetes probes.
 
-  Used by Kubernetes startup / readiness / liveness probes (see
-  `infra/helm/tuist-ops/values.yaml`).
+  Liveness only proves that the Phoenix endpoint is serving. Readiness
+  checks the database too, so a transient Postgres issue removes the
+  pod from Service endpoints without forcing a BEAM restart.
   """
 
   use TuistOpsWeb, :controller
 
   alias TuistOps.Repo
 
-  def show(conn, _params) do
+  def show(conn, _params), do: json(conn, %{status: "ok"})
+
+  def ready(conn, _params) do
     case Repo.query("SELECT 1") do
       {:ok, _} ->
         json(conn, %{status: "ok"})
