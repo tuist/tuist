@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Noora
 import Path
@@ -132,8 +133,20 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 
     func withLoggerForNoora(logFilePath: AbsolutePath, _ action: () async throws -> Void) async throws {
-        let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
-        try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+        let loggerHandler: (@Sendable (String) -> any LogHandler)?
+        do {
+            let fileSystem = FileSystem()
+            try await fileSystem.touch(logFilePath)
+            loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+        } catch {
+            loggerHandler = nil
+        }
+
+        if let loggerHandler {
+            try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+                try await action()
+            }
+        } else {
             try await action()
         }
     }
@@ -215,8 +228,20 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
     }
 
     func withLoggerForNoora(logFilePath: AbsolutePath, _ action: () async throws -> Void) async throws {
-        let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
-        try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+        let loggerHandler: (@Sendable (String) -> any LogHandler)?
+        do {
+            let fileSystem = FileSystem()
+            try await fileSystem.touch(logFilePath)
+            loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+        } catch {
+            loggerHandler = nil
+        }
+
+        if let loggerHandler {
+            try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+                try await action()
+            }
+        } else {
             try await action()
         }
     }

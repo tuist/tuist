@@ -56,6 +56,7 @@ var tuistDependencies: [Target.Dependency] = [
     argumentParserDependency,
     "TuistServer",
     pathDependency,
+    fileSystemDependency,
     swiftToolsSupportDependency,
 ]
 var tuistCacheCommandDependencies: [Target.Dependency] = [
