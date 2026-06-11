@@ -67,28 +67,50 @@ func (d *Datasource) query(ctx context.Context, q backend.DataQuery) backend.Dat
 }
 
 func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
-	if _, err := d.client.projects(ctx); err != nil {
-		return &backend.CheckHealthResult{
-			Status:  backend.HealthStatusError,
-			Message: "Could not reach Tuist with the provided token: " + err.Error(),
-		}, nil
+	healthError := func(message string) *backend.CheckHealthResult {
+		return &backend.CheckHealthResult{Status: backend.HealthStatusError, Message: message}
 	}
-	return &backend.CheckHealthResult{
-		Status:  backend.HealthStatusOk,
-		Message: "Connected to Tuist",
-	}, nil
+
+	projects, err := d.client.projects(ctx)
+	if err != nil {
+		return healthError("Could not reach Tuist with the provided token: " + err.Error()), nil
+	}
+	if len(projects) == 0 {
+		return healthError("The token has no accessible projects. Grant it access to at least one project."), nil
+	}
+
+	// Listing projects only needs an account token, so probe a metric endpoint to
+	// confirm the read scopes — otherwise a token missing project:builds:read /
+	// project:tests:read reports healthy while every panel query fails with 403.
+	project := projects[0].FullName
+	_, buildErr := d.client.schemes(ctx, entityBuilds, project)
+	_, testErr := d.client.schemes(ctx, entityTests, project)
+
+	switch {
+	case buildErr != nil && testErr != nil:
+		return healthError("Connected, but the token cannot read build or test metrics. The account token needs " +
+			"project:builds:read and/or project:tests:read (both are in the 'mcp' scope group). Details: " + buildErr.Error()), nil
+	case buildErr != nil:
+		return &backend.CheckHealthResult{Status: backend.HealthStatusOk, Message: "Connected to Tuist. Test metrics are readable; build panels need project:builds:read."}, nil
+	case testErr != nil:
+		return &backend.CheckHealthResult{Status: backend.HealthStatusOk, Message: "Connected to Tuist. Build metrics are readable; test panels need project:tests:read."}, nil
+	default:
+		return &backend.CheckHealthResult{Status: backend.HealthStatusOk, Message: "Connected to Tuist. Build and test metrics are readable."}, nil
+	}
 }
 
 // CallResource backs the query editor dropdowns and template variables so the
 // account token never leaves the backend.
 func (d *Datasource) CallResource(ctx context.Context, req *backend.CallResourceRequest, sender backend.CallResourceResponseSender) error {
-	parsed, err := url.Parse(req.URL)
-	if err != nil {
-		return sendJSON(sender, http.StatusBadRequest, map[string]string{"error": "invalid resource url"})
+	// Dispatch on req.Path: that is the resource path (e.g. "projects"). req.URL
+	// is the full forwarded URL (it carries the "plugins/.../resources/" prefix),
+	// so it is only parsed for the query string.
+	query := url.Values{}
+	if parsed, err := url.Parse(req.URL); err == nil {
+		query = parsed.Query()
 	}
-	query := parsed.Query()
 
-	switch strings.Trim(parsed.Path, "/") {
+	switch strings.Trim(req.Path, "/") {
 	case "projects":
 		projects, err := d.client.projects(ctx)
 		if err != nil {
