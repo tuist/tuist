@@ -158,6 +158,20 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  Platform a fleet name belongs to, by the same prefixes
+  `fleet_name_prefixes/1` documents. `nil` for unrecognized names so
+  callers can choose a conservative default — dispatch uses this to
+  decide whether the claiming Pod can reach in-cluster URLs at all.
+  """
+  def fleet_platform(fleet_name) when is_binary(fleet_name) do
+    Enum.find(@platforms, fn platform ->
+      Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
+    end)
+  end
+
+  def fleet_platform(_), do: nil
+
+  @doc """
   Decode the JSON wire form of the shape catalog into the
   `:runner_*_shapes` config shape (atom keys, `memoryGb` →
   `:memory_gb`). The inverse of how Helm serialises the chart's

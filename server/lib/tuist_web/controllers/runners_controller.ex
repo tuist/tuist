@@ -27,9 +27,9 @@ defmodule TuistWeb.RunnersController do
   def dispatch(conn, _params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
-         {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id}} <-
+         {:ok, %{jit: jit, account: account, workflow_job_id: workflow_job_id} = claim} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id))
+      json(conn, dispatch_response(jit, account, workflow_job_id, Map.get(claim, :fleet_platform)))
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -133,15 +133,23 @@ defmodule TuistWeb.RunnersController do
   # instead of going through the public Kura ingress. Absent
   # (non-runner-cache accounts), the Pod falls back to normal
   # server-side cache resolution.
-  defp dispatch_response(jit, account, workflow_job_id) do
+  #
+  # Linux pools only: the URL is a `*.svc.cluster.local` address that
+  # only Pods on the cluster CNI can reach. macOS pools run Tart VMs on
+  # vmnet, where the override would be unreachable — and clients treat
+  # `TUIST_CACHE_ENDPOINT` as a hard override rather than a hint, so
+  # handing it out would break caching instead of degrading it.
+  defp dispatch_response(jit, account, workflow_job_id, fleet_platform) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
       workflow_job_id: workflow_job_id
     }
 
-    case Tuist.Kura.runner_cache_endpoint_url(account) do
-      url when is_binary(url) and url != "" -> Map.put(base, :cache_endpoint_url, url)
+    with :linux <- fleet_platform,
+         url when is_binary(url) and url != "" <- Tuist.Kura.runner_cache_endpoint_url(account) do
+      Map.put(base, :cache_endpoint_url, url)
+    else
       _ -> base
     end
   end

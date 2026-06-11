@@ -329,8 +329,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp node_selector(_), do: nil
 
+  # Private (runner-cache) regions never get a gateway: their whole
+  # invariant is "no public endpoint, no LoadBalancer" — a dedicated
+  # gateway for a hosted-enterprise account would silently recreate
+  # the public surface the region exists to avoid.
   defp gateway_assignment(account, %Regions{} = region) do
-    if dedicated_gateway?(account, region) do
+    if not Regions.private?(region) and dedicated_gateway?(account, region) do
       gateway_name = gateway_name(account, region)
 
       %{

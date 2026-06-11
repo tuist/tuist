@@ -173,24 +173,37 @@ jobs:
           # the dispatch-provided endpoint is exported; for baseline
           # the variable is removed so the plugin uses its default
           # cache resolution.
+          # Build failures must fail the smoke run — a timing for a
+          # build that errored (or never reached the cache) is worse
+          # than no timing, because the job would go green while the
+          # routed path is broken. measure_one runs in a command
+          # substitution (subshell), so failures are recorded in a
+          # sentinel file rather than a shell variable, and the step
+          # exits non-zero after the timing table is printed.
+          rm -f /tmp/gradle-build-failures
           measure_one() {
             local path=$1
             local kind=$2   # "miss" (purge first) or "hit" (warm cache)
             if [ "$kind" = "miss" ]; then purge_gradle_caches; fi
-            local started ended
+            local started ended status=0
             started=$(date +%s.%N)
             if [ "$path" = routed ]; then
               ( cd gradle && TUIST_CACHE_ENDPOINT="$ROUTED_ENDPOINT" \
                   ./gradlew --no-daemon -Dorg.gradle.caching=true \
                             --build-cache assemble \
-                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || true
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || status=$?
             else
               ( cd gradle && env -u TUIST_CACHE_ENDPOINT \
                   ./gradlew --no-daemon -Dorg.gradle.caching=true \
                             --build-cache assemble \
-                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || true
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || status=$?
             fi
             ended=$(date +%s.%N)
+            if [ "$status" -ne 0 ]; then
+              echo "${path}/${kind} exit=${status}" >> /tmp/gradle-build-failures
+              echo "BUILD FAILED (${path}/${kind}, exit ${status}) — tail of log:" >&2
+              tail -20 "/tmp/gradle-${path}-${kind}.log" >&2
+            fi
             python3 -c "import sys; print(f'{float(sys.argv[1]) - float(sys.argv[2]):.3f}')" "$ended" "$started"
           }
 
@@ -215,7 +228,12 @@ jobs:
               echo "$path,$kind,$iter,${results[$key]}"
             done
           } | tee /tmp/results.csv
-          exit 0
+
+          if [ -s /tmp/gradle-build-failures ]; then
+            echo "::error::Gradle build(s) failed — timings above are not trustworthy"
+            cat /tmp/gradle-build-failures
+            exit 1
+          fi
 
       - name: Summarize
         run: |
