@@ -51,7 +51,7 @@ defmodule SwiftRegistry.Registry.SyncWorkerTest do
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
-    expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] -> {:error, :not_found} end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata -> :ok end)
 
@@ -92,7 +92,7 @@ defmodule SwiftRegistry.Registry.SyncWorkerTest do
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
-    expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] -> {:error, :not_found} end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata -> :ok end)
 
@@ -133,7 +133,7 @@ defmodule SwiftRegistry.Registry.SyncWorkerTest do
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
-    expect(Metadata, :get_package, fn "newrelic", "newrelic-ios-agent-spm" ->
+    expect(Metadata, :get_package, fn "newrelic", "newrelic-ios-agent-spm", [fresh: true] ->
       {:ok,
        %{
          "releases" => %{},
@@ -174,7 +174,7 @@ defmodule SwiftRegistry.Registry.SyncWorkerTest do
     expect(SyncCursor, :get, fn -> 0 end)
     expect(SyncCursor, :put, fn 0 -> :ok end)
 
-    expect(Metadata, :get_package, fn "realm", "realm-swift" -> {:error, :not_found} end)
+    expect(Metadata, :get_package, fn "realm", "realm-swift", [fresh: true] -> {:error, :not_found} end)
 
     expect(Metadata, :put_package, fn "realm", "realm-swift", _metadata -> :ok end)
 

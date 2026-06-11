@@ -68,11 +68,15 @@ defmodule SwiftRegistry.OrphanCleanupWorker do
     {orphans_deleted, bytes_freed} = delete_orphans(orphan_entries, storage_dir)
 
     new_cursor =
-      if dirs_count < max_dirs do
-        nil
-      else
-        {last_dir, _entries, _checked} = List.last(dir_results)
-        last_dir
+      case List.last(dir_results) do
+        nil ->
+          nil
+
+        {last_dir, _entries, _checked} when dirs_count >= max_dirs ->
+          last_dir
+
+        _ ->
+          nil
       end
 
     summary = %{

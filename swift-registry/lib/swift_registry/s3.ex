@@ -166,11 +166,15 @@ defmodule SwiftRegistry.S3 do
   """
   def download(key, opts \\ []) do
     type = Keyword.get(opts, :type, :registry)
-    bucket = bucket_for_type(type)
 
-    Logger.info("Starting S3 download for artifact: #{key}")
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
 
-    download_from_bucket(key, bucket)
+      bucket ->
+        Logger.info("Starting S3 download for artifact: #{key}")
+        download_from_bucket(key, bucket)
+    end
   end
 
   defp download_from_bucket(key, bucket) do
@@ -276,8 +280,17 @@ defmodule SwiftRegistry.S3 do
   """
   def delete_all_with_prefix(prefix, opts \\ []) do
     type = Keyword.get(opts, :type, :registry)
-    bucket = bucket_for_type(type)
 
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
+
+      bucket ->
+        do_delete_all_with_prefix(prefix, bucket)
+    end
+  end
+
+  defp do_delete_all_with_prefix(prefix, bucket) do
     Logger.info("Deleting all S3 objects with prefix: #{prefix}")
 
     {duration, result} = :timer.tc(fn -> list_and_delete_objects(bucket, prefix, 0) end)
@@ -328,33 +341,25 @@ defmodule SwiftRegistry.S3 do
     type = Keyword.get(opts, :type, :registry)
     content_type_opt = Keyword.get(opts, :content_type)
 
-    bucket = bucket_for_type(type)
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
 
-    upload_opts =
-      if content_type_opt,
-        do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
-        else: [timeout: 120_000, max_concurrency: 8]
+      bucket ->
+        upload_opts =
+          if content_type_opt,
+            do: [content_type: content_type_opt, timeout: 120_000, max_concurrency: 8],
+            else: [timeout: 120_000, max_concurrency: 8]
 
-    {duration, result} =
-      :timer.tc(fn ->
-        local_path
-        |> Upload.stream_file()
-        |> ExAws.S3.upload(bucket, key, upload_opts)
-        |> ExAws.request()
-      end)
+        {duration, result} =
+          :timer.tc(fn ->
+            local_path
+            |> Upload.stream_file()
+            |> ExAws.S3.upload(bucket, key, upload_opts)
+            |> ExAws.request()
+          end)
 
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :ok})
-        :ok
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :error})
-        {:error, reason}
+        handle_upload_result(key, type, duration, result)
     end
   end
 
@@ -372,29 +377,38 @@ defmodule SwiftRegistry.S3 do
     type = Keyword.get(opts, :type, :registry)
     content_type_opt = Keyword.get(opts, :content_type)
 
-    bucket = bucket_for_type(type)
-    put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
 
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.put_object(key, content, put_opts)
-        |> ExAws.request()
-      end)
+      bucket ->
+        put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
 
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :ok})
-        :ok
+        {duration, result} =
+          :timer.tc(fn ->
+            bucket
+            |> ExAws.S3.put_object(key, content, put_opts)
+            |> ExAws.request()
+          end)
 
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :error})
-        {:error, reason}
+        handle_upload_result(key, type, duration, result)
     end
+  end
+
+  defp handle_upload_result(key, type, duration, {:ok, _response}) do
+    :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :ok})
+    Cachex.del(@exists_cache, {type, key})
+    :ok
+  end
+
+  defp handle_upload_result(_key, _type, duration, {:error, {:http_error, 429, _}}) do
+    :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
+    {:error, :rate_limited}
+  end
+
+  defp handle_upload_result(_key, _type, duration, {:error, reason}) do
+    :telemetry.execute([:swift_registry, :s3, :upload], %{duration: duration}, %{result: :error})
+    {:error, reason}
   end
 
   @doc """

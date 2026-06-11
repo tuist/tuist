@@ -14,9 +14,10 @@ defmodule SwiftRegistry.Config do
   end
 
   def bool_env(name, default) when is_binary(name) do
-    name
-    |> System.get_env()
-    |> parse_bool(default)
+    case System.get_env(name) do
+      nil -> default
+      value -> parse_bool(String.downcase(value), default)
+    end
   end
 
   def list_env(name) when is_binary(name) do
@@ -155,13 +156,9 @@ defmodule SwiftRegistry.Config do
   defp parse_bool(nil, default), do: default
   defp parse_bool("1", _default), do: true
   defp parse_bool("true", _default), do: true
-  defp parse_bool("TRUE", _default), do: true
   defp parse_bool("yes", _default), do: true
-  defp parse_bool("YES", _default), do: true
   defp parse_bool("0", _default), do: false
   defp parse_bool("false", _default), do: false
-  defp parse_bool("FALSE", _default), do: false
   defp parse_bool("no", _default), do: false
-  defp parse_bool("NO", _default), do: false
   defp parse_bool(_value, default), do: default
 end

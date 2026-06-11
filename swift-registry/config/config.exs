@@ -41,7 +41,8 @@ config :swift_registry, Oban,
        {"*/10 * * * *", SwiftRegistry.DiskEvictionWorker},
        {"0 * * * *", SwiftRegistry.OrphanCleanupWorker},
        {"* * * * *", SwiftRegistry.S3TransferWorker},
-       {"*/10 * * * *", SwiftRegistry.Registry.SyncWorker}
+       {"*/10 * * * *", SwiftRegistry.Registry.SyncWorker},
+       {"0 */6 * * *", SwiftRegistry.SQLiteMaintenanceWorker}
      ]}
   ]
 

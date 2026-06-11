@@ -75,14 +75,34 @@ defmodule SwiftRegistry.Registry.ReleaseWorker do
 
           {:error, :not_found} ->
             sync_release(scope, name, full_handle, tag, normalized_version, token)
+
+          {:error, reason} ->
+            Logger.warning("Failed to fetch metadata for #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+            {:error, reason}
         end
     end
   end
 
   defp sync_release(scope, name, full_handle, tag, version, token) do
-    {:ok, tmp_dir} = Briefly.create(directory: true)
-    archive_path = Path.join(tmp_dir, "source_archive.zip")
+    with {:ok, tmp_dir} <- create_tmp_dir(scope, name, tag) do
+      archive_path = Path.join(tmp_dir, "source_archive.zip")
+      run_sync_release(scope, name, full_handle, tag, version, token, tmp_dir, archive_path)
+    end
+  end
 
+  defp create_tmp_dir(scope, name, tag) do
+    case Briefly.create(directory: true) do
+      {:ok, _tmp_dir} = ok ->
+        ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to create tmp dir for #{scope}/#{name}@#{tag}: #{inspect(reason)}; snoozing")
+
+        {:snooze, 60}
+    end
+  end
+
+  defp run_sync_release(scope, name, full_handle, tag, version, token, tmp_dir, archive_path) do
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
@@ -689,9 +709,9 @@ defmodule SwiftRegistry.Registry.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        Logger.info("Metadata update skipped for #{scope}/#{name}@#{version}: lock held by another node")
+        Logger.info("Metadata update for #{scope}/#{name}@#{version} deferred: lock held by another node; snoozing")
 
-        :ok
+        {:snooze, 60}
     end
   end
 

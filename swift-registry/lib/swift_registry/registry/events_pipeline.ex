@@ -52,8 +52,14 @@ defmodule SwiftRegistry.Registry.EventsPipeline do
   @impl true
   def handle_batch(:http, messages, _batch_info, _context) do
     events = Enum.map(messages, & &1.data)
-    send_batch(events)
-    messages
+
+    case send_batch(events) do
+      :ok ->
+        messages
+
+      {:error, reason} ->
+        Enum.map(messages, &Message.failed(&1, reason))
+    end
   end
 
   defp send_batch(events) do

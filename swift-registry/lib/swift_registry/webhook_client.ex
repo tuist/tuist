@@ -65,10 +65,10 @@ defmodule SwiftRegistry.WebhookClient do
 
         resp_body = Map.get(response, :body)
         Logger.error("Failed to send #{log_label} (status #{status}): #{inspect(resp_body)}")
-        :ok
+        {:error, {:status, status}}
 
       {:error, %RuntimeError{message: "circuit breaker is open"}} ->
-        :ok
+        {:error, :circuit_open}
 
       {:error, reason} ->
         if SwiftRegistry.AnalyticsCircuitBreaker.melt?({:error, reason}) do
@@ -76,7 +76,7 @@ defmodule SwiftRegistry.WebhookClient do
         end
 
         Logger.error("Failed to send #{log_label}: #{inspect(reason)}")
-        :ok
+        {:error, reason}
     end
   end
 end
