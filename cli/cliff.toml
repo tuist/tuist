@@ -87,7 +87,9 @@ tag_pattern = "^[0-9].*$"
 # regex for skipping tags
 skip_tags = "beta|alpha"
 # regex for ignoring tags
-ignore_tags = "rc"
+# Prerelease channels (X.Y.0-rc.N, X.Y.0-canary.N) must not anchor changelog
+# sections: only stable tags delimit a release's notes.
+ignore_tags = "rc|canary"
 # sort the tags topologically
 topo_order = false
 # sort the commits inside sections by oldest/newest order
