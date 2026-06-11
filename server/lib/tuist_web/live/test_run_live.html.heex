@@ -1131,10 +1131,7 @@
               @test_cases_sort_by == "name" &&
                 test_cases_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_cases_sort_by == "name" &&
-                sort_icon(@test_cases_sort_order)
-            }
+            sort_order={@test_cases_sort_by == "name" && @test_cases_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -1194,10 +1191,7 @@
               @test_cases_sort_by == "duration" &&
                 test_cases_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_cases_sort_by == "duration" &&
-                sort_icon(@test_cases_sort_order)
-            }
+            sort_order={@test_cases_sort_by == "duration" && @test_cases_sort_order}
           >
             <.text_cell
               label={
@@ -1338,10 +1332,7 @@
               @test_suites_sort_by == "name" &&
                 test_suites_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_suites_sort_by == "name" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "name" && @test_suites_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -1374,10 +1365,7 @@
               @test_suites_sort_by == "test_case_count" &&
                 test_suites_column_patch_sort(assigns, "test_case_count")
             }
-            icon={
-              @test_suites_sort_by == "test_case_count" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "test_case_count" && @test_suites_sort_order}
           >
             <.text_cell label={"#{test_suite.test_case_count}"} />
           </:col>
@@ -1388,9 +1376,8 @@
               @test_suites_sort_by == "avg_test_case_duration" &&
                 test_suites_column_patch_sort(assigns, "avg_test_case_duration")
             }
-            icon={
-              @test_suites_sort_by == "avg_test_case_duration" &&
-                sort_icon(@test_suites_sort_order)
+            sort_order={
+              @test_suites_sort_by == "avg_test_case_duration" && @test_suites_sort_order
             }
           >
             <.text_cell
@@ -1426,10 +1413,7 @@
               @test_suites_sort_by == "duration" &&
                 test_suites_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_suites_sort_by == "duration" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "duration" && @test_suites_sort_order}
           >
             <.text_cell
               label={
@@ -1564,10 +1548,7 @@
               @test_modules_sort_by == "name" &&
                 test_modules_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_modules_sort_by == "name" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "name" && @test_modules_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -1600,10 +1581,7 @@
               @test_modules_sort_by == "test_suite_count" &&
                 test_modules_column_patch_sort(assigns, "test_suite_count")
             }
-            icon={
-              @test_modules_sort_by == "test_suite_count" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "test_suite_count" && @test_modules_sort_order}
           >
             <.text_cell label={"#{test_module.test_suite_count}"} />
           </:col>
@@ -1614,10 +1592,7 @@
               @test_modules_sort_by == "test_case_count" &&
                 test_modules_column_patch_sort(assigns, "test_case_count")
             }
-            icon={
-              @test_modules_sort_by == "test_case_count" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "test_case_count" && @test_modules_sort_order}
           >
             <.text_cell label={"#{test_module.test_case_count}"} />
           </:col>
@@ -1628,9 +1603,8 @@
               @test_modules_sort_by == "avg_test_case_duration" &&
                 test_modules_column_patch_sort(assigns, "avg_test_case_duration")
             }
-            icon={
-              @test_modules_sort_by == "avg_test_case_duration" &&
-                sort_icon(@test_modules_sort_order)
+            sort_order={
+              @test_modules_sort_by == "avg_test_case_duration" && @test_modules_sort_order
             }
           >
             <.text_cell
@@ -1661,10 +1635,7 @@
               @test_modules_sort_by == "duration" &&
                 test_modules_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_modules_sort_by == "duration" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "duration" && @test_modules_sort_order}
           >
             <.text_cell
               label={

@@ -182,9 +182,6 @@ defmodule TuistWeb.GradleBuildRunsLive do
     |> assign(:build_runs_page_count, meta.total_pages)
   end
 
-  def sort_icon("desc"), do: "square_rounded_arrow_down"
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-
   def column_patch_sort(
         %{uri: uri, build_runs_sort_by: build_runs_sort_by, build_runs_sort_order: build_runs_sort_order},
         column_value

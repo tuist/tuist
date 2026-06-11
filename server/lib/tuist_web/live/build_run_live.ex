@@ -848,14 +848,6 @@ defmodule TuistWeb.BuildRunLive do
     issue_title(title, issue, run)
   end
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   def file_breakdown_column_patch_sort(
         %{uri: uri, file_breakdown_sort_by: file_breakdown_sort_by, file_breakdown_sort_order: file_breakdown_sort_order} =
           _assigns,

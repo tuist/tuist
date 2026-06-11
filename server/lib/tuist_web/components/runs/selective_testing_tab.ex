@@ -130,10 +130,7 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
                 |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
                 |> Query.drop("selective-testing-page")}"
               }
-              icon={
-                @selective_testing_sort_by == "name" &&
-                  sort_icon(@selective_testing_sort_order)
-              }
+              sort_order={@selective_testing_sort_by == "name" && @selective_testing_sort_order}
             >
               <.text_and_description_cell label={test_module.name} />
             </:col>
@@ -216,9 +213,6 @@ defmodule TuistWeb.Runs.SelectiveTestingTab do
       Map.get(test_module, :product_name, "") not in [nil, ""] or
       Map.get(test_module, :bundle_id, "") not in [nil, ""]
   end
-
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
 
   defp sort_order_patch_value(category, current_category, current_order) do
     if category == current_category do

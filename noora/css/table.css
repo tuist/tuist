@@ -1,12 +1,127 @@
 .noora-table {
   box-sizing: border-box;
-  border-radius: var(--noora-radius-8);
+  position: relative;
+  box-shadow: var(--noora-border-light-default);
+  border-radius: var(--noora-radius-4);
   background: var(--noora-surface-table-header);
-  padding: var(--noora-spacing-2);
+  padding: var(--noora-spacing-0);
   width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: none;
-  scroll-padding-right: var(--noora-spacing-2);
+
+  /* The horizontal scroll lives on an inner wrapper rather than `.noora-table` itself, so the
+   * scrollbar (and the space it occupies) only exist when the table actually overflows. The wrapper
+   * is auto-height and grows to fit the scrollbar below the content, so the last row is never
+   * clipped, and non-scrolling tables get no scrollbar gutter at all. */
+  & [data-part="scroll-container"] {
+    border-radius: var(--noora-radius-4);
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: none;
+  }
+
+  /* Floating horizontal scrollbar, driven by the `NooraTable` hook. While the table is on screen
+   * but its native scrollbar is below the viewport, this proxy is fixed to the viewport bottom and
+   * synced with the scroll container; once the table's bottom scrolls into view, it hides and the
+   * native scrollbar takes over. Hidden whenever JS is unavailable. */
+  & [data-part="scrollbar"] {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    z-index: 2;
+    overflow-x: auto;
+    overscroll-behavior-x: none;
+
+    &[data-visible] {
+      display: block;
+    }
+
+    & > [data-part="scrollbar-content"] {
+      height: 1px;
+    }
+  }
+
+  /* Custom scrollbar, used where the native one cannot match the webkit-styled design: Firefox
+   * (no `::-webkit-scrollbar` support, so no thumb insets) and overlay-scrollbar platforms
+   * (the bar paints over content and hides at rest). The `NooraTable` hook suppresses the native
+   * bar, keeps the thumb in sync, and — mirroring the proxy scrollbar in webkit browsers — pins
+   * this bar to the viewport bottom while the table extends below it. */
+  & [data-part="overlay-scrollbar"] {
+    display: none;
+    position: absolute;
+    right: var(--noora-spacing-4);
+    /* With the 16px lane the hook pads below the body plus the root's 4px, this centers the 8px
+     * thumb — 6px to the last row above and 6px to the table edge below, matching webkit. */
+    bottom: 6px;
+    left: var(--noora-spacing-4);
+    z-index: 2;
+    height: 8px;
+
+    &[data-visible] {
+      display: block;
+    }
+
+    & > [data-part="overlay-thumb"] {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      border-radius: var(--noora-radius-4);
+      background-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
+      touch-action: none;
+    }
+  }
+
+  & [data-part="scroll-container"],
+  & [data-part="scrollbar"] {
+    /* `scrollbar-color` is inherited, and any non-`auto` value (e.g. an app-level global on
+     * `html`) makes Chromium ignore the `::-webkit-scrollbar` styling below, falling back to a
+     * full-width scrollbar. Reset both standard properties so the detailed styling applies
+     * regardless of the host app's globals. */
+    scrollbar-color: auto;
+    scrollbar-width: auto;
+
+    /* Firefox cannot style the scrollbar through `::-webkit-scrollbar`, and Chromium ignores those
+     * pseudo-elements whenever the standard `scrollbar-*` properties are set. Scoping the standard
+     * properties to Firefox lets Chromium/Safari fall through to the detailed styling below. */
+    @supports (scrollbar-width: thin) and (not selector(::-webkit-scrollbar)) {
+      /* #c1c1c1/#6b6b6b are the browser's default scrollbar thumb grays, so the table scrollbar
+       * matches the native ones elsewhere on the page. */
+      scrollbar-color: light-dark(
+          var(--noora-neutral-light-600),
+          var(--noora-neutral-dark-600)
+        )
+        transparent;
+      scrollbar-width: thin;
+    }
+
+    &::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-track {
+      margin: 0 var(--noora-spacing-2);
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      border-color: transparent;
+      border-style: solid;
+      border-width: 2px 4px;
+      border-radius: var(--noora-radius-4);
+      background-color: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
+      background-clip: padding-box;
+    }
+  }
 
   & table {
     position: relative;
@@ -19,32 +134,19 @@
     *  adding a pseudo element with standard layouting around the table and add a box-shadow around it. */
     &:has(td):after {
       position: absolute;
-      top: 40px;
+      top: 44px;
       right: 0;
       bottom: 0;
       left: 0;
       z-index: 1;
       box-shadow: var(--noora-border-light-default);
-      border-radius: var(--noora-radius-6);
+      border-radius: var(--noora-radius-4);
       pointer-events: none;
       content: "";
     }
 
     & tbody {
       background: transparent;
-
-      /* Using `overflow` set to `auto` or `scroll`, most browsers collapse the right padding when overflowing. This visually removes the
-      *  border around the body, which is unintended. To solve this, we are adding a pseudo element of the width of the padding to
-      *  the right of the table. This does not get collapsed and serves as a padding. */
-      &:after {
-        display: block;
-        position: absolute;
-        right: calc(var(--noora-spacing-2) * -1);
-        width: var(--noora-spacing-2);
-        height: 1px;
-        pointer-events: none;
-        content: "";
-      }
 
       & tr {
         &[data-expanded] td {
@@ -122,19 +224,19 @@
       /* Border radius on the `tbody` itself is unsupported, so we're selectively adding radius to specific cells. */
       & tr:first-child {
         & td:first-child {
-          border-top-left-radius: var(--noora-radius-6);
+          border-top-left-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-top-right-radius: var(--noora-radius-6);
+          border-top-right-radius: var(--noora-radius-4);
         }
       }
 
       & tr:last-child {
         & td:first-child {
-          border-bottom-left-radius: var(--noora-radius-6);
+          border-bottom-left-radius: var(--noora-radius-4);
         }
         & td:last-child {
-          border-bottom-right-radius: var(--noora-radius-6);
+          border-bottom-right-radius: var(--noora-radius-4);
         }
       }
     }
@@ -144,7 +246,7 @@
     position: sticky;
     top: 0;
     background-color: var(--noora-surface-table-header);
-    padding: var(--noora-spacing-4) var(--noora-spacing-7)
+    padding: var(--noora-spacing-5) var(--noora-spacing-7)
       var(--noora-spacing-5) var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
@@ -157,6 +259,12 @@
 
       &:hover [data-part="icon"] {
         color: var(--noora-surface-label-primary);
+      }
+
+      /* The sort-direction arrow (the only header icon carrying `data-state`) is an indicator,
+       * not a button, so it stays `label-secondary` even while the header is hovered. */
+      &:hover [data-part="icon"][data-state] {
+        color: var(--noora-surface-label-secondary);
       }
     }
 
@@ -175,6 +283,26 @@
         width: 100%;
         height: 100%;
       }
+    }
+  }
+
+  /* Floating header, driven by the `NooraTable` hook: a fixed-position clone of the `thead`,
+   * appended to `body`, pinned to the viewport top while the table is scrolled past it. It also
+   * carries the `noora-table` class so the cloned header cells pick up the regular styling. */
+  &.noora-table-floating-header {
+    display: none;
+    position: fixed;
+    top: 0;
+    z-index: 2;
+    box-shadow: 0 1px 0 0
+      light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
+    /* Keep the table's top corner radius while detached, for consistency with the resting
+     * header. */
+    border-radius: 0;
+    overflow: hidden;
+
+    &[data-visible] {
+      display: block;
     }
   }
 
