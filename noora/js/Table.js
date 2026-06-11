@@ -108,11 +108,13 @@ export default {
     const table = this.container.querySelector("table");
     if (table) this.resizeObserver.observe(table);
 
+    this.applyColumnWidths();
     this.sync();
   },
 
   updated() {
     this.thead = this.container?.querySelector("thead");
+    this.applyColumnWidths();
     if (this.header?.hasAttribute("data-visible")) this.refreshHeader();
     this.sync();
   },
@@ -130,6 +132,39 @@ export default {
     this.overlayThumb?.removeEventListener("pointermove", this.onThumbMove);
     this.overlayThumb?.removeEventListener("pointerup", this.onThumbUp);
     this.header?.remove();
+  },
+
+  // Keeps columns from shifting when a LiveView update swaps the rows (sorting, pagination):
+  // auto table layout re-derives column widths from the new content, so columns jump left and
+  // right. Each column's rendered width is ratcheted into a `min-width` that only grows —
+  // columns never shrink back on an update, and longer content can still widen them, so nothing
+  // is ever clipped. Runs after every patch since LiveView wipes the inline styles, and before
+  // paint, so no shifted frame is visible.
+  applyColumnWidths() {
+    const cells = this.thead?.rows[0]?.cells ?? [];
+    if (cells.length === 0) return;
+    if (this.columnWidths?.length !== cells.length) {
+      this.columnWidths = new Array(cells.length).fill(0);
+    }
+    // Only engage once the table actually overflows its frame. In a fitting table the columns
+    // are stretched to fill it, and pinning those slack-inflated widths would force a scrollbar
+    // and break the fill behavior; in an overflowing one the rendered widths are the content
+    // widths. Once engaged, the pins are kept (LiveView wipes the inline styles on each patch).
+    const engaged =
+      this.container.scrollWidth > this.container.clientWidth ||
+      this.columnWidths.some((w) => w > 0);
+    if (!engaged) return;
+    const widths = Array.from(cells, (c) => c.getBoundingClientRect().width);
+    for (let i = 0; i < cells.length; i++) {
+      // Exact fractional widths, with jitter tolerance: rounding up would make the pinned sum
+      // exceed the container and manufacture an overflow on its own.
+      if (widths[i] > this.columnWidths[i] + 0.5) {
+        this.columnWidths[i] = widths[i];
+      }
+      if (this.columnWidths[i] > 0) {
+        cells[i].style.minWidth = `${this.columnWidths[i]}px`;
+      }
+    }
   },
 
   refreshHeader() {
