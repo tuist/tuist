@@ -1,0 +1,6 @@
+# Vendored @grafana/create-plugin scaffolding — collapse in diffs, exclude from
+# language stats. Refresh with `npx @grafana/create-plugin@latest update`.
+.config/** linguist-generated=true
+
+# git-cliff-generated; do not hand-edit.
+CHANGELOG.md linguist-generated=true
