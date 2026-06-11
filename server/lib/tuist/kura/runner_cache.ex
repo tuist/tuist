@@ -5,17 +5,22 @@ defmodule Tuist.Kura.RunnerCache do
 
   The identity rule converges both directions every tick:
 
-    * an account with at least one Runner Profile whose `:runners`
-      feature flag is enabled (`Tuist.FeatureFlags.runners_enabled?/1`)
-      should have exactly one non-destroyed Kura server in the active
-      runner-cache region, and
-    * an account with no profiles — or with the flag off — should have
+    * an account with at least one Runner Profile AND an explicit
+      `:runners` FunWithFlags toggle should have exactly one
+      non-destroyed Kura server in the active runner-cache region, and
+    * an account with no profiles — or without the flag — should have
       none.
 
   Profiles are the durable "this account uses runners" marker: dispatch
   resolves every `runs-on` through them, so an account without profiles
-  cannot receive jobs and a cache node would idle. The feature flag
-  covers the production paywall on top (it is always on outside prod).
+  cannot receive jobs and a cache node would idle.
+
+  The flag check is the explicit `FunWithFlags.enabled?(:runners, for:
+  account)` gate, deliberately NOT `FeatureFlags.runners_enabled?/1` —
+  that helper short-circuits to `true` outside production, which here
+  would provision a cache node for every dev account with auto-created
+  profiles and exhaust the kura node pool. A dedicated infra node is an
+  explicit opt-in in every environment.
 
   This runs inside `Tuist.Kura.Reconciler`'s tick rather than on its own
   cron, so it shares the same cadence and self-heals after a BEAM
@@ -33,7 +38,6 @@ defmodule Tuist.Kura.RunnerCache do
   import Ecto.Query
 
   alias Tuist.Accounts.Account
-  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
@@ -110,8 +114,8 @@ defmodule Tuist.Kura.RunnerCache do
         select: 1
       )
 
-    # The SQL narrows to "has profiles, lacks a node"; the feature-flag
-    # check runs per account in Elixir because FunWithFlags gates are
+    # The SQL narrows to "has profiles, lacks a node"; the flag check
+    # runs per account in Elixir because FunWithFlags gates are
     # actor-scoped, not a column. The candidate set is tiny (runner
     # customers), so the N flag lookups per tick are negligible.
     from(a in Account,
@@ -120,7 +124,7 @@ defmodule Tuist.Kura.RunnerCache do
       where: not exists(server_exists)
     )
     |> Repo.all()
-    |> Enum.filter(&FeatureFlags.runners_enabled?/1)
+    |> Enum.filter(&runner_cache_enabled?/1)
     |> Enum.map(& &1.id)
   end
 
@@ -152,10 +156,12 @@ defmodule Tuist.Kura.RunnerCache do
         preload: [account: a]
       )
       |> Repo.all()
-      |> Enum.reject(&FeatureFlags.runners_enabled?(&1.account))
+      |> Enum.reject(&runner_cache_enabled?(&1.account))
 
     no_profiles ++ flag_off
   end
+
+  defp runner_cache_enabled?(account), do: FunWithFlags.enabled?(:runners, for: account)
 
   defp provision(account_id, region_id, image_tag) do
     case Kura.create_server(%{account_id: account_id, region: region_id, image_tag: image_tag}) do
