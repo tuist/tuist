@@ -43,8 +43,8 @@ msgstr ""
 msgid "Add payment method"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:123
-#: lib/tuist_web/live/members_live.ex:139
+#: lib/tuist_web/live/members_live.ex:128
+#: lib/tuist_web/live/members_live.ex:146
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr ""
@@ -67,7 +67,7 @@ msgstr ""
 msgid "All features, no credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:58
+#: lib/tuist_web/live/members_live.ex:61
 #, elixir-autogen, elixir-format
 msgid "All members"
 msgstr ""
@@ -83,7 +83,7 @@ msgstr ""
 msgid "Are you sure you want to delete this?"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:195
+#: lib/tuist_web/live/members_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to remove %{name} from this organization?"
 msgstr ""
@@ -108,8 +108,8 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.html.heex:309
 #: lib/tuist_web/live/authentication_settings_live.html.heex:518
 #: lib/tuist_web/live/create_organization_live.ex:83
-#: lib/tuist_web/live/members_live.ex:156
-#: lib/tuist_web/live/members_live.ex:205
+#: lib/tuist_web/live/members_live.ex:163
+#: lib/tuist_web/live/members_live.ex:212
 #: lib/tuist_web/live/webhook_live.html.heex:116
 #: lib/tuist_web/live/webhook_live.html.heex:343
 #: lib/tuist_web/live/webhooks_live.html.heex:111
@@ -326,18 +326,18 @@ msgstr ""
 msgid "Downgrade"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:89
+#: lib/tuist_web/live/members_live.ex:94
 #, elixir-autogen, elixir-format
 msgid "E-mail"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:331
-#: lib/tuist_web/live/members_live.ex:273
+#: lib/tuist_web/live/members_live.ex:282
 #, elixir-autogen, elixir-format
 msgid "Email"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:334
+#: lib/tuist_web/live/members_live.ex:350
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr ""
@@ -445,22 +445,22 @@ msgstr ""
 msgid "Invitation to %{organization_name}"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:65
+#: lib/tuist_web/live/members_live.ex:70
 #, elixir-autogen, elixir-format
 msgid "Invitations"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:323
+#: lib/tuist_web/live/members_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "Invite member"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:327
+#: lib/tuist_web/live/members_live.ex:343
 #, elixir-autogen, elixir-format
 msgid "Invite members"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:305
+#: lib/tuist_web/live/members_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "Invite members to your organization"
 msgstr ""
@@ -480,19 +480,19 @@ msgstr ""
 msgid "Like, totally free: All features, no credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:98
-#: lib/tuist_web/live/members_live.ex:235
+#: lib/tuist_web/live/members_live.ex:103
+#: lib/tuist_web/live/members_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "Manage role"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:77
+#: lib/tuist_web/live/members_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "Member"
 msgstr ""
 
 #: lib/tuist_web/live/members_live.ex:17
-#: lib/tuist_web/live/members_live.ex:35
+#: lib/tuist_web/live/members_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Members"
 msgstr ""
@@ -515,12 +515,12 @@ msgstr ""
 msgid "No credit card required"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:302
+#: lib/tuist_web/live/members_live.ex:317
 #, elixir-autogen, elixir-format
 msgid "No invitations created"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:259
+#: lib/tuist_web/live/members_live.ex:268
 #, elixir-autogen, elixir-format
 msgid "No members found"
 msgstr ""
@@ -578,7 +578,7 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.ex:654
 #: lib/tuist_web/live/account_settings_live.ex:662
 #: lib/tuist_web/live/account_settings_live.ex:665
-#: lib/tuist_web/live/members_live.ex:278
+#: lib/tuist_web/live/members_live.ex:287
 #, elixir-autogen, elixir-format
 msgid "Pending"
 msgstr ""
@@ -633,13 +633,13 @@ msgstr ""
 msgid "Remote cache hits:"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:213
+#: lib/tuist_web/live/members_live.ex:220
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:177
-#: lib/tuist_web/live/members_live.ex:245
+#: lib/tuist_web/live/members_live.ex:184
+#: lib/tuist_web/live/members_live.ex:252
 #, elixir-autogen, elixir-format
 msgid "Remove member"
 msgstr ""
@@ -682,23 +682,23 @@ msgstr ""
 msgid "Reset your password"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:286
+#: lib/tuist_web/live/members_live.ex:295
 #, elixir-autogen, elixir-format
 msgid "Revoke invite"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:92
-#: lib/tuist_web/live/members_live.ex:117
+#: lib/tuist_web/live/members_live.ex:97
+#: lib/tuist_web/live/members_live.ex:122
 #, elixir-autogen, elixir-format
 msgid "Role"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:164
+#: lib/tuist_web/live/members_live.ex:171
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:42
+#: lib/tuist_web/live/members_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "Search members..."
 msgstr ""
@@ -737,7 +737,7 @@ msgid "Standard support: Via Slack and email"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:558
-#: lib/tuist_web/live/members_live.ex:276
+#: lib/tuist_web/live/members_live.ex:285
 #: lib/tuist_web/live/webhook_event_live.html.heex:28
 #: lib/tuist_web/live/webhook_live.ex:265
 #: lib/tuist_web/live/webhook_live.html.heex:274
@@ -778,7 +778,8 @@ msgstr ""
 msgid "Total"
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:260
+#: lib/tuist_web/live/members_live.ex:269
+#: lib/tuist_web/live/members_live.ex:309
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
@@ -886,8 +887,8 @@ msgstr ""
 msgid "Use all Tuist features as long as you stay open source."
 msgstr ""
 
-#: lib/tuist_web/live/members_live.ex:122
-#: lib/tuist_web/live/members_live.ex:129
+#: lib/tuist_web/live/members_live.ex:127
+#: lib/tuist_web/live/members_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "User"
 msgstr ""
@@ -1849,4 +1850,9 @@ msgstr ""
 #: lib/tuist/accounts/user_notifier.ex:242
 #, elixir-autogen, elixir-format
 msgid "You were added to the %{organization_name} Tuist organization"
+msgstr ""
+
+#: lib/tuist_web/live/members_live.ex:308
+#, elixir-autogen, elixir-format
+msgid "No invitations found"
 msgstr ""

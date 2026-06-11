@@ -14,10 +14,6 @@ server:
 
   appUrl: https://canary.tuist.dev
 
-  externalSecrets:
-    kuraIntrospection:
-      item: kura-introspection-oauth-client
-
   autoscaling:
     enabled: false
 
@@ -81,22 +77,42 @@ objectStorage:
       default: tuist-can-storage
 
 cache:
+  extraEnv:
+    - name: XCODE_DATABASE_INTERACTIONS_ENABLED
+      value: "false"
   s3:
     bucket: tuist-cas-canary
     xcodeCacheBucket: tuist-xcode-cache-canary
     registryBucket: tuist-registry-canary
 
+# Docker Hub pull-through cache. Reuses the canary object-storage bucket
+# under a `docker-mirror` prefix. Runner `docker pull`s route through it
+# (runnersController.features.registryMirror below).
+registryCache:
+  enabled: true
+  proxy:
+    auth:
+      # Authenticate upstream Docker Hub pulls with the org access token
+      # in this env's vault (DOCKER_HUB_CREDENTIALS); lifts the cold-fill
+      # rate-limit ceiling. The token stays on the cache, never the runners.
+      enabled: true
+  s3:
+    bucket: tuist-can-storage
+    rootDirectory: docker-mirror
+
 kuraController:
+  sharedSecrets:
+    externalSecret:
+      item: kura-introspection-oauth-client
+      fields:
+        introspectionClientId: client_id
+        introspectionClientSecret: client_secret
   telemetry:
     deploymentEnvironment: canary
   sentry:
     externalSecret:
       enabled: true
       item: kura-sentry
-  sharedSecrets:
-    externalSecret:
-      enabled: true
-      item: kura-introspection-oauth-client
 
 # CloudNativePG cluster — canary shape. 2 instances (primary + 1 sync
 # replica), 10Gi per instance. Matches the cluster's general-purpose
@@ -114,6 +130,19 @@ postgresql:
   mode: cnpg
   cnpg:
     instances: 2
+    # PostgreSQL config sized against the 8 GiB memory limit below. CNPG
+    # otherwise leaves Postgres on its 128 MiB shared_buffers default;
+    # mirror the production tuning shape so canary catches any regression
+    # before it reaches prod.
+    parameters:
+      shared_buffers: "2GB"
+      effective_cache_size: "6GB"
+      work_mem: "32MB"
+      maintenance_work_mem: "512MB"
+    # See values.yaml for why this is a list at the CR level instead of
+    # an entry under `parameters`.
+    sharedPreloadLibraries:
+      - pg_stat_statements
     # Route the processor through the transaction-mode PgBouncer pooler so
     # this soak env matches production's post-CNPG-cutover topology
     # (processor pooled, web tier direct on -rw). CNPG's built-in
@@ -121,6 +150,17 @@ postgresql:
     # infra/cnpg/README.md.
     pooler:
       enabled: true
+      # See values-managed-production.yaml for the rationale. Canary's
+      # only Mac mini is on the production tailnet (single shared
+      # tailnet across canary + production), so the proxy needs to land
+      # on the same tag as production's `tag:tuist-k8s-production`
+      # — the canary's tag (`tag:tuist-k8s-canary`) is not permitted
+      # by the operator's OAuth client. Hostname is env-scoped to
+      # keep production's stable.
+      tailscale:
+        enabled: true
+        hostname: tuist-pg-pooler-canary
+        tags: tag:tuist-k8s-production
     storage:
       size: "10Gi"
     resources:
@@ -134,11 +174,6 @@ postgresql:
       destinationPath: s3://tuist-can-pg-backups/
 
 processor:
-  # During the Supabase→CNPG migration, the processor stays on Supabase
-  # (pooler hostname below) until the env-level cutover flips
-  # `postgresql.mode` from `external` to `cnpg`.
-  database:
-    host: db.thapckmapmffdgaiarvu.supabase.co
   replicaCount: 1
   podDisruptionBudget:
     enabled: false
@@ -169,6 +204,10 @@ xcresultProcessor:
   # Mac mini and replicaCount=2 the second pod has nowhere to land
   # without violating Apple's 2-VM SLA cap that Tart enforces.
   replicaCount: 1
+  # Tailnet-fronted URL key — see values-managed-production.yaml.
+  databaseUrlSecretKey: xcresult-processor-database-url
+  tailscale:
+    enabled: true
   # Single-host fleet override. The chart default
   # RollingUpdate(maxSurge=0, maxUnavailable=1) still lets the
   # Deployment controller create the new Pod in Pending before the
@@ -234,7 +273,13 @@ runnersFleet:
         enabled: true
         minWarmPoolFloor: 0
         maxReplicas: 1
-  runnerImageSemver: "0.2.1"
+    "26.3":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
+        maxReplicas: 1
+  # Resolved at deploy time from the latest `runner-image@` git tag.
+  runnerImageSemver: ""
   pools: []
 
 # Bare-metal vm-image-builder fleet. Disabled in canary: the baked
@@ -257,6 +302,7 @@ kataContainers:
 runnersController:
   features:
     dindImage: true
+    registryMirror: true
 
 # Linux runner fleet on a single bare-metal AX42-U host (FSN1).
 # Canary mirrors staging's substrate exactly so the deploy pipeline
@@ -273,7 +319,8 @@ runnersFleetLinux:
   # `:runner_linux_shapes` in `server/config/config.exs`. Long-tail
   # shapes scale to zero; the default shape keeps a warm floor since it
   # absorbs `tuist-default` + `linux` default-profile traffic.
-  shapeRunnerImage: "ghcr.io/tuist/tuist-linux-runner@sha256:c3661219d7a0ac9669b321b3d80e09ec8f43e20e464e4c16a90e2193db71b02e"
+  # Resolved at deploy time from the latest `linux-runner-image@` git tag.
+  shapeRunnerImage: ""
   shapeRuntimeClass: kata-qemu
   shapeAutoscaling:
     enabled: true

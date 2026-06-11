@@ -25,6 +25,16 @@ defmodule Tuist.FeatureFlags do
     Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
+  @doc """
+  Whether cache clients should use Kura endpoints for the given account.
+  This is intentionally separate from `:kura`, which controls access to the
+  managed Kura UI and provisioning surface. Kura is opt-in: accounts continue
+  to use the default cache endpoints unless this flag is explicitly enabled.
+  """
+  def kura_cache_enabled?(account) do
+    FunWithFlags.enabled?(:kura_cache, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

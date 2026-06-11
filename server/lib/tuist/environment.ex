@@ -177,6 +177,15 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_dedicated_gateway_account_handles do
+    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
   end
@@ -252,43 +261,6 @@ defmodule Tuist.Environment do
         split_endpoints(endpoints)
 
       _ ->
-        nil
-    end
-  end
-
-  @doc """
-  Returns the kubeconfig (raw YAML string) for the given Kura cluster
-  ID, or `nil` if none is configured.
-
-  Used by managed Kura regions that run outside the server's own
-  Kubernetes cluster. Managed regions in the same cluster can still use
-  the server pod's in-cluster ServiceAccount instead.
-
-  Two sources are checked in order:
-
-    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
-       file on disk (the convenient dev path — devs use their own
-       `~/.kube/config` against a kind cluster).
-    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
-       YAML inline.
-
-  In both forms the cluster ID is uppercased and `-` becomes `_` for
-  env vars.
-  """
-  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
-    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-    cond do
-      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
-        case File.read(path) do
-          {:ok, contents} -> contents
-          {:error, _reason} -> nil
-        end
-
-      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
-        inline
-
-      true ->
         nil
     end
   end
@@ -782,10 +754,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
@@ -1015,10 +987,8 @@ defmodule Tuist.Environment do
   end
 
   # Kura-side env vars stay unprefixed so the implementation in Kura
-  # remains Tuist-agnostic. The server still falls back to the legacy
-  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
-  # so existing deployments and dev secrets keep working through the
-  # rename.
+  # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
+  # compatibility fallback for existing deployments and dev secrets.
   def kura_control_plane_client_id(secrets \\ secrets()) do
     System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
       get([:kura, :control_plane_client_id], secrets) ||

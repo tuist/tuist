@@ -50,9 +50,12 @@ defmodule TuistWeb.WarningsHeaderPlug do
   end
 
   defp get_latest_cli_version do
+    # Prefer the bare semver `tag_name` (e.g. "4.196.0") over `name`
+    # (e.g. "CLI 4.196.0"); the former is the version string users actually
+    # install.
     case Releases.get_latest_cli_release(update_if_needed: false) do
       nil -> nil
-      release -> release.name
+      release -> release.tag_name
     end
   end
 

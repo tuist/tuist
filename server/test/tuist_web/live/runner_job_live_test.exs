@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -34,7 +35,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_001,
         account_id: account.id,
-        fleet_name: "macos-xcode-26.4",
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
         repository: "tuist/tuist",
         workflow_run_id: 310_010,
         workflow_name: "Server",
@@ -59,7 +60,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 31_101,
         account_id: account.id,
-        fleet_name: "linux-amd64",
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
         repository: "tuist/cli",
         workflow_run_id: 311_010,
         workflow_name: "CLI",
@@ -69,7 +70,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
         head_sha: "1234567"
       })
 
-    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
+
     :ok = Jobs.record_claimed(candidate, "pod-x", DateTime.utc_now())
     :ok = Jobs.record_running(31_101, "tuist-runner-x")
     {:ok, _completed} = Jobs.complete(31_101, "success")
@@ -521,16 +524,15 @@ defmodule TuistWeb.RunnerJobLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
     # Hidden by default; the icon points to the action (show) — a plain
-    # hourglass, so the hourglass-off slash path is absent.
+    # hourglass, so the hourglass-off variant is absent.
     assert html =~ ~s(data-show-timestamps="false")
     assert html =~ "Timestamps"
-    refute html =~ "M3 3l18 18"
+    refute html =~ "icon-tabler-hourglass-off"
 
     toggled = lv |> element("#logs-timestamps-button") |> render_click()
-    # Now visible; the action becomes "hide", so the icon is hourglass-off
-    # (its distinctive diagonal slash path).
+    # Now visible; the action becomes "hide", so the icon is hourglass-off.
     assert toggled =~ ~s(data-show-timestamps="true")
-    assert toggled =~ "M3 3l18 18"
+    assert toggled =~ "icon-tabler-hourglass-off"
   end
 
   test "the Steps card also has a timestamps button toggling per-step timestamps", %{conn: conn, account: account} do

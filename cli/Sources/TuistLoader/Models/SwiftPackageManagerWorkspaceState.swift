@@ -12,6 +12,22 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
 
         /// The list of SPM artifacts
         let artifacts: [Artifact]
+
+        /// The list of SPM prebuilts
+        let prebuilts: [Prebuilt]
+
+        private enum CodingKeys: String, CodingKey {
+            case dependencies
+            case artifacts
+            case prebuilts
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            dependencies = try container.decode([Dependency].self, forKey: .dependencies)
+            artifacts = try container.decode([Artifact].self, forKey: .artifacts)
+            prebuilts = try container.decodeIfPresent([Prebuilt].self, forKey: .prebuilts) ?? []
+        }
     }
 
     struct Dependency: Decodable, Equatable {
@@ -46,6 +62,32 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
 
         /// Name of the target to which this artifact belongs
         let targetName: String
+    }
+
+    struct Prebuilt: Decodable, Equatable {
+        /// Identity of the package the prebuilt belongs to.
+        let identity: String
+
+        /// Version of the package the prebuilt was built from.
+        let version: String
+
+        /// Name of the prebuilt library.
+        let libraryName: String
+
+        /// Absolute path to the extracted prebuilt artifacts.
+        let path: String
+
+        /// Absolute path to the source checkout associated with the prebuilt.
+        let checkoutPath: String?
+
+        /// Products represented by this prebuilt library.
+        let products: [String]
+
+        /// Include paths relative to the checkout path.
+        let includePath: [String]?
+
+        /// C modules with include directories in the prebuilt artifact.
+        let cModules: [String]
     }
 
     struct PackageRef: Decodable, Equatable {

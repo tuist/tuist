@@ -1,5 +1,6 @@
 use std::{
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -9,7 +10,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::{artifact::producer::ArtifactProducer, io::IoController};
+use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
 
 #[derive(Debug)]
 pub struct TempBodyFile {
@@ -20,6 +21,7 @@ pub struct TempBodyFile {
 #[derive(Debug, PartialEq, Eq)]
 pub enum BodyReadError {
     TooLarge,
+    TmpDirFull(String),
     Io(String),
 }
 
@@ -27,8 +29,15 @@ pub async fn read_request_to_temp(
     request: Request,
     directory: &Path,
     max_bytes: u64,
+    tmp_dir: &Path,
+    tmp_dir_max_bytes: u64,
     io: &IoController,
+    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
 ) -> Result<TempBodyFile, BodyReadError> {
+    ensure_tmp_dir_capacity(tmp_dir, max_bytes, tmp_dir_max_bytes)
+        .await
+        .map_err(BodyReadError::TmpDirFull)?;
+
     let temp_path = temp_file_path(directory, "upload");
     if let Some(parent) = temp_path.parent() {
         io.create_dir_all(parent).await.map_err(BodyReadError::Io)?;
@@ -58,6 +67,9 @@ pub async fn read_request_to_temp(
             io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
         }
+        if let Some(limiter) = bandwidth_limiter.as_ref() {
+            limiter.acquire(chunk.len()).await;
+        }
 
         if let Err(error) = file.write_all(&chunk).await {
             drop(file);
@@ -80,6 +92,46 @@ pub async fn read_request_to_temp(
         path: temp_path,
         size,
     })
+}
+
+pub async fn ensure_tmp_dir_capacity(
+    tmp_dir: &Path,
+    incoming_bytes: u64,
+    max_bytes: u64,
+) -> Result<(), String> {
+    let tmp_dir = tmp_dir.to_path_buf();
+    let current_bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
+        .await
+        .unwrap_or(0);
+    let requested_bytes = current_bytes.saturating_add(incoming_bytes);
+    if requested_bytes > max_bytes {
+        return Err(format!(
+            "tmp dir budget exhausted: {current_bytes} bytes staged, {incoming_bytes} bytes requested, {max_bytes} bytes allowed"
+        ));
+    }
+    Ok(())
+}
+
+pub fn directory_size_bytes(path: &Path) -> u64 {
+    let mut total = 0_u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if file_type.is_dir() {
+                stack.push(entry.path());
+            } else if let Ok(metadata) = entry.metadata() {
+                total = total.saturating_add(metadata.len());
+            }
+        }
+    }
+    total
 }
 
 pub fn temp_file_path(directory: &Path, prefix: &str) -> PathBuf {
@@ -273,9 +325,17 @@ mod tests {
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let temp = read_request_to_temp(request, directory.path(), 10, &io)
-            .await
-            .expect("failed to read request to temp");
+        let temp = read_request_to_temp(
+            request,
+            directory.path(),
+            10,
+            directory.path(),
+            10,
+            &io,
+            None,
+        )
+        .await
+        .expect("failed to read request to temp");
 
         assert_eq!(temp.size, 5);
         assert_eq!(
@@ -298,9 +358,17 @@ mod tests {
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let error = read_request_to_temp(request, directory.path(), 4, &io)
-            .await
-            .expect_err("expected body reader to reject oversized request");
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            4,
+            directory.path(),
+            10,
+            &io,
+            None,
+        )
+        .await
+        .expect_err("expected body reader to reject oversized request");
 
         assert_eq!(error, BodyReadError::TooLarge);
         assert!(
@@ -308,6 +376,34 @@ mod tests {
                 .expect("failed to list temp dir")
                 .next()
                 .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+        let directory = tempdir().expect("failed to create temp dir");
+        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
+        let io = IoController::new(
+            Metrics::new("eu-west".into(), "acme".into()),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let request = Request::builder()
+            .body(Body::from("world"))
+            .expect("failed to build request");
+
+        let error =
+            read_request_to_temp(request, directory.path(), 5, directory.path(), 9, &io, None)
+                .await
+                .expect_err("expected body reader to reject exhausted tmp budget");
+
+        assert!(matches!(error, BodyReadError::TmpDirFull(_)));
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("staged"))
+                .expect("failed to read seeded file"),
+            "hello"
         );
     }
 }

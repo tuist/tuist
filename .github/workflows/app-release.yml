@@ -1,0 +1,318 @@
+name: App Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - app/**
+      - mise/tasks/app/**
+      - cli/Sources/TuistSupport/**
+      - cli/Sources/TuistCore/**
+      - cli/Sources/TuistServer/**
+      - cli/Sources/TuistHTTP/**
+      - cli/Sources/TuistAutomation/**
+      - cli/Sources/TuistSimulator/**
+      - cli/Sources/TuistAndroid/**
+      - cli/Sources/TuistLogging/**
+      - cli/Sources/XcodeGraph/**
+      - cli/Sources/TuistConstants/**
+      - cli/Sources/TuistEnvironment/**
+      - cli/Sources/TuistConfig/**
+      - cli/Sources/TuistAlert/**
+      - cli/Sources/TuistThreadSafe/**
+      - cli/Sources/TuistOpener/**
+      - cli/Sources/TuistUniqueIDGenerator/**
+      - cli/Sources/TuistNooraExtension/**
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+concurrency:
+  # Serialize app releases against each other (check-releases derives the
+  # next version from the latest app tag), queueing rather than cancelling so
+  # each release publishes atomically.
+  group: app-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  check-releases:
+    name: Check for releasable changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      app-should-release: ${{ steps.check.outputs.app-should-release }}
+      app-next-version: ${{ steps.check.outputs.app-next-version }}
+      app-next-version-number: ${{ steps.check.outputs.app-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check
+
+  release-app:
+    name: Release App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: tuist-macos
+    timeout-minutes: 50
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    outputs:
+      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Install create-dmg
+        run: brew install create-dmg
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist git-cliff 1password-cli"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Install dependencies
+        run: tuist install --force-resolved-versions
+
+      - name: Get release notes
+        id: release-notes
+        working-directory: app
+        run: |
+          # Get the latest app version tag
+          LATEST_VERSION=$(git tag -l | grep -E "^app@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update version
+        working-directory: app
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
+          # +10000 offset ensures build numbers stay above 9127, the last value produced by
+          # the previous scheme before github.run_number was adopted (the run counter reset
+          # to ~3200 when the workflow was recreated, going below the old high-water mark).
+          BUILD_NUMBER=$(( ${{ github.run_number }} + 10000 ))
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${BUILD_NUMBER}\",/g" "Project.swift"
+
+      - name: Update CHANGELOG.md
+        working-directory: app
+        # Full-history regen with authoritative --tag. A ranged --bump with -o
+        # overwrites the file with only the latest release, dropping prior history.
+        run: git cliff --include-path "app/**/*" --include-path "mise/tasks/app/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.app-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Bundle macOS app
+        run: mise run --no-deps app:bundle
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+      - name: Generate Sparkle appcast
+        run: op read "op://tuist/Tuist App Private Sparkle Key/credential" | .build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast --link https://github.com/tuist/tuist/releases --download-url-prefix https://github.com/tuist/tuist/releases/download/${{ needs.check-releases.outputs.app-next-version }}/Tuist.dmg -o app/appcast.xml app/build/artifacts --ed-key-file -
+
+      - name: Upload App artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-artifacts
+          path: |
+            app/CHANGELOG.md
+            app/Project.swift
+            app/appcast.xml
+            app/build/artifacts/Tuist.zip
+            app/build/artifacts/Tuist.dmg
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
+          retention-days: 1
+
+  release-ios:
+    name: Release iOS App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+      statuses: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Skip Xcode Macro Fingerprint Validation
+        run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+      - name: Skip Xcode Package Validation
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist 1password-cli"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist
+        run: tuist setup
+      - name: Update version
+        working-directory: app
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i '' -e "s/CFBundleShortVersionString.*/CFBundleShortVersionString\": \"$VERSION_NUMBER\",/g" "Project.swift"
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "Project.swift"
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      - name: Generate TuistApp
+        run: tuist generate TuistApp --no-binary-cache
+      - name: Upload iOS App to App Store Connect
+        run: mise run --no-deps app:upload-ios
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+
+  release-android:
+    name: Release Android App
+    needs: check-releases
+    if: needs.check-releases.outputs.app-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "java gradle 1password-cli"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+
+      - name: Update version
+        working-directory: android
+        run: |
+          VERSION_NUMBER="${{ needs.check-releases.outputs.app-next-version }}"
+          VERSION_NUMBER="${VERSION_NUMBER#app@}"
+          sed -i "s/versionCode = .*/versionCode = ${{ github.run_number }}/" app/build.gradle.kts
+          sed -i "s/versionName = \".*\"/versionName = \"$VERSION_NUMBER\"/" app/build.gradle.kts
+
+      - name: Setup signing and credentials
+        run: |
+          op document get "Google Play release.keystore binary" --vault tuist --out-file android/release.keystore
+          op read "op://tuist/Google Play release.keystore/sirudpicoo6z2b3rmdtfhcj3aa" --out-file android/service-account.json
+
+      - name: Publish to Google Play
+        working-directory: android
+        run: |
+          export ANDROID_KEYSTORE_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          export ANDROID_KEY_ALIAS=tuist
+          export ANDROID_KEY_PASSWORD=$(op read "op://tuist/Google Play release.keystore/password")
+          ./gradlew publishReleaseBundle
+
+  publish-app:
+    name: Publish App release
+    needs: [check-releases, release-app, release-ios, release-android]
+    if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success' && needs.release-ios.result == 'success' && needs.release-android.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Download App artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: app-artifacts
+          path: app
+      - name: Create App GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          # Pin the tag to the commit this run built (see cli-release.yml).
+          target_commitish: ${{ github.sha }}
+          name: App ${{ needs.check-releases.outputs.app-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.app-next-version }}
+          body: ${{ needs.release-app.outputs.release-notes }}
+          files: |
+            app/build/artifacts/SHASUMS256.txt
+            app/build/artifacts/SHASUMS512.txt
+            app/build/artifacts/Tuist.dmg
+      - name: Publish Sparkle appcast feed
+        # The Sparkle feed (app/appcast.xml, generated by release-app) is
+        # served from a stable GitHub Release asset (tag `appcast`) that the
+        # macOS app's SUFeedURL points at. softprops overwrites the
+        # same-named asset on the `appcast` release each app release;
+        # make_latest is off so this housekeeping release never shadows the
+        # real "latest".
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          make_latest: "false"
+          repository: tuist/tuist
+          name: Sparkle appcast feed
+          tag_name: appcast
+          body: |
+            Sparkle auto-update feed for the Tuist macOS app. The asset on
+            this release is the live feed (SUFeedURL); it is overwritten by
+            the release pipeline on every app release. Not a product release.
+          files: |
+            app/appcast.xml
+      - name: Trigger Homebrew Cask Update
+        run: |
+          SHA256=$(cat app/build/artifacts/SHASUMS256.txt | grep Tuist.dmg | awk '{print $1}')
+          mise run --no-deps app:release:homebrew-cask --version "${{ needs.check-releases.outputs.app-next-version-number }}" --github-token "${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}" --sha256 "$SHA256"

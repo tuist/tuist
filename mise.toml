@@ -2,7 +2,7 @@
     aube = "1.6.2"
     # Temporarily pinned to 4.192.4 until the SwiftPM deadlock from PR #10729 is released.
     # See https://github.com/tuist/tuist/issues/10754.
-    tuist = "4.196.0"
+    tuist = "4.197.1"
     swiftlint = "0.59.1"
     "elixir" = "1.19.5"
     "erlang" = "28.4.3"
@@ -25,6 +25,11 @@
     "npm:opencode-ai" = "1.14.39"
     kubectl = "1.36.1"
     helm = "4.2.0"
+    # pomerium-cli is the kubeconfig exec credential plugin that does
+    # the Google OIDC dance + caches the session for kubectl calls
+    # against the kube-<env>.tuist.dev Pomerium gateway. See
+    # infra/helm/pomerium/.
+    "github:pomerium/cli" = "0.32.2"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
@@ -34,6 +39,7 @@
     _.source = ["{{config_root}}/mise/utilities/dev_instance_env.sh", "{{config_root}}/mise/utilities/cache_ee_env.sh"]
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     TUIST_FILESYSTEM_BACKEND = "swift-file-system"
+    TUIST_USE_SWIFTERPM = "1"
     TUIST_INSPECT_TEST_MODE = "remote"
     TUIST_FEATURE_FLAG_KURA = "1"
     TUIST_HOSTED = "1"

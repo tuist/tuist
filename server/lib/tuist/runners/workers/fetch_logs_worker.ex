@@ -59,6 +59,7 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
   # amortising the per-INSERT overhead across enough rows to keep
   # the worker CPU-bound rather than network-bound.
   @batch_lines 1_000
+  @max_log_redirects 5
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -100,32 +101,31 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
 
   defp stream_log(api_url, repository, workflow_job_id, account_id, token) do
     url = "#{api_url}/repos/#{repository}/actions/jobs/#{workflow_job_id}/logs"
+    stream_log_url(url, github_log_headers(token), workflow_job_id, account_id, 0, false)
+  end
+
+  defp stream_log_url(url, headers, workflow_job_id, account_id, redirect_count, stream?) do
     initial = new_stream_state(workflow_job_id, account_id)
 
     req_opts =
       [
         url: url,
-        headers: [
-          {"Authorization", "Bearer #{token}"},
-          {"Accept", "application/vnd.github+json"},
-          {"X-GitHub-Api-Version", "2022-11-28"}
-        ],
-        # Follow the 302 to the actual log payload (S3/Azure).
-        redirect: true,
+        headers: headers,
+        # Streaming responses and Req's redirect step don't compose here:
+        # GitHub first returns a 302 to a signed archive URL, then the
+        # archive body streams from that URL.
+        redirect: false,
         # Logs come back as plain text, not JSON.
-        decode_body: false,
-        into: fn {:data, chunk}, {req, resp} ->
-          state = Req.Response.get_private(resp, :log_stream, initial)
-          state = consume_chunk(state, chunk)
-          {:cont, {req, Req.Response.put_private(resp, :log_stream, state)}}
-        end
-      ] ++ Retry.retry_options()
+        decode_body: false
+      ]
+      |> with_log_stream(stream?, initial)
+      |> Keyword.merge(Retry.retry_options())
 
-    case Req.get(req_opts) do
+    case fetch_log_response(req_opts) do
       {:ok, %{status: 200} = resp} ->
         state =
           resp
-          |> Req.Response.get_private(:log_stream, initial)
+          |> response_stream_state(initial, stream?)
           |> consume_remainder()
           |> flush_batch()
 
@@ -138,11 +138,70 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
       {:ok, %{status: 404}} ->
         {:error, :log_not_ready_yet}
 
+      {:ok, %{status: status} = resp} when status in [301, 302, 303, 307, 308] ->
+        follow_log_redirect(url, resp, workflow_job_id, account_id, redirect_count)
+
       {:ok, %{status: status, body: body}} ->
         {:error, {:unexpected_status, status, body}}
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp github_log_headers(token) do
+    [
+      {"Authorization", "Bearer #{token}"},
+      {"Accept", "application/vnd.github+json"},
+      {"X-GitHub-Api-Version", "2022-11-28"}
+    ]
+  end
+
+  defp with_log_stream(req_opts, false, _initial), do: req_opts
+
+  defp with_log_stream(req_opts, true, initial) do
+    Keyword.put(req_opts, :into, fn {:data, chunk}, {req, resp} ->
+      state = Req.Response.get_private(resp, :log_stream, initial)
+      state = consume_chunk(state, chunk)
+      {:cont, {req, Req.Response.put_private(resp, :log_stream, state)}}
+    end)
+  end
+
+  defp fetch_log_response(req_opts) do
+    case Req.get(req_opts) do
+      {:ok, {_req, %Req.Response{} = resp}} -> {:ok, resp}
+      {:ok, %Req.Response{} = resp} -> {:ok, resp}
+      {:error, {_req, reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp response_stream_state(resp, initial, true), do: Req.Response.get_private(resp, :log_stream, initial)
+
+  defp response_stream_state(%{body: body}, initial, false) when is_binary(body) do
+    consume_body(body, initial)
+  end
+
+  defp response_stream_state(_resp, initial, false), do: initial
+
+  defp follow_log_redirect(_url, _resp, _workflow_job_id, _account_id, redirect_count)
+       when redirect_count >= @max_log_redirects do
+    {:error, :too_many_log_redirects}
+  end
+
+  defp follow_log_redirect(url, resp, workflow_job_id, account_id, redirect_count) do
+    case Req.Response.get_header(resp, "location") do
+      [location | _] ->
+        redirected_url =
+          url
+          |> URI.parse()
+          |> URI.merge(URI.parse(location))
+          |> URI.to_string()
+
+        stream_log_url(redirected_url, [], workflow_job_id, account_id, redirect_count + 1, true)
+
+      [] ->
+        {:error, {:unexpected_status, resp.status, resp.body}}
     end
   end
 
@@ -173,6 +232,16 @@ defmodule Tuist.Runners.Workers.FetchLogsWorker do
     }
 
     if state.batch_count >= @batch_lines, do: flush_batch(state), else: state
+  end
+
+  defp consume_body(body, state) do
+    {rows, state} = parse_chunk(body, state)
+
+    %{
+      state
+      | batch: state.batch ++ rows,
+        batch_count: state.batch_count + length(rows)
+    }
   end
 
   # End-of-stream: parse whatever's left in `:partial` as one final

@@ -1,0 +1,71 @@
+name: CLI Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cli/**
+      - .xcode-version-releases
+      - Package.swift
+      - Package.resolved
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  # Required so the reusable cli-build-publish.yml's release-cli job can mint an
+  # OIDC token: a called workflow's job permissions are capped by the caller's.
+  id-token: write
+
+concurrency:
+  # Serialize all CLI publishing — normal releases AND backports — through one
+  # ref-independent group. check-releases derives the next version from the
+  # latest cli tag, and both paths create tags and push the Homebrew formula,
+  # so they must never run concurrently. Queue rather than cancel so each
+  # release publishes atomically. cli-backport.yml shares this group.
+  group: cli-publish
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  check-releases:
+    name: Check for releasable changes
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    outputs:
+      cli-should-release: ${{ steps.check.outputs.cli-should-release }}
+      cli-next-version: ${{ steps.check.outputs.cli-next-version }}
+      cli-next-version-number: ${{ steps.check.outputs.cli-next-version-number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check
+
+  build-publish:
+    name: Build and publish CLI
+    needs: check-releases
+    if: needs.check-releases.outputs.cli-should-release == 'true'
+    uses: ./.github/workflows/cli-build-publish.yml
+    with:
+      version: ${{ needs.check-releases.outputs.cli-next-version }}
+      # Build and tag the exact commit that triggered this run.
+      ref: ${{ github.sha }}
+      make_latest: true
+      update_homebrew: true
+    secrets: inherit

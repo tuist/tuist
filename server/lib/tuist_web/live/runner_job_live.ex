@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobLive do
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.JobLogs
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
@@ -142,9 +143,14 @@ defmodule TuistWeb.RunnerJobLive do
 
   def platform_label(fleet_name) when is_binary(fleet_name) do
     cond do
-      String.starts_with?(fleet_name, "macos-") -> dgettext("dashboard_runners", "macOS")
-      String.starts_with?(fleet_name, "linux-") -> dgettext("dashboard_runners", "Linux")
-      true -> dgettext("dashboard_runners", "Unknown")
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        dgettext("dashboard_runners", "macOS")
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        dgettext("dashboard_runners", "Linux")
+
+      true ->
+        dgettext("dashboard_runners", "Unknown")
     end
   end
 
@@ -158,9 +164,14 @@ defmodule TuistWeb.RunnerJobLive do
   """
   def platform_badge_color(fleet_name) when is_binary(fleet_name) do
     cond do
-      String.starts_with?(fleet_name, "macos-") -> "information"
-      String.starts_with?(fleet_name, "linux-") -> "attention"
-      true -> "neutral"
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        "information"
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        "attention"
+
+      true ->
+        "neutral"
     end
   end
 

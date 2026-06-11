@@ -1,7 +1,34 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in xcresult-processor-image@0.12.0<!-- RELEASE NOTES START -->
+## What's Changed in xcresult-processor-image@0.13.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add cross-region peer gateway discovery ([#11173](https://github.com/tuist/tuist/pull/11173))
+### 🐛 Bug Fixes
+
+* show runner job platforms ([#11147](https://github.com/tuist/tuist/pull/11147))
+* runner log spacing ([#11142](https://github.com/tuist/tuist/pull/11142))
+* tailnet-expose CNPG pooler for xcresult-processor ([#11134](https://github.com/tuist/tuist/pull/11134))
+* stop OrphanedStampedPodsWorker from killing live runner pods ([#11133](https://github.com/tuist/tuist/pull/11133))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.2...xcresult-processor-image@0.13.0
+
+## What's Changed in xcresult-processor-image@0.12.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle GitHub log redirects manually ([#11126](https://github.com/tuist/tuist/pull/11126))
+* stop leaking component release titles into the CLI deprecation warning ([#11122](https://github.com/tuist/tuist/pull/11122))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.12.1...xcresult-processor-image@0.12.2
+
+## What's Changed in xcresult-processor-image@0.12.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -18,6 +45,8 @@ All notable changes to this project will be documented in this file.
 * track Kura node usage and add Usage dashboard ([#10979](https://github.com/tuist/tuist/pull/10979))
 ### 🐛 Bug Fixes
 
+* stop canary 500s from web-pool/Oban contention on create_project ([#11107](https://github.com/tuist/tuist/pull/11107))
+* lower minimum CLI version ([#11120](https://github.com/tuist/tuist/pull/11120))
 * aggregate Kura usage by region ([#11092](https://github.com/tuist/tuist/pull/11092))
 * configure STS region for IRSA ([#11111](https://github.com/tuist/tuist/pull/11111))
 * Prefer ready Kura cache endpoints ([#11089](https://github.com/tuist/tuist/pull/11089))
@@ -40,7 +69,7 @@ All notable changes to this project will be documented in this file.
 
 
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.9.2...xcresult-processor-image@0.12.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/xcresult-processor-image@0.9.2...xcresult-processor-image@0.12.1
 
 ## What's Changed in xcresult-processor-image@0.9.2<!-- RELEASE NOTES START -->
 

@@ -52,6 +52,19 @@ spec:
           name: kura
           replicas: 3
           failureDomain: fsn1
+          healthCheck:
+            checks:
+              nodeStartupTimeoutSeconds: 600
+              unhealthyNodeConditions:
+                - type: Ready
+                  status: Unknown
+                  timeoutSeconds: 300
+                - type: Ready
+                  status: "False"
+                  timeoutSeconds: 300
+            remediation:
+              triggerIf:
+                unhealthyLessThanOrEqualTo: 100%
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: kura

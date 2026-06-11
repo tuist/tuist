@@ -1,6 +1,6 @@
 # Workload Cluster Onboarding — Tuist Server on Kubernetes
 
-Stand up a new Tuist workload cluster (staging / canary / production / preview, or a production Kura regional cluster) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server or Kura controller to it.
+Stand up a new Tuist workload cluster (staging / canary / production / preview) on Hetzner via our self-hosted CAPI management cluster, and deploy the Tuist server to it. Production Kura regions are node pools inside the production workload cluster, not separate clusters.
 
 We run a **management cluster** (a single-node Talos VM in Hetzner project `tuist-mgmt`) that hosts CAPI v1.13 + caph v1.1. You apply [Cluster API](https://cluster-api.sigs.k8s.io/) CRs against it; caph spins up workload nodes in the workload Hetzner project. The mgmt cluster's manifests live in [`infra/k8s/mgmt/`](mgmt/); workload Cluster CRs (and the shared `tuist-hcloud` ClusterClass) live in [`infra/k8s/clusters/`](clusters/) and are auto-applied to the mgmt cluster on push to `main` by [`mgmt-cluster-apply.yml`](../../.github/workflows/mgmt-cluster-apply.yml).
 
@@ -13,7 +13,7 @@ This doc is the runbook for onboarding **a new workload cluster** end-to-end. Th
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
-- A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault; production Kura regional deploys also need the same item in `tuist-k8s-production` so CI and the Kura controller can read it.
+- A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
 - Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
@@ -42,8 +42,6 @@ Each workload cluster is a `Cluster` CR in topology mode referencing the `tuist-
 - [`clusters/cluster-staging.yaml`](clusters/cluster-staging.yaml)
 - [`clusters/cluster-canary.yaml`](clusters/cluster-canary.yaml)
 - [`clusters/cluster-production.yaml`](clusters/cluster-production.yaml)
-- [`clusters/cluster-production-us-east.yaml`](clusters/cluster-production-us-east.yaml)
-- [`clusters/cluster-production-us-west.yaml`](clusters/cluster-production-us-west.yaml)
 - [`clusters/cluster-preview.yaml`](clusters/cluster-preview.yaml)
 
 For a new cluster, copy the closest existing file and adjust `metadata.name`, replica counts, machine types, and any per-pool labels/taints. Variables exposed by the ClusterClass are documented in [`clusters/README.md`](clusters/README.md). Run `mise run k8s:lint-version-drift` to confirm `topology.version` matches the ClusterClass's `KUBERNETES_VERSION` before applying.
@@ -60,21 +58,18 @@ kubectl -n org-tuist get cluster <name> -w
 
 ## 4. Bootstrap the workload cluster
 
-Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it. App-serving clusters get the full path (Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test). Production Kura regional clusters install only the shared platform pieces they need, then upload the workload kubeconfig:
+Run the `k8s:bootstrap-workload` task. It is idempotent and handles every step the workload cluster needs before CI deploys can target it: Cilium, HCCM, hcloud-csi, the `hetzner` Secret on the workload, the platform chart, ESO + the per-env `onepassword` ClusterSecretStore, the monitoring chart, the app namespace + the Cloudflare origin TLS Secret, and a final ingress smoke test.
 
 ```bash
 mise run k8s:bootstrap-workload <cluster_name> <env> [kubeconfig_item]
 # e.g. mise run k8s:bootstrap-workload tuist-canary-2 canary
-# e.g. mise run k8s:bootstrap-workload tuist-kura-us-east production "kubeconfig: kura-us-east-1"
 ```
 
-On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. App clusters use the default `kubeconfig: tuist-<env>` title. Production Kura regional clusters pass explicit titles matching the product cluster IDs: `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1`.
+On success the script uploads the freshly-minted workload kubeconfig to the per-env 1Password vault. Clusters use the default `kubeconfig: tuist-<env>` title unless you explicitly pass a different document title.
 
 ## 5. Wire the GitHub Actions deployer
 
 CI uses a namespace-scoped ServiceAccount with a long-lived token, defined in [`mgmt/ci-service-account.yaml`](mgmt/ci-service-account.yaml). Apply it on the workload cluster, mint a kubeconfig, and load it into the GitHub Environment secret:
-
-Skip this section for production Kura regional clusters. The production server deploy workflow reads `kubeconfig: kura-us-east-1` and `kubeconfig: kura-us-west-1` from the production 1Password vault, syncs them into the main production server namespace for runtime CR writes, and deploys the Kura controller to those regional clusters directly.
 
 ```bash
 WL_KUBECONFIG=~/.kube/<cluster_name>.yaml

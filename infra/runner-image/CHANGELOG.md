@@ -1,6 +1,37 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in runner-image@0.3.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* update XCLogParser for Xcode 27 logs ([#11176](https://github.com/tuist/tuist/pull/11176))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.2...runner-image@0.3.3
+
+## What's Changed in runner-image@0.3.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* harden CLI release artifact handling ([#11157](https://github.com/tuist/tuist/pull/11157))
+* bump pinned Kura runtime ([#11156](https://github.com/tuist/tuist/pull/11156))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.1...runner-image@0.3.2
+
+## What's Changed in runner-image@0.3.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* tailnet-expose CNPG pooler for xcresult-processor ([#11134](https://github.com/tuist/tuist/pull/11134))
+
+
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/runner-image@0.3.0...runner-image@0.3.1
+
 ## What's Changed in runner-image@0.3.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

@@ -2,12 +2,13 @@ defmodule Tuist.Tests.TestCaseRunDailyStatsPerCase do
   @moduledoc """
   Ecto schema for the `test_case_run_daily_stats_per_case` ClickHouse table.
 
-  AggregatingMergeTree keyed on `(project_id, date, test_case_id)` with two
-  aggregate states: `run_count` (count of every run) and `flaky_run_count`
-  (sum of `is_flaky` cast to UInt8). The flaky-tests automation engine uses
-  it to compute per-test flaky counts and rates over a window with a small
-  prefix scan, instead of aggregating against the raw `test_case_runs`
-  table.
+  AggregatingMergeTree keyed on `(project_id, date, test_case_id)` with
+  aggregate states: `run_count` (count of every run), `flaky_run_count`
+  (sum of `is_flaky` cast to UInt8), and `successful_run_count` (sum of
+  `status == 'success'` cast to UInt8). The test automation engine uses it
+  to compute per-test flaky counts, flakiness rates, and reliability rates
+  over a window with a small prefix scan, instead of aggregating against the
+  raw `test_case_runs` table.
 
   Only the dimension columns are declared here. The aggregate state columns
   are accessed through `fragment()` (`countMerge` / `sumMerge`) in queries

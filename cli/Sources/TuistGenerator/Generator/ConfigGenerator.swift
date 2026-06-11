@@ -149,8 +149,7 @@ struct ConfigGenerator: ConfigGenerating {
         if let variantConfig = configuration {
             settingsHelper.extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
+                setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
             }
         }
         variantBuildConfiguration.buildSettings = settings.toBuildSettings()
@@ -220,8 +219,7 @@ struct ConfigGenerator: ConfigGenerating {
             buildSettings: [:]
         )
         if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
-            let fileReference = fileElements.file(path: xcconfig)
-            variantBuildConfiguration.baseConfiguration = fileReference
+            setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
         }
 
         variantBuildConfiguration.buildSettings = settings.toBuildSettings()
@@ -252,13 +250,28 @@ struct ConfigGenerator: ConfigGenerating {
             buildSettings: [:]
         )
         if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
-            let fileReference = fileElements.file(path: xcconfig)
-            variantBuildConfiguration.baseConfiguration = fileReference
+            setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
         }
 
         variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
+    }
+
+    /// Points a build configuration at its base xcconfig. When the xcconfig lives inside a buildable folder (Xcode 16+
+    /// synchronized root group), it is referenced through `baseConfigurationReferenceAnchor` + a relative path so no
+    /// duplicate flat file reference is created at the project root. Otherwise it falls back to a plain file reference.
+    private func setBaseConfiguration(
+        _ buildConfiguration: XCBuildConfiguration,
+        xcconfig: AbsolutePath,
+        fileElements: ProjectFileElements
+    ) {
+        if let synchronized = fileElements.synchronizedRootGroup(containing: xcconfig) {
+            buildConfiguration.baseConfigurationAnchor = synchronized.group
+            buildConfiguration.baseConfigurationReferenceRelativePath = synchronized.relativePath
+        } else {
+            buildConfiguration.baseConfiguration = fileElements.file(path: xcconfig)
+        }
     }
 
     private func updateTargetDerived(

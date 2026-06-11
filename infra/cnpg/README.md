@@ -1,6 +1,6 @@
 # CloudNativePG
 
-In-cluster Postgres operated by the [CloudNativePG](https://cloudnative-pg.io) operator. Replaces the Supabase-managed Postgres the managed deployment previously connected to.
+In-cluster Postgres operated by the [CloudNativePG](https://cloudnative-pg.io) operator. The managed deployment's primary datastore.
 
 The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.yaml`](../helm/tuist/templates/postgresql-cnpg.yaml)) owns instance count, storage, sync replication, role lifecycle, and the WAL archive. This directory holds the SQL files that grant per-table privileges that don't fit `managed.roles[].inRoles` — they run **once per fresh cluster bootstrap** as the cluster's superuser.
 
@@ -41,19 +41,17 @@ Each file ends with a sanity-check `SELECT … information_schema.role_table_gra
 
 ## Why not an Ecto migration
 
-Same three reasons as the old [`infra/supabase/`](../supabase/) directory — `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the future operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
+Three reasons: `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
 
 ## Connection pooler (PgBouncer)
 
-The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It is a **transaction-mode pooler for the processor only**, so the processor's `prepare: :unnamed` connection shape stays constant across the Supabase→CNPG cutover (it matches the processor's Supabase Supavisor `:6543` path).
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). It is a **transaction-mode pooler for the processor only**, matching the processor's `prepare: :unnamed` connection shape.
 
-### Why the web tier is not pooled here, and how that differs from Supabase
+### Why the web tier is not pooled
 
-The web pods run Oban, whose PG notifier (LISTEN/NOTIFY) and Postgres-peer leader election (session advisory locks) do not survive **transaction** pooling. They do survive **session** pooling — so the constraint is specifically transaction mode, not pooling in general.
+The web pods run Oban, whose PG notifier (LISTEN/NOTIFY) and Postgres-peer leader election (session advisory locks) do not survive **transaction** pooling. They do survive **session** pooling, so the constraint is specifically transaction mode, not pooling in general.
 
-On Supabase the web tier does go through a pooler: Supavisor in **session** mode (`*.pooler.supabase.com:5432`, `prepare: :named`). We deliberately differ in-cluster. That session pooler exists for Supabase-platform reasons — the direct Postgres endpoint is IPv4-inaccessible and Supabase wants a managed connection front door — neither of which applies here. CNPG's `-rw` Service is already the native session endpoint, with primary failover built in, so the web tier connects straight to it. Both are session-mode connections, so the application's connection shape is identical; we simply skip a PgBouncer hop that would add no budget headroom (session pooling holds ~one backend per client connection) and would duplicate what `-rw` already does.
-
-The web tier's connection budget is therefore sized at the cluster via `max_connections` (see [`MIGRATION.md`](./MIGRATION.md) → "Connection budget"), not by a pooler.
+CNPG's `-rw` Service is already a native session endpoint with primary failover built in, so the web tier connects straight to it. Adding a session-mode PgBouncer in front would skip no work (session pooling holds ~one backend per client connection) and would duplicate what `-rw` already does. The web tier's connection budget is therefore sized at the cluster via `max_connections`, not by a pooler.
 
 ### Activation
 

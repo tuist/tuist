@@ -102,6 +102,83 @@ struct ConfigGeneratorTests {
     }
 
     @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_whenXcconfigInsideBuildableFolder_usesAnchoredReference() async throws {
+        // Given
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+        let buildableFolder = dir.appending(component: "App")
+        let configurationsDir = buildableFolder.appending(components: "Supporting", "Configurations")
+        try FileManager.default.createDirectory(at: configurationsDir.url, withIntermediateDirectories: true)
+        let debugXcconfig = configurationsDir.appending(component: "App-Debug.xcconfig")
+        let releaseXcconfig = configurationsDir.appending(component: "App-Release.xcconfig")
+        try "".write(to: debugXcconfig.url, atomically: true, encoding: .utf8)
+        try "".write(to: releaseXcconfig.url, atomically: true, encoding: .utf8)
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            settings: Settings(
+                base: [:],
+                configurations: [
+                    .debug: Configuration(settings: [:], xcconfig: debugXcconfig),
+                    .release: Configuration(settings: [:], xcconfig: releaseXcconfig),
+                ]
+            ),
+            buildableFolders: [
+                BuildableFolder(
+                    path: buildableFolder,
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: dir,
+            sourceRootPath: dir,
+            xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
+            name: "App",
+            settings: .default,
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let fileElements = ProjectFileElements()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: fileElements,
+            graphTraverser: graphTraverser,
+            sourceRootPath: dir
+        )
+
+        // Then
+        let debugConfig = pbxTarget.buildConfigurationList?.configuration(name: "Debug")
+        #expect(debugConfig?.baseConfiguration == nil)
+        #expect(debugConfig?.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+        #expect(try #require(debugConfig?.baseConfigurationAnchor).path == "App")
+
+        let releaseConfig = pbxTarget.buildConfigurationList?.configuration(name: "Release")
+        #expect(releaseConfig?.baseConfiguration == nil)
+        #expect(releaseConfig?.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Release.xcconfig")
+        #expect(try #require(releaseConfig?.baseConfigurationAnchor).path == "App")
+
+        // No flat file reference is created for the xcconfigs.
+        #expect(fileElements.file(path: debugXcconfig) == nil)
+        #expect(fileElements.file(path: releaseXcconfig) == nil)
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
     func generateTargetConfig_whenAggregateTarget_clearsVersioningSystem() async throws {
         // Given
         let dir = try #require(FileSystem.temporaryTestDirectory)

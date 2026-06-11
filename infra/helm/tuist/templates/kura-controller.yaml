@@ -1,7 +1,31 @@
 {{- if .Values.kuraController.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
 {{- $namespace := .Values.kuraController.namespace }}
+{{- $kuraSharedSecretName := "kura-shared-secrets" }}
+{{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
+{{- $kuraSharedSecretsExternalSecret := .Values.kuraController.sharedSecrets.externalSecret }}
+{{- $kuraIntrospectionClientId := $kuraIntrospection.clientId | default "" }}
+{{- $kuraIntrospectionClientSecret := $kuraIntrospection.clientSecret | default "" }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientId "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientId is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
+{{- end }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientSecret "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientSecret is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
+{{- end }}
+{{- $kuraIntrospectionSecretData := dict }}
+{{- if $kuraIntrospection.enabled }}
+{{- if ne $kuraIntrospectionClientId "" }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" $kuraIntrospectionClientId }}
+{{- end }}
+{{- if ne $kuraIntrospectionClientSecret "" }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- end }}
+{{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
+{{- $gatewayIngressServiceAccountName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayIngressRoleName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayIngressClusterRoleName := printf "%s-gateway-ingress-nginx" $name }}
+{{- $gatewayClassClusterRoleName := printf "%s-gateway-classes" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- if not $imageTag }}
@@ -38,13 +62,13 @@ metadata:
     app.kubernetes.io/component: kura-controller
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances]
+    resources: [kurainstances, kuragateways]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances/status, kurainstances/finalizers]
+    resources: [kurainstances/status, kurainstances/finalizers, kuragateways/status, kuragateways/finalizers]
     verbs: [get, update, patch]
   - apiGroups: ["apps"]
-    resources: [statefulsets]
+    resources: [statefulsets, deployments]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [services, configmaps, secrets]
@@ -52,6 +76,9 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, update, patch]
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -67,6 +94,34 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $gatewayClassClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingressclasses]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $gatewayClassClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $gatewayClassClusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -96,7 +151,7 @@ metadata:
     app.kubernetes.io/component: server
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances]
+    resources: [kurainstances, kuragateways]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
@@ -119,6 +174,91 @@ subjects:
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $gatewayIngressServiceAccountName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $gatewayIngressRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, endpoints, pods, secrets, services]
+    verbs: [get, list, watch]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses/status]
+    verbs: [update]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $gatewayIngressRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $gatewayIngressRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $gatewayIngressServiceAccountName }}
+    namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $gatewayIngressClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+rules:
+  - apiGroups: [""]
+    resources: [nodes, namespaces]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingressclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $gatewayIngressClusterRoleName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-gateway-ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $gatewayIngressClusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $gatewayIngressServiceAccountName }}
+    namespace: {{ $namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -164,6 +304,7 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            - --gateway-service-account-name={{ $gatewayIngressServiceAccountName }}
           ports:
             - name: metrics
               containerPort: 8080
@@ -200,37 +341,106 @@ metadata:
     {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
 {{- end }}
 type: Opaque
-{{- with .Values.kuraController.sharedSecrets.data }}
+{{- $kuraSharedSecretData := deepCopy $kuraIntrospectionSecretData }}
+{{- range $key, $value := .Values.kuraController.sharedSecrets.data }}
+{{- $_ := set $kuraSharedSecretData $key $value }}
+{{- end }}
+{{- with $kuraSharedSecretData }}
 stringData:
   {{- toYaml . | nindent 2 }}
 {{- end }}
-{{- if .Values.kuraController.sharedSecrets.externalSecret.enabled }}
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+# Mirror only the Kura OAuth keys into the server namespace. Kubernetes
+# Secrets are namespaced, and the server needs the same client credentials
+# to serve Kura token introspection.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+type: Opaque
+{{- with $kuraIntrospectionSecretData }}
+stringData:
+  {{- toYaml $kuraIntrospectionSecretData | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- if $kuraSharedSecretsExternalSecret.enabled }}
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: kura-shared-secrets
+  name: {{ $kuraSharedSecretName }}
   namespace: {{ $namespace }}
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura
 spec:
-  refreshInterval: {{ .Values.kuraController.sharedSecrets.externalSecret.refreshInterval | default "1h" | quote }}
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
   secretStoreRef:
-    name: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.name | default "onepassword" }}
-    kind: {{ .Values.kuraController.sharedSecrets.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
   target:
-    name: kura-shared-secrets
+    name: {{ $kuraSharedSecretName }}
     creationPolicy: Merge
     template:
       engineVersion: v2
       data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
         KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
-        KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
   data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
     - secretKey: kura_introspection_client_secret
       remoteRef:
-        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" .Values.kuraController.sharedSecrets.externalSecret.item }}/{{ .Values.kuraController.sharedSecrets.externalSecret.fields.introspectionClientSecret | default "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET" }}"
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $kuraSharedSecretName }}
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+  data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
+    - secretKey: kura_introspection_client_secret
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- end }}
 {{- end }}
 {{- if .Values.kuraController.sentry.externalSecret.enabled }}
 ---

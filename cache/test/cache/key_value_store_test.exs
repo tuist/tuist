@@ -34,6 +34,54 @@ defmodule Cache.KeyValueStoreTest do
   end
 
   describe "put_key_value/4 and get_key_value/3" do
+    test "stores and reads through Cachex without touching SQLite when Xcode database interactions are disabled", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      expect(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      reject(KeyValueBuffer, :enqueue, 2)
+      reject(KeyValueRepo, :get_by, 2)
+
+      assert :ok =
+               KeyValueStore.put_key_value(
+                 cas_id,
+                 account_handle,
+                 project_handle,
+                 ["value1"],
+                 cache_name: cache_name
+               )
+
+      assert {:ok, json} =
+               KeyValueStore.get_key_value(
+                 cas_id,
+                 account_handle,
+                 project_handle,
+                 cache_name: cache_name
+               )
+
+      assert JSON.decode!(json)["entries"] == [%{"value" => "value1"}]
+    end
+
+    test "returns not found without SQLite read-through when Xcode database interactions are disabled", %{
+      cache_name: cache_name,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      cas_id: cas_id
+    } do
+      expect(Cache.Config, :xcode_database_interactions_enabled?, fn -> false end)
+      reject(KeyValueRepo, :get_by, 2)
+
+      assert {:error, :not_found} =
+               KeyValueStore.get_key_value(
+                 cas_id,
+                 account_handle,
+                 project_handle,
+                 cache_name: cache_name
+               )
+    end
+
     test "stores and retrieves a single value", %{
       cache_name: cache_name,
       account_handle: account_handle,

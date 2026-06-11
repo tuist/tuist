@@ -7,12 +7,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,6 +44,7 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			Region:           "eu",
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
 			StorageClassName: "hcloud-volumes",
 			ExtensionScript:  "return true",
 		},
@@ -67,32 +70,26 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); err != nil {
 		t.Fatal(err)
 	}
-	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
-		t.Fatalf("expected public service to be a LoadBalancer, got %q", service.Spec.Type)
+	if service.Spec.Type != corev1.ServiceTypeClusterIP {
+		t.Fatalf("expected public service to be a ClusterIP backend for regional Kura ingress, got %q", service.Spec.Type)
 	}
-	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
-		t.Fatalf("expected local external traffic policy, got %q", service.Spec.ExternalTrafficPolicy)
+	if service.Spec.ExternalTrafficPolicy != "" {
+		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := service.Spec.Ports[0].Port; got != httpsPort {
-		t.Fatalf("expected public service port %d, got %d", httpsPort, got)
+	if got := len(service.Spec.Ports); got != 3 {
+		t.Fatalf("expected backend service to expose http, grpc, and peer ports, got %d", got)
 	}
-	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "https" {
-		t.Fatalf("expected public service to target the TLS-terminating https port, got %q", got)
+	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
+		t.Fatalf("expected public ingress backend service to target the plain http port, got %q", got)
 	}
-	if got := service.Annotations["external-dns.alpha.kubernetes.io/hostname"]; got != "tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected external-dns hostname, got %q", got)
+	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "grpc" {
+		t.Fatalf("expected backend service to expose grpc, got %q", got)
 	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/protocol"]; got != "tcp" {
-		t.Fatalf("expected Hetzner LB tcp passthrough so Kura terminates TLS, got %q", got)
+	if got := service.Spec.Ports[2].TargetPort.StrVal; got != "peer" {
+		t.Fatalf("expected backend service to expose peer, got %q", got)
 	}
-	if _, ok := service.Annotations["load-balancer.hetzner.cloud/certificate-type"]; ok {
-		t.Fatal("expected managed-cert annotations to be dropped now that cert-manager issues the public cert")
-	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
-		t.Fatalf("expected health check to use TCP against the passthrough NodePort, got %q", got)
-	}
-	if _, ok := service.Annotations["load-balancer.hetzner.cloud/health-check-port"]; ok {
-		t.Fatal("expected health check port annotation to be omitted so Hetzner probes the Service NodePort")
+	if len(service.Annotations) != 0 {
+		t.Fatalf("expected no per-customer LoadBalancer annotations on backend service, got %v", service.Annotations)
 	}
 
 	publicCert := &unstructured.Unstructured{}
@@ -108,8 +105,27 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	}
 
 	ingress := &networkingv1.Ingress{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected legacy ingress to be deleted, got %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); err != nil {
+		t.Fatalf("expected public regional Kura ingress to be created: %v", err)
+	}
+	if ingress.Spec.IngressClassName == nil || *ingress.Spec.IngressClassName != "kura-eu-central" {
+		t.Fatalf("expected public ingress class kura-eu-central, got %v", ingress.Spec.IngressClassName)
+	}
+	if got := ingress.Spec.TLS[0].SecretName; got != publicTLSSecretName(instance) {
+		t.Fatalf("expected public ingress to terminate with cert-manager Secret, got %q", got)
+	}
+	if got := ingress.Spec.Rules[0].Host; got != "tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected public ingress host, got %q", got)
+	}
+	backend := ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
+	if backend == nil || backend.Name != instance.Name || backend.Port.Name != "http" {
+		t.Fatalf("expected public ingress to route to %s:http, got %#v", instance.Name, backend)
+	}
+	if got := ingress.Annotations["nginx.ingress.kubernetes.io/proxy-request-buffering"]; got != "off" {
+		t.Fatalf("expected request buffering disabled for streaming uploads, got %q", got)
+	}
+	if got := ingress.Annotations["nginx.ingress.kubernetes.io/proxy-body-size"]; got != "0" {
+		t.Fatalf("expected unlimited public ingress body size, got %q", got)
 	}
 
 	pdb := &policyv1.PodDisruptionBudget{}
@@ -146,11 +162,14 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env["KURA_EXTENSION_ENABLED"]; got != "true" {
 		t.Fatalf("expected controller to enable the extension, got %q", got)
 	}
-	if env["KURA_PUBLIC_TLS_CERT_PATH"] == "" || env["KURA_PUBLIC_TLS_KEY_PATH"] == "" {
-		t.Fatal("expected public TLS env paths to be configured when publicHost is set")
+	if _, ok := env["KURA_PUBLIC_TLS_CERT_PATH"]; ok {
+		t.Fatal("expected public TLS cert env to be absent because regional Kura ingress terminates TLS")
 	}
-	if got := env["KURA_HTTPS_PORT"]; got == "" {
-		t.Fatal("expected KURA_HTTPS_PORT to be set when publicHost is set")
+	if _, ok := env["KURA_PUBLIC_TLS_KEY_PATH"]; ok {
+		t.Fatal("expected public TLS key env to be absent because regional Kura ingress terminates TLS")
+	}
+	if _, ok := env["KURA_HTTPS_PORT"]; ok {
+		t.Fatal("expected KURA_HTTPS_PORT to be absent because Kura no longer exposes a public TLS port")
 	}
 	if got := env["KURA_NODE_URL"]; got != "https://$(POD_NAME).kura-tuist-eu-1-headless.$(POD_NAMESPACE).svc.cluster.local:7443" {
 		t.Fatalf("expected peer node URL to use mTLS, got %q", got)
@@ -166,18 +185,14 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := env[environmentEnvVar]; got != "canary" {
 		t.Fatalf("expected deployment environment, got %q", got)
 	}
-	publicMountFound := false
 	peerMountFound := false
 	for _, mount := range container.VolumeMounts {
-		if mount.Name == publicTLSVolumeName {
-			publicMountFound = true
+		if mount.Name == "public-tls" {
+			t.Fatal("expected public TLS secret not to be mounted into the kura container")
 		}
 		if mount.Name == peerTLSVolumeName && mount.ReadOnly {
 			peerMountFound = true
 		}
-	}
-	if !publicMountFound {
-		t.Fatal("expected public TLS secret to be mounted into the kura container")
 	}
 	if !peerMountFound {
 		t.Fatal("expected peer mTLS secret to be mounted into the kura container")
@@ -207,8 +222,8 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 			break
 		}
 	}
-	if !publicPortFound {
-		t.Fatal("expected https container port to be exposed when publicHost is set")
+	if publicPortFound {
+		t.Fatal("expected https container port to stay absent because regional Kura ingress terminates TLS")
 	}
 	for _, name := range []string{
 		"KURA_FILE_DESCRIPTOR_POOL_SIZE",
@@ -270,15 +285,18 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if got := sts.Spec.Template.Labels["tuist.dev/region"]; got != "eu" {
 		t.Fatalf("expected pod template region label, got %q", got)
 	}
-	var tmpVolume *corev1.Volume
-	for i := range sts.Spec.Template.Spec.Volumes {
-		if sts.Spec.Template.Spec.Volumes[i].Name == "tmp" {
-			tmpVolume = &sts.Spec.Template.Spec.Volumes[i]
-			break
+	if got := env["KURA_TMP_DIR"]; got != "/var/cache/kura/tmp" {
+		t.Fatalf("expected KURA_TMP_DIR to use the persistent data volume, got %q", got)
+	}
+	for _, mount := range container.VolumeMounts {
+		if mount.Name == "tmp" || mount.MountPath == "/tmp/kura" {
+			t.Fatalf("expected no tmp emptyDir mount, got %v", mount)
 		}
 	}
-	if tmpVolume == nil || tmpVolume.EmptyDir == nil || tmpVolume.EmptyDir.SizeLimit == nil {
-		t.Fatal("expected tmp emptyDir to declare a sizeLimit")
+	for i := range sts.Spec.Template.Spec.Volumes {
+		if sts.Spec.Template.Spec.Volumes[i].Name == "tmp" {
+			t.Fatal("expected no tmp emptyDir volume")
+		}
 	}
 	retention := sts.Spec.PersistentVolumeClaimRetentionPolicy
 	if retention == nil {
@@ -313,18 +331,129 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if len(policy.Spec.Ingress) != 3 {
 		t.Fatalf("expected NetworkPolicy to have 3 ingress rules, got %d", len(policy.Spec.Ingress))
 	}
-	publicPorts := policy.Spec.Ingress[2].Ports
-	if len(policy.Spec.Ingress[2].From) != 0 {
-		t.Fatalf("expected public NetworkPolicy rule to allow all sources, got %v", policy.Spec.Ingress[2].From)
+	peerPorts := policy.Spec.Ingress[1].Ports
+	if got := peerPorts[0].Port.StrVal; got != "peer" {
+		t.Fatalf("expected same-account NetworkPolicy rule to expose peer, got %q", got)
 	}
-	if len(publicPorts) != 2 {
-		t.Fatalf("expected public NetworkPolicy rule to expose HTTPS and gRPC, got %d ports", len(publicPorts))
+	if got := policy.Spec.Ingress[1].From[0].PodSelector.MatchLabels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected same-account NetworkPolicy peer selector, got %q", got)
 	}
-	if got := publicPorts[0].Port.StrVal; got != "https" {
-		t.Fatalf("expected public NetworkPolicy rule to expose https, got %q", got)
+	ingressPorts := policy.Spec.Ingress[2].Ports
+	if len(policy.Spec.Ingress[2].From) != 1 || policy.Spec.Ingress[2].From[0].NamespaceSelector == nil {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to allow cluster namespaces, got %v", policy.Spec.Ingress[2].From)
 	}
-	if got := publicPorts[1].Port.StrVal; got != "grpc" {
-		t.Fatalf("expected public NetworkPolicy rule to expose grpc, got %q", got)
+	if len(ingressPorts) != 2 {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose HTTP and gRPC, got %d ports", len(ingressPorts))
+	}
+	if got := ingressPorts[0].Port.StrVal; got != "http" {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose http, got %q", got)
+	}
+	if got := ingressPorts[1].Port.StrVal; got != "grpc" {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose grpc, got %q", got)
+	}
+}
+
+func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	gateway := &kurav1alpha1.KuraGateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "kgw-abc123-us-east", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraGatewaySpec{
+			Region:              "us-east",
+			IngressClassName:    "kura-us-east-kgw-abc123",
+			ControllerClassName: "k8s.io/kura-us-east-kgw-abc123-ingress-nginx",
+			ControllerImage:     "registry.k8s.io/ingress-nginx/controller:v1.11.3",
+			Replicas:            ptr(int32(3)),
+			NodeSelector:        map[string]string{"node.cluster.x-k8s.io/pool": "kura-us-east"},
+			LoadBalancerAnnotations: map[string]string{
+				"load-balancer.hetzner.cloud/name":               "tuist-kgw-abc123-us-east-ingress",
+				"load-balancer.hetzner.cloud/location":           "ash",
+				"load-balancer.hetzner.cloud/uses-proxyprotocol": "true",
+			},
+		},
+	}
+	reconciler := &KuraGatewayReconciler{
+		Client:                    fake.NewClientBuilder().WithScheme(scheme).WithObjects(gateway).WithStatusSubresource(gateway).Build(),
+		Scheme:                    scheme,
+		GatewayServiceAccountName: "tuist-kura-controller-gateway-ingress-nginx",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
+		t.Fatalf("expected dedicated gateway LoadBalancer Service: %v", err)
+	}
+	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
+		t.Fatalf("expected LoadBalancer Service, got %q", service.Spec.Type)
+	}
+	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
+		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
+	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/location"]; got != "ash" {
+		t.Fatalf("expected Hetzner location annotation, got %q", got)
+	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"]; got != "true" {
+		t.Fatalf("expected proxy protocol annotation, got %q", got)
+	}
+
+	ingressClass := &networkingv1.IngressClass{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-us-east-kgw-abc123"}, ingressClass); err != nil {
+		t.Fatalf("expected dedicated IngressClass: %v", err)
+	}
+	if got := ingressClass.Spec.Controller; got != "k8s.io/kura-us-east-kgw-abc123-ingress-nginx" {
+		t.Fatalf("expected dedicated controller class, got %q", got)
+	}
+	updatedGateway := &kurav1alpha1.KuraGateway{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, updatedGateway); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedGateway.Status.IngressClassName; got != "kura-us-east-kgw-abc123" {
+		t.Fatalf("expected reconciled ingress class name to be persisted immediately, got %q", got)
+	}
+
+	configMap := &corev1.ConfigMap{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, configMap); err != nil {
+		t.Fatalf("expected dedicated gateway ConfigMap: %v", err)
+	}
+	if got := configMap.Data["use-proxy-protocol"]; got != "true" {
+		t.Fatalf("expected proxy protocol enabled in nginx config, got %q", got)
+	}
+	if got := configMap.Data["proxy-request-buffering"]; got != "off" {
+		t.Fatalf("expected request buffering disabled in nginx config, got %q", got)
+	}
+
+	deployment := &appsv1.Deployment{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
+		t.Fatalf("expected dedicated gateway Deployment: %v", err)
+	}
+	if got := *deployment.Spec.Replicas; got != 3 {
+		t.Fatalf("expected configured replicas, got %d", got)
+	}
+	if got := deployment.Spec.Template.Spec.ServiceAccountName; got != "tuist-kura-controller-gateway-ingress-nginx" {
+		t.Fatalf("expected shared dynamic gateway ServiceAccount, got %q", got)
+	}
+	if got := deployment.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura-us-east" {
+		t.Fatalf("expected gateway to stay on the regional Kura pool, got %q", got)
+	}
+	container := deployment.Spec.Template.Spec.Containers[0]
+	if got := container.Image; got != "registry.k8s.io/ingress-nginx/controller:v1.11.3" {
+		t.Fatalf("expected configured ingress-nginx image, got %q", got)
+	}
+	if !containsString(container.Args, "--ingress-class=kura-us-east-kgw-abc123") {
+		t.Fatalf("expected dedicated ingress class arg, got %v", container.Args)
+	}
+	if !containsString(container.Args, "--watch-namespace=$(POD_NAMESPACE)") {
+		t.Fatalf("expected namespace-scoped ingress watch, got %v", container.Args)
 	}
 }
 
@@ -484,6 +613,158 @@ func TestKuraInstanceReconcilePeerTLSSecretRegeneratesInvalidMaterial(t *testing
 	}
 }
 
+func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:     "tuist",
+			TenantID:          "tuist",
+			Region:            "eu",
+			Image:             "ghcr.io/tuist/kura:0.5.2",
+			PeerTLSSecretName: "kura-cross-region-peer-tls",
+		},
+	}
+	peerSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-cross-region-peer-tls", Namespace: instance.Namespace},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, peerSecret).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	peerService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPeerServiceName(instance), Namespace: instance.Namespace}, peerService); err != nil {
+		t.Fatalf("expected account peer headless Service to be created: %v", err)
+	}
+	if peerService.Spec.ClusterIP != corev1.ClusterIPNone {
+		t.Fatalf("expected account peer service to be headless, got %q", peerService.Spec.ClusterIP)
+	}
+	if got := peerService.Spec.Selector["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected account peer service to select all account pods, got %q", got)
+	}
+	if _, ok := peerService.Spec.Selector[podNameLabel]; ok {
+		t.Fatal("expected account peer service not to pin to the public primary pod")
+	}
+	if got := peerService.Spec.Ports[0].TargetPort.StrVal; got != "peer" {
+		t.Fatalf("expected peer service to target the peer port, got %q", got)
+	}
+	legacyPeerService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerServiceName(instance), Namespace: instance.Namespace}, legacyPeerService); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected legacy peer LoadBalancer Service to be absent, got %v", err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if got, ok := env["KURA_PEER_GATEWAY_URL"]; ok {
+		t.Fatalf("expected no peer gateway URL env, got %q", got)
+	}
+	if got := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; got != "kura-tuist-peers.kura.svc.cluster.local" {
+		t.Fatalf("expected global discovery DNS env, got %q", got)
+	}
+	peerTLSVolume := volumeByName(sts.Spec.Template.Spec.Volumes, peerTLSVolumeName)
+	if peerTLSVolume == nil || peerTLSVolume.Secret == nil {
+		t.Fatal("expected peer TLS Secret volume")
+	}
+	if got := peerTLSVolume.Secret.SecretName; got != "kura-cross-region-peer-tls" {
+		t.Fatalf("expected shared peer TLS Secret to be mounted, got %q", got)
+	}
+
+	generatedSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer-tls", Namespace: instance.Namespace}, generatedSecret); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no generated per-instance peer TLS Secret when a shared Secret is configured, got %v", err)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	if len(policy.Spec.Ingress) != 3 {
+		t.Fatalf("expected NetworkPolicy to include same-account peer rule, got %d rules", len(policy.Spec.Ingress))
+	}
+	if got := policy.Spec.Ingress[1].Ports[0].Port.StrVal; got != "peer" {
+		t.Fatalf("expected same-account NetworkPolicy rule to expose peer port, got %q", got)
+	}
+	if got := policy.Spec.Ingress[1].From[0].PodSelector.MatchLabels["tuist.dev/account"]; got != "tuist" {
+		t.Fatalf("expected same-account NetworkPolicy peer selector, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileWithoutSharedTLSDoesNotEnableGlobalDiscovery(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+		},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	peerService := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPeerServiceName(instance), Namespace: instance.Namespace}, peerService); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected account peer service to stay absent until shared peer TLS is configured, got %v", err)
+	}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: peerServiceName(instance), Namespace: instance.Namespace}, peerService); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected legacy peer LoadBalancer Service to stay absent, got %v", err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	env := map[string]string{}
+	for _, envVar := range sts.Spec.Template.Spec.Containers[0].Env {
+		env[envVar.Name] = envVar.Value
+	}
+	if _, ok := env["KURA_PEER_GATEWAY_URL"]; ok {
+		t.Fatal("expected peer gateway URL to stay disabled until shared peer TLS is configured")
+	}
+	if _, ok := env["KURA_GLOBAL_DISCOVERY_DNS_NAME"]; ok {
+		t.Fatal("expected global discovery to stay disabled until shared peer TLS is configured")
+	}
+
+	generatedSecret := &corev1.Secret{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-peer-tls", Namespace: instance.Namespace}, generatedSecret); err != nil {
+		t.Fatalf("expected generated per-instance peer TLS Secret to remain in use: %v", err)
+	}
+}
+
 func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
@@ -503,6 +784,7 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			Image:            "ghcr.io/tuist/kura:0.5.2",
 			PublicHost:       "tuist-eu-1.kura.tuist.dev",
 			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			IngressClassName: "kura-eu-central",
 			StorageClassName: "hcloud-volumes",
 		},
 	}
@@ -518,23 +800,29 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	}
 
 	grpcService := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcService); err != nil {
-		t.Fatalf("expected grpc LoadBalancer Service to be created: %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcService); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected legacy gRPC LoadBalancer Service to be absent, got %v", err)
 	}
-	if grpcService.Spec.Type != corev1.ServiceTypeLoadBalancer {
-		t.Fatalf("expected grpc service to be a LoadBalancer, got %q", grpcService.Spec.Type)
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); err != nil {
+		t.Fatalf("expected gRPC regional Kura ingress to be created: %v", err)
 	}
-	if grpcService.Annotations["load-balancer.hetzner.cloud/protocol"] != "tcp" {
-		t.Fatalf("expected Hetzner LB tcp passthrough for gRPC, got %q", grpcService.Annotations["load-balancer.hetzner.cloud/protocol"])
+	if grpcIngress.Spec.IngressClassName == nil || *grpcIngress.Spec.IngressClassName != "kura-eu-central" {
+		t.Fatalf("expected gRPC ingress class kura-eu-central, got %v", grpcIngress.Spec.IngressClassName)
 	}
-	if got := grpcService.Annotations["load-balancer.hetzner.cloud/health-check-protocol"]; got != "tcp" {
-		t.Fatalf("expected gRPC health check to use TCP against the passthrough NodePort, got %q", got)
+	if got := grpcIngress.Spec.TLS[0].SecretName; got != grpcTLSSecretName(instance) {
+		t.Fatalf("expected gRPC ingress to terminate with cert-manager Secret, got %q", got)
 	}
-	if grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"] != "grpc.tuist-eu-1.kura.tuist.dev" {
-		t.Fatalf("expected gRPC external-dns hostname, got %q", grpcService.Annotations["external-dns.alpha.kubernetes.io/hostname"])
+	if got := grpcIngress.Spec.Rules[0].Host; got != "grpc.tuist-eu-1.kura.tuist.dev" {
+		t.Fatalf("expected gRPC ingress host, got %q", got)
 	}
-	if got := grpcService.Spec.Ports[0].TargetPort.StrVal; got != "grpc" {
-		t.Fatalf("expected gRPC LB to target the grpc container port, got %q", got)
+	backend := grpcIngress.Spec.Rules[0].HTTP.Paths[0].Backend.Service
+	if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
+		t.Fatalf("expected gRPC ingress to route to %s:grpc, got %#v", instance.Name, backend)
+	}
+	if got := grpcIngress.Annotations["nginx.ingress.kubernetes.io/backend-protocol"]; got != "GRPC" {
+		t.Fatalf("expected gRPC ingress backend protocol, got %q", got)
 	}
 
 	cert := &unstructured.Unstructured{}
@@ -561,18 +849,16 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 	for _, envVar := range container.Env {
 		env[envVar.Name] = envVar.Value
 	}
-	if env["KURA_GRPC_TLS_CERT_PATH"] == "" || env["KURA_GRPC_TLS_KEY_PATH"] == "" {
-		t.Fatal("expected gRPC TLS env paths to be configured")
+	if _, ok := env["KURA_GRPC_TLS_CERT_PATH"]; ok {
+		t.Fatal("expected gRPC TLS cert env to be absent because regional Kura ingress terminates TLS")
 	}
-	mountFound := false
+	if _, ok := env["KURA_GRPC_TLS_KEY_PATH"]; ok {
+		t.Fatal("expected gRPC TLS key env to be absent because regional Kura ingress terminates TLS")
+	}
 	for _, mount := range container.VolumeMounts {
-		if mount.Name == grpcTLSVolumeName {
-			mountFound = true
-			break
+		if mount.Name == "grpc-tls" {
+			t.Fatal("expected gRPC TLS secret not to be mounted into the kura container")
 		}
-	}
-	if !mountFound {
-		t.Fatal("expected gRPC TLS secret to be mounted into the kura container")
 	}
 
 	updated := &kurav1alpha1.KuraInstance{}
@@ -672,7 +958,140 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 
 	grpcService := &corev1.Service{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcService); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected no gRPC LoadBalancer Service when grpcPublicHost is unset, got %v", err)
+		t.Fatalf("expected no legacy gRPC LoadBalancer Service when grpcPublicHost is unset, got %v", err)
+	}
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Ingress when grpcPublicHost is unset, got %v", err)
+	}
+}
+
+func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAndExpandsPVCs(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(2)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "200Gi",
+		},
+	}
+	legacyInstance := instance.DeepCopy()
+	legacyInstance.Spec.Image = "ghcr.io/tuist/kura:0.5.2"
+	legacyInstance.Spec.StorageSize = "20Gi"
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(legacyInstance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(legacyInstance)},
+		},
+	}
+	pvc0 := dataPersistentVolumeClaim(instance, 0, "20Gi")
+	pvc1 := dataPersistentVolumeClaim(instance, 1, "20Gi")
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc0, pvc1).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedSts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, updatedSts); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedSts.Spec.Template.Spec.Containers[0].Image; got != "ghcr.io/tuist/kura:0.5.3" {
+		t.Fatalf("expected StatefulSet pod template to be updated, got %q", got)
+	}
+	if got := updatedSts.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests.Storage().String(); got != "20Gi" {
+		t.Fatalf("expected existing StatefulSet PVC template to be preserved, got %q", got)
+	}
+
+	for _, name := range []string{pvc0.Name, pvc1.Name} {
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := reconciler.Get(ctx, types.NamespacedName{Name: name, Namespace: instance.Namespace}, pvc); err != nil {
+			t.Fatal(err)
+		}
+		if got := pvc.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
+			t.Fatalf("expected PVC %s to expand to 200Gi, got %q", name, got)
+		}
+	}
+}
+
+func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	stsInstance := instance.DeepCopy()
+	stsInstance.Spec.StorageSize = "200Gi"
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(stsInstance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(stsInstance)},
+		},
+	}
+	pvc := dataPersistentVolumeClaim(instance, 0, "200Gi")
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPVC := &corev1.PersistentVolumeClaim{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, updatedPVC); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPVC.Spec.Resources.Requests.Storage().String(); got != "200Gi" {
+		t.Fatalf("expected PVC not to shrink, got %q", got)
 	}
 }
 
@@ -702,6 +1121,22 @@ func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	pvc := dataVolumeClaim(instance)
 	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "10Gi" {
 		t.Fatalf("expected local PVC size, got %q", got)
+	}
+}
+
+func dataPersistentVolumeClaim(instance *kurav1alpha1.KuraInstance, ordinal int, storage string) *corev1.PersistentVolumeClaim {
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("data-%s-%d", instance.Name, ordinal),
+			Namespace: instance.Namespace,
+			Labels:    labels(instance),
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOncePod},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse(storage)},
+			},
+		},
 	}
 }
 
@@ -807,12 +1242,16 @@ func secretDataEqual(left, right map[string][]byte) bool {
 }
 
 func kuraPod(instanceName, namespace string, ordinal int, ready bool) *corev1.Pod {
+	return kuraPodCreatedAt(instanceName, namespace, ordinal, ready, time.Time{})
+}
+
+func kuraPodCreatedAt(instanceName, namespace string, ordinal int, ready bool, createdAt time.Time) *corev1.Pod {
 	status := corev1.ConditionFalse
 	if ready {
 		status = corev1.ConditionTrue
 	}
 	podName := fmt.Sprintf("%s-%d", instanceName, ordinal)
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
 			Namespace: namespace,
@@ -826,6 +1265,10 @@ func kuraPod(instanceName, namespace string, ordinal int, ready bool) *corev1.Po
 			Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}},
 		},
 	}
+	if !createdAt.IsZero() {
+		pod.CreationTimestamp = metav1.NewTime(createdAt)
+	}
+	return pod
 }
 
 func TestChoosePrimaryPod(t *testing.T) {
@@ -854,14 +1297,83 @@ func TestChoosePrimaryPod(t *testing.T) {
 			for _, spec := range tc.pods {
 				pods = append(pods, *kuraPod(name, "kura", spec.ordinal, spec.ready))
 			}
-			if got := choosePrimaryPod(tc.current, name, pods); got != tc.want {
+			if got := choosePrimaryPod(tc.current, name, pods, nil); got != tc.want {
 				t.Fatalf("choosePrimaryPod(%q) = %q, want %q", tc.current, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestKuraInstanceReconcilePinsPublicServicesToPrimaryPod(t *testing.T) {
+func TestChoosePrimaryPodUsesRuntimeRoutability(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+		*kuraPod(name, "kura", 2, true),
+	}
+	routable := map[string]bool{
+		name + "-0": true,
+		name + "-1": false,
+		name + "-2": true,
+	}
+
+	if got := choosePrimaryPod(name+"-1", name, pods, routable); got != name+"-0" {
+		t.Fatalf("expected runtime-unhealthy primary to fail over to lowest routable pod, got %q", got)
+	}
+}
+
+func TestPrimaryPodHealthIgnoresFreshPodsWhenReplicated(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	now := time.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(3))},
+	}
+	pods := []corev1.Pod{
+		*kuraPodCreatedAt(name, "kura", 0, true, now.Add(-2*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 1, true, now.Add(-30*time.Minute)),
+		*kuraPodCreatedAt(name, "kura", 2, true, now.Add(-30*time.Minute)),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				name + "-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				name + "-2": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			},
+		},
+	}
+
+	routable := reconciler.primaryPodHealth(context.Background(), instance, pods)
+	if routable[name+"-0"] {
+		t.Fatal("expected fresh pod to be excluded from primary routing")
+	}
+	if !routable[name+"-1"] || !routable[name+"-2"] {
+		t.Fatalf("expected older pods to stay routable, got %v", routable)
+	}
+	if got := choosePrimaryPod(name+"-0", name, pods, routable); got != name+"-1" {
+		t.Fatalf("expected fresh current primary to fail over to an older routable pod, got %q", got)
+	}
+}
+
+func TestRuntimeStatusRoutable(t *testing.T) {
+	routable := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2}
+	if !runtimeStatusRoutable(routable, 3) {
+		t.Fatal("expected serving pod with a peer to be routable")
+	}
+
+	isolated := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 1}
+	if runtimeStatusRoutable(isolated, 3) {
+		t.Fatal("expected isolated three-replica pod to be unroutable")
+	}
+
+	singleReplica := runtimeStatus{Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 1}
+	if !runtimeStatusRoutable(singleReplica, 1) {
+		t.Fatal("expected single-replica pod to be routable with one ring member")
+	}
+}
+
+func TestKuraInstanceReconcilePinsPublicBackendServiceToPrimaryPod(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -893,7 +1405,17 @@ func TestKuraInstanceReconcilePinsPublicServicesToPrimaryPod(t *testing.T) {
 		kuraPod(instance.Name, instance.Namespace, 1, true),
 		kuraPod(instance.Name, instance.Namespace, 2, true),
 	).Build()
-	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
+	reconciler := &KuraInstanceReconciler{
+		Client: client,
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				instance.Name + "-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				instance.Name + "-2": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			},
+		},
+	}
 
 	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
@@ -901,20 +1423,77 @@ func TestKuraInstanceReconcilePinsPublicServicesToPrimaryPod(t *testing.T) {
 	}
 
 	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-0")
-	assertServiceRoutesTo(t, reconciler, grpcServiceName(instance), instance.Namespace, instance.Name+"-0")
 
 	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, false)
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
 		t.Fatal(err)
 	}
 	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
-	assertServiceRoutesTo(t, reconciler, grpcServiceName(instance), instance.Namespace, instance.Name+"-1")
 
 	setPodReady(t, reconciler, instance.Name+"-0", instance.Namespace, true)
 	if _, err := reconciler.Reconcile(ctx, req); err != nil {
 		t.Fatal(err)
 	}
 	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-1")
+}
+
+func TestKuraInstanceReconcileFailsOverFromRuntimeUnroutablePrimary(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:       "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost:   "grpc.tuist-eu-1.kura.tuist.dev",
+			StorageClassName: "hcloud-volumes",
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "1"},
+	}
+	publicService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: corev1.ServiceSpec{
+			Selector: primaryServiceSelector(instance, instance.Name+"-1"),
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+		instance,
+		sharedSecret,
+		publicService,
+		kuraPod(instance.Name, instance.Namespace, 0, true),
+		kuraPod(instance.Name, instance.Namespace, 1, true),
+		kuraPod(instance.Name, instance.Namespace, 2, true),
+	).Build()
+	reconciler := &KuraInstanceReconciler{
+		Client: client,
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+				instance.Name + "-1": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 1},
+				instance.Name + "-2": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2},
+			},
+		},
+	}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+
+	assertServiceRoutesTo(t, reconciler, instance.Name, instance.Namespace, instance.Name+"-0")
 }
 
 func assertServiceRoutesTo(t *testing.T, r *KuraInstanceReconciler, name, namespace, wantPod string) {
@@ -931,6 +1510,15 @@ func assertServiceRoutesTo(t *testing.T, r *KuraInstanceReconciler, name, namesp
 	}
 }
 
+func volumeByName(volumes []corev1.Volume, name string) *corev1.Volume {
+	for i := range volumes {
+		if volumes[i].Name == name {
+			return &volumes[i]
+		}
+	}
+	return nil
+}
+
 func setPodReady(t *testing.T, r *KuraInstanceReconciler, name, namespace string, ready bool) {
 	t.Helper()
 	pod := &corev1.Pod{}
@@ -945,4 +1533,20 @@ func setPodReady(t *testing.T, r *KuraInstanceReconciler, name, namespace string
 	if err := r.Status().Update(context.Background(), pod); err != nil {
 		t.Fatalf("update pod %s: %v", name, err)
 	}
+}
+
+type fakeRuntimeStatusClient struct {
+	statuses map[string]runtimeStatus
+	err      error
+}
+
+func (c fakeRuntimeStatusClient) Status(_ context.Context, pod corev1.Pod) (runtimeStatus, error) {
+	if c.err != nil {
+		return runtimeStatus{}, c.err
+	}
+	status, ok := c.statuses[pod.Name]
+	if !ok {
+		return runtimeStatus{}, fmt.Errorf("missing fake status for %s", pod.Name)
+	}
+	return status, nil
 }

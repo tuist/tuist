@@ -22,6 +22,7 @@ package podtemplate
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,7 +63,7 @@ const (
 // class the Pod falls back to runc on the host kernel and the
 // privileged container escapes onto the bare-metal host — so refuse
 // to build it rather than ship an unbounded privileged container.
-func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage string) (*corev1.Pod, error) {
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror string) (*corev1.Pod, error) {
 	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
 	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
 
@@ -198,6 +199,16 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 		// the Pod (poller init, then runner) from starting until
 		// `docker info` succeeds.
 		if dindImage != "" {
+			// When a pull-through cache URL is configured, point the
+			// sidecar's dockerd at it so the job's docker.io pulls go
+			// through the in-cluster cache instead of hitting Docker Hub
+			// from the host's shared egress IP. --insecure-registry is
+			// required because the cache is plain http in-cluster.
+			dockerdMirrorFlags := ""
+			if registryMirror != "" {
+				mirrorHost := strings.TrimPrefix(strings.TrimPrefix(registryMirror, "https://"), "http://")
+				dockerdMirrorFlags = " --registry-mirror=" + registryMirror + " --insecure-registry=" + mirrorHost
+			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
@@ -266,7 +277,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 						"mkdir -p /var/lib/docker && " +
 						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
 						"exec dockerd --host=unix:///var/run/docker.sock --group=123 " +
-						"--default-ulimit nofile=1048576:1048576",
+						"--default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags,
 				},
 				SecurityContext: &corev1.SecurityContext{
 					Privileged: ptr(true),

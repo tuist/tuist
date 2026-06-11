@@ -3,7 +3,7 @@ pub mod outbox_message;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::IpAddr,
+    net::{IpAddr, SocketAddr},
     path::Path,
     time::Duration,
 };
@@ -26,7 +26,7 @@ use crate::{
     state::SharedState,
     store::{ArtifactApplyOutcome, ManifestPage, NamespaceTombstonePage},
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{replication_target_label, temp_file_path, url_encode},
+    utils::{ensure_tmp_dir_capacity, replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -38,6 +38,26 @@ struct PeerStatusPayload {
     region: String,
     tenant_id: String,
     node_url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+struct DiscoveryTarget {
+    url: String,
+    label: String,
+    scope: DiscoveryScope,
+    resolved: Option<ResolvedDiscoveryTarget>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum DiscoveryScope {
+    Local,
+    Global,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+struct ResolvedDiscoveryTarget {
+    host: String,
+    address: SocketAddr,
 }
 
 #[cfg(test)]
@@ -106,11 +126,26 @@ async fn membership_task_loop(state: SharedState) {
         let targets = discovery_targets(&state.config).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
-            let client = state.client.clone();
-            let url = format!("{peer}/_internal/status");
-            let label = peer.clone();
+            let client = match &peer.resolved {
+                Some(resolved) => state
+                    .peer_client_factory
+                    .build_resolving(&resolved.host, resolved.address),
+                None => Ok(state.client.clone()),
+            };
+            let url = match peer.scope {
+                DiscoveryScope::Local => format!("{}/_internal/status", peer.url),
+                DiscoveryScope::Global => format!("{}/_internal/status?scope=global", peer.url),
+            };
+            let label = peer.label.clone();
             async move {
-                let result = client.get(url).send().await;
+                let result = match client {
+                    Ok(client) => client
+                        .get(url)
+                        .send()
+                        .await
+                        .map_err(|error| error.to_string()),
+                    Err(error) => Err(error),
+                };
                 (label, result)
             }
         }))
@@ -401,6 +436,14 @@ async fn stream_response_to_temp(
             "bootstrap artifact response declared {content_length} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
         ));
     }
+    ensure_tmp_dir_capacity(
+        &state.config.tmp_dir,
+        response
+            .content_length()
+            .unwrap_or(MAX_REPLICATION_BODY_BYTES),
+        state.config.tmp_dir_max_bytes,
+    )
+    .await?;
     let mut destination = state.io.create_file(path).await?;
     let mut stream = response.bytes_stream();
     let mut total: u64 = 0;
@@ -413,6 +456,9 @@ async fn stream_response_to_temp(
             return Err(format!(
                 "bootstrap artifact response exceeded limit of {MAX_REPLICATION_BODY_BYTES} bytes"
             ));
+        }
+        if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
+            limiter.acquire(chunk.len()).await;
         }
         destination
             .write_all(&chunk)
@@ -504,11 +550,18 @@ async fn read_bounded_body(
     Ok(buffer)
 }
 
-async fn discovery_targets(config: &Config) -> Vec<String> {
-    let mut targets = config.peers.iter().cloned().collect::<BTreeSet<_>>();
-    let Some(dns_name) = &config.discovery_dns_name else {
-        return targets.into_iter().collect();
-    };
+async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
+    let mut targets = config
+        .peers
+        .iter()
+        .cloned()
+        .map(|peer| DiscoveryTarget {
+            label: peer.clone(),
+            url: peer,
+            scope: DiscoveryScope::Local,
+            resolved: None,
+        })
+        .collect::<BTreeSet<_>>();
 
     let Ok(node_url) = reqwest::Url::parse(&config.node_url) else {
         return targets.into_iter().collect();
@@ -517,24 +570,57 @@ async fn discovery_targets(config: &Config) -> Vec<String> {
         return targets.into_iter().collect();
     };
     let scheme = node_url.scheme().to_owned();
-    if scheme == "https" {
-        targets.insert(format!("{scheme}://{dns_name}:{port}"));
-        return targets.into_iter().collect();
+    if let Some(dns_name) = &config.discovery_dns_name {
+        discover_dns_targets(&mut targets, dns_name, port, &scheme, DiscoveryScope::Local).await;
+    }
+    if let Some(dns_name) = &config.global_discovery_dns_name {
+        discover_dns_targets(
+            &mut targets,
+            dns_name,
+            port,
+            &scheme,
+            DiscoveryScope::Global,
+        )
+        .await;
     }
 
-    match tokio::net::lookup_host((dns_name.as_str(), port)).await {
+    targets.into_iter().collect()
+}
+
+async fn discover_dns_targets(
+    targets: &mut BTreeSet<DiscoveryTarget>,
+    dns_name: &str,
+    port: u16,
+    scheme: &str,
+    scope: DiscoveryScope,
+) {
+    match tokio::net::lookup_host((dns_name, port)).await {
         Ok(addresses) => {
             for address in addresses {
-                targets.insert(format!(
-                    "{scheme}://{}:{port}",
-                    format_ip_for_url(address.ip())
-                ));
+                if scheme == "https" {
+                    let url = format!("{scheme}://{dns_name}:{port}");
+                    targets.insert(DiscoveryTarget {
+                        label: format!("{url}@{}", address.ip()),
+                        url,
+                        scope,
+                        resolved: Some(ResolvedDiscoveryTarget {
+                            host: dns_name.to_owned(),
+                            address,
+                        }),
+                    });
+                } else {
+                    let url = format!("{scheme}://{}:{port}", format_ip_for_url(address.ip()));
+                    targets.insert(DiscoveryTarget {
+                        label: url.clone(),
+                        url,
+                        scope,
+                        resolved: None,
+                    });
+                }
             }
         }
         Err(error) => warn!("dns discovery lookup failed for {dns_name}:{port}: {error}"),
     }
-
-    targets.into_iter().collect()
 }
 
 fn format_ip_for_url(ip: IpAddr) -> String {
@@ -633,7 +719,18 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 url_encode(content_type),
                 version_ms,
             );
-            let body = reqwest::Body::wrap_stream(ReaderStream::new(file));
+            let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
+            let body_stream = ReaderStream::new(file).then(move |item| {
+                let bandwidth_limiter = bandwidth_limiter.clone();
+                async move {
+                    if let (Some(limiter), Ok(chunk)) = (bandwidth_limiter.as_ref(), item.as_ref())
+                    {
+                        limiter.acquire(chunk.len()).await;
+                    }
+                    item
+                }
+            });
+            let body = reqwest::Body::wrap_stream(body_stream);
             let request_span = tracing::info_span!(
                 "replication.request",
                 otel.name = "PUT /_internal/replicate/artifact",
@@ -822,16 +919,28 @@ mod tests {
         let ctx = test_context(|config| {
             config.node_url = "https://kura-us.kura.internal:7443".into();
             config.peers = vec!["https://seed.kura.internal:7443".into()];
-            config.discovery_dns_name = Some("kura-ring.kura.internal".into());
+            config.discovery_dns_name = Some("localhost".into());
+            config.global_discovery_dns_name = Some("localhost".into());
         })
         .await;
 
-        let targets: Vec<String> = discovery_targets(&ctx.state.config).await;
+        let targets = discovery_targets(&ctx.state.config).await;
 
-        assert!(targets.contains(&"https://seed.kura.internal:7443".to_string()));
-        assert!(targets.contains(&"https://kura-ring.kura.internal:7443".to_string()));
-        assert!(!targets.iter().any(|target: &String| {
-            target.starts_with("https://127.") || target.starts_with("https://[::1]")
+        assert!(targets.iter().any(|target| {
+            target.url == "https://seed.kura.internal:7443" && target.resolved.is_none()
+        }));
+        assert!(targets.iter().any(|target| {
+            target.url == "https://localhost:7443"
+                && target.scope == DiscoveryScope::Local
+                && target.resolved.is_some()
+        }));
+        assert!(targets.iter().any(|target| {
+            target.url == "https://localhost:7443"
+                && target.scope == DiscoveryScope::Global
+                && target.resolved.is_some()
+        }));
+        assert!(!targets.iter().any(|target| {
+            target.url.starts_with("https://127.") || target.url.starts_with("https://[::1]")
         }));
     }
 

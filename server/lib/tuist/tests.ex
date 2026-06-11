@@ -668,6 +668,16 @@ defmodule Tuist.Tests do
     updated_test
   end
 
+  defp enqueue_flaky_alert_evaluations(test, test_case_runs) do
+    test_case_ids =
+      test_case_runs
+      |> Enum.map(& &1.test_case_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    Automations.enqueue_flaky_alert_evaluations(test.project_id, test_case_ids)
+  end
+
   defp has_any_flaky_test_case?(test_modules) do
     test_modules
     |> Enum.flat_map(&Map.get(&1, :test_cases, []))
@@ -1695,6 +1705,8 @@ defmodule Tuist.Tests do
       if Enum.any?(all_arguments) do
         TestCaseRunArgument.Buffer.insert_all(all_arguments)
       end
+
+      enqueue_flaky_alert_evaluations(test, test_case_runs)
     end)
 
     # The audit-log row and the outbound webhook fire on the same set:

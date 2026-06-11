@@ -22,6 +22,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id}})
   end
 
+  defp run_scoped(alert_id, test_case_ids) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "test_case_ids" => test_case_ids}})
+  end
+
+  defp run_recent_test_case_runs(alert_id) do
+    AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}})
+  end
+
   test "no-op when automation is missing" do
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
@@ -59,6 +67,124 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     end)
 
     assert :ok = run(automation.id)
+  end
+
+  test "scoped jobs evaluate and diff only the affected test cases" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+    affected_id = Ecto.UUID.generate()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    expect(FlakyTestsMonitor, :evaluate, fn ^automation, [^affected_id] ->
+      %{triggered: [affected_id], all: [affected_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn id, [^affected_id] ->
+      assert id == automation.id
+      []
+    end)
+
+    expected_entity = %{type: :test_case, id: affected_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.trigger_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{alert_id: id, test_case_id: tc, status: "triggered"} ->
+      assert id == automation.id
+      assert tc == affected_id
+      :ok
+    end)
+
+    assert :ok = run_scoped(automation.id, [affected_id, "not-a-uuid", affected_id])
+  end
+
+  test "ingestion-driven job evaluates recently inserted test case ids and advances the cursor" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
+
+    [first_id, second_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
+
+    expect(ClickHouseRepo, :all, fn _query ->
+      [
+        %{test_case_id: first_id, last_inserted_at: ~N[2026-06-09 10:00:01]},
+        %{test_case_id: second_id, last_inserted_at: ~N[2026-06-09 10:00:02]}
+      ]
+    end)
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    expect(FlakyTestsMonitor, :evaluate, fn ^automation, test_case_ids ->
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      %{triggered: [], all: test_case_ids}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn id, test_case_ids ->
+      assert id == automation.id
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_recent_test_case_runs(automation.id)
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+  end
+
+  test "ingestion-driven job chunks large affected sets" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+    test_case_ids = Enum.map(1..1001, fn _ -> Ecto.UUID.generate() end)
+    test_pid = self()
+
+    expect(ClickHouseRepo, :all, fn _query ->
+      Enum.map(test_case_ids, fn test_case_id ->
+        %{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:00]}
+      end)
+    end)
+
+    expect(FlakyTestsMonitor, :evaluate, 2, fn ^automation, chunk ->
+      send(test_pid, {:monitor_chunk_size, length(chunk)})
+      %{triggered: [], all: chunk}
+    end)
+
+    expect(Automations, :list_active_alert_events, 2, fn id, chunk ->
+      assert id == automation.id
+      send(test_pid, {:active_events_chunk_size, length(chunk)})
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_recent_test_case_runs(automation.id)
+
+    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 1}
+    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 1}
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:00Z]
+  end
+
+  test "ingestion-driven job no-ops when the alert is disabled" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+
+    assert {:ok, disabled} = Automations.update_alert(automation, %{enabled: false})
+
+    reject(&ClickHouseRepo.all/1)
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate/2)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_recent_test_case_runs(disabled.id)
   end
 
   test "skips test cases that already have an active alert" do
@@ -239,11 +365,99 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "does not run recovery when recovery_enabled is false" do
-    automation = AutomationsFixtures.automation_alert_fixture(recovery_enabled: false)
+  test "re-arms a cleared test case immediately, without recovery actions, when recovery is disabled" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: false,
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
 
-    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: [], all: []} end)
-    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: []}
+    end)
+
+    # Just triggered — with recovery off there is no dwell, so it re-arms as
+    # soon as the condition clears, no matter how recent the trigger is.
+    triggered_just_now = NaiveDateTime.utc_now()
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: triggered_just_now}]
+    end)
+
+    # The opt-in undo actions are withheld (empty list) even though the alert
+    # defines recovery_actions, because recovery is disabled.
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    # Re-arm bookkeeping happens so the alert can fire again later.
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^recovered_id,
+                                                  status: "recovered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "never consults a persisted recovery_config when recovery is disabled" do
+    # `Alert.changeset` only validates recovery_config when recovery is enabled,
+    # so a disabled alert can carry a stale rolling window. The disabled path
+    # re-arms directly and must never reach filter_recovered_candidates, so the
+    # rolling runs-since-trigger query is never issued.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        recovery_enabled: false,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 1000}
+      )
+
+    recovered_id = Ecto.UUID.generate()
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      %{triggered: []}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: recovered_id, triggered_at: NaiveDateTime.utc_now()}]
+    end)
+
+    # No dwell evaluation at all on the disabled path → no runs-since-trigger
+    # query, proving the stale rolling config is ignored.
+    reject(&ClickHouseRepo.all/1)
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^recovered_id} ->
+      assert actions == []
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^recovered_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "test_updated alerts skip recovery bookkeeping even with stale active triggered events" do
+    # A monitor-type change to test_updated can leave `triggered` events behind.
+    # Event-driven monitors have no recovery semantics, so those must never get
+    # a `recovered` event appended.
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "test_updated",
+        trigger_config: %{"events" => ["marked_flaky"]}
+      )
+
+    stale_id = Ecto.UUID.generate()
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [%{test_case_id: stale_id, triggered_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)}]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run(automation.id)
@@ -258,6 +472,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     reject(&FlakyTestsMonitor.evaluate/1)
     reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+    reject(&FlakyTestsMonitor.evaluate_by_reliability_rate/1)
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
@@ -291,7 +506,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         :ok
       end)
 
-      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+      expect(Automations, :establish_alert_baseline, fn ^automation ->
         {:ok, automation}
       end)
 
@@ -396,7 +611,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
 
-      expect(Automations, :update_alert, fn ^automation, %{baseline_established_at: %DateTime{}} ->
+      expect(Automations, :establish_alert_baseline, fn ^automation ->
         {:ok, automation}
       end)
 
@@ -434,6 +649,44 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     expect(Automations, :create_alert_event, fn %{
                                                   alert_id: id,
                                                   test_case_id: ^cleanup_id,
+                                                  status: "triggered"
+                                                } ->
+      assert id == automation.id
+      :ok
+    end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "dispatches reliability-rate alerts to the reliability evaluator" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        monitor_type: "reliability_rate",
+        trigger_config: %{"threshold" => 90, "window_type" => "last_days", "window" => "30d", "comparison" => "lt"},
+        trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+      )
+
+    unreliable_id = Ecto.UUID.generate()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate_by_run_count/1)
+
+    expect(FlakyTestsMonitor, :evaluate_by_reliability_rate, fn ^automation ->
+      %{triggered: [unreliable_id], all: [unreliable_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+    expected_entity = %{type: :test_case, id: unreliable_id}
+
+    expect(ActionExecutor, :execute_actions, fn actions, ^automation, ^expected_entity ->
+      assert actions == automation.trigger_actions
+      :ok
+    end)
+
+    expect(Automations, :create_alert_event, fn %{
+                                                  alert_id: id,
+                                                  test_case_id: ^unreliable_id,
                                                   status: "triggered"
                                                 } ->
       assert id == automation.id

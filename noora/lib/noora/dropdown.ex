@@ -296,18 +296,20 @@ defmodule Noora.Dropdown do
         <div :if={has_slot_content?(@left_icon, assigns) and is_nil(@checked)} data-part="left-icon">
           {render_slot(@left_icon)}
         </div>
-        <div data-part="body">
-          <span :if={!@label} data-part="label">
-            {render_slot(@inner_block)}
-          </span>
-          <span :if={@label} data-part="label">{@label}</span>
-          <span :if={@secondary_text} data-part="secondary-text">
-            ({@secondary_text})
-          </span>
-          <div :if={@size == "large"}>
-            <span data-part="description">
-              {@description}
+        <div data-part="content">
+          <div data-part="body">
+            <span :if={!@label} data-part="label">
+              {render_slot(@inner_block)}
             </span>
+            <span :if={@label} data-part="label">{@label}</span>
+            <span :if={@secondary_text} data-part="secondary-text">
+              ({@secondary_text})
+            </span>
+            <div :if={@size == "large"}>
+              <span data-part="description">
+                {@description}
+              </span>
+            </div>
           </div>
         </div>
         <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">
@@ -331,18 +333,20 @@ defmodule Noora.Dropdown do
         <div :if={has_slot_content?(@left_icon, assigns)} data-part="left-icon">
           {render_slot(@left_icon)}
         </div>
-        <div data-part="body">
-          <span :if={!@label} data-part="label">
-            {render_slot(@inner_block)}
-          </span>
-          <span :if={@label} data-part="label">{@label}</span>
-          <span :if={@secondary_text} data-part="secondary-text">
-            ({@secondary_text})
-          </span>
-          <div :if={@size == "large"}>
-            <span data-part="description">
-              {@description}
+        <div data-part="content">
+          <div data-part="body">
+            <span :if={!@label} data-part="label">
+              {render_slot(@inner_block)}
             </span>
+            <span :if={@label} data-part="label">{@label}</span>
+            <span :if={@secondary_text} data-part="secondary-text">
+              ({@secondary_text})
+            </span>
+            <div :if={@size == "large"}>
+              <span data-part="description">
+                {@description}
+              </span>
+            </div>
           </div>
         </div>
         <div :if={has_slot_content?(@right_icon, assigns)} data-part="right-icon">

@@ -18,7 +18,7 @@
     top: 0;
     flex-shrink: 0;
     align-self: stretch;
-    border-right: 1px solid light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-900));
+    border-right: 1px solid var(--noora-content-divider-line);
     max-height: 100vh;
     overflow-y: auto;
   }
@@ -34,8 +34,6 @@
 
 .layout__content {
   flex: 1;
-
-  padding: var(--noora-spacing-5);
   min-width: 0;
   overflow: hidden;
 }

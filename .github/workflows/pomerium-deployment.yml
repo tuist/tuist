@@ -1,0 +1,199 @@
+name: Pomerium Deployment
+
+# Builds the kube-impersonator sidecar image and deploys the
+# per-env Pomerium kube-gateway chart into a workload cluster.
+# Build + deploy live in the same workflow (same shape as
+# tuist-ops-deployment.yml) so the deployed image tag is
+# always the current DEPLOY_SHA — no separate image-build
+# workflow, no `git log` to find a tag that exists in ghcr, no
+# race between two workflows.
+#
+# Triggers:
+#  - push to main when the Pomerium chart, the kube-impersonator
+#    sidecar source, or this workflow itself changes.
+#  - workflow_dispatch with an `environment` input for one-env
+#    deploys; blank input rolls staging → canary → production in
+#    parallel via matrix.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/helm/pomerium/**
+      - kube-impersonator/**
+      - .github/workflows/pomerium-deployment.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target env (staging | canary | production). Leave blank to roll all three.
+        required: false
+        type: choice
+        options:
+          - ""
+          - staging
+          - canary
+          - production
+      image_tag:
+        description: Pre-built kube-impersonator image tag to deploy instead of building.
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/kube-impersonator
+  DEPLOY_SHA: ${{ github.sha }}
+
+jobs:
+  # Resolve the matrix dynamically: workflow_dispatch with a specific
+  # env runs only that env; push or empty dispatch runs all three.
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      envs: ${{ steps.envs.outputs.envs }}
+    steps:
+      - id: envs
+        env:
+          INPUT_ENV: ${{ inputs.environment }}
+        run: |
+          if [ -n "${INPUT_ENV:-}" ]; then
+            echo "envs=[\"${INPUT_ENV}\"]" >> "$GITHUB_OUTPUT"
+          else
+            echo 'envs=["staging","canary","production"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  build-impersonator:
+    name: Build + push kube-impersonator image
+    if: inputs.image_tag == ''
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - id: tag
+        # Same tag shape as tuist-ops's image: deployed SHA short
+        # form. ghcr layers dedupe across builds, so rebuilding on
+        # chart-only changes is cheap on storage.
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: kube-impersonator
+          file: kube-impersonator/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=kube-impersonator
+          cache-to: type=gha,mode=max,scope=kube-impersonator
+
+  deploy:
+    name: Pomerium (${{ matrix.environment }})
+    needs: [matrix, build-impersonator]
+    # `always()` lets a workflow_dispatch with a pre-built
+    # `image_tag` skip the build job and still deploy.
+    if: always() && (needs.build-impersonator.result == 'success' || needs.build-impersonator.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.matrix.outputs.envs) }}
+    runs-on: tuist-linux
+    environment:
+      # server-k8s-<env> environments already exist (used by
+      # server-deployment.yml, hccm-deployment.yml) and have
+      # OP_SERVICE_ACCOUNT_TOKEN scoped to the matching
+      # tuist-k8s-<env> 1P vault.
+      name: server-k8s-${{ matrix.environment }}
+    concurrency:
+      # Queue Pomerium runs against the same env so a push +
+      # workflow_dispatch (or two dispatches) don't overlap their
+      # helm upgrades on the same release. Doesn't share with the
+      # server / tuist-ops / slack deploys — each workflow has its
+      # own per-env lane in this repo's convention.
+      group: pomerium-deploy-${{ matrix.environment }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - uses: 1password/install-cli-action@v2
+      - name: Load kubeconfig from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Verify cluster reachability
+        run: |
+          set -euo pipefail
+          API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
+          echo "Reaching apiserver at $API"
+          kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve image tag
+        env:
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          BUILT_IMAGE_TAG: ${{ needs.build-impersonator.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_IMAGE_TAG:-}" ]; then
+            IMAGE_TAG="$INPUT_IMAGE_TAG"
+          else
+            IMAGE_TAG="$BUILT_IMAGE_TAG"
+          fi
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "::error::no image tag available to deploy"
+            exit 1
+          fi
+          echo "KUBE_IMPERSONATOR_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          echo "Deploying kubeImpersonator.image.tag=$IMAGE_TAG"
+      - name: helm upgrade --install pomerium-kube
+        run: |
+          helm upgrade --install pomerium-kube infra/helm/pomerium \
+            --namespace pomerium --create-namespace \
+            -f infra/helm/pomerium/values-${{ matrix.environment }}.yaml \
+            --set kubeImpersonator.image.tag="$KUBE_IMPERSONATOR_TAG" \
+            --atomic --timeout 10m --wait
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          echo "::group::helm history"
+          helm history pomerium-kube -n pomerium --max 10 || true
+          echo "::endgroup::"
+          echo "::group::helm get manifest"
+          helm get manifest pomerium-kube -n pomerium 2>&1 | head -200 || true
+          echo "::endgroup::"
+          echo "::group::workload resources"
+          kubectl -n pomerium get deploy,svc,ingress,externalsecret,pods -o wide || true
+          echo "::endgroup::"
+          echo "::group::deployment describe"
+          kubectl -n pomerium describe deploy 2>&1 | tail -120 || true
+          echo "::endgroup::"
+          echo "::group::pod logs (most recent)"
+          kubectl -n pomerium logs -l app.kubernetes.io/name=pomerium --tail=100 || true
+          echo "::endgroup::"
+          echo "::group::events"
+          kubectl -n pomerium get events --sort-by=.lastTimestamp 2>&1 | tail -100 || true
+          echo "::endgroup::"

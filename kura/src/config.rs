@@ -5,9 +5,9 @@ use tokio::fs;
 use crate::constants::{
     DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
-    DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
-    DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
+    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -16,9 +16,12 @@ const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
+const KURA_TMP_DIR_MAX_BYTES: &str = "KURA_TMP_DIR_MAX_BYTES";
 const KURA_NODE_URL: &str = "KURA_NODE_URL";
+const KURA_PEER_GATEWAY_URL: &str = "KURA_PEER_GATEWAY_URL";
 const KURA_PEERS: &str = "KURA_PEERS";
 const KURA_DISCOVERY_DNS_NAME: &str = "KURA_DISCOVERY_DNS_NAME";
+const KURA_GLOBAL_DISCOVERY_DNS_NAME: &str = "KURA_GLOBAL_DISCOVERY_DNS_NAME";
 const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
@@ -28,6 +31,11 @@ const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
+const KURA_ACCELERATED_FILE_SERVING_ENABLED: &str = "KURA_ACCELERATED_FILE_SERVING_ENABLED";
+const KURA_ACCELERATED_FILE_SERVING_MODE: &str = "KURA_ACCELERATED_FILE_SERVING_MODE";
+const KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT: &str =
+    "KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT";
+const KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES: &str = "KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES";
 
 const DEFAULT_HTTPS_PORT: u16 = 4443;
 const KURA_FILE_DESCRIPTOR_POOL_SIZE: &str = "KURA_FILE_DESCRIPTOR_POOL_SIZE";
@@ -68,6 +76,9 @@ const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
 const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
 const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
+const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
+    "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
+const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
@@ -85,6 +96,8 @@ const BYTES_PER_MIB: u64 = 1024 * 1024;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
+const DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: u64 = 512 * BYTES_PER_MIB;
+const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
@@ -98,13 +111,17 @@ pub struct Config {
     pub region: String,
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
+    pub tmp_dir_max_bytes: u64,
     pub node_url: String,
+    pub peer_gateway_url: Option<String>,
     pub peers: Vec<String>,
     pub discovery_dns_name: Option<String>,
+    pub global_discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
     pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
     pub https_port: u16,
+    pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
@@ -120,6 +137,8 @@ pub struct Config {
     pub rocksdb_write_buffer_size_bytes: usize,
     pub rocksdb_max_write_buffer_number: i32,
     pub outbox_max_depth: usize,
+    pub replication_bandwidth_limit_bytes_per_second: u64,
+    pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
     pub bootstrap_timeout_ms: u64,
@@ -161,6 +180,29 @@ pub struct GrpcTlsConfig {
 pub struct PublicTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AcceleratedFileServingConfig {
+    pub enabled: bool,
+    pub mode: AcceleratedFileServingMode,
+    pub max_concurrent: usize,
+    pub chunk_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AcceleratedFileServingMode {
+    Sendfile,
+    Splice,
+}
+
+impl AcceleratedFileServingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Sendfile => "sendfile",
+            Self::Splice => "splice",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -234,8 +276,8 @@ impl DerivedRuntimeDefaults {
             .file_descriptor_limit
             .saturating_sub(reserved_fds.max(64))
             .max(256);
-        let file_descriptor_pool_size = clamp_usize(usable_fds / 8, 64, 256);
-        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 4, 16, 64)
+        let file_descriptor_pool_size = clamp_usize(usable_fds / 2, 128, 4096);
+        let segment_handle_cache_size = clamp_usize(file_descriptor_pool_size / 8, 16, 256)
             .min(file_descriptor_pool_size.saturating_sub(1).max(1));
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
@@ -343,7 +385,20 @@ impl Config {
         let region = required_value(&mut lookup, KURA_REGION, &mut missing);
         let tmp_dir = required_value(&mut lookup, KURA_TMP_DIR, &mut missing).map(PathBuf::from);
         let data_dir = required_value(&mut lookup, KURA_DATA_DIR, &mut missing).map(PathBuf::from);
+        let tmp_dir_max_bytes =
+            optional_parsed_value(&mut lookup, KURA_TMP_DIR_MAX_BYTES, &mut invalid, |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_TMP_DIR_MAX_BYTES} must be a valid u64"))
+            })
+            .unwrap_or(DEFAULT_TMP_DIR_MAX_BYTES);
+        if tmp_dir_max_bytes == 0 {
+            invalid.push(format!("{KURA_TMP_DIR_MAX_BYTES} must be greater than 0"));
+        }
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
+        let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
         let peers = lookup(KURA_PEERS)
             .map(|value| {
                 value
@@ -357,6 +412,71 @@ impl Config {
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
+        let global_discovery_dns_name = lookup(KURA_GLOBAL_DISCOVERY_DNS_NAME)
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty());
+        let accelerated_file_serving_enabled = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_ENABLED,
+            &mut invalid,
+            |value| {
+                value.parse::<bool>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_ENABLED} must be a valid bool")
+                })
+            },
+        )
+        .unwrap_or(true);
+        let accelerated_file_serving_mode =
+            lookup(KURA_ACCELERATED_FILE_SERVING_MODE).unwrap_or_else(|| "splice".to_owned());
+        let accelerated_file_serving_mode = match accelerated_file_serving_mode.as_str() {
+            "sendfile" => Some(AcceleratedFileServingMode::Sendfile),
+            "splice" => Some(AcceleratedFileServingMode::Splice),
+            _ => {
+                invalid.push(format!(
+                    "{KURA_ACCELERATED_FILE_SERVING_MODE} must be either sendfile or splice"
+                ));
+                None
+            }
+        };
+        let accelerated_file_serving_max_concurrent = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(32);
+        if accelerated_file_serving_max_concurrent == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving_chunk_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(1024 * 1024);
+        if accelerated_file_serving_chunk_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES} must be greater than 0"
+            ));
+        }
+        let accelerated_file_serving =
+            accelerated_file_serving_mode.map(|mode| AcceleratedFileServingConfig {
+                enabled: accelerated_file_serving_enabled,
+                mode,
+                max_concurrent: accelerated_file_serving_max_concurrent,
+                chunk_bytes: accelerated_file_serving_chunk_bytes,
+            });
         let internal_tls_ca_cert_path = lookup(KURA_INTERNAL_TLS_CA_CERT_PATH)
             .map(PathBuf::from)
             .filter(|value| !value.as_os_str().is_empty());
@@ -682,6 +802,30 @@ impl Config {
         if outbox_max_depth == 0 {
             invalid.push(format!("{KURA_OUTBOX_MAX_DEPTH} must be greater than 0"));
         }
+        let replication_bandwidth_limit_bytes_per_second = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!(
+                        "{KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND} must be a valid u64"
+                    )
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND);
+        let replication_public_latency_target_ms = optional_parsed_value(
+            &mut lookup,
+            KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS,
+            &mut invalid,
+            |value| {
+                value.parse::<u64>().map_err(|_| {
+                    format!("{KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS} must be a valid u64")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS);
         let multipart_upload_ttl_ms = optional_parsed_value(
             &mut lookup,
             KURA_MULTIPART_UPLOAD_TTL_MS,
@@ -1101,6 +1245,29 @@ impl Config {
             }
         }
 
+        if let (Some(peer_gateway_url), Some(internal_port)) =
+            (peer_gateway_url.as_ref(), internal_port)
+        {
+            let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
+            match reqwest::Url::parse(peer_gateway_url) {
+                Ok(url) => {
+                    if url.scheme() != expected_scheme {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must use {expected_scheme}"
+                        ));
+                    }
+                    if url.port_or_known_default() != Some(internal_port) {
+                        invalid.push(format!(
+                            "{KURA_PEER_GATEWAY_URL} must target port {internal_port}"
+                        ));
+                    }
+                }
+                Err(error) => invalid.push(format!(
+                    "{KURA_PEER_GATEWAY_URL} must be a valid URL: {error}"
+                )),
+            }
+        }
+
         if !missing.is_empty() || !invalid.is_empty() {
             let mut errors = Vec::new();
             if !missing.is_empty() {
@@ -1122,13 +1289,18 @@ impl Config {
             region: region.expect("region should be present when configuration is valid"),
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
+            tmp_dir_max_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
+            peer_gateway_url,
             peers: peers.expect("peers should be present when configuration is valid"),
             discovery_dns_name,
+            global_discovery_dns_name,
             peer_tls,
             grpc_tls,
             public_tls,
             https_port,
+            accelerated_file_serving: accelerated_file_serving
+                .expect("accelerated_file_serving should be present when configuration is valid"),
             file_descriptor_pool_size,
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
@@ -1144,6 +1316,8 @@ impl Config {
             rocksdb_write_buffer_size_bytes,
             rocksdb_max_write_buffer_number,
             outbox_max_depth,
+            replication_bandwidth_limit_bytes_per_second,
+            replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
             bootstrap_timeout_ms,
@@ -1381,10 +1555,10 @@ mod tests {
             config.peers,
             vec!["http://kura.example.com:7443".to_owned()]
         );
-        assert_eq!(config.file_descriptor_pool_size, 256);
+        assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
-        assert_eq!(config.segment_handle_cache_size, 64);
+        assert_eq!(config.segment_handle_cache_size, 224);
         assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
@@ -1407,7 +1581,35 @@ mod tests {
             (8 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            512 * BYTES_PER_MIB
+        );
+        assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(config.replication_public_latency_target_ms, 100);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: true,
+                mode: AcceleratedFileServingMode::Splice,
+                max_concurrent: 32,
+                chunk_bytes: 1024 * 1024,
+            }
+        );
         assert_eq!(config.sentry_dsn, None);
+    }
+
+    #[test]
+    fn derived_file_descriptor_defaults_scale_with_high_process_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 16_384,
+            memory_limit_bytes: 1024 * 1024 * 1024,
+            cpu_count: 6,
+        });
+
+        assert_eq!(defaults.file_descriptor_pool_size, 4096);
+        assert_eq!(defaults.segment_handle_cache_size, 256);
+        assert_eq!(defaults.file_descriptor_acquire_timeout_ms, 5_000);
     }
 
     #[test]
@@ -1430,10 +1632,20 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
             (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "false"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "sendfile"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "16"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "2097152"),
+            (
+                KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND,
+                "10485760",
+            ),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1467,6 +1679,7 @@ mod tests {
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1475,6 +1688,20 @@ mod tests {
         assert_eq!(config.rocksdb_write_buffer_manager_bytes, 32 * 1024 * 1024);
         assert_eq!(config.rocksdb_write_buffer_size_bytes, 8 * 1024 * 1024);
         assert_eq!(config.rocksdb_max_write_buffer_number, 4);
+        assert_eq!(
+            config.accelerated_file_serving,
+            AcceleratedFileServingConfig {
+                enabled: false,
+                mode: AcceleratedFileServingMode::Sendfile,
+                max_concurrent: 16,
+                chunk_bytes: 2 * 1024 * 1024,
+            }
+        );
+        assert_eq!(
+            config.replication_bandwidth_limit_bytes_per_second,
+            10_485_760
+        );
+        assert_eq!(config.replication_public_latency_target_ms, 75);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -1556,6 +1783,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_OPEN_FILES, "invalid"),
@@ -1564,6 +1792,12 @@ mod tests {
             (KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES, "invalid"),
             (KURA_METADATA_STORE_WRITE_BUFFER_BYTES, "invalid"),
             (KURA_METADATA_STORE_MAX_WRITE_BUFFERS, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_ENABLED, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_MODE, "uring"),
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "invalid"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "invalid"),
+            (KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND, "invalid"),
+            (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "invalid"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1582,6 +1816,7 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_OPEN_FILES));
@@ -1590,6 +1825,33 @@ mod tests {
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_WRITE_BUFFER_BYTES));
         assert!(error.contains(KURA_METADATA_STORE_MAX_WRITE_BUFFERS));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_ENABLED));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MODE));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
+        assert!(error.contains(KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND));
+        assert!(error.contains(KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_tmp_dir_max_bytes() {
+        let error = config_from(&[(KURA_TMP_DIR_MAX_BYTES, "0")])
+            .expect_err("expected zero tmp dir budget to fail");
+
+        assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
+        assert!(error.contains("must be greater than 0"));
+    }
+
+    #[test]
+    fn from_lookup_rejects_zero_accelerated_file_serving_limits() {
+        let error = config_from(&[
+            (KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT, "0"),
+            (KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES, "0"),
+        ])
+        .expect_err("expected invalid accelerated file serving limits to fail");
+
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_MAX_CONCURRENT));
+        assert!(error.contains(KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES));
     }
 
     #[test]
@@ -1602,8 +1864,10 @@ mod tests {
             (KURA_TMP_DIR, "/tmp/kura"),
             (KURA_DATA_DIR, "/tmp/kura-data"),
             (KURA_NODE_URL, "http://kura.example.com:7443"),
+            (KURA_PEER_GATEWAY_URL, "http://peer.kura.example.com:7443"),
             (KURA_PEERS, "http://kura-a.example.com:7443"),
             (KURA_DISCOVERY_DNS_NAME, "kura-ring.internal"),
+            (KURA_GLOBAL_DISCOVERY_DNS_NAME, "acme.kura-peers.internal"),
             (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
             (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
@@ -1625,6 +1889,14 @@ mod tests {
         assert_eq!(
             config.discovery_dns_name.as_deref(),
             Some("kura-ring.internal")
+        );
+        assert_eq!(
+            config.global_discovery_dns_name.as_deref(),
+            Some("acme.kura-peers.internal")
+        );
+        assert_eq!(
+            config.peer_gateway_url.as_deref(),
+            Some("http://peer.kura.example.com:7443")
         );
     }
 

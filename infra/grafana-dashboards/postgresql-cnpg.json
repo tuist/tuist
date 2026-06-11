@@ -1,0 +1,2750 @@
+{
+  "apiVersion": "dashboard.grafana.app/v1",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "tuist-postgresql-cnpg"
+  },
+  "spec": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "description": "CloudNativePG Postgres health, workload, storage, replication, backup, and PgBouncer pooler metrics for the Tuist managed database.",
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 1,
+    "id": null,
+    "links": [],
+    "panels": [
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "panels": [],
+        "title": "Overview",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Minimum exporter-reported Postgres health across the selected CNPG instance pods.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 0,
+          "y": 1
+        },
+        "id": 2,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min(cnpg_collector_up{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Postgres Up",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "CloudNativePG operator scrape health.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 4,
+          "y": 1
+        },
+        "id": 3,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min(up{job=\"tuist-cnpg-operator\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Operator Up",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "PgBouncer scrape health for the processor pooler.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 8,
+          "y": 1
+        },
+        "id": 4,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min(up{job=\"tuist-cnpg-pooler\", namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Pooler Up",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Active and idle Postgres backends across selected databases.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 140
+                },
+                {
+                  "color": "red",
+                  "value": 180
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 1
+        },
+        "id": 5,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_backends_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Connections",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Total logical database size reported by Postgres.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "decimals": 1,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 1
+        },
+        "id": 6,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pg_database_size_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Database Size",
+        "type": "stat"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Seconds since the latest CNPG-available base backup timestamp.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "decimals": 0,
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 86400
+                },
+                {
+                  "color": "red",
+                  "value": 172800
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 1
+        },
+        "id": 7,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "time() - max(cnpg_collector_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "instant": true,
+            "range": false,
+            "refId": "A"
+          }
+        ],
+        "title": "Backup Age",
+        "type": "stat"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 5
+        },
+        "id": 10,
+        "panels": [],
+        "title": "Connections And Activity",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Connections by pg_stat_activity state.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 6
+        },
+        "id": 11,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (state) (cnpg_backends_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"})",
+            "legendFormat": "{{state}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Connections By State",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Connection utilization against the Postgres max_connections setting.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 70
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 12,
+          "y": 6
+        },
+        "id": 12,
+        "options": {
+          "minVizHeight": 75,
+          "minVizWidth": 75,
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true,
+          "sizing": "auto"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum(cnpg_backends_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}) / clamp_min(max(cnpg_pg_settings_setting{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", name=\"max_connections\"}), 1)",
+            "legendFormat": "usage",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Connection Usage",
+        "type": "gauge"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Maximum open transaction duration by user and application.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 6,
+          "x": 18,
+          "y": 6
+        },
+        "id": 13,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "topk(10, max by (usename, application_name) (cnpg_backends_max_tx_duration_seconds{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}))",
+            "legendFormat": "{{usename}} {{application_name}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Longest Transaction",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Committed and rolled-back transaction rate by database.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 14
+        },
+        "id": 14,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "commit {{datname}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "rollback {{datname}}",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "Transaction Rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Inserted, updated, and deleted row rate by database.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 14
+        },
+        "id": 15,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_inserted{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "insert {{datname}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_updated{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "update {{datname}}",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_deleted{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "delete {{datname}}",
+            "range": true,
+            "refId": "C"
+          }
+        ],
+        "title": "Row Write Rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Blocked backends waiting on locks or other queries.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 22
+        },
+        "id": 16,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pod) (cnpg_backends_waiting_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Waiting Backends",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Postgres buffer cache hit percentage.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 90
+                },
+                {
+                  "color": "green",
+                  "value": 98
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 22
+        },
+        "id": 17,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "min"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum by (datname) (rate(cnpg_pg_stat_database_blks_hit{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval])) / clamp_min(sum by (datname) (rate(cnpg_pg_stat_database_blks_hit{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]) + rate(cnpg_pg_stat_database_blks_read{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval])), 1)",
+            "legendFormat": "{{datname}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Cache Hit %",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 30
+        },
+        "id": 20,
+        "panels": [],
+        "title": "Storage And WAL",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Logical database size by database.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 31
+        },
+        "id": 21,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (cnpg_pg_database_size_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"})",
+            "legendFormat": "{{datname}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Database Size",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "PersistentVolumeClaim capacity consumed by each CNPG data volume.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [],
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 75
+                },
+                {
+                  "color": "red",
+                  "value": 90
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 31
+        },
+        "id": 22,
+        "options": {
+          "displayMode": "gradient",
+          "minVizHeight": 10,
+          "minVizWidth": 0,
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true,
+          "valueMode": "text"
+        },
+        "pluginVersion": "11.0.0",
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * max by (persistentvolumeclaim) (kubelet_volume_stats_used_bytes{namespace=~\"$namespace\", persistentvolumeclaim=~\"$cnpg_cluster-[0-9]+\"}) / max by (persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\", persistentvolumeclaim=~\"$cnpg_cluster-[0-9]+\"})",
+            "legendFormat": "{{persistentvolumeclaim}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "PVC Usage %",
+        "type": "bargauge"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Temporary file bytes created by queries.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 39
+        },
+        "id": 23,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_temp_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "legendFormat": "{{datname}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Temp Bytes",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "WAL bytes generated by the selected instances.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 39
+        },
+        "id": 24,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pod) (rate(cnpg_collector_wal_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval]))",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "WAL Generated",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "WAL segments on disk and archive queue state.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 39
+        },
+        "id": 25,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (value) (cnpg_collector_pg_wal{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", value=~\"count|min|keep|max\"})",
+            "legendFormat": "wal {{value}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (value) (cnpg_collector_pg_wal_archive_status{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "archive {{value}}",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "WAL Files And Archive Queue",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 47
+        },
+        "id": 30,
+        "panels": [],
+        "title": "Compute",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "CPU cores used by CNPG instance pods.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "cores"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 48
+        },
+        "id": 31,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", image!=\"\"}[$__rate_interval]) * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}))",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "CPU",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Memory working set for CNPG instance pods.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 48
+        },
+        "id": 32,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\", image!=\"\"} * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}))",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Memory",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Container restarts over the selected time range.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "bars",
+              "fillOpacity": 60,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 48
+        },
+        "id": 33,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[$__range]) * on (namespace, pod) group_left() max by (namespace, pod) (up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}))",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Restarts",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 56
+        },
+        "id": 40,
+        "panels": [],
+        "title": "Replication And HA",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Replica replay lag as observed by each instance.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 5
+                },
+                {
+                  "color": "red",
+                  "value": 30
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 57
+        },
+        "id": 41,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (pod) (cnpg_pg_replication_lag{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Replication Lag",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Streaming replicas connected to the primary.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 57
+        },
+        "id": 42,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (pod) (cnpg_pg_replication_streaming_replicas{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "{{pod}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Streaming Replicas",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Expected, observed, minimum, and maximum synchronous replica counts.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 57
+        },
+        "id": 43,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (value) (cnpg_collector_sync_replicas{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "{{value}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Sync Replicas",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "CNPG high-availability signals that should usually stay at zero, except nodes_used.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 65
+        },
+        "id": 44,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_collector_nodes_used{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "nodes used",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_collector_manual_switchover_required{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "manual switchover required",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_collector_fencing_on{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "fencing",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_collector_last_collection_error{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "collection error",
+            "range": true,
+            "refId": "D"
+          }
+        ],
+        "title": "CNPG HA Signals",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Replication slot WAL retained behind the current WAL location.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 65
+        },
+        "id": 45,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (slot_name, database) (cnpg_pg_replication_slots_pg_wal_lsn_diff{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "{{slot_name}} {{database}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Replication Slot Lag",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 73
+        },
+        "id": 50,
+        "panels": [],
+        "title": "Backups And Archiving",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Base backup and recoverability timestamps exposed by CNPG.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "dateTimeAsIso"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 74
+        },
+        "id": 51,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "1000 * max(cnpg_collector_last_available_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "last available backup",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "1000 * max(cnpg_collector_first_recoverability_point{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "first recoverability point",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "1000 * max(cnpg_collector_last_failed_backup_timestamp{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "last failed backup",
+            "range": true,
+            "refId": "C"
+          }
+        ],
+        "title": "Backup Timeline",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Successful and failed WAL archive operations.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 74
+        },
+        "id": 52,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(cnpg_pg_stat_archiver_archived_count{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval]))",
+            "legendFormat": "archived",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(cnpg_pg_stat_archiver_failed_count{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval]))",
+            "legendFormat": "failed",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "WAL Archive Rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Seconds since the last successful or failed WAL archive event.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 74
+        },
+        "id": 53,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_pg_stat_archiver_seconds_since_last_archival{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "last archival",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max(cnpg_pg_stat_archiver_seconds_since_last_failure{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"})",
+            "legendFormat": "last failure",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "WAL Archive Freshness",
+        "type": "timeseries"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 82
+        },
+        "id": 60,
+        "panels": [],
+        "title": "PgBouncer Pooler",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "PgBouncer client connections by state.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 83
+        },
+        "id": 61,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_cl_active{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "active",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_cl_waiting{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "waiting",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_lists_used_clients{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "used",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_lists_free_clients{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "free",
+            "range": true,
+            "refId": "D"
+          }
+        ],
+        "title": "Pooler Clients",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "PgBouncer server connections by state.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 83
+        },
+        "id": 62,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_sv_active{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "active",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_sv_idle{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "idle",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_sv_used{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "used",
+            "range": true,
+            "refId": "C"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(cnpg_pgbouncer_pools_sv_login{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "login",
+            "range": true,
+            "refId": "D"
+          }
+        ],
+        "title": "Pooler Servers",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Oldest client wait time for a server connection.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 1
+                },
+                {
+                  "color": "red",
+                  "value": 5
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 83
+        },
+        "id": 63,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (pod, database, user) (cnpg_pgbouncer_pools_maxwait{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "{{pod}} {{database}} {{user}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Pooler Max Wait",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "PgBouncer query and transaction throughput.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 91
+        },
+        "id": 64,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_query_count{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "query {{database}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_xact_count{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "xact {{database}}",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "Pooler Throughput",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Average PgBouncer query, transaction, and wait time converted from microseconds to milliseconds.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ms"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 91
+        },
+        "id": 65,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_query_time{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"}) / 1000",
+            "legendFormat": "query {{database}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_xact_time{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"}) / 1000",
+            "legendFormat": "xact {{database}}",
+            "range": true,
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_wait_time{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"}) / 1000",
+            "legendFormat": "wait {{database}}",
+            "range": true,
+            "refId": "C"
+          }
+        ],
+        "title": "Pooler Latency",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Average network throughput through PgBouncer.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "spanNulls": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "Bps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 91
+        },
+        "id": 66,
+        "options": {
+          "legend": {
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_recv{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "recv {{database}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (database) (cnpg_pgbouncer_stats_avg_sent{namespace=~\"$namespace\", cnpg_pooler=~\"$pooler\"})",
+            "legendFormat": "sent {{database}}",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "Pooler Network",
+        "type": "timeseries"
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 39,
+    "tags": [
+      "tuist",
+      "postgres",
+      "cnpg",
+      "database"
+    ],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": false,
+            "text": "grafanacloud-prom",
+            "value": "grafanacloud-prom"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Data Source",
+          "multi": false,
+          "name": "datasource",
+          "options": [],
+          "query": "prometheus",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "type": "datasource"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(up{job=\"tuist-cnpg-instances\"}, namespace)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Namespace",
+          "multi": true,
+          "name": "namespace",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up{job=\"tuist-cnpg-instances\"}, namespace)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\"}, cnpg_cluster)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "CNPG Cluster",
+          "multi": true,
+          "name": "cnpg_cluster",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\"}, cnpg_cluster)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\"}, pod)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Pod",
+          "multi": true,
+          "name": "pod",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up{job=\"tuist-cnpg-instances\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\"}, pod)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(cnpg_pg_database_size_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}, datname)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Database",
+          "multi": true,
+          "name": "database",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(cnpg_pg_database_size_bytes{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}, datname)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": [
+              "All"
+            ],
+            "value": [
+              "$__all"
+            ]
+          },
+          "datasource": "$datasource",
+          "definition": "label_values(up{job=\"tuist-cnpg-pooler\", namespace=~\"$namespace\"}, cnpg_pooler)",
+          "hide": 0,
+          "includeAll": true,
+          "label": "Pooler",
+          "multi": true,
+          "name": "pooler",
+          "options": [],
+          "query": {
+            "qryType": 1,
+            "query": "label_values(up{job=\"tuist-cnpg-pooler\", namespace=~\"$namespace\"}, cnpg_pooler)",
+            "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          },
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Tuist PostgreSQL CNPG",
+    "uid": "tuist-postgresql-cnpg",
+    "version": 1,
+    "weekStart": ""
+  }
+}

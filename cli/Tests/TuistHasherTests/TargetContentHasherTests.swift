@@ -268,6 +268,55 @@ struct TargetContentHasherTests {
         )
     }
 
+    @Test func hash_changes_when_sibling_target_adds_cross_target_membership() async throws {
+        // Given: target "B" has no buildable folders of its own; sibling "A" optionally adds one of its
+        // buildable-folder files to "B" via an additive cross-target membership exception.
+        let includedPath = try AbsolutePath(validating: "/test/A/Shared.swift")
+        let folderPath = try AbsolutePath(validating: "/test/A")
+        let targetB = Target.test(name: "B", buildableFolders: [])
+
+        func graphTarget(includingIntoB: Bool) -> GraphTarget {
+            let exceptions: BuildableFolderExceptions = includingIntoB
+                ? BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        target: "B",
+                        included: [includedPath]
+                    ),
+                ])
+                : BuildableFolderExceptions(exceptions: [])
+            let targetA = Target.test(name: "A", buildableFolders: [
+                BuildableFolder(
+                    path: folderPath,
+                    exceptions: exceptions,
+                    resolvedFiles: [BuildableFolderFile(path: includedPath, compilerFlags: nil)]
+                ),
+            ])
+            return GraphTarget.test(target: targetB, project: .test(targets: [targetA, targetB]))
+        }
+
+        // When
+        let withMembership = try await subject.contentHash(
+            for: graphTarget(includingIntoB: true),
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+        let withoutMembership = try await subject.contentHash(
+            for: graphTarget(includingIntoB: false),
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+
+        // Then: B's hash reflects the file added to it from A's folder.
+        #expect(withMembership.hash != withoutMembership.hash)
+        #expect(withMembership.subhashes.buildableFolders != withoutMembership.subhashes.buildableFolders)
+    }
+
     @Test func hash_with_buildable_folders_ignores_ds_store_files() async throws {
         // Given
         let targetWithDSStore = GraphTarget.test(target: .test(buildableFolders: [

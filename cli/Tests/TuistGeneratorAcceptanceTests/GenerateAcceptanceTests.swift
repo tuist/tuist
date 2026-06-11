@@ -1736,6 +1736,45 @@ struct GenerateAcceptanceTestiOSAppWithSandboxDisabled {
 //    }
 }
 
+struct GenerateAcceptanceTestAppWithBuildableFolderMembership {
+    @Test(.withFixture("generated_app_with_buildable_folder_membership"), .inTemporaryDirectory)
+    func app_with_buildable_folder_membership() async throws {
+        let fixturePath = try fixtureDirectory()
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then
+        let xcodeprojPath = try await TuistAcceptanceTest.xcodeprojPath(in: fixturePath)
+        let pbxproj = try XcodeProj(pathString: xcodeprojPath.pathString).pbxproj
+        let appTarget = try #require(pbxproj.nativeTargets.first { $0.name == "App" })
+
+        // xcconfigs inside the buildable folder are referenced through the synchronized-group anchor, not a flat reference.
+        let debugConfiguration = try #require(appTarget.buildConfigurationList?.configuration(name: "Debug"))
+        #expect(debugConfiguration.baseConfiguration == nil)
+        #expect(debugConfiguration.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+
+        // SharedStub.swift is added to AppTests via a foreign-target exception set, not a flat reference.
+        let synchronizedGroup = try #require(
+            appTarget.fileSystemSynchronizedGroups?
+                .compactMap { $0 as? PBXFileSystemSynchronizedRootGroup }
+                .first { $0.path == "App" }
+        )
+        let foreignException = try #require(
+            synchronizedGroup.exceptions?
+                .compactMap { $0 as? PBXFileSystemSynchronizedBuildFileExceptionSet }
+                .first { $0.target?.name == "AppTests" }
+        )
+        #expect(foreignException.membershipExceptions == ["SharedStub.swift"])
+
+        // None of the buildable-folder files leak as flat file references at the project root.
+        let fileReferenceNames = pbxproj.fileReferences.compactMap(\.path) + pbxproj.fileReferences.compactMap(\.name)
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Debug.xcconfig") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("App-Info.plist") })
+        #expect(!fileReferenceNames.contains { $0.hasSuffix("SharedStub.swift") })
+    }
+}
+
 private enum AcceptanceTestError: Error {
     case missingProduct
     case missingResource

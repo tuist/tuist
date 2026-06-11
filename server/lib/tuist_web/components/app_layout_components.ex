@@ -656,6 +656,9 @@ defmodule TuistWeb.AppLayoutComponents do
         <.breadcrumb
           id={"#{@id}-#{index}"}
           label={breadcrumb.label}
+          href={
+            Map.get(breadcrumb, :href) || (Enum.find(breadcrumb.items, & &1.selected) || %{})[:href]
+          }
           show_avatar={Map.get(breadcrumb, :show_avatar, false)}
           avatar_color={Map.get(breadcrumb, :avatar_color)}
           badge_label={breadcrumb[:badge] && breadcrumb.badge.label}

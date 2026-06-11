@@ -26,6 +26,7 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Namespace
   alias Tuist.Repo
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -1942,41 +1943,48 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
-  Returns cache endpoint URLs for the given account handle.
+  Returns cache endpoint URLs for the given account handle and cache technology.
 
-  Ready account Kura endpoints are preferred when present. Kura servers mirror
-  their public URL into `account_cache_endpoints` only after the public endpoint
-  is ready, so clients do not need explicit opt-in once an account has an
-  available server.
+  The `technology` argument is driven by the `kura` client feature flag header.
+  When `:kura`, ready account Kura endpoints are returned only if the account
+  has the `:kura_cache` flag enabled. In every other case (technology is
+  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
+  endpoint fallback behavior is preserved.
 
-  When there is no ready account Kura endpoint, custom endpoints are only returned when:
+  Custom endpoints are only returned when:
   - The account exists
   - The account is on the enterprise plan when Tuist-hosted
   - The account has `custom_cache_endpoints_enabled` set to `true`
   - The account has at least one custom cache endpoint configured
   """
-  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
+  def get_cache_endpoints_for_handle(account_handle, technology \\ :default)
+
+  def get_cache_endpoints_for_handle(account_handle, technology) when is_binary(account_handle) do
     if Environment.tuist_hosted?() do
-      hosted_cache_endpoints_for_handle(account_handle)
+      hosted_cache_endpoints_for_handle(account_handle, technology)
     else
       CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  def get_cache_endpoints_for_handle(_), do: CacheEndpoints.active_endpoint_urls()
+  def get_cache_endpoints_for_handle(_, _), do: CacheEndpoints.active_endpoint_urls()
 
-  defp hosted_cache_endpoints_for_handle(account_handle) do
+  defp hosted_cache_endpoints_for_handle(account_handle, technology) do
     case get_account_by_handle(account_handle) do
-      %Account{} = account -> cache_endpoint_urls(account)
+      %Account{} = account -> cache_endpoint_urls(account, technology)
       _ -> CacheEndpoints.active_endpoint_urls()
     end
   end
 
-  defp cache_endpoint_urls(%Account{} = account) do
+  defp cache_endpoint_urls(%Account{} = account, :kura) do
     case kura_cache_endpoint_urls(account) do
       [] -> custom_cache_endpoint_urls(account)
       endpoints -> endpoints
     end
+  end
+
+  defp cache_endpoint_urls(%Account{} = account, :default) do
+    custom_cache_endpoint_urls(account)
   end
 
   defp custom_cache_endpoint_urls(%Account{} = account) do
@@ -1998,7 +2006,13 @@ defmodule Tuist.Accounts do
 
   defp custom_cache_endpoints(_), do: []
 
-  defp kura_cache_endpoints(%Account{} = account), do: list_account_cache_endpoints(account, :kura)
+  defp kura_cache_endpoints(%Account{} = account) do
+    if FeatureFlags.kura_cache_enabled?(account) do
+      list_account_cache_endpoints(account, :kura)
+    else
+      []
+    end
+  end
 
   defp kura_cache_endpoints(_), do: []
 

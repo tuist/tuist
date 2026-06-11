@@ -51,6 +51,17 @@ kuraController:
     # still be created so envFrom doesn't 404, and stringData will be
     # absent, which Kubernetes accepts.
     data: {}
+    # Internal OAuth client shared by the Tuist server and Kura runtime
+    # for Kura control-plane calls and token introspection. When enabled,
+    # both the server namespace and the Kura namespace receive the same
+    # client id and secret. Provide them inline for self-hosted/local
+    # installs, or enable the ExternalSecret below for managed installs.
+    kuraIntrospection:
+      enabled: false
+      clientId: ""
+      # Required when kuraIntrospection.enabled is true unless
+      # sharedSecrets.externalSecret.enabled is also true.
+      clientSecret: ""
     externalSecret:
       enabled: false
       refreshInterval: "1h"
@@ -59,7 +70,8 @@ kuraController:
         name: onepassword
       item: ""
       fields:
-        introspectionClientSecret: KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   sentry:
     externalSecret:
       enabled: false
@@ -73,7 +85,7 @@ kuraController:
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ALGORITHM: HS512
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_ISSUER: tuist
     #   KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET: "<JWT signing secret>"
-    #   KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_SECRET: "<Kura OAuth introspection secret>"
+    #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
 
 kuraRuntime:
   image:
@@ -141,9 +153,13 @@ server:
     # Leave item empty to skip syncing it into the server environment.
     kuraIntrospection:
       item: ""
+      # Non-secret OAuth client id. When set, the chart renders this value
+      # into the ESO-managed Secret and only fetches the client secret from
+      # the external store.
+      clientIdValue: ""
       fields:
-        clientId: TUIST_KURA_INTROSPECTION_CLIENT_ID
-        clientSecret: TUIST_KURA_INTROSPECTION_CLIENT_SECRET
+        clientId: KURA_CONTROL_PLANE_CLIENT_ID
+        clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
   # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
   # syncs them from 1Password into a dedicated Secret and the Server +
   # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
@@ -196,6 +212,11 @@ server:
   # Kura cache technology. Self-hosted installs can point this at Kura
   # instances running in the same cluster or network.
   kuraEndpointUrls: []
+  # Optional account handles that should get server-driven dedicated
+  # Kura gateway infrastructure even if billing metadata has not yet
+  # marked them Enterprise. Leave empty in committed managed values;
+  # prefer wiring this through external runtime config when needed.
+  kuraDedicatedGatewayAccounts: []
   # Erlang distribution / libcluster configuration. Emits a headless Service
   # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
   cluster:
@@ -301,8 +322,9 @@ processor:
   # `database:` values below. When false, the full URL must be provided
   # via `databaseUrl` for self-hosted installs.
   managedSecrets: false
-  # Full DATABASE_URL for self-hosted installs pointing at the Postgres role
-  # provisioned via infra/supabase/tuist-processor-role.sql. Used as-is when
+  # Full DATABASE_URL for self-hosted installs pointing at a least-privilege
+  # Postgres role for the processor (see `postgresql.cnpg.roles.processor`
+  # for the grant surface CNPG-managed installs use). Used as-is when
   # managedSecrets is false; ignored when managedSecrets is true (the URL is
   # composed from `database:` + the ESO-synced password instead).
   databaseUrl: ""
@@ -310,15 +332,15 @@ processor:
   # DATABASE_URL when `managedSecrets: true`. Kept out of 1P on purpose so
   # rotation is a single-item update.
   database:
-    # Supabase project pooler hostname — per-env, set in values-managed-<env>.yaml.
+    # External Postgres hostname — only relevant under `postgresql.mode:
+    # external`. Per-env override in values-managed-<env>.yaml.
     host: ""
-    # 6543 for Supavisor (transaction mode, recommended). 5432 for direct
-    # sessions (required if the worker uses SET / advisory locks).
+    # Pooler port. Use 5432 for direct sessions (required if the worker
+    # uses SET / advisory locks).
     port: 6543
     name: postgres
     username: tuist_processor
-    # Query params appended to the URL; sslmode=require + channel_binding
-    # matches Supabase defaults. No secrets here either.
+    # Query params appended to the URL. No secrets here either.
     params: "sslmode=require"
   externalSecrets:
     refreshInterval: "1h"
@@ -413,6 +435,26 @@ xcresultProcessor:
   # that point at a different Secret.
   databaseUrlSecretName: ""  # default: processor-external-secrets
   databaseUrlSecretKey: "processor-database-url"
+  # Tailscale identity for each Tart VM. When enabled the VM image's
+  # tailscale-up.sh runs at boot (before the BEAM) and joins the
+  # tailnet using the auth key sourced from this Secret. The chart's
+  # `xcresult-processor-database-url` rendering points at the
+  # operator-managed pooler proxy hostname; the VM resolves it via
+  # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # Off by default — self-hosters without a tailnet, and any
+  # deployment that hasn't shipped the tailscale-enabled VM image
+  # yet, leaves this off and the chart skips the env injection.
+  tailscale:
+    enabled: false
+    # Name of the Secret holding the per-env Tailscale pre-auth key
+    # (the same key the Mac mini host bootstrap reads via the CAPI
+    # operator's --tailscale-auth-key-secret-name flag). Empty falls
+    # back to the chart-default
+    # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
+    # macOS-fleet ExternalSecret syncs from 1Password.
+    authKeySecretName: ""
+    authKeySecretKey: "auth-key"
   extraEnv: []
   # Pair with the topology spread in the Deployment template (one
   # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
@@ -805,6 +847,7 @@ runnersFleet:
     - xcodeVersion: "26.5"
       default: true
     - xcodeVersion: "26.4.1"
+    - xcodeVersion: "26.3"
   # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
   # catalog stays in `xcodeVersions` above so it's shared via the
   # common values file; each managed env layers its overrides here
@@ -1105,13 +1148,27 @@ runnersController:
     tag: ""
     pullPolicy: IfNotPresent
   # OCI ref of the dockerd sidecar stamped on every Linux runner
-  # Pod (`docker:dind` upstream image). Required for any
-  # `runnersFleetLinux` pool; empty disables the sidecar so Pods
-  # come up with no `DOCKER_HOST`. Renovate keeps this pinned.
-  # Digest-pinned: the controller stamps this into a privileged
-  # container, so the exact image must not move outside review.
-  # renovate: datasource=docker depName=docker versioning=docker
-  dindImage: "docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # Pod (`docker:dind`). Required for any `runnersFleetLinux` pool;
+  # empty disables the sidecar so Pods come up with no `DOCKER_HOST`.
+  # Renovate keeps this pinned. Digest-pinned: the controller stamps
+  # this into a privileged container, so the exact image must not move
+  # outside review.
+  #
+  # Pulled from ECR Public (the Docker-sponsored mirror, same source as
+  # postgres/registry) instead of docker.io: this image is pulled by host
+  # containerd, NOT the dind dockerd, so the registry-mirror can't cover
+  # it — sourcing it off Docker Hub keeps the every-pod sidecar pull from
+  # spending the host's shared Docker Hub per-IP budget. The digest is
+  # identical to docker.io/library/docker:28-dind (ECR Public is a faithful
+  # mirror), so this is the same image, just a non-rate-limited registry.
+  # renovate: datasource=docker depName=public.ecr.aws/docker/library/docker versioning=docker
+  dindImage: "public.ecr.aws/docker/library/docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # Override for the URL the dind dockerd mirrors docker.io through (with
+  # a matching insecure-registry, since it's http in-cluster). Empty (the
+  # default) derives this release's registry-cache Service when
+  # `features.registryMirror` is on, so enabling the mirror is just
+  # flipping that gate. Set this only to point at a different cache.
+  registryMirror: ""
   # Feature gates the controller manager binary's `--dind-image`
   # flag. The flag was added by the docker-in-runner change; older
   # controller binaries (<= the release before that change) don't
@@ -1123,6 +1180,10 @@ runnersController:
   # controller.
   features:
     dindImage: false
+    # Gates the `--registry-mirror-url` flag for the same reason as
+    # dindImage: only flip true once this env's controller image is a
+    # binary that registers the flag, else flag.Parse exits 2.
+    registryMirror: false
   resources:
     requests:
       cpu: 50m
@@ -1206,13 +1267,78 @@ cache:
     xcodeCacheBucket: tuist-xcode-cache
     registryBucket: tuist-registry
 
+# Docker Hub pull-through cache for the Linux runner fleet. Disabled by
+# default; flip `enabled: true` per environment (staging first) once it's
+# validated. Pointing the runner dind sidecars at this mirror is a
+# separate, canaried change — standing the cache up here is inert until
+# that lands.
+registryCache:
+  enabled: false
+  replicaCount: 1
+  image:
+    # ECR Public (the Docker-sponsored mirror, same source server.yml uses
+    # for postgres) rather than docker.io, so the cache that fixes Docker
+    # Hub rate limits can't itself be rate-limited while bootstrapping.
+    repository: public.ecr.aws/docker/library/registry
+    tag: "2"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  logLevel: info
+  proxy:
+    # registry-1.docker.io is Docker Hub's registry endpoint.
+    remoteUrl: https://registry-1.docker.io
+    # How long a cached manifest is trusted before its tag is re-validated
+    # upstream. Empty = distribution default (168h). Digest pulls are
+    # always exact; only mutable tags (`:latest`) age within the window.
+    ttl: ""
+    auth:
+      # Authenticate the cache's own upstream pulls — off = anonymous
+      # (still one cache client, not N runners). Enable once a Docker Hub
+      # token lives in 1Password to lift the cold-fill ceiling.
+      enabled: false
+      # Where the username/password Secret comes from when auth is on:
+      # the chart's ExternalSecret (externalSecret.enabled, below), or an
+      # operator-managed Secret named here when externalSecret.enabled is
+      # false. With auth on and neither set, the chart fails to render.
+      existingSecret: ""
+      externalSecret:
+        enabled: true
+        refreshInterval: 1h
+        storeRef:
+          name: onepassword
+          kind: ClusterSecretStore
+        username:
+          item: DOCKER_HUB_CREDENTIALS
+          field: username
+        password:
+          item: DOCKER_HUB_CREDENTIALS
+          field: password
+  s3:
+    # Reuses the object-storage credentials (app-secrets) and the registry
+    # bucket under a prefix, so mirror blobs don't collide with the Swift
+    # package registry's content. Region/endpoint come from objectStorage.
+    bucket: tuist-registry
+    rootDirectory: docker-mirror
+  # Empty = registry auto-generates one per pod (fine at replicaCount 1).
+  # Set a shared value before scaling past one replica behind the Service.
+  httpSecret: ""
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
 postgresql:
   # `embedded` runs a single-replica Postgres StatefulSet (templates/postgresql.yaml).
-  # `external` points DATABASE_URL at a managed Postgres (Supabase, RDS, etc.).
+  # `external` points DATABASE_URL at any managed Postgres (RDS, Cloud SQL, etc.).
   # `cnpg` provisions a CloudNativePG-managed in-cluster Postgres cluster
-  # (templates/postgresql-cnpg.yaml) — used by managed envs after the
-  # Supabase→CNPG migration. Requires the cloudnative-pg operator to
-  # be installed cluster-wide first.
+  # (templates/postgresql-cnpg.yaml) — used by the Tuist-managed envs.
+  # Requires the cloudnative-pg operator to be installed cluster-wide first.
   mode: embedded
   external:
     host: ""
@@ -1235,14 +1361,13 @@ postgresql:
         - ReadWriteOnce
       size: 20Gi
     resources: {}
-  # CloudNativePG settings. Two toggles to support the Supabase→CNPG
-  # migration as a phased rollout:
+  # CloudNativePG settings. Two toggles for a phased rollout:
   #
   #   * `cnpg.enabled` — when true, the chart renders the Cluster +
   #     ScheduledBackup + ESO secrets. The cloudnative-pg operator
   #     provisions the cluster; server pods stay on whatever
-  #     `postgresql.mode` points at. Use this during the soak window
-  #     to bring CNPG up in parallel with Supabase.
+  #     `postgresql.mode` points at. Use this to bring CNPG up alongside
+  #     an existing Postgres while soak-testing.
   #
   #   * `postgresql.mode == "cnpg"` — the cutover state. Server,
   #     processor, and migration-job pods all read DATABASE_URL from
@@ -1271,24 +1396,30 @@ postgresql:
     # processor + pooler backend pool + replication/monitoring/superuser
     # overhead. The operator default is 100; set it explicitly so a
     # multi-replica env (production autoscales the web tier to 5) doesn't
-    # silently hit the ceiling. See infra/cnpg/MIGRATION.md for the budget.
+    # silently hit the ceiling.
     parameters:
       max_connections: "100"
+    # Extra Postgres libraries to preload via shared_preload_libraries.
+    # Kept separate from `parameters` because CNPG's admission webhook
+    # rejects shared_preload_libraries set there — it's a fixed
+    # parameter the operator manages internally. The chart renders this
+    # list to `spec.postgresql.shared_preload_libraries` on the Cluster
+    # CR, the supported path.
+    sharedPreloadLibraries: []
     # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
-    # Transaction-mode pooler for the PROCESSOR only, matching its Supabase
-    # Supavisor :6543 path (prepare: :unnamed). The web tier is intentionally
-    # NOT pooled here: it needs a session connection (Oban's PG notifier and
-    # Postgres-peer leader election don't survive *transaction* pooling). On
-    # Supabase the web tier still rides Supavisor in *session* mode (:5432),
-    # but that pooler exists for Supabase-platform reasons (IPv4-only direct
-    # endpoint, managed connection front door); in-cluster the `-rw` Service
-    # is already the native session endpoint with primary failover, so we
-    # connect the web tier straight to it. Both are session-mode, so the
-    # app's connection shape is identical either way. Enabling is just a
-    # flag flip: with no custom cert secrets below, CNPG's built-in
-    # PgBouncer integration manages auth itself (it creates the
-    # cnpg_pooler_pgbouncer role + user_search function in the `postgres`
-    # database on reconcile). See infra/cnpg/README.md.
+    # Transaction-mode pooler for the PROCESSOR only (matching its
+    # `prepare: :unnamed` connection shape). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier
+    # and Postgres-peer leader election don't survive *transaction*
+    # pooling). The `-rw` Service is already the native session endpoint
+    # with primary failover, so the web tier connects straight to it —
+    # session-mode pooling in front would add a hop without freeing any
+    # backend slots.
+    #
+    # Enabling is just a flag flip: with no custom cert secrets below,
+    # CNPG's built-in PgBouncer integration manages auth itself (it
+    # creates the cnpg_pooler_pgbouncer role + user_search function in
+    # the `postgres` database on reconcile). See infra/cnpg/README.md.
     pooler:
       enabled: false
       instances: 1
@@ -1296,6 +1427,24 @@ postgresql:
       parameters:
         default_pool_size: "20"
         max_client_conn: "100"
+      # Annotate the Pooler's Service so the Tailscale operator stands up
+      # a userspace proxy on the tailnet, exposing the in-cluster pooler
+      # ClusterIP at a stable MagicDNS hostname. The processor's
+      # ExternalSecret then renders a second URL keyed off that hostname
+      # for clients whose only network interface is Tailnet — namely the
+      # macOS Tart VM xcresult-processor pods, which can't reach
+      # ClusterIPs through the K8s overlay. Linux processors keep using
+      # the direct in-cluster pooler hostname (no detour).
+      tailscale:
+        enabled: false
+        # tailscale.com/hostname annotation. Must be unique on the tailnet
+        # — by convention, "tuist-pg-pooler-<env>".
+        hostname: ""
+        # tailscale.com/tags annotation override. The operator's
+        # PROXY_TAGS default ("tag:k8s") is platform-wide and the
+        # tailnet's ACL only permits Tuist-scoped tags; set this to the
+        # env's permitted tag (e.g. "tag:tuist-k8s-production").
+        tags: ""
     storage:
       # Bumped per env. 100Gi at staging, 250Gi at canary + production.
       size: "20Gi"
@@ -1519,3 +1668,4 @@ observability:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+

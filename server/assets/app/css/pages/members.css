@@ -1,4 +1,10 @@
 #members {
+  & > [data-part="members-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
   & #members-tabs {
     & .noora-tab-menu-horizontal {
       padding: var(--noora-spacing-0);
