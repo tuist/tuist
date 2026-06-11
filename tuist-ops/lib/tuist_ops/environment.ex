@@ -56,4 +56,12 @@ defmodule TuistOps.Environment do
   production, so a missing Pomerium header there means "no subject".
   """
   def dev_operator_email, do: System.get_env("TUIST_OPS_DEV_OPERATOR_EMAIL")
+
+  @doc """
+  Google Workspace domain a grant requester's identity must belong to.
+  A defence-in-depth backstop on the `X-Pomerium-Claim-Email` header
+  (the network boundary — Pomerium + the tailnet ACL — is the real
+  authority). Defaults to `"tuist.dev"`; set `OPERATOR_EMAIL_DOMAIN`.
+  """
+  def operator_email_domain, do: System.get_env("OPERATOR_EMAIL_DOMAIN") || "tuist.dev"
 end

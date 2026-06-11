@@ -28,6 +28,7 @@ defmodule TuistOpsWeb.GrantController do
 
   alias TuistOps.Environment
   alias TuistOps.ProjectAccess.Approvals
+  alias TuistOps.ProjectAccess.Policy
   alias TuistOps.ProjectAccess.Token
 
   require Logger
@@ -72,6 +73,9 @@ defmodule TuistOpsWeb.GrantController do
     cond do
       is_nil(subject) ->
         render_error(conn, 401, "Not authenticated", "No operator identity present.")
+
+      not Policy.requester_allowed?(subject) ->
+        render_error(conn, 403, "Forbidden", "This identity is not permitted to request access.")
 
       is_nil(account) or is_nil(return_to) or not allowed_return_to?(return_to) ->
         render_error(conn, 400, "Bad request", "Missing or invalid parameters.")

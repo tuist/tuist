@@ -20,16 +20,27 @@ defmodule TuistOps.ProjectAccess.Policy do
   elevation flow uses — no email lists hardcoded here.
   """
 
+  alias TuistOps.Environment
   alias TuistOps.JIT.TailscaleClient
 
   @doc """
-  Read access is self-serve for any authenticated operator. The
-  subject comes from Pomerium (`X-Pomerium-Claim-Email`), which only
-  forwards `@tuist.dev` Google Workspace identities, so a present
-  subject is sufficient — we deliberately do NOT couple read
-  availability to the Tailscale API being up.
+  Whether `subject` may request operator access at all — an identity
+  gate applied to every grant request, both tiers. Requires an
+  `@<operator_email_domain>` address.
+
+  This is defence in depth, NOT the primary boundary. The
+  `X-Pomerium-Claim-Email` header it reads is only trustworthy because
+  the reason form is reached through Pomerium (Google Workspace OIDC)
+  over a tailnet path that must be restricted to the Pomerium proxy —
+  on a raw tailnet Service the header is client-controlled. The customer
+  server independently binds every grant to a confirmed operator session,
+  so a spoofed request still cannot be turned into account access. Keep
+  this domain check cheap and dependency-free so read stays self-serve.
   """
-  def read_self_serve_allowed?(subject), do: is_binary(subject) and byte_size(subject) > 0
+  def requester_allowed?(subject) do
+    is_binary(subject) and
+      String.ends_with?(String.downcase(subject), "@" <> Environment.operator_email_domain())
+  end
 
   @doc """
   Returns true if `approver_email` may be the second human approving

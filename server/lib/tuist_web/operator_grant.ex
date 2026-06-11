@@ -204,10 +204,13 @@ defmodule TuistWeb.OperatorGrant do
   # The grant is a bearer token, so it must only be honoured for the
   # confirmed operator named in `sub` — otherwise a leaked redirect-back
   # URL would let any logged-in session attach the grant and bypass SSO.
+  # The session must also be Google-Workspace authenticated (same signal
+  # the redirect gate uses), so a phished `@tuist.dev` password alone
+  # can't carry a grant.
   defp check_subject_is_current_operator(conn, %{sub: sub}) do
     case conn.assigns[:current_user] do
       %User{email: email} = user ->
-        if Accounts.tuist_operator?(user) and emails_match?(email, sub) do
+        if google_authenticated?(conn) and Accounts.tuist_operator?(user) and emails_match?(email, sub) do
           :ok
         else
           Logger.warning("operator grant rejected: subject does not match the session user")

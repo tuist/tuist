@@ -7,14 +7,20 @@ defmodule TuistOps.ProjectAccess.PolicyTest do
 
   setup :verify_on_exit!
 
-  describe "read_self_serve_allowed?/1" do
-    test "true for any present subject (Pomerium already gated the form)" do
-      assert Policy.read_self_serve_allowed?("marek@tuist.dev")
+  describe "requester_allowed?/1" do
+    test "true for an operator-domain subject" do
+      assert Policy.requester_allowed?("marek@tuist.dev")
+      assert Policy.requester_allowed?("MAREK@TUIST.DEV")
+    end
+
+    test "false for a non-operator domain" do
+      refute Policy.requester_allowed?("attacker@evil.com")
+      refute Policy.requester_allowed?("marek@tuist.dev.evil.com")
     end
 
     test "false for nil or empty" do
-      refute Policy.read_self_serve_allowed?(nil)
-      refute Policy.read_self_serve_allowed?("")
+      refute Policy.requester_allowed?(nil)
+      refute Policy.requester_allowed?("")
     end
   end
 

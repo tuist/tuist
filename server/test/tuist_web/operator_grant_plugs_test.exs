@@ -108,7 +108,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       conn =
         :get
         |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
-        |> Plug.Test.init_test_session(%{})
+        |> Plug.Test.init_test_session(%{auth_method: :google})
         |> assign(:current_user, operator)
         |> OperatorGrant.accept_operator_grant([])
 
@@ -122,6 +122,22 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       assert grant.account_id == account.id
     end
 
+    test "rejects a grant when the session is not Google-authenticated", %{signer: signer} do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      operator = operator_user()
+      token = mint(signer, claims(account.name, operator.email))
+
+      conn =
+        :get
+        |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
+        |> Plug.Test.init_test_session(%{})
+        |> assign(:current_user, operator)
+        |> OperatorGrant.accept_operator_grant([])
+
+      assert conn.halted
+      assert get_session(conn, "operator_grants") == nil
+    end
+
     test "rejects a valid grant presented by a non-operator session", %{signer: signer} do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
       # Token minted for an operator, but the session belongs to a regular
@@ -132,7 +148,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       conn =
         :get
         |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
-        |> Plug.Test.init_test_session(%{})
+        |> Plug.Test.init_test_session(%{auth_method: :google})
         |> assign(:current_user, customer)
         |> OperatorGrant.accept_operator_grant([])
 
@@ -151,7 +167,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       conn =
         :get
         |> Phoenix.ConnTest.build_conn("/#{account.name}?operator_grant=#{token}")
-        |> Plug.Test.init_test_session(%{})
+        |> Plug.Test.init_test_session(%{auth_method: :google})
         |> assign(:current_user, other_operator)
         |> OperatorGrant.accept_operator_grant([])
 
