@@ -244,6 +244,18 @@ path resolves (account, requested-label) → profile → shape → pool.
 Image, runtimeClass, and autoscaling defaults are shared across
 shapes via `runnersFleetLinux.shape*` fields; each entry can override
 autoscaling per-shape (a popular shape may want a higher floor).
+
+A shape may also override `fleetSelector` to pin its pool to a
+different host fleet than the fleet-wide default
+(`tuist.runnersFleetLinuxName`). This is how performance-sensitive
+shapes route to a faster bare-metal pool (e.g. `runners-linux-fast`
+on AX102 / Ryzen 9 7950X3D) while small high-density shapes stay on
+the default pool. The override must match an existing
+`node.cluster.x-k8s.io/pool=<value>` MachineDeployment in
+`infra/k8s/clusters/cluster-<env>.yaml`; the runners-controller
+sizes each fleet's budget from the memory of nodes carrying that
+label, so a shape's warm floor only schedules once that pool's hosts
+exist.
 */}}
 {{- $shapeImage := .Values.runnersFleetLinux.shapeRunnerImage | default "" }}
 {{- $shapeRuntimeClass := .Values.runnersFleetLinux.shapeRuntimeClass | default "" }}
@@ -260,6 +272,7 @@ autoscaling per-shape (a popular shape may want a higher floor).
 {{- $podCPU := mul $vcpus 1000 }}
 {{- $podMem := mul $memoryGb 1024 }}
 {{- $isDefault := dig "default" false $shape }}
+{{- $shapeFleetSelector := dig "fleetSelector" $hostFleetName $shape }}
 {{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -275,6 +288,7 @@ metadata:
     tuist.dev/shape: {{ $shapeKey | quote }}
     tuist.dev/shape-vcpus: {{ $vcpus | quote }}
     tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
+    tuist.dev/host-fleet: {{ $shapeFleetSelector | quote }}
     {{- if $isDefault }}
     tuist.dev/shape-default: "true"
     {{- end }}
@@ -283,7 +297,7 @@ spec:
   replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
   image: {{ $shapeImage | quote }}
   os: linux
-  fleetSelector: {{ $hostFleetName | quote }}
+  fleetSelector: {{ $shapeFleetSelector | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
   runnerLabels:
     {{- range $defaultRunnerLabels }}
