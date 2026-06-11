@@ -42,7 +42,7 @@ config :swift_registry, Oban,
        {"0 * * * *", SwiftRegistry.OrphanCleanupWorker},
        {"* * * * *", SwiftRegistry.S3TransferWorker},
        {"*/10 * * * *", SwiftRegistry.Registry.SyncWorker},
-       {"0 */6 * * *", SwiftRegistry.SQLiteMaintenanceWorker}
+       {"*/15 * * * *", SwiftRegistry.SQLiteMaintenanceWorker}
      ]}
   ]
 

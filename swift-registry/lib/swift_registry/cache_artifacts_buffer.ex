@@ -19,12 +19,12 @@ defmodule SwiftRegistry.CacheArtifactsBuffer do
 
   def enqueue_access(key, size_bytes, last_accessed_at, name \\ __MODULE__) do
     entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
-    true = :ets.insert(name, {{:access, key}, entry})
+    true = :ets.insert(name, {key, {:access, entry}})
     :ok
   end
 
   def enqueue_delete(key, name \\ __MODULE__) do
-    true = :ets.insert(name, {{:delete, key}, true})
+    true = :ets.insert(name, {key, :delete})
     :ok
   end
 
@@ -46,14 +46,14 @@ defmodule SwiftRegistry.CacheArtifactsBuffer do
 
   @impl true
   def flush_entries(table, max_batch_size) do
-    access_spec = [{{{:access, :"$1"}, :"$2"}, [], [:"$_"]}]
-    delete_spec = [{{{:delete, :"$1"}, :_}, [], [:"$_"]}]
+    access_spec = [{{:"$1", {:access, :"$2"}}, [], [:"$_"]}]
+    delete_spec = [{{:"$1", :delete}, [], [:"$_"]}]
 
     accesses =
       case :ets.select(table, access_spec, max_batch_size) do
         {entries, _continuation} ->
           Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {{:access, key}, entry} -> {key, entry} end)
+          Enum.map(entries, fn {key, {:access, entry}} -> {key, entry} end)
 
         :"$end_of_table" ->
           []
@@ -63,7 +63,7 @@ defmodule SwiftRegistry.CacheArtifactsBuffer do
       case :ets.select(table, delete_spec, max_batch_size) do
         {entries, _continuation} ->
           Enum.each(entries, &:ets.delete_object(table, &1))
-          Enum.map(entries, fn {{:delete, key}, _} -> key end)
+          Enum.map(entries, fn {key, :delete} -> key end)
 
         :"$end_of_table" ->
           []

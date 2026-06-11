@@ -94,8 +94,8 @@ defmodule SwiftRegistry.S3TransferWorker do
   end
 
   defp handle_result(type, {:ok, {transfer, {:error, reason}}}) do
-    Logger.warning("S3 #{type} failed for transfer #{transfer.id}: #{inspect(reason)}; will retry on next run")
-    nil
+    Logger.warning("S3 #{type} failed for transfer #{transfer.id}: #{inspect(reason)}")
+    transfer.id
   end
 
   defp handle_result(type, {:exit, reason}) do

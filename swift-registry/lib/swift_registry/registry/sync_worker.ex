@@ -89,49 +89,23 @@ defmodule SwiftRegistry.Registry.SyncWorker do
   end
 
   defp do_sync_package(scope, name, full_handle, token) do
-    with {:ok, metadata} <- fetch_metadata(scope, name, full_handle),
-         {:ok, tags} <- list_tags(full_handle, token, scope, name),
-         updated_metadata = update_metadata(metadata, scope, name, full_handle),
-         :ok <- write_metadata(scope, name, updated_metadata) do
-      missing_versions = missing_versions(tags, metadata)
-      enqueue_release_workers(scope, name, full_handle, missing_versions)
-      :ok
-    end
-  end
+    metadata =
+      case Metadata.get_package(scope, name) do
+        {:ok, metadata} -> metadata
+        {:error, :not_found} -> empty_metadata(scope, name, full_handle)
+      end
 
-  defp fetch_metadata(scope, name, full_handle) do
-    case Metadata.get_package(scope, name, fresh: true) do
-      {:ok, metadata} ->
-        {:ok, metadata}
-
-      {:error, :not_found} ->
-        {:ok, empty_metadata(scope, name, full_handle)}
-
-      {:error, reason} = error ->
-        Logger.warning("Failed to fetch metadata for #{scope}/#{name}: #{inspect(reason)}")
-        error
-    end
-  end
-
-  defp list_tags(full_handle, token, scope, name) do
     case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
       {:ok, tags} ->
-        {:ok, tags}
-
-      {:error, reason} = error ->
-        Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
-        error
-    end
-  end
-
-  defp write_metadata(scope, name, metadata) do
-    case Metadata.put_package(scope, name, metadata) do
-      :ok ->
+        missing_versions = missing_versions(tags, metadata)
+        updated_metadata = update_metadata(metadata, scope, name, full_handle)
+        :ok = Metadata.put_package(scope, name, updated_metadata)
+        enqueue_release_workers(scope, name, full_handle, missing_versions)
         :ok
 
-      {:error, reason} = error ->
-        Logger.warning("Failed to write metadata for #{scope}/#{name}: #{inspect(reason)}")
-        error
+      {:error, reason} ->
+        Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
+        :ok
     end
   end
 

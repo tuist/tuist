@@ -125,23 +125,12 @@ defmodule SwiftRegistry.SQLiteBuffer do
 
     Logger.notice("Flushing #{batch_size} row(s) from #{buffer_name} (#{operation})")
 
-    {duration_ms, write_result} =
+    {duration_ms, _} =
       :timer.tc(fn ->
-        try do
-          state.buffer_module.write_batch(operation, entries)
-          :ok
-        rescue
-          exception ->
-            Logger.error(
-              "Failed to flush #{batch_size} row(s) from #{buffer_name} (#{operation}): " <>
-                Exception.format(:error, exception, __STACKTRACE__)
-            )
-
-            {:error, :write_batch_failed}
-        end
+        state.buffer_module.write_batch(operation, entries)
       end)
 
-    emit_flush_metrics(buffer_name, operation, duration_ms, batch_size, write_result)
+    emit_flush_metrics(buffer_name, operation, duration_ms, batch_size)
     state
   end
 
@@ -176,17 +165,11 @@ defmodule SwiftRegistry.SQLiteBuffer do
     state.buffer_module.queue_stats(state.table)
   end
 
-  defp emit_flush_metrics(buffer_name, operation, duration_microseconds, batch_size, write_result) do
-    result =
-      case write_result do
-        :ok -> :ok
-        {:error, _} -> :error
-      end
-
+  defp emit_flush_metrics(buffer_name, operation, duration_microseconds, batch_size) do
     :telemetry.execute(
       [:swift_registry, :sqlite_buffer, :flush],
       %{duration_ms: duration_microseconds / 1000, batch_size: batch_size},
-      %{operation: operation, buffer: buffer_name, result: result}
+      %{operation: operation, buffer: buffer_name}
     )
   end
 
