@@ -127,6 +127,53 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.tag_name == "4.195.1"
     end
 
+    test "excludes prerelease channels (canary, rc) and returns the highest stable release" do
+      # Given: canary and RC tags are published as GitHub prereleases and a bare
+      # semver compare would rank a canary (4.201.0-canary.5) above the latest
+      # stable (4.200.0). The latest CLI must always be a stable release.
+      published_at = DateTime.utc_now()
+
+      stable = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "CLI 4.200.0",
+        "tag_name" => "4.200.0",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/4.200.0",
+        "assets" => []
+      }
+
+      releases_url = Releases.releases_url()
+
+      stub(Req, :get, fn ^releases_url, _opts ->
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [
+             %{
+               "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+               "name" => "CLI 4.201.0-canary.5",
+               "tag_name" => "4.201.0-canary.5",
+               "html_url" => "https://github.com/tuist/tuist/releases/tag/4.201.0-canary.5",
+               "assets" => []
+             },
+             %{
+               "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+               "name" => "CLI 4.201.0-rc.1",
+               "tag_name" => "4.201.0-rc.1",
+               "html_url" => "https://github.com/tuist/tuist/releases/tag/4.201.0-rc.1",
+               "assets" => []
+             },
+             stable
+           ]
+         }}
+      end)
+
+      # When
+      release = Releases.get_latest_cli_release()
+
+      # Then
+      assert release.tag_name == "4.200.0"
+    end
+
     test "returns cached release when update: false and cache exists" do
       # Given
       published_at = DateTime.utc_now()

@@ -31,4 +31,4 @@ Backward compatibility is verified, not assumed. Every server deployment runs an
 
 ## Recommendation {#recommendation}
 
-Upgrade the CLI at least once every 3 months to stay within the supported window. Pinning the CLI version in CI and bumping it on a regular cadence keeps your team on a consistent, supported release.
+Upgrade the CLI at least once every 3 months to stay within the supported window. Pinning the CLI version in CI and bumping it on a regular cadence keeps your team on a consistent, supported release. Pin to a stable line (for example `tuist@4.200`) rather than an exact build so you keep receiving backported fixes without absorbing new features; see <.localized_link href="/cli/release-channels">Release channels</.localized_link> for the full strategy.

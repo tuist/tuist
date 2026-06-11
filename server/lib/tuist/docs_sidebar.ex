@@ -485,6 +485,7 @@ defmodule Tuist.Docs.Sidebar do
       %Group{
         label: "CLI",
         items: [
+          %Item{label: "Release channels", slug: "/en/cli/release-channels"},
           %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
           %Item{label: "Debugging", slug: "/en/cli/debugging"},
           %Item{label: "Directories", slug: "/en/cli/directories"},
