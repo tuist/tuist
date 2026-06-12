@@ -10,10 +10,12 @@ defmodule TuistOpsWeb.GrantController do
 
   ## Identity
 
-  These routes sit behind Pomerium (Google Workspace OIDC), which
-  sets `X-Pomerium-Claim-Email`. That header IS the operator identity
-  — there is no session. Locally (no Pomerium) the identity falls
-  back to `TUIST_OPS_DEV_OPERATOR_EMAIL`.
+  These routes sit behind Pomerium (Google Workspace OIDC). Identity
+  comes from the signature Pomerium puts on each request — the
+  `X-Pomerium-Jwt-Assertion` JWT, verified offline by `TuistOps.Pomerium`
+  — NOT the forgeable `X-Pomerium-Claim-Email` header. There is no
+  session. Locally (no Pomerium) identity falls back to
+  `TUIST_OPS_DEV_OPERATOR_EMAIL`.
 
   ## Tiers
 
@@ -185,12 +187,7 @@ defmodule TuistOpsWeb.GrantController do
 
   # --- identity + validation --------------------------------------------
 
-  defp subject(conn) do
-    case get_req_header(conn, "x-pomerium-claim-email") do
-      [email | _] when is_binary(email) and byte_size(email) > 0 -> email
-      _ -> Environment.dev_operator_email()
-    end
-  end
+  defp subject(conn), do: TuistOps.Pomerium.verified_email(conn)
 
   defp parse_ttl(nil), do: nil
 

@@ -59,9 +59,25 @@ defmodule TuistOps.Environment do
 
   @doc """
   Google Workspace domain a grant requester's identity must belong to.
-  A defence-in-depth backstop on the `X-Pomerium-Claim-Email` header
-  (the network boundary — Pomerium + the tailnet ACL — is the real
-  authority). Defaults to `"tuist.dev"`; set `OPERATOR_EMAIL_DOMAIN`.
+  A defence-in-depth backstop on the verified Pomerium identity.
+  Defaults to `"tuist.dev"`; set `OPERATOR_EMAIL_DOMAIN`.
   """
   def operator_email_domain, do: System.get_env("OPERATOR_EMAIL_DOMAIN") || "tuist.dev"
+
+  @doc """
+  PEM-encoded public key of Pomerium's JWT signing key. tuist-ops
+  verifies the `X-Pomerium-Jwt-Assertion` ES256 signature offline with
+  it, so a request that did NOT pass through Pomerium (e.g. a raw
+  tailnet client forging `X-Pomerium-Claim-Email`) carries no usable
+  identity. nil when unset — the operator HTML surface then has no
+  verified identity and fails closed.
+  """
+  def pomerium_jwt_public_key, do: System.get_env("POMERIUM_JWT_PUBLIC_KEY")
+
+  @doc """
+  Expected `aud` on Pomerium's assertion — the public host of the
+  operator surface, which Pomerium stamps per route. Defaults to
+  `"ops.tuist.dev"`; set `POMERIUM_AUDIENCE`.
+  """
+  def pomerium_audience, do: System.get_env("POMERIUM_AUDIENCE") || "ops.tuist.dev"
 end

@@ -64,8 +64,20 @@ a separate follow-up.)
   ops and the server's offline grant verification.
 - **EdDSA-strict verification.** The server verifies with `JOSE.JWT.verify_strict(_, ["EdDSA"], _)`
   only — `none`/`HS256` confusion tokens are rejected. `iss`/`aud` are pinned per
-  environment and `exp - iat` is capped, so a compromised signer can't mint a
-  long-lived or cross-env grant.
+  environment, `exp - iat` is capped, and a future-dated `iat` is rejected (which also
+  caps absolute expiry), so a compromised signer can't mint a long-lived or cross-env grant.
+- **Grant is bound to the operator, not a bearer.** The server stores/honours a grant
+  only for a session that is a confirmed `@tuist.dev` operator, Google-authenticated,
+  whose email matches the token `sub` (case-insensitive) — at acceptance, at every
+  `ops_access`/`ops_write_access` check, and at the SSO bypass. A leaked
+  `?operator_grant=` URL replayed by another session attaches nothing and authorizes
+  nothing.
+- **Verified Pomerium identity at ops.** tuist-ops derives the requester from the
+  `X-Pomerium-Jwt-Assertion` signature (`TuistOps.Pomerium`, ES256-strict, `aud`/`exp`
+  checked, public key pinned) — NOT the forgeable `X-Pomerium-Claim-Email` header. A
+  request that didn't pass through Pomerium (e.g. a raw-tailnet client) carries no
+  verified identity and is rejected, so it can't mint a grant or forge an audit row.
+  A cheap `@tuist.dev` domain check on the requester is a further backstop.
 - **No bearer leakage.** The `?operator_grant=` token is stripped from the URL by a
   redirect before any page renders or any observability plug logs the query string.
 - **Decoupled.** The server never calls ops at request time; a customer-facing
@@ -93,15 +105,59 @@ a separate follow-up.)
    `https://ops.tuist.dev/grants/new`) and `TUIST_OPERATOR_EMAIL_DOMAIN`
    (default `tuist.dev`).
 
-4. **Pomerium MUST front `ops.tuist.dev/grants/*`.** The reason form trusts
-   `X-Pomerium-Claim-Email` as the operator identity. That header is only
-   trustworthy if Pomerium (Google Workspace OIDC) sets it and strips any
-   client-supplied copy. Until Pomerium fronts ops.tuist.dev (PR #10988 deferred
-   this; the public ingress currently routes only `/webhooks/slack/*`), the
-   `/grants/*` routes MUST NOT be exposed on the unprotected public ingress — a
-   spoofed header would let anyone mint a grant for any operator email. Add
-   `/grants/*` to the Pomerium-protected route set, not the raw ingress.
+4. **Front `ops.tuist.dev/grants/*` + `/audit*` with Pomerium, and wire the assertion
+   key.** tuist-ops no longer trusts the bare `X-Pomerium-Claim-Email` header; it
+   verifies the `X-Pomerium-Jwt-Assertion` signature (`TuistOps.Pomerium`). So the
+   ops HTML surface fails closed until Pomerium fronts it AND the signing key is wired
+   — that is the prerequisite for turning the server redirect on
+   (`TUIST_OPS_REASON_FORM_URL`, off by default). Note: **Pomerium is NOT deployed in
+   front of ops today.** The per-env Pomerium in each workload cluster fronts only the
+   kubectl gateway (`kube-<env>.tuist.dev` → kube-impersonator); the tuist-ops public
+   ingress routes only `/webhooks/slack/*`, and `/grants` is currently reachable only
+   over the raw tailnet (no assertion → 401 with this change). To stand it up:
 
-5. **`return_to` allowlist.** Set `PROJECT_ACCESS_RETURN_TO_ALLOWLIST` on ops to the
+   a. **Pin Pomerium's signing key** so its public half is stable. In the
+      Pomerium config (`infra/helm/pomerium/templates/configmap.yaml`) set
+      `signing_key: <base64 PEM>` from a secret (otherwise Pomerium generates an
+      ephemeral key that rotates on pod restart). Export the matching public key:
+
+      ```sh
+      # base64-encoded EC P-256 PEM that Pomerium signs assertions with
+      echo "$POMERIUM_SIGNING_KEY_B64" | base64 -d | openssl pkey -pubout -out pomerium_pub.pem
+      ```
+
+   b. **Public key → ops.** Set `POMERIUM_JWT_PUBLIC_KEY` (the public PEM) and
+      `POMERIUM_AUDIENCE` (`ops.tuist.dev`) on the tuist-ops Deployment. The public
+      key is non-secret; it can live in values, not the ESO secret.
+
+   c. **Add the Pomerium route** for the ops host so the assertion is stamped (the
+      `to:` reaches tuist-ops via the existing `tuist-ops-egress` tailnet egress):
+
+      ```yaml
+      - from: "https://ops.tuist.dev"
+        to: "http://tuist-ops-egress"          # ExternalName → tuist-ops on the tailnet
+        pass_identity_headers: true             # adds X-Pomerium-Jwt-Assertion
+        policy:
+          - allow:
+              and:
+                - domain: { is: tuist.dev }
+      ```
+
+      ops.tuist.dev's public DNS/ingress must point `/grants*` + `/audit*` at this
+      Pomerium route (keep `/webhooks/slack/*` on the existing nginx path — Slack
+      signs those; and `/api/v1/policy` stays tailnet-only). This is the production
+      topology decision to confirm before applying.
+
+5. **Defence in depth — restrict the tailnet so only Pomerium reaches the ops surface.**
+   The crypto check in (4) already blocks a raw-tailnet forger (no valid assertion),
+   but the ops Service is `tailscale.com/expose: "true"` and `infra/tailscale/acls.json`
+   still has the catch-all `{"src":["*"],"dst":["*"],"ip":["*"]}`, so any tailnet device
+   can still *reach* it. Once that catch-all is removed (its own pending audit), give the
+   ops app Service a dedicated tag (not the shared `tag:tuist-k8s-<env>`; the Tailscale
+   OAuth client must be authorised to mint it) and add a grant restricting it to the
+   Pomerium proxy + the kube-impersonator sidecar (for `/api/v1/policy`). Until then this
+   is documentation, not enforcement.
+
+6. **`return_to` allowlist.** Set `PROJECT_ACCESS_RETURN_TO_ALLOWLIST` on ops to the
    app origin(s) (defaults to `https://tuist.dev`) so a signed token can't be
    redirected to an attacker host.
