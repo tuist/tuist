@@ -76,6 +76,10 @@ spec:
               value: {{ printf "%d" (int64 .Values.config.tmpDirMaxBytes) | quote }}
             - name: KURA_DATA_DIR
               value: /var/cache/kura
+            {{- if .Values.config.casCapacityBytes }}
+            - name: KURA_CAS_CAPACITY_BYTES
+              value: {{ printf "%d" (int64 .Values.config.casCapacityBytes) | quote }}
+            {{- end }}
             - name: KURA_NODE_URL
               value: "{{ ternary "https" "http" .Values.peerTls.enabled }}://$(POD_NAME).{{ include "kura.headlessServiceName" . }}.$(POD_NAMESPACE).svc.cluster.local:{{ int .Values.peerTls.internalPort }}"
             - name: KURA_PEERS

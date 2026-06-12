@@ -405,6 +405,9 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	if got := service.Annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"]; got != "true" {
 		t.Fatalf("expected proxy protocol annotation, got %q", got)
 	}
+	if got := service.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "node.cluster.x-k8s.io/pool=kura-us-east" {
+		t.Fatalf("expected Hetzner LB node selector annotation, got %q", got)
+	}
 
 	ingressClass := &networkingv1.IngressClass{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-us-east-kgw-abc123"}, ingressClass); err != nil {

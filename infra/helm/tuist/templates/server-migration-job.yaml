@@ -59,6 +59,14 @@ spec:
       serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
       {{- end }}
       {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       {{- if not .Values.server.managedSecrets }}
       # Only wait for embedded Postgres / ClickHouse to come up when chart

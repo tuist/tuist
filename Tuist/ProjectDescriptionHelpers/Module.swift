@@ -46,6 +46,7 @@ public enum Module: String, CaseIterable {
     case http = "TuistHTTP"
     case har = "TuistHAR"
     case cacheCommand = "TuistCacheCommand"
+    case bazelCommand = "TuistBazelCommand"
     case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
@@ -511,7 +512,7 @@ public enum Module: String, CaseIterable {
              .xcodeBuildProducts,
              .http, .har, .configLoader, .machineMetrics, .appleArchiver, .jobSummary:
             moduleTags.append("domain:infrastructure")
-        case .cacheCommand, .authCommand, .envKey, .versionCommand,
+        case .cacheCommand, .bazelCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
              .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
@@ -668,6 +669,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.cacheCommand.targetName),
+                    .target(name: Module.bazelCommand.targetName),
                     .target(name: Module.accountCommand.targetName),
                     .target(name: Module.organizationCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
@@ -1164,9 +1166,24 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.encodable.targetName),
                     .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
                     .external(name: "Logging"),
                     .external(name: "Noora"),
                     .external(name: "SwiftToolsSupport"),
+                ]
+            case .bazelCommand:
+                [
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Noora"),
                 ]
             case .authCommand:
                 [
@@ -1599,6 +1616,21 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .bazelCommand:
+                [
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .userInputReader:
                 [

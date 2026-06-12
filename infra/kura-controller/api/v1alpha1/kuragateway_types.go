@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type KuraGatewaySpec struct {
@@ -67,6 +68,9 @@ func (in *KuraGatewaySpec) ServiceAnnotations() map[string]string {
 	annotations := map[string]string{}
 	for key, value := range in.LoadBalancerAnnotations {
 		annotations[key] = value
+	}
+	if _, ok := annotations["load-balancer.hetzner.cloud/node-selector"]; !ok && len(in.NodeSelector) > 0 {
+		annotations["load-balancer.hetzner.cloud/node-selector"] = labels.SelectorFromSet(labels.Set(in.NodeSelector)).String()
 	}
 	return annotations
 }

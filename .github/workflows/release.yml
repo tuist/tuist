@@ -6,7 +6,11 @@ on:
       - main
     paths-ignore:
       - cli/**
+      - mise/tasks/cli/**
+      - .github/workflows/cli-release.yml
+      - .github/workflows/cli-build-publish.yml
       - app/**
+      - grafana-datasource/**
       - mise/tasks/app/**
       - Package.swift
       - Package.resolved

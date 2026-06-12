@@ -64,10 +64,16 @@ spec:
         # controller-backed provisioning path can be exercised end to
         # end before the production regional pools receive the same
         # chart/controller changes. Kura defaults to three replicas with
-        # hard hostname spreading, so keep three workers.
+        # hard hostname spreading, so three workers is the floor.
+        # Runner-cache provisioning adds a single-replica instance per
+        # flag-enabled account, so demand varies with the dev-account
+        # population: autoscale like the production pools instead of
+        # pinning the size (see `autoscaling.tuist.dev/group` discovery
+        # in `infra/k8s/mgmt/cluster-autoscaler.yaml`). `replicas` must
+        # stay unset: CAPI rejects a MachineDeploymentTopology that
+        # pins replicas while carrying autoscaler annotations.
         - class: hcloud-worker
           name: kura
-          replicas: 3
           failureDomain: fsn1
           healthCheck:
             checks:
@@ -85,6 +91,12 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: kura
+              autoscaling.tuist.dev/group: kura-staging
+            annotations:
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "8"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "8"
           variables:
             overrides:
               - name: hcloudWorkerMachineType

@@ -107,7 +107,7 @@ Kura exposes multiple cache protocols behind one service. Public HTTPS supports 
 - 🐘 `Gradle`: `PUT/GET /api/cache/gradle/{cache_key}?tenant_id=...&namespace_id=...`
 - 📦 `Module Cache`: `POST /api/cache/module/start?...`, `POST /api/cache/module/part?...`, `POST /api/cache/module/complete?...`, `HEAD/GET /api/cache/module/{id}?...`
 
-For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests still carry their namespace explicitly.
+For those HTTP cache routes, `tenant_id` is always required and `namespace_id` is optional. When `namespace_id` is present, the request is namespace-scoped. When it is omitted, the request is tenant-scoped and Kura stores it under an internal empty namespace key. REAPI requests carry their namespace explicitly through the gRPC `instance_name`/`resource_name`, and may declare the account with the `x-kura-tenant-id` metadata header (the gRPC analog of the `tenant_id` query param above).
 
 Kura also exposes compatibility endpoints that are not a primary focus today:
 
@@ -161,7 +161,7 @@ curl \
 Kura splits storage into two planes:
 
 - 🪨 RocksDB stores metadata, keyvalue payloads, multipart state, tombstones, segment lifecycle state, and the replication outbox.
-- 📦 Segment files store large immutable binary artifacts for the hot path.
+- 📦 Segment files store large immutable binary artifacts for the hot path. The segment ring's capacity derives from the data-dir filesystem size (or `KURA_CAS_CAPACITY_BYTES`), and rotating in a new segment evicts the oldest one once the budget is reached.
 
 Replication is leaderless and eventually consistent:
 
@@ -212,6 +212,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
 | `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
+| `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem so segment rotation can never run the disk full. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
 | `KURA_PEER_GATEWAY_URL` | Optional regional gateway URL advertised to peers discovered through global discovery. Use this when remote regions must replicate through a stable region-level endpoint rather than pod-local DNS. | Yes | `KURA_NODE_URL` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | Yes | `KURA_NODE_URL` |
@@ -570,3 +571,11 @@ documented with the hook implementation rather than in the generic
 runtime contract.
 
 The runtime keeps decision caching, metrics, timeouts, and cryptographic primitives in Rust, while the script supplies policy.
+
+Hook results are cached per credentials: the cache key fingerprints only the
+credential-bearing request headers (`authorization`, `proxy-authorization`,
+`cookie`, `x-api-key`), so per-request noise such as gRPC deadlines
+(`grpc-timeout`) or trace propagation (`traceparent`) does not defeat the
+cache. Hooks that authenticate from other inputs must return a short
+`ttl_seconds` (or none) instead of relying on the cache key to separate
+requests.

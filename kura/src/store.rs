@@ -27,9 +27,10 @@ use crate::{
     },
     config::Config,
     constants::{
-        DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS,
-        MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE,
-        ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
+        DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
+        MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
         ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
         ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
@@ -66,6 +67,7 @@ pub struct Store {
     tmp_dir: PathBuf,
     tmp_dir_max_bytes: u64,
     data_dir: PathBuf,
+    segment_ring_limits: SegmentRingLimits,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
@@ -327,6 +329,18 @@ impl Store {
             rocksdb_write_buffer_manager.get_buffer_size() as u64,
         );
 
+        let segment_ring_limits = resolve_segment_ring_limits(
+            config.cas_capacity_bytes,
+            total_disk_bytes(&config.data_dir),
+        );
+        tracing::info!(
+            desired_old_segments = segment_ring_limits.desired_old_segments,
+            desired_current_segments = segment_ring_limits.desired_current_segments,
+            desired_new_segments = segment_ring_limits.desired_new_segments,
+            capacity_bytes = segment_ring_limits.capacity_bytes(),
+            "resolved CAS segment ring limits"
+        );
+
         Ok(Self {
             db,
             io,
@@ -335,6 +349,7 @@ impl Store {
             tmp_dir: config.tmp_dir.clone(),
             tmp_dir_max_bytes: config.tmp_dir_max_bytes,
             data_dir: config.data_dir.clone(),
+            segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
@@ -1061,7 +1076,7 @@ impl Store {
         };
 
         if needs_new_segment {
-            let required_bytes = MAX_SEGMENT_BYTES.saturating_mul(SEGMENT_FREE_SPACE_MARGIN);
+            let required_bytes = segment_rotation_required_bytes(incoming_size);
             if let Some(available) = available_disk_bytes(&self.data_dir)
                 && available < required_bytes
             {
@@ -1073,9 +1088,9 @@ impl Store {
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
             let evicted_segments = state.push_new(
                 segment.clone(),
-                DESIRED_OLD_SEGMENTS,
-                DESIRED_CURRENT_SEGMENTS,
-                DESIRED_NEW_SEGMENTS,
+                self.segment_ring_limits.desired_old_segments,
+                self.segment_ring_limits.desired_current_segments,
+                self.segment_ring_limits.desired_new_segments,
             );
             self.save_segment_state(&state)?;
             Ok((segment, evicted_segments))
@@ -1184,6 +1199,58 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    /// Removes segment files that the segment ring state no longer
+    /// references, along with any metadata still pointing at them.
+    ///
+    /// Rotation persists the ring state without the evicted segment before
+    /// the file is unlinked, so a crash (or an error) in that window strands
+    /// the file — and the manifests of the artifacts inside it — with no code
+    /// path left to reclaim them. Must run at startup, under the data-dir
+    /// writer lock and before any traffic, so it cannot race a rotation
+    /// creating a segment whose state entry is not yet visible.
+    pub async fn sweep_orphaned_segments(&self) -> Result<usize, String> {
+        let segments_dir = self.data_dir.join("segments");
+        let mut entries = match tokio::fs::read_dir(&segments_dir).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => {
+                return Err(format!(
+                    "failed to list segments directory {}: {error}",
+                    segments_dir.display()
+                ));
+            }
+        };
+
+        let state = self.load_segment_state()?;
+        let mut swept = 0;
+        loop {
+            let entry = entries.next_entry().await.map_err(|error| {
+                format!(
+                    "failed to read segments directory {}: {error}",
+                    segments_dir.display()
+                )
+            })?;
+            let Some(entry) = entry else {
+                break;
+            };
+            let file_name = entry.file_name();
+            let Some(segment_id) = file_name
+                .to_str()
+                .and_then(|name| name.strip_suffix(".seg"))
+            else {
+                continue;
+            };
+            if state.generation_of(segment_id).is_some() {
+                continue;
+            }
+            tracing::warn!(segment_id, "removing orphaned segment");
+            self.evict_segment(segment_id).await?;
+            swept += 1;
+        }
+
+        Ok(swept)
     }
 
     fn segment_path(&self, segment_id: &str) -> PathBuf {
@@ -2565,6 +2632,19 @@ pub fn is_disk_full_error(error: &str) -> bool {
     error.contains(DISK_FULL_MARKER)
 }
 
+/// Free bytes a rotation must see before creating a new segment: room for the
+/// incoming artifact, which is appended whole and can exceed
+/// `MAX_SEGMENT_BYTES`, plus the same again as slack for writers the rotation
+/// check cannot see (metadata store flushes and compactions, the evicted
+/// segment that is not yet unlinked, and tmp staging when it shares the
+/// filesystem — the staged source and the segment copy coexist during the
+/// append).
+fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
+    MAX_SEGMENT_BYTES
+        .max(incoming_size)
+        .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
+}
+
 #[cfg(unix)]
 fn available_disk_bytes(path: &Path) -> Option<u64> {
     use std::ffi::CString;
@@ -2586,6 +2666,101 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
 #[cfg(not(unix))]
 fn available_disk_bytes(_path: &Path) -> Option<u64> {
     None
+}
+
+#[cfg(unix)]
+fn total_disk_bytes(path: &Path) -> Option<u64> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+
+    let path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let result = unsafe { libc::statvfs(path.as_ptr(), &mut stat) };
+    if result != 0 {
+        return None;
+    }
+    #[allow(clippy::unnecessary_cast)]
+    let f_blocks = stat.f_blocks as u64;
+    #[allow(clippy::unnecessary_cast)]
+    let f_frsize = stat.f_frsize as u64;
+    Some(f_blocks.saturating_mul(f_frsize))
+}
+
+#[cfg(not(unix))]
+fn total_disk_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+/// Resolved generation counts for the CAS segment ring.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SegmentRingLimits {
+    pub desired_old_segments: usize,
+    pub desired_current_segments: usize,
+    pub desired_new_segments: usize,
+}
+
+impl SegmentRingLimits {
+    fn legacy_floor() -> Self {
+        Self {
+            desired_old_segments: DESIRED_OLD_SEGMENTS,
+            desired_current_segments: DESIRED_CURRENT_SEGMENTS,
+            desired_new_segments: DESIRED_NEW_SEGMENTS,
+        }
+    }
+
+    fn total_segments(&self) -> usize {
+        self.desired_old_segments + self.desired_current_segments + self.desired_new_segments
+    }
+
+    fn capacity_bytes(&self) -> u64 {
+        (self.total_segments() as u64).saturating_mul(MAX_SEGMENT_BYTES)
+    }
+}
+
+/// Resolves the segment-ring generation counts from the operator-configured
+/// capacity and the data-dir filesystem size.
+///
+/// The budget is `configured_capacity_bytes` when set, otherwise
+/// `CAS_CAPACITY_DEFAULT_DISK_PERCENT` of the filesystem. Either way it is
+/// capped at `CAS_CAPACITY_MAX_DISK_PERCENT` of the filesystem so resident
+/// segments plus the extra segment a rotation appends before evicting the
+/// oldest one can never run the disk full, and floored at the legacy 1/2/2
+/// ring so small disks (or hosts where the filesystem size cannot be
+/// determined) keep the pre-existing behavior. Generations keep the legacy
+/// 1:2:2 old/current/new proportions.
+fn resolve_segment_ring_limits(
+    configured_capacity_bytes: Option<u64>,
+    disk_total_bytes: Option<u64>,
+) -> SegmentRingLimits {
+    let floor = SegmentRingLimits::legacy_floor();
+
+    let ceiling_bytes = disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_MAX_DISK_PERCENT);
+    let budget_bytes = match (configured_capacity_bytes, ceiling_bytes) {
+        (Some(configured), Some(ceiling)) => Some(configured.min(ceiling)),
+        (Some(configured), None) => Some(configured),
+        (None, Some(_)) => {
+            disk_total_bytes.map(|total| total / 100 * CAS_CAPACITY_DEFAULT_DISK_PERCENT)
+        }
+        (None, None) => None,
+    };
+    let Some(budget_bytes) = budget_bytes else {
+        return floor;
+    };
+
+    let total_segments = usize::try_from(budget_bytes / MAX_SEGMENT_BYTES)
+        .unwrap_or(MAX_DESIRED_SEGMENTS)
+        .clamp(floor.total_segments(), MAX_DESIRED_SEGMENTS);
+
+    let desired_old_segments = (total_segments / 5).max(DESIRED_OLD_SEGMENTS);
+    let remainder = total_segments - desired_old_segments;
+    let desired_current_segments = (remainder / 2).max(DESIRED_CURRENT_SEGMENTS);
+    let desired_new_segments = (remainder - desired_current_segments).max(DESIRED_NEW_SEGMENTS);
+
+    SegmentRingLimits {
+        desired_old_segments,
+        desired_current_segments,
+        desired_new_segments,
+    }
 }
 
 fn rocksdb_column_family_options(
@@ -2788,6 +2963,69 @@ mod tests {
         segment::{reference::SegmentReference, state::SegmentState},
     };
 
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn segment_ring_limits_fall_back_to_legacy_floor_without_disk_information() {
+        let limits = resolve_segment_ring_limits(None, None);
+
+        assert_eq!(limits, SegmentRingLimits::legacy_floor());
+    }
+
+    #[test]
+    fn segment_ring_limits_derive_from_disk_size_when_unconfigured() {
+        // 50% of 100 GiB = 50 GiB = 100 segments, split 1:2:2.
+        let limits = resolve_segment_ring_limits(None, Some(100 * GIB));
+
+        assert_eq!(limits.desired_old_segments, 20);
+        assert_eq!(limits.desired_current_segments, 40);
+        assert_eq!(limits.desired_new_segments, 40);
+        assert_eq!(limits.capacity_bytes(), 50 * GIB);
+    }
+
+    #[test]
+    fn segment_ring_limits_use_configured_capacity() {
+        // 20 GiB = 40 segments.
+        let limits = resolve_segment_ring_limits(Some(20 * GIB), Some(100 * GIB));
+
+        assert_eq!(limits.desired_old_segments, 8);
+        assert_eq!(limits.desired_current_segments, 16);
+        assert_eq!(limits.desired_new_segments, 16);
+    }
+
+    #[test]
+    fn segment_ring_limits_cap_configured_capacity_below_disk_size() {
+        // 80% of 10 GiB rounds down to 15 whole segments, regardless of the
+        // configured 1 TiB.
+        let limits = resolve_segment_ring_limits(Some(1024 * GIB), Some(10 * GIB));
+
+        assert_eq!(limits.total_segments(), 15);
+        assert!(limits.capacity_bytes() <= 10 * GIB * 80 / 100);
+    }
+
+    #[test]
+    fn segment_ring_limits_never_drop_below_legacy_floor() {
+        let tiny_configured = resolve_segment_ring_limits(Some(1), Some(100 * GIB));
+        assert_eq!(
+            tiny_configured.total_segments(),
+            SegmentRingLimits::legacy_floor().total_segments()
+        );
+
+        // 50% of 1 GiB = 512 MiB = 1 segment, floored to the legacy ring.
+        let tiny_disk = resolve_segment_ring_limits(None, Some(GIB));
+        assert_eq!(
+            tiny_disk.total_segments(),
+            SegmentRingLimits::legacy_floor().total_segments()
+        );
+    }
+
+    #[test]
+    fn segment_ring_limits_use_configured_capacity_without_disk_information() {
+        let limits = resolve_segment_ring_limits(Some(20 * GIB), None);
+
+        assert_eq!(limits.total_segments(), 40);
+    }
+
     fn temp_store() -> (TempDir, Config, Store) {
         temp_store_with(|_| {})
     }
@@ -2806,6 +3044,7 @@ mod tests {
             tmp_dir: temp_dir.path().join("tmp"),
             data_dir: temp_dir.path().join("data"),
             tmp_dir_max_bytes: 8 * 1024 * 1024 * 1024,
+            cas_capacity_bytes: None,
             node_url: "http://127.0.0.1:7443".into(),
             peer_gateway_url: None,
             peers: vec!["http://127.0.0.1:7443".into()],
@@ -4261,5 +4500,104 @@ mod tests {
         assert_eq!(second_manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&first, &first_manifest).await, b"v2");
         assert_eq!(read_manifest_bytes(&second, &second_manifest).await, b"v2");
+    }
+
+    #[test]
+    fn segment_rotation_requires_margin_for_oversized_artifacts() {
+        assert_eq!(
+            segment_rotation_required_bytes(0),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(MAX_SEGMENT_BYTES),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(3 * MAX_SEGMENT_BYTES),
+            3 * MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_returns_zero_without_segments_dir() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 0);
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_removes_stray_files_and_keeps_live_segments() {
+        let (_temp_dir, config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let stray_path = config.data_dir.join("segments").join("stray.seg");
+        std::fs::write(&stray_path, b"junk").expect("stray segment should be written");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!stray_path.exists());
+        let bytes = store
+            .read_artifact_bytes(&manifest)
+            .await
+            .expect("live artifact should remain readable");
+        assert_eq!(bytes, b"payload");
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_reclaims_crash_window_segment_and_metadata() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        let segment_file = store.segment_path(&segment_id);
+        assert!(segment_file.exists());
+
+        // Simulate the crash window: rotation saved the ring state without
+        // the evicted segment, but the process died before the unlink.
+        let mut state = store.load_segment_state().expect("state should load");
+        assert!(state.remove_segment(&segment_id));
+        store.save_segment_state(&state).expect("state should save");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!segment_file.exists());
+        assert!(
+            store
+                .manifest(&manifest.artifact_id)
+                .expect("manifest lookup should succeed")
+                .is_none()
+        );
     }
 }

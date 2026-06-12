@@ -199,18 +199,25 @@ impl ReapiService {
         request: &Request<T>,
         spec: GrpcExtensionSpec<'_>,
     ) -> Result<Option<Principal>, Status> {
+        self.authorize_metadata(request.metadata(), spec).await
+    }
+
+    // Authorize from already-extracted metadata. ByteStream Write consumes the
+    // request into a stream before it learns its namespace (from the first
+    // chunk's resource_name), so it captures the metadata up front and authorizes
+    // here once the namespace is known.
+    async fn authorize_metadata(
+        &self,
+        metadata: &tonic::metadata::MetadataMap,
+        spec: GrpcExtensionSpec<'_>,
+    ) -> Result<Option<Principal>, Status> {
         if self.state.runtime.is_draining() {
             return Err(Status::unavailable("server is draining"));
         }
         let Some(extension) = self.state.extension.as_ref() else {
             return Ok(None);
         };
-        let context = grpc_extension_context(
-            &self.state.config.tenant_id,
-            &spec,
-            request.metadata(),
-            None,
-        );
+        let context = grpc_extension_context(&self.state.config.tenant_id, &spec, metadata, None);
         match extension.evaluate_access(&context).await {
             AccessDecision::Allow(principal) => Ok(principal),
             AccessDecision::Deny(deny) => {
@@ -252,10 +259,11 @@ impl Capabilities for ReapiService {
         &self,
         request: Request<reapi::GetCapabilitiesRequest>,
     ) -> Result<Response<reapi::ServerCapabilities>, Status> {
+        let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
             route: "reapi.capabilities.get",
             operation: "capabilities.read",
-            namespace_id: None,
+            namespace_id: Some(namespace_id),
             producer: Some("reapi"),
             artifact_key: None,
             artifact_hash: None,
@@ -717,15 +725,12 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
-        let extension = GrpcExtensionSpec {
-            route: "reapi.bytestream.write",
-            operation: "artifact.write",
-            namespace_id: None,
-            producer: Some("reapi"),
-            artifact_key: None,
-            artifact_hash: None,
-        };
-        let principal = self.authorize_request(&request, extension).await?;
+        // ByteStream Write learns its namespace from the first chunk's
+        // resource_name, which is not available until we read the stream. Capture
+        // the metadata now and authorize below, once the namespace is known, so
+        // project-scoped tokens authorize against the real project (not the
+        // account) — matching the namespace the blob is ultimately stored under.
+        let metadata = request.metadata().clone();
         let temp_path = temp_file_path(&self.state.config.tmp_dir.join("uploads"), "reapi-write");
         if let Some(parent) = temp_path.parent() {
             self.state
@@ -743,6 +748,7 @@ impl ByteStream for ReapiService {
         let mut stream = request.into_inner();
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
+        let mut principal = None::<Principal>;
         let mut written = 0_u64;
         let mut hasher = Sha256::new();
         let mut finished = false;
@@ -768,6 +774,21 @@ impl ByteStream for ReapiService {
                 }
             } else {
                 let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
+                let write_extension = GrpcExtensionSpec {
+                    route: "reapi.bytestream.write",
+                    operation: "artifact.write",
+                    namespace_id: Some(&parsed_resource.namespace_id),
+                    producer: Some("reapi"),
+                    artifact_key: None,
+                    artifact_hash: None,
+                };
+                match self.authorize_metadata(&metadata, write_extension).await {
+                    Ok(authorized) => principal = authorized,
+                    Err(status) => {
+                        self.state.io.remove_file_if_exists(&temp_path).await;
+                        return Err(status);
+                    }
+                }
                 if let Err(error) = ensure_tmp_dir_capacity(
                     &self.state.config.tmp_dir,
                     parsed_resource.size_bytes,
@@ -1157,24 +1178,39 @@ fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
     rpc_status(status.code() as i32, status.message())
 }
 
+// Metadata headers a gRPC client uses to declare the request account, mirroring
+// the HTTP `tenant_id`/`account_handle` query params. The first non-empty match
+// wins. This lets the extension enforce the same request-account-matches-server-
+// tenant guard the HTTP path already has; the namespace still comes from the
+// REAPI `instance_name`/`resource_name`, so it always matches what is stored.
+const TENANT_HEADER_KEYS: &[&str] = &["x-kura-tenant-id", "x-tuist-account-handle"];
+
 fn grpc_extension_context(
     server_tenant_id: &str,
     spec: &GrpcExtensionSpec<'_>,
     metadata: &tonic::metadata::MetadataMap,
     status_code: Option<u16>,
 ) -> ExtensionContext {
+    let headers = metadata_to_btree(metadata);
+    let tenant_id = TENANT_HEADER_KEYS.iter().find_map(|key| {
+        headers
+            .get(*key)
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+    });
     ExtensionContext {
         transport: "grpc".into(),
         route: spec.route.to_owned(),
         method: "RPC".into(),
         operation: spec.operation.to_owned(),
         server_tenant_id: server_tenant_id.to_owned(),
-        tenant_id: None,
+        tenant_id,
         namespace_id: spec.namespace_id.map(ToOwned::to_owned),
         producer: spec.producer.map(ToOwned::to_owned),
         artifact_key: spec.artifact_key.clone(),
         artifact_hash: spec.artifact_hash.clone(),
-        headers: metadata_to_btree(metadata),
+        headers,
         query: BTreeMap::new(),
         status_code,
     }
@@ -1283,7 +1319,7 @@ mod tests {
     use crate::{
         artifact::producer::ArtifactProducer,
         failpoints::{FailpointAction, FailpointName},
-        test_support::test_context,
+        test_support::{test_context, test_context_with_extension},
     };
 
     #[tokio::test]
@@ -1544,6 +1580,173 @@ mod tests {
         let error = parse_write_resource_name("blobs/abc/10")
             .expect_err("write resources should require uploads prefix");
         assert_eq!(error.code(), tonic::Code::InvalidArgument);
+    }
+
+    fn grpc_spec() -> GrpcExtensionSpec<'static> {
+        GrpcExtensionSpec {
+            route: "reapi.capabilities.get",
+            operation: "capabilities.read",
+            namespace_id: Some("ios"),
+            producer: Some("reapi"),
+            artifact_key: None,
+            artifact_hash: None,
+        }
+    }
+
+    fn metadata_with(pairs: &[(&'static str, &'static str)]) -> tonic::metadata::MetadataMap {
+        let mut metadata = tonic::metadata::MetadataMap::new();
+        for (key, value) in pairs {
+            metadata.insert(*key, tonic::metadata::MetadataValue::from_static(value));
+        }
+        metadata
+    }
+
+    #[test]
+    fn grpc_context_reads_tenant_from_kura_header() {
+        let metadata = metadata_with(&[("x-kura-tenant-id", "acme")]);
+        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
+        assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
+    }
+
+    #[test]
+    fn grpc_context_reads_tenant_from_tuist_account_handle_alias() {
+        let metadata = metadata_with(&[("x-tuist-account-handle", "acme")]);
+        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        assert_eq!(ctx.tenant_id.as_deref(), Some("acme"));
+    }
+
+    #[test]
+    fn grpc_context_without_tenant_header_leaves_tenant_unset() {
+        let metadata = tonic::metadata::MetadataMap::new();
+        let ctx = grpc_extension_context("acme", &grpc_spec(), &metadata, None);
+        assert_eq!(ctx.tenant_id, None);
+        assert_eq!(ctx.namespace_id.as_deref(), Some("ios"));
+    }
+
+    // Minimal policy: any token authenticates; only namespace "ios" is authorized.
+    // Used to prove that GetCapabilities and ByteStream Write reach the extension
+    // with the request's project namespace (instance_name / resource_name), not
+    // the account scope they previously fell back to.
+    const NAMESPACE_POLICY_SCRIPT: &str = r#"
+function authenticate(ctx)
+  return { principal = { id = "test", kind = "subject" }, ttl_seconds = 60 }
+end
+
+function authorize(ctx, principal)
+  if ctx.namespace_id == "ios" then
+    return { allow = true, ttl_seconds = 60 }
+  end
+  return { deny = { status = 403, message = "forbidden namespace" }, ttl_seconds = 1 }
+end
+"#;
+
+    async fn namespace_policy_extension() -> crate::extension::SharedExtension {
+        let dir = tempfile::tempdir().expect("create policy temp dir");
+        let script_path = dir.path().join("policy.lua");
+        tokio::fs::write(&script_path, NAMESPACE_POLICY_SCRIPT)
+            .await
+            .expect("write policy script");
+        crate::extension::ExtensionEngine::from_script_for_test(
+            script_path,
+            crate::metrics::Metrics::new("test".into(), "tenant".into()),
+        )
+        .await
+        .expect("build policy extension")
+    }
+
+    #[tokio::test]
+    async fn get_capabilities_authorizes_against_instance_namespace() {
+        let extension = namespace_policy_extension().await;
+        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let service = ReapiService {
+            state: context.state.clone(),
+        };
+
+        service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+                instance_name: "ios".into(),
+            }))
+            .await
+            .expect("capabilities for a granted instance_name should be allowed");
+
+        let denied = service
+            .get_capabilities(Request::new(reapi::GetCapabilitiesRequest {
+                instance_name: "forbidden".into(),
+            }))
+            .await
+            .expect_err("capabilities for a non-granted instance_name should be denied");
+        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_write_authorizes_against_resource_namespace() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let extension = namespace_policy_extension().await;
+        let context = test_context_with_extension(|_| {}, Some(extension)).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let mut channel = None;
+        for _ in 0..50 {
+            match tonic::transport::Endpoint::from_shared(endpoint.clone())
+                .expect("valid endpoint")
+                .connect()
+                .await
+            {
+                Ok(connected) => {
+                    channel = Some(connected);
+                    break;
+                }
+                Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+            }
+        }
+        let channel = channel.expect("gRPC server should accept connections");
+
+        let blob = b"kura reapi project-scoped write payload".to_vec();
+        let hash = hex::encode(Sha256::digest(&blob));
+        let len = blob.len();
+
+        // Granted namespace ("ios", from the resource_name prefix) authorizes and persists.
+        let committed = ByteStreamClient::new(channel.clone())
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("ios/uploads/write-1/blobs/{hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: blob.clone(),
+            }]))
+            .await
+            .expect("write to a granted namespace should be allowed")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed as usize, len);
+
+        // Non-granted namespace ("forbidden") is rejected before the blob is persisted.
+        let denied = ByteStreamClient::new(channel.clone())
+            .write(tokio_stream::iter(vec![bytestream::WriteRequest {
+                resource_name: format!("forbidden/uploads/write-2/blobs/{hash}/{len}"),
+                write_offset: 0,
+                finish_write: true,
+                data: blob.clone(),
+            }]))
+            .await
+            .expect_err("write to a non-granted namespace should be denied");
+        assert_eq!(denied.code(), tonic::Code::PermissionDenied);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
     }
 
     #[tokio::test]
