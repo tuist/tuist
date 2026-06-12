@@ -215,38 +215,69 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       assert Logger.metadata()[:operator_grant_sub] == operator.email
       assert conn.assigns.current_user.operator_grant.jti == "grant-42"
     end
+
+    test "loads the grant despite case drift between the session key and the URL handle" do
+      operator = operator_user()
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      now = System.system_time(:second)
+
+      claims = %{
+        tier: :read,
+        account_id: account.id,
+        account_handle: "acme",
+        sub: operator.email,
+        jti: "g1",
+        exp: now + 600
+      }
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{"operator_grants" => %{"acme" => claims}})
+        |> assign(:current_user, operator)
+        |> Map.put(:params, %{"account_handle" => "ACME"})
+        |> OperatorGrant.load_operator_grant([])
+
+      assert conn.assigns.current_user.operator_grant.jti == "g1"
+    end
   end
 
-  describe "active_grant?/1 (SSO bypass binding)" do
-    test "true for the operator the grant was minted for" do
+  describe "active_grant?/2 (SSO bypass binding)" do
+    test "true for the operator the grant was minted for (case-insensitive handle)" do
       operator = operator_user()
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant_for(operator)})
-      assert OperatorGrant.active_grant?(conn)
+      assert OperatorGrant.active_grant?(conn, "acme")
+      assert OperatorGrant.active_grant?(conn, "ACME")
+    end
+
+    test "false when the grant is for a different account than the request" do
+      operator = operator_user()
+      conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant_for(operator)})
+      refute OperatorGrant.active_grant?(conn, "other-account")
     end
 
     test "false when the holder is a different operator" do
       grant = grant_for(operator_user())
       other = operator_user()
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{other | operator_grant: grant})
-      refute OperatorGrant.active_grant?(conn)
+      refute OperatorGrant.active_grant?(conn, "acme")
     end
 
     test "false when the holder is not a Tuist operator" do
       customer = AccountsFixtures.user_fixture(preload: [:account])
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{customer | operator_grant: grant_for(customer)})
-      refute OperatorGrant.active_grant?(conn)
+      refute OperatorGrant.active_grant?(conn, "acme")
     end
 
     test "false when the grant is expired" do
       operator = operator_user()
       grant = grant_for(operator, exp: System.system_time(:second) - 1)
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant})
-      refute OperatorGrant.active_grant?(conn)
+      refute OperatorGrant.active_grant?(conn, "acme")
     end
 
     test "false without a grant" do
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, operator_user())
-      refute OperatorGrant.active_grant?(conn)
+      refute OperatorGrant.active_grant?(conn, "acme")
     end
   end
 

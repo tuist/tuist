@@ -45,6 +45,22 @@ defmodule TuistOpsWeb.GrantControllerTest do
 
       assert conn.status == 403
     end
+
+    test "matches the requester email case-insensitively", %{conn: conn} do
+      req = insert_request!(%{requester_email: "Marek@TUIST.dev"})
+      conn = get(conn, "/grants/#{req.id}/pending")
+
+      refute conn.status == 403
+      assert html_response(conn, 200) =~ "Waiting"
+    end
+
+    test "401s without a verified Pomerium identity (no 403/404 enumeration)", %{conn: conn} do
+      stub(TuistOps.Environment, :dev_operator_email, fn -> nil end)
+      req = insert_request!(%{status: "pending"})
+      conn = get(conn, "/grants/#{req.id}/pending")
+
+      assert conn.status == 401
+    end
   end
 
   defp insert_request!(overrides) do

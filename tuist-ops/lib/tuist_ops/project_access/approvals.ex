@@ -142,6 +142,12 @@ defmodule TuistOps.ProjectAccess.Approvals do
             not Policy.admin_approver_allowed?(actor_email) ->
               Repo.rollback(:approver_not_authorized)
 
+            # A request whose Slack card posted but whose `slack_message_ts`
+            # never persisted is half-created (its approve card is orphaned).
+            # Don't mint a grant for it — the requester re-requests instead.
+            is_nil(req.slack_message_ts) ->
+              Repo.rollback(:request_not_ready)
+
             true ->
               do_approve(req, actor_slack_id, actor_email)
           end

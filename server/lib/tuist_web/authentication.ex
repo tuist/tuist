@@ -332,7 +332,7 @@ defmodule TuistWeb.Authentication do
   end
 
   def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
-    if TuistWeb.OperatorGrant.active_grant?(conn) do
+    if TuistWeb.OperatorGrant.active_grant?(conn, account_handle) do
       # An operator holding a valid grant for this account bypasses the
       # customer's SSO enforcement: they authenticated out-of-band at
       # ops.tuist.dev and the access is reason-logged and time-boxed.

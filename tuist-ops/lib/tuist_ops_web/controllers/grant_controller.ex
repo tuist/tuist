@@ -36,6 +36,11 @@ defmodule TuistOpsWeb.GrantController do
 
   require Logger
 
+  # A verified Pomerium identity is required for every action. Without
+  # it `pending/2` would 403 (request exists) vs 404 (doesn't), letting a
+  # tailnet-direct caller (no assertion) enumerate request ids.
+  plug :require_operator_identity
+
   @tiers ~w(read admin)
   # A valid account handle is the same charset the server validates names
   # against. Rejecting anything else keeps SQL LIKE wildcards (`%`/`_`)
@@ -114,14 +119,17 @@ defmodule TuistOpsWeb.GrantController do
     subject = subject(conn)
 
     case Approvals.get_request(id) do
-      %{requester_email: ^subject} = req when not is_nil(subject) ->
-        render_pending(conn, req)
-
       nil ->
         render_error(conn, 404, "Not found", "No such request.")
 
-      _ ->
-        render_error(conn, 403, "Forbidden", "This request belongs to another operator.")
+      req ->
+        # Case-insensitive: the requester_email was captured from the same
+        # Pomerium claim, but don't 403 a legitimate operator on case drift.
+        if emails_match?(req.requester_email, subject) do
+          render_pending(conn, req)
+        else
+          render_error(conn, 403, "Forbidden", "This request belongs to another operator.")
+        end
     end
   end
 
@@ -198,7 +206,20 @@ defmodule TuistOpsWeb.GrantController do
 
   # --- identity + validation --------------------------------------------
 
+  defp require_operator_identity(conn, _opts) do
+    if subject(conn) do
+      conn
+    else
+      conn |> render_error(401, "Not authenticated", "No operator identity present.") |> halt()
+    end
+  end
+
   defp subject(conn), do: TuistOps.Pomerium.verified_email(conn)
+
+  defp emails_match?(a, b) when is_binary(a) and is_binary(b),
+    do: String.downcase(a) == String.downcase(b)
+
+  defp emails_match?(_, _), do: false
 
   defp valid_account_handle?(handle),
     do: is_binary(handle) and Regex.match?(@account_handle_regex, handle)

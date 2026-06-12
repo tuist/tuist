@@ -119,4 +119,17 @@ data:
         to: "{{ .Values.opsRoute.to }}"
         preserve_host_header: true
         allow_public_unauthenticated_access: true
+      # Catch-all so the bare domain (tuist-ops redirects `/` → `/audit`) and
+      # the static assets resolve. Pomerium matches longest-prefix-first, so
+      # the routes above still take priority; this is OIDC-gated like them.
+      - from: "https://{{ .Values.opsRoute.host }}"
+        prefix: "/"
+        to: "{{ .Values.opsRoute.to }}"
+        pass_identity_headers: true
+        preserve_host_header: true
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
       {{- end }}

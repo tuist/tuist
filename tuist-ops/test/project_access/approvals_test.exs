@@ -155,6 +155,28 @@ defmodule TuistOps.ProjectAccess.ApprovalsTest do
       assert denied.status == "denied"
       assert denied.approver_email == "pedro@tuist.dev"
     end
+
+    test "does not approve a half-created request whose slack_message_ts never persisted" do
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :owner} end)
+
+      # Inserted without the transition_changeset that sets slack_message_ts.
+      request =
+        %{
+          requester_email: "marek@tuist.dev",
+          account_handle: "acme",
+          tier: "admin",
+          reason: "rotate leaked credentials",
+          return_to: "https://tuist.dev/acme/app",
+          ttl_seconds: 1800,
+          status: "pending",
+          expires_at: DateTime.add(now(), 600, :second)
+        }
+        |> Request.create_changeset()
+        |> Repo.insert!()
+
+      assert {:error, :request_not_ready} =
+               Approvals.approve(request.id, %{slack_id: "U_P", email: "pedro@tuist.dev"})
+    end
   end
 
   defp insert_admin_request!(overrides) do

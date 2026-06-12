@@ -195,7 +195,7 @@ defmodule TuistWeb.OperatorGrant do
         conn
         |> get_session(@session_key)
         |> normalize_grants()
-        |> Map.put(claims.account_handle, Map.put(claims, :account_id, account_id))
+        |> Map.put(grant_key(claims.account_handle), Map.put(claims, :account_id, account_id))
 
       conn
       |> put_session(@session_key, grants)
@@ -298,25 +298,40 @@ defmodule TuistWeb.OperatorGrant do
 
   @doc """
   True when the current user holds a valid (loaded, unexpired) operator
-  grant for the account on this request. Used by the SSO-enforcement
-  bypass — so it carries the same operator-identity binding as the
-  authorization checks: the session user must be a confirmed Tuist
-  operator and the one the grant was minted for.
+  grant for `account_handle`. Used by the SSO-enforcement bypass — so it
+  carries the same operator-identity binding as the authorization checks
+  (the session user must be a confirmed Tuist operator and the one the
+  grant was minted for) plus an explicit check that the grant is for the
+  account on this request.
   """
-  def active_grant?(conn) do
+  def active_grant?(conn, account_handle) do
     case conn.assigns[:current_user] do
       %User{operator_grant: %{exp: exp} = grant, email: email} = user when is_integer(exp) ->
         exp > System.system_time(:second) and
           Accounts.tuist_operator?(user) and
-          emails_match?(email, Map.get(grant, :sub))
+          emails_match?(email, Map.get(grant, :sub)) and
+          handle_matches?(grant, account_handle)
 
       _ ->
         false
     end
   end
 
+  # The SSO bypass asserts the loaded grant is for THIS request's account,
+  # rather than trusting that `load_operator_grant` keyed the session map
+  # correctly. Keeps the bypass safe if the loader is ever refactored.
+  defp handle_matches?(%{account_handle: handle}, param) when is_binary(handle) and is_binary(param),
+    do: grant_key(handle) == grant_key(param)
+
+  defp handle_matches?(_, _), do: false
+
+  # Session grants are keyed by the case-folded handle so a case difference
+  # between the stored claim and the URL param can't lose the grant (which
+  # would bounce the operator back to ops to mint another).
+  defp grant_key(handle) when is_binary(handle), do: String.downcase(handle)
+
   defp active_session_grant(grants, account_handle) when is_map(grants) and is_binary(account_handle) do
-    case Map.get(grants, account_handle) do
+    case Map.get(grants, grant_key(account_handle)) do
       %{exp: exp} = claims when is_integer(exp) ->
         if exp > System.system_time(:second), do: claims
 
