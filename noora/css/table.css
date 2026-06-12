@@ -149,7 +149,7 @@
       background: transparent;
 
       & tr {
-        &[data-expanded] td {
+        &[data-state="expanded"] td {
           background-color: var(--noora-surface-background-secondary);
         }
         &[data-expandable] {
@@ -180,6 +180,17 @@
               width: 16px;
               height: 16px;
             }
+
+            /* The animated chevron (crossfade transition) wraps its two icons in a span, so the
+             * direct-svg sizing above doesn't reach them. */
+            & > .noora-icon-transition {
+              flex-shrink: 0;
+
+              & svg {
+                width: 16px;
+                height: 16px;
+              }
+            }
           }
 
           & > [data-part="expand-cell"] > [data-part="cell"] {
@@ -189,6 +200,10 @@
           &[data-part="expanded-content"] {
             position: relative;
             background-color: var(--noora-surface-background-secondary);
+            /* Vertical padding must stay zero: the expanded row is always in the DOM, collapsed
+             * to zero height, and any padding here would leave a visible sliver between rows. */
+            padding-top: 0;
+            padding-bottom: 0;
             padding-left: var(--noora-spacing-8);
 
             &::before {
@@ -199,6 +214,37 @@
               background-color: var(--noora-surface-border-primary);
               width: 1px;
               content: "";
+            }
+
+            /* Animated reveal: the row's `data-state` drives a grid-row transition 0fr <-> 1fr.
+             * A transition (not mount/unmount keyframes) means expanding starts instantly,
+             * collapsing can never be cut short by element removal, and an interrupted toggle
+             * reverses from wherever it currently is. */
+            & [data-part="expand-wrapper"] {
+              display: grid;
+              grid-template-rows: 0fr;
+
+              @media (prefers-reduced-motion: no-preference) {
+                transition: grid-template-rows 200ms var(--ease-out-cubic);
+              }
+
+              tr[data-state="expanded"] + tr & {
+                grid-template-rows: 1fr;
+              }
+
+              & > [data-part="expand-wrapper-content"] {
+                min-height: 0;
+                overflow: hidden;
+                /* Hidden from interaction and find-in-page while collapsed; the delay holds
+                 * visibility through the collapse so content doesn't vanish mid-shrink. */
+                visibility: hidden;
+                transition: visibility 0s 200ms;
+
+                tr[data-state="expanded"] + tr & {
+                  visibility: visible;
+                  transition-delay: 0s;
+                }
+              }
             }
           }
         }
@@ -213,11 +259,14 @@
           inset;
       }
 
-      & tr:not(:last-child) td {
+      /* Expanded rows are excluded: they are always in the DOM, collapsed to zero height,
+       * and these paddings would otherwise win the cascade over the expanded-content cell's
+       * zero padding (same specificity, later in source) and leave a sliver between rows. */
+      & tr:not(:last-child):not([data-part="expanded-row"]) td {
         padding-bottom: 2px;
       }
 
-      & tr:not(:first-child) td {
+      & tr:not(:first-child):not([data-part="expanded-row"]) td {
         padding-top: 2px;
       }
 
@@ -232,6 +281,21 @@
       }
 
       & tr:last-child {
+        & td:first-child {
+          border-bottom-left-radius: var(--noora-radius-4);
+        }
+        & td:last-child {
+          border-bottom-right-radius: var(--noora-radius-4);
+        }
+      }
+
+      /* When the last row is expandable, the final tbody child is its always-rendered expanded
+       * row. While that row is collapsed to zero height, the visible row above it carries the
+       * bottom radius instead. */
+      &
+        tr[data-state="collapsed"]:nth-last-child(2):has(
+          + tr[data-part="expanded-row"]
+        ) {
         & td:first-child {
           border-bottom-left-radius: var(--noora-radius-4);
         }
