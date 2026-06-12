@@ -60,6 +60,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       refute Map.has_key?(env, "KURA_PEERS")
 
+      # Managed regions run on real hcloud volumes, so the runtime derives
+      # the CAS budget from the volume size instead of an explicit cap.
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+
       # Tuist platform secrets (JWT verifier) live in the
       # kura-shared-secrets Kubernetes Secret; the controller envFroms
       # them into the pod. They must NEVER appear in the spec, since
@@ -229,6 +233,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_TUIST_INTROSPECT_CLIENT_ID")
 
       assert env["KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] == "http://127.0.0.1:4318/v1/traces"
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "10737418240"
     end
   end
 
@@ -467,7 +472,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:4100",
         replicas: 1,
-        storage_size: "10Gi"
+        storage_size: "10Gi",
+        cas_capacity_bytes: 10 * 1024 * 1024 * 1024
       }
     }
   end

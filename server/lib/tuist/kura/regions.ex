@@ -218,7 +218,12 @@ defmodule Tuist.Kura.Regions do
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:#{@local_controller_kura_base_port + suffix}",
         replicas: 1,
-        storage_size: "10Gi"
+        storage_size: "10Gi",
+        # kind's local-path provisioner is hostPath-backed and doesn't
+        # enforce the PVC request, so without an explicit cap Kura would
+        # derive the CAS segment-ring budget from the host disk instead
+        # of the nominal 10Gi volume.
+        cas_capacity_bytes: 10 * 1024 * 1024 * 1024
       }
     }
   end
