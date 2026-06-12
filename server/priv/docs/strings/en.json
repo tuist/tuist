@@ -474,7 +474,7 @@
             "self-hosting": {
               "text": "Self-hosting",
               "items": {
-                "control-plane": {
+                "server": {
                   "text": "Server"
                 },
                 "kura": {

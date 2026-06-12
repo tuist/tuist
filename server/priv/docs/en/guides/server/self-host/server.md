@@ -5,7 +5,7 @@
   "description": "Learn how to deploy the Tuist server on your infrastructure."
 }
 ---
-# Server {#control-plane}
+# Server {#server}
 
 We offer a self-hosted version of the Tuist server for organizations that require more control over their infrastructure. This version allows you to host Tuist on your own infrastructure, ensuring that your data remains secure and private.
 
