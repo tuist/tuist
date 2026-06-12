@@ -1076,7 +1076,7 @@ impl Store {
         };
 
         if needs_new_segment {
-            let required_bytes = MAX_SEGMENT_BYTES.saturating_mul(SEGMENT_FREE_SPACE_MARGIN);
+            let required_bytes = segment_rotation_required_bytes(incoming_size);
             if let Some(available) = available_disk_bytes(&self.data_dir)
                 && available < required_bytes
             {
@@ -1199,6 +1199,58 @@ impl Store {
         }
 
         Ok(())
+    }
+
+    /// Removes segment files that the segment ring state no longer
+    /// references, along with any metadata still pointing at them.
+    ///
+    /// Rotation persists the ring state without the evicted segment before
+    /// the file is unlinked, so a crash (or an error) in that window strands
+    /// the file — and the manifests of the artifacts inside it — with no code
+    /// path left to reclaim them. Must run at startup, under the data-dir
+    /// writer lock and before any traffic, so it cannot race a rotation
+    /// creating a segment whose state entry is not yet visible.
+    pub async fn sweep_orphaned_segments(&self) -> Result<usize, String> {
+        let segments_dir = self.data_dir.join("segments");
+        let mut entries = match tokio::fs::read_dir(&segments_dir).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => {
+                return Err(format!(
+                    "failed to list segments directory {}: {error}",
+                    segments_dir.display()
+                ));
+            }
+        };
+
+        let state = self.load_segment_state()?;
+        let mut swept = 0;
+        loop {
+            let entry = entries.next_entry().await.map_err(|error| {
+                format!(
+                    "failed to read segments directory {}: {error}",
+                    segments_dir.display()
+                )
+            })?;
+            let Some(entry) = entry else {
+                break;
+            };
+            let file_name = entry.file_name();
+            let Some(segment_id) = file_name
+                .to_str()
+                .and_then(|name| name.strip_suffix(".seg"))
+            else {
+                continue;
+            };
+            if state.generation_of(segment_id).is_some() {
+                continue;
+            }
+            tracing::warn!(segment_id, "removing orphaned segment");
+            self.evict_segment(segment_id).await?;
+            swept += 1;
+        }
+
+        Ok(swept)
     }
 
     fn segment_path(&self, segment_id: &str) -> PathBuf {
@@ -2578,6 +2630,19 @@ pub const DISK_FULL_MARKER: &str = "disk_full";
 
 pub fn is_disk_full_error(error: &str) -> bool {
     error.contains(DISK_FULL_MARKER)
+}
+
+/// Free bytes a rotation must see before creating a new segment: room for the
+/// incoming artifact, which is appended whole and can exceed
+/// `MAX_SEGMENT_BYTES`, plus the same again as slack for writers the rotation
+/// check cannot see (metadata store flushes and compactions, the evicted
+/// segment that is not yet unlinked, and tmp staging when it shares the
+/// filesystem — the staged source and the segment copy coexist during the
+/// append).
+fn segment_rotation_required_bytes(incoming_size: u64) -> u64 {
+    MAX_SEGMENT_BYTES
+        .max(incoming_size)
+        .saturating_mul(SEGMENT_FREE_SPACE_MARGIN)
 }
 
 #[cfg(unix)]
@@ -4435,5 +4500,104 @@ mod tests {
         assert_eq!(second_manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&first, &first_manifest).await, b"v2");
         assert_eq!(read_manifest_bytes(&second, &second_manifest).await, b"v2");
+    }
+
+    #[test]
+    fn segment_rotation_requires_margin_for_oversized_artifacts() {
+        assert_eq!(
+            segment_rotation_required_bytes(0),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(MAX_SEGMENT_BYTES),
+            MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+        assert_eq!(
+            segment_rotation_required_bytes(3 * MAX_SEGMENT_BYTES),
+            3 * MAX_SEGMENT_BYTES * SEGMENT_FREE_SPACE_MARGIN
+        );
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_returns_zero_without_segments_dir() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 0);
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_removes_stray_files_and_keeps_live_segments() {
+        let (_temp_dir, config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let stray_path = config.data_dir.join("segments").join("stray.seg");
+        std::fs::write(&stray_path, b"junk").expect("stray segment should be written");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!stray_path.exists());
+        let bytes = store
+            .read_artifact_bytes(&manifest)
+            .await
+            .expect("live artifact should remain readable");
+        assert_eq!(bytes, b"payload");
+    }
+
+    #[tokio::test]
+    async fn sweep_orphaned_segments_reclaims_crash_window_segment_and_metadata() {
+        let (_temp_dir, _config, store) = temp_store();
+        let manifest = store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+        let segment_id = manifest
+            .segment_id
+            .clone()
+            .expect("artifact should be segment-backed");
+        let segment_file = store.segment_path(&segment_id);
+        assert!(segment_file.exists());
+
+        // Simulate the crash window: rotation saved the ring state without
+        // the evicted segment, but the process died before the unlink.
+        let mut state = store.load_segment_state().expect("state should load");
+        assert!(state.remove_segment(&segment_id));
+        store.save_segment_state(&state).expect("state should save");
+
+        let swept = store
+            .sweep_orphaned_segments()
+            .await
+            .expect("sweep should succeed");
+
+        assert_eq!(swept, 1);
+        assert!(!segment_file.exists());
+        assert!(
+            store
+                .manifest(&manifest.artifact_id)
+                .expect("manifest lookup should succeed")
+                .is_none()
+        );
     }
 }

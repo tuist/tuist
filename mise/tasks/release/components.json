@@ -158,6 +158,14 @@
       "cliff_config": "infra/hetzner-robot-controller/cliff.toml",
       "initial_version": "0.1.0",
       "include_paths": ["infra/hetzner-robot-controller/**/*"]
+    },
+    {
+      "name": "grafana-datasource",
+      "tag_prefix": "grafana-datasource@",
+      "tag_regex": "^grafana-datasource@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "grafana-datasource/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["grafana-datasource/**/*"]
     }
   ]
 }

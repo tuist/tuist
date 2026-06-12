@@ -556,6 +556,11 @@ defmodule TuistWeb.Router do
         scope "/tests" do
           get "/", TestsController, :index
 
+          scope "/metrics" do
+            get "/duration", MetricsController, :test_duration
+            get "/dimensions/:dimension/values", MetricsController, :test_dimension_values
+          end
+
           scope "/test-cases" do
             get "/", TestCasesController, :index
 
@@ -599,6 +604,12 @@ defmodule TuistWeb.Router do
 
         scope "/builds" do
           get "/", BuildsController, :index
+
+          scope "/metrics" do
+            get "/duration", MetricsController, :build_duration
+            get "/dimensions/:dimension/values", MetricsController, :build_dimension_values
+          end
+
           get "/:build_id", BuildsController, :show
           post "/", BuildsController, :create
           post "/upload/start", BuildsController, :multipart_start
