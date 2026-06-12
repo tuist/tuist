@@ -1,0 +1,37 @@
+{{- if and .Values.persistence.data.create (eq .Values.persistence.data.existingClaim "") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "registry.dataClaimName" . }}
+  labels:
+    {{- include "registry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.data.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.data.size }}
+  {{- with .Values.persistence.data.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- if and .Values.persistence.storage.create (eq .Values.persistence.storage.existingClaim "") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "registry.storageClaimName" . }}
+  labels:
+    {{- include "registry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  accessModes:
+    {{- toYaml .Values.persistence.storage.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.storage.size }}
+  {{- with .Values.persistence.storage.storageClassName }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

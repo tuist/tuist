@@ -8,7 +8,7 @@
 /mise.lock @tuist/engineering
 /server/mise.toml @tuist/engineering
 /cache/mise.toml @tuist/engineering
-/swift-registry/mise.toml @tuist/engineering
+/registry/mise.toml @tuist/engineering
 /noora/.mise.toml @tuist/engineering
 /handbook/mise.toml @tuist/engineering
 /status/mise.toml @tuist/engineering

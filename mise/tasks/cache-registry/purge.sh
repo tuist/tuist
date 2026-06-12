@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
-#MISE description="Purge a Swift package (or a specific version) from the registry service"
+#MISE description="Purge a Swift package (or a specific version) from the production registry"
 #USAGE arg "<package>" help="Package in scope/name format (e.g., onevcat/rainbow)"
 #USAGE arg "[version]" help="Specific version to purge (e.g., 4.2.1, v2.0.0-alpha.1). If omitted, purges the entire package."
-#USAGE flag "--namespace <namespace>" help="Kubernetes namespace (defaults to registry)"
-#USAGE flag "--context <context>" help="kubectl context (defaults to current)"
 
 set -euo pipefail
 
-readonly DEFAULT_NAMESPACE="${TUIST_REGISTRY_NAMESPACE:-registry}"
-readonly APP_SELECTOR="app.kubernetes.io/instance=registry,app.kubernetes.io/component=app"
 readonly RCLONE_REMOTE="tigris"
 readonly REGISTRY_BUCKET="tuist-registry"
 readonly REGISTRY_ROOT="${RCLONE_REMOTE}:${REGISTRY_BUCKET}"
-readonly LOCAL_REGISTRY_ROOT="/storage/registry/swift"
+readonly DEPLOY_CONFIG="${MISE_PROJECT_ROOT}/cache/config/deploy.production.yml"
+readonly LOCAL_REGISTRY_ROOT="/cas/registry/swift"
 
 cleanup_paths=()
 
@@ -34,11 +31,13 @@ log()  { printf '[registry:purge] %s\n' "$*"; }
 warn() { printf '[registry:purge] WARNING: %s\n' "$*" >&2; }
 fail() { printf '[registry:purge] ERROR: %s\n' "$*" >&2; exit 1; }
 
+# -- rclone configuration check -----------------------------------------------
+
 print_rclone_setup_instructions() {
     cat >&2 <<EOF
 [registry:purge] ERROR: rclone remote "${RCLONE_REMOTE}" is not configured.
 
-Set it up with the registry Tigris credentials from 1Password (vault: tuist-k8s-<env>, item: REGISTRY):
+Set it up with the production registry Tigris credentials from 1Password/Kamal secrets:
   export S3_ACCESS_KEY_ID='...'
   export S3_SECRET_ACCESS_KEY='...'
   export S3_HOST='fly.storage.tigris.dev'
@@ -76,44 +75,46 @@ check_rclone_configuration() {
     fi
 }
 
-list_pods() {
-    local namespace="$1"
-    shift
-    local context_flag=("$@")
+# -- host discovery ------------------------------------------------------------
 
-    kubectl "${context_flag[@]}" -n "$namespace" get pod \
-        -l "$APP_SELECTOR" \
-        -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\n"}{end}'
+read_all_production_hosts() {
+    local hosts
+
+    if [[ ! -f "$DEPLOY_CONFIG" ]]; then
+        fail "Missing production deploy config: ${DEPLOY_CONFIG}"
+    fi
+
+    hosts="$(yq '.servers.web.hosts[]' "$DEPLOY_CONFIG")"
+
+    if [[ -z "$hosts" ]]; then
+        fail "No production cache hosts found in ${DEPLOY_CONFIG}"
+    fi
+
+    printf '%s\n' "$hosts"
 }
 
 purge_local_caches() {
     local local_path="$1"
-    local namespace="$2"
-    shift 2
-    local context_flag=("$@")
-    local pods=()
-    local pod
+    local hosts=()
+    local host
 
-    while IFS= read -r pod; do
-        [[ -n "$pod" ]] && pods+=("$pod")
-    done < <(list_pods "$namespace" "${context_flag[@]}")
+    while IFS= read -r host; do
+        hosts+=("$host")
+    done < <(read_all_production_hosts)
 
-    if [[ "${#pods[@]}" -eq 0 ]]; then
-        warn "No running registry pods found in ${namespace}; skipping local PVC purge"
-        return 0
-    fi
+    log "Purging local disk caches from ${#hosts[@]} production nodes"
 
-    log "Purging local PVC caches across ${#pods[@]} pod(s)"
-
-    for pod in "${pods[@]}"; do
-        log "Removing ${local_path} on pod ${pod}"
-        if kubectl "${context_flag[@]}" -n "$namespace" exec -c registry "$pod" -- rm -rf "$local_path"; then
-            log "Purged local cache on ${pod}"
+    for host in "${hosts[@]}"; do
+        log "Removing ${local_path} on ${host}"
+        if ssh -o BatchMode=yes "$host" rm -rf "$local_path"; then
+            log "Purged local cache on ${host}"
         else
-            warn "Failed to purge local cache on ${pod} (continuing with other pods)"
+            warn "Failed to purge local cache on ${host} (continuing with other nodes)"
         fi
     done
 }
+
+# -- package / version normalization -------------------------------------------
 
 parse_package() {
     local package="$1"
@@ -179,24 +180,21 @@ normalize_version() {
     if [[ "$hyphen_count" == "1" ]]; then
         base="${version%%-*}"
         prerelease="${version#*-}"
-        # Matches TuistRegistry.Swift.KeyNormalizer behaviour: preserve
-        # prerelease dots verbatim (no dot-to-plus substitution).
         printf '%s-%s' \
             "$(add_trailing_semantic_version_zeros "$base")" \
-            "${prerelease}"
+            "${prerelease//./+}"
         return
     fi
 
     printf '%s' "$(add_trailing_semantic_version_zeros "$version")"
 }
 
+# -- purge operations ----------------------------------------------------------
+
 purge_package() {
     local swift_package_root="$1"
     local metadata_package_root="$2"
     local local_swift_package_root="$3"
-    local namespace="$4"
-    shift 4
-    local context_flag=("$@")
 
     log "Purging package artifacts at ${swift_package_root}"
     rclone purge "$swift_package_root"
@@ -204,7 +202,7 @@ purge_package() {
     log "Purging package metadata at ${metadata_package_root}"
     rclone purge "$metadata_package_root"
 
-    purge_local_caches "$local_swift_package_root" "$namespace" "${context_flag[@]}"
+    purge_local_caches "$local_swift_package_root"
 }
 
 purge_version() {
@@ -212,9 +210,6 @@ purge_version() {
     local metadata_file="$2"
     local requested_version="$3"
     local local_swift_package_root="$4"
-    local namespace="$5"
-    shift 5
-    local context_flag=("$@")
     local normalized_version
     local version_path
     local tmp_dir
@@ -267,23 +262,19 @@ purge_version() {
         log "Skipping metadata upload because there was no release entry to remove"
     fi
 
-    purge_local_caches "${local_swift_package_root}/${normalized_version}" "$namespace" "${context_flag[@]}"
+    purge_local_caches "${local_swift_package_root}/${normalized_version}"
 }
+
+# -- main ----------------------------------------------------------------------
 
 main() {
     local package="$usage_package"
     local version="${usage_version:-}"
-    local namespace="${usage_namespace:-$DEFAULT_NAMESPACE}"
-    local context_flag=()
     local normalized_scope
     local normalized_name
     local swift_package_root
     local metadata_package_root
     local local_swift_package_root
-
-    if [[ -n "${usage_context:-}" ]]; then
-        context_flag=(--context "${usage_context}")
-    fi
 
     check_rclone_configuration
     parse_package "$package"
@@ -302,16 +293,16 @@ main() {
     fi
 
     if [[ -z "$version" ]]; then
-        log "About to purge ENTIRE package ${normalized_scope}/${normalized_name} from registry"
-        log "This will delete all versions from S3 and all registry pod caches in namespace ${namespace}"
+        log "About to purge ENTIRE package ${normalized_scope}/${normalized_name} from production"
+        log "This will delete all versions from S3 and all production node caches"
         read -r -p '[registry:purge] Are you sure? (y/N) ' confirm
         if [[ "$confirm" != [yY] ]]; then
             log "Aborted by user"
             exit 0
         fi
-        purge_package "$swift_package_root" "$metadata_package_root" "$local_swift_package_root" "$namespace" "${context_flag[@]}"
+        purge_package "$swift_package_root" "$metadata_package_root" "$local_swift_package_root"
     else
-        purge_version "$swift_package_root" "${metadata_package_root}/index.json" "$version" "$local_swift_package_root" "$namespace" "${context_flag[@]}"
+        purge_version "$swift_package_root" "${metadata_package_root}/index.json" "$version" "$local_swift_package_root"
     fi
 
     log "Registry purge completed"

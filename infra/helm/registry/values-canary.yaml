@@ -1,0 +1,37 @@
+global:
+  commonLabels:
+    tuist.dev/service: registry
+    tuist.dev/stack: managed
+
+host: registry-canary.tuist.dev
+serverUrl: https://canary.tuist.dev
+deployEnv: can
+sentryEnv: can
+registrySyncAllowlist: alamofire/alamofire
+
+ingress:
+  enabled: true
+  className: nginx
+  host: registry-canary.tuist.dev
+  tlsSecretName: registry-canary-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: REGISTRY
+
+networkPolicy:
+  enabled: true
+
+observability:
+  otelEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"

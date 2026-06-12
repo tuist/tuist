@@ -1,0 +1,42 @@
+global:
+  commonLabels:
+    tuist.dev/service: registry
+    tuist.dev/stack: managed
+
+host: registry-staging.tuist.dev
+serverUrl: https://staging.tuist.dev
+deployEnv: stag
+sentryEnv: stag
+
+# Sync enabled on staging so we can exercise SyncWorker + ReleaseWorker
+# end-to-end against the dedicated staging Tigris bucket. Stage 2 smoke
+# (ingress, nginx, probes, ESO, read-only paths) already confirmed in
+# the previous deploy.
+registrySyncEnabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  host: registry-staging.tuist.dev
+  tlsSecretName: registry-staging-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: REGISTRY
+
+networkPolicy:
+  enabled: true
+
+observability:
+  otelEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"

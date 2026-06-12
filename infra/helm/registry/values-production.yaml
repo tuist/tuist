@@ -1,0 +1,37 @@
+global:
+  commonLabels:
+    tuist.dev/service: registry
+    tuist.dev/stack: managed
+
+host: registry.tuist.dev
+serverUrl: https://tuist.dev
+deployEnv: prod
+sentryEnv: prod
+poolSize: "10"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: registry.tuist.dev
+  tlsSecretName: registry-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+    item: REGISTRY
+
+networkPolicy:
+  enabled: true
+
+observability:
+  otelEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "4"
+    memory: "4Gi"
