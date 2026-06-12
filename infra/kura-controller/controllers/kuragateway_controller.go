@@ -159,6 +159,19 @@ func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, g
 			"proxy-max-temp-file-size":    "0",
 			"keep-alive-requests":         "10000",
 			"upstream-keepalive-requests": "10000",
+			// HTTP/2 request-body flow control. nginx's 64KB default window
+			// caps every upload stream (gRPC ByteStream writes and HTTP/2 CLI
+			// uploads alike) at ~window/RTT — ~310KB/s from a 193ms client.
+			// Both knobs must move together: http2_body_preread_size is the
+			// window advertised before the body is consumed,
+			// client-body-buffer-size paces WINDOW_UPDATEs while streaming to
+			// the upstream. The stream cap bounds worst-case nginx memory at
+			// 32 x 4m = 128MB per client connection; excess RPCs queue
+			// client-side. Keep in sync with the regional gateway config in
+			// infra/helm/platform/values.yaml.
+			"client-body-buffer-size":      "4m",
+			"http2-max-concurrent-streams": "32",
+			"http-snippet":                 "http2_body_preread_size 4m;",
 		}
 		return nil
 	})
