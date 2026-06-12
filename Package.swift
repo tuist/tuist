@@ -1821,7 +1821,7 @@ let package = Package(
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
         .package(
             url: "https://github.com/tuist/swifterpm",
-            revision: "672a723f962cf243f1b6de65274c744c51e82acc"
+            revision: "f75a054d40c0ca0c414864e98d125f23eb22f4f5"
         ),
     ],
     targets: targets,
