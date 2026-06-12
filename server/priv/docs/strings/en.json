@@ -477,7 +477,7 @@
                 "server": {
                   "text": "Server"
                 },
-                "kura": {
+                "cache": {
                   "text": "Cache"
                 },
                 "telemetry": {
