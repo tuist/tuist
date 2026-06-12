@@ -101,7 +101,7 @@ defmodule Noora.Dropdown do
       data-size={@size}
       data-loop-focus
       data-typeahead
-      data-close-on-select={@close_on_select}
+      data-close-on-select={to_string(@close_on_select)}
       data-on-open-change={@on_open_change}
       data-on-highlight-change={@on_highlight_change}
       data-on-select={@on_select}
