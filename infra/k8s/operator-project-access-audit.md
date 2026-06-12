@@ -85,7 +85,15 @@ a separate follow-up.)
 - **Revocation** = short TTL (re-checked every request) + signing-key rotation as
   the break-glass (invalidates all outstanding grants at once).
 
-## Deployment runbook (manual, not automated)
+## Deployment runbook
+
+> **Status:** production is wired and staged in the PR — both 1P keys stored
+> (`POMERIUM_PRODUCTION/signing_key`, `TUIST_OPS_BOT/project_access_signing_key`),
+> public keys committed, `opsRoute.enabled: true`, the redirect on. Merging
+> cascades the cutover to production; no manual deploy step remains. The steps
+> below are the reference for what was done / how to re-key or stand up a new env.
+> The keypair/secret steps are inherently manual (no CI for secret material); the
+> deploy itself is automated by the merge cascade.
 
 1. **Generate the Ed25519 keypair** (one pair, rotated to revoke all grants):
 

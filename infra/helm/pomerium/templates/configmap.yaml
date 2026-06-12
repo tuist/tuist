@@ -86,11 +86,14 @@ data:
       # `pass_identity_headers` adds the signed X-Pomerium-Jwt-Assertion, which
       # tuist-ops verifies (it does NOT trust the bare claim header), so identity
       # is cryptographic rather than resting on Pomerium stripping a spoofed copy.
-      # Disabled by default — enabling it is the manual cutover (1P signing_key
-      # field, this flag, and pointing {{ .Values.opsRoute.host }} DNS/ingress at
-      # Pomerium). The Slack webhook stays public (Slack signs its own requests
-      # and cannot do OIDC); /api/v1/policy is deliberately NOT a public route —
-      # it stays tailnet-only.
+      # Gated on `opsRoute.enabled`: off in the chart default (staging/canary),
+      # ON in values-production. Enabling it is the whole switch — the chart also
+      # adds {{ .Values.opsRoute.host }} to the Pomerium Ingress (TLS + rule) and
+      # the tuist-ops chart drops its own Ingress for the host, so cert-manager
+      # and external-dns converge the cutover on deploy. The only out-of-band
+      # step is the `signing_key` 1P field (already stored). The Slack webhook
+      # stays public (Slack signs its own requests and cannot do OIDC);
+      # /api/v1/policy is deliberately NOT a public route — it stays tailnet-only.
       - from: "https://{{ .Values.opsRoute.host }}"
         prefix: "/grants"
         to: "{{ .Values.opsRoute.to }}"

@@ -21,14 +21,14 @@ extAuthzPort: 80
 # Front the operator grant/audit surface (ops.tuist.dev) with this
 # Pomerium so its HTML routes get Google OIDC + a signed
 # X-Pomerium-Jwt-Assertion (tuist-ops verifies that signature).
-# OFF by default. Enabling it is the manual cutover, in this order:
-#   1. add the `signing_key` field to the POMERIUM_<ENV> 1P item,
-#   2. set POMERIUM_JWT_PUBLIC_KEY + POMERIUM_AUDIENCE on tuist-ops,
-#   3. flip `enabled: true` here (production only — ops is prod-only),
-#   4. point ops.tuist.dev DNS/ingress at this Pomerium (move the host
-#      off the tuist-ops nginx ingress; add it to TLS + a rule). Until
-#      step 4 no traffic reaches these routes, so the flag is inert
-#      without it.
+# OFF in this default (staging/canary); ON in values-production.
+# Flipping `enabled: true` is the whole switch: it adds the routes,
+# puts ops.tuist.dev on the Pomerium Ingress (TLS + rule), and wires
+# SIGNING_KEY — cert-manager + external-dns then converge the cutover
+# on deploy. Two coordinated bits live in the tuist-ops chart's
+# production values: `ingress.enabled: false` (so it stops claiming the
+# host) and `pomerium.publicKey`. The only out-of-band prerequisite is
+# the `signing_key` field on the POMERIUM_<ENV> 1P item (production: done).
 opsRoute:
   enabled: false
   host: ops.tuist.dev
