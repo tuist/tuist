@@ -6,12 +6,11 @@ import TuistTesting
 import XcodeGraph
 import XcodeProj
 import XCTest
-
 @testable import TuistGenerator
 
 final class LinkGeneratorPathTests: TuistUnitTestCase {
-    func test_xcodeValue() {
-        let path = try! AbsolutePath(validating: "/my-path")
+    func test_xcodeValue() throws {
+        let path = try AbsolutePath(validating: "/my-path")
         XCTAssertEqual(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root), "$(SRCROOT)/my-path")
         XCTAssertEqual(
             LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root),
@@ -1301,7 +1300,7 @@ final class LinkGeneratorTests: XCTestCase {
                     path: xcframework.path.relative(to: projectPath).pathString
                 )
             default:
-                fatalError("Scenarios not handled in this test stub")
+                XCTFail("Scenarios not handled in this test stub")
             }
         }
         return projectFileElements

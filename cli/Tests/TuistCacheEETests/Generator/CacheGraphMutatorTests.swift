@@ -3,9 +3,24 @@ import Path
 import TuistCore
 import XcodeGraph
 import XCTest
-
 @testable import TuistCacheEE
 @testable import TuistTesting
+
+private struct UnexpectedArtifactLoadError: Error, CustomStringConvertible {
+    let path: AbsolutePath?
+
+    init(path: AbsolutePath? = nil) {
+        self.path = path
+    }
+
+    var description: String {
+        if let path {
+            return "Unexpected load call for \(path)"
+        } else {
+            return "Unexpected load call"
+        }
+    }
+}
 
 // To generate the ASCII graphs: http://asciiflow.com/
 // Alternative: https://dot-to-ascii.ggerganov.com/
@@ -115,7 +130,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cXCFrameworkPath {
                 return cXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -220,7 +235,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == themeXCFrameworkPath {
                 return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -309,7 +324,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == externalBundlePath {
                 return .bundle(path: externalBundlePath)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -414,7 +429,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -536,7 +551,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -655,7 +670,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -846,7 +861,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -965,7 +980,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1089,7 +1104,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == eXCFrameworkPath {
                 return eXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1206,7 +1221,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1297,7 +1312,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: bFramework.name, path: bGraphTarget.path), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1311,7 +1326,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == bFrameworkPath {
                 return GraphDependency.testFramework(path: bFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1332,7 +1347,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: GraphDependency.testFramework(path: bFrameworkPath), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1361,7 +1376,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     ///          ┌────▼───┐     ┌───▼──┐
     ///          │  Macro │     │ Macro│
     ///          └────────┘     └──────┘
-    func test_map_when_tenth_scenario() async throws {
+    func test_map_when_tenth_scenario() {
         // TODO: Adjust with the new macro mutation logic
         //        let path = try temporaryPath()
         //
@@ -1445,7 +1460,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         //        artifactLoader.loadStub = { path in
         //            if path == bMacroXCFrameworkPath { return GraphDependency.testFramework(path: bMacroXCFrameworkPath) }
         //            if path == cMacroXCFrameworkPath { return GraphDependency.testFramework(path: cMacroXCFrameworkPath) }
-        //            else { fatalError("Unexpected load call") }
+        //            else { throw UnexpectedArtifactLoadError() }
         //        }
         //
         //        // When
@@ -1515,7 +1530,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         artifactLoader.loadStub = { _ in
-            fatalError("Unexpected load call")
+            throw UnexpectedArtifactLoadError()
         }
 
         // When
@@ -1581,7 +1596,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == staticXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: staticXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1645,7 +1660,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1704,7 +1719,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1901,7 +1916,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == sharedCounterXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2013,7 +2028,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == featureXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2109,7 +2124,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == featureXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2210,7 +2225,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == supportLibXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: supportLibXCFrameworkPath, linking: .static)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
@@ -2318,7 +2333,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == libraryXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic)
             } else {
-                fatalError("Unexpected load call for \(path)")
+                throw UnexpectedArtifactLoadError(path: path)
             }
         }
 
