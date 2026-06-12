@@ -338,10 +338,10 @@ defmodule Tuist.Kura do
   # mirror it into `account_cache_endpoints`: that table is what the
   # CLI resolves, and a developer machine can't reach the in-cluster
   # endpoint. Runner builds get the URL through
-  # `runner_cache_endpoint_url/1` instead.
+  # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, url} <- private_server_url(account, server),
          {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
@@ -350,6 +350,59 @@ defmodule Tuist.Kura do
       reason -> {:error, reason}
     end
   end
+
+  # The URL dispatch hands runner builds. Cluster-DNS regions use the
+  # stable in-cluster Service form; node-port regions use the
+  # node-published endpoint observed from the KuraInstance status,
+  # which is only available once the controller has placed the primary
+  # pod and allocated ports — activation waits for it like it waits
+  # for a public endpoint to come up.
+  defp private_server_url(account, %Server{region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      if Regions.node_port_data_plane?(region) do
+        Provisioner.external_endpoint(server)
+      else
+        case Provisioner.public_url(account, server) do
+          url when is_binary(url) -> {:ok, url}
+          {:error, reason} -> {:error, reason}
+          other -> {:error, other}
+        end
+      end
+    end
+  end
+
+  @doc """
+  Refreshes the dispatch URL of an active node-port private server
+  from the observed cluster state. Unlike the cluster-DNS data plane,
+  whose URL is stable for the server's lifetime, the node-published
+  endpoint moves whenever the primary pod lands on a different node
+  (reschedule, node loss) or the Service re-allocates ports. The
+  reconciler calls this every tick for converged servers; while the
+  endpoint is unobservable the last known URL is kept — the cache is
+  best-effort for clients, and yanking the URL would flap dispatch on
+  every transient observation gap.
+  """
+  def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         true <- Regions.node_port_data_plane?(region),
+         {:ok, url} when url != server.url <- Provisioner.external_endpoint(server) do
+      case server |> Server.observation_changeset(%{url: url}) |> Repo.update() do
+        {:ok, server} ->
+          broadcast_server(server, :updated)
+          :ok
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      false -> :ok
+      {:ok, _same_url} -> :ok
+      {:error, :node_port_endpoint_not_ready} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def refresh_private_server_url(%Server{}), do: :ok
 
   defp activate_private_server_transaction(server, url, image_tag) do
     Repo.transaction(fn ->
@@ -381,8 +434,10 @@ defmodule Tuist.Kura do
   end
 
   @doc """
-  In-cluster Kura URL a runner-as-a-service build should use, or `nil`
-  when the account has no active private (runner-cache) Kura node.
+  In-cluster Kura URL a runner-as-a-service build on a fleet of the
+  given platform should use, or `nil` when the account has no active
+  private (runner-cache) Kura node in a region that serves that
+  platform.
 
   Builds executing on a runner pool resolve their cache through this so
   traffic stays inside the cluster, next to the runners, instead of
@@ -392,14 +447,22 @@ defmodule Tuist.Kura do
   private `Server` row directly — `account_cache_endpoints` is
   CLI-facing and a developer machine can't reach the in-cluster
   endpoint.
+
+  The platform filter is the locality half of the handoff (which
+  region's node may serve which fleet — `Regions.runner_platforms`);
+  whether the fleet can reach in-cluster URLs at all is the caller's
+  gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}) do
+  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
     # un-reconciled region's stale `url` — config drift self-heals
     # instead of routing jobs to an endpoint that no longer exists.
-    private_region_ids = Enum.map(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id)
+    private_region_ids =
+      Regions.available()
+      |> Enum.filter(&(Regions.private?(&1) and Regions.serves_runner_platform?(&1, platform)))
+      |> Enum.map(& &1.id)
 
     if private_region_ids == [] do
       nil
@@ -433,6 +496,8 @@ defmodule Tuist.Kura do
       end
     end
   end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
 
   defp ensure_public_endpoint_ready(url) when is_binary(url) do
     case URI.parse(url) do

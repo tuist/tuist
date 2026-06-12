@@ -13,6 +13,33 @@ connector:
   hostname: tuist-cluster-router-staging
   tags:
     - "tag:tuist-k8s-staging"
+  # Overrides the chart default to additionally advertise the staging
+  # cluster's Service CIDR (infra/k8s/clusters/cluster-staging.yaml)
+  # into the tailnet. This is the cluster half of the macOS
+  # runner-cache path: staging Mac minis run `tailscale up
+  # --accept-routes`, so their Tart runner VMs can dial the in-cluster
+  # Kura runner-cache Service (`kura-<account>-staging.kura.svc...`,
+  # a ClusterIP in this range) through this Connector. Auto-approved
+  # via the `autoApprovers.routes` entry in infra/tailscale/acls.json;
+  # the macmini->cluster grants there scope what can actually be
+  # dialed (Kura 4000/50051 + cluster DNS 53).
+  #
+  # Staging is deliberately the ONLY env advertising this prefix --
+  # all envs share the 10.128.0.0/12 Service CIDR and the tailnet is
+  # shared, so a second advertiser would create ambiguous routing
+  # (see the chart values.yaml caution).
+  advertiseRoutes:
+    - "100.64.0.0/10"
+    - "10.128.0.0/12"
+  # Pin the router to the Scaleway fr-par kura pool: the only
+  # consumer of the Service-CIDR route is the Mac mini fleet (also
+  # in fr-par), and their hot path is Mac -> router -> kura Pod on
+  # this same pool. On a Hetzner node the router would hairpin that
+  # path across the WAN twice.
+  proxyClass:
+    enabled: true
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
 
 macminiEgress:
   enabled: true

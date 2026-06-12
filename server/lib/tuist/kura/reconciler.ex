@@ -188,6 +188,14 @@ defmodule Tuist.Kura.Reconciler do
 
           :ok
 
+        {:error, :node_port_endpoint_not_ready} ->
+          # The controller has not yet observed the full node-port
+          # chain (Service ports allocated, primary pod placed on a
+          # labeled node). Benign startup delay, same as DNS.
+          Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
+
+          :ok
+
         {:error, reason} ->
           fail(deployment, server, reason)
       end
@@ -329,9 +337,26 @@ defmodule Tuist.Kura.Reconciler do
 
   defp converge(%Server{} = server, desired) do
     if converged?(server, desired) do
-      :ok
+      refresh_node_port_url(server)
     else
       do_converge(server, desired)
+    end
+  end
+
+  # A converged node-port server still needs its dispatch URL tracked:
+  # the node-published endpoint moves with the primary pod. No-op for
+  # cluster-DNS regions.
+  defp refresh_node_port_url(%Server{} = server) do
+    case Kura.refresh_private_server_url(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not refresh node-port endpoint for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
     end
   end
 
@@ -358,6 +383,11 @@ defmodule Tuist.Kura.Reconciler do
 
       {:error, {:public_endpoint_not_ready, host, reason}} ->
         Logger.info("[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}")
+
+        record(server, server.status, desired, now())
+
+      {:error, :node_port_endpoint_not_ready} ->
+        Logger.info("[Kura.Reconciler] waiting on node-port endpoint for server #{server.id}")
 
         record(server, server.status, desired, now())
 

@@ -1,0 +1,46 @@
+# scaleway-csi values — serves PVCs for the `kura-scw-fr-par`
+# Instance pool only (the macOS runner-cache kura nodes joined into
+# the workload cluster). hcloud-csi remains the cluster default; its
+# node DaemonSet explicitly skips this pool (see
+# hcloud-csi-values.yaml) and this driver's node plugin runs ONLY on
+# it, so exactly one CSI is active per node.
+#
+# Credentials come from the `scaleway-csi` Secret in kube-system,
+# synced by scaleway-csi-externalsecret.yaml from the per-env
+# SCALEWAY_API 1Password item.
+
+storageClasses:
+  # The name `scw-bssd` is load-bearing: the server's
+  # `scw-fr-par-runners` kura region spec provisions PVCs with this
+  # StorageClass (server/lib/tuist/kura/regions.ex).
+  - name: scw-bssd
+    default: false
+    # Cache volumes are disposable; the kura RunnerCache reconciler
+    # tears instances down when accounts lose runner profiles, and a
+    # retained orphan volume bills until hand-deleted.
+    reclaimPolicy: Delete
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    # Default SBS class is 5K IOPS. Production raises to 15K via
+    # `parameters: {iops: "15000"}`.
+    parameters: {}
+
+# Snapshots unused; the snapshot CRDs aren't installed on workload
+# clusters and the cache data is rebuildable by definition.
+volumeSnapshotClasses: []
+
+controller:
+  replicaCount: 1
+  scaleway:
+    existingSecretName: scaleway-csi
+  snapshotter:
+    enabled: false
+  snapshotController:
+    enabled: false
+
+node:
+  # Only Scaleway Instances can mount Scaleway Block Storage; keep
+  # the plugin off the Hetzner/darwin nodes entirely.
+  nodeSelector:
+    kubernetes.io/os: linux
+    node.cluster.x-k8s.io/pool: kura-scw-fr-par

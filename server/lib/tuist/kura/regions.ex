@@ -24,7 +24,7 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms]
 
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
@@ -68,6 +68,24 @@ defmodule Tuist.Kura.Regions do
   # leaves the cluster. The control plane provisions exactly one of
   # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
   # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  #
+  # `runner_platforms` declares which runner fleets a region's nodes are
+  # provisioned for and routed to — the cluster-locality boundary from
+  # the runner's side. A region only serves fleets whose runtime is
+  # network-adjacent to its node pool:
+  #
+  #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
+  #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
+  #     handing its URL to a Hetzner Linux runner would route cache
+  #     traffic across the WAN, which is worse than the public ingress
+  #     it's meant to replace.
+  #   * `hetzner-staging-runners` lives in the staging umbrella
+  #     cluster's Hetzner (Falkenstein) node pool next to the Linux
+  #     kata Pods, so it serves `:linux` only. The staging Mac minis
+  #     CAN reach it over the tailnet, but they sit in Scaleway fr-par
+  #     — their cache lives in `scw-fr-par-runners`, the same region
+  #     spec production uses, so staging exercises the co-located
+  #     topology rather than a WAN-crossing one.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -75,7 +93,23 @@ defmodule Tuist.Kura.Regions do
       cluster_id: "scw-fr-par",
       node_pool: "kura-scw-fr-par",
       storage_class: "scw-bssd",
-      storage_size: "50Gi"
+      storage_size: "50Gi",
+      runner_platforms: [:macos],
+      # The macOS Tart VMs reach this pool over a Scaleway Private
+      # Network, not the cluster's pod network, so cluster Service DNS
+      # neither resolves nor routes for them. Dispatch hands out
+      # `http://<node PN address>:<NodePort>` instead, read from the
+      # KuraInstance status the kura-controller maintains.
+      data_plane: :node_port,
+      # The PN subnet (minis + kura nodes). NodePort traffic keeps the
+      # client's source address, which the per-instance NetworkPolicy
+      # only admits through this ipBlock.
+      client_cidrs: ["172.16.0.0/22"],
+      # Per-account egress ceiling (Cilium bandwidth manager). The
+      # pool's node NIC is shared by every tenant pod on it; the cap
+      # keeps one account's restore burst from starving the rest while
+      # still letting a lone tenant pull at half a PRO2-S NIC.
+      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"}
     },
     %{
       id: "hetzner-staging-runners",
@@ -83,7 +117,8 @@ defmodule Tuist.Kura.Regions do
       cluster_id: "staging",
       node_pool: "kura",
       storage_class: @managed_region_storage_class,
-      storage_size: "20Gi"
+      storage_size: "20Gi",
+      runner_platforms: [:linux]
     }
   ]
 
@@ -131,6 +166,30 @@ defmodule Tuist.Kura.Regions do
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
 
+  @doc """
+  True iff this private region's runner fleet dials a node-published
+  endpoint (`http://<node address>:<NodePort>`) instead of cluster
+  Service DNS — the data plane for fleets that share a network with
+  the region's node pool but not with the cluster's pod network.
+  """
+  def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
+  def node_port_data_plane?(_), do: false
+
+  @doc """
+  True iff this region's runner-cache nodes serve runner fleets of the
+  given platform (`:linux` | `:macos`). Always `false` for public
+  regions — they have no `runner_platforms` and are CLI-facing, not
+  runner-facing. This is the dispatch-side locality gate: a runner only
+  ever receives a `cache_endpoint_url` from a region that declared its
+  platform, so a region pinned next to one fleet can't leak its
+  in-cluster URL to a fleet on the wrong side of a WAN.
+  """
+  def serves_runner_platform?(%__MODULE__{runner_platforms: platforms}, platform) when is_list(platforms) do
+    platform in platforms
+  end
+
+  def serves_runner_platform?(_, _), do: false
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -174,7 +233,10 @@ defmodule Tuist.Kura.Regions do
         storage_class: @managed_region_storage_class,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
+        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
+        # Controller-managed per-account peer mesh: an account's nodes
+        # across regions replicate to each other under one per-account CA.
+        mesh: true
       }
     }
   end
@@ -183,18 +245,28 @@ defmodule Tuist.Kura.Regions do
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
+      runner_platforms: spec.runner_platforms,
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         private: true,
         # In-cluster Service DNS the runner Pods resolve. `{instance}`
-        # interpolates to `instance_name(handle, region)`.
+        # interpolates to `instance_name(handle, region)`. Node-port
+        # regions don't use it for dispatch but keep it as the
+        # in-cluster debugging path.
         private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        data_plane: Map.get(spec, :data_plane, :cluster_dns),
+        client_cidrs: Map.get(spec, :client_cidrs, []),
+        pod_annotations: Map.get(spec, :pod_annotations, %{}),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
         replicas: 1,
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        # The runner-cache node replicates with the account's other nodes
+        # over the in-cluster peer mesh (cache content stays coherent; the
+        # runner hot path remains node-local over the Private Network).
+        mesh: true
       }
     }
   end

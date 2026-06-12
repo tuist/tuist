@@ -1,0 +1,352 @@
+name: Kura Runner Cache Routing Smoke (macOS)
+
+# A/B measurement of the runner-local Kura build cache from a macOS
+# Tart runner VM on the Scaleway Apple-Silicon fleet, using REAL
+# Gradle build-cache traffic. macOS adaptation of the Linux smoke
+# from #10982: the deployed macOS runner image predates the
+# dispatch-poll cache-endpoint export, so the workflow stages the
+# two in-VM pieces itself (the /etc/resolver cluster-DNS entry the
+# new runner image will install at boot, and the TUIST_CACHE_ENDPOINT
+# export) and takes the endpoint from the `cache_endpoint_override`
+# input. The network path under test is the real one either way:
+# VM -> vmnet NAT -> host tailnet route -> staging Connector ->
+# kura Service ClusterIP.
+#
+#   1. The RunnerCache reconciler provisions a private (in-cluster
+#      only) Kura node for every account with Runner Profiles.
+#   2. Runner dispatch includes `cache_endpoint_url` in the claim
+#      response once that node is active.
+#   3. The runner image (`run-job.sh`) exports it as
+#      `TUIST_CACHE_ENDPOINT`, which the Tuist Gradle plugin honours
+#      (TuistConfigReader.kt) for every remote build-cache request.
+#
+# Phases:
+#   * routed   — the build uses the dispatch-provided endpoint as-is
+#                (the PR's actual routing; in-cluster Service DNS).
+#   * baseline — `TUIST_CACHE_ENDPOINT` is unset, so the plugin falls
+#                back to its default cache resolution through
+#                staging.tuist.dev (the status quo this PR improves).
+#
+# Each phase runs `ITERATIONS` cold (cache-miss: all local caches
+# purged, artifacts pulled from the remote) and warm (cache-hit)
+# builds of the Tuist Gradle plugin and reports wall-clock stats.
+#
+# Auth: `tuist auth login` in CI uses GitHub OIDC; staging maps the
+# repo claim (tuist/tuist) to the staging `tuist/tuist` project via
+# its `vcs_connections` row. Requires `id-token: write`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_handle:
+        description: Staging project handle the build is attributed to
+        required: false
+        default: tuist/tuist
+        type: string
+      cache_endpoint_override:
+        description: Explicit cache endpoint for the routed phase (defaults to the staging tuist account's in-cluster node; dispatch-provided TUIST_CACHE_ENDPOINT wins once the runner image exports it)
+        required: false
+        default: http://kura-tuist-staging.kura.svc.cluster.local:4000
+        type: string
+      iterations:
+        description: Repetitions per phase (each is a clean build that round-trips Gradle's cache)
+        required: false
+        default: '3'
+        type: string
+  push:
+    branches:
+      - feat/kura-macos-runner-cache
+    paths:
+      - .github/workflows/kura-runner-cache-routing-smoke-macos.yml
+
+permissions:
+  contents: read
+  # `tuist auth login` detects CI and mints a GitHub OIDC id-token to
+  # exchange with staging.tuist.dev for an access token.
+  id-token: write
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MISE_TASK_RUN_AUTO_INSTALL: 0
+  MISE_GITHUB_ATTESTATIONS: 0
+  # Force the CLI + Gradle plugin to talk to staging, not the local
+  # acceptance-test server some runner shapes bake in via
+  # TUIST_SERVER_URL.
+  TUIST_URL: https://staging.tuist.dev
+  PROJECT_HANDLE: ${{ inputs.project_handle || 'tuist/tuist' }}
+  CACHE_ENDPOINT_OVERRIDE: ${{ inputs.cache_endpoint_override || 'http://kura-tuist-staging.kura.svc.cluster.local:4000' }}
+  # Staging cluster DNS (kube-dns ClusterIP) + domain for the in-VM
+  # scoped resolver — same values the runners-controller now stages
+  # via TUIST_CLUSTER_DNS_IP / TUIST_CLUSTER_DOMAIN.
+  CLUSTER_DNS_IP: "10.128.0.10"
+  CLUSTER_DOMAIN: "cluster.local"
+  # Public-path reference for the latency probe (the staging server's
+  # cache resolution entrypoint).
+  PUBLIC_PROBE_URL: https://staging.tuist.dev
+  ITERATIONS: ${{ inputs.iterations || '3' }}
+
+jobs:
+  routing-smoke:
+    # MUST be the staging-scoped profile label, not a `shape-*` label.
+    # Both production and staging receive the tuist/tuist webhooks and
+    # advertise identical `shape-linux-*` dispatch labels (same chart),
+    # so a shape-labeled job races both environments' pollers and prod's
+    # warm fleet wins — the job then runs in the production cluster
+    # where staging's in-cluster Kura Service doesn't exist (NXDOMAIN /
+    # dead ClusterIPs). `tuist-staging-<profile>` labels resolve only on
+    # staging, pinning the job to staging kata runners.
+    runs-on: tuist-staging-macos
+    timeout-minutes: 40
+    steps:
+      - name: Install cluster DNS resolver
+        shell: bash {0}
+        run: |
+          # What the new runner image's dispatch-poll.sh does at boot
+          # when TUIST_CLUSTER_DNS_IP is staged: a macOS scoped
+          # resolver so `*.svc.cluster.local` resolves via kube-dns
+          # through the tailnet subnet route. getaddrinfo consumers
+          # (curl, JVM, the Tuist CLI) all honor /etc/resolver.
+          sudo mkdir -p /etc/resolver
+          printf 'nameserver %s\n' "${CLUSTER_DNS_IP}" | sudo tee "/etc/resolver/${CLUSTER_DOMAIN}"
+          sudo dscacheutil -flushcache || true
+          sudo killall -HUP mDNSResponder || true
+          # Raw DNS reachability first (no resolver involvement), then
+          # the scoped resolver itself.
+          if command -v dig >/dev/null; then
+            dig +time=3 +tries=2 @"${CLUSTER_DNS_IP}" kubernetes.default.svc.cluster.local +short || echo "::warning::direct dig against kube-dns failed"
+          fi
+          dscacheutil -q host -a name "kura-tuist-staging.kura.svc.${CLUSTER_DOMAIN}" || echo "::warning::scoped resolver lookup returned nothing (yet)"
+
+      - name: Resolve cache endpoint
+        shell: bash {0}
+        run: |
+          # `TUIST_CACHE_ENDPOINT` is exported by the runner image's
+          # run-job.sh when the dispatch response carried
+          # `cache_endpoint_url` — i.e. when this account's private
+          # runner-cache Kura node is active. That inherited value IS
+          # the system under test.
+          echo "pod(hostname)=$(hostname) at $(date -u +%FT%TZ)"
+          # Dispatch-provided endpoint wins: when the runner image's
+          # dispatch-poll exported TUIST_CACHE_ENDPOINT from the claim
+          # response, THAT is the product flow under test. The override
+          # input is the fallback for runner images that predate the
+          # export.
+          if [ -n "${TUIST_CACHE_ENDPOINT:-}" ]; then
+            endpoint="${TUIST_CACHE_ENDPOINT}"
+            echo "endpoint source: dispatch (TUIST_CACHE_ENDPOINT exported by runner image)"
+          else
+            endpoint="${CACHE_ENDPOINT_OVERRIDE:-}"
+            echo "endpoint source: workflow override input (no TUIST_CACHE_ENDPOINT in VM env)"
+          fi
+          if [ -z "$endpoint" ]; then
+            echo "::error::no cache endpoint: dispatch did not include cache_endpoint_url (private Kura node not active yet?) and no override input was provided"
+            exit 1
+          fi
+          echo "routed endpoint: $endpoint"
+          echo "ROUTED_ENDPOINT=$endpoint" >> "$GITHUB_ENV"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 "$endpoint/up" 2>/dev/null) || code=000
+          if [ "$code" = "000" ]; then
+            echo "::error::routed endpoint unreachable: $endpoint/up"
+            exit 1
+          fi
+          echo "reachability: $endpoint/up -> HTTP $code"
+
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "java gradle tuist"
+          cache: "true"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Show environment
+        run: |
+          set -euo pipefail
+          echo "Hostname:   $(hostname)"
+          echo "Kernel:     $(uname -a)"
+          echo "Project:    $PROJECT_HANDLE"
+          echo "Server:     $TUIST_URL"
+          echo "Routed URL: $ROUTED_ENDPOINT"
+          echo "Iterations: $ITERATIONS"
+
+      - name: Probe request latency (routed vs public)
+        shell: bash {0}
+        run: |
+          probe() {
+            local label=$1 url=$2 n=${3:-20}
+            local times=()
+            for i in $(seq 1 "$n"); do
+              t=$(curl -s -o /dev/null -w '%{time_total}' --max-time 8 "$url") || t=timeout
+              times+=("$t")
+            done
+            printf '%s %s\n' "$label" "${times[*]}"
+          }
+          echo "cold-ish total request time per attempt (seconds), fresh connection each:"
+          probe routed "${ROUTED_ENDPOINT}/up"
+          probe public "${PUBLIC_PROBE_URL}/api/up" || true
+
+      - name: Authenticate with staging Tuist
+        run: |
+          # CI mode → GitHub OIDC: the CLI requests an id-token from
+          # the workflow and exchanges it with staging.tuist.dev for an
+          # access token scoped to the projects connected to this repo
+          # (staging project tuist/tuist). The token lands in the local
+          # credential store keyed by TUIST_URL, where the Gradle
+          # plugin's TokenProvider picks it up. Clear the acceptance
+          # shape's localhost server env first so the token is keyed
+          # against staging.
+          unset TUIST_SERVER_URL TUIST_HOSTED
+          if ! tuist auth login; then
+            echo "::group::tuist session logs"
+            cat "$HOME"/.local/state/tuist/sessions/*/logs.txt 2>/dev/null | tail -80
+            echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Configure Gradle project handle
+        run: |
+          set -euo pipefail
+          # Attribute the build to the staging project the OIDC token
+          # covers.
+          cat > gradle/tuist.toml <<TOML
+          project = "${PROJECT_HANDLE}"
+          TOML
+
+      - name: Run A/B benchmark
+        shell: bash {0}
+        run: |
+          IT="$ITERATIONS"
+
+          # Clears every layer Gradle would hit before talking to the
+          # remote, so each "miss" build round-trips both the local
+          # build-cache and the remote Tuist build-cache.
+          purge_gradle_caches() {
+            rm -rf gradle/build gradle/.gradle ~/.gradle/caches/build-cache-1 || true
+          }
+
+          # Runs `./gradlew assemble --build-cache` and prints total
+          # wall-clock seconds. `assemble` not `build`: keeps the run
+          # cache-bound rather than test-bound. For the routed phase
+          # the dispatch-provided endpoint is exported; for baseline
+          # the variable is removed so the plugin uses its default
+          # cache resolution.
+          # Build failures must fail the smoke run — a timing for a
+          # build that errored (or never reached the cache) is worse
+          # than no timing, because the job would go green while the
+          # routed path is broken. measure_one runs in a command
+          # substitution (subshell), so failures are recorded in a
+          # sentinel file rather than a shell variable, and the step
+          # exits non-zero after the timing table is printed.
+          rm -f /tmp/gradle-build-failures
+          measure_one() {
+            local path=$1
+            local kind=$2   # "miss" (purge first) or "hit" (warm cache)
+            if [ "$kind" = "miss" ]; then purge_gradle_caches; fi
+            local started ended status=0
+            started=$(date +%s.%N)
+            if [ "$path" = routed ]; then
+              ( cd gradle && TUIST_CACHE_ENDPOINT="$ROUTED_ENDPOINT" \
+                  ./gradlew --no-daemon -Dorg.gradle.caching=true \
+                            --build-cache assemble \
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || status=$?
+            else
+              ( cd gradle && env -u TUIST_CACHE_ENDPOINT \
+                  ./gradlew --no-daemon -Dorg.gradle.caching=true \
+                            --build-cache assemble \
+                            >>/tmp/gradle-${path}-${kind}.log 2>&1 ) || status=$?
+            fi
+            ended=$(date +%s.%N)
+            if [ "$status" -ne 0 ]; then
+              echo "${path}/${kind} exit=${status}" >> /tmp/gradle-build-failures
+              echo "BUILD FAILED (${path}/${kind}, exit ${status}) — tail of log:" >&2
+              tail -20 "/tmp/gradle-${path}-${kind}.log" >&2
+            fi
+            python3 -c "import sys; print(f'{float(sys.argv[1]) - float(sys.argv[2]):.3f}')" "$ended" "$started"
+          }
+
+          # Flat-file aggregation, not `declare -A`: macOS ships bash
+          # 3.2 (no associative arrays) and `shell: bash {0}` means a
+          # failed declare doesn't stop the step — the Linux original
+          # silently produced a header-only CSV here.
+          echo "path,kind,iter,seconds" > /tmp/results.csv
+          for kind in miss hit; do
+            for path in routed baseline; do
+              for i in $(seq 1 "$IT"); do
+                echo "::group::$path / $kind / iteration $i"
+                t=$(measure_one "$path" "$kind")
+                echo "$path,$kind,$i,$t" >> /tmp/results.csv
+                echo "wall-clock: ${t}s"
+                tail -30 "/tmp/gradle-${path}-${kind}.log"
+                echo "::endgroup::"
+              done
+            done
+          done
+
+          cat /tmp/results.csv
+
+          if [ -s /tmp/gradle-build-failures ]; then
+            echo "::error::Gradle build(s) failed — timings above are not trustworthy"
+            cat /tmp/gradle-build-failures
+            exit 1
+          fi
+
+      - name: Summarize
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv, statistics
+          rows = []
+          with open('/tmp/results.csv') as f:
+              for r in csv.DictReader(f):
+                  rows.append({"path": r["path"], "kind": r["kind"], "iter": int(r["iter"]), "seconds": float(r["seconds"])})
+
+          def col(kind, path):
+              return [r["seconds"] for r in rows if r["kind"] == kind and r["path"] == path]
+
+          def stats(vs):
+              if not vs:
+                  return None
+              sv = sorted(vs)
+              return {
+                  "n": len(sv),
+                  "min": sv[0],
+                  "max": sv[-1],
+                  "mean": statistics.mean(sv),
+                  "median": statistics.median(sv),
+              }
+
+          print()
+          print(f"{'phase':<10} {'path':<10} {'n':>3} {'min':>8} {'median':>8} {'mean':>8} {'max':>8}   (seconds wall-clock)")
+          print("-" * 66)
+          for kind in ["miss", "hit"]:
+              for path in ["baseline", "routed"]:
+                  s = stats(col(kind, path))
+                  if s is None:
+                      print(f"{kind:<10} {path:<10} {'-':>3}")
+                      continue
+                  print(f"{kind:<10} {path:<10} {s['n']:>3} {s['min']:>8.2f} {s['median']:>8.2f} {s['mean']:>8.2f} {s['max']:>8.2f}")
+              print()
+
+          for kind in ["miss", "hit"]:
+              base = stats(col(kind, "baseline"))
+              routed = stats(col(kind, "routed"))
+              if base and routed and routed["median"] > 0:
+                  saved = base["median"] - routed["median"]
+                  ratio = base["median"] / routed["median"]
+                  print(f"{kind}: routed median is {ratio:.2f}x the speed of baseline ({saved:+.2f}s saved per build)")
+          PY
+
+      - name: Upload Gradle logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-logs
+          path: /tmp/gradle-*.log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -111,6 +111,21 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// minis use whatever default tag the auth key carries.
 	TailscaleTags []string
 
+	// TailscaleAcceptRoutes makes every Mac mini run `tailscale up
+	// --accept-routes`, installing the subnet routes the cluster's
+	// Connector advertises (the Service CIDR) so Tart runner VMs can
+	// reach the in-cluster Kura runner-cache Service. See
+	// bootstrap.Config.TailscaleAcceptRoutes for the single-
+	// advertiser caveat.
+	TailscaleAcceptRoutes bool
+
+	// VMKuraEgressCIDR / VMClusterDNSIP parameterize the VM egress
+	// firewall's runner-cache carve-out (Kura ports on the Service
+	// CIDR + cluster DNS). Empty leaves the firewall as a pure
+	// blocklist. See the bootstrap.Config fields of the same names.
+	VMKuraEgressCIDR string
+	VMClusterDNSIP   string
+
 	// TartKubelet host advertising — passed into bootstrap which bakes
 	// them into the launchd plist on each Mac mini.
 	TartKubeletHostCPU      int
@@ -538,25 +553,28 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                   ip,
-			SSHUser:              bootstrapCreds.SSHUsername,
-			UserPassword:         bootstrapCreds.SudoPassword,
-			SSHPrivateKey:        sshKey,
-			NodeName:             machine.Name,
-			ProviderID:           providerIDOf(machine),
-			Kubeconfig:           kubeconfigYAML,
-			TartKubeletBinary:    r.TartKubeletBinary,
-			TartTarball:          r.TartTarball,
-			TailscaleBinaries:    r.TailscaleBinaries,
-			TailscaleAuthKey:     tailscaleAuthKey,
-			TailscaleTags:        r.TailscaleTags,
-			NodeExporterBinary:   r.NodeExporterBinary,
-			HostCPU:              hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:         hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:              r.TartKubeletMaxPods,
-			NodeLabels:           machineNodeLabels(machine),
-			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-			GHActionsRunner:      ghRunner,
+			IP:                    ip,
+			SSHUser:               bootstrapCreds.SSHUsername,
+			UserPassword:          bootstrapCreds.SudoPassword,
+			SSHPrivateKey:         sshKey,
+			NodeName:              machine.Name,
+			ProviderID:            providerIDOf(machine),
+			Kubeconfig:            kubeconfigYAML,
+			TartKubeletBinary:     r.TartKubeletBinary,
+			TartTarball:           r.TartTarball,
+			TailscaleBinaries:     r.TailscaleBinaries,
+			TailscaleAuthKey:      tailscaleAuthKey,
+			TailscaleTags:         r.TailscaleTags,
+			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
+			VMClusterDNSIP:        r.VMClusterDNSIP,
+			NodeExporterBinary:    r.NodeExporterBinary,
+			HostCPU:               hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:               r.TartKubeletMaxPods,
+			NodeLabels:            machineNodeLabels(machine),
+			KnownHostFingerprint:  bootstrapCreds.HostFingerprint,
+			GHActionsRunner:       ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
@@ -648,6 +666,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			TartKubeletBinary: r.TartKubeletBinary,
 			TailscaleBinaries: r.TailscaleBinaries,
 			TailscaleAuthKey:  tailscaleAuthKey,
+			// Tailscale + firewall config rides the drift loop too —
+			// UpdateTartKubelet re-runs installTailscale and
+			// installVMEgressFirewall, so an accept-routes or
+			// carve-out values change lands on existing minis with
+			// the next operator-image roll instead of waiting for
+			// re-provisioning.
+			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
+			VMClusterDNSIP:        r.VMClusterDNSIP,
 			// node_exporter is re-installed on every drift-loop run,
 			// not just on first bootstrap, so a chart-driven binary
 			// bump (NODE_EXPORTER_VERSION ARG in the operator
