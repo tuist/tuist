@@ -109,7 +109,7 @@ data:
           # clients. The registry contract expects application/octet-stream.
           proxy_hide_header Content-Type;
           default_type application/octet-stream;
-          resolver 1.1.1.1 ipv6=off;
+          resolver {{ required "nginx.dnsResolverIp is required" .Values.nginx.dnsResolverIp }} ipv6=off;
           set $saved_link $upstream_http_link;
           set $download_url $1://$2/$3;
           proxy_set_header Host $2;

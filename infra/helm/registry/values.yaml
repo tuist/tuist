@@ -45,6 +45,14 @@ nginx:
     tag: 1.27-alpine
     pullPolicy: IfNotPresent
   containerPort: 8080
+  # IP of the cluster DNS service (kube-dns / CoreDNS). nginx's
+  # `resolver` directive resolves the presigned S3 host for the
+  # `/internal/remote/*` X-Accel-Redirect path. The chart's NetworkPolicy
+  # only allows port-53 egress to the dnsNamespace, so a public resolver
+  # like `1.1.1.1` would be blocked. CAPI-managed Hetzner clusters land
+  # on `10.128.0.10`; self-hosters should override to match their
+  # cluster's `kube-dns.kube-system.svc` ClusterIP.
+  dnsResolverIp: "10.128.0.10"
   resources:
     requests:
       cpu: 50m
