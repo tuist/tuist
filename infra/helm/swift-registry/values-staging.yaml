@@ -8,6 +8,12 @@ serverUrl: https://staging.tuist.dev
 deployEnv: stag
 sentryEnv: stag
 
+# Keep sync off for the first staging smoke test. Once we've verified
+# ingress, the nginx sidecar, probes, and read-only paths against an
+# empty staging Tigris bucket, flip this to true and let SyncWorker
+# populate the bucket from the Swift Package Index.
+registrySyncEnabled: false
+
 ingress:
   enabled: true
   className: nginx
