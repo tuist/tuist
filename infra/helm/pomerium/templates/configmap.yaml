@@ -79,3 +79,41 @@ data:
         # it through to PolicyController.
         set_request_headers:
           X-Tuist-Env: {{ .Values.tuistEnv | quote }}
+      {{- if .Values.opsRoute.enabled }}
+
+      # Operator grant/audit surface on {{ .Values.opsRoute.host }}, proxied to
+      # tuist-ops over the tailnet (the same egress the sidecar uses).
+      # `pass_identity_headers` adds the signed X-Pomerium-Jwt-Assertion, which
+      # tuist-ops verifies (it does NOT trust the bare claim header), so identity
+      # is cryptographic rather than resting on Pomerium stripping a spoofed copy.
+      # Disabled by default — enabling it is the manual cutover (1P signing_key
+      # field, this flag, and pointing {{ .Values.opsRoute.host }} DNS/ingress at
+      # Pomerium). The Slack webhook stays public (Slack signs its own requests
+      # and cannot do OIDC); /api/v1/policy is deliberately NOT a public route —
+      # it stays tailnet-only.
+      - from: "https://{{ .Values.opsRoute.host }}"
+        prefix: "/grants"
+        to: "{{ .Values.opsRoute.to }}"
+        pass_identity_headers: true
+        preserve_host_header: true
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
+      - from: "https://{{ .Values.opsRoute.host }}"
+        prefix: "/audit"
+        to: "{{ .Values.opsRoute.to }}"
+        pass_identity_headers: true
+        preserve_host_header: true
+        policy:
+          - allow:
+              and:
+                - domain:
+                    is: tuist.dev
+      - from: "https://{{ .Values.opsRoute.host }}"
+        prefix: "/webhooks/slack"
+        to: "{{ .Values.opsRoute.to }}"
+        preserve_host_header: true
+        allow_public_unauthenticated_access: true
+      {{- end }}

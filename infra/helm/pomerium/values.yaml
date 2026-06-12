@@ -18,6 +18,22 @@ authenticateHostname: authenticate.kube-staging.tuist.dev
 extAuthzHost: tuist-ops-egress
 extAuthzPort: 80
 
+# Front the operator grant/audit surface (ops.tuist.dev) with this
+# Pomerium so its HTML routes get Google OIDC + a signed
+# X-Pomerium-Jwt-Assertion (tuist-ops verifies that signature).
+# OFF by default. Enabling it is the manual cutover, in this order:
+#   1. add the `signing_key` field to the POMERIUM_<ENV> 1P item,
+#   2. set POMERIUM_JWT_PUBLIC_KEY + POMERIUM_AUDIENCE on tuist-ops,
+#   3. flip `enabled: true` here (production only — ops is prod-only),
+#   4. point ops.tuist.dev DNS/ingress at this Pomerium (move the host
+#      off the tuist-ops nginx ingress; add it to TLS + a rule). Until
+#      step 4 no traffic reaches these routes, so the flag is inert
+#      without it.
+opsRoute:
+  enabled: false
+  host: ops.tuist.dev
+  to: http://tuist-ops-egress
+
 # Tuist's tailnet MagicDNS suffix. No vanity domain configured at
 # Tailscale today (so it's the random-looking `taild6d7bb`); if we
 # ever set up a vanity tailnet name, update this in one place.

@@ -116,37 +116,39 @@ a separate follow-up.)
    ingress routes only `/webhooks/slack/*`, and `/grants` is currently reachable only
    over the raw tailnet (no assertion → 401 with this change). To stand it up:
 
-   a. **Pin Pomerium's signing key** so its public half is stable. In the
-      Pomerium config (`infra/helm/pomerium/templates/configmap.yaml`) set
-      `signing_key: <base64 PEM>` from a secret (otherwise Pomerium generates an
-      ephemeral key that rotates on pod restart). Export the matching public key:
+   The `infra/helm/pomerium` chart now implements the signing-key pin and the
+   `ops.tuist.dev` route behind a single flag (`opsRoute.enabled`, default false), so
+   enabling it is a small, ordered cutover rather than fresh template work:
+
+   a. **Generate + store Pomerium's signing key.** An EC P-256 key, base64-PEM:
 
       ```sh
-      # base64-encoded EC P-256 PEM that Pomerium signs assertions with
-      echo "$POMERIUM_SIGNING_KEY_B64" | base64 -d | openssl pkey -pubout -out pomerium_pub.pem
+      openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out pomerium_signing.pem
+      base64 -w0 pomerium_signing.pem                       # → 1P field `signing_key`
+      openssl pkey -in pomerium_signing.pem -pubout -out pomerium_pub.pem
       ```
 
-   b. **Public key → ops.** Set `POMERIUM_JWT_PUBLIC_KEY` (the public PEM) and
-      `POMERIUM_AUDIENCE` (`ops.tuist.dev`) on the tuist-ops Deployment. The public
-      key is non-secret; it can live in values, not the ESO secret.
+      Put the base64 value in the `POMERIUM_<ENV>` 1P item under `signing_key` (the
+      ExternalSecret only references it when `opsRoute.enabled`, so other envs are
+      unaffected). The chart sets Pomerium's `SIGNING_KEY` env → `signing_key` config.
 
-   c. **Add the Pomerium route** for the ops host so the assertion is stamped (the
-      `to:` reaches tuist-ops via the existing `tuist-ops-egress` tailnet egress):
+   b. **Public key → ops.** Set `POMERIUM_JWT_PUBLIC_KEY` (the `pomerium_pub.pem`
+      contents) and `POMERIUM_AUDIENCE` (`ops.tuist.dev`) on the tuist-ops Deployment.
+      The public key is non-secret; it can live in values, not the ESO secret.
 
-      ```yaml
-      - from: "https://ops.tuist.dev"
-        to: "http://tuist-ops-egress"          # ExternalName → tuist-ops on the tailnet
-        pass_identity_headers: true             # adds X-Pomerium-Jwt-Assertion
-        policy:
-          - allow:
-              and:
-                - domain: { is: tuist.dev }
-      ```
+   c. **Flip the flag** in `infra/helm/pomerium/values-production.yaml` (production
+      only — ops is prod-only): `opsRoute: { enabled: true }`. This adds three
+      Pomerium routes on `ops.tuist.dev`: `/grants` + `/audit` (Google OIDC,
+      `pass_identity_headers` → the signed assertion) and `/webhooks/slack` (public —
+      Slack signs its own requests). `/api/v1/policy` is intentionally not a public
+      route; it stays tailnet-only.
 
-      ops.tuist.dev's public DNS/ingress must point `/grants*` + `/audit*` at this
-      Pomerium route (keep `/webhooks/slack/*` on the existing nginx path — Slack
-      signs those; and `/api/v1/policy` stays tailnet-only). This is the production
-      topology decision to confirm before applying.
+   d. **DNS/ingress cutover (manual).** Point `ops.tuist.dev` at this Pomerium: add the
+      host to the Pomerium Ingress TLS + a rule (cert-manager + external-dns converge),
+      and remove the host (or the `/grants`+`/audit` paths) from the tuist-ops nginx
+      Ingress so the two don't both claim it. Until this step no traffic reaches the
+      routes, so the flag is inert without it. This is the one production-topology
+      decision to confirm before applying.
 
 5. **Defence in depth — restrict the tailnet so only Pomerium reaches the ops surface.**
    The crypto check in (4) already blocks a raw-tailnet forger (no valid assertion),
