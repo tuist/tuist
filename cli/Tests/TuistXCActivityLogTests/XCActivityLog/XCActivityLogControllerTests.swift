@@ -31,6 +31,40 @@ struct XCActivityLogControllerTests {
         #expect(got == ["Framework": 4.696011543273926])
     }
 
+    @Test(.inTemporaryDirectory)
+    func buildTimesByTarget_skipsUnparseableActivityLogs() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let unparseableLog = temporaryDirectory.appending(component: "corrupt.xcactivitylog")
+        try Data("not a valid xcactivitylog".utf8).write(to: unparseableLog.url)
+
+        // When
+        let got = try await subject.buildTimesByTarget(activityLogPaths: [unparseableLog])
+
+        // Then
+        #expect(got == [:])
+    }
+
+    @Test(.inTemporaryDirectory)
+    func buildTimesByTarget_skipsUnparseableLogsButProcessesValidOnes() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let validLog = try AbsolutePath(validating: #file).parentDirectory
+            .appending(
+                try RelativePath(
+                    validating: "../../Fixtures/FrameworkDerivedDataWithActivityLog/Logs/Build/8C0902CE-3985-4B2E-A385-73FFD7014FC8.xcactivitylog"
+                )
+            )
+        let unparseableLog = temporaryDirectory.appending(component: "corrupt.xcactivitylog")
+        try Data("not a valid xcactivitylog".utf8).write(to: unparseableLog.url)
+
+        // When
+        let got = try await subject.buildTimesByTarget(activityLogPaths: [unparseableLog, validLog])
+
+        // Then
+        #expect(got == ["Framework": 4.696011543273926])
+    }
+
     @Test func parseCleanBuildXCActivityLog() async throws {
         // Given
         let cleanBuildXCActivityLog = try AbsolutePath(validating: #file).parentDirectory

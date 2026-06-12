@@ -106,7 +106,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
                     withoutBuildSpecificInformation: false
                 )
             } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+                Logger.current.warning(
+                    "Skipping unparseable activity log at \(activityLogPath.pathString): \(error.localizedDescription)"
+                )
+                continue
             }
             let buildStep: BuildStep
             do {
@@ -117,7 +120,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 )
                 .parse(activityLog: activityLog)
             } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
+                Logger.current.warning(
+                    "Skipping unparseable activity log at \(activityLogPath.pathString): \(error.localizedDescription)"
+                )
+                continue
             }
 
             for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
