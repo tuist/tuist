@@ -28,6 +28,8 @@ defmodule TuistWeb.API.MetricsController do
   tags ["Metrics"]
 
   @max_range_seconds 366 * 24 * 60 * 60
+  @duration_cache_ttl_seconds 60
+  @dimension_cache_ttl_seconds 600
 
   operation(:build_duration,
     summary: "Time-bucketed build duration percentiles for a project.",
@@ -167,9 +169,20 @@ defmodule TuistWeb.API.MetricsController do
 
   def build_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
     case dimension do
-      "scheme" -> json(conn, %{values: Builds.project_build_schemes(project)})
-      "configuration" -> json(conn, %{values: Builds.project_build_configurations(project)})
-      _ -> bad_request(conn, "Unknown build dimension: #{dimension}.")
+      "scheme" ->
+        values = cached_dimension_values(:builds, project.id, :scheme, fn -> Builds.project_build_schemes(project) end)
+        json(conn, %{values: values})
+
+      "configuration" ->
+        values =
+          cached_dimension_values(:builds, project.id, :configuration, fn ->
+            Builds.project_build_configurations(project)
+          end)
+
+        json(conn, %{values: values})
+
+      _ ->
+        bad_request(conn, "Unknown build dimension: #{dimension}.")
     end
   end
 
@@ -201,8 +214,12 @@ defmodule TuistWeb.API.MetricsController do
 
   def test_dimension_values(%{assigns: %{selected_project: project}} = conn, %{dimension: dimension}) do
     case dimension do
-      "scheme" -> json(conn, %{values: Tests.project_test_schemes(project)})
-      _ -> bad_request(conn, "Unknown test dimension: #{dimension}.")
+      "scheme" ->
+        values = cached_dimension_values(:tests, project.id, :scheme, fn -> Tests.project_test_schemes(project) end)
+        json(conn, %{values: values})
+
+      _ ->
+        bad_request(conn, "Unknown test dimension: #{dimension}.")
     end
   end
 
@@ -212,19 +229,44 @@ defmodule TuistWeb.API.MetricsController do
     |> json(%{message: message})
   end
 
-  # Short-lived cache so a dashboard refreshing many identical panels (or several
-  # viewers on the same dashboard) collapses to a single ClickHouse query per
-  # project/range/filters within the window.
+  # Short-lived cache so a dashboard refreshing many panels (or several viewers on
+  # the same dashboard) collapses to a single ClickHouse query per
+  # project/range/filters within the window. The window is floored to the cache
+  # TTL grid for the key so that *sequential* refreshes — each of which sends a
+  # slightly later `to` — share a key within the TTL, not only concurrent ones.
   defp cached_duration_metrics(entity, project_id, opts, func) do
+    key_opts =
+      opts
+      |> Keyword.update!(:start_datetime, &floor_to_cache_grid/1)
+      |> Keyword.update!(:end_datetime, &floor_to_cache_grid/1)
+
     KeyValueStore.get_or_update(
-      [:metrics_duration, entity, project_id, :erlang.phash2(opts)],
-      [ttl: to_timeout(minute: 1)],
+      [:metrics_duration, entity, project_id, :erlang.phash2(key_opts)],
+      [ttl: to_timeout(second: @duration_cache_ttl_seconds)],
+      func
+    )
+  end
+
+  defp floor_to_cache_grid(%DateTime{} = datetime) do
+    unix = DateTime.to_unix(datetime)
+    DateTime.from_unix!(unix - rem(unix, @duration_cache_ttl_seconds))
+  end
+
+  # Scheme/configuration lists change slowly, so they get a longer TTL. This takes
+  # the recurring CheckHealth probes and query-editor refetches off ClickHouse.
+  defp cached_dimension_values(entity, project_id, dimension, func) do
+    KeyValueStore.get_or_update(
+      [:metrics_dimension, entity, project_id, dimension],
+      [ttl: to_timeout(second: @dimension_cache_ttl_seconds)],
       func
     )
   end
 
   defp validate_range(%{from: from, to: to}) do
     cond do
+      from < 0 or to < 0 ->
+        {:error, "`from` and `to` must be non-negative Unix timestamps."}
+
       to <= from ->
         {:error, "`to` must be greater than `from`."}
 
@@ -232,7 +274,10 @@ defmodule TuistWeb.API.MetricsController do
         {:error, "The requested time range exceeds the maximum of 366 days."}
 
       true ->
-        {:ok, DateTime.from_unix!(from), DateTime.from_unix!(to)}
+        case {DateTime.from_unix(from), DateTime.from_unix(to)} do
+          {{:ok, start_datetime}, {:ok, end_datetime}} -> {:ok, start_datetime, end_datetime}
+          _ -> {:error, "`from` and `to` must be valid Unix timestamps."}
+        end
     end
   end
 

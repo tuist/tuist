@@ -192,8 +192,8 @@ defmodule TuistWeb.API.MetricsControllerTest do
   end
 
   describe "ClickHouse protections" do
-    test "rate limits with 429 when the bucket is exhausted", %{conn: conn, user: user, project: project} do
-      stub(TuistWeb.RateLimit.Metrics, :hit, fn _conn -> {:deny, 0} end)
+    test "rate limits with 429 + Retry-After when the bucket is exhausted", %{conn: conn, user: user, project: project} do
+      stub(TuistWeb.RateLimit.Metrics, :hit, fn _conn -> {:deny, 60_000} end)
 
       conn =
         conn
@@ -201,6 +201,7 @@ defmodule TuistWeb.API.MetricsControllerTest do
         |> get(~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/duration?from=#{@from}&to=#{@to}")
 
       assert json_response(conn, 429)
+      assert get_resp_header(conn, "retry-after") == ["60"]
     end
 
     test "caches identical duration queries so ClickHouse is hit once", %{conn: conn, user: user, project: project} do
@@ -223,8 +224,10 @@ defmodule TuistWeb.API.MetricsControllerTest do
 
       url = ~p"/api/projects/#{project.account.name}/#{project.name}/builds/metrics/duration?from=#{@from}&to=#{@to}"
 
-      assert conn |> Authentication.put_current_user(user) |> get(url) |> json_response(200)
-      assert conn |> Authentication.put_current_user(user) |> get(url) |> json_response(200)
+      body1 = conn |> Authentication.put_current_user(user) |> get(url) |> json_response(200)
+      body2 = conn |> Authentication.put_current_user(user) |> get(url) |> json_response(200)
+
+      assert body1 == body2
     end
   end
 end
