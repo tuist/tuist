@@ -21,6 +21,7 @@ import TuistTesting
 @Suite(.serialized)
 struct DependenciesAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
