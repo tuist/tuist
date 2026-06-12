@@ -31,6 +31,15 @@ connector:
   advertiseRoutes:
     - "100.64.0.0/10"
     - "10.128.0.0/12"
+  # Pin the router to the Scaleway fr-par kura pool: the only
+  # consumer of the Service-CIDR route is the Mac mini fleet (also
+  # in fr-par), and their hot path is Mac -> router -> kura Pod on
+  # this same pool. On a Hetzner node the router would hairpin that
+  # path across the WAN twice.
+  proxyClass:
+    enabled: true
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
 
 macminiEgress:
   enabled: true

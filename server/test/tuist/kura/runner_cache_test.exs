@@ -13,7 +13,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   # Drive Regions.available/0 to the real private-region catalog
   # entries: `scw-fr-par-runners` serves [:macos] only,
-  # `hetzner-staging-runners` serves [:linux, :macos]. Both provision
+  # `hetzner-staging-runners` serves [:linux] only. Both provision
   # through KubernetesController whose `provision/3` is pure (builds
   # the instance name), and `destroy_server/1` only flips DB state —
   # so reconcile runs for real against the sandbox.
@@ -75,9 +75,10 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    # The Linux-only account never gets a node in the macOS-serving
-    # Scaleway region — its URL would route a Hetzner fleet's cache
-    # traffic across the WAN.
+    # Each fleet's cache lives next to it: Linux profiles get the
+    # Hetzner node, macOS profiles the Scaleway fr-par one. A
+    # Linux-only account never gets a node in the macOS-serving
+    # region — its URL would route cache traffic across the WAN.
     assert server_regions(linux_only) == ["hetzner-staging-runners"]
     assert server_regions(macos_too) == ["hetzner-staging-runners", "scw-fr-par-runners"]
   end
@@ -105,6 +106,15 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(account) == ["hetzner-staging-runners"]
+  end
+
+  test "macOS-only accounts get no node in the linux-serving region" do
+    account = account_with_profiles([:macos])
+    enable_runners_for([account.id])
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(account) == ["scw-fr-par-runners"]
   end
 
   test "is inert without a runtime image tag except for tear-downs" do

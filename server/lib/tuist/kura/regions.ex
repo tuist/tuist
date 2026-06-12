@@ -79,9 +79,13 @@ defmodule Tuist.Kura.Regions do
   #     handing its URL to a Hetzner Linux runner would route cache
   #     traffic across the WAN, which is worse than the public ingress
   #     it's meant to replace.
-  #   * `hetzner-staging-runners` lives in the staging umbrella cluster
-  #     where the Linux kata Pods run AND which the staging Mac minis
-  #     reach over the tailnet subnet router, so it serves both.
+  #   * `hetzner-staging-runners` lives in the staging umbrella
+  #     cluster's Hetzner (Falkenstein) node pool next to the Linux
+  #     kata Pods, so it serves `:linux` only. The staging Mac minis
+  #     CAN reach it over the tailnet, but they sit in Scaleway fr-par
+  #     — their cache lives in `scw-fr-par-runners`, the same region
+  #     spec production uses, so staging exercises the co-located
+  #     topology rather than a WAN-crossing one.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -99,7 +103,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura",
       storage_class: @managed_region_storage_class,
       storage_size: "20Gi",
-      runner_platforms: [:linux, :macos]
+      runner_platforms: [:linux]
     }
   ]
 

@@ -180,12 +180,12 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(scw, :linux)
     end
 
-    test "staging region serves both fleets of its single cluster" do
+    test "staging hetzner region serves only the co-located linux fleet" do
       staging = Regions.get("hetzner-staging-runners")
 
-      assert staging.runner_platforms == [:linux, :macos]
+      assert staging.runner_platforms == [:linux]
       assert Regions.serves_runner_platform?(staging, :linux)
-      assert Regions.serves_runner_platform?(staging, :macos)
+      refute Regions.serves_runner_platform?(staging, :macos)
     end
 
     test "public regions and nil serve no runner platform" do

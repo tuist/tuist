@@ -186,12 +186,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # that node is co-located with the macOS fleet on the other
       # side of a WAN.
       assert dispatch.(true, :linux)["cache_endpoint_url"] == staging_url
-      # macOS is served by both regions here; the lookup is
-      # deterministic (region asc). In practice regions serving the
-      # same platform never coexist in one environment — staging
-      # serves both platforms from its single cluster, prod serves
-      # macOS from the co-located Scaleway region only.
-      assert dispatch.(true, :macos)["cache_endpoint_url"] == staging_url
+      assert dispatch.(true, :macos)["cache_endpoint_url"] == scw_url
 
       # Reachability: a fleet off the cluster network gets no URL at
       # all — clients treat TUIST_CACHE_ENDPOINT as a hard override,
