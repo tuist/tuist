@@ -3,7 +3,7 @@
 This directory contains the standalone Swift package registry service deployed at `https://swift-registry.tuist.dev`.
 
 ## Responsibilities
-- Serve the Swift Package Registry API at the service root. The dedicated `swift-registry.tuist.dev` host identifies the service, so the routes carry no `/api/registry/swift/` prefix; the Cloudflare Worker that proxies legacy `tuist.dev/api/registry/swift/*` and `registry.tuist.dev/*` traffic strips/rewrites the prefix when forwarding.
+- Serve the Swift Package Registry API at the service root, with `/api/registry/swift` kept as a compatibility prefix.
 - Mirror Swift package release metadata, source archives, and alternate manifests into the registry S3 bucket.
 - Keep local disk copies hot for nginx `X-Accel-Redirect` responses.
 - Run registry release sync, S3 transfer, eviction, and orphan cleanup workers.

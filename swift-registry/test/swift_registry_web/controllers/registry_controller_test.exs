@@ -20,6 +20,18 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     :ok
   end
 
+  describe "GET /api/registry/swift (availability)" do
+    test "returns 200 OK with content-version header", %{conn: conn} do
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift")
+
+      assert conn.status == 200
+      assert get_resp_header(conn, "content-version") == ["1"]
+    end
+  end
+
   describe "GET / (availability)" do
     test "returns 200 OK with content-version header", %{conn: conn} do
       conn =
@@ -32,12 +44,12 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "HEAD / (availability)" do
+  describe "HEAD /api/registry/swift (availability)" do
     test "returns 200 OK with content-version header", %{conn: conn} do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/")
+        |> head("/api/registry/swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -45,24 +57,24 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "GET /availability" do
+  describe "GET /api/registry/swift/availability" do
     test "returns 200 OK with content-version header", %{conn: conn} do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/availability")
+        |> get("/api/registry/swift/availability")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
     end
   end
 
-  describe "HEAD /availability" do
+  describe "HEAD /api/registry/swift/availability" do
     test "returns 200 OK with content-version header", %{conn: conn} do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/availability")
+        |> head("/api/registry/swift/availability")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -70,19 +82,19 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "POST /login" do
+  describe "POST /api/registry/swift/login" do
     test "returns 200 OK", %{conn: conn} do
       conn =
         conn
         |> registry_json_conn()
-        |> post("/login")
+        |> post("/api/registry/swift/login")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
     end
   end
 
-  describe "GET /identifiers" do
+  describe "GET /api/registry/swift/identifiers" do
     test "returns identifiers for valid repository url", %{conn: conn} do
       url = "https://github.com/apple/swift-argument-parser"
 
@@ -91,7 +103,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 200
       response = json_response(conn, :ok)
@@ -104,7 +116,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 400
       response = json_response(conn, :bad_request)
@@ -117,7 +129,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 404
       response = json_response(conn, :not_found)
@@ -134,7 +146,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 404
       response = json_response(conn, :not_found)
@@ -151,7 +163,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 503
       response = json_response(conn, :service_unavailable)
@@ -159,7 +171,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "HEAD /identifiers" do
+  describe "HEAD /api/registry/swift/identifiers" do
     test "returns 200 for valid repository url", %{conn: conn} do
       url = "https://github.com/apple/swift-argument-parser"
 
@@ -168,7 +180,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 200
       assert conn.resp_body == ""
@@ -180,7 +192,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 400
       assert conn.resp_body == ""
@@ -192,7 +204,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 404
       assert conn.resp_body == ""
@@ -208,7 +220,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 404
       assert conn.resp_body == ""
@@ -224,14 +236,14 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/identifiers?url=#{URI.encode_www_form(url)}")
+        |> head("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
 
       assert conn.status == 503
       assert conn.resp_body == ""
     end
   end
 
-  describe "GET /:scope/:name (list_releases)" do
+  describe "GET /api/registry/swift/:scope/:name (list_releases)" do
     test "returns releases when package exists", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -250,7 +262,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}")
+        |> get("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -258,8 +270,8 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       response = json_response(conn, :ok)
 
       assert response["releases"] == %{
-               "1.0.0" => %{"url" => "/apple/swift-argument-parser/1.0.0"},
-               "1.1.0" => %{"url" => "/apple/swift-argument-parser/1.1.0"}
+               "1.0.0" => %{"url" => "/api/registry/swift/apple/swift-argument-parser/1.0.0"},
+               "1.1.0" => %{"url" => "/api/registry/swift/apple/swift-argument-parser/1.1.0"}
              }
     end
 
@@ -298,7 +310,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}")
+        |> get("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -316,7 +328,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}")
+        |> get("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 503
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -329,7 +341,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/%2E%2E/swift-argument-parser")
+        |> get("/api/registry/swift/%2E%2E/swift-argument-parser")
 
       assert conn.status == 400
       response = json_response(conn, :bad_request)
@@ -337,7 +349,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "HEAD /:scope/:name (list_releases)" do
+  describe "HEAD /api/registry/swift/:scope/:name (list_releases)" do
     test "returns releases when package exists", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -356,7 +368,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}")
+        |> head("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -372,7 +384,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}")
+        |> head("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -388,7 +400,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}")
+        |> head("/api/registry/swift/#{scope}/#{name}")
 
       assert conn.status == 503
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -399,14 +411,14 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/%2E%2E/swift-argument-parser")
+        |> head("/api/registry/swift/%2E%2E/swift-argument-parser")
 
       assert conn.status == 400
       assert conn.resp_body == ""
     end
   end
 
-  describe "GET /:scope/:name/:version (show_release)" do
+  describe "GET /api/registry/swift/:scope/:name/:version (show_release)" do
     test "returns release info when version exists", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -425,7 +437,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/#{version}")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -462,7 +474,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/v1")
+        |> get("/api/registry/swift/#{scope}/#{name}/v1")
 
       assert conn.status == 200
 
@@ -487,7 +499,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/1.2.3-alpha.1.2")
+        |> get("/api/registry/swift/#{scope}/#{name}/1.2.3-alpha.1.2")
 
       assert conn.status == 200
 
@@ -513,7 +525,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/#{version}")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -529,7 +541,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/#{version}")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -548,7 +560,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/#{scope}/#{name}/#{version}")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 503
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -561,7 +573,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> get("/realm/realm-swift/0.0.24b")
+        |> get("/api/registry/swift/realm/realm-swift/0.0.24b")
 
       assert conn.status == 400
 
@@ -570,7 +582,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "HEAD /:scope/:name/:version (show_release)" do
+  describe "HEAD /api/registry/swift/:scope/:name/:version (show_release)" do
     test "returns release info when version exists", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -589,7 +601,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}/#{version}")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -613,7 +625,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}/v1")
+        |> head("/api/registry/swift/#{scope}/#{name}/v1")
 
       assert conn.status == 200
       assert conn.resp_body == ""
@@ -637,7 +649,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}/#{version}")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -654,7 +666,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}/#{version}")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -671,7 +683,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_json_conn()
-        |> head("/#{scope}/#{name}/#{version}")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}")
 
       assert conn.status == 503
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -679,7 +691,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "GET /:scope/:name/:version.zip (download_archive)" do
+  describe "GET /api/registry/swift/:scope/:name/:version.zip (download_archive)" do
     test "serves from disk when file exists locally", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -694,7 +706,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> get("/#{scope}/#{name}/#{version}.zip")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -730,7 +742,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> get("/#{scope}/#{name}/#{version}.zip")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -754,7 +766,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> get("/#{scope}/#{name}/#{version}.zip")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -774,14 +786,14 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> get("/#{scope}/#{name}/#{version}.zip")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
     end
   end
 
-  describe "HEAD /:scope/:name/:version.zip (download_archive)" do
+  describe "HEAD /api/registry/swift/:scope/:name/:version.zip (download_archive)" do
     test "serves from disk when file exists locally", %{conn: conn} do
       scope = "apple"
       name = "swift-argument-parser"
@@ -798,7 +810,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> head("/#{scope}/#{name}/#{version}.zip")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -836,7 +848,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> head("/#{scope}/#{name}/#{version}.zip")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -862,7 +874,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> head("/#{scope}/#{name}/#{version}.zip")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -883,7 +895,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_zip_conn()
-        |> head("/#{scope}/#{name}/#{version}.zip")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}.zip")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -891,12 +903,12 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
     end
   end
 
-  describe "GET /:scope/:name/:version/Package.swift (show_manifest)" do
+  describe "GET /api/registry/swift/:scope/:name/:version/Package.swift (show_manifest)" do
     test "returns 400 when normalized version is invalid", %{conn: conn} do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/apple/swift-argument-parser/%2E%2E/Package.swift")
+        |> get("/api/registry/swift/apple/swift-argument-parser/%2E%2E/Package.swift")
 
       assert conn.status == 400
       response = json_response(conn, :bad_request)
@@ -933,7 +945,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -969,7 +981,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1011,7 +1023,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=6.0.0")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1037,13 +1049,13 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift?swift-version=5.8")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=5.8")
 
       assert conn.status == 303
       assert get_resp_header(conn, "content-version") == ["1"]
 
       assert get_resp_header(conn, "location") == [
-               "/apple/swift-argument-parser/1.0.0/Package.swift"
+               "/api/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
              ]
     end
 
@@ -1073,7 +1085,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1092,7 +1104,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1124,7 +1136,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       [link_header] = get_resp_header(conn, "link")
@@ -1154,7 +1166,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       [link_header] = get_resp_header(conn, "link")
@@ -1194,7 +1206,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       [link_header] = get_resp_header(conn, "link")
@@ -1221,19 +1233,19 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> get("/#{scope}/#{name}/#{version}/Package.swift")
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "link") == []
     end
   end
 
-  describe "HEAD /:scope/:name/:version/Package.swift (show_manifest)" do
+  describe "HEAD /api/registry/swift/:scope/:name/:version/Package.swift (show_manifest)" do
     test "returns 400 when normalized version is invalid", %{conn: conn} do
       conn =
         conn
         |> registry_swift_conn()
-        |> head("/apple/swift-argument-parser/%2E%2E/Package.swift")
+        |> head("/api/registry/swift/apple/swift-argument-parser/%2E%2E/Package.swift")
 
       assert conn.status == 400
       assert conn.resp_body == ""
@@ -1271,7 +1283,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> head("/#{scope}/#{name}/#{version}/Package.swift")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1302,13 +1314,13 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> head("/#{scope}/#{name}/#{version}/Package.swift?swift-version=5.8")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift?swift-version=5.8")
 
       assert conn.status == 303
       assert get_resp_header(conn, "content-version") == ["1"]
 
       assert get_resp_header(conn, "location") == [
-               "/apple/swift-argument-parser/1.0.0/Package.swift"
+               "/api/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
              ]
 
       assert conn.resp_body == ""
@@ -1341,7 +1353,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> head("/#{scope}/#{name}/#{version}/Package.swift")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
@@ -1361,7 +1373,7 @@ defmodule SwiftRegistryWeb.RegistryControllerTest do
       conn =
         conn
         |> registry_swift_conn()
-        |> head("/#{scope}/#{name}/#{version}/Package.swift")
+        |> head("/api/registry/swift/#{scope}/#{name}/#{version}/Package.swift")
 
       assert conn.status == 404
       assert get_resp_header(conn, "content-version") == ["1"]
