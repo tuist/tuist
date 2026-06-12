@@ -76,12 +76,6 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
-  # Node reads resolve the primary pod's node `tuist.dev/pn-ipv4`
-  # label into KuraInstance.status.nodeAddress for NodePort-exposed
-  # instances.
-  - apiGroups: [""]
-    resources: [nodes]
-    verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
     verbs: [get, list, watch, update, patch]
@@ -112,6 +106,39 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: [ingressclasses]
     verbs: [get, list, watch, create, update, patch, delete]
+---
+# Nodes are cluster-scoped, so this can't live in the namespaced
+# controller Role: the controller resolves the primary pod's node
+# `tuist.dev/pn-ipv4` label into KuraInstance.status.nodeAddress for
+# NodePort-exposed instances, and controller-runtime's cached client
+# needs list+watch for the Node informer behind that get.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}-node-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-node-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}-node-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
