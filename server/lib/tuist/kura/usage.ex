@@ -12,6 +12,7 @@ defmodule Tuist.Kura.Usage do
   alias Tuist.Projects
 
   @max_events_per_batch 5_000
+  @insert_chunk_size 500
 
   # Kura's wire format uses tenant_id/namespace_id (it's tenant-agnostic). We
   # resolve them to Tuist account/project ids at the boundary and persist only
@@ -24,9 +25,9 @@ defmodule Tuist.Kura.Usage do
 
     rows = Enum.map(events, &build_row(&1, projects_by_handle, account_ids_by_handle, now))
 
-    if rows != [] do
-      IngestRepo.insert_all(UsageEvent, rows)
-    end
+    rows
+    |> Enum.chunk_every(@insert_chunk_size)
+    |> Enum.each(&IngestRepo.insert_all(UsageEvent, &1))
 
     {:ok, length(rows)}
   end
