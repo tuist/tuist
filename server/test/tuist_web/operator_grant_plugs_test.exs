@@ -189,6 +189,34 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
     end
   end
 
+  describe "load_operator_grant/2" do
+    test "stamps the grant jti + sub onto logger metadata" do
+      operator = operator_user()
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      now = System.system_time(:second)
+
+      claims = %{
+        tier: :read,
+        account_id: account.id,
+        account_handle: account.name,
+        sub: operator.email,
+        jti: "grant-42",
+        exp: now + 600
+      }
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{"operator_grants" => %{account.name => claims}})
+        |> assign(:current_user, operator)
+        |> Map.put(:params, %{"account_handle" => account.name})
+        |> OperatorGrant.load_operator_grant([])
+
+      assert Logger.metadata()[:operator_grant_jti] == "grant-42"
+      assert Logger.metadata()[:operator_grant_sub] == operator.email
+      assert conn.assigns.current_user.operator_grant.jti == "grant-42"
+    end
+  end
+
   describe "active_grant?/1 (SSO bypass binding)" do
     test "true for the operator the grant was minted for" do
       operator = operator_user()

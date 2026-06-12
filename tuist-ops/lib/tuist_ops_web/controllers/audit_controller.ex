@@ -12,6 +12,11 @@ defmodule TuistOpsWeb.AuditController do
 
   @sections ~w(cluster projects)
 
+  # The audit trail exposes operator + customer access history, so it
+  # needs the same Pomerium-verified identity as the grant flow — the
+  # Service is tailnet-exposed and the bare claim header is forgeable.
+  plug :require_operator_identity
+
   def root(conn, _params), do: redirect(conn, to: ~p"/audit")
 
   def index(conn, params) do
@@ -38,4 +43,15 @@ defmodule TuistOpsWeb.AuditController do
   end
 
   defp parse_page(_), do: 1
+
+  defp require_operator_identity(conn, _opts) do
+    if TuistOps.Pomerium.verified_email(conn) do
+      conn
+    else
+      conn
+      |> put_status(:unauthorized)
+      |> text("Not authenticated.")
+      |> halt()
+    end
+  end
 end

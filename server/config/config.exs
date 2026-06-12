@@ -120,6 +120,9 @@ config :logger, :console,
     :auth_account_handle,
     :selected_account_handle,
     :selected_project_handle,
+    # Operator project-access grant (forensic join key for the audit trail)
+    :operator_grant_jti,
+    :operator_grant_sub,
     # Tuist.Runners structured fields
     :pod_uid,
     :pod_name,

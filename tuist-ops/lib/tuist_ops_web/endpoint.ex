@@ -4,6 +4,16 @@ defmodule TuistOpsWeb.Endpoint do
   # The operator HTML pages need the Noora bundle; Slack/Pomerium are
   # still JSON. The Slack webhook plug reads raw body for signatures.
 
+  # Cookie session, used only to carry the CSRF token for the grant
+  # reason form (identity is Pomerium's, not this session). SameSite=Lax
+  # so a cross-site POST can't replay it.
+  @session_options [
+    store: :cookie,
+    key: "_tuist_ops_key",
+    signing_salt: "tuist-ops-session",
+    same_site: "Lax"
+  ]
+
   plug Plug.Static,
     at: "/",
     from: {:tuist_ops, "priv/static"},
@@ -21,5 +31,6 @@ defmodule TuistOpsWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
+  plug Plug.Session, @session_options
   plug TuistOpsWeb.Router
 end

@@ -22,10 +22,14 @@ defmodule TuistOpsWeb.Router do
 
   pipeline :browser do
     # The operator HTML surface (reason form + audit trail). Fronted by
-    # Pomerium (Google Workspace OIDC) on the public ingress; identity
-    # arrives as the `X-Pomerium-Claim-Email` header, there is no session.
+    # Pomerium (Google Workspace OIDC); identity comes from the verified
+    # `X-Pomerium-Jwt-Assertion` (see `TuistOps.Pomerium`). The session
+    # exists only to carry the CSRF token: read grants mint on POST, so
+    # `protect_from_forgery` keeps a cross-site form from minting one.
     plug :accepts, ["html", "json"]
+    plug :fetch_session
     plug :fetch_query_params
+    plug :protect_from_forgery
     plug :put_root_layout, html: {TuistOpsWeb.Layouts, :root}
   end
 

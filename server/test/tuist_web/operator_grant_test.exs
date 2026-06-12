@@ -88,6 +88,14 @@ defmodule TuistWeb.OperatorGrantTest do
       assert {:error, :invalid_tier} = OperatorGrant.verify(token)
     end
 
+    test "rejects an account handle with SQL LIKE wildcards", %{signer: signer} do
+      assert {:error, :invalid_account_handle} =
+               OperatorGrant.verify(mint(signer, claims(%{"account_handle" => "%"})))
+
+      assert {:error, :invalid_account_handle} =
+               OperatorGrant.verify(mint(signer, claims(%{"account_handle" => "acm_"})))
+    end
+
     test "fails closed when no public key is configured", %{signer: signer} do
       stub(Tuist.Environment, :operator_grant_public_key, fn -> nil end)
       token = mint(signer, claims())

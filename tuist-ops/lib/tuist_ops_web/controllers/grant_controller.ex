@@ -36,6 +36,11 @@ defmodule TuistOpsWeb.GrantController do
   require Logger
 
   @tiers ~w(read admin)
+  # A valid account handle is the same charset the server validates names
+  # against. Rejecting anything else keeps SQL LIKE wildcards (`%`/`_`)
+  # out of the signed grant, so a grant can't bind to one account while
+  # the audit/Slack trail shows a different (wildcard) string.
+  @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
 
   def new(conn, params) do
     subject = subject(conn)
@@ -81,6 +86,9 @@ defmodule TuistOpsWeb.GrantController do
 
       is_nil(account) or is_nil(return_to) or not allowed_return_to?(return_to) ->
         render_error(conn, 400, "Bad request", "Missing or invalid parameters.")
+
+      not valid_account_handle?(account) ->
+        render_error(conn, 400, "Bad request", "Invalid account handle.")
 
       tier not in @tiers ->
         render_error(conn, 400, "Bad request", "Unknown access tier.")
@@ -188,6 +196,9 @@ defmodule TuistOpsWeb.GrantController do
   # --- identity + validation --------------------------------------------
 
   defp subject(conn), do: TuistOps.Pomerium.verified_email(conn)
+
+  defp valid_account_handle?(handle),
+    do: is_binary(handle) and Regex.match?(@account_handle_regex, handle)
 
   defp parse_ttl(nil), do: nil
 

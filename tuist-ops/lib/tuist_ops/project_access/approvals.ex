@@ -136,7 +136,7 @@ defmodule TuistOps.ProjectAccess.Approvals do
               notify_closed(expired, "expired")
               {:expired, expired}
 
-            req.requester_email == actor_email ->
+            String.downcase(req.requester_email) == String.downcase(actor_email) ->
               Repo.rollback(:cannot_self_approve)
 
             not Policy.admin_approver_allowed?(actor_email) ->

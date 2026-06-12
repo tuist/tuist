@@ -107,6 +107,11 @@ defmodule TuistOps.ProjectAccess.ApprovalsTest do
                Approvals.approve(request.id, %{slack_id: "U_MAREK", email: "marek@tuist.dev"})
     end
 
+    test "self-approval is rejected case-insensitively", %{request: request} do
+      assert {:error, :cannot_self_approve} =
+               Approvals.approve(request.id, %{slack_id: "U_MAREK", email: "Marek@TUIST.dev"})
+    end
+
     test "a Member cannot approve admin access", %{request: request} do
       stub(TailscaleClient, :user_role, fn _ -> {:ok, :member} end)
 

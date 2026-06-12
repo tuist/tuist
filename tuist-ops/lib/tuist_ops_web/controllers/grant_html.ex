@@ -26,6 +26,7 @@ defmodule TuistOpsWeb.GrantHTML do
           <p class="ops-muted">Signed in as <strong>{@subject}</strong></p>
 
           <form method="post" action="/grants" class="ops-form">
+            <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
             <input type="hidden" name="account_handle" value={@account} />
             <input type="hidden" name="return_to" value={@return_to} />
 

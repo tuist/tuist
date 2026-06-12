@@ -48,6 +48,10 @@ defmodule TuistWeb.OperatorGrant do
   @session_key "operator_grants"
   # Tolerance for clock drift between the ops signer and this server.
   @clock_skew_seconds 60
+  # Account handles are alphanumeric + dashes (mirrors the server's name
+  # validation). Reject anything else so a `%`/`_` in the grant can't be
+  # resolved as a SQL LIKE wildcard by `get_account_by_handle/1`.
+  @account_handle_regex ~r/^[a-zA-Z0-9-]+$/
 
   # --- verification ------------------------------------------------------
 
@@ -94,6 +98,7 @@ defmodule TuistWeb.OperatorGrant do
   defp validate_claims(fields) do
     with {:ok, tier} <- fetch_tier(fields),
          {:ok, account_handle} <- fetch_string(fields, "account_handle"),
+         :ok <- check_account_handle(account_handle),
          {:ok, sub} <- fetch_string(fields, "sub"),
          {:ok, iat} <- fetch_int(fields, "iat"),
          {:ok, exp} <- fetch_int(fields, "exp"),
@@ -118,6 +123,10 @@ defmodule TuistWeb.OperatorGrant do
   defp fetch_tier(%{"tier" => "read"}), do: {:ok, :read}
   defp fetch_tier(%{"tier" => "admin"}), do: {:ok, :admin}
   defp fetch_tier(_), do: {:error, :invalid_tier}
+
+  defp check_account_handle(handle) do
+    if Regex.match?(@account_handle_regex, handle), do: :ok, else: {:error, :invalid_account_handle}
+  end
 
   defp fetch_string(fields, key) do
     case Map.get(fields, key) do
@@ -250,10 +259,21 @@ defmodule TuistWeb.OperatorGrant do
     with %User{} = user <- conn.assigns[:current_user],
          account_handle when is_binary(account_handle) <- conn.params["account_handle"],
          %{} = claims <- active_session_grant(get_session(conn, @session_key), account_handle) do
+      log_grant_context(claims)
       assign(conn, :current_user, %{user | operator_grant: claims})
     else
       _ -> conn
     end
+  end
+
+  # Stamp the grant's jti/sub onto logger metadata so every request made
+  # under a grant is joinable to the ops audit row by `operator_grant_jti`
+  # — the forensic key the runbook promises.
+  defp log_grant_context(claims) do
+    Logger.metadata(
+      operator_grant_jti: Map.get(claims, :jti),
+      operator_grant_sub: Map.get(claims, :sub)
+    )
   end
 
   @doc """
@@ -267,6 +287,7 @@ defmodule TuistWeb.OperatorGrant do
 
     socket =
       if match?(%User{}, current_user) and is_binary(account_handle) and is_map(claims) do
+        log_grant_context(claims)
         Phoenix.Component.assign(socket, :current_user, %{current_user | operator_grant: claims})
       else
         socket
