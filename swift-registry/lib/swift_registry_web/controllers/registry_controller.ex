@@ -447,17 +447,7 @@ defmodule SwiftRegistryWeb.RegistryController do
     end)
   end
 
-  defp registry_path(conn, suffix) do
-    registry_base_path(conn) <> suffix
-  end
-
-  defp registry_base_path(%{request_path: request_path}) do
-    if String.starts_with?(request_path, "/api/registry/swift") do
-      "/api/registry/swift"
-    else
-      ""
-    end
-  end
+  defp registry_path(_conn, suffix), do: suffix
 
   defp maybe_enqueue_registry_download(conn, key) do
     if not head_request?(conn) do

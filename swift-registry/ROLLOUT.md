@@ -63,9 +63,6 @@ Smoke-test against `swift-registry-canary.tuist.dev` directly:
 - `curl -fsS https://swift-registry-canary.tuist.dev/up` → 200
 - `curl -fsS -H 'Accept: application/vnd.swift.registry.v1+json' \
     https://swift-registry-canary.tuist.dev/availability` → 200
-- `curl -fsS -H 'Accept: application/vnd.swift.registry.v1+json' \
-    https://swift-registry-canary.tuist.dev/api/registry/swift/availability`
-  → 200 (compat prefix)
 - Metadata fetch:
   `https://swift-registry-canary.tuist.dev/apple/swift-argument-parser` →
   200 with `Content-Version: 1` and a JSON list of releases.

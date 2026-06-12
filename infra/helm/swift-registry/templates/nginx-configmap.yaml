@@ -33,9 +33,9 @@ data:
 
       # Swift Package Registry requires a Content-Version response header.
       # X-Accel-Redirect to proxy_pass locations replaces upstream headers,
-      # so we re-inject it only for registry requests.
+      # so we re-inject it only for registry requests (scope/name shapes).
       map $request_uri $registry_content_version {
-        "~^/(api/registry/swift/|[^/]+/[^/]+)" "1";
+        "~^/[^/]+/[^/]+" "1";
         default "";
       }
 
