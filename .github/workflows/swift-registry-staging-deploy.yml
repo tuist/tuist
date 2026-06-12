@@ -9,6 +9,16 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+  # Lets the swift-registry extraction PR (and future PRs that touch the
+  # service) request a staging deploy of the PR's HEAD by applying the
+  # `deploy-staging` label. The `if:` on the jobs below gates the actual
+  # work on that exact label so other labels don't fire a deploy.
+  pull_request:
+    types: [labeled]
+    paths:
+      - swift-registry/**
+      - tuist_common/**
+      - infra/helm/swift-registry/**
 
 permissions:
   contents: read
@@ -27,12 +37,14 @@ env:
   HELM_RELEASE_NAME: swift-registry
   NAMESPACE: swift-registry
   DEPLOY_ENVIRONMENT: staging
-  DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
+  DEPLOY_SHA: ${{ inputs.commit_sha || github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   build:
     name: Build and push Swift registry image
-    if: inputs.image_tag == ''
+    if: |
+      inputs.image_tag == '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'deploy-staging')
     runs-on: tuist-linux
     timeout-minutes: 30
     outputs:
@@ -64,7 +76,10 @@ jobs:
   deploy:
     name: Deploy staging
     needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: |
+      always() &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' || github.event.label.name == 'deploy-staging')
     runs-on: tuist-linux
     timeout-minutes: 20
     environment:
