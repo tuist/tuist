@@ -145,7 +145,19 @@ extraEnv: []
 extraEnvFrom: []
 podAnnotations: {}
 podLabels: {}
-affinity: {}
+# Schedule onto Hetzner CSI-capable workers only. The chart provisions
+# `data` and `storage` PVCs against the default StorageClass
+# (`csi.hetzner.cloud`); other vendor nodes that may join the cluster
+# (e.g., Scaleway nodes used by the Kura pool) lack
+# `csi.hetzner.cloud/location` and can't bind the volumes, causing
+# `VolumeBinding: context deadline exceeded` on first deploy.
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: csi.hetzner.cloud/location
+              operator: Exists
 nodeSelector: {}
 tolerations: []
 terminationGracePeriodSeconds: 30
