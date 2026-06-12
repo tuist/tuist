@@ -77,3 +77,7 @@ imagePullSecrets:
 {{- fail "persistence.storage.existingClaim is required when persistence.storage.create is false" -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "swift-registry.nginxConfigMapName" -}}
+{{- printf "%s-nginx" (include "swift-registry.fullname" .) -}}
+{{- end -}}

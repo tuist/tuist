@@ -30,7 +30,34 @@ registrySyncAllowlist: ""
 service:
   type: ClusterIP
   port: 80
-  targetPort: 4000
+  # nginx sidecar listens on this port and is the in-cluster entrypoint.
+  # Must match `nginx.containerPort` below.
+  targetPort: 8080
+
+# Phoenix listens on this Unix socket inside the pod; nginx proxy_passes to it.
+phoenix:
+  socketPath: /run/swift-registry/swift-registry.sock
+  socketLink: /run/swift-registry/current.sock
+
+nginx:
+  image:
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.27-alpine
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
 
 serviceAccount:
   create: true

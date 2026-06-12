@@ -56,16 +56,15 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.targetPort }}
           env:
             - name: MIX_ENV
               value: "prod"
             - name: PUBLIC_HOST
               value: {{ $publicHost | quote }}
-            - name: PORT
-              value: {{ printf "%v" .Values.service.targetPort | quote }}
+            - name: PHX_SOCKET_PATH
+              value: {{ .Values.phoenix.socketPath | quote }}
+            - name: PHX_SOCKET_LINK
+              value: {{ .Values.phoenix.socketLink | quote }}
             - name: SERVER_URL
               value: {{ .Values.serverUrl | quote }}
             - name: SENTRY_ENV
@@ -122,25 +121,22 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           startupProbe:
-            httpGet:
-              path: {{ .Values.probes.startup.path }}
-              port: http
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
             initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.startup.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.startup.failureThreshold }}
           readinessProbe:
-            httpGet:
-              path: {{ .Values.probes.readiness.path }}
-              port: http
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
           livenessProbe:
-            httpGet:
-              path: {{ .Values.probes.liveness.path }}
-              port: http
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
             timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
@@ -154,6 +150,40 @@ spec:
               mountPath: {{ .Values.storageDir }}
             - name: tmp
               mountPath: /tmp
+            - name: socket
+              mountPath: /run/swift-registry
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.nginx.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nginx.containerPort }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: socket
+              mountPath: /run/swift-registry
+            - name: storage
+              mountPath: {{ .Values.storageDir }}
+              readOnly: true
+            - name: nginx-tmp
+              mountPath: /tmp
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -163,3 +193,10 @@ spec:
             claimName: {{ include "swift-registry.storageClaimName" . }}
         - name: tmp
           emptyDir: {}
+        - name: socket
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "swift-registry.nginxConfigMapName" . }}
