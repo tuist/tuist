@@ -35,6 +35,3 @@ resources:
   limits:
     cpu: "2"
     memory: "2Gi"
-
-nodeSelector:
-  node.cluster.x-k8s.io/pool: general
