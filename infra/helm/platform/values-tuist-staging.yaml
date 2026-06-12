@@ -17,6 +17,7 @@ ingress-nginx:
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
 kura-eu-central-ingress-nginx:
   enabled: true
@@ -27,4 +28,5 @@ kura-eu-central-ingress-nginx:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/name: tuist-staging-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura
         load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

@@ -23,6 +23,7 @@ ingress-nginx:
     service:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
+        load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
 # Dedicated Kura ingress dataplanes. These are shared per region, not
 # per customer: customer-specific hosts route through the regional
@@ -38,6 +39,7 @@ kura-eu-central-ingress-nginx:
       annotations:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/name: tuist-kura-eu-central-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura
         load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
 
 kura-us-east-ingress-nginx:
@@ -49,6 +51,7 @@ kura-us-east-ingress-nginx:
       annotations:
         load-balancer.hetzner.cloud/location: ash
         load-balancer.hetzner.cloud/name: tuist-kura-us-east-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-east
         load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
 
 kura-us-west-ingress-nginx:
@@ -60,4 +63,5 @@ kura-us-west-ingress-nginx:
       annotations:
         load-balancer.hetzner.cloud/location: hil
         load-balancer.hetzner.cloud/name: tuist-kura-us-west-ingress
+        load-balancer.hetzner.cloud/node-selector: node.cluster.x-k8s.io/pool=kura-us-west
         load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
