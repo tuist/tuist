@@ -2,18 +2,16 @@ defmodule TuistWeb.RunnersControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  import Ecto.Query
   import TuistTestSupport.Fixtures.AccountsFixtures
 
-  alias Tuist.Accounts.Account
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Repo
+  alias Tuist.Runners
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
 
   describe "GET /api/internal/runners/desired_replicas" do
     test "returns claimed + queued + p95 for the fleet", %{conn: conn} do
-      account = enabled_account_fixture()
+      account = account_fixture()
 
       :ok =
         Jobs.enqueue(%{
@@ -100,15 +98,77 @@ defmodule TuistWeb.RunnersControllerTest do
     end
   end
 
-  defp enabled_account_fixture do
-    account = account_fixture()
+  describe "POST /api/internal/runners/dispatch" do
+    test "returns the jit, workflow_job_id, and a per-job log token", %{conn: conn} do
+      account = account_fixture()
 
-    {1, _} =
-      Repo.update_all(
-        from(a in Account, where: a.id == ^account.id),
-        set: [runner_max_concurrent: 10]
-      )
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
 
-    Repo.reload!(account)
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         %{
+           jit: "JITCONFIG",
+           account: account,
+           runner_name: "pod-1",
+           workflow_job_id: 4242,
+           fleet_on_cluster_network: false
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+
+      body = json_response(conn, 200)
+      assert body["encoded_jit_config"] == "JITCONFIG"
+      assert body["owner"] == account.name
+      assert body["workflow_job_id"] == 4242
+    end
+
+    test "includes cache_endpoint_url only for cluster-networked fleets with an active node",
+         %{conn: conn} do
+      account = account_fixture()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Tuist.Kura, :runner_cache_endpoint_url, fn _account ->
+        "http://kura-acme.kura.svc.cluster.local:4000"
+      end)
+
+      base = %{jit: "JITCONFIG", account: account, runner_name: "pod-1", workflow_job_id: 4242}
+
+      # Cluster-networked fleet (Linux): the in-cluster URL is handed out.
+      stub(Runners, :dispatch_for_sa, fn _, _ ->
+        {:ok, Map.put(base, :fleet_on_cluster_network, true)}
+      end)
+
+      on_cluster =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+
+      assert on_cluster["cache_endpoint_url"] == "http://kura-acme.kura.svc.cluster.local:4000"
+
+      # Off-cluster fleet (e.g. macOS Tart on vmnet): URL withheld so the
+      # client falls back to default cache resolution instead of getting
+      # an unreachable hard override.
+      stub(Runners, :dispatch_for_sa, fn _, _ ->
+        {:ok, Map.put(base, :fleet_on_cluster_network, false)}
+      end)
+
+      off_cluster =
+        build_conn()
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/dispatch")
+        |> json_response(200)
+
+      refute Map.has_key?(off_cluster, "cache_endpoint_url")
+    end
   end
 end

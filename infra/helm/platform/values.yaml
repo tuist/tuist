@@ -63,6 +63,75 @@ ingress-nginx:
     metrics:
       enabled: true
 
+kura-eu-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-central-ingress-nginx-leader
+    ingressClass: kura-eu-central
+    ingressClassResource:
+      name: kura-eu-central
+      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
+kura-us-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-east-ingress-nginx-leader
+    ingressClass: kura-us-east
+    ingressClassResource:
+      name: kura-us-east
+      controllerValue: k8s.io/kura-us-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
+kura-us-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-west-ingress-nginx-leader
+    ingressClass: kura-us-west
+    ingressClassResource:
+      name: kura-us-west
+      controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+
 external-dns:
   enabled: true
   provider: cloudflare
@@ -129,6 +198,45 @@ cloudnative-pg:
   # "no matches for kind PodMonitor".
   monitoring:
     podMonitorEnabled: false
+
+# Optional Cilium egress gateway policy for managed-cluster workloads that
+# need a stable outbound source IP for customer allowlists.
+#
+# This chart only renders the policy. The egress IP itself must already be
+# provisioned in the cloud provider and assigned to the selected gateway node's
+# network interface; otherwise Cilium will drop matching traffic.
+ciliumEgressGateway:
+  server:
+    enabled: false
+    name: tuist-server-stable-egress
+    namespace: tuist
+    podSelector:
+      app.kubernetes.io/component: server
+      app.kubernetes.io/instance: tuist
+      app.kubernetes.io/name: tuist
+    destinationCIDRs:
+      - 0.0.0.0/0
+    # Keep private/link-local/tailnet destinations on their normal route.
+    # Cilium already excludes in-cluster Pod/Service/Node IPs, but keeping
+    # these here makes the policy's intended public-internet boundary obvious.
+    excludedCIDRs:
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    gatewayNodeSelector:
+      tuist.dev/stable-egress-gateway: server
+    egressIP: ""
+    hostConfigurator:
+      enabled: false
+      image: quay.io/cilium/cilium:v1.18.7
+      imagePullPolicy: IfNotPresent
+      interface: eth0
+      gateway: 172.31.1.1
+      routeTable: "2010"
+      rulePriority: "2010"
+      reconcileIntervalSeconds: 60
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

@@ -71,19 +71,19 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    technology = technology(conn)
-
     endpoints =
       params[:account_handle]
-      |> Accounts.get_cache_endpoints_for_handle(technology)
+      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
       |> Enum.reject(&is_nil/1)
 
-    if technology == :kura and Enum.any?(endpoints, &(String.trim(&1) == "")) do
-      conn
-      |> put_status(:service_unavailable)
-      |> json(%{message: "Kura cache endpoint is unavailable."})
+    json(conn, %{endpoints: endpoints})
+  end
+
+  defp technology(conn) do
+    if Headers.get_client_feature_flag(conn, "kura") do
+      :kura
     else
-      json(conn, %{endpoints: endpoints})
+      :default
     end
   end
 
@@ -119,14 +119,6 @@ defmodule TuistWeb.API.CacheController do
     |> Authentication.authenticated_subject()
     |> Cache.accessible_handles()
     |> then(&json(conn, &1))
-  end
-
-  defp technology(conn) do
-    if Headers.get_client_feature_flag(conn, "kura") do
-      :kura
-    else
-      :default
-    end
   end
 
   operation(:get_cache_action_item,

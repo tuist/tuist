@@ -7,6 +7,7 @@ Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm)
 | Server app metrics | Auto-discovered via `prometheus.io/scrape=true` annotation on the server pods |
 | Application traces | OTLP gRPC :4317 for server/processor and OTLP HTTP :4318 for managed Kura → Grafana Cloud Tempo |
 | Server logs | stdout tailed from `/var/log/pods` by a per-node Alloy DaemonSet → Grafana Cloud Loki |
+| Node logs | host journald (`containerd`, `kubelet`, kernel) read from `/var/log/journal` by the same DaemonSet → Grafana Cloud Loki |
 | kube-state-metrics | Deployed + scraped (workload / pod / deployment / replica state) |
 | node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
 | kubelet + cAdvisor | Scraped (container resource usage) |
@@ -16,7 +17,7 @@ With these in place the Grafana Cloud **Observability → Kubernetes** app popul
 
 ## Install
 
-Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the main managed clusters, and by [`infra/mise/tasks/k8s/deploy-kura-regionals.sh`](../../mise/tasks/k8s/deploy-kura-regionals.sh) for the regional Kura clusters. Both paths are idempotent, so the chart tracks whatever's committed on `main`.
+Installed automatically by the `observability-install` job in [`.github/workflows/server-deployment.yml`](../../../.github/workflows/server-deployment.yml) for the managed workload clusters. The path is idempotent, so the chart tracks whatever's committed on `main`.
 
 Manual install (only needed when bootstrapping a fresh cluster ahead of the first CI deploy, or iterating locally):
 
@@ -57,7 +58,7 @@ Managed Kura pods push OTLP HTTP spans to the same Service:
 http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
 ```
 
-`infra/helm/tuist/values-managed-common.yaml` and `infra/helm/tuist/values-managed-kura-region.yaml` pass this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
+`infra/helm/tuist/values-managed-common.yaml` passes this endpoint to the Kura controller, which injects it into controller-managed Kura pods unless a `KuraInstance` overrides it explicitly.
 
 Server pod metrics are discovered automatically: the server Deployment carries `prometheus.io/scrape: "true"` and `prometheus.io/port: "9091"`, and `annotationAutodiscovery` picks those up without any static scrape-target config.
 
@@ -66,7 +67,7 @@ Server pod metrics are discovered automatically: the server Deployment carries `
 Four Alloy instances, split by role (managed by the upstream `alloy-operator`):
 
 - `alloy-metrics` — scrapes metrics (cluster / node / app) ; runs clustered so replicas hash-partition targets
-- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`
+- `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
 - `alloy-singleton` — cluster events (singleton so events aren't duplicated)
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
 
@@ -118,7 +119,7 @@ Server-level labels (`namespace`, `pod`, `container`, deployment/statefulset nam
 ## RBAC — what access does this chart get?
 
 - `alloy-metrics` — cluster-wide `get/list/watch` on nodes/pods/services/endpoints for target discovery, plus `/metrics/cadvisor` on kubelets.
-- `alloy-logs` — node-local hostPath to `/var/log/pods`. A compromised pod can only read logs from the single node it runs on.
+- `alloy-logs` — node-local hostPath to `/var/log/pods` (pod logs) and `/var/log/journal` (host journald: `containerd` / `kubelet` / kernel). No extra Kubernetes API access; a compromised pod can still only read logs from the single node it runs on.
 - `alloy-singleton` — cluster-wide `get/list/watch` on events.
 - `alloy-receiver` — none beyond standard pod execution.
 - `kube-state-metrics` — cluster-wide read on most core/apps/batch objects (standard for KSM).

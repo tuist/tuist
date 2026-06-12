@@ -1,0 +1,87 @@
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $pgSecret := printf "%s-app" (include "tuist-ops.pgClusterName" .) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist-ops.fullname" . }}
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  # Single replica; Recreate avoids the rolling-restart race on a
+  # single-instance Postgres connection pool.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tuist-ops.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist-ops.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: tuist-ops
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - name: PHX_HOST
+              value: {{ .Values.host | quote }}
+            - name: PORT
+              value: {{ .Values.port | quote }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist-ops.appSecretName" . }}
+                  key: SECRET_KEY_BASE
+            # CNPG emits a `<cluster>-app` Secret with a ready
+            # postgres:// URL in key `uri` (SSL params included);
+            # map it straight to DATABASE_URL so runtime.exs can
+            # consume it without re-assembly.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $pgSecret }}
+                  key: uri
+          envFrom:
+            - secretRef:
+                name: {{ include "tuist-ops.runtimeSecretName" . }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

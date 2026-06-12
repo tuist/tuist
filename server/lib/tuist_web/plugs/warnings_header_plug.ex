@@ -6,12 +6,13 @@ defmodule TuistWeb.WarningsHeaderPlug do
   """
   use TuistWeb, :controller
 
+  alias Tuist.CLIVersions
   alias Tuist.GitHub.Releases
   alias TuistWeb.Headers
 
   @assign_key :warnings
 
-  @minimum_supported_cli_version Version.parse!("4.118.1")
+  @minimum_supported_cli_version Version.parse!(CLIVersions.minimum_supported_version())
 
   def init(opts), do: opts
 
@@ -49,9 +50,12 @@ defmodule TuistWeb.WarningsHeaderPlug do
   end
 
   defp get_latest_cli_version do
+    # Prefer the bare semver `tag_name` (e.g. "4.196.0") over `name`
+    # (e.g. "CLI 4.196.0"); the former is the version string users actually
+    # install.
     case Releases.get_latest_cli_release(update_if_needed: false) do
       nil -> nil
-      release -> release.name
+      release -> release.tag_name
     end
   end
 

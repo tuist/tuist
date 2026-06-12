@@ -24,6 +24,19 @@ import (
 // gives the memory budget the pool's shapes compete for.
 const fleetNodePoolLabel = "node.cluster.x-k8s.io/pool"
 
+// macosFleetLabel + macosNodeOSLabel identify the Mac mini hosts
+// claimed by a macOS RunnerPool's fleetSelector. tuist.dev/fleet is
+// stamped by the runners-fleet's MachineDeployment (and matched by
+// the macOS runner Pods' nodeSelector); kubernetes.io/os=darwin
+// filters out any cross-OS noise. Counting these nodes gives the
+// host-slot budget the macOS Xcode pools compete for — one VM per
+// Mac mini under the Virtualization.framework SLA.
+const (
+	macosFleetLabel   = "tuist.dev/fleet"
+	macosNodeOSLabel  = "kubernetes.io/os"
+	macosNodeOSDarwin = "darwin"
+)
+
 // defaultMemReserveFraction is the share of a node pool's allocatable
 // memory kept usable for runner Pods. The remainder is slack for
 // system DaemonSets (Cilium, kube-proxy replacement, node-exporter)
@@ -90,6 +103,13 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
+	}
+
+	if !pool.DeletionTimestamp.IsZero() {
+		// Pool is being drained by the RunnerPoolReconciler's
+		// finalizer. Don't patch replicas on a Terminating CR, and
+		// don't requeue — the drain owns its lifecycle from here.
+		return ctrl.Result{}, nil
 	}
 
 	if pool.Spec.Autoscaling == nil || !pool.Spec.Autoscaling.Enabled {
@@ -174,14 +194,21 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // desiredForPool computes the target replica count for `pool`.
 //
-// macOS pools (one VM per host, no bin-packing) and pools with
-// autoscaling-disabled `maxReplicas` keep the simple per-pool policy.
-// Linux pools share a bare-metal node pool, so their speculative warm
-// headroom competes for memory: those run through the fleet allocator,
-// which squeezes idle shapes' warm buffers before another shape's real
-// queued work. Any failure gathering the fleet view falls back to the
-// per-pool target — a node-read blip must never trigger a mass
-// scale-down.
+// Pools with autoscaling-disabled `maxReplicas` keep the simple
+// per-pool policy. Everything else runs through the fleet allocator,
+// which apportions a shared capacity budget across sibling pools and
+// squeezes idle pools' speculative warm buffers before another pool's
+// real queued work. The budget unit depends on OS:
+//
+//   - Linux pools share a bare-metal node pool, contending for
+//     memory; budget = sum of allocatable memory bytes across the
+//     fleet's nodes.
+//   - macOS pools share a Mac mini fleet; each Pod claims a whole
+//     host (Apple's Virtualization.framework SLA caps at 2 VMs/host
+//     and we run 1 today), so budget = host count.
+//
+// Any failure gathering the fleet view falls back to the per-pool
+// target — a node-read blip must never trigger a mass scale-down.
 func (r *AutoscalerReconciler) desiredForPool(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -191,7 +218,7 @@ func (r *AutoscalerReconciler) desiredForPool(
 ) int32 {
 	perPool := scaling.DesiredReplicas(signals, knobs)
 
-	if pool.Spec.OS != "linux" || knobs.MaxReplicas <= 0 {
+	if knobs.MaxReplicas <= 0 {
 		return perPool
 	}
 
@@ -202,25 +229,62 @@ func (r *AutoscalerReconciler) desiredForPool(
 		return perPool
 	}
 
-	fleetMem, err := r.fleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
-	if err != nil || fleetMem <= 0 {
-		logger.Error(err, "read fleet allocatable memory; falling back to per-pool target",
-			"fleetSelector", pool.Spec.FleetSelector)
+	// capacity <= 0 is treated like an error on purpose. A zero sum is
+	// almost always a transient empty node-list read (informer cache
+	// blip, or no Ready nodes mid-roll), not a genuine "fleet has no
+	// capacity" state. Routing it into AllocateFleet would squeeze every
+	// pool's floor to zero and reap their warm Pods fleet-wide, the exact
+	// blip-driven mass scale-down this per-pool fallback exists to
+	// prevent. AllocateFleet's own zero-capacity contract (see its unit
+	// test) is therefore never exercised from here.
+	capacity, err := r.fleetCapacity(ctx, pool)
+	if err != nil || capacity <= 0 {
+		logger.Error(err, "read fleet capacity; falling back to per-pool target",
+			"fleetSelector", pool.Spec.FleetSelector, "os", pool.Spec.OS)
 		return perPool
 	}
 
-	alloc := scaling.AllocateFleet(demands, fleetMem)
+	alloc := scaling.AllocateFleet(demands, capacity)
 	if v, ok := alloc[pool.Name]; ok {
 		return v
 	}
 	return perPool
 }
 
+// fleetCapacity returns the shared budget `pool` competes for with
+// its siblings, in the same unit AllocateFleet expects PerPodCost
+// to be expressed in (memory bytes for Linux, host slots for macOS).
+// An unrecognised OS returns (0, nil), which trips the per-pool
+// fallback in desiredForPool without an error log — pools without a
+// known OS quietly skip the allocator.
+func (r *AutoscalerReconciler) fleetCapacity(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
+	switch pool.Spec.OS {
+	case "linux":
+		return r.fleetAllocatableMemory(ctx, pool.Spec.FleetSelector)
+	case "darwin":
+		return r.fleetHostCount(ctx, pool.Spec.FleetSelector)
+	default:
+		return 0, nil
+	}
+}
+
+// perPodCost is one Pod's claim on the shared fleet budget, in the
+// same unit as fleetCapacity returns above.
+func perPodCost(pool *tuistv1.RunnerPool) int64 {
+	if pool.Spec.OS == "darwin" {
+		// One Mac mini = one slot = one VM.
+		return 1
+	}
+	return int64(pool.Spec.PodMemoryMB) * 1024 * 1024
+}
+
 // gatherFleetDemands builds the allocator input for every
-// autoscaling-enabled Linux pool sharing `pool`'s FleetSelector (the
-// set of shapes contending for the same node pool). The reconciled
-// pool reuses the signals already fetched this tick; siblings get a
-// fresh fetch.
+// autoscaling-enabled sibling pool sharing `pool`'s OS and
+// FleetSelector (the set contending for the same capacity domain).
+// Pools of a different OS are excluded — Linux memory bytes and
+// macOS host slots aren't commensurable units in one
+// AllocateFleet call. The reconciled pool reuses the signals
+// already fetched this tick; siblings get a fresh fetch.
 func (r *AutoscalerReconciler) gatherFleetDemands(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -235,7 +299,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 	var demands []scaling.PoolDemand
 	for i := range pools.Items {
 		p := &pools.Items[i]
-		if p.Spec.OS != "linux" || p.Spec.FleetSelector != pool.Spec.FleetSelector {
+		if p.Spec.OS != pool.Spec.OS || p.Spec.FleetSelector != pool.Spec.FleetSelector {
 			continue
 		}
 		if p.Spec.Autoscaling == nil || !p.Spec.Autoscaling.Enabled || p.Spec.Autoscaling.MaxReplicas <= 0 {
@@ -257,11 +321,11 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 		}
 
 		demands = append(demands, scaling.PoolDemand{
-			Name:        p.Name,
-			PodMemBytes: int64(p.Spec.PodMemoryMB) * 1024 * 1024,
-			Floor:       k.MinWarmPoolFloor,
-			Load:        sig.Claimed + sig.Queued,
-			Target:      scaling.DesiredReplicas(sig, k),
+			Name:       p.Name,
+			PerPodCost: perPodCost(p),
+			Floor:      k.MinWarmPoolFloor,
+			Load:       sig.Claimed + sig.Queued,
+			Target:     scaling.DesiredReplicas(sig, k),
 		})
 	}
 
@@ -288,6 +352,23 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 		reserve = defaultMemReserveFraction
 	}
 	return int64(float64(total) * reserve), nil
+}
+
+// fleetHostCount counts Mac mini nodes claimed by `fleetSelector`.
+// Each host is one schedulable slot (one VM per Mac mini), so the
+// returned int64 is the macOS pool family's slot budget. Tracks the
+// actually-Ready host count — a host being CAPI-rolled drops out of
+// the result, and the per-pool fallback in desiredForPool keeps the
+// pool at its current size through the blip.
+func (r *AutoscalerReconciler) fleetHostCount(ctx context.Context, fleetSelector string) (int64, error) {
+	var nodes corev1.NodeList
+	if err := r.List(ctx, &nodes, client.MatchingLabels{
+		macosFleetLabel:  fleetSelector,
+		macosNodeOSLabel: macosNodeOSDarwin,
+	}); err != nil {
+		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
+	}
+	return int64(len(nodes.Items)), nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {

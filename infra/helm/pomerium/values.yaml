@@ -1,0 +1,139 @@
+# Defaults for the per-env Pomerium kube gateway. Per-env overlays
+# (values-staging.yaml / values-canary.yaml / values-production.yaml)
+# only override:
+#   - tuistEnv         (staging | canary | production)
+#   - publicHostname   (kube-<env>.tuist.dev)
+# Everything else (image, sidecar wiring, ingress shape) stays
+# identical across envs to keep behaviour symmetric.
+
+tuistEnv: staging
+publicHostname: kube-staging.tuist.dev
+authenticateHostname: authenticate.kube-staging.tuist.dev
+
+# tuist-ops reachability. The Pomerium pod isn't on the tailnet
+# itself; templates/tailscale-egress.yaml provisions an
+# ExternalName Service annotated for the tailscale operator,
+# which proxies cluster-internal traffic to ops.<tailnet>.ts.net
+# over the tailnet. The sidecar dials the cluster-internal name.
+extAuthzHost: tuist-ops-egress
+extAuthzPort: 80
+
+# Tuist's tailnet MagicDNS suffix. No vanity domain configured at
+# Tailscale today (so it's the random-looking `taild6d7bb`); if we
+# ever set up a vanity tailnet name, update this in one place.
+tailnetName: taild6d7bb
+
+image:
+  repository: pomerium/pomerium
+  tag: v0.32.8
+  pullPolicy: IfNotPresent
+
+# kube-impersonator sidecar. Pomerium handles OIDC + session
+# issuance; the sidecar handles per-request impersonation header
+# injection by calling tuist-ops's PolicyController, then forwards
+# to the in-cluster apiserver with the resolved Impersonate-* +
+# the pod's SA bearer.
+#
+# `tag` is intentionally empty in source. The deploy workflow
+# (.github/workflows/pomerium-deployment.yml) resolves it at
+# deploy time from `git log -1 --format=%h -- kube-impersonator/`
+# and passes via `--set kubeImpersonator.image.tag=sha-<short>`.
+# That matches the resolve-at-deploy pattern from PR #11160 —
+# no committed image pins, no commit-and-redeploy cascade. An
+# empty tag here fails the deploy fast (k8s rejects
+# `repository:`), which is the intended fail-fast on missing
+# `--set`.
+kubeImpersonator:
+  image:
+    repository: ghcr.io/tuist/kube-impersonator
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Internal proxy listener — bound to 127.0.0.1 inside the pod
+  # so only Pomerium (in the same pod) can reach it. Any other
+  # bind would let pods on the cluster network spoof Host +
+  # X-Pomerium-Claim-Email and bypass Pomerium entirely.
+  port: 8081
+  # Health listener — bound to the pod IP so kubelet probes reach
+  # it. Only serves /healthz, not the impersonator proxy.
+  healthPort: 8082
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Single replica with memory-backed databroker. Trade-off: a pod
+# restart invalidates open sessions, users re-auth via browser on
+# next kubectl call. Acceptable cost at our scale (~5 humans, low
+# session volume); chart upgrades are infrequent.
+replicaCount: 1
+
+# Pomerium needs RBAC permission to impersonate users + groups on
+# the apiserver (per-request Impersonate-User / Impersonate-Group
+# headers come from the policy response). The ClusterRole below
+# binds those verbs.
+serviceAccount:
+  create: true
+  name: ""  # defaults to release fullname
+
+rbac:
+  # Pomerium's SA needs Impersonate verb on users + groups +
+  # serviceaccounts. The headers it injects are validated by the
+  # apiserver against the calling identity's permissions — i.e.
+  # Pomerium must be authorised to impersonate. RBAC tier of the
+  # impersonated user is decided by the ClusterRoleBindings in
+  # templates/access-tiers.yaml (this chart owns them now).
+  createImpersonatorRole: true
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Ingress fronts both the kubectl gateway hostname and the OIDC
+# callback hostname. cert-manager issues a Cloudflare-DNS-01 cert
+# per env covering both names.
+ingress:
+  className: nginx
+  tlsSecretName: pomerium-staging-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    # kubectl streams (exec, port-forward, logs -f) need long-lived
+    # connections. Bump nginx timeouts to match the apiserver's
+    # watch budget.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    # Pomerium handles TLS termination INSIDE the pod via its own
+    # certs (for the OIDC callback flow). But ingress-nginx ALSO
+    # terminates TLS — we configure Pomerium to trust the
+    # X-Forwarded-Proto header from ingress-nginx and serve HTTP
+    # internally. See config.insecure_server below.
+
+# Pod-level resource caps. Pomerium is Go + Envoy under the hood;
+# idle is light, peak bursts to a few hundred MB during session
+# reconciliation.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+podAnnotations: {}
+
+# Pomerium's runtime credentials come from the ESO-managed
+# pomerium-tuist Secret (see templates/external-secret.yaml).
+# Keys consumed (no POMERIUM_ prefix — Pomerium reads config keys
+# as bare uppercase env vars; POMERIUM_ is reserved for runtime
+# knobs like POMERIUM_CONFIG):
+#   SHARED_SECRET       internal RPC signing key
+#   COOKIE_SECRET       session cookie encryption key
+#   IDP_CLIENT_ID       Google OAuth client id
+#   IDP_CLIENT_SECRET   Google OAuth client secret
+secretName: pomerium-tuist

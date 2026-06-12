@@ -9,3 +9,4 @@ env:
     SERVER_URL: https://staging.tuist.dev
     SENTRY_ENV: stag
     DEPLOY_ENV: stag
+    XCODE_DATABASE_INTERACTIONS_ENABLED: "false"

@@ -15,8 +15,9 @@ defmodule Tuist.Runners.Dispatch do
     1. Parse `repository.owner.login` from the payload; look up
        the Tuist account by that name (account `name` IS the
        GitHub org login by convention).
-    2. Reject if `account.runner_max_concurrent` is 0 (runners
-       disabled for this customer).
+    2. Reject if runners aren't enabled for the customer
+       (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
+       flag in production).
     3. LIST RunnerPool CRs in the runners namespace and find the
        one whose `spec.dispatchLabel` is in the workflow_job's
        `labels` array. Reject when nothing matches (the
@@ -24,24 +25,23 @@ defmodule Tuist.Runners.Dispatch do
     4. Enqueue a ClickHouse row with the full workflow_job
        metadata so the customer UI can surface it.
 
-  `max_concurrent` is enforced at *claim* time, not enqueue, so
-  a capped customer's overflow waits in the queue instead of
-  being dropped on the GitHub side.
-
   Returns `{:ok, :queued}` / `{:ok, :completed}` / `:ignored` /
   `{:error, reason}`. The webhook handler always responds 200.
   """
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.Workers.FetchLogsWorker
 
   require Logger
 
@@ -50,13 +50,12 @@ defmodule Tuist.Runners.Dispatch do
   # to ~2/min while keeping post-deploy propagation under a minute.
   @pools_cache_ttl_ms 30_000
 
-  # Only accounts already in the `enabled` state (cap > 0) get
-  # cached. The hard cap is re-enforced in PG inside `Claims.attempt/4`,
-  # so a stale cached value can't overcommit — the only thing the
-  # cached value gates here is the cap=0 vs cap>0 boundary. We
-  # explicitly *don't* cache cap=0 accounts so a customer flipping
-  # the switch from disabled to enabled doesn't have to wait an
-  # entire TTL for their first webhook to dispatch.
+  # Account lookups by org login are cached to keep the webhook path
+  # off Postgres. Enablement isn't part of the cached value — it's
+  # evaluated per call via `FeatureFlags.runners_enabled?/1` (the
+  # `:runners` flag has its own cache + invalidation), so flipping a
+  # customer on takes effect on their next webhook regardless of this
+  # TTL.
   @account_cache_ttl_ms 60_000
 
   @doc """
@@ -69,7 +68,7 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(%{"action" => "completed"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_completed(payload)
+    result = handle_completed(payload, installation_id)
     emit_webhook_telemetry("completed", result)
     result
   end
@@ -136,7 +135,7 @@ defmodule Tuist.Runners.Dispatch do
         {:ignored, :no_account}
 
       {:error, :runners_disabled} ->
-        Logger.info("runners: account has runners disabled (max_concurrent=0); ignoring",
+        Logger.info("runners: runners not enabled for account; ignoring",
           owner: owner,
           repo: full_name
         )
@@ -188,19 +187,20 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp handle_completed(payload) do
+  defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion)
+      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion) do
+  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -210,7 +210,22 @@ defmodule Tuist.Runners.Dispatch do
     :ok = Claims.complete(workflow_job_id)
 
     case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, _} ->
+      {:ok, %{account_id: account_id}} ->
+        # Persist steps after marking the job complete: the row's
+        # `account_id` is the denormalisation key on the step row, and
+        # an empty list (cancelled jobs sometimes ship no steps) is a
+        # safe no-op. Webhook retries collapse on the RMT key.
+        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+
+        # Fetch the full job log from GitHub's Actions Logs API and
+        # ingest it into `runner_job_logs`. The Logs API is the only
+        # stable source of step output — the runner Pod's stdout
+        # carries only Listener lifecycle, the Worker diag log only
+        # framework noise, and step content streams directly from the
+        # .NET Worker to GitHub's `ResultsLog`. See
+        # `Tuist.Runners.Workers.FetchLogsWorker`.
+        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+
         Logger.info("runners: completed",
           workflow_job_id: workflow_job_id,
           conclusion: conclusion
@@ -223,6 +238,34 @@ defmodule Tuist.Runners.Dispatch do
         # (a different provider's job, or a delivery race).
         # Nothing to mark complete; not our concern.
         :ignored
+    end
+  end
+
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+    # Cancelled / synthetic workflow_jobs sometimes ship without a
+    # repository field. Without it we can't address the Logs API.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+    %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      installation_id: installation_id,
+      repository: repository
+    }
+    |> FetchLogsWorker.new()
+    |> Oban.insert()
+    |> case do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue log fetch: #{inspect(reason)}",
+          workflow_job_id: workflow_job_id
+        )
+
+        :ok
     end
   end
 
@@ -242,25 +285,6 @@ defmodule Tuist.Runners.Dispatch do
     }
   end
 
-  # The pre-profiles Linux dispatch labels. The shape catalog replaced
-  # the single per-env Linux pool these addressed, but existing
-  # workflows still write them in `runs-on:`. We alias them to the
-  # account's default shape (4 vCPU / 16 GB) so they keep dispatching
-  # without a workflow edit; the original label is still stamped on the
-  # runner so GitHub binds the job. Remove once no workflow references
-  # them.
-  #
-  # Scoped per-env on purpose: the GitHub App installation delivers
-  # `workflow_job` events for every org workflow to every env's
-  # server, so staging would enqueue `tuist-production-linux` jobs
-  # (and vice versa) if any env aliased a label that used to address
-  # a different env's pool. Each label is owned by exactly one env.
-  @legacy_linux_label_by_env %{
-    prod: "tuist-production-linux",
-    can: "tuist-canary-linux",
-    stag: "tuist-staging-linux"
-  }
-
   @doc """
   Resolve a webhook's `(account, requested_labels)` into the pool
   name to enqueue against and the customer-facing dispatch label
@@ -270,18 +294,20 @@ defmodule Tuist.Runners.Dispatch do
 
     1. **Profile** — an account-scoped profile (`<Profile.prefix()><name>`,
        e.g. `tuist-foo` on production, `tuist-staging-foo` on staging)
-       maps to its shape pool. The common path.
-    2. **Legacy Linux alias** — a pre-profiles `tuist-<env>-linux`
-       label maps to the catalog default shape (the per-env Linux pool
-       it used to address is gone). The original label is preserved as
-       the dispatch label so GitHub still binds the job.
-    3. **Legacy pool match** — `spec.dispatchLabel` matched against a
-       Helm-rendered `RunnerPool`. Still serves macOS pools and any
-       other non-shape fleets.
+       maps to its platform's pool — Linux shape pool or macOS
+       Xcode-version pool. The common path. The auto-bootstrapped
+       `linux` and `macos` default profiles mean `<prefix>linux` /
+       `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
+       env-prefixed elsewhere) resolve here too — no separate legacy
+       alias path needed.
+    2. **Legacy pool match** — `spec.dispatchLabel` matched against a
+       Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
+       pool the operator manually renders via `runnersFleet.pools[]`
+       (e.g. an Xcode the catalog has removed but customer workflows
+       still pin).
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
-    with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels),
-         {:error, :no_legacy_alias} <- resolve_legacy_linux_alias(requested_labels) do
+    with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
       resolve_legacy_pool(requested_labels)
     end
   end
@@ -291,35 +317,12 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, %Profile{} = profile} ->
         {:ok,
          %{
-           pool_name: Catalog.pool_name(profile.vcpus, profile.memory_gb),
+           pool_name: Catalog.pool_name(profile),
            requested_dispatch_label: Profile.dispatch_label(profile)
          }}
 
       {:error, :no_matching_profile} = err ->
         err
-    end
-  end
-
-  defp resolve_legacy_linux_alias(requested_labels) do
-    with own_label when is_binary(own_label) <- Map.get(@legacy_linux_label_by_env, Environment.env()),
-         legacy when is_binary(legacy) <-
-           Enum.find(requested_labels, &(is_binary(&1) and String.downcase(&1) == own_label)) do
-      case Catalog.default() do
-        nil ->
-          # Legacy label requested but the catalog has no default shape
-          # (misconfigured chart). Surface as no-pool so the webhook 200s
-          # and ops sees the loud log rather than a phantom enqueue.
-          {:error, :no_pools}
-
-        shape ->
-          {:ok,
-           %{
-             pool_name: Catalog.pool_name(shape.vcpus, shape.memory_gb),
-             requested_dispatch_label: legacy
-           }}
-      end
-    else
-      _ -> {:error, :no_legacy_alias}
     end
   end
 
@@ -414,9 +417,7 @@ defmodule Tuist.Runners.Dispatch do
         {:error, :no_account}
 
       account ->
-        cap = account.runner_max_concurrent || 0
-
-        if cap > 0 do
+        if FeatureFlags.runners_enabled?(account) do
           {:ok, account}
         else
           {:error, :runners_disabled}
@@ -451,13 +452,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # Caches enabled accounts (cap > 0) only. Skipping the cache for
-  # cap=0 / nil accounts keeps the adoption path snappy: a customer
-  # who first flips `runner_max_concurrent` from 0 to N expects the
-  # next webhook to dispatch right away, not after the previous
-  # cap-0 result has aged out of a long TTL. We also skip caching
-  # unknown handles for the same reason — `KeyValueStore.get/1`
-  # can't distinguish "cached nil" from "no entry" anyway.
+  # Caches any account resolved for an org login. Enablement is a
+  # feature-flag decision the caller makes per webhook, not a property
+  # of the cached row, so caching every account is safe and a flag
+  # flip still takes effect immediately. Unknown handles aren't cached
+  # — `KeyValueStore.get/1` can't distinguish "cached nil" from "no
+  # entry" anyway.
   defp get_account_by_handle_cached(owner) do
     cache_key = [__MODULE__, :account, owner]
     cache_opts = [cache: __MODULE__.cache_name()]
@@ -468,11 +468,8 @@ defmodule Tuist.Runners.Dispatch do
           nil ->
             nil
 
-          %{runner_max_concurrent: cap} = account when is_integer(cap) and cap > 0 ->
-            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
-            account
-
           account ->
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
             account
         end
 
@@ -516,6 +513,50 @@ defmodule Tuist.Runners.Dispatch do
       _ -> {"", ""}
     end
   end
+
+  # GitHub only populates the workflow_job's `steps` array on the
+  # `completed` event. We keep only entries with a usable name so a
+  # malformed payload doesn't leak placeholder rows.
+  defp raw_steps(job) do
+    case Map.get(job, "steps") do
+      steps when is_list(steps) -> Enum.filter(steps, &valid_step?/1)
+      _ -> []
+    end
+  end
+
+  defp valid_step?(%{"name" => name}) when is_binary(name) and name != "", do: true
+  defp valid_step?(_), do: false
+
+  # Convert each raw GitHub step into a `runner_job_steps` row,
+  # parsing the ISO timestamps into DateTime values the CH driver can
+  # bind to `DateTime64(6, 'UTC')`.
+  defp build_step_rows(workflow_job_id, account_id, raw_steps) do
+    Enum.map(raw_steps, fn step ->
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account_id,
+        number: get_integer(step, "number"),
+        name: get_string(step, "name"),
+        status: get_string(step, "status"),
+        conclusion: get_string(step, "conclusion"),
+        started_at: parse_step_time(Map.get(step, "started_at")),
+        completed_at: parse_step_time(Map.get(step, "completed_at"))
+      }
+    end)
+  end
+
+  # Step start / finish timestamps arrive as ISO-8601 strings or
+  # `null`. `DateTime64(6)` requires microsecond precision, so we
+  # promote the parsed value to 6-digit microseconds (mirrors the
+  # log ingest path).
+  defp parse_step_time(value) when is_binary(value) and value != "" do
+    case DateTime.from_iso8601(value) do
+      {:ok, %DateTime{microsecond: {us, _}} = dt, _offset} -> %{dt | microsecond: {us, 6}}
+      _ -> nil
+    end
+  end
+
+  defp parse_step_time(_), do: nil
 
   defp get_integer(map, key, default \\ 0) do
     case Map.get(map, key) do

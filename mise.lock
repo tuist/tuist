@@ -184,6 +184,15 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 [tools.git-cliff."platforms.windows-x64"]
 url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6.0-x86_64-pc-windows-msvc.zip"
 
+[[tools."github:pomerium/cli"]]
+version = "0.32.2"
+backend = "github:pomerium/cli"
+
+[tools."github:pomerium/cli"."platforms.macos-arm64"]
+checksum = "sha256:83140cab47cb8fbd0fd911d0d94a9d3ef9fc90ad506381aa84a1f298c0503f11"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-darwin-arm64.zip"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392607088"
+
 [[tools."github:tuist/blick"]]
 version = "0.8.0"
 backend = "github:tuist/blick"
@@ -358,6 +367,38 @@ url = "https://dl.k8s.io/v1.36.1/bin/windows/amd64/kubectl.exe"
 [[tools."npm:opencode-ai"]]
 version = "1.14.39"
 backend = "npm:opencode-ai"
+
+[[tools.oras]]
+version = "1.3.0"
+backend = "aqua:oras-project/oras"
+
+[tools.oras."platforms.linux-arm64"]
+checksum = "sha256:7649738b48fde10542bcc8b0e9b460ba83936c75fb5be01ee6d4443764a14352"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_arm64.tar.gz"
+
+[tools.oras."platforms.linux-arm64-musl"]
+checksum = "sha256:7649738b48fde10542bcc8b0e9b460ba83936c75fb5be01ee6d4443764a14352"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_arm64.tar.gz"
+
+[tools.oras."platforms.linux-x64"]
+checksum = "sha256:6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz"
+
+[tools.oras."platforms.linux-x64-musl"]
+checksum = "sha256:6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz"
+
+[tools.oras."platforms.macos-arm64"]
+checksum = "sha256:e10c6552c02d5a7c7eaf7170d3b6f7f094b675a98a1e0edf4d4478a909447245"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_darwin_arm64.tar.gz"
+
+[tools.oras."platforms.macos-x64"]
+checksum = "sha256:82c33f7da8430ea7fa7e7bdf7721be0a0d0481e5ccb2472ea438490d5e8641a9"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_darwin_amd64.tar.gz"
+
+[tools.oras."platforms.windows-x64"]
+checksum = "sha256:b050e93aa0dc7a79a61fa8e4074dfa302c41d4af01b634fe393c5dd687536aee"
+url = "https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_windows_amd64.zip"
 
 [[tools.protoc]]
 version = "32.1"
@@ -534,32 +575,43 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [[tools.tuist]]
-version = "4.195.12"
+version = "4.197.1"
 backend = "aqua:tuist/tuist"
 
 [tools.tuist."platforms.linux-arm64"]
-checksum = "sha256:9ba674601d7735bcf7233479023c0685c5cd117de086ffe844b21ad43b5b1878"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:4fb5dd7249dc9f5bb41ac7c5bf585b9246fe1e87b6fadf40d012339619b20e05"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-arm64-musl"]
-checksum = "sha256:9ba674601d7735bcf7233479023c0685c5cd117de086ffe844b21ad43b5b1878"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist-linux-aarch64.tar.gz"
+checksum = "sha256:4fb5dd7249dc9f5bb41ac7c5bf585b9246fe1e87b6fadf40d012339619b20e05"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist-linux-aarch64.tar.gz"
 
 [tools.tuist."platforms.linux-x64"]
-checksum = "sha256:8e476635161b41c6cefe637ea2876e8e8c71e7131ff7dca416bf3dc3a5b9ed46"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:da5777a46c55312ec32c6b184a7f6bb0321a142e93b5c6516b77daa2f845adba"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.linux-x64-musl"]
-checksum = "sha256:8e476635161b41c6cefe637ea2876e8e8c71e7131ff7dca416bf3dc3a5b9ed46"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist-linux-x86_64.tar.gz"
+checksum = "sha256:da5777a46c55312ec32c6b184a7f6bb0321a142e93b5c6516b77daa2f845adba"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist-linux-x86_64.tar.gz"
 
 [tools.tuist."platforms.macos-arm64"]
-checksum = "sha256:7c03aa947f82f3abb9ef0674261e91dcc53488253c9590abb3df841b73697dab"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist.zip"
+checksum = "sha256:ec9c3dadf6885a366578a6391a9ad27ccd4287acbbcf055bfa0aed98d4864f17"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist.zip"
 
 [tools.tuist."platforms.macos-x64"]
-checksum = "sha256:7c03aa947f82f3abb9ef0674261e91dcc53488253c9590abb3df841b73697dab"
-url = "https://github.com/tuist/tuist/releases/download/4.195.12/tuist.zip"
+checksum = "sha256:ec9c3dadf6885a366578a6391a9ad27ccd4287acbbcf055bfa0aed98d4864f17"
+url = "https://github.com/tuist/tuist/releases/download/4.197.1/tuist.zip"
+
+[[tools.xcodes]]
+version = "1.6.0"
+backend = "aqua:XcodesOrg/xcodes"
+
+[tools.xcodes."platforms.macos-arm64"]
+checksum = "blake3:efa423dc3ecc1da1decdc10fe4f2afec2918c8469eb0e894aa4a80a21f2c3a99"
+url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
+
+[tools.xcodes."platforms.macos-x64"]
+url = "https://github.com/XcodesOrg/xcodes/releases/download/1.6.0/xcodes.zip"
 
 [[tools.yq]]
 version = "4.52.5"

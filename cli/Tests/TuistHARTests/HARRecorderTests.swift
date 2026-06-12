@@ -173,7 +173,7 @@ struct HARRecorderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func record_persistsToFile() async throws {
+    func finish_persistsToFile() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let harFilePath = temporaryDirectory.appending(component: "network.har")
 
@@ -183,6 +183,7 @@ struct HARRecorderTests {
 
         // When
         await recorder.record(entry)
+        await recorder.finish()
 
         // Then
         let fileSystem = FileSystem()
@@ -191,6 +192,83 @@ struct HARRecorderTests {
         let data = try Data(contentsOf: URL(fileURLWithPath: harFilePath.pathString))
         let log = try HAR.decode(from: data)
         #expect(log.entries.count == 1)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func finishCurrent_persistsActiveRecorderBeforeTaskLocalScopeExits() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let harFilePath = temporaryDirectory.appending(component: "network.har")
+
+        let recorder = HARRecorder(filePath: harFilePath)
+
+        try await HARRecorder.withCurrent(recorder) {
+            await recorder.record(makeTestEntry())
+            await HARRecorder.finishCurrent()
+
+            let fileSystem = FileSystem()
+            #expect(try await fileSystem.exists(harFilePath))
+
+            let data = try Data(contentsOf: URL(fileURLWithPath: harFilePath.pathString))
+            let log = try HAR.decode(from: data)
+            #expect(log.entries.count == 1)
+        }
+    }
+
+    @Test
+    func finish_ignoresEntriesRecordedAfterFinishing() async {
+        // Given
+        let recorder = HARRecorder(filePath: nil)
+
+        // When
+        await recorder.finish()
+        await recorder.record(makeTestEntry())
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.isEmpty)
+    }
+
+    @Test
+    func record_handlesConcurrentEntries() async {
+        // Given
+        let recorder = HARRecorder(filePath: nil)
+        let entryCount = 500
+
+        // When
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0 ..< entryCount {
+                group.addTask {
+                    await recorder.record(Self.makeConcurrentEntry(index: index))
+                }
+            }
+        }
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.count == entryCount)
+    }
+
+    @Test
+    func finish_ignoresDetachedEntriesThatResumeAfterFinishing() async throws {
+        // Given
+        let recorder = HARRecorder(filePath: nil)
+        let gate = Gate()
+
+        // When
+        for index in 0 ..< 100 {
+            recorder.recordDetached { recorder in
+                await gate.wait()
+                await recorder.record(Self.makeConcurrentEntry(index: index))
+            }
+        }
+        await recorder.finish()
+        await gate.open()
+
+        try await Task.sleep(nanoseconds: 10_000_000)
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.isEmpty)
     }
 
     @Test
@@ -227,6 +305,51 @@ struct HARRecorderTests {
         #expect(filtered[2].value == "[REDACTED]")
         #expect(filtered[3].value == "*/*")
         #expect(filtered[4].value == "[REDACTED]")
+    }
+
+    private actor Gate {
+        private var isOpen = false
+        private var continuations: [CheckedContinuation<Void, Never>] = []
+
+        func wait() async {
+            if isOpen { return }
+
+            await withCheckedContinuation { continuation in
+                continuations.append(continuation)
+            }
+        }
+
+        func open() {
+            isOpen = true
+            let continuations = continuations
+            self.continuations.removeAll()
+            continuations.forEach { $0.resume() }
+        }
+    }
+
+    private static func makeConcurrentEntry(index: Int) -> HAR.Entry {
+        HAR.Entry(
+            startedDateTime: Date(),
+            time: 100,
+            request: HAR.Request(
+                method: "GET",
+                url: "https://api.example.com/test/\(index)"
+            ),
+            response: HAR.Response(
+                status: 200,
+                statusText: "OK",
+                content: HAR.Content(
+                    size: 10,
+                    mimeType: "application/json",
+                    text: "{}"
+                )
+            ),
+            timings: HAR.Timings(
+                send: 0,
+                wait: 100,
+                receive: 0
+            )
+        )
     }
 
     private func makeTestEntry() -> HAR.Entry {

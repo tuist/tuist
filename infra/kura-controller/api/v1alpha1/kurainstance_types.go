@@ -6,18 +6,29 @@ import (
 )
 
 type KuraInstanceSpec struct {
-	AccountHandle    string            `json:"accountHandle"`
-	TenantID         string            `json:"tenantID"`
-	Region           string            `json:"region"`
-	Image            string            `json:"image"`
-	Replicas         *int32            `json:"replicas,omitempty"`
-	PublicHost       string            `json:"publicHost,omitempty"`
-	GRPCPublicHost   string            `json:"grpcPublicHost,omitempty"`
-	StorageClassName string            `json:"storageClassName,omitempty"`
-	StorageSize      string            `json:"storageSize,omitempty"`
-	NodeSelector     map[string]string `json:"nodeSelector,omitempty"`
-	ExtraEnv         []corev1.EnvVar   `json:"extraEnv,omitempty"`
-	ExtensionScript  string            `json:"extensionScript,omitempty"`
+	AccountHandle     string            `json:"accountHandle"`
+	TenantID          string            `json:"tenantID"`
+	Region            string            `json:"region"`
+	Image             string            `json:"image"`
+	Replicas          *int32            `json:"replicas,omitempty"`
+	PublicHost        string            `json:"publicHost,omitempty"`
+	GRPCPublicHost    string            `json:"grpcPublicHost,omitempty"`
+	IngressClassName  string            `json:"ingressClassName,omitempty"`
+	PeerTLSSecretName string            `json:"peerTLSSecretName,omitempty"`
+	StorageClassName  string            `json:"storageClassName,omitempty"`
+	StorageSize       string            `json:"storageSize,omitempty"`
+	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
+	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
+	ExtensionScript   string            `json:"extensionScript,omitempty"`
+
+	// Private marks a region with no public endpoint, reachable only
+	// over the cluster's internal Service DNS (today: the runner-cache
+	// regions, serving an in-cluster runner fleet). When true the
+	// controller leaves the public/gRPC Ingress and Certificate
+	// unreconciled and the primary Service stays ClusterIP — there is
+	// no public host to advertise, and the runner Pods reach the cache
+	// at `<instance>.<namespace>.svc.cluster.local`.
+	Private bool `json:"private,omitempty"`
 }
 
 type KuraInstanceStatus struct {

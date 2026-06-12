@@ -25,6 +25,7 @@ public struct CommandEvent: Codable, Equatable {
     public let ranAt: Date
     public let buildRunId: String?
     public var testRunId: String?
+    public let generationId: String?
     public let cacheEndpoint: String
 
     public enum Status: Codable, Equatable {
@@ -54,6 +55,7 @@ public struct CommandEvent: Codable, Equatable {
         case ranAt
         case buildRunId
         case testRunId
+        case generationId = "generation_id"
         case cacheEndpoint
     }
 
@@ -80,6 +82,7 @@ public struct CommandEvent: Codable, Equatable {
         ranAt: Date,
         buildRunId: String?,
         testRunId: String?,
+        generationId: String?,
         cacheEndpoint: String
     ) {
         self.runId = runId
@@ -104,6 +107,7 @@ public struct CommandEvent: Codable, Equatable {
         self.ranAt = ranAt
         self.buildRunId = buildRunId
         self.testRunId = testRunId
+        self.generationId = generationId
         self.cacheEndpoint = cacheEndpoint
     }
 
@@ -130,6 +134,7 @@ public struct CommandEvent: Codable, Equatable {
             ranAt: Date = Date(),
             buildRunId: String? = nil,
             testRunId: String? = nil,
+            generationId: String? = nil,
             cacheEndpoint: String = ""
         ) -> CommandEvent {
             CommandEvent(
@@ -155,6 +160,7 @@ public struct CommandEvent: Codable, Equatable {
                 ranAt: ranAt,
                 buildRunId: buildRunId,
                 testRunId: testRunId,
+                generationId: generationId,
                 cacheEndpoint: cacheEndpoint
             )
         }

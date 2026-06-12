@@ -49,7 +49,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
-    test "can use a token-based kubeconfig for remote clusters" do
+    test "can use a token-based explicit kubeconfig" do
       kubeconfig = kubeconfig(%{token: "region-token"})
 
       expect(Req, :request, fn opts ->
@@ -135,7 +135,7 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
     end
 
-    test "can use a client-certificate kubeconfig for remote clusters" do
+    test "can use a client-certificate explicit kubeconfig" do
       kubeconfig = kubeconfig(%{client_certificate: "test-cert", client_key: "test-key"})
 
       expect(Req, :request, fn opts ->
@@ -215,6 +215,53 @@ defmodule Tuist.Kubernetes.ClientTest do
                )
 
       assert :ok = Client.delete(path, opts)
+    end
+  end
+
+  describe "delete_runner/3" do
+    @tag :tmp_dir
+    test "deletes the Pod and its same-named ServiceAccount", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, 2, fn request_opts ->
+        assert request_opts[:method] == :delete
+
+        cond do
+          String.ends_with?(request_opts[:url], "/api/v1/namespaces/tuist-runners/pods/runner-x") ->
+            {:ok, %Req.Response{status: 200, body: %{}}}
+
+          String.ends_with?(request_opts[:url], "/api/v1/namespaces/tuist-runners/serviceaccounts/runner-x") ->
+            {:ok, %Req.Response{status: 200, body: %{}}}
+        end
+      end)
+
+      assert :ok = Client.delete_runner("tuist-runners", "runner-x", opts)
+    end
+
+    @tag :tmp_dir
+    test "is idempotent — a 404 on either resource (already gone) counts as success", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, 2, fn _request_opts ->
+        {:ok, %Req.Response{status: 404, body: %{}}}
+      end)
+
+      assert :ok = Client.delete_runner("tuist-runners", "runner-x", opts)
+    end
+
+    @tag :tmp_dir
+    test "surfaces an error when a delete fails for a non-404 reason", %{tmp_dir: tmp_dir} do
+      opts = in_cluster_opts(tmp_dir)
+
+      expect(Req, :request, 2, fn request_opts ->
+        if String.contains?(request_opts[:url], "/serviceaccounts/") do
+          {:ok, %Req.Response{status: 500, body: "boom"}}
+        else
+          {:ok, %Req.Response{status: 200, body: %{}}}
+        end
+      end)
+
+      assert {:error, _} = Client.delete_runner("tuist-runners", "runner-x", opts)
     end
   end
 

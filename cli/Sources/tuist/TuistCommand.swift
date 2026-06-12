@@ -6,6 +6,7 @@ import Path
 import TuistAccountCommand
 import TuistAlert
 import TuistAuthCommand
+import TuistBazelCommand
 import TuistBuildCommand
 import TuistBundleCommand
 import TuistCacheCommand
@@ -58,6 +59,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Develop",
                     subcommands: [
                         HashCommand.self,
+                        BazelCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
                         CacheStartCommand.self,
@@ -100,6 +102,7 @@ public struct TuistCommand: AsyncParsableCommand {
             groups.append(CommandGroup(
                 name: "Develop",
                 subcommands: [
+                    BazelCommand.self,
                     BuildCommand.self,
                     CacheCommand.self,
                     GenerateCommand.self,
@@ -180,6 +183,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     )
                     let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
                         && processedArguments.prefix(2) != ["auth", "refresh-token"]
+                        && processedArguments.prefix(2) != ["bazel", "credential-helper"]
                         && processedArguments.first != "analytics-upload"
                     let optionalAuthentication = config.project.optionalAuthentication
                     let runTrackableCommand = {
@@ -232,8 +236,8 @@ public struct TuistCommand: AsyncParsableCommand {
                 }
             } catch {
                 try await withLoggerForNoora(logFilePath: logFilePath) {
-                    Noora.$current.withValue(initNoora()) {
-                        onError(
+                    await Noora.$current.withValue(initNoora()) {
+                        await onError(
                             parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
                         )
                     }
@@ -257,13 +261,13 @@ public struct TuistCommand: AsyncParsableCommand {
                         )
                     }
                 } catch {
-                    onError(error, isParsingError: false, logFilePath: logFilePath)
+                    await onError(error, isParsingError: false, logFilePath: logFilePath)
                 }
             }
         #endif
     }
 
-    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) async {
         var errorAlertMessage: TerminalText?
         var errorAlertNextSteps: [TerminalText] = [
             "If the error is actionable, address it",
@@ -273,6 +277,7 @@ public struct TuistCommand: AsyncParsableCommand {
         let exitCode = exitCode(for: error).rawValue
 
         if error.localizedDescription.contains("ArgumentParser") {
+            await finishHARRecordingBeforeExit()
             exit(withError: error)
         }
 
@@ -303,6 +308,7 @@ public struct TuistCommand: AsyncParsableCommand {
         }
 
         if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
+            await finishHARRecordingBeforeExit()
             exit(withError: error)
         } else if !errorHandled, let localizedError = error as? LocalizedError {
             errorAlertMessage =
@@ -317,7 +323,14 @@ public struct TuistCommand: AsyncParsableCommand {
             errorAlertMessage: errorAlertMessage,
             errorAlertNextSteps: errorAlertNextSteps
         )
+        await finishHARRecordingBeforeExit()
         _exit(exitCode)
+    }
+
+    private static func finishHARRecordingBeforeExit() async {
+        #if os(macOS)
+            await HARRecorder.finishCurrent()
+        #endif
     }
 
     private static func outputCompletion(
@@ -372,9 +385,14 @@ public struct TuistCommand: AsyncParsableCommand {
             shouldRecordHAR: Bool,
             _ action: () async throws -> Void
         ) async throws {
+            if shouldRecordHAR, HARRecorder.current != nil {
+                try await action()
+                return
+            }
+
             let harRecorder: HARRecorder? =
                 shouldRecordHAR ? HARRecorder(filePath: networkFilePath) : nil
-            try await HARRecorder.$current.withValue(harRecorder) {
+            try await HARRecorder.withCurrent(harRecorder) {
                 try await action()
             }
         }

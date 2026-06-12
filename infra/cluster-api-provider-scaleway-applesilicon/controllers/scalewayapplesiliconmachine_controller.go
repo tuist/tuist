@@ -152,6 +152,14 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// locking — bumping this only parallelizes across distinct CRs.
 	MaxConcurrentReconciles int
 
+	// DefaultAdoptPoolPrefix is the pool prefix reconcileDelete falls
+	// back to when a CR's Spec.AdoptPoolPrefix is empty. Spec now
+	// requires the field (MinLength=1), so this only covers legacy CRs
+	// created before that contract existed: without a fallback their
+	// delete skips the Scaleway release and strands the host. Empty
+	// preserves the skip behavior (no pool prefix to release into).
+	DefaultAdoptPoolPrefix string
+
 	// Tailscale egress Service materialisation. When EgressProxyGroup
 	// is non-empty, the reconciler maintains one ExternalName Service
 	// per Mac mini in EgressNamespace, annotated so the Tailscale K8s
@@ -724,27 +732,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	// Legacy CRs predating the required-AdoptPoolPrefix contract may
 	// still exist with the field unset (the older chart only
 	// rendered `adoptPoolPrefix` when the value was non-empty, so
-	// fleets that didn't set it produced bare CRs). For those we
-	// can't ReleaseToPool — the client rejects an empty prefix as a
-	// guard against orphaning hosts outside the pool namespace — so
-	// skip the Scaleway release stage entirely, leave the host
-	// running, and let the operator clean it up via the Scaleway
-	// console. Without this fallthrough, deleting a legacy CR would
-	// loop forever on a precondition error and block fleet teardown.
+	// fleets that didn't set it produced bare CRs). For those, fall
+	// back to the controller-level DefaultAdoptPoolPrefix so the host
+	// still returns to the pool. Only when neither the CR nor the
+	// controller default carries a prefix do we skip the Scaleway
+	// release (the client rejects an empty prefix to avoid orphaning a
+	// host outside the pool namespace), leave the host running, and
+	// let the orphan-reclaim sweep or an operator clean it up. Without
+	// this fallthrough, deleting a bare legacy CR would loop forever on
+	// a precondition error and block fleet teardown.
 	if machine.Status.ServerID != "" {
+		poolPrefix := machine.Spec.AdoptPoolPrefix
+		if poolPrefix == "" {
+			poolPrefix = r.DefaultAdoptPoolPrefix
+		}
 		switch {
-		case machine.Spec.AdoptPoolPrefix == "":
+		case poolPrefix == "":
 			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseSkipped",
-				"Spec.AdoptPoolPrefix is empty (legacy CR); skipping Scaleway release of %s — clean up the host via the Scaleway console if needed",
+				"No AdoptPoolPrefix on the CR and no controller default; skipping Scaleway release of %s — the orphan-reclaim sweep or an operator must return it to the pool",
 				machine.Status.ServerID)
-			logger.Info("legacy CR without AdoptPoolPrefix; skipping Scaleway release",
+			logger.Info("no pool prefix available; skipping Scaleway release",
 				"serverID", machine.Status.ServerID)
 			machine.Status.ServerID = ""
 		default:
 			r.Recorder.Eventf(machine, corev1.EventTypeNormal, "Releasing",
 				"Returning Scaleway server %s to pool %q (with reinstall)",
-				machine.Status.ServerID, machine.Spec.AdoptPoolPrefix)
-			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, machine.Spec.AdoptPoolPrefix); err != nil {
+				machine.Status.ServerID, poolPrefix)
+			if err := r.ScalewayClient.ReleaseToPool(ctx, machine.Status.ServerID, machine.Spec.Zone, poolPrefix); err != nil {
 				logger.Error(err, "Scaleway release-to-pool failed; will retry")
 				r.Recorder.Eventf(machine, corev1.EventTypeWarning, "ReleaseFailed",
 					"Scaleway ReleaseToPool: %v (will retry)", err)

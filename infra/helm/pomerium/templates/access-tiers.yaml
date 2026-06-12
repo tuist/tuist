@@ -1,0 +1,66 @@
+{{- /*
+ClusterRoleBindings that grant the impersonated identities the
+right tier. Pomerium injects `Impersonate-Group: <name>` based on
+the user's tailnet role + active elevation; the bindings here are
+what makes those group names mean something to the apiserver.
+
+The chart that introduces the groups (this one) owns the bindings
+for them, so deploying this chart to a fresh cluster gets the
+identity → RBAC story end-to-end with no external dependency.
+
+Tier shape (matches what tuist-ops's PolicyController returns):
+
+  tuist-admins         → view   (Owner / Admin tailnet role)
+  tuist-eng            → view   (Member tailnet role)
+  tuist-<env>-write    → edit   (elevation grant; per-env so a
+                                 prod elevation can't unlock
+                                 staging or vice versa)
+
+View tier excludes Secrets by Kubernetes' built-in role definition.
+Edit allows reads/writes on Secrets + most resources but cannot
+mutate RBAC.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-admins-view
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    name: tuist-admins
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-eng-view
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    name: tuist-eng
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-edit
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io

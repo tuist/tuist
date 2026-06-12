@@ -196,15 +196,15 @@
   </.card>
 
   <.card
-    title={dgettext("dashboard_usage", "Traffic by node")}
+    title={dgettext("dashboard_usage", "Traffic by region")}
     icon="server"
-    data-part="kura-traffic-by-node-card"
+    data-part="kura-traffic-by-region-card"
   >
-    <.card_section data-part="kura-traffic-by-node-card-section">
+    <.card_section data-part="kura-traffic-by-region-card-section">
       <%= cond do %>
-        <% !@per_node.ok? -> %>
+        <% !@per_region.ok? -> %>
           <.skeleton_chart />
-        <% Enum.empty?(@per_node.result) -> %>
+        <% Enum.empty?(@per_region.result) -> %>
           <.empty_card_section
             title={TuistWeb.UsageLive.empty_label()}
             get_started_href="https://tuist.dev/en/docs"
@@ -216,15 +216,12 @@
           </.empty_card_section>
         <% true -> %>
           <.table
-            id="usage-per-node-table"
-            rows={@per_node.result}
-            row_key={fn row -> "usage-node-#{row.node_id}-#{row.region}" end}
+            id="usage-per-region-table"
+            rows={@per_region.result}
+            row_key={fn row -> "usage-region-#{row.region}" end}
           >
-            <:col :let={row} label={dgettext("dashboard_usage", "Node")}>
-              <.text_cell icon="server" label={row.node_id} />
-            </:col>
             <:col :let={row} label={dgettext("dashboard_usage", "Region")}>
-              <.text_cell label={if(row.region == "", do: "–", else: row.region)} />
+              <.text_cell icon="server" label={TuistWeb.UsageLive.region_label(row.region)} />
             </:col>
             <:col :let={row} label={dgettext("dashboard_usage", "Egress")}>
               <.text_cell label={TuistWeb.UsageLive.format_bytes(row.egress_bytes)} />

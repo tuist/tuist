@@ -48,6 +48,8 @@ func main() {
 		scalingSignalsURL   string
 		sessionsURL         string
 		watchedNS           string
+		dindImage           string
+		registryMirror      string
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -61,6 +63,10 @@ func main() {
 		"URL prefix the pod-lifecycle reconciler POSTs Pod terminal-phase events to (`/pods/stopped` is appended). Required for billing; until configured, the server falls back to its safety clamp.")
 	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
 		"Namespace the controller watches. Defaults to tuist-runners.")
+	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
+		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
+	flag.StringVar(&registryMirror, "registry-mirror-url", envOr("TUIST_RUNNER_REGISTRY_MIRROR_URL", ""),
+		"In-cluster Docker Hub pull-through cache URL stamped into the dind dockerd's --registry-mirror (with a matching --insecure-registry, since it's http in-cluster). Optional; empty leaves dockerd pulling docker.io directly.")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -97,6 +103,8 @@ func main() {
 		Scheme:              mgr.GetScheme(),
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
+		DindImage:           dindImage,
+		RegistryMirror:      registryMirror,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)

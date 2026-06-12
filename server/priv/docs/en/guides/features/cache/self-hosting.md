@@ -62,7 +62,7 @@ docker run -d --name kura \
   -e KURA_INTERNAL_PORT=7443 \
   -e KURA_TENANT_ID=default \
   -e KURA_REGION=local \
-  -e KURA_TMP_DIR=/tmp/kura \
+  -e KURA_TMP_DIR=/var/cache/kura/tmp \
   -e KURA_DATA_DIR=/var/cache/kura \
   -e KURA_NODE_URL=http://kura-1.internal:7443 \
   -e KURA_PEERS=http://kura-1.internal:7443,http://kura-2.internal:7443 \
@@ -75,6 +75,48 @@ Then configure the Tuist server with the URLs that clients can reach:
 TUIST_KURA_ENDPOINTS=https://kura-1.example.com,https://kura-2.example.com
 ```
 
+## Build a cache mesh {#build-a-cache-mesh}
+
+A cache mesh lets you place cache capacity next to the compute that needs it. A company might run one node near its main CI runners, another close to developers in Europe, and another near a US office or regional build cluster. Each location reads and writes against the closest node, while Kura replicates artifacts and metadata in the background so later builds in other locations can reuse the same outputs.
+
+The mesh only works if nodes can reach each other on Kura's internal peer port. That peer plane is separate from the public cache endpoints that Tuist clients use. Kura uses it to check membership, bootstrap newly joined nodes, and replicate artifacts after local writes are accepted.
+
+We strongly recommend securing the peer plane with [mTLS](https://en.wikipedia.org/wiki/Mutual_authentication) when nodes communicate across regions, clouds, VPCs, offices, or any network that is not fully private to the cache deployment. With mTLS enabled, Kura only serves internal replication endpoints to peers presenting a certificate signed by the configured CA. The peer certificates must cover the DNS names nodes use to call each other, and peer URLs must use `https://` on the internal port.
+
+For example, this generates a private CA and one peer certificate that can be mounted by every node in a small mesh. Replace the DNS names with the internal names your nodes use in `KURA_NODE_URL` and `KURA_PEERS`.
+
+```bash
+mkdir -p kura-peer-tls
+cd kura-peer-tls
+
+openssl ecparam -genkey -name prime256v1 -noout -out ca.key
+openssl req -x509 -new -key ca.key -sha256 -days 3650 \
+  -subj "/CN=kura-peer-ca" \
+  -out ca.pem
+
+openssl ecparam -genkey -name prime256v1 -noout -out tls.key
+openssl req -new -key tls.key \
+  -subj "/CN=kura-peer" \
+  -out peer.csr
+
+cat > peer.ext <<'EOF'
+subjectAltName = DNS:kura-0.kura-headless.kura.svc.cluster.local,DNS:kura-1.kura-headless.kura.svc.cluster.local,DNS:kura-2.kura-headless.kura.svc.cluster.local,DNS:kura-1.internal,DNS:kura-2.internal
+extendedKeyUsage = serverAuth,clientAuth
+keyUsage = digitalSignature,keyEncipherment
+EOF
+
+openssl x509 -req -in peer.csr \
+  -CA ca.pem \
+  -CAkey ca.key \
+  -CAcreateserial \
+  -out tls.crt \
+  -days 730 \
+  -sha256 \
+  -extfile peer.ext
+```
+
+Use network-level restrictions in addition to mTLS. In Kubernetes, run Kura as a `StatefulSet` with one persistent volume per pod and a headless service for peer discovery, then allow the internal peer port only between pods that belong to the same cache deployment, for example with a `NetworkPolicy`. Outside Kubernetes, give each node a stable DNS name or IP address, seed the mesh with the internal URLs of the other nodes, and use firewall rules or security groups so only cache nodes can reach the peer port. Public cache traffic should enter through the public HTTP or gRPC endpoints, not through the internal peer plane.
+
 ## Configuration {#configuration}
 
 The Helm chart renders the common runtime settings from `values.yaml`. If you run Kura without Kubernetes, set the same variables directly on the process. Variables that the chart does not map directly can be injected through `extraEnv` or `extraEnvFrom`.
@@ -86,7 +128,8 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used by Kura peers. | Yes | No default | `peerTls.internalPort` |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | Yes | No default | `config.tenantId` |
 | `KURA_REGION` | Region label used in metrics and replication state. | Yes | No default | `config.region` |
-| `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/tmp/kura` |
+| `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | Yes | No default | Fixed to `/var/cache/kura/tmp` |
+| `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | No | `8589934592` | `config.tmpDirMaxBytes` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | Yes | No default | Fixed to `/var/cache/kura` |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | Yes | No default | Derived from the pod DNS name and `peerTls.internalPort` |
 | `KURA_PEERS` | Seed peer list used before discovery converges. | No | `KURA_NODE_URL` | Derived from the StatefulSet replicas |

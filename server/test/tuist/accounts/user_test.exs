@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.UserTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.User
   alias TuistTestSupport.Fixtures.AccountsFixtures

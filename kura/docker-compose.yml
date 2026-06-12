@@ -1,5 +1,6 @@
 services:
   kura-us:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,7 +11,8 @@ services:
       KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
-      KURA_TMP_DIR: /tmp/kura
+      KURA_TMP_DIR: /var/cache/kura/tmp
+      KURA_TMP_DIR_MAX_BYTES: ${KURA_E2E_TMP_DIR_MAX_BYTES:-8589934592}
       KURA_DATA_DIR: /var/cache/kura
       KURA_REGION: us-east
       KURA_NODE_URL: http://kura-us.kura.internal:7443
@@ -49,6 +51,7 @@ services:
           - kura-ring.kura.internal
 
   kura-eu:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
@@ -83,6 +86,7 @@ services:
           - kura-ring.kura.internal
 
   kura-ap:
+    image: ${KURA_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile

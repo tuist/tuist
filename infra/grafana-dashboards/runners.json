@@ -10,7 +10,7 @@
   "spec": {
     "title": "Tuist Runners",
     "uid": "tuist-runners",
-    "description": "Health of the Tuist-managed GitHub Actions runner fleet. Combines server-side dispatch + lifecycle telemetry (PromEx) with host-side VM boot telemetry scraped from each Mac mini's tart-kubelet over the tailnet.",
+    "description": "Health of the Tuist-managed GitHub Actions runner fleet. Server-side dispatch and lifecycle telemetry (PromEx), plus Mac mini reachability scraped from each host's tart-kubelet over the tailnet.",
     "schemaVersion": 39,
     "refresh": "30s",
     "tags": ["tuist", "runners", "macos", "linux"],
@@ -39,79 +39,38 @@
           "type": "datasource"
         },
         {
+          "allValue": ".*",
           "current": {
-            "selected": false,
+            "selected": true,
             "text": "All",
             "value": "$__all"
           },
-          "datasource": "$datasource",
-          "definition": "label_values(tuist_runners_pool_replicas_desired, job)",
           "hide": 0,
           "includeAll": true,
-          "label": "Server job",
-          "multi": true,
-          "name": "server_job",
-          "options": [],
-          "query": {
-            "qryType": 1,
-            "query": "label_values(tuist_runners_pool_replicas_desired, job)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery"
-          },
-          "refresh": 1,
-          "regex": "",
+          "label": "Platform",
+          "multi": false,
+          "name": "platform",
+          "options": [
+            {
+              "selected": true,
+              "text": "All",
+              "value": "$__all"
+            },
+            {
+              "selected": false,
+              "text": "linux",
+              "value": "linux"
+            },
+            {
+              "selected": false,
+              "text": "macos",
+              "value": "macos"
+            }
+          ],
+          "query": "linux,macos",
+          "queryValue": "",
           "skipUrlSync": false,
-          "sort": 1,
-          "type": "query"
-        },
-        {
-          "current": {
-            "selected": false,
-            "text": "All",
-            "value": "$__all"
-          },
-          "datasource": "$datasource",
-          "definition": "label_values(tuist_runners_pool_replicas_desired, fleet)",
-          "hide": 0,
-          "includeAll": true,
-          "label": "Fleet",
-          "multi": true,
-          "name": "fleet",
-          "options": [],
-          "query": {
-            "qryType": 1,
-            "query": "label_values(tuist_runners_pool_replicas_desired, fleet)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery"
-          },
-          "refresh": 1,
-          "regex": "",
-          "skipUrlSync": false,
-          "sort": 1,
-          "type": "query"
-        },
-        {
-          "current": {
-            "selected": false,
-            "text": "All",
-            "value": "$__all"
-          },
-          "datasource": "$datasource",
-          "definition": "label_values(tart_kubelet_vm_boot_duration_seconds_count, pool)",
-          "hide": 0,
-          "includeAll": true,
-          "label": "Mac mini pool",
-          "multi": true,
-          "name": "pool",
-          "options": [],
-          "query": {
-            "qryType": 1,
-            "query": "label_values(tart_kubelet_vm_boot_duration_seconds_count, pool)",
-            "refId": "PrometheusVariableQueryEditor-VariableQuery"
-          },
-          "refresh": 1,
-          "regex": "",
-          "skipUrlSync": false,
-          "sort": 1,
-          "type": "query"
+          "type": "custom"
         }
       ]
     },
@@ -180,7 +139,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(tuist_runners_queue_length{job=~\"$server_job\"})",
+            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
             "instant": true,
             "refId": "A"
           }
@@ -239,7 +198,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(tuist_runners_claims_count{job=~\"$server_job\", lifecycle_state=\"claimed\"})",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -249,7 +208,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Active customer builds on the fleet — PG claims in `lifecycle_state='running'`. Real cap occupancy; compare against the per-account `runner_max_concurrent` to spot account-level contention.",
+        "description": "Active customer builds on the fleet — PG claims in `lifecycle_state='running'`. Real fleet occupancy across all accounts.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -290,7 +249,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(tuist_runners_claims_count{job=~\"$server_job\", lifecycle_state=\"running\"})",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -341,7 +300,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(tuist_runners_pool_replicas_desired{job=~\"$server_job\"})",
+            "expr": "sum(max by (fleet) (tuist_runners_pool_replicas_desired))",
             "instant": true,
             "refId": "A"
           }
@@ -416,7 +375,7 @@
           "h": 1,
           "w": 24,
           "x": 0,
-          "y": 5
+          "y": 22
         },
         "id": 200,
         "panels": [],
@@ -425,7 +384,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Workflow jobs entering the queue per second, by fleet. Source: `workflow_job.queued` webhook. The first signal that customer traffic exists. A drop while builds are still running indicates webhook delivery problems or a Tuist GitHub App outage.",
+        "description": "Job flow from GitHub `workflow_job` webhooks: rate Tuist accepted jobs into its queue (`accepted` = action/outcome `queued/queued`) vs rate it recorded completions (`completed` = `completed/completed`). They should track each other when healthy. Note: `completed` under-reports: jobs whose completion webhook lands after orphan-recovery already finalised them aren't counted here, so a low `completed` line against a healthy `accepted` line is the known recovery-path attribution gap, not lost work.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -449,232 +408,16 @@
         },
         "gridPos": {
           "h": 8,
-          "w": 12,
+          "w": 24,
           "x": 0,
-          "y": 6
-        },
-        "id": 210,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (fleet) (rate(tuist_runners_job_enqueued_count{job=~\"$server_job\", fleet=~\"$fleet\"}[5m]))",
-            "legendFormat": "{{fleet}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Jobs enqueued / sec by fleet",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Workflow job completions per second, grouped by GitHub conclusion. A `success`-dominated stack is healthy; a `failure` floor that creeps above the historical baseline points to flaky tests in customer pipelines OR a runner-image regression — diff against recent `runner-image` workflow runs to disambiguate.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 30,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "normal"
-              }
-            },
-            "unit": "ops"
-          },
-          "overrides": [
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "success"
-              },
-              "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "mode": "fixed",
-                    "fixedColor": "green"
-                  }
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "failure"
-              },
-              "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "mode": "fixed",
-                    "fixedColor": "red"
-                  }
-                }
-              ]
-            },
-            {
-              "matcher": {
-                "id": "byName",
-                "options": "cancelled"
-              },
-              "properties": [
-                {
-                  "id": "color",
-                  "value": {
-                    "mode": "fixed",
-                    "fixedColor": "orange"
-                  }
-                }
-              ]
-            }
-          ]
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 6
-        },
-        "id": 211,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (conclusion) (rate(tuist_runners_job_completed_count{job=~\"$server_job\", fleet=~\"$fleet\"}[5m]))",
-            "legendFormat": "{{conclusion}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Jobs completed / sec by conclusion",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Jobs reaching `claimed` (off the queue) and `running` (after JIT mint) per second. The `claimed`→`running` gap is the JIT-mint window; a widening gap means the GitHub API path or K8s pod-patch path is slow.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 14
-        },
-        "id": 212,
-        "options": {
-          "legend": {
-            "calcs": ["mean"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(rate(tuist_runners_job_claim_count{job=~\"$server_job\", fleet=~\"$fleet\", outcome=\"ok\"}[5m]))",
-            "legendFormat": "claimed",
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(rate(tuist_runners_job_running_count{job=~\"$server_job\", fleet=~\"$fleet\"}[5m]))",
-            "legendFormat": "running",
-            "refId": "B"
-          }
-        ],
-        "title": "Claim and run rate",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "GitHub `workflow_job` webhooks received, bucketed by action and outcome. `queued/queued` and `completed/completed` should track each other steady-state; `*/ignored` rows are workflows whose `runs-on` didn't match a Tuist pool (perfectly normal in mixed-runner orgs).",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 14
+          "y": 23
         },
         "id": 213,
         "options": {
           "legend": {
-            "calcs": ["mean"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -685,12 +428,19 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (action, outcome) (rate(tuist_runners_webhook_count{job=~\"$server_job\"}[5m]))",
-            "legendFormat": "{{action}} / {{outcome}}",
+            "expr": "sum(rate(tuist_runners_webhook_count{action=\"queued\", outcome=\"queued\"}[5m]))",
+            "legendFormat": "accepted",
             "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tuist_runners_webhook_count{action=\"completed\", outcome=\"completed\"}[5m]))",
+            "legendFormat": "completed",
+            "refId": "B"
           }
         ],
-        "title": "Webhook deliveries by action and outcome",
+        "title": "Jobs accepted vs completed / sec",
         "type": "timeseries"
       },
       {
@@ -699,7 +449,7 @@
           "h": 1,
           "w": 24,
           "x": 0,
-          "y": 22
+          "y": 31
         },
         "id": 300,
         "panels": [],
@@ -734,14 +484,14 @@
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 23
+          "y": 32
         },
         "id": 310,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -752,21 +502,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -802,14 +552,14 @@
           "h": 8,
           "w": 12,
           "x": 12,
-          "y": 23
+          "y": 32
         },
         "id": 311,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -820,21 +570,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m])))",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_claim_to_running_time_milliseconds_bucket{fleet=~\".*$platform.*\"}[30m])))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -843,219 +593,12 @@
         "type": "timeseries"
       },
       {
-        "datasource": "$datasource",
-        "description": "Wall-clock execution time on the runner — `started_at` to `completed_at`. This is the customer build duration, not Tuist infra. Useful as a baseline against the host-side `tart_kubelet_vm_boot_duration_seconds` to see what fraction of total time is infra overhead vs build work.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "ms"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 31
-        },
-        "id": 312,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_run_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p50",
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_run_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p95",
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_run_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p99",
-            "refId": "C"
-          }
-        ],
-        "title": "Run time (running → completed)",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "End-to-end time from `workflow_job.queued` webhook arrival to `workflow_job.completed` — the customer-visible \"how long until my build is done?\" number. Splits into queue + JIT-mint + run; the latency panels above isolate each component.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "ms"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 31
-        },
-        "id": 313,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_job_total_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p50",
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_job_total_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p95",
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_job_total_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[10m])))",
-            "legendFormat": "p99",
-            "refId": "C"
-          }
-        ],
-        "title": "Total time (enqueue → completed)",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Distribution of queue wait times as a heatmap. Surfaces multi-modal patterns the quantile lines hide — e.g. a fast-dispatch population at <100ms overlapping a saturated-pool population sitting at >30s.",
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "scaleDistribution": {
-                "type": "linear"
-              }
-            }
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 39
-        },
-        "id": 314,
-        "options": {
-          "calculate": false,
-          "cellGap": 1,
-          "color": {
-            "exponent": 0.5,
-            "fill": "dark-orange",
-            "mode": "scheme",
-            "reverse": false,
-            "scale": "exponential",
-            "scheme": "Blues",
-            "steps": 64
-          },
-          "exemplars": {
-            "color": "rgba(255,0,255,0.7)"
-          },
-          "filterValues": {
-            "le": 1e-9
-          },
-          "legend": {
-            "show": true
-          },
-          "rowsFrame": {
-            "layout": "auto"
-          },
-          "tooltip": {
-            "show": true,
-            "yHistogram": false
-          },
-          "yAxis": {
-            "axisPlacement": "left",
-            "reverse": false,
-            "unit": "ms"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (le) (rate(tuist_runners_job_queue_time_milliseconds_bucket{job=~\"$server_job\", fleet=~\"$fleet\"}[5m]))",
-            "format": "heatmap",
-            "legendFormat": "{{le}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Queue time distribution (heatmap)",
-        "type": "heatmap"
-      },
-      {
         "collapsed": false,
         "gridPos": {
           "h": 1,
           "w": 24,
           "x": 0,
-          "y": 47
+          "y": 5
         },
         "id": 400,
         "panels": [],
@@ -1064,7 +607,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Per-pool desired (spec.replicas) vs observed (status.observedReplicas) ribbon. The two should track each other. A persistent gap means the runners-controller can't bring Pods up — usually because the Mac mini fleet is full, the dispatch label collides, or the image pull is failing on every host.",
+        "description": "Desired warm-pool target (spec.replicas, summed per platform) vs alive runner Pods actually present in the namespace (Pending + Running phase, from kube-state-metrics). Alive counts Linux warm Pods (which sit in Pending while their poller init container runs) and macOS warm Pods (Running) correctly, unlike a readiness check. desired > alive means the controller hasn't created the Pod objects yet or createRunner is erroring (a controller-health signal); alive > desired means Pods are still running jobs above the warm target while the autoscaler lags scale-down. status.observedReplicas is intentionally not plotted here: the controller derives it from the target, so it shadowed desired tautologically. A scheduler placement failure shows as unschedulable Pods (which still count as alive here), not as a gap. Requires kube-state-metrics.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1090,14 +633,14 @@
           "h": 8,
           "w": 16,
           "x": 0,
-          "y": 48
+          "y": 14
         },
         "id": 410,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -1108,24 +651,24 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (fleet) (tuist_runners_pool_replicas_desired{job=~\"$server_job\", fleet=~\"$fleet\"})",
-            "legendFormat": "{{fleet}} desired",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} desired",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (fleet) (tuist_runners_pool_replicas_observed{job=~\"$server_job\", fleet=~\"$fleet\"})",
-            "legendFormat": "{{fleet}} observed",
+            "expr": "sum by (platform) (label_replace(kube_pod_status_phase{namespace=\"tuist-runners\", phase=~\"Pending|Running\", pod=~\".*runner-pool-(linux|macos).*\", pod=~\".*$platform.*\"}, \"platform\", \"$1\", \"pod\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} alive",
             "refId": "B"
           }
         ],
-        "title": "RunnerPool replicas (desired vs observed)",
+        "title": "RunnerPool replicas",
         "type": "timeseries"
       },
       {
         "datasource": "$datasource",
-        "description": "Pool utilisation — `running` claims as a fraction of `observed` pool capacity. 100% = every warm Pod is on a build; sustained 100% with non-zero queue is the right signal to scale the pool up. Per pool.",
+        "description": "Running claims as a fraction of the pool capacity ceiling (max(autoscaling.maxReplicas, spec.replicas), summed per platform). 100% means the autoscaler is maxed out and cannot grow the warm pool, so further queued work can't be served: raise maxReplicas or add hosts. The denominator is the fixed ceiling, not the live target (which chases load), so this reads as true saturation rather than the old running/observed ratio that floored at 1 and spiked past 100%. Caveat: the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, so small transient overshoots above 100% are possible.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1158,21 +701,52 @@
               ]
             },
             "unit": "percentunit",
-            "min": 0,
-            "max": 1
-          }
+            "min": 0
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "linux"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "macos"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "yellow",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,
           "w": 8,
           "x": 16,
-          "y": 48
+          "y": 14
         },
         "id": 411,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
+            "calcs": [],
+            "displayMode": "list",
             "placement": "bottom"
           },
           "tooltip": {
@@ -1184,17 +758,17 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (fleet) (tuist_runners_claims_count{job=~\"$server_job\", fleet=~\"$fleet\", lifecycle_state=\"running\"}) / clamp_min(max by (fleet) (tuist_runners_pool_replicas_observed{job=~\"$server_job\", fleet=~\"$fleet\"}), 1)",
-            "legendFormat": "{{fleet}}",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
+            "legendFormat": "{{platform}}",
             "refId": "A"
           }
         ],
-        "title": "Pool utilisation (running / observed)",
+        "title": "Pool utilisation (running / max capacity) by platform",
         "type": "timeseries"
       },
       {
         "datasource": "$datasource",
-        "description": "Queue length per fleet over time, polled every 30s from ClickHouse. Sawtooth pattern is healthy (work arrives in bursts, drains as Pods claim). A flat-line at non-zero means dispatch is stuck — cross-reference the Capacity panel and the Dispatch endpoint panels below.",
+        "description": "Workflow jobs whose latest status is queued, rolled up by platform, polled every 30s from ClickHouse runner_jobs. This is the real backlog signal: a job stays counted here from its workflow_job.queued webhook until a Pod claims it, so jobs waiting because no Pod was free show up here (not in the Pending panel). Sawtooth is healthy; a non-zero flat-line means dispatch is stuck for that platform. Platform is parsed from the fleet name.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1210,7 +784,7 @@
               "spanNulls": false,
               "stacking": {
                 "group": "A",
-                "mode": "normal"
+                "mode": "none"
               }
             },
             "unit": "short"
@@ -1220,14 +794,14 @@
           "h": 8,
           "w": 12,
           "x": 0,
-          "y": 56
+          "y": 6
         },
         "id": 412,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -1238,17 +812,17 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (fleet) (tuist_runners_queue_length{job=~\"$server_job\", fleet=~\"$fleet\"})",
-            "legendFormat": "{{fleet}}",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}}",
             "refId": "A"
           }
         ],
-        "title": "Queue length by fleet",
+        "title": "Queue length by platform",
         "type": "timeseries"
       },
       {
         "datasource": "$datasource",
-        "description": "Inflight PG claims split by lifecycle state per fleet. `claimed` is pre-mint (sub-second steady state); `running` is the customer-build window (potentially hours). A growing `claimed` baseline points to JIT mint failures piling up before the stale-claims worker sweeps them.",
+        "description": "Active customer builds per platform (PG runner_claims in lifecycle_state='running'). The pre-mint 'claimed' state was removed from this panel: it is a sub-second transition that sits at ~0, and a sustained non-zero claimed count (JIT mint stalling) is surfaced by the 'Pre-mint (claimed)' tile in the Overview row. Platform is parsed from the fleet name.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1264,7 +838,7 @@
               "spanNulls": false,
               "stacking": {
                 "group": "A",
-                "mode": "normal"
+                "mode": "none"
               }
             },
             "unit": "short"
@@ -1274,14 +848,14 @@
           "h": 8,
           "w": 12,
           "x": 12,
-          "y": 56
+          "y": 6
         },
         "id": 413,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -1292,12 +866,12 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (fleet, lifecycle_state) (tuist_runners_claims_count{job=~\"$server_job\", fleet=~\"$fleet\"})",
-            "legendFormat": "{{fleet}} / {{lifecycle_state}}",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}}",
             "refId": "A"
           }
         ],
-        "title": "Inflight claims by fleet + state",
+        "title": "Running builds by platform",
         "type": "timeseries"
       },
       {
@@ -1306,189 +880,7 @@
           "h": 1,
           "w": 24,
           "x": 0,
-          "y": 64
-        },
-        "id": 420,
-        "panels": [],
-        "title": "Capacity fit (bin-packing)",
-        "type": "row"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Per shape pool: replicas the autoscaler asked for (spec.replicas) minus what the controller placed (status.observedReplicas). Brief positive blips on scale-up are normal microVM boot lag; a sustained gap means the kube-scheduler can't fit that shape's Pods on the fleet — most likely bin-packing fragmentation (a large shape can't find a host with contiguous free vCPU/RAM even when aggregate capacity exists). This is the per-shape breakdown of the Overview 'Unscheduled' stat.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "stepAfter",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "short"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 65
-        },
-        "id": 421,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "max by (fleet) (tuist_runners_pool_replicas_desired{job=~\"$server_job\", fleet=~\"$fleet\"}) - max by (fleet) (tuist_runners_pool_replicas_observed{job=~\"$server_job\", fleet=~\"$fleet\"})",
-            "legendFormat": "{{fleet}} unscheduled",
-            "refId": "A"
-          }
-        ],
-        "title": "Unscheduled replicas (desired − observed) by shape",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Runner Pods stuck in Pending in the runners namespace — the kube-scheduler's ground truth that nothing in the fleet can host them. Requires kube-state-metrics scraped into this Prometheus; shows no data otherwise. Pending past a shape's maxReplicas is the operator's cue to provision another bare-metal host.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "stepAfter",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "short"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 65
-        },
-        "id": 422,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(kube_pod_status_phase{namespace=\"tuist-runners\", phase=\"Pending\"})",
-            "legendFormat": "pending pods",
-            "refId": "A"
-          }
-        ],
-        "title": "Pending runner pods",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Linux runner fleet memory: total Pod memory requests in the runners namespace vs allocatable memory across the runners-linux node pool. Memory is the binding constraint (kata pins it per microVM; CPU is oversubscribed), so when requested approaches allocatable, fragmentation stalls become likely. Requires kube-state-metrics; the allocatable series uses the `node.cluster.x-k8s.io/pool=runners-linux` node label — adjust the selector per env if your node-pool label differs.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineInterpolation": "stepAfter",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "bytes"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 73
-        },
-        "id": 423,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(kube_pod_container_resource_requests{namespace=\"tuist-runners\", resource=\"memory\"})",
-            "legendFormat": "requested",
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum(kube_node_status_allocatable{resource=\"memory\"} * on(node) group_left() kube_node_labels{label_node_cluster_x_k8s_io_pool=\"runners-linux\"})",
-            "legendFormat": "allocatable",
-            "refId": "B"
-          }
-        ],
-        "title": "Linux fleet memory: requested vs allocatable",
-        "type": "timeseries"
-      },
-      {
-        "collapsed": false,
-        "gridPos": {
-          "h": 1,
-          "w": 24,
-          "x": 0,
-          "y": 81
+          "y": 40
         },
         "id": 500,
         "panels": [],
@@ -1585,14 +977,14 @@
           "h": 8,
           "w": 16,
           "x": 0,
-          "y": 82
+          "y": 41
         },
         "id": 510,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
           },
           "tooltip": {
             "mode": "multi",
@@ -1603,7 +995,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (outcome) (rate(tuist_runners_dispatch_request_count{job=~\"$server_job\"}[5m]))",
+            "expr": "sum by (outcome) (rate(tuist_runners_dispatch_request_count[5m]))",
             "legendFormat": "{{outcome}}",
             "refId": "A"
           }
@@ -1639,13 +1031,13 @@
           "h": 8,
           "w": 8,
           "x": 16,
-          "y": 82
+          "y": 41
         },
         "id": 511,
         "options": {
           "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
+            "calcs": [],
+            "displayMode": "list",
             "placement": "bottom"
           },
           "tooltip": {
@@ -1657,21 +1049,21 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket{job=~\"$server_job\"}[5m])))",
+            "expr": "histogram_quantile(0.50, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))",
             "legendFormat": "p50",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket{job=~\"$server_job\"}[5m])))",
+            "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))",
             "legendFormat": "p95",
             "refId": "B"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket{job=~\"$server_job\"}[5m])))",
+            "expr": "histogram_quantile(0.99, sum by (le) (rate(tuist_runners_dispatch_request_duration_milliseconds_bucket[5m])))",
             "legendFormat": "p99",
             "refId": "C"
           }
@@ -1680,315 +1072,8 @@
         "type": "timeseries"
       },
       {
-        "collapsed": false,
-        "gridPos": {
-          "h": 1,
-          "w": 24,
-          "x": 0,
-          "y": 90
-        },
-        "id": 600,
-        "panels": [],
-        "title": "Recovery",
-        "type": "row"
-      },
-      {
         "datasource": "$datasource",
-        "description": "Recovery-worker output by kind. `stale_claim` = `StaleClaimsWorker` swept a PG claim that never advanced past `claimed` in 5 minutes (a JIT-mint crash). `orphan_requeued` = `OrphanedRunnersWorker` found a row in `running` whose GitHub-side runner never registered. `orphan_completed` = a missed `workflow_job.completed` webhook, recovered by polling GH. Any non-zero baseline is worth investigating but a one-shot spike during a rollout is expected.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "drawStyle": "line",
-              "fillOpacity": 20,
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "showPoints": "always",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              }
-            },
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 24,
-          "x": 0,
-          "y": 91
-        },
-        "id": 610,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (kind) (rate(tuist_runners_recovery_count{job=~\"$server_job\"}[15m]))",
-            "legendFormat": "{{kind}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Recovery rate by kind",
-        "type": "timeseries"
-      },
-      {
-        "collapsed": false,
-        "gridPos": {
-          "h": 1,
-          "w": 24,
-          "x": 0,
-          "y": 99
-        },
-        "id": 700,
-        "panels": [],
-        "title": "VM boot time",
-        "type": "row"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Wall-clock time from `tart clone` start to first non-empty `tart ip` for a freshly-created VM. Dominated by the OCI pull when the image isn't cached on the host (first time a new runner image rolls), by virtualization-framework startup afterwards. Spikes correlate with image bumps or Scaleway network slowness; sustained drift suggests a Mac mini's APFS cache is full and `tart clone` is repulling.",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "unit": "s"
-          }
-        },
-        "gridPos": {
-          "h": 10,
-          "w": 16,
-          "x": 0,
-          "y": 100
-        },
-        "id": 2,
-        "options": {
-          "legend": {
-            "calcs": ["mean", "max"],
-            "displayMode": "table",
-            "placement": "right"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.50, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
-            "legendFormat": "p50",
-            "refId": "A"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.95, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
-            "legendFormat": "p95",
-            "refId": "B"
-          },
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "histogram_quantile(0.99, sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m])))",
-            "legendFormat": "p99",
-            "refId": "C"
-          }
-        ],
-        "title": "Boot time (p50 / p95 / p99)",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Boots per minute, by pool. Hits zero when no new VMs are being created — for the warm-pool runner shape, that means every replica is either polling for work or running a job. A flatline at zero for hours is healthy load; a spike correlates with a fleet-shape change (RunnerPool replica bump, host rolling, mass terminal-Pod reaping by the controller).",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "lineInterpolation": "linear",
-              "lineWidth": 2,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "never",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "unit": "ops"
-          }
-        },
-        "gridPos": {
-          "h": 10,
-          "w": 8,
-          "x": 16,
-          "y": 100
-        },
-        "id": 3,
-        "options": {
-          "legend": {
-            "calcs": ["mean"],
-            "displayMode": "table",
-            "placement": "bottom"
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (pool) (rate(tart_kubelet_vm_boot_duration_seconds_count{pool=~\"$pool\"}[5m]))",
-            "legendFormat": "{{pool}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Boots / sec by pool",
-        "type": "timeseries"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Distribution of boot durations as a heatmap — surfaces multi-modal patterns the quantile lines hide (e.g. a cache-hit population at ~30s overlapping a cache-miss population at ~120s). When a new runner image rolls, expect the bands to shift right for several minutes until every Mac mini has the new image in its local Tart cache.",
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "scaleDistribution": {
-                "type": "linear"
-              }
-            }
-          }
-        },
-        "gridPos": {
-          "h": 10,
-          "w": 24,
-          "x": 0,
-          "y": 110
-        },
-        "id": 4,
-        "options": {
-          "calculate": false,
-          "cellGap": 1,
-          "color": {
-            "exponent": 0.5,
-            "fill": "dark-orange",
-            "mode": "scheme",
-            "reverse": false,
-            "scale": "exponential",
-            "scheme": "Oranges",
-            "steps": 64
-          },
-          "exemplars": {
-            "color": "rgba(255,0,255,0.7)"
-          },
-          "filterValues": {
-            "le": 1e-9
-          },
-          "legend": {
-            "show": true
-          },
-          "rowsFrame": {
-            "layout": "auto"
-          },
-          "tooltip": {
-            "show": true,
-            "yHistogram": false
-          },
-          "yAxis": {
-            "axisPlacement": "left",
-            "reverse": false,
-            "unit": "s"
-          }
-        },
-        "targets": [
-          {
-            "datasource": "$datasource",
-            "editorMode": "code",
-            "expr": "sum by (le) (rate(tart_kubelet_vm_boot_duration_seconds_bucket{pool=~\"$pool\"}[5m]))",
-            "format": "heatmap",
-            "legendFormat": "{{le}}",
-            "refId": "A"
-          }
-        ],
-        "title": "Boot time distribution (heatmap)",
-        "type": "heatmap"
-      },
-      {
-        "datasource": "$datasource",
-        "description": "Sum across all shape pools of desired replicas the controller can't place (spec.replicas − status.observedReplicas, floored at 0). Non-zero for more than a boot cycle means the kube-scheduler can't fit requested Pods on the bare-metal fleet — bin-packing/fragmentation or the fleet is full. The signal to order another host.",
+        "description": "Runner Pods the kube-scheduler genuinely can't place (`kube_pod_status_unschedulable` in the runners namespace). 0 is healthy; a sustained non-zero count means the bare-metal fleet is full or fragmented and can't fit requested Pods (the bin-packing wall), which is the signal to order another host. Requires kube-state-metrics.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -2037,7 +1122,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "clamp_min(sum(max by (fleet) (tuist_runners_pool_replicas_desired{job=~\"$server_job\"}) - max by (fleet) (tuist_runners_pool_replicas_observed{job=~\"$server_job\"})), 0)",
+            "expr": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\"}) or vector(0)",
             "instant": true,
             "refId": "A"
           }

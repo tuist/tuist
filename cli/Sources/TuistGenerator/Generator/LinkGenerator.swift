@@ -134,14 +134,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) throws -> [SideEffectDescriptor] {
-        let sideEffects = try setupFrameworkSearchPath(
-            target: target,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath,
-            path: path,
-            graphTraverser: graphTraverser
-        )
-
         try setupHeadersSearchPath(
             target: target,
             pbxTarget: pbxTarget,
@@ -174,7 +166,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
             graphTraverser: graphTraverser
         )
 
-        return sideEffects
+        return []
     }
 
     func generatePackages(
@@ -296,106 +288,6 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
 
         pbxproj.add(object: embedPhase)
         pbxTarget.buildPhases.append(embedPhase)
-    }
-
-    private static let frameworkSearchPathConsolidationThreshold = 20
-
-    func setupFrameworkSearchPath(
-        target: Target,
-        pbxTarget: PBXTarget,
-        sourceRootPath: AbsolutePath,
-        path: AbsolutePath,
-        graphTraverser: GraphTraversing
-    ) throws -> [SideEffectDescriptor] {
-        let linkableModules = try graphTraverser.searchablePathDependencies(path: path, name: target.name).sorted()
-
-        let precompiledPaths = linkableModules.compactMap(\.precompiledPath)
-            .map { LinkGeneratorPath.absolutePath($0.removingLastComponent()) }
-        let sdkPaths = linkableModules.compactMap { (dependency: GraphDependencyReference) -> LinkGeneratorPath? in
-            if case let GraphDependencyReference.sdk(_, _, source, _) = dependency {
-                return source.frameworkSearchPath.map { LinkGeneratorPath.string($0) }
-            } else {
-                return nil
-            }
-        }
-
-        let uniquePrecompiledPaths = Array(Set(precompiledPaths))
-        let uniqueSdkPaths = Array(Set(sdkPaths))
-
-        guard uniquePrecompiledPaths.count >= Self.frameworkSearchPathConsolidationThreshold else {
-            let uniquePaths = Array(Set(precompiledPaths + sdkPaths))
-            try setup(
-                setting: "FRAMEWORK_SEARCH_PATHS",
-                paths: uniquePaths,
-                pbxTarget: pbxTarget,
-                sourceRootPath: sourceRootPath
-            )
-            return []
-        }
-
-        // Write precompiled framework search paths to a response file.
-        // Clang and ld support @file syntax to read flags from a file,
-        // bypassing the ARG_MAX command-line limit that C/ObjC compilation hits.
-        let responseFilePath = sourceRootPath
-            .appending(
-                components: Constants.DerivedDirectory.name,
-                Constants.DerivedDirectory.frameworkSearchPaths,
-                "\(target.name).resp"
-            )
-
-        let precompiledXcodeValues = uniquePrecompiledPaths
-            .map { $0.xcodeValue(sourceRootPath: sourceRootPath) }
-            .uniqued()
-            .sorted()
-
-        // Response file must contain absolute paths since clang doesn't expand
-        // build setting variables. Convert $(SRCROOT)/... to absolute paths.
-        let responseFileContent = precompiledXcodeValues
-            .map { "-F" + $0.replacingOccurrences(of: "$(SRCROOT)", with: sourceRootPath.pathString) }
-            .joined(separator: "\n")
-            + "\n"
-
-        let sideEffect = SideEffectDescriptor.file(FileDescriptor(
-            path: responseFilePath,
-            contents: Data(responseFileContent.utf8)
-        ))
-
-        // FRAMEWORK_SEARCH_PATHS: only SDK paths (short, no ARG_MAX risk)
-        try setup(
-            setting: "FRAMEWORK_SEARCH_PATHS",
-            paths: uniqueSdkPaths,
-            pbxTarget: pbxTarget,
-            sourceRootPath: sourceRootPath
-        )
-
-        let responseFileRef = "@$(SRCROOT)/\(responseFilePath.relative(to: sourceRootPath))"
-
-        // OTHER_CFLAGS: add @response_file so clang reads -F flags from file
-        try setup(
-            setting: "OTHER_CFLAGS",
-            values: [responseFileRef],
-            pbxTarget: pbxTarget
-        )
-
-        // OTHER_SWIFT_FLAGS: add @response_file (no -Xcc) so swift-driver expands it
-        // into native -F flags. Passing -Xcc @file instead forwards the token verbatim
-        // to Swift's ClangImporter, whose createInvocation does not expand @file under
-        // Xcode 26 and treats it as a second Objective-C input, producing two -cc1 jobs
-        // and the "expected exactly one compiler job" error.
-        try setup(
-            setting: "OTHER_SWIFT_FLAGS",
-            values: [responseFileRef],
-            pbxTarget: pbxTarget
-        )
-
-        // OTHER_LDFLAGS: add @response_file so the linker finds the frameworks
-        try setup(
-            setting: "OTHER_LDFLAGS",
-            values: [responseFileRef],
-            pbxTarget: pbxTarget
-        )
-
-        return [sideEffect]
     }
 
     func setupHeadersSearchPath(

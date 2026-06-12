@@ -326,8 +326,17 @@ defmodule TuistWeb.AccountSettingsLive do
 
   defp load_kura_state(socket, opts \\ []) do
     account = socket.assigns.selected_account
-    servers = Kura.list_servers_for_account(account.id)
-    regions = Regions.available()
+
+    # Customer-facing list only. Private runner-cache nodes are
+    # control-plane-managed (provisioned/torn down by the identity
+    # rule) — surfacing them here would expose an in-cluster URL and a
+    # Destroy button that just fights the reconciler.
+    servers =
+      account.id
+      |> Kura.list_servers_for_account()
+      |> Enum.reject(&Regions.private?(Regions.get(&1.region)))
+
+    regions = Regions.selectable()
     available_regions = available_kura_regions(regions, servers)
     latest = Keyword.get_lazy(opts, :latest_kura_version, fn -> List.first(Kura.latest_versions(1)) end)
 
@@ -349,6 +358,12 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   defp kura_region_from_params(params, available_regions) do
+    # Only honor a submitted region that is actually offered to this
+    # account right now — params are client-controlled, and a crafted
+    # LiveView event could otherwise name a private (runner-cache) or
+    # already-occupied region that `Kura.create_server/1` accepts.
+    available_ids = MapSet.new(available_regions, & &1.id)
+
     [
       get_in(params, ["server", "region"]),
       params["region"]
@@ -356,7 +371,7 @@ defmodule TuistWeb.AccountSettingsLive do
     |> Enum.find(&present?/1)
     |> case do
       nil -> single_available_kura_region_id(available_regions)
-      region -> region
+      region -> if MapSet.member?(available_ids, region), do: region
     end
   end
 

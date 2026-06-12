@@ -20,6 +20,10 @@ inputs:
     description: Restore-keys prefix for deps + _build cache fallback
     required: false
     default: mix-
+  restore-mix-cache:
+    description: Restore the cached server deps + _build state before fetching dependencies
+    required: false
+    default: "true"
   mix-os-deps-compile-partition-count:
     description: Lower Mix dependency compilation parallelism for CI runners with tighter memory limits.
     required: false
@@ -43,6 +47,7 @@ runs:
         working_directory: server
         github_token: ${{ inputs.github-token || env.MISE_GITHUB_TOKEN }}
     - name: Restore Mix Cache
+      if: ${{ inputs['restore-mix-cache'] == 'true' }}
       uses: actions/cache@v4
       with:
         path: |

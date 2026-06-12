@@ -6,7 +6,9 @@ defmodule Tuist.Automations.Alerts.Alert do
 
   alias Tuist.Projects.Project
 
-  @monitor_types ~w(flakiness_rate flaky_run_count test_updated)
+  @event_driven_monitor_types ~w(test_updated)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
   @test_updated_events ~w(
@@ -18,11 +20,10 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # Cap on `rolling_window_size`. The monitor reads from
-  # `test_case_runs_recent_per_case`, an AggregatingMergeTree MV whose
-  # `groupArrayLast(N)` state is sized at this value, so raising the cap
-  # without also bumping the MV's aggregate type would silently truncate
-  # any window above the old N.
+  # Product cap on `rolling_window_size`. The monitor has a smaller
+  # materialized-view fast path for common rolling windows and falls back to
+  # the 1000-run aggregate above that fast-path size so larger windows stay
+  # exact instead of being silently truncated.
   @max_rolling_window_size 1000
 
   @doc """
@@ -39,6 +40,25 @@ defmodule Tuist.Automations.Alerts.Alert do
   """
   def max_rolling_window_size, do: @max_rolling_window_size
 
+  @doc """
+  Event-driven monitors (`test_updated`) fire from
+  `Tuist.Automations.dispatch_test_case_event/2` the instant a test case
+  changes and keep their own one-shot ledger. They are not scheduled and have
+  no dwell or recovery semantics. Accepts an alert struct or a monitor-type
+  string.
+  """
+  def event_driven?(%{monitor_type: monitor_type}), do: event_driven?(monitor_type)
+  def event_driven?(monitor_type), do: monitor_type in @event_driven_monitor_types
+
+  @doc """
+  Metric monitors evaluated by the scheduled `AlertEvaluationWorker` via
+  `FlakyTestsMonitor`. These drive the triggered/recovered ledger this worker
+  maintains (baseline, transition firing, re-arming). Accepts an alert struct
+  or a monitor-type string.
+  """
+  def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
+  def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -53,6 +73,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_config, :map, default: %{}
     field :recovery_actions, {:array, :map}, default: []
     field :baseline_established_at, :utc_datetime
+    field :last_scoped_evaluation_inserted_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
 
@@ -146,6 +167,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       case monitor_type do
         "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
         "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
         "test_updated" -> validate_test_updated_config(changeset, trigger_config)
         _ -> changeset
       end
@@ -201,6 +223,10 @@ defmodule Tuist.Automations.Alerts.Alert do
     else
       validate_window_config(changeset, trigger_config)
     end
+  end
+
+  defp validate_reliability_rate_config(changeset, trigger_config) do
+    validate_flakiness_rate_config(changeset, trigger_config)
   end
 
   # `window_type` selects between a calendar window ("last_days", configured

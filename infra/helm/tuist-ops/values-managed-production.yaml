@@ -1,0 +1,6 @@
+# The only env tuist-ops actually deploys to. Per-PR overrides set
+# image.tag from CI; the rest is identical to defaults so this file
+# stays close to empty.
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

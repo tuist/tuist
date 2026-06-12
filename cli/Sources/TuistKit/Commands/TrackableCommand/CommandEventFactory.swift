@@ -38,7 +38,7 @@ public struct CommandEventFactory {
             )
         }
 
-        let commandEvent = CommandEvent(
+        return CommandEvent(
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
@@ -61,9 +61,9 @@ public struct CommandEventFactory {
             ranAt: info.ranAt,
             buildRunId: info.buildRunId,
             testRunId: info.testRunId,
+            generationId: info.generationId,
             cacheEndpoint: info.cacheEndpoint
         )
-        return commandEvent
     }
 
     private func map(

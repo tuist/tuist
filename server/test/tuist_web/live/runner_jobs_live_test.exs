@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerJobsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -41,7 +42,7 @@ defmodule TuistWeb.RunnerJobsLiveTest do
       Jobs.enqueue(%{
         workflow_job_id: 99_001,
         account_id: account.id,
-        fleet_name: "macos-xcode-26.4",
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
         repository: "tuist/tuist",
         workflow_run_id: 990_010,
         workflow_name: "Server",

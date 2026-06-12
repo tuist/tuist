@@ -177,8 +177,21 @@ defmodule Tuist.Environment do
     |> Enum.reject(&(&1 == ""))
   end
 
+  def kura_dedicated_gateway_account_handles do
+    "TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_runtime_image_tag(secrets \\ secrets()) do
     System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") || get([:kura, :runtime_image_tag], secrets)
+  end
+
+  def kura_tuist_base_url do
+    System.get_env("TUIST_KURA_TUIST_BASE_URL")
   end
 
   def prometheus_enabled? do
@@ -216,7 +229,8 @@ defmodule Tuist.Environment do
   def agent_auth_default_trusted_providers, do: @agent_auth_default_trusted_providers
 
   def agent_auth_trusted_providers(secrets \\ secrets()) do
-    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") || get([:agent_auth, :trusted_providers], secrets) do
+    case System.get_env("TUIST_AGENT_AUTH_TRUSTED_PROVIDERS_JSON") ||
+           get([:agent_auth, :trusted_providers], secrets) do
       providers when is_list(providers) ->
         providers
 
@@ -247,43 +261,6 @@ defmodule Tuist.Environment do
         split_endpoints(endpoints)
 
       _ ->
-        nil
-    end
-  end
-
-  @doc """
-  Returns the kubeconfig (raw YAML string) for the given Kura cluster
-  ID, or `nil` if none is configured.
-
-  Used by managed Kura regions that run outside the server's own
-  Kubernetes cluster. Managed regions in the same cluster can still use
-  the server pod's in-cluster ServiceAccount instead.
-
-  Two sources are checked in order:
-
-    1. `TUIST_KURA_KUBECONFIG_PATH_<CLUSTER>` env var pointing at a
-       file on disk (the convenient dev path — devs use their own
-       `~/.kube/config` against a kind cluster).
-    2. `TUIST_KURA_KUBECONFIG_<CLUSTER>` env var with the kubeconfig
-       YAML inline.
-
-  In both forms the cluster ID is uppercased and `-` becomes `_` for
-  env vars.
-  """
-  def kura_kubeconfig(cluster_id, _secrets \\ secrets()) when is_binary(cluster_id) do
-    upper = cluster_id |> String.upcase() |> String.replace("-", "_")
-
-    cond do
-      path = System.get_env("TUIST_KURA_KUBECONFIG_PATH_#{upper}") ->
-        case File.read(path) do
-          {:ok, contents} -> contents
-          {:error, _reason} -> nil
-        end
-
-      inline = System.get_env("TUIST_KURA_KUBECONFIG_#{upper}") ->
-        inline
-
-      true ->
         nil
     end
   end
@@ -469,6 +446,19 @@ defmodule Tuist.Environment do
     else
       "tuist-development"
     end
+  end
+
+  def cache_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_S3_BUCKET_NAME") ||
+      System.get_env("S3_BUCKET") ||
+      get([:cache, :s3, :bucket], secrets)
+  end
+
+  def cache_xcode_s3_bucket_name(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_XCODE_S3_BUCKET_NAME") ||
+      System.get_env("S3_XCODE_CACHE_BUCKET") ||
+      get([:cache, :s3, :xcode_cache_bucket], secrets) ||
+      cache_s3_bucket_name(secrets)
   end
 
   def s3_endpoint(secrets \\ secrets()) do
@@ -764,10 +754,10 @@ defmodule Tuist.Environment do
 
   @doc """
   Whether the configured DATABASE_URL points at a transaction-mode pooler
-  (Supabase Supavisor, PgBouncer, etc.) rather than a direct Postgres
-  endpoint. Toggles `prepare: :unnamed` and drops `tcp_keepalives_*`
-  startup parameters in `runtime.exs` — both required for transaction-mode
-  poolers to work, both unnecessary cost on direct connections.
+  (PgBouncer, PgCat, etc.) rather than a direct Postgres endpoint. Toggles
+  `prepare: :unnamed` and drops `tcp_keepalives_*` startup parameters in
+  `runtime.exs` — both required for transaction-mode poolers to work,
+  both unnecessary cost on direct connections.
   """
   def database_pooled? do
     truthy?(System.get_env("TUIST_DATABASE_POOLED", "0"))
@@ -997,10 +987,8 @@ defmodule Tuist.Environment do
   end
 
   # Kura-side env vars stay unprefixed so the implementation in Kura
-  # remains Tuist-agnostic. The server still falls back to the legacy
-  # TUIST_KURA_INTROSPECTION_* names and to the encrypted `kura.*` secrets
-  # so existing deployments and dev secrets keep working through the
-  # rename.
+  # remains Tuist-agnostic. The encrypted `kura.*` secrets stay as a
+  # compatibility fallback for existing deployments and dev secrets.
   def kura_control_plane_client_id(secrets \\ secrets()) do
     System.get_env("KURA_CONTROL_PLANE_CLIENT_ID") ||
       get([:kura, :control_plane_client_id], secrets) ||
@@ -1019,7 +1007,9 @@ defmodule Tuist.Environment do
   end
 
   def kura_introspection_client_id(secrets \\ secrets()), do: kura_control_plane_client_id(secrets)
+
   def kura_introspection_client_secret(secrets \\ secrets()), do: kura_control_plane_client_secret(secrets)
+
   def kura_introspection_configured?(secrets \\ secrets()), do: kura_control_plane_configured?(secrets)
 
   @doc """
@@ -1087,6 +1077,17 @@ defmodule Tuist.Environment do
   """
   def runners_linux_pool_name_prefix do
     System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
+  end
+
+  @doc """
+  Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
+  Helm renders the prefix into the `RunnerPool` CR names and injects it
+  here so the server's enqueue target stays identical to the rendered CR
+  name regardless of helm release. Default mirrors the Linux side, with
+  `-macos` substituted for `-linux`.
+  """
+  def runners_macos_pool_name_prefix do
+    System.get_env("TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX", "tuist-runner-pool-macos")
   end
 
   @doc """

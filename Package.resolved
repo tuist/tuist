@@ -1,5 +1,5 @@
 {
-  "originHash" : "e1aa130707485ee4ef299ccc5cdba5c2eaa633efbeb8778be57b51cb457c2b1a",
+  "originHash" : "ea0afab334cf343ec89bbc8f4f74364353e3480b9a63b9b61911801a52864480",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -22,7 +22,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.7.0"
+        "version" : "1.7.1"
       }
     },
     {
@@ -102,7 +102,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.94.0"
+        "version" : "2.99.0"
       }
     },
     {
@@ -407,7 +407,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.47"
+        "version" : "0.2.48"
       }
     },
     {
@@ -515,6 +515,14 @@
       }
     },
     {
+      "identity" : "swifterpm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/swifterpm",
+      "state" : {
+        "revision" : "672a723f962cf243f1b6de65274c744c51e82acc"
+      }
+    },
+    {
       "identity" : "swiftGen.StencilSwiftKit",
       "kind" : "registry",
       "location" : "",
@@ -544,6 +552,14 @@
       "location" : "",
       "state" : {
         "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "swiftlang.swift-subprocess",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.4.0"
       }
     },
     {
@@ -591,7 +607,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.8"
+        "version" : "0.14.9"
       }
     },
     {
@@ -599,7 +615,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.17.3"
+        "version" : "0.18.0"
       }
     },
     {
@@ -647,7 +663,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.9.0"
+        "version" : "9.13.0"
       }
     },
     {

@@ -4,23 +4,20 @@ Describe 'DNS discovery and bootstrap'
   Include spec/e2e/support.sh
 
   setup_suite() {
-    export COMPOSE_PROJECT_NAME="kura-discovery"
-    export KURA_US_PORT=4401
-    export KURA_US_2_PORT=4402
-    export TEMPO_PORT=3303
-    export OTLP_PORT=4420
-    export KURA_US_URL="http://localhost:${KURA_US_PORT}"
-    export KURA_US_2_URL="http://localhost:${KURA_US_2_PORT}"
-
     COMPOSE_FILES=(
       -f "${PROJECT_ROOT}/docker-compose.yml"
       -f "${PROJECT_ROOT}/test/e2e/docker-compose.discovery.yml"
     )
     setup_suite_tmpdir
 
+    suite_env COMPOSE_PROJECT_NAME kura-discovery
+    ephemeral_ports KURA_US_PORT KURA_US_2_PORT KURA_US_GRPC_PORT KURA_US_2_GRPC_PORT TEMPO_PORT OTLP_PORT
+
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us kura-us-2 >/dev/null 2>&1
     dc up -d kura-us >/dev/null 2>&1
+
+    resolve_http_node KURA_US kura-us
 
     wait_for_http "${KURA_US_URL}/up"
     capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":1' || return 1
@@ -48,6 +45,7 @@ Describe 'DNS discovery and bootstrap'
     The variable artifact_status should eq 204
 
     dc up -d kura-us-2 >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US_2 kura-us-2
 
     wait_for_http "${KURA_US_2_URL}/up" || return 1
     capture_into us_ring wait_for_contains "${KURA_US_URL}/up" '"ring_members":2' || return 1
