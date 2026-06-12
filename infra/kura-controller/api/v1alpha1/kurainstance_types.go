@@ -53,6 +53,18 @@ type KuraInstanceSpec struct {
 	// `kubernetes.io/egress-bandwidth` on pools whose node NIC is
 	// shared by many tenants.
 	PodAnnotations map[string]string `json:"podAnnotations,omitempty"`
+
+	// Mesh enables controller-managed cross-region peering for this
+	// instance. The controller maintains a per-account CA
+	// (`kura-<account>-peer-ca`) and signs a leaf for the instance whose
+	// SANs cover the account peer Service, so every one of an account's
+	// instances mutually authenticates while another account's leaf
+	// (signed by a different CA) is rejected at the TLS layer. Each
+	// account's pods then discover and replicate to each other through
+	// the account peer Service (`KURA_GLOBAL_DISCOVERY_DNS_NAME`).
+	// `PeerTLSSecretName` takes precedence when set (externally managed
+	// peer TLS); Mesh is the in-cluster, controller-issued path.
+	Mesh bool `json:"mesh,omitempty"`
 }
 
 type KuraInstanceStatus struct {

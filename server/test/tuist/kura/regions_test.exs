@@ -51,6 +51,13 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end
 
+    test "enables the per-account peer mesh on managed and private regions" do
+      for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
+        assert Regions.get(id).provisioner_config.mesh == true,
+               "expected region #{id} to enable the peer mesh"
+      end
+    end
+
     test "exposes a local controller-backed region for kind smoke tests" do
       assert %Regions{
                id: "local-controller",

@@ -68,6 +68,38 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
     end
 
+    test "emits the mesh flag only when the region enables the per-account peer mesh" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      meshed =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{mesh: true}),
+          %Server{},
+          "return true"
+        )
+
+      assert meshed["spec"]["mesh"] == true
+
+      unmeshed =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(unmeshed["spec"], "mesh")
+    end
+
     test "normalizes account handles for DNS-label KuraInstance fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

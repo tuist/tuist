@@ -211,6 +211,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "grpcPublicHost" => grpc_public_host(account_handle, region),
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(region),
+          "mesh" => mesh_enabled?(region),
           "private" => Regions.private?(region),
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
@@ -286,6 +287,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
        when is_binary(secret_name) and secret_name != "", do: secret_name
 
   defp peer_tls_secret_name(_region), do: nil
+
+  defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
+  defp mesh_enabled?(_region), do: false
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are

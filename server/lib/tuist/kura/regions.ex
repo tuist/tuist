@@ -233,7 +233,10 @@ defmodule Tuist.Kura.Regions do
         storage_class: @managed_region_storage_class,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles()
+        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
+        # Controller-managed per-account peer mesh: an account's nodes
+        # across regions replicate to each other under one per-account CA.
+        mesh: true
       }
     }
   end
@@ -259,7 +262,11 @@ defmodule Tuist.Kura.Regions do
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
         replicas: 1,
-        tuist_base_url: Tuist.Environment.kura_tuist_base_url()
+        tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
+        # The runner-cache node replicates with the account's other nodes
+        # over the in-cluster peer mesh (cache content stays coherent; the
+        # runner hot path remains node-local over the Private Network).
+        mesh: true
       }
     }
   end
