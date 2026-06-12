@@ -566,7 +566,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/swifterpm",
       "state" : {
-        "revision" : "f75a054d40c0ca0c414864e98d125f23eb22f4f5"
+        "revision" : "f75a054d40c0ca0c414864e98d125f23eb22f4f5",
+        "version" : "0.8.9"
       }
     },
     {
