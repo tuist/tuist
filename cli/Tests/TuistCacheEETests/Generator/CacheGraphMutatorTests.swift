@@ -156,6 +156,186 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_keeps_external_bundles_as_source_when_reachable_from_source_framework() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let account = Target.test(name: "Account", destinations: [.iPhone], product: .framework)
+        let accountProject = Project.test(
+            path: path.appending(component: "Account"),
+            name: "Account",
+            targets: [account]
+        )
+        let accountGraphTarget = GraphTarget.test(path: accountProject.path, target: account, project: accountProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                accountProject.path: accountProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: account.name, path: accountGraphTarget.path),
+                ],
+                .target(name: account.name, path: accountGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+            } else {
+                fatalError("Unexpected load call for \(path)")
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["Account"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            [
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+            ]
+        )
+        XCTAssertEqual(
+            got.projects[externalProject.path]?.targets[externalBundle.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: accountGraphTarget.path, name: account.name),
+            []
+        )
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .product(target: externalBundle.name, productName: externalBundle.productNameWithExtension),
+            ]
+        )
+    }
+
+    func test_map_replaces_external_bundles_when_reachable_from_source_app() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+            } else if path == externalBundlePath {
+                return .bundle(path: externalBundlePath)
+            } else {
+                fatalError("Unexpected load call for \(path)")
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["App"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            [
+                .bundle(path: externalBundlePath),
+            ]
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .bundle(path: externalBundlePath),
+            ]
+        )
+    }
+
     /// Second scenario
     ///       +---->B (Cached XCFramework)+
     ///       |                         |
