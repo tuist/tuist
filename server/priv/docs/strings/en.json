@@ -475,10 +475,10 @@
               "text": "Self-hosting",
               "items": {
                 "control-plane": {
-                  "text": "Control plane"
+                  "text": "Server"
                 },
                 "kura": {
-                  "text": "Kura"
+                  "text": "Cache server"
                 },
                 "telemetry": {
                   "text": "Telemetry"
