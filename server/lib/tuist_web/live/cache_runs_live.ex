@@ -296,14 +296,6 @@ defmodule TuistWeb.CacheRunsLive do
     flop_filters ++ ran_by_flop_filters
   end
 
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
-  end
-
   def column_patch_sort(
         %{uri: uri, cache_runs_sort_by: cache_runs_sort_by, cache_runs_sort_order: cache_runs_sort_order} = _assigns,
         column_value

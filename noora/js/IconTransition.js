@@ -94,19 +94,39 @@ function pad(rings, count, c) {
   return out;
 }
 
+// Mean distance of a ring's points from its centroid — a scale signature for matching.
+const sizeOf = (ring, c) => {
+  let s = 0;
+  for (const p of ring) {
+    const dx = p[0] - c[0];
+    const dy = p[1] - c[1];
+    s += Math.sqrt(dx * dx + dy * dy);
+  }
+  return s / ring.length;
+};
+
+// Pairs rings between the two icons. Centroid distance alone mispairs concentric subpaths —
+// e.g. an arrow inside a boundary ring sits closer to the (identically centered) boundary of the
+// other icon than to its own moved counterpart — so ring size is part of the cost, which keeps
+// small glyphs matched to small glyphs and boundaries to boundaries.
 function matchRings(A, B) {
   const used = new Array(B.length).fill(false);
+  const bInfo = B.map((rb) => {
+    const c = cOf(rb);
+    return { c, size: sizeOf(rb, c) };
+  });
   const order = [];
   for (const ra of A) {
     const ca = cOf(ra);
+    const sa = sizeOf(ra, ca);
     let best = -1;
     let bd = Infinity;
     for (let j = 0; j < B.length; j++) {
       if (used[j]) continue;
-      const cb = cOf(B[j]);
-      const dx = ca[0] - cb[0];
-      const dy = ca[1] - cb[1];
-      const dd = dx * dx + dy * dy;
+      const dx = ca[0] - bInfo[j].c[0];
+      const dy = ca[1] - bInfo[j].c[1];
+      const ds = sa - bInfo[j].size;
+      const dd = dx * dx + dy * dy + ds * ds;
       if (dd < bd) {
         bd = dd;
         best = j;

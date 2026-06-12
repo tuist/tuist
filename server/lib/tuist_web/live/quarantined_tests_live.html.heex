@@ -316,10 +316,7 @@
               @quarantined_tests_sort_by == "name" &&
                 column_sort_patch(assigns, "name")
             }
-            icon={
-              @quarantined_tests_sort_by == "name" &&
-                sort_icon(@quarantined_tests_sort_order)
-            }
+            sort_order={@quarantined_tests_sort_by == "name" && @quarantined_tests_sort_order}
           >
             <.text_and_description_cell
               label={test_case.name}
@@ -394,9 +391,8 @@
               @quarantined_tests_sort_by == "last_ran_at" &&
                 column_sort_patch(assigns, "last_ran_at")
             }
-            icon={
-              @quarantined_tests_sort_by == "last_ran_at" &&
-                sort_icon(@quarantined_tests_sort_order)
+            sort_order={
+              @quarantined_tests_sort_by == "last_ran_at" && @quarantined_tests_sort_order
             }
           >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />

@@ -525,10 +525,7 @@
                 @module_breakdown_sort_by == "name" &&
                   module_breakdown_column_patch_sort(assigns, "name")
               }
-              icon={
-                @module_breakdown_sort_by == "name" &&
-                  sort_icon(@module_breakdown_sort_order)
-              }
+              sort_order={@module_breakdown_sort_by == "name" && @module_breakdown_sort_order}
             >
               <.text_and_description_cell label={module.name} />
             </:col>
@@ -539,9 +536,8 @@
                 @module_breakdown_sort_by == "build-duration" &&
                   module_breakdown_column_patch_sort(assigns, "build-duration")
               }
-              icon={
-                @module_breakdown_sort_by == "build-duration" &&
-                  sort_icon(@module_breakdown_sort_order)
+              sort_order={
+                @module_breakdown_sort_by == "build-duration" && @module_breakdown_sort_order
               }
             >
               <.text_cell
@@ -560,9 +556,9 @@
                 @module_breakdown_sort_by == "compilation-duration" &&
                   module_breakdown_column_patch_sort(assigns, "compilation-duration")
               }
-              icon={
+              sort_order={
                 @module_breakdown_sort_by == "compilation-duration" &&
-                  sort_icon(@module_breakdown_sort_order)
+                  @module_breakdown_sort_order
               }
             >
               <.text_cell
@@ -674,10 +670,7 @@
                 @file_breakdown_sort_by == "file" &&
                   file_breakdown_column_patch_sort(assigns, "file")
               }
-              icon={
-                @file_breakdown_sort_by == "file" &&
-                  sort_icon(@file_breakdown_sort_order)
-              }
+              sort_order={@file_breakdown_sort_by == "file" && @file_breakdown_sort_order}
             >
               <.text_and_description_cell label={file.path} />
             </:col>
@@ -708,9 +701,8 @@
                 @file_breakdown_sort_by == "compilation-duration" &&
                   file_breakdown_column_patch_sort(assigns, "compilation-duration")
               }
-              icon={
-                @file_breakdown_sort_by == "compilation-duration" &&
-                  sort_icon(@file_breakdown_sort_order)
+              sort_order={
+                @file_breakdown_sort_by == "compilation-duration" && @file_breakdown_sort_order
               }
             >
               <.text_cell
@@ -1193,9 +1185,8 @@
                     @cacheable_tasks_sort_by == "description" &&
                       cacheable_tasks_column_patch_sort(assigns, "description")
                   }
-                  icon={
-                    @cacheable_tasks_sort_by == "description" &&
-                      sort_icon(@cacheable_tasks_sort_order)
+                  sort_order={
+                    @cacheable_tasks_sort_by == "description" && @cacheable_tasks_sort_order
                   }
                 >
                   <.text_cell label={task.description || dgettext("dashboard_builds", "Unknown")} />
@@ -1230,10 +1221,7 @@
                     @cacheable_tasks_sort_by == "key" &&
                       cacheable_tasks_column_patch_sort(assigns, "key")
                   }
-                  icon={
-                    @cacheable_tasks_sort_by == "key" &&
-                      sort_icon(@cacheable_tasks_sort_order)
-                  }
+                  sort_order={@cacheable_tasks_sort_by == "key" && @cacheable_tasks_sort_order}
                 >
                   <.text_cell label={String.slice(task.key, 0, 30) <> if(String.length(task.key) > 30, do: "...", else: "")} />
                 </:col>
@@ -1533,10 +1521,7 @@
                     @cas_outputs_sort_by == "node-id" &&
                       cas_outputs_column_patch_sort(assigns, "node-id")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "node-id" &&
-                      sort_icon(@cas_outputs_sort_order)
-                  }
+                  sort_order={@cas_outputs_sort_by == "node-id" && @cas_outputs_sort_order}
                 >
                   <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
                 </:col>
@@ -1564,10 +1549,7 @@
                     @cas_outputs_sort_by == "size" &&
                       cas_outputs_column_patch_sort(assigns, "size")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "size" &&
-                      sort_icon(@cas_outputs_sort_order)
-                  }
+                  sort_order={@cas_outputs_sort_by == "size" && @cas_outputs_sort_order}
                 >
                   <.text_cell label={Tuist.Utilities.ByteFormatter.format_bytes(output.size)} />
                 </:col>
@@ -1578,9 +1560,8 @@
                     @cas_outputs_sort_by == "compressed-size" &&
                       cas_outputs_column_patch_sort(assigns, "compressed-size")
                   }
-                  icon={
-                    @cas_outputs_sort_by == "compressed-size" &&
-                      sort_icon(@cas_outputs_sort_order)
+                  sort_order={
+                    @cas_outputs_sort_by == "compressed-size" && @cas_outputs_sort_order
                   }
                 >
                   <.text_cell label={

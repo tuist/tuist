@@ -13,6 +13,7 @@ import NooraIconTransition from "./IconTransition.js";
 import NooraModal from "./Modal.js";
 import NooraPopover from "./Popover.js";
 import NooraSelect from "./Select.js";
+import NooraTable from "./Table.js";
 import NooraTabs from "./Tabs.js";
 import NooraTagsInput from "./TagsInput.js";
 import NooraToggle from "./Toggle.js";
@@ -32,6 +33,7 @@ const Hooks = {
   NooraModal,
   NooraPopover,
   NooraSelect,
+  NooraTable,
   NooraTabs,
   NooraTagsInput,
   NooraToggle,

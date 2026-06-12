@@ -267,9 +267,6 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def sort_by_label("duration"), do: dgettext("dashboard_runners", "Duration")
   def sort_by_label(_enqueued_default), do: dgettext("dashboard_runners", "Enqueued at")
 
-  def sort_icon("asc"), do: "square_rounded_arrow_up"
-  def sort_icon(_desc), do: "square_rounded_arrow_down"
-
   def column_sort_patch(assigns, column) do
     new_order =
       cond do
