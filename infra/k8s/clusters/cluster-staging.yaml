@@ -94,9 +94,9 @@ spec:
               autoscaling.tuist.dev/group: kura-staging
             annotations:
               cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "8"
+              cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "12"
               cluster.x-k8s.io/cluster-autoscaler-node-group-min-size: "3"
-              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "8"
+              cluster.x-k8s.io/cluster-autoscaler-node-group-max-size: "12"
           variables:
             overrides:
               - name: hcloudWorkerMachineType
