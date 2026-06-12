@@ -27,6 +27,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - Keep `docs/architecture.md` in sync when changing how subsystems fit together (storage planes, replication model, traffic lifecycle, rollouts, observability surface)
 - When changing cache protocol behavior, update the relevant shellspec coverage under `spec/e2e/`
 - Keep Helm and local observability assets in `ops/` in sync with runtime configuration changes
+- On a Bazel branch (e.g. `kura-bazel-*`): whenever `Cargo.toml`/`Cargo.lock` change — including after rebasing/merging `main` — repin `Cargo.Bazel.lock` (`crate_universe`) **before committing**, or every Bazel job fails at analysis with "lockfile is out of date for 'crates'". See `docs/bazel-migration-plan.md` → "Maintenance: repin the Rust crate lockfile" for the dev-container command.
 
 ## Rollout Safety
 Kura runs as a multi-node mesh and is deployed with rolling updates, so pods of mixed versions run side by side mid-deploy. Every change must be safe under that overlap:

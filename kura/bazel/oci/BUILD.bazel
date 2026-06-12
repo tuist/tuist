@@ -1,0 +1,119 @@
+# Phase 3: the runtime OCI image, assembled by rules_oci with no Docker daemon, Buildx,
+# or QEMU. The kura binary is cross-compiled per arch (see //bazel/toolchains/cc), so a
+# multi-arch image can be built from a single host.
+#
+# Build a single arch by picking the target platform, e.g. from the Linux dev container:
+#   bazel build //bazel/oci:image --platforms=//bazel/platforms:linux_arm64 -c opt
+# `bazel build //bazel/oci:load` produces a docker-loadable tarball (`docker load -i`).
+#
+# This is SHADOW only: it does not push to any registry and changes nothing in the
+# production release path. oci_push/release wiring is a later Phase 3 step.
+
+load("@rules_distroless//distroless:defs.bzl", "cacerts")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_image_index", "oci_load")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load(":transition.bzl", "transitioned_image")
+
+# The ca-certificates .deb ships individual certs but the bundled
+# /etc/ssl/certs/ca-certificates.crt is produced by its postinst (update-ca-certificates),
+# which rules_distroless does not run. cacerts() generates that bundle so outbound TLS
+# (analytics, peer/object-store HTTPS) verifies — matching what apt produces in production.
+cacerts(
+    name = "cacerts",
+    package = "@bookworm_apt//ca-certificates:data",
+)
+
+# The kura binary at the production path (/usr/local/bin/kura), mode 0755 so the image
+# entrypoint is executable. //:kura transitions to the target platform under --platforms.
+pkg_tar(
+    name = "kura_layer",
+    srcs = ["//:kura"],
+    mode = "0755",
+    package_dir = "/usr/local/bin",
+)
+
+# GeoIP seed: decompress the digest-pinned DB-IP Lite dump (@dbip_city_lite, see
+# MODULE.bazel) and place it at /opt/geoip/dbip-city-lite.mmdb — the path GeoIp::open
+# reads. Arch-independent data, so the one layer is shared by both arches in the index.
+genrule(
+    name = "dbip_mmdb",
+    srcs = ["@dbip_city_lite//file"],
+    outs = ["dbip-city-lite.mmdb"],
+    cmd = "gzip -dc $< > $@",
+)
+
+pkg_tar(
+    name = "geoip_layer",
+    srcs = [":dbip_mmdb"],
+    mode = "0644",
+    package_dir = "/opt/geoip",
+)
+
+# Runtime image matching the production Dockerfile: debian:bookworm-slim base + the
+# extra-packages layer (tini/curl/libstdc++6/ca-certificates) + the binary, with tini as
+# the init entrypoint. @bookworm_apt//:flat is a per-arch tar selected by the build
+# platform, so it composes with the multi-arch index below.
+oci_image(
+    name = "image",
+    base = "@debian_bookworm_slim",
+    entrypoint = [
+        "/usr/bin/tini",
+        "--",
+        "/usr/local/bin/kura",
+    ],
+    env = {"RUST_LOG": "info"},
+    exposed_ports = ["4000"],
+    tars = [
+        "@bookworm_apt//:flat",
+        ":cacerts",
+        ":geoip_layer",
+        ":kura_layer",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+oci_load(
+    name = "load",
+    image = ":image",
+    repo_tags = ["kura-bazel:oci"],
+    visibility = ["//visibility:public"],
+)
+
+# Per-arch loadable tarballs that reach :image through the SAME transition the
+# multi-arch index uses (transitioned_image, see transition.bzl). Building one of
+# these alongside :index compiles the native binary ONCE in the shared `ST-` config
+# instead of a second time under the plain --platforms flag config that `:load`
+# above uses. CI (bazel/ci-oci.sh) builds the host-arch one for the e2e; the flag
+# `:load` stays for local single-arch dev (no remote cache to fragment locally).
+[
+    transitioned_image(
+        name = "image_linux_{}".format(arch),
+        image = ":image",
+        platform = "//bazel/platforms:linux_{}".format(arch),
+    )
+    for arch in ("x86_64", "arm64")
+]
+
+[
+    oci_load(
+        name = "load_linux_{}".format(arch),
+        image = ":image_linux_{}".format(arch),
+        repo_tags = ["kura-bazel:oci"],
+        visibility = ["//visibility:public"],
+    )
+    for arch in ("x86_64", "arm64")
+]
+
+# Multi-arch manifest. With one image + a platforms list, oci_image_index transitions
+# :image to each platform and assembles the index — both arches from a single host
+# (x86_64 via the cross toolchain, arm64 native, or vice versa), no QEMU. Build with
+# `bazel build //bazel/oci:index -c opt` (no --platforms; the transition sets it).
+oci_image_index(
+    name = "index",
+    images = [":image"],
+    platforms = [
+        "//bazel/platforms:linux_x86_64",
+        "//bazel/platforms:linux_arm64",
+    ],
+    visibility = ["//visibility:public"],
+)

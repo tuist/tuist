@@ -1,0 +1,148 @@
+"""Kura — distributed cache mesh (Rust).
+
+Phase 0.1 of the Bazel migration: workspace skeleton and Rust toolchain only.
+See docs/bazel-migration-plan.md for the full plan.
+"""
+
+module(
+    name = "kura",
+    version = "0.6.0",
+)
+
+bazel_dep(name = "rules_rust", version = "0.70.0")
+bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "platforms", version = "1.0.0")
+
+# Phase 3: build the runtime OCI image with rules_oci (no Docker daemon / Buildx / QEMU).
+# rules_pkg's pkg_tar packages the kura binary into an image layer; rules_distroless
+# resolves the extra Debian runtime packages (tini/curl/...) hermetically as a layer.
+bazel_dep(name = "rules_oci", version = "2.3.0")
+bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_distroless", version = "0.8.0")
+
+# Pin the Rust toolchain to match rust-toolchain.toml / mise.toml (1.94.1, edition 2024).
+# extra_target_triples enables cross-compilation between the two Linux arches.
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2024",
+    extra_target_triples = [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+    ],
+    versions = ["1.94.1"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+# Cross C/C++ toolchains (Debian cross GCC in the dev image). Each is scoped to a
+# cross scenario (exec arch != target arch), so native builds keep the autodetected
+# host toolchain. x86_64 target builds from an arm64 host; arm64 target from x86_64.
+register_toolchains(
+    "//bazel/toolchains/cc:x86_64_linux_toolchain",
+    "//bazel/toolchains/cc:arm64_linux_toolchain",
+)
+
+# Third-party Rust dependencies, resolved from Cargo.toml / Cargo.lock.
+# Repin after changing dependencies or annotations (Bazel 9 has no `bazel sync`):
+#   CARGO_BAZEL_REPIN=1 bazel query '@crates//:all'
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+
+# mlua's `vendored` feature compiles Lua from source shipped in the `lua-src`
+# crate, whose build script reads `env!("CARGO_MANIFEST_DIR")` — a compile-time
+# path that no longer exists when the mlua-sys build script runs under Bazel.
+# Instead of coaxing that build script, we compile Lua ourselves as a cc_library
+# (//bazel/third_party/lua) from lua-src's vendored sources and link it:
+#   1. Expose lua-src's C sources + headers as filegroups for the cc_library.
+#   2. Disable mlua-sys's build script (it only locates/links Lua) and add the
+#      cc_library to its deps, so Bazel handles the C build and linking.
+# This touches no third-party Rust source and gives Lua a real Bazel target.
+crate.annotation(
+    additive_build_file_content = """
+filegroup(
+    name = "lua_c_srcs",
+    srcs = glob(["lua-5.4.8/*.c"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "lua_hdrs",
+    srcs = glob(["lua-5.4.8/*.h"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    crate = "lua-src",
+)
+crate.annotation(
+    crate = "mlua-sys",
+    gen_build_script = "off",
+    # @@// is the canonical (main-repo) form, resolvable from the crate repo.
+    deps = ["@@//bazel/third_party/lua:lua"],
+)
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    lockfile = "//:Cargo.Bazel.lock",
+    manifests = ["//:Cargo.toml"],
+)
+use_repo(crate, "crates")
+
+# Runtime base image: the same debian:bookworm-slim the production Dockerfile uses, pinned
+# by index digest and fetched for both arches so a multi-arch index builds from one host.
+# arm64 is published as the v8 variant (must be spelled out or the manifest match fails);
+# the @debian_bookworm_slim alias still selects it for our variant-less
+# //bazel/platforms:linux_arm64 (it keys on cpu:arm64).
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+oci.pull(
+    name = "debian_bookworm_slim",
+    digest = "sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb",
+    image = "docker.io/library/debian",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64/v8",
+    ],
+)
+use_repo(oci, "debian_bookworm_slim", "debian_bookworm_slim_linux_amd64", "debian_bookworm_slim_linux_arm64_v8")
+
+# Extra runtime packages layered on bookworm-slim to match the production Dockerfile
+# (tini init, curl for healthchecks, libstdc++6 for the C++ deps, ca-certificates),
+# resolved hermetically by rules_distroless and added as an image layer. The lockfile
+# pins each .deb by sha256. Regenerate it after editing the manifest:
+#   bazel run @bookworm_apt//:lock
+#
+# mergedusr = True is REQUIRED here. The bookworm-slim base is merged-/usr: it ships
+# /lib and /lib64 as symlinks to /usr/lib and /usr/lib64. By default rules_distroless
+# flattens the .debs with real /lib and /lib64 directories, which collide with the
+# base's symlinks. overlay2 (the GitHub runner's storage driver) resolves that
+# symlink-vs-directory collision by routing the layer's /lib/* through the base
+# symlink, which drops /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 — leaving the ELF
+# interpreter symlink dangling, so every binary fails `exec ...: no such file or
+# directory` natively. (Docker Desktop's driver merges it differently, which is why
+# it only reproduced on the native amd64 runner.) mergedusr keeps the layer's paths
+# under /usr with matching symlinks, so it composes cleanly with the base.
+apt = use_extension("@rules_distroless//apt:extensions.bzl", "apt")
+apt.install(
+    name = "bookworm_apt",
+    lock = "//bazel/oci:bookworm_apt.lock.json",
+    manifest = "//bazel/oci:bookworm_apt.yaml",
+    mergedusr = True,
+)
+use_repo(apt, "bookworm_apt")
+
+# GeoIP seed database — DB-IP IP-to-City Lite (https://db-ip.com), CC BY 4.0. The
+# production Dockerfile downloads the time-dependent monthly dump (dbip-city-lite-YYYY-MM);
+# here it is a reproducible, digest-pinned http_file decompressed into an image layer by
+# //bazel/oci (placed at /opt/geoip/dbip-city-lite.mmdb, the path GeoIp::open reads).
+# This is only the startup seed: Kura's background refresher
+# (KURA_GEOIP_REFRESH_INTERVAL_SECS, daily by default) keeps the running database current,
+# and GeoIp::open degrades gracefully when the file is absent. DB-IP keeps only recent
+# months online, so bump the URL + sha256 periodically (re-pin: curl the new dump and
+# `sha256sum`).
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "dbip_city_lite",
+    downloaded_file_path = "dbip-city-lite.mmdb.gz",
+    sha256 = "6785ef1db6cb0d0979bcf437a06bea8f1a4729e050845e530604bdac58781ccb",
+    urls = ["https://download.db-ip.com/free/dbip-city-lite-2026-06.mmdb.gz"],
+)
