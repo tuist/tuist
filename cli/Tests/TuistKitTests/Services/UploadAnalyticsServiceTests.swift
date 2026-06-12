@@ -82,7 +82,7 @@ struct UploadAnalyticsServiceTests {
             .willReturn(temporaryDirectory)
 
         let resultBundle = temporaryDirectory
-            .appending(components: "some-run-id", "\(Constants.resultBundleName).xcresult")
+            .appending(components: "some-run-id", Constants.resultBundleName)
         try await fileSystem.makeDirectory(at: resultBundle)
 
         let event = CommandEvent.test(resultBundlePath: resultBundle)
@@ -137,7 +137,7 @@ struct UploadAnalyticsServiceTests {
 
         let event = CommandEvent.test(resultBundlePath: nil)
         let conventionalBundlePath = temporaryDirectory
-            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
+            .appending(components: event.runId, Constants.resultBundleName)
         try await fileSystem.makeDirectory(at: conventionalBundlePath)
 
         let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)

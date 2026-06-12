@@ -257,6 +257,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.scheme == "AppTests"
+        assert attrs.test_plan == "AppTests"
         {:ok, %{id: test_run_id}}
       end)
 
@@ -271,6 +272,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.scheme == "App"
+        assert attrs.test_plan == nil
         {:ok, %{id: test_run_id}}
       end)
 

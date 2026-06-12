@@ -12,7 +12,7 @@ public enum Constants {
     public static let communityURL = "https://github.com/tuist/tuist/discussions/categories/general"
     public static let bundleName: String = "tuist.zip"
     public static let tuistDirectoryName: String = "Tuist"
-    public static let resultBundleName = "result-bundle"
+    public static let resultBundleName = "result_bundle.xcresult"
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"

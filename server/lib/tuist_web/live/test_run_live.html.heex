@@ -333,6 +333,12 @@
               </span>
             </div>
           </div>
+          <div :if={@run.test_plan not in [nil, ""]} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Test plan")}</div>
+              <span data-part="value">{@run.test_plan}</span>
+            </div>
+          </div>
           <div :if={@run.run_destinations != []} data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">

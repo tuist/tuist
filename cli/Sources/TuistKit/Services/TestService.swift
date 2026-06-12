@@ -391,6 +391,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             config: config
         )
 
+        if action == .build, let resultBundlePath {
+            await RunMetadataStorage.current.update(resultBundlePath: resultBundlePath)
+        }
+
         let schemes: [Scheme]
         if let schemeName {
             guard let scheme = graphTraverser.schemes().first(where: { $0.name == schemeName })
@@ -1258,11 +1262,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) async {
+        // Analytics tracks what runs, not what builds — `.build` fans out to
+        // every test plan for the on-disk selective-testing graph.
+        let runtimeAction: XcodeBuildTestAction = action == .build ? .test : action
         let initialTestTargets = initialTestTargets(
             mapperEnvironment: mapperEnvironment,
             schemes: schemes,
             testPlanConfiguration: testPlanConfiguration,
-            action: action
+            action: runtimeAction
         )
 
         await RunMetadataStorage.current.update(
@@ -1296,7 +1303,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await fileSystem.copy(
                 try await fileSystem.resolveSymbolicLink(resultBundlePath),
                 to: runResultBundlePath.parentDirectory.appending(
-                    components: "\(Constants.resultBundleName).xcresult"
+                    components: Constants.resultBundleName
                 )
             )
         }
