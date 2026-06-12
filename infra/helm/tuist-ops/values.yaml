@@ -27,7 +27,12 @@ tailnetHostname: ops
 # Backups go to S3 (Tigris).
 postgresql:
   instances: 1
-  storageSize: 5Gi
+  # Sized for headroom against WAL backlog, not data volume: with
+  # archiving healthy, pg_wal stays small, but a stalled archive must
+  # not fill the disk fast enough to wedge the instance before it's
+  # noticed. CNPG storage can only grow, so this also matches the
+  # live 20Gi a helm upgrade would otherwise reject as a shrink.
+  storageSize: 20Gi
   storageClass: ""
   database: tuist_ops
   owner: tuist_ops
