@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-06-10-uuid-kura-introspection-v1"
+  @manifest_revision "2026-06-12-local-cas-capacity-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @gateway_annotation "tuist.dev/kura-gateway"
   @gateway_controller_image "registry.k8s.io/ingress-nginx/controller:v1.11.3"
@@ -283,8 +283,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
-      telemetry_env(region)
+      telemetry_env(region) ++
+      cas_capacity_env(region)
   end
+
+  defp cas_capacity_env(%Regions{provisioner_config: %{cas_capacity_bytes: bytes}})
+       when is_integer(bytes) and bytes > 0 do
+    [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(bytes))]
+  end
+
+  defp cas_capacity_env(_), do: []
 
   defp telemetry_env(%Regions{provisioner_config: %{otlp_traces_endpoint: endpoint}})
        when is_binary(endpoint) and endpoint != "" do

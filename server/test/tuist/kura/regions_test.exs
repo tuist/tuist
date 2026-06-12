@@ -65,6 +65,7 @@ defmodule Tuist.Kura.RegionsTest do
       assert String.starts_with?(config.kubernetes_client[:context], "kind-kura-dev-")
       assert config.replicas == 1
       assert config.storage_size == "10Gi"
+      assert config.cas_capacity_bytes == 10 * 1024 * 1024 * 1024
       assert config.node_selector == %{"kubernetes.io/os" => "linux"}
     end
 
