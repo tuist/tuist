@@ -32,8 +32,7 @@ config :tuist_ops, Oban,
 config :esbuild,
   version: "0.25.4",
   tuist_ops: [
-    args:
-      ~w(js/app.js --bundle --target=es2022 --format=esm --outdir=../priv/static/assets),
+    args: ~w(js/app.js --bundle --target=es2022 --format=esm --outdir=../priv/static/assets),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
