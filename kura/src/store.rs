@@ -71,6 +71,7 @@ pub struct Store {
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
     segment_refresh_lock: Mutex<()>,
+    segment_state_lock: Mutex<()>,
     segment_state_cache: StdMutex<Arc<SegmentStateSnapshot>>,
     segment_handles: Mutex<SegmentHandleCache>,
     manifest_cache: StdMutex<ManifestCache>,
@@ -341,6 +342,7 @@ impl Store {
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
             segment_refresh_lock: Mutex::new(()),
+            segment_state_lock: Mutex::new(()),
             segment_state_cache: StdMutex::new(Arc::new(SegmentStateSnapshot::default())),
             segment_handles: Mutex::new(SegmentHandleCache::new(config.segment_handle_cache_size)),
             manifest_cache: StdMutex::new(ManifestCache::new(config.manifest_cache_max_bytes)),
@@ -1076,14 +1078,19 @@ impl Store {
                 ));
             }
             let segment = SegmentReference::new(Uuid::now_v7().to_string(), now_ms());
-            let mut state = snapshot.state.clone();
-            let evicted_segments = state.push_new(
-                segment.clone(),
-                DESIRED_OLD_SEGMENTS,
-                DESIRED_CURRENT_SEGMENTS,
-                DESIRED_NEW_SEGMENTS,
-            );
-            self.save_segment_state(&state)?;
+            // The rotate decision above used a snapshot taken before the
+            // state lock; that stays valid because evictions, the only other
+            // mutator, never remove the active segment.
+            let evicted_segments = self
+                .mutate_segment_state(|state| {
+                    state.push_new(
+                        segment.clone(),
+                        DESIRED_OLD_SEGMENTS,
+                        DESIRED_CURRENT_SEGMENTS,
+                        DESIRED_NEW_SEGMENTS,
+                    )
+                })
+                .await?;
             Ok((segment, evicted_segments))
         } else {
             Ok((
@@ -1128,6 +1135,26 @@ impl Store {
             .segment_state_cache
             .lock()
             .expect("segment state cache lock poisoned") = snapshot;
+    }
+
+    /// Applies a mutation to the segment ring state and persists the result.
+    /// Every read-modify-write of the state must go through here: the
+    /// [`Self::segment_state_lock`] serializes mutators (rotation and
+    /// eviction) so none of them can overwrite another's update with a stale
+    /// copy. The mutation runs on a fresh copy of the latest state, and
+    /// nothing is persisted when the state is left unchanged.
+    async fn mutate_segment_state<T>(
+        &self,
+        mutate: impl FnOnce(&mut SegmentState) -> T,
+    ) -> Result<T, String> {
+        let _guard = self.segment_state_lock.lock().await;
+        let snapshot = self.segment_state_snapshot();
+        let mut state = snapshot.state.clone();
+        let result = mutate(&mut state);
+        if state != snapshot.state {
+            self.save_segment_state(&state)?;
+        }
+        Ok(result)
     }
 
     fn save_segment_state(&self, state: &SegmentState) -> Result<(), String> {
@@ -1205,10 +1232,8 @@ impl Store {
         self.io
             .remove_file_if_exists(&self.segment_path(segment_id))
             .await;
-        let mut state = self.segment_state_snapshot().state.clone();
-        if state.remove_segment(segment_id) {
-            self.save_segment_state(&state)?;
-        }
+        self.mutate_segment_state(|state| state.remove_segment(segment_id))
+            .await?;
         for (producer, artifacts) in removed_artifacts {
             self.io
                 .metrics()
@@ -4417,5 +4442,84 @@ mod tests {
             reopened.segment_generation(&segment_id).expect("lookup"),
             Some(SegmentGeneration::New)
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_state_mutations_do_not_lose_updates() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+
+        let mut tasks = Vec::new();
+        for index in 0..16u64 {
+            let store = store.clone();
+            tasks.push(tokio::spawn(async move {
+                store
+                    .mutate_segment_state(|state| {
+                        state.push_new(
+                            SegmentReference::new(format!("segment-{index}"), index),
+                            16,
+                            16,
+                            16,
+                        )
+                    })
+                    .await
+                    .expect("mutation should succeed");
+            }));
+        }
+        for task in tasks {
+            task.await.expect("mutation task should finish");
+        }
+
+        for index in 0..16u64 {
+            assert!(
+                store
+                    .segment_generation(&format!("segment-{index}"))
+                    .expect("lookup")
+                    .is_some(),
+                "segment-{index} should survive concurrent mutations"
+            );
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_evictions_do_not_lose_state_updates() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        let segments: Vec<SegmentReference> = (0..16)
+            .map(|index| SegmentReference::new(format!("segment-{index}"), index as u64))
+            .collect();
+        store
+            .save_segment_state(&SegmentState {
+                old: segments.clone(),
+                current: Vec::new(),
+                new: Vec::new(),
+            })
+            .expect("state should save");
+
+        let mut tasks = Vec::new();
+        for segment in &segments {
+            let store = store.clone();
+            let segment_id = segment.segment_id.clone();
+            tasks.push(tokio::spawn(async move {
+                store
+                    .evict_segment(&segment_id)
+                    .await
+                    .expect("eviction should succeed");
+            }));
+        }
+        for task in tasks {
+            task.await.expect("eviction task should finish");
+        }
+
+        for segment in &segments {
+            assert_eq!(
+                store
+                    .segment_generation(&segment.segment_id)
+                    .expect("lookup"),
+                None,
+                "{} should be gone after concurrent evictions",
+                segment.segment_id
+            );
+        }
     }
 }
