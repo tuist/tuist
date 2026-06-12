@@ -158,6 +158,37 @@ defmodule Tuist.Runners.Catalog do
   end
 
   @doc """
+  Platform a fleet name belongs to, by the same prefixes
+  `fleet_name_prefixes/1` documents. `nil` for unrecognized names.
+  """
+  def fleet_platform(fleet_name) when is_binary(fleet_name) do
+    Enum.find(@platforms, fn platform ->
+      Enum.any?(fleet_name_prefixes(platform), &String.starts_with?(fleet_name, &1))
+    end)
+  end
+
+  def fleet_platform(_), do: nil
+
+  @doc """
+  Whether jobs on this fleet run with the cluster's pod network — i.e.
+  can resolve and reach `*.svc.cluster.local` URLs.
+
+  This is a runtime-networking property, not a platform policy: Linux
+  pools run as kata Pods on the CNI; macOS pools run Tart VMs on vmnet,
+  which bypasses cluster DNS/routing entirely. Today the two correlate
+  exactly, so the platform is the implementation — but callers (e.g.
+  the runner-cache `cache_endpoint_url` handoff) must gate on THIS
+  predicate, so that giving macOS VMs cluster networking (planned for
+  the Scaleway Apple-Silicon fleet) only requires changing this one
+  function. Unrecognized fleets answer `false`: handing an unreachable
+  hard override to an unknown runtime breaks caching outright, while
+  withholding it merely falls back to default cache resolution.
+  """
+  def fleet_on_cluster_network?(fleet_name) do
+    fleet_platform(fleet_name) == :linux
+  end
+
+  @doc """
   Decode the JSON wire form of the shape catalog into the
   `:runner_*_shapes` config shape (atom keys, `memoryGb` →
   `:memory_gb`). The inverse of how Helm serialises the chart's

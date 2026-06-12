@@ -20,6 +20,15 @@ type KuraInstanceSpec struct {
 	NodeSelector      map[string]string `json:"nodeSelector,omitempty"`
 	ExtraEnv          []corev1.EnvVar   `json:"extraEnv,omitempty"`
 	ExtensionScript   string            `json:"extensionScript,omitempty"`
+
+	// Private marks a region with no public endpoint, reachable only
+	// over the cluster's internal Service DNS (today: the runner-cache
+	// regions, serving an in-cluster runner fleet). When true the
+	// controller leaves the public/gRPC Ingress and Certificate
+	// unreconciled and the primary Service stays ClusterIP — there is
+	// no public host to advertise, and the runner Pods reach the cache
+	// at `<instance>.<namespace>.svc.cluster.local`.
+	Private bool `json:"private,omitempty"`
 }
 
 type KuraInstanceStatus struct {

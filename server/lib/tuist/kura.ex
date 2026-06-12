@@ -21,6 +21,7 @@ defmodule Tuist.Kura do
 
   alias Phoenix.PubSub
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -28,6 +29,8 @@ defmodule Tuist.Kura do
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
+
+  require Logger
 
   @pubsub Tuist.PubSub
   @create_server_keys %{
@@ -298,7 +301,21 @@ defmodule Tuist.Kura do
   propagated and TLS is serving a valid certificate; the reconciler
   retries on the next tick while the endpoint is not ready.
   """
-  def activate_server(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def activate_server(%Server{region: region_id} = server, image_tag) when is_binary(image_tag) do
+    case Regions.fetch(region_id) do
+      {:ok, region} ->
+        if Regions.private?(region) do
+          activate_private_server(server, image_tag)
+        else
+          activate_public_server(server, image_tag)
+        end
+
+      {:error, _} ->
+        {:error, {:unknown_region, region_id}}
+    end
+  end
+
+  defp activate_public_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
          url when is_binary(url) <- Provisioner.public_url(account, server),
          :ok <- ensure_public_endpoint_ready(url),
@@ -308,6 +325,112 @@ defmodule Tuist.Kura do
     else
       {:error, reason} -> {:error, reason}
       reason -> {:error, reason}
+    end
+  end
+
+  # Private (runner-cache) regions have no public endpoint, so the
+  # control plane skips the public DNS + HTTPS `/up` probe used for
+  # public regions. The reconciler only calls `activate_server/2` once
+  # it has observed the backing workload report the desired image
+  # (`current_image_tag == desired`), so that observation is the
+  # readiness authority here. The URL is the in-cluster Service DNS
+  # form built by `Provisioner.public_url/2`. We deliberately do *not*
+  # mirror it into `account_cache_endpoints`: that table is what the
+  # CLI resolves, and a developer machine can't reach the in-cluster
+  # endpoint. Runner builds get the URL through
+  # `runner_cache_endpoint_url/1` instead.
+  defp activate_private_server(%Server{} = server, image_tag) do
+    with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
+         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
+      broadcast_server(server, :updated)
+      {:ok, server}
+    else
+      {:error, reason} -> {:error, reason}
+      reason -> {:error, reason}
+    end
+  end
+
+  defp activate_private_server_transaction(server, url, image_tag) do
+    Repo.transaction(fn ->
+      case lock_server(server.id, server.account_id) do
+        nil ->
+          Repo.rollback(:not_found)
+
+        %Server{status: :destroying} ->
+          Repo.rollback(:server_destroying)
+
+        %Server{status: :destroyed} ->
+          Repo.rollback(:server_destroyed)
+
+        %Server{} = server ->
+          {:ok, server} =
+            server
+            |> Server.observation_changeset(%{
+              status: :active,
+              url: url,
+              current_image_tag: image_tag,
+              observed_image_tag: image_tag,
+              last_observed_at: now_truncated()
+            })
+            |> Repo.update()
+
+          server
+      end
+    end)
+  end
+
+  @doc """
+  In-cluster Kura URL a runner-as-a-service build should use, or `nil`
+  when the account has no active private (runner-cache) Kura node.
+
+  Builds executing on a runner pool resolve their cache through this so
+  traffic stays inside the cluster, next to the runners, instead of
+  crossing the public ingress dataplane. Auth is unchanged: the same
+  Guardian JWT is verified by the same `tuist.lua` hook on the private
+  node, which carries the same `tenantID`. This reads the active
+  private `Server` row directly — `account_cache_endpoints` is
+  CLI-facing and a developer machine can't reach the in-cluster
+  endpoint.
+  """
+  def runner_cache_endpoint_url(%Account{id: account_id}) do
+    # `available/0`, not `all/0`: if a private region is dropped from
+    # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
+    # it, and gating here too means dispatch stops handing out the now
+    # un-reconciled region's stale `url` — config drift self-heals
+    # instead of routing jobs to an endpoint that no longer exists.
+    private_region_ids = Enum.map(Enum.filter(Regions.available(), &Regions.private?/1), & &1.id)
+
+    if private_region_ids == [] do
+      nil
+    else
+      # "At most one active private node per account" is a reconciler
+      # invariant, not a DB constraint, so a race could leave two rows.
+      # Fetch up to two: a duplicate is logged loudly (it's a real
+      # regression) but dispatch still routes deterministically rather
+      # than crashing the hot path — both rows are the same account's
+      # valid caches, so either URL works.
+      Server
+      |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^private_region_ids)
+      |> order_by([s], asc: s.region)
+      |> limit(2)
+      |> select([s], s.url)
+      |> Repo.all()
+      |> case do
+        [] ->
+          nil
+
+        [url] ->
+          url
+
+        [url | _] = urls ->
+          Logger.error("kura: account has multiple active private cache nodes; routing to the first",
+            account_id: account_id,
+            urls: urls
+          )
+
+          url
+      end
     end
   end
 

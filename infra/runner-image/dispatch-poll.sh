@@ -11,8 +11,10 @@
 #
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
-#     200 with body { encoded_jit_config: "...", pool: "...", owner: "..." }
-#       -> exec ./run.sh --jitconfig <jit> --disableupdate
+#     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
+#                      cache_endpoint_url?: "..." }
+#       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
+#          then exec ./run.sh --jitconfig <jit> --disableupdate
 #     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
 #     403  -> server-side authz refused the SA, abort
@@ -98,6 +100,18 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: 200 but empty encoded_jit_config; retrying"
         sleep "${interval}"
         continue
+      fi
+      # Optional: route the job's Tuist cache at the account's private
+      # runner-cache Kura node (in-cluster, near this runner) when the
+      # server includes it. Exported here so the GitHub Actions runner —
+      # and therefore every job step — inherits it; the Tuist CLI honors
+      # TUIST_CACHE_ENDPOINT as a cache-endpoint override. Same value-
+      # safety as the JIT extraction: the URL is a plain http(s) URL
+      # with no embedded quotes.
+      cache_endpoint=$(sed -n 's/.*"cache_endpoint_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -n "${cache_endpoint}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
+        export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       cd /Users/runner/actions-runner

@@ -471,4 +471,55 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       }
     }
   end
+
+  describe "manifest/6 for a private runner-cache region" do
+    test "marks the instance private and omits public/ingress fields" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      spec =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par",
+          "0.5.2",
+          %{name: "tuist"},
+          scaleway_region(),
+          %Server{},
+          "return true"
+        )["spec"]
+
+      assert spec["private"] == true
+      assert spec["storageClassName"] == "scw-bssd"
+      assert spec["replicas"] == 1
+      assert spec["nodeSelector"] == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
+      # No public endpoint, no ingress, no cert — runners reach the
+      # pod by Kubernetes Service DNS over the cluster's internal net.
+      refute Map.has_key?(spec, "publicHost")
+      refute Map.has_key?(spec, "grpcPublicHost")
+      refute Map.has_key?(spec, "ingressClassName")
+    end
+  end
+
+  describe "public_url/3 for a private region" do
+    test "returns the in-cluster Service DNS URL built from private_url_template" do
+      assert KubernetesController.public_url("TUIST", scaleway_region(), "any-ref") ==
+               "http://kura-tuist-scw-fr-par.kura.svc.cluster.local:4000"
+    end
+  end
+
+  defp scaleway_region do
+    %Regions{
+      id: "scw-fr-par-runners",
+      provisioner_config: %{
+        cluster_id: "scw-fr-par",
+        private: true,
+        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"},
+        storage_class: "scw-bssd",
+        replicas: 1
+      }
+    }
+  end
 end
