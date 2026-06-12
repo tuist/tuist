@@ -1,0 +1,20 @@
+# Kura Bazel configuration (Phase 0.1).
+
+# Make build actions independent of the user's shell environment, so builds do
+# not silently depend on local rustup/cargo state or an ambient PATH.
+build --incompatible_strict_action_env
+
+# Only surface output for failing tests.
+test --test_output=errors
+
+# Apply the os-specific config blocks below based on the host OS.
+build --enable_platform_specific_config
+
+# macOS-native local builds only (macOS is not a release target — see the migration
+# plan). Bazel's autodetected darwin cc toolchain defaults --macos_minimum_os to 10.11,
+# which rules_rust feeds into the -sys build scripts' CFLAGS as -mmacosx-version-min=10.11.
+# rocksdb's bundled C++ uses C++17 aligned new/delete, which Apple clang only permits at
+# >= 10.13, so that default breaks the rocksdb build. Raise the floor (host_* covers the
+# exec-config build-script actions). Linux is unaffected: these only apply on macOS hosts.
+build:macos --macos_minimum_os=11.0
+build:macos --host_macos_minimum_os=11.0
