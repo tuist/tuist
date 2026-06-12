@@ -101,6 +101,11 @@ node:
                 operator: NotIn
                 values:
                   - runners-linux
+                  # Scaleway Instance pool for the macOS runner
+                  # cache (kura) — not Hetzner hardware, hcloud
+                  # Volumes can't attach there. scaleway-csi serves
+                  # its PVCs instead.
+                  - kura-scw-fr-par
               - key: kubernetes.io/os
                 operator: NotIn
                 values:

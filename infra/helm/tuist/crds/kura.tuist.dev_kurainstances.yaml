@@ -90,6 +90,20 @@ spec:
                 # (runner-cache nodes).
                 private:
                   type: boolean
+                # NodePort data plane for runner fleets that share a
+                # network with the node pool but not the pod network
+                # (macOS Tart VMs over a cloud Private Network). See
+                # KuraInstanceSpec in the controller API.
+                exposeNodePort:
+                  type: boolean
+                clientCIDRs:
+                  type: array
+                  items:
+                    type: string
+                podAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
                 peerTLSSecretName:
                   type: string
                 storageClassName:
@@ -123,6 +137,14 @@ spec:
                   format: int32
                 message:
                   type: string
+                nodeAddress:
+                  type: string
+                nodePortHTTP:
+                  type: integer
+                  format: int32
+                nodePortGRPC:
+                  type: integer
+                  format: int32
                 lastReconciledAt:
                   type: string
                   format: date-time

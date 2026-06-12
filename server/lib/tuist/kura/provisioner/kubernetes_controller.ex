@@ -112,6 +112,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     end
   end
 
+  @doc """
+  The node-published URL a runner off the pod network dials:
+  `http://<node PN address>:<NodePort>`, from the KuraInstance status
+  the kura-controller maintains (node label + allocated Service port).
+  `{:error, :node_port_endpoint_not_ready}` until the whole chain —
+  Service allocated, primary pod placed, node labeled — is observed;
+  callers treat it like an unready public endpoint and retry on the
+  next reconcile tick.
+  """
+  @impl true
+  def external_endpoint(name, %Regions{} = region) do
+    case client_get_kura_instance(@namespace, name, region) do
+      {:ok, %{"status" => %{"nodeAddress" => address, "nodePortHTTP" => port}}}
+      when is_binary(address) and address != "" and is_integer(port) and port > 0 ->
+        {:ok, "http://#{address}:#{port}"}
+
+      {:ok, _} ->
+        {:error, :node_port_endpoint_not_ready}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   @impl true
   def current_manifest_revision(name, %Regions{} = region) do
     case client_get_kura_instance(@namespace, name, region) do
@@ -188,6 +212,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(region),
           "private" => Regions.private?(region),
+          "exposeNodePort" => Regions.node_port_data_plane?(region),
+          "clientCIDRs" => client_cidrs(region),
+          "podAnnotations" => pod_annotations(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -328,6 +355,16 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 
   defp node_selector(_), do: nil
+
+  # nil (not []) when unset so the manifest builder's reject drops the
+  # key entirely.
+  defp client_cidrs(%Regions{provisioner_config: %{client_cidrs: [_ | _] = cidrs}}), do: cidrs
+  defp client_cidrs(_), do: nil
+
+  defp pod_annotations(%Regions{provisioner_config: %{pod_annotations: annotations}})
+       when is_map(annotations) and map_size(annotations) > 0, do: annotations
+
+  defp pod_annotations(_), do: nil
 
   # Private (runner-cache) regions never get a gateway: their whole
   # invariant is "no public endpoint, no LoadBalancer" — a dedicated

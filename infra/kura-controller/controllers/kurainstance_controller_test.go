@@ -1550,3 +1550,154 @@ func (c fakeRuntimeStatusClient) Status(_ context.Context, pod corev1.Pod) (runt
 	}
 	return status, nil
 }
+
+func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-scw-fr-par", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "scw-fr-par-runners",
+			Image:            "ghcr.io/tuist/kura:0.5.2",
+			StorageClassName: "scw-bssd",
+			Private:          true,
+			ExposeNodePort:   true,
+			ClientCIDRs:      []string{"172.16.0.0/22"},
+			PodAnnotations:   map[string]string{"kubernetes.io/egress-bandwidth": "500M"},
+			NodeSelector:     map[string]string{"node.cluster.x-k8s.io/pool": "kura-scw-fr-par"},
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "1"},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "scw-node-1", Labels: map[string]string{"tuist.dev/pn-ipv4": "172.16.0.2"}},
+	}
+	pod := kuraPod(instance.Name, instance.Namespace, 0, true)
+	pod.Spec.NodeName = node.Name
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(instance, &corev1.Pod{}).WithObjects(
+		instance,
+		sharedSecret,
+		node,
+		pod,
+	).Build()
+	reconciler := &KuraInstanceReconciler{
+		Client: client,
+		Scheme: scheme,
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				instance.Name + "-0": {Ready: true, State: "serving", WriterLockOwned: true},
+			},
+		},
+	}
+
+	req := ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &corev1.Service{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-external", Namespace: instance.Namespace}, service); err != nil {
+		t.Fatalf("get external service: %v", err)
+	}
+	if service.Spec.Type != corev1.ServiceTypeNodePort {
+		t.Fatalf("expected NodePort service, got %q", service.Spec.Type)
+	}
+	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
+		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
+	}
+	if len(service.Spec.Ports) != 2 {
+		t.Fatalf("expected http+grpc only on the external service, got %v", service.Spec.Ports)
+	}
+	if got := service.Spec.Selector[podNameLabel]; got != instance.Name+"-0" {
+		t.Fatalf("expected external service pinned to primary pod, got %q", got)
+	}
+
+	// The fake client never allocates NodePorts; simulate the API
+	// server so the second reconcile must preserve them.
+	for i := range service.Spec.Ports {
+		switch service.Spec.Ports[i].Name {
+		case "http":
+			service.Spec.Ports[i].NodePort = 30080
+		case "grpc":
+			service.Spec.Ports[i].NodePort = 30051
+		}
+	}
+	if err := reconciler.Update(ctx, service); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-external", Namespace: instance.Namespace}, service); err != nil {
+		t.Fatal(err)
+	}
+	allocated := map[string]int32{}
+	for _, port := range service.Spec.Ports {
+		allocated[port.Name] = port.NodePort
+	}
+	if allocated["http"] != 30080 || allocated["grpc"] != 30051 {
+		t.Fatalf("expected allocated NodePorts preserved across reconciles, got %v", allocated)
+	}
+
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
+		t.Fatal(err)
+	}
+	if instance.Status.NodeAddress != "172.16.0.2" {
+		t.Fatalf("expected status.nodeAddress from the node's pn-ipv4 label, got %q", instance.Status.NodeAddress)
+	}
+	if instance.Status.NodePortHTTP != 30080 || instance.Status.NodePortGRPC != 30051 {
+		t.Fatalf("expected status NodePorts 30080/30051, got %d/%d", instance.Status.NodePortHTTP, instance.Status.NodePortGRPC)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	foundIPBlock := false
+	for _, rule := range policy.Spec.Ingress {
+		for _, peer := range rule.From {
+			if peer.IPBlock != nil && peer.IPBlock.CIDR == "172.16.0.0/22" {
+				foundIPBlock = true
+			}
+		}
+	}
+	if !foundIPBlock {
+		t.Fatalf("expected NetworkPolicy ipBlock rule for client CIDR, got %+v", policy.Spec.Ingress)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	annotations := sts.Spec.Template.Annotations
+	if annotations["kubernetes.io/egress-bandwidth"] != "500M" {
+		t.Fatalf("expected pod annotation passthrough, got %v", annotations)
+	}
+	if annotations["prometheus.io/scrape"] != "true" {
+		t.Fatalf("expected controller-owned annotations preserved, got %v", annotations)
+	}
+
+	instance.Spec.ExposeNodePort = false
+	if err := reconciler.Update(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reconciler.Reconcile(ctx, req); err != nil {
+		t.Fatal(err)
+	}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name + "-external", Namespace: instance.Namespace}, &corev1.Service{})
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected external service deleted when exposure is disabled, got %v", err)
+	}
+}

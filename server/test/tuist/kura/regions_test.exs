@@ -188,6 +188,13 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(staging, :macos)
     end
 
+    test "scw region uses the node-port data plane; hetzner stays on cluster DNS" do
+      assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("hetzner-staging-runners"))
+      refute Regions.node_port_data_plane?(Regions.get("eu-central"))
+      refute Regions.node_port_data_plane?(nil)
+    end
+
     test "public regions and nil serve no runner platform" do
       refute Regions.serves_runner_platform?(Regions.get("eu-central"), :linux)
       refute Regions.serves_runner_platform?(Regions.get("local-controller"), :macos)

@@ -341,7 +341,7 @@ defmodule Tuist.Kura do
   # `runner_cache_endpoint_url/2` instead.
   defp activate_private_server(%Server{} = server, image_tag) do
     with {:ok, account} <- Accounts.get_account_by_id(server.account_id),
-         url when is_binary(url) <- Provisioner.public_url(account, server),
+         {:ok, url} <- private_server_url(account, server),
          {:ok, server} <- activate_private_server_transaction(server, url, image_tag) do
       broadcast_server(server, :updated)
       {:ok, server}
@@ -350,6 +350,59 @@ defmodule Tuist.Kura do
       reason -> {:error, reason}
     end
   end
+
+  # The URL dispatch hands runner builds. Cluster-DNS regions use the
+  # stable in-cluster Service form; node-port regions use the
+  # node-published endpoint observed from the KuraInstance status,
+  # which is only available once the controller has placed the primary
+  # pod and allocated ports — activation waits for it like it waits
+  # for a public endpoint to come up.
+  defp private_server_url(account, %Server{region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      if Regions.node_port_data_plane?(region) do
+        Provisioner.external_endpoint(server)
+      else
+        case Provisioner.public_url(account, server) do
+          url when is_binary(url) -> {:ok, url}
+          {:error, reason} -> {:error, reason}
+          other -> {:error, other}
+        end
+      end
+    end
+  end
+
+  @doc """
+  Refreshes the dispatch URL of an active node-port private server
+  from the observed cluster state. Unlike the cluster-DNS data plane,
+  whose URL is stable for the server's lifetime, the node-published
+  endpoint moves whenever the primary pod lands on a different node
+  (reschedule, node loss) or the Service re-allocates ports. The
+  reconciler calls this every tick for converged servers; while the
+  endpoint is unobservable the last known URL is kept — the cache is
+  best-effort for clients, and yanking the URL would flap dispatch on
+  every transient observation gap.
+  """
+  def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         true <- Regions.node_port_data_plane?(region),
+         {:ok, url} when url != server.url <- Provisioner.external_endpoint(server) do
+      case server |> Server.observation_changeset(%{url: url}) |> Repo.update() do
+        {:ok, server} ->
+          broadcast_server(server, :updated)
+          :ok
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      false -> :ok
+      {:ok, _same_url} -> :ok
+      {:error, :node_port_endpoint_not_ready} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def refresh_private_server_url(%Server{}), do: :ok
 
   defp activate_private_server_transaction(server, url, image_tag) do
     Repo.transaction(fn ->

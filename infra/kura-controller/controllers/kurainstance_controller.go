@@ -141,6 +141,10 @@ func peerServiceName(instance *kurav1alpha1.KuraInstance) string {
 	return instance.Name + "-peer"
 }
 
+func externalServiceName(instance *kurav1alpha1.KuraInstance) string {
+	return instance.Name + "-external"
+}
+
 func crossRegionRuntimeEnabled(instance *kurav1alpha1.KuraInstance) bool {
 	return instance.Spec.PeerTLSSecretName != ""
 }
@@ -156,6 +160,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
@@ -206,6 +211,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcileExternalService(ctx, instance, primaryPod); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -235,6 +243,10 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	external, err := r.externalEndpoint(ctx, instance, primaryPod)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	now := metav1.NewTime(time.Now().UTC())
 	instance.Status.Phase = rollout.phase
 	instance.Status.PublicURL = publicURL(instance)
@@ -242,6 +254,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.ObservedImage = rollout.observedImage
 	instance.Status.ReadyReplicas = rollout.readyReplicas
 	instance.Status.Message = rollout.message
+	instance.Status.NodeAddress = external.nodeAddress
+	instance.Status.NodePortHTTP = external.nodePortHTTP
+	instance.Status.NodePortGRPC = external.nodePortGRPC
 	instance.Status.LastReconciledAt = &now
 
 	if err := r.Status().Update(ctx, instance); err != nil {
@@ -325,6 +340,103 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 		return nil
 	})
 	return err
+}
+
+// reconcileExternalService publishes http/grpc on a NodePort Service
+// for clients that share a network with the node pool but not the pod
+// network (see KuraInstanceSpec.ExposeNodePort). externalTrafficPolicy
+// Local both preserves the client source IP (so ClientCIDRs NetworkPolicy
+// rules can match it) and refuses traffic on nodes not hosting the
+// primary pod — dispatch always pairs the port with status.NodeAddress.
+func (r *KuraInstanceReconciler) reconcileExternalService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
+	if !instance.Spec.ExposeNodePort {
+		return r.deleteLegacyServiceIfExists(ctx, externalServiceName(instance), instance.Namespace)
+	}
+	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: externalServiceName(instance), Namespace: instance.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+		if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
+			return err
+		}
+		// Keep the NodePorts the API server already allocated:
+		// rewriting ports with nodePort 0 re-allocates them, which
+		// would invalidate every endpoint dispatch handed out.
+		allocated := map[string]int32{}
+		for _, port := range service.Spec.Ports {
+			allocated[port.Name] = port.NodePort
+		}
+		ports := externalPorts()
+		for i := range ports {
+			ports[i].NodePort = allocated[ports[i].Name]
+		}
+		service.Labels = labels(instance)
+		service.Spec.Selector = primaryServiceSelector(instance, primaryPod)
+		service.Spec.Type = corev1.ServiceTypeNodePort
+		service.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyLocal
+		service.Spec.Ports = ports
+		return nil
+	})
+	return err
+}
+
+type externalEndpoint struct {
+	nodeAddress  string
+	nodePortHTTP int32
+	nodePortGRPC int32
+}
+
+// externalEndpoint resolves what NodePort clients dial: the allocated
+// ports plus the Private-Network address (`tuist.dev/pn-ipv4` node
+// label) of the node hosting the primary pod. Any missing link —
+// unplaced pod, unlabeled node, unallocated Service — yields empty
+// fields rather than an error: dispatch withholds the endpoint until
+// the whole chain is up, the same contract as an unprovisioned
+// instance.
+func (r *KuraInstanceReconciler) externalEndpoint(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) (externalEndpoint, error) {
+	if !instance.Spec.ExposeNodePort {
+		return externalEndpoint{}, nil
+	}
+
+	endpoint := externalEndpoint{}
+	service := &corev1.Service{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: externalServiceName(instance), Namespace: instance.Namespace}, service); {
+	case err == nil:
+		for _, port := range service.Spec.Ports {
+			switch port.Name {
+			case "http":
+				endpoint.nodePortHTTP = port.NodePort
+			case "grpc":
+				endpoint.nodePortGRPC = port.NodePort
+			}
+		}
+	case apierrors.IsNotFound(err):
+		return externalEndpoint{}, nil
+	default:
+		return externalEndpoint{}, err
+	}
+
+	if primaryPod == "" {
+		return endpoint, nil
+	}
+	pod := &corev1.Pod{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: primaryPod, Namespace: instance.Namespace}, pod); {
+	case err == nil:
+	case apierrors.IsNotFound(err):
+		return endpoint, nil
+	default:
+		return externalEndpoint{}, err
+	}
+	if pod.Spec.NodeName == "" {
+		return endpoint, nil
+	}
+	node := &corev1.Node{}
+	switch err := r.Get(ctx, types.NamespacedName{Name: pod.Spec.NodeName}, node); {
+	case err == nil:
+		endpoint.nodeAddress = node.Labels["tuist.dev/pn-ipv4"]
+	case apierrors.IsNotFound(err):
+	default:
+		return externalEndpoint{}, err
+	}
+	return endpoint, nil
 }
 
 func (r *KuraInstanceReconciler) reconcileGRPCService(ctx context.Context, instance *kurav1alpha1.KuraInstance, primaryPod string) error {
@@ -1009,7 +1121,7 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 	return corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      labels(instance),
-			Annotations: podAnnotations(sharedSecretsResourceVersion),
+			Annotations: podAnnotations(instance, sharedSecretsResourceVersion),
 		},
 		Spec: corev1.PodSpec{
 			TerminationGracePeriodSeconds: ptr(terminationGracePeriodSeconds()),
@@ -1038,12 +1150,14 @@ func podTemplate(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string,
 // clusters' Alloy annotation autodiscovery pipeline. Keep this aligned
 // with kura/ops/helm/kura/values.yaml so controller-managed Kura pods
 // publish the same telemetry surface as chart-managed ones.
-func podAnnotations(sharedSecretsResourceVersion string) map[string]string {
-	annotations := map[string]string{
-		"prometheus.io/scrape":    "true",
-		"prometheus.io/port-name": "http",
-		"prometheus.io/path":      "/metrics",
+func podAnnotations(instance *kurav1alpha1.KuraInstance, sharedSecretsResourceVersion string) map[string]string {
+	annotations := map[string]string{}
+	for key, value := range instance.Spec.PodAnnotations {
+		annotations[key] = value
 	}
+	annotations["prometheus.io/scrape"] = "true"
+	annotations["prometheus.io/port-name"] = "http"
+	annotations["prometheus.io/path"] = "/metrics"
 	if sharedSecretsResourceVersion != "" {
 		annotations[sharedSecretsRVAnnotation] = sharedSecretsResourceVersion
 	}
@@ -1161,6 +1275,22 @@ func (r *KuraInstanceReconciler) reconcileNetworkPolicy(ctx context.Context, ins
 					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
 				},
 			},
+		}
+		if len(instance.Spec.ClientCIDRs) > 0 {
+			// NodePort clients keep their original source address
+			// (externalTrafficPolicy: Local), which no
+			// namespaceSelector can match.
+			peers := make([]networkingv1.NetworkPolicyPeer, 0, len(instance.Spec.ClientCIDRs))
+			for _, cidr := range instance.Spec.ClientCIDRs {
+				peers = append(peers, networkingv1.NetworkPolicyPeer{IPBlock: &networkingv1.IPBlock{CIDR: cidr}})
+			}
+			ingress = append(ingress, networkingv1.NetworkPolicyIngressRule{
+				From: peers,
+				Ports: []networkingv1.NetworkPolicyPort{
+					{Port: ptr(intstr.FromString("http")), Protocol: ptr(corev1.ProtocolTCP)},
+					{Port: ptr(intstr.FromString("grpc")), Protocol: ptr(corev1.ProtocolTCP)},
+				},
+			})
 		}
 		policy.Spec.Ingress = ingress
 		return nil
@@ -1326,6 +1456,15 @@ func ports() []corev1.ServicePort {
 		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
 		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 		{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer")},
+	}
+}
+
+// externalPorts deliberately omits peer: replication stays mTLS-only
+// between cluster pods, never exposed at the node boundary.
+func externalPorts() []corev1.ServicePort {
+	return []corev1.ServicePort{
+		{Name: "http", Port: httpPort, TargetPort: intstr.FromString("http")},
+		{Name: "grpc", Port: grpcPort, TargetPort: intstr.FromString("grpc")},
 	}
 }
 

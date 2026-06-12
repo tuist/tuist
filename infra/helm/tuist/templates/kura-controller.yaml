@@ -76,6 +76,12 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # Node reads resolve the primary pod's node `tuist.dev/pn-ipv4`
+  # label into KuraInstance.status.nodeAddress for NodePort-exposed
+  # instances.
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
     verbs: [get, list, watch, update, patch]

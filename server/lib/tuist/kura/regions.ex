@@ -94,7 +94,22 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-scw-fr-par",
       storage_class: "scw-bssd",
       storage_size: "50Gi",
-      runner_platforms: [:macos]
+      runner_platforms: [:macos],
+      # The macOS Tart VMs reach this pool over a Scaleway Private
+      # Network, not the cluster's pod network, so cluster Service DNS
+      # neither resolves nor routes for them. Dispatch hands out
+      # `http://<node PN address>:<NodePort>` instead, read from the
+      # KuraInstance status the kura-controller maintains.
+      data_plane: :node_port,
+      # The PN subnet (minis + kura nodes). NodePort traffic keeps the
+      # client's source address, which the per-instance NetworkPolicy
+      # only admits through this ipBlock.
+      client_cidrs: ["172.16.0.0/22"],
+      # Per-account egress ceiling (Cilium bandwidth manager). The
+      # pool's node NIC is shared by every tenant pod on it; the cap
+      # keeps one account's restore burst from starving the rest while
+      # still letting a lone tenant pull at half a PRO2-S NIC.
+      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"}
     },
     %{
       id: "hetzner-staging-runners",
@@ -150,6 +165,15 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc """
+  True iff this private region's runner fleet dials a node-published
+  endpoint (`http://<node address>:<NodePort>`) instead of cluster
+  Service DNS — the data plane for fleets that share a network with
+  the region's node pool but not with the cluster's pod network.
+  """
+  def node_port_data_plane?(%__MODULE__{provisioner_config: config}), do: config[:data_plane] == :node_port
+  def node_port_data_plane?(_), do: false
 
   @doc """
   True iff this region's runner-cache nodes serve runner fleets of the
@@ -224,8 +248,13 @@ defmodule Tuist.Kura.Regions do
         cluster_id: spec.cluster_id,
         private: true,
         # In-cluster Service DNS the runner Pods resolve. `{instance}`
-        # interpolates to `instance_name(handle, region)`.
+        # interpolates to `instance_name(handle, region)`. Node-port
+        # regions don't use it for dispatch but keep it as the
+        # in-cluster debugging path.
         private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        data_plane: Map.get(spec, :data_plane, :cluster_dns),
+        client_cidrs: Map.get(spec, :client_cidrs, []),
+        pod_annotations: Map.get(spec, :pod_annotations, %{}),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
