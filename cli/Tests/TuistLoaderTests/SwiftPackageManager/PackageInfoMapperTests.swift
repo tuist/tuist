@@ -48,7 +48,7 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": [
-                "Target_1": try!
+                "Target_1": try
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
             packageModuleAliases: [:],
@@ -135,7 +135,7 @@ struct PackageInfoMapperTests {
             ],
             packageToFolder: ["Package": basePath],
             packageToTargetsToArtifactPaths: ["Package": [
-                "Target_1": try!
+                "Target_1": try
                     .init(validating: "/artifacts/Package/Target_1.xcframework"),
             ]],
             packageModuleAliases: [:],
@@ -4569,9 +4569,9 @@ struct PackageInfoMapperTests {
             "XCTVapor",
         ]
         let allTargets = ["RxSwift"] + testTargets
-        for path in try allTargets
+        let targetPaths = try allTargets
             .map { basePath.appending(try RelativePath(validating: "Package/Sources/\($0)")) }
-        {
+        for path in targetPaths {
             try await fileSystem.makeDirectory(at: path)
         }
 
@@ -4723,7 +4723,7 @@ struct PackageInfoMapperTests {
 
         #expect(project?.name == expected.name)
 
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = try #require(project?.targets.sorted(by: \.name))
         let expectedTargets = expected.targets.sorted(by: \.name)
 
         #expect(projectTargets == expectedTargets)
@@ -4802,7 +4802,7 @@ struct PackageInfoMapperTests {
 
         #expect(project?.name == expected.name)
 
-        let projectTargets = project!.targets.sorted(by: \.name)
+        let projectTargets = try #require(project?.targets.sorted(by: \.name))
         let expectedTargets = expected.targets.sorted(by: \.name)
 
         #expect(
@@ -7561,9 +7561,7 @@ extension ProjectDescription.Target {
         case let .custom(list):
             sources = list
         case .default:
-            guard let defaultSourcesPath = try? RelativePath(validating: "\(packageName)/Sources/\(name)/**") else {
-                fatalError("Invalid default sources path")
-            }
+            let defaultSourcesPath = try! RelativePath(validating: "\(packageName)/Sources/\(name)/**")
             sources =
                 .sourceFilesList(globs: [
                     basePath.appending(defaultSourcesPath).pathString,
