@@ -38,6 +38,8 @@ export class DataSource extends DataSourceWithBackend<TuistQuery, TuistDataSourc
       environment: replace(query.environment),
       scheme: replace(query.scheme),
       configuration: replace(query.configuration),
+      category: replace(query.category),
+      status: replace(query.status),
     };
   }
 

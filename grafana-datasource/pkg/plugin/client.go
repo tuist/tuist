@@ -29,7 +29,7 @@ func newTuistClient(settings backend.DataSourceInstanceSettings) (*tuistClient, 
 		}
 	}
 
-	baseURL := firstNonEmpty(s.URL, settings.URL, "https://tuist.dev")
+	baseURL := firstNonEmpty(s.URL, "https://tuist.dev")
 
 	return &tuistClient{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -120,8 +120,8 @@ func (c *tuistClient) dimensionValues(ctx context.Context, entity, dimension, pr
 
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
+		if trimmed := strings.TrimSpace(v); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

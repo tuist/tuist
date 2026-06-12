@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
@@ -82,9 +83,21 @@ func (d *Datasource) CheckHealth(ctx context.Context, _ *backend.CheckHealthRequ
 	// Listing projects only needs an account token, so probe a metric endpoint to
 	// confirm the read scopes — otherwise a token missing project:builds:read /
 	// project:tests:read reports healthy while every panel query fails with 403.
+	// Probe builds and tests in parallel so the worst case is one client timeout,
+	// not two sequential ones.
 	project := projects[0].FullName
-	_, buildErr := d.client.dimensionValues(ctx, entityBuilds, "scheme", project)
-	_, testErr := d.client.dimensionValues(ctx, entityTests, "scheme", project)
+	var buildErr, testErr error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, buildErr = d.client.dimensionValues(ctx, entityBuilds, "scheme", project)
+	}()
+	go func() {
+		defer wg.Done()
+		_, testErr = d.client.dimensionValues(ctx, entityTests, "scheme", project)
+	}()
+	wg.Wait()
 
 	switch {
 	case buildErr != nil && testErr != nil:

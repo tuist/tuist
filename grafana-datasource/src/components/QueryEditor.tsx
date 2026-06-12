@@ -26,6 +26,18 @@ const environmentOptions: Array<SelectableValue<string>> = [
   { label: 'Local', value: 'local' },
 ];
 
+const statusOptions: Array<SelectableValue<string>> = [
+  { label: 'Any', value: '' },
+  { label: 'Success', value: 'success' },
+  { label: 'Failure', value: 'failure' },
+];
+
+const categoryOptions: Array<SelectableValue<string>> = [
+  { label: 'Any', value: '' },
+  { label: 'Clean', value: 'clean' },
+  { label: 'Incremental', value: 'incremental' },
+];
+
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
   const entity = query.queryType === 'testDuration' ? 'tests' : 'builds';
 
@@ -148,6 +160,25 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           </InlineField>
         )}
       </InlineFieldRow>
+
+      {entity === 'builds' && (
+        <InlineFieldRow>
+          <InlineField label="Status" labelWidth={16}>
+            <RadioButtonGroup
+              options={statusOptions}
+              value={query.status ?? ''}
+              onChange={(v) => update({ status: v })}
+            />
+          </InlineField>
+          <InlineField label="Category" labelWidth={16}>
+            <RadioButtonGroup
+              options={categoryOptions}
+              value={query.category ?? ''}
+              onChange={(v) => update({ category: v })}
+            />
+          </InlineField>
+        </InlineFieldRow>
+      )}
     </>
   );
 }
