@@ -22,8 +22,9 @@ defmodule TuistOpsWeb.GrantController do
     * `read` — self-serve. Record the reason, mint the grant, redirect
       back immediately.
     * `admin` — create a pending request, post the Slack approval card,
-      and show a page that polls `/grants/:id/status` until a second
-      human approves; then it redirects back with the minted token.
+      and show a page that re-checks on each load (a server-driven
+      `Refresh`, no client JS) until a second human approves; then it
+      302s back with the minted token.
   """
 
   use TuistOpsWeb, :controller
@@ -114,28 +115,13 @@ defmodule TuistOpsWeb.GrantController do
 
     case Approvals.get_request(id) do
       %{requester_email: ^subject} = req when not is_nil(subject) ->
-        render(conn, :pending, request_id: req.id, account: req.account_handle)
+        render_pending(conn, req)
 
       nil ->
         render_error(conn, 404, "Not found", "No such request.")
 
       _ ->
         render_error(conn, 403, "Forbidden", "This request belongs to another operator.")
-    end
-  end
-
-  def status(conn, %{"id" => id}) do
-    subject = subject(conn)
-
-    case Approvals.get_request(id) do
-      %{requester_email: ^subject} = req when not is_nil(subject) ->
-        json(conn, status_payload(req))
-
-      nil ->
-        conn |> put_status(404) |> json(%{status: "not_found"})
-
-      _ ->
-        conn |> put_status(403) |> json(%{status: "forbidden"})
     end
   end
 
@@ -178,14 +164,31 @@ defmodule TuistOpsWeb.GrantController do
     end
   end
 
-  defp status_payload(%{status: "approved", return_to: return_to} = req) do
+  # The pending page carries no client JS. While the request is pending it
+  # reloads itself via a `Refresh` response header and re-checks here; on
+  # approval we mint the grant and 302 back to the customer URL (same as the
+  # read tier). Denied/expired render a terminal message with no refresh
+  # header, so the page stops reloading.
+  defp render_pending(conn, %{status: "approved", return_to: return_to} = req) do
     case Approvals.active_grant_for_request(req.id) do
-      nil -> %{status: "pending"}
-      grant -> %{status: "approved", redirect: append_grant(return_to, Token.mint(grant))}
+      %{} = grant -> redirect(conn, external: append_grant(return_to, Token.mint(grant)))
+      _ -> render_waiting(conn, req)
     end
   end
 
-  defp status_payload(%{status: status}), do: %{status: status}
+  defp render_pending(conn, %{status: "denied"} = req),
+    do: render(conn, :pending, account: req.account_handle, state: :denied)
+
+  defp render_pending(conn, %{status: "expired"} = req),
+    do: render(conn, :pending, account: req.account_handle, state: :expired)
+
+  defp render_pending(conn, req), do: render_waiting(conn, req)
+
+  defp render_waiting(conn, req) do
+    conn
+    |> put_resp_header("refresh", "3")
+    |> render(:pending, account: req.account_handle, state: :pending)
+  end
 
   defp render_error(conn, status, title, message) do
     conn

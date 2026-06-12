@@ -68,8 +68,8 @@ defmodule TuistOpsWeb.GrantHTML do
     """
   end
 
-  attr :request_id, :any, required: true
   attr :account, :string, required: true
+  attr :state, :atom, default: :pending
 
   def pending(assigns) do
     ~H"""
@@ -85,30 +85,16 @@ defmodule TuistOpsWeb.GrantHTML do
             Your request for <strong>admin</strong>
             access is pending. A second person needs to approve it in Slack.
           </p>
-          <p id="state" class="ops-hint">Waiting…</p>
+          <p class="ops-hint">{state_message(@state)}</p>
         </.card_section>
       </.card>
     </div>
-
-    <script>
-      (function () {
-        var id = "<%= @request_id %>";
-        function poll() {
-          fetch("/grants/" + id + "/status", { headers: { Accept: "application/json" } })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              if (j.status === "approved" && j.redirect) { window.location = j.redirect; return; }
-              if (j.status === "denied") { document.getElementById("state").textContent = "Request denied."; return; }
-              if (j.status === "expired") { document.getElementById("state").textContent = "Request expired. Start again."; return; }
-              setTimeout(poll, 2500);
-            })
-            .catch(function () { setTimeout(poll, 2500); });
-        }
-        poll();
-      })();
-    </script>
     """
   end
+
+  defp state_message(:denied), do: "Request denied."
+  defp state_message(:expired), do: "Request expired. Start again."
+  defp state_message(_), do: "Waiting… this page checks for approval automatically."
 
   attr :title, :string, required: true
   attr :message, :string, required: true

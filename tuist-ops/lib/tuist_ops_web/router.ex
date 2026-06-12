@@ -46,7 +46,6 @@ defmodule TuistOpsWeb.Router do
     get "/new", GrantController, :new
     post "/", GrantController, :create
     get "/:id/pending", GrantController, :pending
-    get "/:id/status", GrantController, :status
   end
 
   scope "/webhooks/slack", TuistOpsWeb do
