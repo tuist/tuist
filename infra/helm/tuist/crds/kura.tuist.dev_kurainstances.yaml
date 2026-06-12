@@ -84,6 +84,12 @@ spec:
                   maxLength: 253
                 ingressClassName:
                   type: string
+                # Private marks an instance with no public endpoint:
+                # the controller skips the Ingress/external-dns surface
+                # and the in-cluster Service is the only access path
+                # (runner-cache nodes).
+                private:
+                  type: boolean
                 peerTLSSecretName:
                   type: string
                 storageClassName:

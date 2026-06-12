@@ -139,7 +139,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_queue_length))",
+            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
             "instant": true,
             "refId": "A"
           }
@@ -702,7 +702,39 @@
             },
             "unit": "percentunit",
             "min": 0
-          }
+          },
+          "overrides": [
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "linux"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "green",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            },
+            {
+              "matcher": {
+                "id": "byName",
+                "options": "macos"
+              },
+              "properties": [
+                {
+                  "id": "color",
+                  "value": {
+                    "fixedColor": "yellow",
+                    "mode": "fixed"
+                  }
+                }
+              ]
+            }
+          ]
         },
         "gridPos": {
           "h": 8,
@@ -752,7 +784,7 @@
               "spanNulls": false,
               "stacking": {
                 "group": "A",
-                "mode": "normal"
+                "mode": "none"
               }
             },
             "unit": "short"
@@ -806,7 +838,7 @@
               "spanNulls": false,
               "stacking": {
                 "group": "A",
-                "mode": "normal"
+                "mode": "none"
               }
             },
             "unit": "short"

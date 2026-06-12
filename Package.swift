@@ -40,6 +40,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
     "TuistProjectCommand",
@@ -59,11 +60,27 @@ var tuistDependencies: [Target.Dependency] = [
     fileSystemDependency,
     swiftToolsSupportDependency,
 ]
+var tuistBazelCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistEnvironment",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistHTTP",
+    "TuistAlert",
+    "TuistConfigLoader",
+]
+
 var tuistCacheCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
     loggingDependency,
     swiftToolsSupportDependency,
+    fileSystemDependency,
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -622,6 +639,11 @@ var targets: [Target] = [
         name: "TuistCacheCommand",
         dependencies: tuistCacheCommandDependencies,
         path: "cli/Sources/TuistCacheCommand"
+    ),
+    .target(
+        name: "TuistBazelCommand",
+        dependencies: tuistBazelCommandDependencies,
+        path: "cli/Sources/TuistBazelCommand"
     ),
     .target(
         name: "TuistAuthCommand",

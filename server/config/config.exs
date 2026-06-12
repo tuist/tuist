@@ -169,7 +169,13 @@ config :logger, :console,
     :status,
     :body,
     :url,
-    :dispatch_label
+    :dispatch_label,
+    # Tuist.Kura runner-cache reconciler structured fields
+    :region,
+    :cap,
+    :urls,
+    :configured,
+    :reconciling
   ]
 
 config :mime, :types, %{

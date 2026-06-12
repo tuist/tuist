@@ -32,7 +32,11 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central
+      # `hetzner-staging-runners` is the private (runner-cache) region:
+      # customers can't select it, the RunnerCache reconciler provisions
+      # nodes there for accounts with runner profiles, and runner
+      # dispatch routes their build-cache traffic to it in-cluster.
+      value: eu-central,hetzner-staging-runners
     # Operator project-access grants — server half only. The public key
     # is non-secret; its matching private key signs grants minted at
     # ops.tuist.dev. This is a throwaway pair for the staging server-half

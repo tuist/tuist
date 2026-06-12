@@ -53,6 +53,7 @@ defmodule Tuist.Runners do
   alias Tuist.Accounts
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
@@ -235,7 +236,8 @@ defmodule Tuist.Runners do
              jit: jit,
              account: account,
              runner_name: runner_name,
-             workflow_job_id: candidate.workflow_job_id
+             workflow_job_id: candidate.workflow_job_id,
+             fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name)
            }}
         else
           {:error, reason} = err ->
