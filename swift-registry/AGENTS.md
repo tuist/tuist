@@ -21,9 +21,14 @@ This directory contains the standalone Swift package registry service deployed a
 - Release sync requires `REGISTRY_GITHUB_TOKEN`.
 - The managed deployment is Kubernetes-based via `infra/helm/swift-registry`.
 - Runtime secrets are synced through External Secrets Operator from 1Password.
+- See `ROLLOUT.md` for the staged migration plan from cache-served registry
+  traffic to this service.
 
 ## Related Context
 - Cache service: `cache/AGENTS.md`
-- Operational registry tasks: `mise/tasks/registry/`
+- Operational registry tasks against the cache-served registry:
+  `mise/tasks/registry/`
+- Operational registry tasks against the swift-registry service:
+  `mise/tasks/swift-registry/`
 - Kubernetes chart: `infra/helm/swift-registry/AGENTS.md`
 - Shared Elixir utilities: `tuist_common/AGENTS.md`
