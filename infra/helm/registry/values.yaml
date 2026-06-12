@@ -179,6 +179,12 @@ networkPolicy:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/component: controller
   dnsNamespace: kube-system
+  # Namespace hosting the in-cluster OTLP receiver (the
+  # `k8s-monitoring-alloy-receiver` service in our managed clusters).
+  # Required because Cilium's NetworkPolicy ipBlock doesn't match
+  # cluster ServiceIPs; an explicit namespace-targeted egress rule is
+  # needed to reach the receiver on 4317/4318. Set to "" to skip.
+  observabilityNamespace: observability
 
 observability:
   otelEndpoint: ""

@@ -29,6 +29,22 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # Cilium (the CNI in use on the managed CAPI clusters) treats
+    # ipBlock egress as external traffic and does not match it against
+    # cluster ServiceIPs. The OTLP receiver runs in-cluster, so it
+    # needs an explicit namespace-targeted egress rule even though
+    # 4317 is allowed below for off-cluster collectors.
+    {{- with .Values.networkPolicy.observabilityNamespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . | quote }}
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+    {{- end }}
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
