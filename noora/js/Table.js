@@ -100,8 +100,22 @@ export default {
       passive: true,
     });
 
-    this.resizeObserver = new ResizeObserver(() => {
-      this.syncHeaderWidths();
+    // Header widths only depend on horizontal geometry, and syncing them measures every header
+    // cell and writes to the body-level clone — a forced full-page reflow. Height-only resizes
+    // (a row expanding frame-by-frame, content loading in) must skip it, or the expand animation
+    // pays an extra synchronous layout on every frame. `contentRect` comes with the entry, so
+    // detecting the width change costs no layout read.
+    this.observedWidths = new Map();
+    this.resizeObserver = new ResizeObserver((entries) => {
+      let widthChanged = false;
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        if (this.observedWidths.get(entry.target) !== width) {
+          this.observedWidths.set(entry.target, width);
+          widthChanged = true;
+        }
+      }
+      if (widthChanged) this.syncHeaderWidths();
       this.sync();
     });
     this.resizeObserver.observe(this.container);
