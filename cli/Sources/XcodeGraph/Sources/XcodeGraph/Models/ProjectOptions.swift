@@ -52,7 +52,8 @@ extension Project {
             case enabled(
                 targetSchemesGrouping: TargetSchemesGrouping,
                 codeCoverageEnabled: Bool,
-                testingOptions: TestingOptions,
+                parallelization: TestableTarget.Parallelization,
+                randomExecutionOrdering: Bool,
                 testLanguage: String? = nil,
                 testRegion: String? = nil,
                 testScreenCaptureFormat: ScreenCaptureFormat? = nil,
@@ -95,7 +96,7 @@ extension Project {
 
         public var targetSchemesGrouping: AutomaticSchemesOptions.TargetSchemesGrouping? {
             switch automaticSchemesOptions {
-            case let .enabled(targetSchemesGrouping, _, _, _, _, _, _, _):
+            case let .enabled(targetSchemesGrouping, _, _, _, _, _, _, _, _):
                 return targetSchemesGrouping
             case .disabled:
                 return nil
@@ -104,25 +105,34 @@ extension Project {
 
         public var codeCoverageEnabled: Bool {
             switch automaticSchemesOptions {
-            case let .enabled(_, codeCoverageEnabled, _, _, _, _, _, _):
+            case let .enabled(_, codeCoverageEnabled, _, _, _, _, _, _, _):
                 return codeCoverageEnabled
             case .disabled:
                 return false
             }
         }
 
-        public var testingOptions: TestingOptions {
+        public var parallelization: TestableTarget.Parallelization {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, testingOptions, _, _, _, _, _):
-                return testingOptions
+            case let .enabled(_, _, parallelization, _, _, _, _, _, _):
+                return parallelization
             case .disabled:
-                return []
+                return .none
+            }
+        }
+
+        public var randomExecutionOrdering: Bool {
+            switch automaticSchemesOptions {
+            case let .enabled(_, _, _, randomExecutionOrdering, _, _, _, _, _):
+                return randomExecutionOrdering
+            case .disabled:
+                return false
             }
         }
 
         public var testLanguage: String? {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, _, language, _, _, _, _):
+            case let .enabled(_, _, _, _, language, _, _, _, _):
                 return language
             case .disabled:
                 return nil
@@ -131,7 +141,7 @@ extension Project {
 
         public var testRegion: String? {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, _, _, region, _, _, _):
+            case let .enabled(_, _, _, _, _, region, _, _, _):
                 return region
             case .disabled:
                 return nil
@@ -140,7 +150,7 @@ extension Project {
 
         public var testScreenCaptureFormat: ScreenCaptureFormat? {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, _, _, _, testScreenCaptureFormat, _, _):
+            case let .enabled(_, _, _, _, _, _, testScreenCaptureFormat, _, _):
                 return testScreenCaptureFormat
             case .disabled:
                 return nil
@@ -149,7 +159,7 @@ extension Project {
 
         public var runLanguage: String? {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, _, _, _, _, language, _):
+            case let .enabled(_, _, _, _, _, _, _, language, _):
                 return language
             case .disabled:
                 return nil
@@ -158,7 +168,7 @@ extension Project {
 
         public var runRegion: String? {
             switch automaticSchemesOptions {
-            case let .enabled(_, _, _, _, _, _, _, region):
+            case let .enabled(_, _, _, _, _, _, _, _, region):
                 return region
             case .disabled:
                 return nil
