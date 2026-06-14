@@ -73,7 +73,10 @@
       right: 2px;
       width: 3px;
       border-radius: 999px;
-      background: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
+      background: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
       cursor: default;
       transition: width 150ms var(--ease-out-cubic);
     }
@@ -113,7 +116,8 @@
         align-items: center;
         gap: var(--noora-spacing-4);
         border-radius: var(--noora-radius-3);
-        padding: var(--noora-spacing-3) var(--noora-spacing-0) var(--noora-spacing-3) var(--noora-spacing-4);
+        padding: var(--noora-spacing-3) var(--noora-spacing-0)
+          var(--noora-spacing-3) var(--noora-spacing-4);
         min-width: 0;
         color: inherit;
         user-select: none;
