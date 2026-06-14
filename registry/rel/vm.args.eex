@@ -1,0 +1,18 @@
+# BEAM VM tuning for production
+
+## Schedulers: 0:0 uses as many as online logical processors
++S 0:0
+
+## Increase async threads for file I/O and DNS
++A 128
+
+## Reduce busy-wait spinning to save CPU under load
++sbwt none
+
+## Allow plenty of Erlang processes
++P 2097152
+
+# Optional: keep kernel poll enabled (usually default)
++K true
+
+# You can pass additional flags at runtime via ERL_AFLAGS

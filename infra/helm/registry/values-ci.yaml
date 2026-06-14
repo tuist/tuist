@@ -1,0 +1,20 @@
+image:
+  tag: validation
+
+host: validation.registry.example.com
+serverUrl: https://validation.tuist.example.com
+deployEnv: validation
+sentryEnv: validation
+registrySyncEnabled: false
+
+runtimeSecrets:
+  inline:
+    s3RegistryBucket: validation-registry-bucket
+    s3Host: s3.validation.example.com
+    s3AccessKeyId: validation-access-key-id
+    s3SecretAccessKey: validation-secret-access-key
+    s3Region: auto
+    apiKey: validation-api-key
+    registryGithubToken: validation-github-token
+    obanWebUsername: validation-admin
+    obanWebPassword: validation-password

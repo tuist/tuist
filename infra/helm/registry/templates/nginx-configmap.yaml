@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "registry.nginxConfigMapName" . }}
+  labels:
+    {{- include "registry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+data:
+  nginx.conf: |
+    # Sidecar nginx in front of the Phoenix release. Kept in sync with
+    # registry/docker/nginx.conf — the Phoenix controllers respond
+    # with X-Accel-Redirect into /internal/local/ and /internal/remote/,
+    # which only this layer can serve.
+    worker_processes auto;
+    error_log /tmp/nginx-error.log warn;
+    pid /tmp/nginx.pid;
+
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+
+      keepalive_requests 10000;
+
+      client_body_temp_path /tmp/nginx-client-body;
+      proxy_temp_path /tmp/nginx-proxy;
+      fastcgi_temp_path /tmp/nginx-fastcgi;
+      uwsgi_temp_path /tmp/nginx-uwsgi;
+      scgi_temp_path /tmp/nginx-scgi;
+
+      # Swift Package Registry requires a Content-Version response header.
+      # X-Accel-Redirect to proxy_pass locations replaces upstream headers,
+      # so we re-inject it only for registry requests under the /swift sub-API.
+      map $request_uri $registry_content_version {
+        "~^/swift(/|$)" "1";
+        default "";
+      }
+
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+
+      gzip on;
+      gzip_vary on;
+      gzip_proxied any;
+      gzip_comp_level 6;
+      gzip_types text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
+
+      access_log off;
+
+      upstream phoenix_upstream {
+        server unix:/run/registry/current.sock;
+      }
+
+      server {
+        listen {{ .Values.nginx.containerPort }};
+        listen [::]:{{ .Values.nginx.containerPort }};
+        server_name _;
+
+        client_max_body_size 0;
+        client_body_timeout 30m;
+
+        location /metrics {
+          return 404;
+        }
+
+        location / {
+          proxy_pass http://phoenix_upstream;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Host $host;
+          proxy_set_header X-Forwarded-Port $server_port;
+          proxy_set_header Host $host;
+
+          proxy_connect_timeout 30m;
+          proxy_send_timeout 30m;
+          proxy_read_timeout 30m;
+          send_timeout 30m;
+
+          proxy_buffering off;
+          proxy_request_buffering off;
+        }
+
+        location /internal/local/ {
+          internal;
+          alias {{ .Values.storageDir }}/;
+          types { }
+          default_type application/octet-stream;
+          gzip off;
+          add_header Cache-Control "public, max-age=31536000, immutable";
+          add_header Content-Version $registry_content_version;
+          # Preserve the upstream Link header (set by Phoenix to advertise
+          # alternate registry manifests). X-Accel-Redirect to a static-file
+          # location otherwise drops it.
+          add_header Link $upstream_http_link always;
+        }
+
+        location ~ ^/internal/remote/(.*?)/(.*?)/(.*) {
+          internal;
+          # When proxying a presigned S3 URL, nginx would otherwise forward
+          # S3's object metadata (often application/zip), which breaks strict
+          # clients. The registry contract expects application/octet-stream.
+          proxy_hide_header Content-Type;
+          default_type application/octet-stream;
+          resolver {{ required "nginx.dnsResolverIp is required" .Values.nginx.dnsResolverIp }} ipv6=off;
+          set $saved_link $upstream_http_link;
+          set $download_url $1://$2/$3;
+          proxy_set_header Host $2;
+          proxy_pass $download_url$is_args$args;
+          add_header Content-Version $registry_content_version;
+          # Preserve Phoenix's Link header (cleared when nginx proxy_passes
+          # to the presigned S3 URL).
+          add_header Link $saved_link always;
+          proxy_request_buffering off;
+          proxy_buffering off;
+          proxy_intercept_errors on;
+          error_page 301 302 307 = @handle_remote_redirect;
+          error_page 403 404 = @handle_remote_not_found;
+        }
+
+        location @handle_remote_not_found {
+          # Disable MIME type detection. The request URI contains filenames like
+          # &name=SwiftCompilerPluginMessageHandling.zip which would otherwise
+          # trigger nginx to set Content-Type: application/zip instead of JSON.
+          types { }
+          default_type application/json;
+          return 404 '{"message":"Not found"}';
+        }
+
+        location @handle_remote_redirect {
+          set $saved_redirect_location $upstream_http_location;
+          proxy_hide_header Content-Type;
+          default_type application/octet-stream;
+          proxy_pass $saved_redirect_location;
+          add_header Content-Version $registry_content_version;
+        }
+      }
+    }

@@ -1,0 +1,202 @@
+{{- $host := .Values.host | default .Values.ingress.host -}}
+{{- $publicHost := required "host or ingress.host is required" $host -}}
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $podLabels := merge (dict) (.Values.global.podLabels | default (dict)) (.Values.podLabels | default (dict)) -}}
+{{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
+{{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "registry.fullname" . }}
+  labels:
+    {{- include "registry.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.deploymentStrategy.type }}
+  selector:
+    matchLabels:
+      {{- include "registry.componentLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "registry.componentLabels" . | nindent 8 }}
+        {{- with $podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ include "registry.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- include "registry.podScheduling" . | nindent 6 }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: registry
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: MIX_ENV
+              value: "prod"
+            - name: PUBLIC_HOST
+              value: {{ $publicHost | quote }}
+            - name: PHX_SOCKET_PATH
+              value: {{ .Values.phoenix.socketPath | quote }}
+            - name: PHX_SOCKET_LINK
+              value: {{ .Values.phoenix.socketLink | quote }}
+            - name: SERVER_URL
+              value: {{ .Values.serverUrl | quote }}
+            - name: SENTRY_ENV
+              value: {{ .Values.sentryEnv | quote }}
+            - name: DEPLOY_ENV
+              value: {{ .Values.deployEnv | quote }}
+            - name: POOL_SIZE
+              value: {{ .Values.poolSize | quote }}
+            - name: STORAGE_DIR
+              value: {{ .Values.storageDir | quote }}
+            {{- with .Values.s3.endpoint }}
+            - name: S3_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.s3.protocol }}
+            - name: S3_PROTOCOL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: S3_VIRTUAL_HOST
+              value: {{ ternary "true" "false" .Values.s3.virtualHost | quote }}
+            {{- with .Values.s3.caCertPem }}
+            - name: S3_CA_CERT_PEM
+              value: {{ . | quote }}
+            {{- end }}
+            - name: REGISTRY_SYNC_ALLOWLIST
+              value: {{ .Values.registrySyncAllowlist | default "" | quote }}
+            - name: REGISTRY_SYNC_ENABLED
+              value: {{ ternary "true" "false" .Values.registrySyncEnabled | quote }}
+            {{- with .Values.observability.otelEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.observability.lokiUrl }}
+            - name: LOKI_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "registry.appSecretName" . }}
+                  key: secret-key-base
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "registry.appSecretName" . }}
+                  key: release-cookie
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "registry.runtimeSecretName" . }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -S {{ .Values.phoenix.socketLink }}"]
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: storage
+              mountPath: {{ .Values.storageDir }}
+            - name: tmp
+              mountPath: /tmp
+            - name: socket
+              mountPath: /run/registry
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.nginx.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nginx.containerPort }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+            - name: socket
+              mountPath: /run/registry
+            - name: storage
+              mountPath: {{ .Values.storageDir }}
+              readOnly: true
+            - name: nginx-tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "registry.dataClaimName" . }}
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ include "registry.storageClaimName" . }}
+        - name: tmp
+          emptyDir: {}
+        - name: socket
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-config
+          configMap:
+            name: {{ include "registry.nginxConfigMapName" . }}
