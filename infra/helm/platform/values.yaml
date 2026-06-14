@@ -237,6 +237,22 @@ ciliumEgressGateway:
       routeTable: "2010"
       rulePriority: "2010"
       reconcileIntervalSeconds: 60
+      # When true (and floatingIpId is set), an initContainer claims the
+      # Hetzner Floating IP for the node the DaemonSet lands on, so the
+      # egress IP follows the gateway node across replacements without a
+      # manual `hcloud floating-ip assign`. Pair with a dedicated egress
+      # node pool whose kubelet self-applies the gateway label.
+      assignFloatingIp: false
+      claimImage: curlimages/curl:8.11.1
+      # Numeric Hetzner Floating IP id (NOT the address). Empty disables the
+      # claim initContainer. Find it with:
+      #   hcloud floating-ip list -o columns=id,name,ip
+      floatingIpId: ""
+      tokenSecretRef:
+        # caph writes this Secret into kube-system once the first
+        # control-plane node is up; HCCM + hcloud-csi read the same one.
+        name: hcloud
+        key: hcloud
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

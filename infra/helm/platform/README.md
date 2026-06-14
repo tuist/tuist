@@ -76,21 +76,45 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
   configured egress IP.
 - `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which
   runs only on the node labelled `tuist.dev/stable-egress-gateway=server` and
-  keeps the Floating IP plus source route present on that node's `eth0`.
+  keeps the Floating IP plus source route present on that node's `eth0`. When
+  `hostConfigurator.assignFloatingIp` is set, its `claim-floating-ip`
+  initContainer also re-assigns the Floating IP to the node via the Hetzner
+  Cloud API on start.
 
-If the gateway node is replaced or you need to fail over manually:
+### Self-healing across node replacement
+
+The gateway role is **declarative** and survives node replacement without
+manual steps:
+
+- The label lives on a dedicated single-node pool (`md-egress` in
+  `cluster-production.yaml`) via the ClusterClass `workerNodeLabels` variable,
+  so kubelet self-applies `tuist.dev/stable-egress-gateway=server` at
+  registration. A replacement node (e.g. after MachineHealthCheck remediation)
+  is labelled automatically and the host-configurer reschedules onto it.
+- The host-configurer's `claim-floating-ip` initContainer re-claims the Hetzner
+  Floating IP onto whichever node it lands on, so the cloud route follows the
+  node. This requires `floatingIpId` + the `kube-system/hcloud` token.
+
+> Background: a 2026-06-14 production outage traced to this binding being
+> manual. A general worker holding the gateway label + Floating IP was replaced
+> by MachineHealthCheck; neither migrated, so all server egress black-holed and
+> the server crash-looped on its first outbound call. The dedicated pool +
+> auto-claim above remove both manual steps.
+
+### Manual failover (fallback)
+
+Only needed if `assignFloatingIp` is disabled or the automation is mid-incident:
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-production.yaml
 export FLOATING_IP_NAME=tuist-production-server-egress
 export EGRESS_IP=116.202.0.10
-export OLD_NODE=<old-gateway-node>
-export NEW_NODE=<new-general-pool-node>
+export NEW_NODE=<new-md-egress-node>
 
 # Move the cloud route in Hetzner first. Use the tuist-workloads hcloud token.
 hcloud floating-ip assign "$FLOATING_IP_NAME" "$NEW_NODE"
 
-kubectl label node "$OLD_NODE" tuist.dev/stable-egress-gateway- --overwrite
+# Only needed if labelling a node outside the md-egress pool.
 kubectl label node "$NEW_NODE" tuist.dev/stable-egress-gateway=server --overwrite
 
 # Force Cilium to re-select the gateway after the label move.
