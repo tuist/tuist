@@ -155,8 +155,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
                     // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
                     // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+                    // Anchor against `scratchDirectory` so swifterpm's relative-path encoding resolves correctly;
+                    // absolute paths from older swifterpm output pass through unchanged.
                     packageFolder = try AbsolutePath(
-                        validating: path.replacingOccurrences(of: "/private/var", with: "/var")
+                        validating: path.replacingOccurrences(of: "/private/var", with: "/var"),
+                        relativeTo: scratchDirectory
                     )
                     hash = nil
                 case "registry":
@@ -177,7 +180,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 let targetToArtifactPaths = try workspaceState.object.artifacts
                     .filter { $0.packageRef.identity == dependency.packageRef.identity }
                     .reduce(into: [:]) { result, artifact in
-                        result[artifact.targetName] = try AbsolutePath(validating: artifact.path)
+                        result[artifact.targetName] = try AbsolutePath(
+                            validating: artifact.path,
+                            relativeTo: scratchDirectory
+                        )
                     }
 
                 return SwiftPackageManagerResolvedPackageInfo(
@@ -230,7 +236,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         })
         let packagePrebuilts = try mapPackagePrebuilts(
             packageInfos: packageInfos,
-            prebuilts: workspaceState.object.prebuilts
+            prebuilts: workspaceState.object.prebuilts,
+            scratchDirectory: scratchDirectory
         )
 
         var mutablePackageModuleAliases: [String: [String: String]] = [:]
@@ -442,7 +449,8 @@ private struct SwiftPackageManagerResolvedPackageInfo {
 
 private func mapPackagePrebuilts(
     packageInfos: [SwiftPackageManagerResolvedPackageInfo],
-    prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt]
+    prebuilts: [SwiftPackageManagerWorkspaceState.Prebuilt],
+    scratchDirectory: AbsolutePath
 ) throws -> [String: [String: SwiftPackageManagerPrebuilt]] {
     try packageInfos.reduce(into: [:]) { result, packageInfo in
         let packagePrebuilts = prebuilts.filter { $0.identity.lowercased() == packageInfo.id.lowercased() }
@@ -461,8 +469,9 @@ private func mapPackagePrebuilts(
                 identity: prebuilt.identity,
                 version: prebuilt.version,
                 libraryName: prebuilt.libraryName,
-                path: try AbsolutePath(validating: prebuilt.path),
-                checkoutPath: try prebuilt.checkoutPath.map { try AbsolutePath(validating: $0) },
+                path: try AbsolutePath(validating: prebuilt.path, relativeTo: scratchDirectory),
+                checkoutPath: try prebuilt.checkoutPath
+                    .map { try AbsolutePath(validating: $0, relativeTo: scratchDirectory) },
                 products: prebuilt.products,
                 includePath: try prebuilt.includePath?.map { try RelativePath(validating: $0) },
                 cModules: prebuilt.cModules
@@ -503,12 +512,18 @@ private struct SwifterPMPackageInfoCache {
     }
 
     private struct CachedPackageInfo {
-        let entry: Entry
+        let packagePath: AbsolutePath
         let packageInfo: PackageInfo
     }
 
     private let root: CachedPackageInfo?
     private let packagesByPath: [String: CachedPackageInfo]
+
+    /// schema_version 1: paths in the index are absolute strings (older swifterpm output).
+    /// schema_version 2: paths are relative to `scratchDirectory` so `.build/` is portable
+    /// across hosts. `AbsolutePath(validating:relativeTo:)` accepts either form, so both
+    /// schemas are handled by the same code path.
+    private static let supportedSchemaVersions: Set<Int> = [1, 2]
 
     static func load(
         scratchDirectory: AbsolutePath,
@@ -519,18 +534,26 @@ private struct SwifterPMPackageInfoCache {
         guard (try? await fileSystem.exists(indexPath)) == true,
               let indexData = try? await fileSystem.readFile(at: indexPath),
               let index = try? JSONDecoder().decode(Index.self, from: indexData),
-              index.schemaVersion == 1
+              supportedSchemaVersions.contains(index.schemaVersion)
         else {
             return nil
         }
 
-        let root = await cachedPackageInfo(for: index.root, fileSystem: fileSystem)
+        let root = await cachedPackageInfo(
+            for: index.root,
+            scratchDirectory: scratchDirectory,
+            fileSystem: fileSystem
+        )
         var packagesByPath: [String: CachedPackageInfo] = [:]
         for entry in index.packages {
-            guard let cachedPackageInfo = await cachedPackageInfo(for: entry, fileSystem: fileSystem) else {
+            guard let cachedPackageInfo = await cachedPackageInfo(
+                for: entry,
+                scratchDirectory: scratchDirectory,
+                fileSystem: fileSystem
+            ) else {
                 continue
             }
-            packagesByPath[normalizedPackagePath(entry.packagePath)] = cachedPackageInfo
+            packagesByPath[normalizedPackagePath(cachedPackageInfo.packagePath.pathString)] = cachedPackageInfo
         }
 
         return SwifterPMPackageInfoCache(
@@ -541,7 +564,8 @@ private struct SwifterPMPackageInfoCache {
 
     func rootPackageInfo(for packagePath: AbsolutePath) -> PackageInfo? {
         guard let root,
-              Self.normalizedPackagePath(root.entry.packagePath) == Self.normalizedPackagePath(packagePath.pathString)
+              Self.normalizedPackagePath(root.packagePath.pathString)
+              == Self.normalizedPackagePath(packagePath.pathString)
         else {
             return nil
         }
@@ -554,10 +578,11 @@ private struct SwifterPMPackageInfoCache {
 
     private static func cachedPackageInfo(
         for entry: Entry,
+        scratchDirectory: AbsolutePath,
         fileSystem: FileSysteming
     ) async -> CachedPackageInfo? {
-        guard let packagePath = absolutePath(entry.packagePath),
-              let packageInfoPath = absolutePath(entry.packageInfoPath),
+        guard let packagePath = absolutePath(entry.packagePath, scratchDirectory: scratchDirectory),
+              let packageInfoPath = absolutePath(entry.packageInfoPath, scratchDirectory: scratchDirectory),
               await isFreshPackageInfo(
                   kind: entry.kind,
                   packageInfoPath: packageInfoPath,
@@ -570,7 +595,7 @@ private struct SwifterPMPackageInfoCache {
             return nil
         }
 
-        return CachedPackageInfo(entry: entry, packageInfo: packageInfo)
+        return CachedPackageInfo(packagePath: packagePath, packageInfo: packageInfo)
     }
 
     private static func isFreshPackageInfo(
@@ -598,8 +623,11 @@ private struct SwifterPMPackageInfoCache {
         }
     }
 
-    private static func absolutePath(_ path: String) -> AbsolutePath? {
-        try? AbsolutePath(validating: normalizedPackagePath(path))
+    private static func absolutePath(_ path: String, scratchDirectory: AbsolutePath) -> AbsolutePath? {
+        try? AbsolutePath(
+            validating: normalizedPackagePath(path),
+            relativeTo: scratchDirectory
+        )
     }
 
     private static func normalizedPackagePath(_ path: String) -> String {
