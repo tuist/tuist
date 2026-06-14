@@ -10,6 +10,7 @@ package main
 
 import (
 	"flag"
+	"net/netip"
 	"os"
 	"strings"
 	"time"
@@ -41,11 +42,12 @@ func main() {
 		probeAddr            string
 		enableLeaderElection bool
 
-		candidateLabel string
-		activeLabel    string
-		floatingIPName string
-		tokenPath      string
-		resyncInterval time.Duration
+		candidateLabel    string
+		activeLabel       string
+		floatingIPName    string
+		tokenPath         string
+		egressIPAllowlist string
+		resyncInterval    time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -60,6 +62,9 @@ func main() {
 		"Name of the Hetzner Cloud Floating IP to keep on the active node (required)")
 	flag.StringVar(&tokenPath, "hcloud-token-path", "/etc/hcloud/token",
 		"Path to the file holding the Hetzner Cloud API token (mounted from kube-system/hcloud)")
+	flag.StringVar(&egressIPAllowlist, "egress-ip-allowlist", "",
+		"Comma-separated CIDRs of the documented egress set customers allowlist. When set, the "+
+			"controller refuses (fails closed) to operate a Floating IP whose address is outside it")
 	flag.DurationVar(&resyncInterval, "resync-interval", 30*time.Second,
 		"Periodic reconcile interval; node events trigger reconciles in between")
 
@@ -81,6 +86,12 @@ func main() {
 	actKey, actVal, ok := splitLabel(activeLabel)
 	if !ok {
 		setupLog.Error(nil, "invalid --active-label, want key=value", "value", activeLabel)
+		os.Exit(1)
+	}
+
+	allowlist, err := parsePrefixes(egressIPAllowlist)
+	if err != nil {
+		setupLog.Error(err, "invalid --egress-ip-allowlist", "value", egressIPAllowlist)
 		os.Exit(1)
 	}
 
@@ -110,6 +121,7 @@ func main() {
 		CandidateLabelValue: candVal,
 		ActiveLabelKey:      actKey,
 		ActiveLabelValue:    actVal,
+		EgressIPAllowlist:   allowlist,
 		ResyncInterval:      resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup FailoverReconciler")
@@ -139,4 +151,20 @@ func splitLabel(s string) (key, value string, ok bool) {
 		return "", "", false
 	}
 	return k, v, true
+}
+
+func parsePrefixes(csv string) ([]netip.Prefix, error) {
+	csv = strings.TrimSpace(csv)
+	if csv == "" {
+		return nil, nil
+	}
+	var out []netip.Prefix
+	for _, part := range strings.Split(csv, ",") {
+		p, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }

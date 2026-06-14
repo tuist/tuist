@@ -105,6 +105,22 @@ gateway node by lexical order with no health-based failover (cilium/cilium#30157
 — HA is Enterprise), and it has no concept of the Hetzner Floating IP, which
 must be reassigned via the Cloud API. The controller owns both.
 
+### Reserved egress set (stable customer allowlist)
+
+Customers allowlist a **fixed, reserved set** of egress IPs, not a single one,
+so growing capacity or migrating the active address never forces an allowlist
+change on their side (allowlist changes are slow, high-friction enterprise
+operations). On Hetzner Cloud there is no owned contiguous CIDR / BYOIP, so the
+"set" is a reserved pool of individual Floating IPs in the `tuist-workloads`
+project. The controller's `egressIpAllowlist` lists that set's CIDRs and **fails
+closed** if the active Floating IP falls outside it — egress can only ever
+originate from a documented, allowlisted address.
+
+Operator procurement: reserve the extra Floating IPs up front, then add their
+`/32`s to **both** `egressIpAllowlist` (here) and the customer network guide
+(`server/priv/docs/en/guides/server/network.md`) *before* they are used. Today
+only `116.202.0.10` is provisioned.
+
 > Background: a 2026-06-14 production outage traced to this binding being a
 > single hand-labelled general worker. It got remediated; neither the label nor
 > the Floating IP migrated, so all server egress black-holed and the server

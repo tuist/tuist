@@ -53,6 +53,7 @@ The Deployment + RBAC are rendered by the platform Helm chart
 | Flag | Default | Purpose |
 |---|---|---|
 | `--floating-ip-name` | (required) | Hetzner Cloud Floating IP to keep on the active node |
+| `--egress-ip-allowlist` | (empty) | Comma-separated CIDRs of the documented egress set customers allowlist. When set, the controller **fails closed** if the Floating IP's address is outside it — so an un-allowlisted egress IP is never activated. Keep in lockstep with the customer network guide. |
 | `--candidate-label` | `tuist.dev/stable-egress-candidate=server` | egress candidate pool selector |
 | `--active-label` | `tuist.dev/stable-egress-gateway=server` | label placed on the single active node (Cilium + host-configurer select on it) |
 | `--hcloud-token-path` | `/etc/hcloud/token` | token file, mounted from `kube-system/hcloud` |

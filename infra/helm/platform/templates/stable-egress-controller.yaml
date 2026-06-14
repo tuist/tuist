@@ -101,6 +101,9 @@ spec:
             - --health-probe-bind-address=:8081
             - --floating-ip-name={{ $fipName }}
             - --hcloud-token-path=/etc/hcloud/token
+            {{- with .failoverController.egressIpAllowlist }}
+            - --egress-ip-allowlist={{ join "," . }}
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

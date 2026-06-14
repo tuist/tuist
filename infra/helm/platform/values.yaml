@@ -255,6 +255,12 @@ ciliumEgressGateway:
       # Name of the Hetzner Cloud Floating IP the controller keeps on the
       # active node. Required when enabled.
       floatingIpName: ""
+      # Documented set of egress CIDRs customers allowlist (the reserved
+      # Floating-IP pool). When non-empty the controller fails closed if the
+      # active Floating IP's address falls outside it, so we can never activate
+      # an un-allowlisted egress IP. Keep this in lockstep with the customer
+      # network guide (server/priv/docs/en/guides/server/network.md).
+      egressIpAllowlist: []
       resources:
         requests:
           cpu: 25m

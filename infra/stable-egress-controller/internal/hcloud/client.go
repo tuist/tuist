@@ -29,6 +29,14 @@ func (m *Manager) CurrentServerID(ctx context.Context, floatingIPName string) (i
 	return fip.Server.ID, nil
 }
 
+func (m *Manager) Address(ctx context.Context, floatingIPName string) (string, error) {
+	fip, err := m.lookup(ctx, floatingIPName)
+	if err != nil {
+		return "", err
+	}
+	return fip.IP.String(), nil
+}
+
 func (m *Manager) Assign(ctx context.Context, floatingIPName string, serverID int64) error {
 	fip, err := m.lookup(ctx, floatingIPName)
 	if err != nil {

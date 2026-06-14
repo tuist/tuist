@@ -21,6 +21,14 @@ ciliumEgressGateway:
     failoverController:
       enabled: true
       floatingIpName: tuist-production-server-egress
+      # Reserved egress pool customers allowlist. Active egress only ever
+      # originates from an IP in this set; growing capacity / migrating the
+      # active IP within it never touches a customer allowlist. Operator:
+      # reserve the additional Floating IPs in the tuist-workloads project,
+      # add their /32s here AND to the customer network guide, before they are
+      # ever used. Today only 116.202.0.10 is provisioned.
+      egressIpAllowlist:
+        - 116.202.0.10/32
 
 # Main Tuist web/API ingress. Keep the Hetzner location explicit here instead
 # of deriving it from Nodes: production also carries regional Kura pools, and

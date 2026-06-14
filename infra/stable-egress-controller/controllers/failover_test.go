@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -53,11 +54,13 @@ func TestParseHCloudServerID(t *testing.T) {
 
 type fakeFIP struct {
 	server    int64
+	addr      string
 	assignErr error
 	assigns   []int64
 }
 
 func (f *fakeFIP) CurrentServerID(context.Context, string) (int64, error) { return f.server, nil }
+func (f *fakeFIP) Address(context.Context, string) (string, error)        { return f.addr, nil }
 func (f *fakeFIP) Assign(_ context.Context, _ string, serverID int64) error {
 	if f.assignErr != nil {
 		return f.assignErr
@@ -131,6 +134,41 @@ func TestReconcileFailover(t *testing.T) {
 	got := activeNames(t, r)
 	if len(got) != 1 || got[0] != "egress-b" {
 		t.Fatalf("active nodes = %v, want [egress-b]", got)
+	}
+}
+
+func TestIPInAllowlist(t *testing.T) {
+	allow := []netip.Prefix{netip.MustParsePrefix("116.202.0.10/32"), netip.MustParsePrefix("203.0.113.0/29")}
+	for _, tc := range []struct {
+		addr string
+		want bool
+	}{
+		{"116.202.0.10", true},
+		{"203.0.113.4", true},
+		{"116.202.0.11", false},
+	} {
+		got, err := ipInAllowlist(tc.addr, allow)
+		if err != nil || got != tc.want {
+			t.Fatalf("ipInAllowlist(%q) = (%v, %v), want %v", tc.addr, got, err, tc.want)
+		}
+	}
+}
+
+// An out-of-allowlist Floating IP must not be activated: no assign, no relabel.
+func TestReconcileRejectsOutOfAllowlistIP(t *testing.T) {
+	node := candidateNode("egress-a", "hcloud://111", true, false)
+	fip := &fakeFIP{server: 0, addr: "198.51.100.7"} // not in the allowlist
+	r := newReconciler(fip, node)
+	r.EgressIPAllowlist = []netip.Prefix{netip.MustParsePrefix("116.202.0.10/32")}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("must not assign an out-of-allowlist IP, got %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 0 {
+		t.Fatalf("must not set the active label, got %v", got)
 	}
 }
 

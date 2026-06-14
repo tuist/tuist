@@ -4,6 +4,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,8 @@ type FloatingIPManager interface {
 	// CurrentServerID returns the server id the Floating IP is currently
 	// assigned to, or 0 if it is unassigned.
 	CurrentServerID(ctx context.Context, floatingIPName string) (int64, error)
+	// Address returns the Floating IP's address (e.g. "116.202.0.10").
+	Address(ctx context.Context, floatingIPName string) (string, error)
 	// Assign assigns the Floating IP to the given server id and waits for the
 	// assignment to take effect.
 	Assign(ctx context.Context, floatingIPName string, serverID int64) error
@@ -44,6 +47,12 @@ type FailoverReconciler struct {
 	CandidateLabelValue string
 	ActiveLabelKey      string
 	ActiveLabelValue    string
+
+	// EgressIPAllowlist, when non-empty, is the documented set of CIDRs
+	// customers allowlist. The controller refuses to operate a Floating IP
+	// whose address falls outside it — failing closed so we never activate an
+	// egress IP customers have not allowlisted.
+	EgressIPAllowlist []netip.Prefix
 
 	ResyncInterval time.Duration
 }
@@ -77,6 +86,26 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	serverID, err := parseHCloudServerID(desiredNode.Spec.ProviderID)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("resolving server id for node %q: %w", desired, err)
+	}
+
+	// Fail closed if the Floating IP is not within the documented egress set —
+	// activating an un-allowlisted source IP would silently break customers
+	// who allowlist our egress. Better a gap than a leak.
+	if len(r.EgressIPAllowlist) > 0 {
+		addr, err := r.FIP.Address(ctx, r.FloatingIPName)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("reading Floating IP address: %w", err)
+		}
+		ok, err := ipInAllowlist(addr, r.EgressIPAllowlist)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if !ok {
+			logger.Error(nil, "Floating IP address is outside the documented egress allowlist; refusing to manage it",
+				"floatingIP", r.FloatingIPName, "address", addr, "allowlist", prefixesString(r.EgressIPAllowlist))
+			return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
+		}
+		logger.Info("active egress IP", "address", addr, "node", desired)
 	}
 
 	// 1) Make the Floating IP follow the elected node (idempotent).
@@ -192,6 +221,28 @@ func nodeByName(nodes []corev1.Node, name string) *corev1.Node {
 		}
 	}
 	return nil
+}
+
+// ipInAllowlist reports whether addr falls within any of the allowed prefixes.
+func ipInAllowlist(addr string, allow []netip.Prefix) (bool, error) {
+	ip, err := netip.ParseAddr(addr)
+	if err != nil {
+		return false, fmt.Errorf("parsing Floating IP address %q: %w", addr, err)
+	}
+	for _, p := range allow {
+		if p.Contains(ip) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func prefixesString(prefixes []netip.Prefix) string {
+	parts := make([]string, len(prefixes))
+	for i, p := range prefixes {
+		parts[i] = p.String()
+	}
+	return strings.Join(parts, ",")
 }
 
 // parseHCloudServerID extracts the numeric server id from a Hetzner Cloud
