@@ -25,48 +25,6 @@ spec:
         {{- toYaml .gatewayNodeSelector | nindent 8 }}
       tolerations:
         - operator: Exists
-      {{- if and .hostConfigurator.assignFloatingIp .hostConfigurator.floatingIpId }}
-      initContainers:
-        # Claim the Hetzner Floating IP for whichever node this DaemonSet
-        # landed on, before the route below SNATs traffic to it. This makes
-        # the egress IP follow the gateway node across replacements (e.g.
-        # MachineHealthCheck remediation) with no manual
-        # `hcloud floating-ip assign`. The node's own public route reaches
-        # the Cloud API + metadata service, so this works even though the
-        # Floating IP itself is not yet attached to the interface.
-        - name: claim-floating-ip
-          image: {{ .hostConfigurator.claimImage | quote }}
-          imagePullPolicy: {{ .hostConfigurator.imagePullPolicy | quote }}
-          env:
-            - name: FLOATING_IP_ID
-              value: {{ .hostConfigurator.floatingIpId | quote }}
-            - name: HCLOUD_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .hostConfigurator.tokenSecretRef.name | quote }}
-                  key: {{ .hostConfigurator.tokenSecretRef.key | quote }}
-          command:
-            - /bin/sh
-            - -ec
-            - |
-              server_id="$(curl -fsS --max-time 10 http://169.254.169.254/hetzner/v1/metadata/instance-id)"
-              echo "Claiming Floating IP ${FLOATING_IP_ID} for server ${server_id}"
-              code="$(curl -sS -o /tmp/resp -w '%{http_code}' --max-time 15 -X POST \
-                -H "Authorization: Bearer ${HCLOUD_TOKEN}" \
-                -H 'Content-Type: application/json' \
-                -d "{\"server\":${server_id}}" \
-                "https://api.hetzner.cloud/v1/floating_ips/${FLOATING_IP_ID}/actions/assign")"
-              case "${code}" in
-                2*) echo "Assigned (HTTP ${code})" ;;
-                *)
-                  if grep -q 'already' /tmp/resp; then
-                    echo "Already assigned to this server (HTTP ${code})"
-                  else
-                    echo "Failed to assign Floating IP (HTTP ${code}):"; cat /tmp/resp; exit 1
-                  fi
-                  ;;
-              esac
-      {{- end }}
       containers:
         - name: host-configurer
           image: {{ .hostConfigurator.image | quote }}

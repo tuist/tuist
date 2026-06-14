@@ -61,23 +61,25 @@ spec:
           metadata:
             labels:
               node.cluster.x-k8s.io/pool: general
-        # Dedicated stable-egress gateway pool (single node). The Phoenix
-        # server's public egress is SNAT'd through this node's Hetzner
-        # Floating IP by the CiliumEgressGatewayPolicy in the platform
-        # chart. Pinning the gateway to its own pool — rather than a
-        # hand-labelled general worker — is what makes the role durable:
-        # the `tuist.dev/stable-egress-gateway=server` label is applied at
-        # kubelet registration via `workerNodeLabels`, so a replacement
-        # node (e.g. after MachineHealthCheck remediation) self-labels and
-        # the host-configurer DaemonSet reschedules onto it automatically.
-        # The Floating IP is re-claimed by the host-configurer's init step,
-        # so no manual `hcloud floating-ip assign` is needed on failover.
-        # An outage on 2026-06-14 traced to exactly this gap: the label +
-        # IP lived on a general worker that got remediated, leaving server
-        # egress black-holed.
+        # Dedicated stable-egress gateway pool (HA, ≥2 nodes). The Phoenix
+        # server's public egress is SNAT'd through the active node's Hetzner
+        # Floating IP by the CiliumEgressGatewayPolicy in the platform chart.
+        # Every node here self-applies the candidate label
+        # `tuist.dev/stable-egress-candidate=server` at kubelet registration
+        # via `workerNodeLabels` (survives MachineHealthCheck remediation,
+        # unlike CAPI metadata-label sync). The stable-egress failover
+        # controller picks one Ready candidate as active — moving the Floating
+        # IP (Hetzner API) and the active `tuist.dev/stable-egress-gateway`
+        # label together — and fails over to the other on node loss. The
+        # host-configurer DaemonSet configures eth0 on the active node.
+        #
+        # An outage on 2026-06-14 traced to this binding being a single
+        # hand-labelled node: it got remediated, neither the label nor the IP
+        # migrated, and server egress black-holed. Two candidates + automated
+        # failover removes both the SPOF and the manual runbook.
         - class: hcloud-worker
           name: md-egress
-          replicas: 1
+          replicas: 2
           failureDomain: fsn1
           metadata:
             labels:
@@ -90,7 +92,7 @@ spec:
               - name: hcloudWorkerMachineType
                 value: cpx21
               - name: workerNodeLabels
-                value: tuist.dev/stable-egress-gateway=server
+                value: tuist.dev/stable-egress-candidate=server
         # Dedicated processor pool: xcactivitylog parsing.
         # CA annotations declared here propagate to the rendered
         # MachineDeployment via topology mode. Without them the

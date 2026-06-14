@@ -73,61 +73,61 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
 
 - `CiliumEgressGatewayPolicy/tuist-server-stable-egress`, which selects server
   pods in the configured namespace and SNATs public-internet traffic to the
-  configured egress IP.
-- `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which
-  runs only on the node labelled `tuist.dev/stable-egress-gateway=server` and
-  keeps the Floating IP plus source route present on that node's `eth0`. When
-  `hostConfigurator.assignFloatingIp` is set, its `claim-floating-ip`
-  initContainer also re-assigns the Floating IP to the node via the Hetzner
-  Cloud API on start.
+  configured egress IP via the node carrying the **active** label
+  `tuist.dev/stable-egress-gateway=server`.
+- `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
+  on the active node and keeps the Floating IP + source route present on its
+  `eth0`.
+- When `failoverController.enabled`, the
+  `Deployment/kube-system/stable-egress-controller` (see
+  [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
 
-### Self-healing across node replacement
+### HA failover (no single point of failure)
 
-The gateway role is **declarative** and survives node replacement without
-manual steps:
+The gateway runs **active/standby across a dedicated ≥2-node egress pool**, with
+automatic failover — no manual steps and no SPOF:
 
-- The label lives on a dedicated single-node pool (`md-egress` in
-  `cluster-production.yaml`) via the ClusterClass `workerNodeLabels` variable,
-  so kubelet self-applies `tuist.dev/stable-egress-gateway=server` at
-  registration. A replacement node (e.g. after MachineHealthCheck remediation)
-  is labelled automatically and the host-configurer reschedules onto it.
-- The host-configurer's `claim-floating-ip` initContainer re-claims the Hetzner
-  Floating IP onto whichever node it lands on, so the cloud route follows the
-  node. This requires `floatingIpId` + the `kube-system/hcloud` token.
+- **Candidate pool:** the `md-egress` pool (`cluster-production.yaml`,
+  `replicas: 2`) self-applies `tuist.dev/stable-egress-candidate=server` via the
+  ClusterClass `workerNodeLabels` variable. kubelet sets it at registration, so
+  it survives MachineHealthCheck remediation (CAPI's metadata-label sync would
+  not — it only passes node-role/node-restriction/node.cluster prefixes).
+- **Election + IP:** the stable-egress controller (leader-elected, 2 replicas)
+  picks one Ready candidate as active and keeps the Hetzner Floating IP (Cloud
+  API) **and** the active `tuist.dev/stable-egress-gateway` label on it. On loss
+  of the active node it re-elects the other candidate and moves both together
+  (~30–60s: node-NotReady detection + reassign; faster on node deletion).
+- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
+  host-configurer reschedules onto the new active node automatically.
 
-> Background: a 2026-06-14 production outage traced to this binding being
-> manual. A general worker holding the gateway label + Floating IP was replaced
-> by MachineHealthCheck; neither migrated, so all server egress black-holed and
-> the server crash-looped on its first outbound call. The dedicated pool +
-> auto-claim above remove both manual steps.
+Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
+gateway node by lexical order with no health-based failover (cilium/cilium#30157
+— HA is Enterprise), and it has no concept of the Hetzner Floating IP, which
+must be reassigned via the Cloud API. The controller owns both.
+
+> Background: a 2026-06-14 production outage traced to this binding being a
+> single hand-labelled general worker. It got remediated; neither the label nor
+> the Floating IP migrated, so all server egress black-holed and the server
+> crash-looped on its first outbound call. The HA pool + controller remove both
+> the SPOF and the manual runbook.
 
 ### Manual failover (fallback)
 
-Only needed if `assignFloatingIp` is disabled or the automation is mid-incident:
+Only needed if the controller is disabled or unavailable mid-incident:
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-production.yaml
 export FLOATING_IP_NAME=tuist-production-server-egress
-export EGRESS_IP=116.202.0.10
-export NEW_NODE=<new-md-egress-node>
+export NEW_NODE=<a-ready-md-egress-node>
 
-# Move the cloud route in Hetzner first. Use the tuist-workloads hcloud token.
+# Move the cloud route in Hetzner, then the active label; the host-configurer
+# follows the label and Cilium re-selects within ~1s.
 hcloud floating-ip assign "$FLOATING_IP_NAME" "$NEW_NODE"
-
-# Only needed if labelling a node outside the md-egress pool.
 kubectl label node "$NEW_NODE" tuist.dev/stable-egress-gateway=server --overwrite
 
-# Force Cilium to re-select the gateway after the label move.
-kubectl annotate ciliumegressgatewaypolicy tuist-server-stable-egress \
-  "tuist.dev/reapplied-at=$(date -u +%s)" --overwrite
-
-# Verify from any server pod.
+# Verify from any server pod (should print the configured egress IP).
 kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.org
 ```
-
-The verification command should print the environment's configured egress IP.
-Existing outbound connections may reset when the gateway node changes; new
-connections should use the new gateway once the policy is re-applied.
 
 ## Notes
 

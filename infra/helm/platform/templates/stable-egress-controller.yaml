@@ -1,0 +1,136 @@
+{{- with .Values.ciliumEgressGateway.server }}
+{{- if and .enabled .failoverController.enabled }}
+{{- $fipName := required "ciliumEgressGateway.server.failoverController.floatingIpName is required when the failover controller is enabled" .failoverController.floatingIpName }}
+# Stable-egress failover controller. Keeps the Hetzner Floating IP + the active
+# gateway label (`gatewayNodeSelector`) on a single Ready node from the egress
+# candidate pool, and fails over to another candidate on node loss — so a node
+# replacement self-heals without the manual `hcloud floating-ip assign` runbook.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stable-egress-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stable-egress-controller
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stable-egress-controller
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stable-egress-controller
+subjects:
+  - kind: ServiceAccount
+    name: stable-egress-controller
+    namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stable-egress-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: stable-egress-controller
+    app.kubernetes.io/component: stable-egress
+spec:
+  replicas: {{ .failoverController.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stable-egress-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: stable-egress-controller
+        app.kubernetes.io/component: stable-egress
+    spec:
+      serviceAccountName: stable-egress-controller
+      # Spread the replicas so the controller's own availability does not
+      # depend on the egress node it manages.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: stable-egress-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: manager
+          image: {{ printf "%s:%s" .failoverController.image.repository .failoverController.image.tag | quote }}
+          imagePullPolicy: {{ .failoverController.image.pullPolicy | quote }}
+          args:
+            - --leader-elect=true
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --floating-ip-name={{ $fipName }}
+            - --hcloud-token-path=/etc/hcloud/token
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .failoverController.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: hcloud-token
+              mountPath: /etc/hcloud
+              readOnly: true
+      volumes:
+        - name: hcloud-token
+          secret:
+            secretName: {{ .failoverController.tokenSecretRef.name | quote }}
+            items:
+              - key: {{ .failoverController.tokenSecretRef.key | quote }}
+                path: token
+{{- end }}
+{{- end }}
