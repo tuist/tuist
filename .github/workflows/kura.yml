@@ -53,6 +53,39 @@ jobs:
       - name: Check formatting
         run: env -u RUSTUP_TOOLCHAIN cargo fmt --check
 
+  lockfile:
+    name: Lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Fast guard for the crate_universe pin. Cargo.Bazel.lock is a digest of Cargo.toml +
+    # Cargo.lock and must be repinned when they change (or after merging main); otherwise the
+    # Bazel jobs fail deep in analysis with "lockfile is out of date for 'crates'".
+    # `mise run bazel-repin check` runs `bazel query '@crates//:all'` WITHOUT CARGO_BAZEL_REPIN, so a
+    # stale pin fails loudly here in ~1 min with an actionable message. It only materializes the
+    # @crates repo — no cc toolchain — so it runs on the host (no dev container). Fix: `mise run bazel-repin`.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "rust bazel"
+          working_directory: kura
+
+      - name: Cache Bazel repository downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/bazel-repo
+          key: bazel-repo-lockfile-${{ hashFiles('kura/MODULE.bazel.lock', 'kura/Cargo.Bazel.lock') }}
+          restore-keys: |
+            bazel-repo-lockfile-
+
+      - name: Check Cargo.Bazel.lock is up to date
+        run: |
+          echo "common --repository_cache=${{ runner.temp }}/bazel-repo" >> "$HOME/.bazelrc"
+          mise run bazel-repin check
+
   compile:
     name: Compile
     runs-on: ubuntu-latest
