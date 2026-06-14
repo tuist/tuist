@@ -76,6 +76,12 @@ against controller-runtime's fake client + a fake Floating IP manager.
 
 ## Future work
 
+- **Release wiring (required before prod enable).** Commit `go.sum`
+  (`go mod tidy`), then add this controller to `release.yml` like
+  `hetzner-robot-controller` (check-releases output, a `release-…` job, the
+  components list, GitHub-release step) + a `cliff.toml`, so the image is
+  semver-tagged and the chart `image.tag` is pinned rather than running
+  `latest`. Until then keep `failoverController.enabled: false` in prod.
 - Emit a metric / Kubernetes Event when no Ready candidate exists, and alert on
   it (the silent gap that hid the original outage).
 - Consider faster NotReady detection than the kubelet node-monitor grace period.
