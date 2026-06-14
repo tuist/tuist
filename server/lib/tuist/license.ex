@@ -157,10 +157,7 @@ defmodule Tuist.License do
   def assert_valid!(opts \\ []) do
     Logger.info("Validating the license...")
 
-    if Tuist.Environment.dev?() or Tuist.Environment.test?() or Tuist.Environment.tuist_hosted?() do
-      # The hosted Tuist service is not licensed through Keygen; license
-      # enforcement only applies to self-hosted/on-premise deployments. Skipping
-      # here keeps Keygen out of the hosted server's startup critical path.
+    if Tuist.Environment.dev?() or Tuist.Environment.test?() do
       :ok
     else
       case get_license(opts) do
@@ -177,11 +174,7 @@ defmodule Tuist.License do
           raise "The license key is invalid or expired. Please, contact contact@tuist.dev to get a new one."
 
         {:error, error} ->
-          Logger.error(
-            "Could not reach the license validation service (#{error}). Continuing startup so a transient outage of the license service does not bring the server down."
-          )
-
-          :ok
+          raise "The license validation failed with the following error: #{error}"
       end
     end
   end

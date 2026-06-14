@@ -237,6 +237,42 @@ ciliumEgressGateway:
       routeTable: "2010"
       rulePriority: "2010"
       reconcileIntervalSeconds: 60
+    # Stable-egress failover controller (see templates/stable-egress-controller.yaml).
+    # Keeps the Floating IP + the gateway label (`gatewayNodeSelector`) on a
+    # single Ready node from the egress candidate pool and fails over on node
+    # loss. Pair with a ≥2-node egress pool whose kubelet self-applies the
+    # candidate label (`tuist.dev/stable-egress-candidate=server`).
+    failoverController:
+      enabled: false
+      image:
+        repository: ghcr.io/tuist/tuist-stable-egress-controller
+        # release.yml bumps this to the released semver tag; `latest` is a
+        # draft placeholder.
+        tag: latest
+        pullPolicy: IfNotPresent
+      # HA via leader election — keep ≥2 so the controller itself isn't a SPOF.
+      replicas: 2
+      # Name of the Hetzner Cloud Floating IP the controller keeps on the
+      # active node. Required when enabled.
+      floatingIpName: ""
+      # Documented set of egress CIDRs customers allowlist (the reserved
+      # Floating-IP pool). When non-empty the controller fails closed if the
+      # active Floating IP's address falls outside it, so we can never activate
+      # an un-allowlisted egress IP. Keep this in lockstep with the customer
+      # network guide (server/priv/docs/en/guides/server/network.md).
+      egressIpAllowlist: []
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      tokenSecretRef:
+        # caph writes this Secret into kube-system once the first
+        # control-plane node is up; HCCM + hcloud-csi read the same one.
+        name: hcloud
+        key: hcloud
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.
