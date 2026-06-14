@@ -124,32 +124,44 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	// 2) Make the active label track the elected node: add to it, strip from any
 	// other node still carrying it. Cilium re-selects the gateway on the next
 	// reconciliation (datapath trigger interval is 1s).
-	if err := r.reconcileActiveLabel(ctx, nodes.Items, desired); err != nil {
+	if err := r.reconcileActiveLabel(ctx, desiredNode); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
 }
 
-func (r *FailoverReconciler) reconcileActiveLabel(ctx context.Context, nodes []corev1.Node, desired string) error {
-	for i := range nodes {
-		n := &nodes[i]
-		hasLabel := n.Labels[r.ActiveLabelKey] == r.ActiveLabelValue
-		shouldHave := n.Name == desired
-		if hasLabel == shouldHave {
+// reconcileActiveLabel ensures the active label is present on exactly the
+// desired node, cluster-wide. It strips the label from ANY other node that
+// carries it — not just candidates — so a stale label (e.g. a manual failover
+// on a non-candidate node, or a previous gateway) can't shadow the elected
+// node in Cilium's selector and black-hole egress.
+func (r *FailoverReconciler) reconcileActiveLabel(ctx context.Context, desired *corev1.Node) error {
+	var labeled corev1.NodeList
+	if err := r.List(ctx, &labeled, client.MatchingLabels{r.ActiveLabelKey: r.ActiveLabelValue}); err != nil {
+		return fmt.Errorf("listing active-labelled nodes: %w", err)
+	}
+	desiredHasLabel := false
+	for i := range labeled.Items {
+		n := &labeled.Items[i]
+		if n.Name == desired.Name {
+			desiredHasLabel = true
 			continue
 		}
 		patch := client.MergeFrom(n.DeepCopy())
-		if shouldHave {
-			if n.Labels == nil {
-				n.Labels = map[string]string{}
-			}
-			n.Labels[r.ActiveLabelKey] = r.ActiveLabelValue
-		} else {
-			delete(n.Labels, r.ActiveLabelKey)
-		}
+		delete(n.Labels, r.ActiveLabelKey)
 		if err := r.Patch(ctx, n, patch); err != nil {
-			return fmt.Errorf("patching active label on node %q: %w", n.Name, err)
+			return fmt.Errorf("stripping active label from node %q: %w", n.Name, err)
+		}
+	}
+	if !desiredHasLabel {
+		patch := client.MergeFrom(desired.DeepCopy())
+		if desired.Labels == nil {
+			desired.Labels = map[string]string{}
+		}
+		desired.Labels[r.ActiveLabelKey] = r.ActiveLabelValue
+		if err := r.Patch(ctx, desired, patch); err != nil {
+			return fmt.Errorf("setting active label on node %q: %w", desired.Name, err)
 		}
 	}
 	return nil

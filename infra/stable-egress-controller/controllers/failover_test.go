@@ -172,6 +172,34 @@ func TestReconcileRejectsOutOfAllowlistIP(t *testing.T) {
 	}
 }
 
+// Cutover from a manual setup: a non-candidate node carries the active label
+// (e.g. a hand-labelled general worker). Electing a candidate must strip that
+// stale label cluster-wide so two nodes don't both match Cilium's selector.
+func TestReconcileStripsStaleNonCandidateLabel(t *testing.T) {
+	candidate := candidateNode("egress-a", "hcloud://222", true, false)
+	stale := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "general-1",
+			Labels: map[string]string{actKey: actVal}, // active label, NOT a candidate
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+		},
+	}
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, candidate, stale)
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active nodes = %v, want [egress-a] (stale label must be stripped)", got)
+	}
+	if fip.server != 222 {
+		t.Fatalf("Floating IP on server %d, want 222", fip.server)
+	}
+}
+
 // Steady state: active node healthy — no IP churn, label unchanged.
 func TestReconcileStickyNoChurn(t *testing.T) {
 	a := candidateNode("egress-a", "hcloud://111", true, true)
