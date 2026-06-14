@@ -490,55 +490,137 @@ defmodule Tuist.Authorization.ChecksTest do
     end
   end
 
-  describe "ops_access/2" do
-    test "returns true when user is in ops_user_handles", %{user: user} do
-      # Given
-      expect(Tuist.Environment, :ops_user_handles, fn -> [user.account.name] end)
+  describe "internal_ops_access/2 (the static /ops panel gate)" do
+    test "returns true for a confirmed operator-domain user" do
+      operator =
+        AccountsFixtures.user_fixture(
+          email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+          preload: [:account]
+        )
 
-      # When/Then
-      assert Checks.ops_access(user, nil) == true
+      assert Checks.internal_ops_access(operator, nil) == true
+      assert Checks.internal_ops_access(operator, :ops) == true
     end
 
-    test "returns false when user is not in ops_user_handles", %{user: user} do
-      # Given
-      expect(Tuist.Environment, :ops_user_handles, fn -> ["other_user"] end)
-
-      # When/Then
-      assert Checks.ops_access(user, nil) == false
+    test "returns false for a non-operator-domain user", %{user: user} do
+      # Default fixture users are @tuist.io, not the operator domain.
+      assert Checks.internal_ops_access(user, nil) == false
     end
 
-    test "returns false when user is nil" do
-      # When/Then
-      assert Checks.ops_access(nil, nil) == false
+    test "returns false for non-user subjects" do
+      assert Checks.internal_ops_access(nil, nil) == false
+      assert Checks.internal_ops_access("string", nil) == false
     end
+  end
 
-    test "returns false for non-user subjects", %{organization: organization} do
-      # Given
+  describe "ops_access/2 (grant-based)" do
+    setup %{organization: organization} do
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
-      authenticated_account = %AuthenticatedAccount{account: organization.account, scopes: []}
+      %{project: project, account: organization.account, user: operator_user()}
+    end
 
-      # When/Then
+    test "true with a read grant covering the project's account", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :read)
+      assert Checks.ops_access(user, project) == true
+    end
+
+    test "false when the holder is not a Tuist operator", %{project: project} do
+      # A regular customer session carrying a grant (e.g. a replayed token)
+      # authorizes nothing, even though the grant's subject matches them.
+      customer = AccountsFixtures.user_fixture(preload: [:account])
+      user = put_grant(customer, project.account_id, :read)
+      assert Checks.ops_access(user, project) == false
+    end
+
+    test "false when the grant subject is a different operator", %{user: user, project: project} do
+      grant = %{put_grant(user, project.account_id, :read).operator_grant | sub: "someone-else@tuist.dev"}
+      assert Checks.ops_access(%{user | operator_grant: grant}, project) == false
+    end
+
+    test "true with an admin grant (admin satisfies read)", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :admin)
+      assert Checks.ops_access(user, project) == true
+    end
+
+    test "true when the object is the Account itself", %{user: user, account: account} do
+      user = put_grant(user, account.id, :read)
+      assert Checks.ops_access(user, account) == true
+    end
+
+    test "resolves a wrapped project object", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :read)
+      assert Checks.ops_access(user, %{project: project}) == true
+    end
+
+    test "false when the grant is for a different account", %{user: user, project: project} do
+      user = put_grant(user, project.account_id + 1, :read)
+      assert Checks.ops_access(user, project) == false
+    end
+
+    test "false when the grant is expired", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :read, exp: System.system_time(:second) - 1)
+      assert Checks.ops_access(user, project) == false
+    end
+
+    test "false without a grant", %{user: user, project: project} do
+      assert Checks.ops_access(user, project) == false
+    end
+
+    test "false for an unknown object shape", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :read)
+      assert Checks.ops_access(user, :something) == false
+    end
+
+    test "false for non-user subjects", %{project: project} do
+      authenticated_account = %AuthenticatedAccount{account: project.account, scopes: []}
       assert Checks.ops_access(project, nil) == false
       assert Checks.ops_access(authenticated_account, nil) == false
       assert Checks.ops_access("string", nil) == false
     end
   end
 
-  describe "ops_write_access/2" do
-    test "returns true when user is in ops_user_handles", %{user: user} do
-      # Given
-      expect(Tuist.Environment, :ops_user_handles, fn -> [user.account.name] end)
-
-      # When/Then
-      assert Checks.ops_write_access(user, nil) == true
+  describe "ops_write_access/2 (admin-tier grant only)" do
+    setup %{organization: organization} do
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      %{project: project, user: operator_user()}
     end
 
-    test "returns false when user is not in ops_user_handles", %{user: user} do
-      # Given
-      expect(Tuist.Environment, :ops_user_handles, fn -> ["other_user"] end)
-
-      # When/Then
-      assert Checks.ops_write_access(user, nil) == false
+    test "true with an admin grant covering the account", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :admin)
+      assert Checks.ops_write_access(user, project) == true
     end
+
+    test "false with only a read grant", %{user: user, project: project} do
+      user = put_grant(user, project.account_id, :read)
+      assert Checks.ops_write_access(user, project) == false
+    end
+
+    test "false without a grant", %{user: user, project: project} do
+      assert Checks.ops_write_access(user, project) == false
+    end
+  end
+
+  defp operator_user do
+    AccountsFixtures.user_fixture(
+      email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+      preload: [:account]
+    )
+  end
+
+  defp put_grant(user, account_id, tier, opts \\ []) do
+    now = System.system_time(:second)
+
+    grant = %{
+      tier: tier,
+      account_id: account_id,
+      account_handle: "acme",
+      sub: user.email,
+      reason: "investigating",
+      jti: "1",
+      iat: now,
+      exp: Keyword.get(opts, :exp, now + 600)
+    }
+
+    %{user | operator_grant: grant}
   end
 end

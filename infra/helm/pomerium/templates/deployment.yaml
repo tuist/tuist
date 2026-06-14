@@ -68,6 +68,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: IDP_CLIENT_SECRET
+            {{- if .Values.opsRoute.enabled }}
+            # Stable assertion-signing key (config `signing_key`) so
+            # tuist-ops can pin the matching public key. Only wired when
+            # the ops route is on, so other envs need no 1P field.
+            - name: SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: SIGNING_KEY
+            {{- end }}
           volumeMounts:
             - name: config
               mountPath: /etc/pomerium

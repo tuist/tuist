@@ -79,7 +79,7 @@ defmodule TuistWeb.RouterTest do
   test "FunWithFlags UI assets are served without triggering CSRF cross-origin check",
        %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Tuist.Accounts, :tuist_operator?, fn _ -> true end)
 
     conn =
       conn
