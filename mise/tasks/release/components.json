@@ -12,6 +12,8 @@
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",
         ".github/workflows/cli-build-publish.yml",
+        ".github/workflows/cli-rc.yml",
+        ".github/workflows/cli-promote.yml",
         ".xcode-version-releases",
         "Package.swift",
         "Package.resolved"

@@ -38,14 +38,19 @@ defmodule Tuist.GitHub.Releases do
           [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
         end
 
-      # Pick the highest-semver CLI release, not the first one GitHub returns.
-      # The releases endpoint is ordered by publish date, so a backport patch
-      # (e.g. 4.192.1) published after a newer minor (4.195.0) would otherwise
-      # be mistaken for the latest. CLI tags are bare semver ("4.196.0") while
-      # component tags are scoped ("runners-controller@0.11.0") and don't parse
-      # as a Version, so Version.parse/1 also filters those out.
+      # Pick the highest-semver stable CLI release, not the first one GitHub
+      # returns. The releases endpoint is ordered by publish date, so a backport
+      # patch (e.g. 4.192.1) published after a newer minor (4.195.0) would
+      # otherwise be mistaken for the latest. CLI tags are bare semver
+      # ("4.196.0") while component tags are scoped ("runners-controller@0.11.0")
+      # and don't parse as a Version, so Version.parse/1 also filters those out.
+      # Prerelease channels (X.Y.0-rc.N, X.Y.0-canary.N) are excluded too: they
+      # are published as GitHub prereleases and must never be advertised as the
+      # recommended install. A bare `Version` compare wouldn't catch this — a
+      # canary like 4.201.0-canary.5 sorts above the latest stable 4.200.x — so
+      # the empty-`pre` guard, not max-by, is what keeps them out.
       releases
-      |> Enum.filter(&match?({:ok, _}, Version.parse(&1["tag_name"] || "")))
+      |> Enum.filter(&match?({:ok, %Version{pre: []}}, Version.parse(&1["tag_name"] || "")))
       |> Enum.max_by(&Version.parse!(&1["tag_name"]), Version, fn -> nil end)
       |> case do
         nil -> nil
