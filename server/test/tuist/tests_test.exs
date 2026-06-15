@@ -5954,10 +5954,42 @@ defmodule Tuist.TestsTest do
       assert meta.total_count == 1
 
       group = hd(groups)
+      assert group.group_type == :commit
       assert group.git_commit_sha == "abc123"
       assert length(group.runs) == 2
       assert group.passed_count == 1
       assert group.failed_count == 1
+    end
+
+    test "groups runs by module hash across different commits" do
+      project = ProjectsFixtures.project_fixture()
+      hash = "hash-#{System.unique_integer([:positive])}"
+
+      ingest_run_with_hash(project,
+        commit_sha: "commit-a-#{System.unique_integer([:positive])}",
+        status: "success",
+        hash: hash
+      )
+
+      ingest_run_with_hash(project,
+        commit_sha: "commit-b-#{System.unique_integer([:positive])}",
+        status: "failure",
+        hash: hash
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Tests.list_test_cases(project.id, %{})
+      {groups, meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case.id)
+
+      assert meta.total_count == 1
+      group = hd(groups)
+      assert group.group_type == :hash
+      assert group.selective_testing_hash == hash
+      assert group.commit_count == 2
+      assert group.passed_count == 1
+      assert group.failed_count == 1
+      assert length(group.runs) == 2
     end
 
     test "supports pagination on groups" do

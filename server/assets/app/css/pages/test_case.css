@@ -305,7 +305,8 @@
               margin: 0;
 
               & [data-part="commit-sha"],
-              & [data-part="commit-sha-link"] {
+              & [data-part="commit-sha-link"],
+              & [data-part="module-hash"] {
                 color: var(--noora-surface-label-primary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
               }
@@ -317,6 +318,12 @@
                   text-decoration: underline;
                 }
               }
+            }
+
+            & [data-part="subtitle"] {
+              margin: var(--noora-spacing-1) 0 0;
+              color: var(--noora-surface-label-secondary);
+              font: var(--noora-font-weight-regular) var(--noora-font-body-small);
             }
           }
 
@@ -427,7 +434,9 @@
                 margin-left: auto;
 
                 & [data-part="branch-info"],
-                & [data-part="branch-info-link"] {
+                & [data-part="branch-info-link"],
+                & [data-part="commit-sha"],
+                & [data-part="commit-sha-link"] {
                   display: flex;
                   flex-direction: row;
                   align-items: center;
@@ -441,7 +450,8 @@
                   }
                 }
 
-                & [data-part="branch-info-link"] {
+                & [data-part="branch-info-link"],
+                & [data-part="commit-sha-link"] {
                   text-decoration: none;
 
                   &:hover {
