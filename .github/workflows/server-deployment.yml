@@ -100,6 +100,7 @@ env:
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   CAPI_SCALEWAY_IMAGE_NAME: tuist/capi-provider-scaleway-applesilicon
+  RUNNERS_CONTROLLER_IMAGE_NAME: tuist/tuist-runners-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -217,6 +218,20 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.CAPI_SCALEWAY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           cache-from: type=gha,scope=capi-scaleway-applesilicon
           cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
+      # Same per-SHA rationale as the capi image above: this branch passes
+      # the runners-controller new `-cluster-dns-ip` / `-cluster-domain`
+      # flags, which a stale released image wouldn't define (flag.Parse,
+      # os.Exit(2), CrashLoopBackOff). Build + pin from the deploy SHA.
+      - uses: docker/build-push-action@v6
+        name: Build and push runners-controller image
+        with:
+          context: .
+          file: ./infra/runners-controller/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.RUNNERS_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=runners-controller
+          cache-to: type=gha,mode=max,scope=runners-controller
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -489,7 +504,6 @@ jobs:
           }
           {
             echo "XCRESULT_PROCESSOR_TAG=$(resolve 'xcresult-processor-image@')"
-            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
             echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
@@ -646,7 +660,6 @@ jobs:
             fi
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
-          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit linux_runner_image_tag input wins over the
           # resolved linux-runner-image@ semver — same pattern as
@@ -681,6 +694,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             --set macosFleet.image.tag="$IMAGE_TAG" \
+            --set runnersController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
