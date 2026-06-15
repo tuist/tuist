@@ -4,10 +4,12 @@ name: CLI Release Candidate
 #
 # Two modes, selected by the `branch` input:
 #
-#   1. Cut a new line (branch empty): freezes the current canary minor onto a new
-#      protected releases/<major>.<minor>.x branch (created from main HEAD) and
-#      publishes X.Y.0-rc.1. The moment that RC tag exists, main's canary advances
-#      to the next minor, so main keeps moving while the line soaks.
+#   1. Cut a new line (branch empty): publishes X.Y.0-rc.1 for the current canary
+#      minor and, only after that publish succeeds, creates the protected
+#      releases/<major>.<minor>.x branch at the built commit. The moment that RC
+#      tag exists, main's canary advances to the next minor, so main keeps moving
+#      while the line soaks. The branch is created last so a failed publish leaves
+#      no half-cut line: re-running with an empty branch starts cleanly.
 #
 #   2. Iterate an existing line (branch=releases/X.Y.x): after critical fixes /
 #      regressions are cherry-picked onto the release branch via PR (same flow as
@@ -54,6 +56,7 @@ jobs:
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       sha: ${{ steps.resolve.outputs.sha }}
+      branch: ${{ steps.resolve.outputs.branch }}
       changelog_from: ${{ steps.resolve.outputs.changelog_from }}
     steps:
       # Cutting a new line resolves off main; iterating resolves off the branch.
@@ -78,16 +81,6 @@ jobs:
           else
             mise run --no-deps cli:release:channel-version -- rc "$BRANCH"
           fi
-      - name: Create and push the release branch
-        # Only when cutting a new line. The branch is created at the exact SHA
-        # that will be built and tagged, so the line is frozen at this commit.
-        if: ${{ inputs.branch == '' }}
-        env:
-          NEW_BRANCH: ${{ steps.resolve.outputs.branch }}
-          SHA: ${{ steps.resolve.outputs.sha }}
-        run: |
-          set -euo pipefail
-          git push origin "${SHA}:refs/heads/${NEW_BRANCH}"
 
   build-publish:
     name: Build and publish RC
@@ -100,5 +93,28 @@ jobs:
       changelog_from: ${{ needs.prepare.outputs.changelog_from }}
       # RCs are prereleases: never "Latest", never Homebrew.
       make_latest: false
+      prerelease: true
       update_homebrew: false
     secrets: inherit
+
+  create-branch:
+    name: Create the release branch
+    # Only when cutting a new line, and only after the RC has actually published.
+    # Deferring the branch push until here means a failed build/publish leaves no
+    # orphan branch, so the cut can simply be re-run with an empty branch.
+    needs: [prepare, build-publish]
+    if: ${{ inputs.branch == '' }}
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Push the release branch at the published commit
+        env:
+          NEW_BRANCH: ${{ needs.prepare.outputs.branch }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git push origin "${SHA}:refs/heads/${NEW_BRANCH}"

@@ -67,6 +67,13 @@ highest_prerelease_n() {
     | sort -n | tail -n1
 }
 
+# Highest RC tag (not just its N) for a target, e.g. 4.200.0-rc.3. Empty if none.
+highest_rc_tag() {
+  local target=$1 target_re
+  target_re=$(escape_re "$target")
+  git tag -l | { grep -E "^${target_re}-rc\.[0-9]+$" || true; } | sort -V | tail -n1
+}
+
 line_from_branch() {
   local branch=$1
   if ! printf '%s' "$branch" | grep -qE '^releases/[0-9]+\.[0-9]+\.x$'; then
@@ -146,8 +153,17 @@ case "$CHANNEL" in
       echo "::error::${target} has already been promoted to stable." >&2
       exit 1
     fi
-    if [[ -z "$(highest_prerelease_n "$target" rc)" ]]; then
+    rc_tag=$(highest_rc_tag "$target")
+    if [[ -z "$rc_tag" ]]; then
       echo "::error::No RC has been published for ${target}; promote only after at least one RC has soaked." >&2
+      exit 1
+    fi
+    # Promote exactly what soaked: the branch HEAD must be the commit the latest
+    # RC points at. If fixes landed on the branch after the last RC, they have
+    # not soaked, so a new RC must be cut (and soak) before promotion.
+    rc_commit=$(git rev-list -n1 "$rc_tag")
+    if [[ "$rc_commit" != "$SHA" ]]; then
+      echo "::error::Branch HEAD (${SHA}) is ahead of the latest RC ${rc_tag} (${rc_commit}). Cut a new RC with the 'rc' channel and let it soak before promoting." >&2
       exit 1
     fi
     emit version "$target"

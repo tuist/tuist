@@ -96,5 +96,6 @@ jobs:
       changelog_from: ${{ needs.resolve.outputs.changelog_from }}
       # Canaries are prereleases: never "Latest", never Homebrew.
       make_latest: false
+      prerelease: true
       update_homebrew: false
     secrets: inherit

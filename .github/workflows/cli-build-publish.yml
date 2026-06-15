@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: true
+      prerelease:
+        description: "Whether GitHub marks this release as a prerelease (canary/RC)"
+        required: false
+        type: boolean
+        default: false
       update_homebrew:
         description: "Whether to trigger the Homebrew formula update"
         required: false
@@ -245,6 +250,10 @@ jobs:
           # Backports publish off an older line and must not move GitHub's
           # "Latest" pointer; the caller passes "false" for those.
           make_latest: ${{ inputs.make_latest }}
+          # Canary and RC builds are prereleases: this is what makes package
+          # managers (mise, Homebrew) exclude them from default resolution.
+          # make_latest alone only suppresses the "Latest" badge.
+          prerelease: ${{ inputs.prerelease }}
           name: CLI ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
           body: ${{ needs.release-cli.outputs.release-notes }}
