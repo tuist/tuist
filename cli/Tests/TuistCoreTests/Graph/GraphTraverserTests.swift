@@ -1862,6 +1862,58 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.first, publicHeadersPath)
     }
 
+    func test_librariesPublicHeadersFolders_includesLibraryXCFrameworkHeaders() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let dynamicLibraryPath = try AbsolutePath(validating: "/cache/DynamicLibrary.xcframework")
+        let staticLibraryPath = try AbsolutePath(validating: "/cache/StaticLibrary.xcframework")
+        let dynamicLibrary = GraphDependency.testXCFramework(
+            path: dynamicLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libDynamicLibrary.dylib"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic
+        )
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libStaticLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([dynamicLibrary]),
+                dynamicLibrary: Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesPublicHeadersFolders(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            dynamicLibraryPath.appending(components: "macos-arm64_x86_64", "Headers"),
+            staticLibraryPath.appending(components: "macos-arm64_x86_64", "Headers"),
+        ])
+    }
+
     func test_librariesSearchPaths() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -3936,6 +3988,94 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, try [AbsolutePath(validating: "/test/modules")])
+    }
+
+    func test_librariesSwiftIncludePaths_includesLibraryXCFrameworkSwiftModules() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let dynamicLibraryPath = try AbsolutePath(validating: "/cache/DynamicLibrary.xcframework")
+        let staticLibraryPath = try AbsolutePath(validating: "/cache/StaticLibrary.xcframework")
+        let frameworkPath = try AbsolutePath(validating: "/cache/Framework.xcframework")
+        let dynamicLibraryModulePath = dynamicLibraryPath.appending(
+            components: "macos-arm64_x86_64",
+            "DynamicLibrary.swiftmodule"
+        )
+        let staticLibraryModulePath = staticLibraryPath.appending(
+            components: "macos-arm64_x86_64",
+            "StaticLibrary.swiftmodule"
+        )
+        let dynamicLibrary = GraphDependency.testXCFramework(
+            path: dynamicLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libDynamicLibrary.dylib"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic,
+            swiftModules: [
+                dynamicLibraryModulePath,
+                dynamicLibraryModulePath.appending(component: "arm64-apple-macos.swiftmodule"),
+            ]
+        )
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libStaticLibrary.a"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: [
+                staticLibraryModulePath,
+                staticLibraryModulePath.appending(component: "arm64-apple-macos.swiftmodule"),
+            ]
+        )
+        let framework = GraphDependency.testXCFramework(
+            path: frameworkPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "Framework.framework"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic,
+            swiftModules: [
+                frameworkPath.appending(
+                    components: "macos-arm64_x86_64",
+                    "Framework.framework",
+                    "Modules",
+                    "Framework.swiftmodule"
+                ),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([dynamicLibrary, framework]),
+                dynamicLibrary: Set([staticLibrary]),
+                staticLibrary: Set([]),
+                framework: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            dynamicLibraryPath.appending(component: "macos-arm64_x86_64"),
+            staticLibraryPath.appending(component: "macos-arm64_x86_64"),
+        ])
     }
 
     func test_runPathSearchPaths() throws {

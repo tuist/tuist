@@ -232,6 +232,58 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
+    ) func contentHashes_librariesAreComputed() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let staticLibraryTarget = makeLibrary(
+            name: "StaticLibrary",
+            product: .staticLibrary,
+            sources: [source1]
+        )
+        let dynamicLibraryTarget = makeLibrary(
+            name: "DynamicLibrary",
+            product: .dynamicLibrary,
+            sources: [source2]
+        )
+        let project = Project.test(
+            path: temporaryPath.appending(component: "Project"),
+            settings: .default,
+            targets: [staticLibraryTarget, dynamicLibraryTarget]
+        )
+        let staticLibrary = GraphTarget(
+            path: project.path,
+            target: project.targets["StaticLibrary"]!,
+            project: project
+        )
+        let dynamicLibrary = GraphTarget(
+            path: project.path,
+            target: project.targets["DynamicLibrary"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        // When
+        let contentHash = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        #expect(contentHash[staticLibrary] != nil)
+        #expect(contentHash[dynamicLibrary] != nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_hashIsConsistent() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -636,6 +688,18 @@ struct ContentHashingIntegrationTests {
             coreDataModels: coreDataModels,
             scripts: targetScripts,
             dependencies: dependencies
+        )
+    }
+
+    private func makeLibrary(
+        name: String,
+        product: Product,
+        sources: [SourceFile] = []
+    ) -> Target {
+        .test(
+            name: name,
+            product: product,
+            sources: sources
         )
     }
 }

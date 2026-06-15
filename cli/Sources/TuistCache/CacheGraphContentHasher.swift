@@ -24,7 +24,14 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let contentHasher: ContentHashing
     private let versionFetcher: CacheVersionFetching
-    private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle, .macro]
+    private static let cachableProducts: Set<Product> = [
+        .framework,
+        .staticFramework,
+        .staticLibrary,
+        .dynamicLibrary,
+        .bundle,
+        .macro,
+    ]
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
     private let fileSystem: FileSysteming
 
