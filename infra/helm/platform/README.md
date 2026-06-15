@@ -108,19 +108,37 @@ must be reassigned via the Cloud API. The controller owns both.
 ### Reserved egress set (stable customer allowlist)
 
 Customers allowlist a **fixed, reserved set** of egress IPs, not a single one,
-so growing capacity or migrating the active address never forces an allowlist
-change on their side (allowlist changes are slow, high-friction enterprise
-operations). On Hetzner Cloud there is no owned contiguous CIDR / BYOIP, so the
-"set" is a reserved pool of individual Floating IPs in the `tuist-workloads`
-project. The controller's `egressIpAllowlist` lists that set's CIDRs and **fails
-closed** if the active Floating IP falls outside it — egress can only ever
-originate from a documented, allowlisted address.
+so migrating the active address never forces an allowlist change on their side
+(allowlist changes are slow, high-friction enterprise operations). The
+controller's `egressIpAllowlist` lists the set's CIDRs and **fails closed** if
+the active Floating IP falls outside it — egress can only ever originate from a
+documented, allowlisted address.
 
-Operator procurement: reserve the extra Floating IPs up front, then add their
-`/32`s to **both** `egressIpAllowlist` (here) and the customer network guide
-(`server/priv/docs/en/guides/server/network.md`) *before* they are used. The
-prod set is `tuist-production-server-egress[-2..4]` (4 reserved Floating IPs in
-the `tuist-workloads` project); `116.202.0.10` is the active member.
+The prod set is `tuist-production-server-egress` + `-2` (two reserved Floating
+IPs in the `tuist-workloads` project: `116.202.0.10` active + `116.202.4.195`
+spare). Two is enough because it's active/standby — only one IP is ever live;
+the spare exists so the active can be migrated (Hetzner reclaim, region change)
+without a customer allowlist change. To grow the set, reserve more Floating IPs
+and add their `/32`s to **both** `egressIpAllowlist` (here) and the customer
+network guide (`server/priv/docs/en/guides/server/network.md`) *before* they are
+used.
+
+#### Why a set of `/32`s, not a single CIDR
+
+A contiguous block customers could allowlist as one line isn't available on
+Hetzner Cloud: `hcloud floating-ip create` has no range/subnet parameter —
+addresses come from Hetzner's pools, scattered. The alternatives, none of which
+fit today:
+
+- **Hetzner Robot** can order contiguous subnets (`/29`…`/24`) — but only for
+  *dedicated* servers, not the Cloud nodes the egress pool runs on.
+- **BYOIP** (own a PI `/24` + announce via BGP) — fully portable, the gold
+  standard, but a real project (IPv4 `/24` acquisition + ASN + BGP). Only worth
+  it if a stable egress *range* becomes a hard enterprise-sales requirement.
+- **IPv6** Cloud Floating IPs are a `/64` (a real range) — but customer
+  allowlists are virtually always IPv4.
+
+So the set of `/32`s is the right shape here; BYOIP is the someday-if-needed path.
 
 > Background: a 2026-06-14 production outage traced to this binding being a
 > single hand-labelled general worker. It got remediated; neither the label nor

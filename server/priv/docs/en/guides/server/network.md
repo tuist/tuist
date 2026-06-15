@@ -19,8 +19,6 @@ Tuist outbound network traffic that reaches customer infrastructure originates f
 |---|---|
 | 116.202.0.10 | `116.202.0.10/32` |
 | 116.202.4.195 | `116.202.4.195/32` |
-| 5.75.222.2 | `5.75.222.2/32` |
-| 5.75.222.131 | `5.75.222.131/32` |
 
 > [!TIP]
 > Add all of the addresses above to your allowlist to ensure uninterrupted connectivity with Tuist services.
