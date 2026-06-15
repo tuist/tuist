@@ -32,8 +32,8 @@
     },
     {
       "customType": "regex",
-      "description": "stable-egress-controller image pin in the platform chart production overlay. Renovate tracks the ghcr tag the release pushes and opens the bump PR; the platform chart deploy (server-production-deployment) rolls it out on merge.",
-      "fileMatch": ["^infra/helm/platform/values-tuist\\.yaml$"],
+      "description": "stable-egress-controller image pin in the platform chart env overlays. Renovate tracks the ghcr tag the release pushes and opens the bump PR; the platform chart deploy rolls it out on merge.",
+      "fileMatch": ["^infra/helm/platform/values-tuist(-staging|-canary)?\\.yaml$"],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+tag: (?<currentValue>[^\\s]+)"
       ]
@@ -87,7 +87,11 @@
     {
       "description": "stable-egress-controller platform-chart image pin.",
       "matchManagers": ["custom.regex"],
-      "matchFileNames": ["infra/helm/platform/values-tuist.yaml"],
+      "matchFileNames": [
+        "infra/helm/platform/values-tuist.yaml",
+        "infra/helm/platform/values-tuist-staging.yaml",
+        "infra/helm/platform/values-tuist-canary.yaml"
+      ],
       "commitMessagePrefix": "fix(stable-egress-controller):",
       "automerge": true
     },
