@@ -68,11 +68,9 @@ go test ./...
 ```
 
 Covers `selectActive` (sticky / failover / lexical / none), `providerID`
-parsing, and full reconcile (failover moves IP + label; steady state is no-op)
-against controller-runtime's fake client + a fake Floating IP manager.
-
-> Draft note: `go.sum` is not committed yet — run `go mod tidy` (needs network)
-> before the image builds.
+parsing, the egress-IP allowlist guard, and full reconcile (failover moves IP +
+label, stale cluster-wide labels are stripped, steady state is no-op) against
+controller-runtime's fake client + a fake Floating IP manager.
 
 ## Releasing
 
@@ -86,10 +84,8 @@ bumps the platform chart pin (`failoverController.image.tag` in
 `stable-egress-controller-image.yml` workflow only builds `:sha-*`/`:latest` for
 pre-release iteration.
 
-**One remaining prerequisite before the first release/enable:** commit `go.sum`
-(`go mod tidy` — needs network), otherwise the Docker build's `go mod download`
-fails. Keep `failoverController.enabled: false` in prod until the image is
-released and the tag pinned.
+Keep `failoverController.enabled: false` in prod until the image is released and
+the tag pinned (the first `stable-egress-controller@0.1.0` release publishes it).
 
 ## Future work
 

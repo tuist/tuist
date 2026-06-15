@@ -133,10 +133,10 @@ Merging touches three apply paths — `mgmt-cluster-apply` (ClusterClass + the n
 `md-egress` pool), the platform chart (this controller), and the server image.
 Stage them; don't rely on one big drop:
 
-1. **Build the controller image first.** Commit `go.sum` (`go mod tidy`) and let
-   the image build + publish, then pin `failoverController.image.tag` to that
-   semver. Until then keep `failoverController.enabled: false` so the chart
-   never references a missing/mutable image.
+1. **Release the controller image first.** Let the `stable-egress-controller@0.1.0`
+   release publish the ghcr image, and confirm `failoverController.image.tag`
+   matches it. Until the image exists keep `failoverController.enabled: false`
+   so the chart never references a missing image.
 2. **Apply ClusterClass + `md-egress`.** On the `mgmt-cluster-apply` run, confirm
    `kubectl diff` shows only the *new* `md-egress` MachineDeployment and **no
    change to existing pools** (`md-0` runs the server + CNPG Postgres — it must
