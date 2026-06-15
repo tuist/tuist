@@ -73,6 +73,9 @@ protect_breaking_commits = false
 filter_commits = true
 tag_pattern = "grafana-datasource@[0-9].*"
 skip_tags = "beta|alpha"
-ignore_tags = "rc"
+# Match the release-candidate version suffix only. An unanchored "rc" also
+# matches the "rc" in "datasou(rc)e", so git-cliff ignored the
+# grafana-datasource@x.y.z tags and never bumped past the initial version.
+ignore_tags = "-rc"
 topo_order = false
 sort_commits = "newest"
