@@ -146,43 +146,6 @@ So the set of `/32`s is the right shape here; BYOIP is the someday-if-needed pat
 > crash-looped on its first outbound call. The HA pool + controller remove both
 > the SPOF and the manual runbook.
 
-### First rollout / cutover (staged, to avoid timing overlaps)
-
-Merging touches three apply paths — `mgmt-cluster-apply` (ClusterClass + the new
-`md-egress` pool), the platform chart (this controller), and the server image.
-Stage them; don't rely on one big drop:
-
-1. **Release the controller image first.** Let the `stable-egress-controller@0.1.0`
-   release publish the ghcr image, and confirm `failoverController.image.tag`
-   matches it. Until the image exists keep `failoverController.enabled: false`
-   so the chart never references a missing image.
-2. **Apply ClusterClass + `md-egress`.** On the `mgmt-cluster-apply` run, confirm
-   `kubectl diff` shows only the *new* `md-egress` MachineDeployment and **no
-   change to existing pools** (`md-0` runs the server + CNPG Postgres — it must
-   not roll). Wait until the `md-egress` nodes are Ready and carry
-   `tuist.dev/stable-egress-candidate=server`.
-3. **Enable the controller** — do this in a **low-traffic window with no
-   concurrent server deploy/scale**. Flip `failoverController.enabled: true` and
-   deploy the platform chart. The controller elects an `md-egress` node, moves
-   the Floating IP + active label onto it, and strips the label from the current
-   hand-labelled gateway node. This **first** cutover targets a node Cilium has
-   never used as a gateway, so egress is interrupted for the **cold convergence
-   window (~40s+, measured on staging)** — not the few seconds of a warm
-   failover. Inbound/web is unaffected; **running** server pods ride it out, but
-   a pod that *boots* during the window will crash on the (reverted) Keygen
-   check and recover after — hence "no concurrent deploy". Verify:
-   `kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.org`
-   returns the configured egress IP, and exactly one `md-egress` node holds the
-   active label.
-4. **Deploy the server image last** (the Keygen revert) — egress is stable on
-   the HA pool by now, so booting pods validate the license cleanly.
-
-> The CiliumEgressGatewayPolicy and host-configurer select on the **active label
-> only** (not active + candidate). That keeps the cutover from a hand-labelled
-> node gap-free — the controller strips stale active labels cluster-wide, so a
-> two-label selector would only add a window where neither the old node (no
-> candidate label) nor the not-yet-elected `md-egress` node matches.
-
 ### Manual failover (fallback)
 
 Only needed if the controller is disabled or unavailable mid-incident:
