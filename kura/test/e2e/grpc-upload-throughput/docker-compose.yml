@@ -2,8 +2,8 @@ name: kura-throughput-e2e
 
 # Topology (single injected RTT applied identically to all three paths):
 #
-#   client ─► toxiproxy ─► nginx-baseline (64KB window) ─► kura
-#                       ─► nginx-patched  (4MB window)  ─► kura
+#   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
+#                       ─► nginx-patched  (raised window, from chart) ─► kura
 #                       ─► kura (direct, tonic default window)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.

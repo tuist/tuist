@@ -3,11 +3,11 @@
 # code (0 = patched beat baseline by >= MIN_SPEEDUP, non-zero = regression).
 #
 # Tunables (env):
-#   SIZE_MB     payload uploaded per path        (default 24)
+#   SIZE_MB     payload uploaded per path        (default 16)
 #   LATENCY_MS  one-way latency; RTT ~= 2x        (default 50)
 #   CHUNK_KB    ByteStream chunk size             (default 256)
 #   MIN_SPEEDUP required patched/baseline ratio   (default 4)
-#   KURA_IMAGE  kura image under test             (default ghcr.io/tuist/kura:0.10.1)
+#   KURA_IMAGE  kura image under test             (default kura:e2e, built from source if absent)
 set -euo pipefail
 
 cd "$(dirname "$0")"

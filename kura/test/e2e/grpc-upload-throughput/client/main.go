@@ -4,8 +4,8 @@
 // blob via the REAPI google.bytestream.ByteStream/Write RPC through three
 // paths under the SAME injected RTT:
 //
-//	baseline    client -> toxiproxy -> nginx (64KB window)  -> kura
-//	patched     client -> toxiproxy -> nginx (4MB window)   -> kura
+//	baseline    client -> toxiproxy -> nginx (default window)        -> kura
+//	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura
 //	direct_kura client -> toxiproxy -> kura (tonic default window)
 //
 // It prints per-path throughput and asserts that the patched path is at least

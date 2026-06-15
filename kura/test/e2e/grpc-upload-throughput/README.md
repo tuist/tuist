@@ -18,8 +18,8 @@ only in those window directives, plus a direct-to-kura control, all behind
 toxiproxy injecting identical symmetric latency:
 
 ```
-client ─► toxiproxy ─► nginx-baseline (64KB window, today)  ─► kura
-       (latency)    ─► nginx-patched  (4MB window, the fix) ─► kura
+client ─► toxiproxy ─► nginx-baseline (default window, today)        ─► kura
+       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura
                     ─► kura (direct, tonic default ~1MB window)
 ```
 

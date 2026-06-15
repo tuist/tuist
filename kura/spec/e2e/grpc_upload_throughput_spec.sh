@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 
 # Validates the kura gateway HTTP/2 upload-window fix end to end: it stands up
-# the kura gRPC backend behind both the BEFORE (64KB window) and AFTER (4MB
-# window) nginx configs, injects WAN round-trip latency with toxiproxy, and
+# the kura gRPC backend behind both the BEFORE (nginx default window) and AFTER
+# (the chart's raised window) nginx configs, injects WAN latency with toxiproxy, and
 # uploads a blob via REAPI ByteStream through each. The patched window must
 # deliver a large throughput speedup, otherwise the gateway change is not
 # actually buying anything under latency.
