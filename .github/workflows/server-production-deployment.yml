@@ -84,6 +84,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
+  CAPI_SCALEWAY_IMAGE_NAME: tuist/capi-provider-scaleway-applesilicon
 
 jobs:
   # --------------------------------------------------------------------------
@@ -239,6 +240,20 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      # Built per-SHA and pinned with the chart (server-deployment.yml sets
+      # macosFleet.image.tag to this same tag) so the capi manager binary and
+      # the flags the chart passes it never skew. The cascade pre-builds it
+      # once here; every env leg then deploys the pinned tag.
+      - uses: docker/build-push-action@v6
+        name: Build and push CAPI Scaleway Apple Silicon provider image
+        with:
+          context: .
+          file: ./infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.CAPI_SCALEWAY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=capi-scaleway-applesilicon
+          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
