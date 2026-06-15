@@ -79,5 +79,8 @@
   },
   "packageManager": "npm@11.9.0",
   "description": "Grafana data source for Tuist build and test duration metrics.",
-  "private": true
+  "private": true,
+  "overrides": {
+    "serialize-javascript": "7.0.5"
+  }
 }
