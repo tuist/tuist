@@ -20,6 +20,12 @@ defmodule Tuist.GitHub.Releases do
 
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @ttl to_timeout(hour: 1)
+  # Canaries are published on every CLI-touching commit, so the latest stable
+  # CLI release can sit several pages behind canary/RC/component releases (the
+  # endpoint is ordered by publish date, not semver). Walk up to this many pages
+  # of 100 so the highest-semver stable is always in the set we max over; bump it
+  # if CLI commit volume ever outgrows the window between two promotions.
+  @max_release_pages 10
 
   def releases_url do
     @releases_url
@@ -84,23 +90,43 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp req_releases do
-    headers = github_auth_headers()
-    # Request the API max (100) on a single page so the highest-semver CLI
-    # release isn't pushed off the page by component releases or backports
-    # published after it (the list is ordered by publish date and we take the
-    # semver-max from whatever we fetch).
-    req_opts = [finch: Tuist.Finch, headers: headers, params: [per_page: 100]] ++ Retry.retry_options()
+    req_cli_release_pages(releases_url(), 1, [])
+  end
 
-    case Req.get(releases_url(), req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases}} ->
-        releases
+  # Accumulate stable bare-semver CLI releases across paginated GitHub responses.
+  # Scoped component tags and prerelease channels are dropped as we go, so the
+  # cached list stays small no matter how many canaries and component releases
+  # interleave on the first pages. On a mid-pagination error we keep what we
+  # already have rather than discarding everything.
+  defp req_cli_release_pages(url, page, acc) do
+    headers = github_auth_headers()
+    # per_page is only set on the first request; GitHub's Link "next" URLs carry
+    # it forward, so passing params again would duplicate the query parameter.
+    page_params = if page == 1, do: [params: [per_page: 100]], else: []
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ page_params ++ Retry.retry_options()
+
+    case Req.get(url, req_opts) do
+      {:ok, %Req.Response{status: 200, body: releases, headers: resp_headers}} ->
+        acc = acc ++ Enum.filter(releases, &stable_cli_release?/1)
+
+        case extract_next_url(resp_headers) do
+          next_url when is_binary(next_url) and page < @max_release_pages ->
+            req_cli_release_pages(next_url, page + 1, acc)
+
+          _ ->
+            acc
+        end
 
       {:ok, %Req.Response{status: status}} when status in 500..599 ->
-        []
+        acc
 
       {:error, _reason} ->
-        []
+        acc
     end
+  end
+
+  defp stable_cli_release?(release) do
+    match?({:ok, %Version{pre: []}}, Version.parse(release["tag_name"] || ""))
   end
 
   defp github_auth_headers do

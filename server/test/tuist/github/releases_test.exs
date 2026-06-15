@@ -174,6 +174,55 @@ defmodule Tuist.GitHub.ReleasesTest do
       assert release.tag_name == "4.200.0"
     end
 
+    test "follows pagination to find the latest stable CLI release buried behind canaries" do
+      # Given: with a canary published on every commit, the first page can be all
+      # canary/component releases and the latest stable lands on a later page. The
+      # fetch must paginate via the Link header instead of stopping at page one.
+      published_at = DateTime.utc_now()
+      releases_url = Releases.releases_url()
+      next_url = "https://api.github.com/repos/tuist/tuist/releases?page=2&per_page=100"
+
+      page_one =
+        Enum.map(1..3, fn n ->
+          %{
+            "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+            "name" => "CLI 4.201.0-canary.#{n}",
+            "tag_name" => "4.201.0-canary.#{n}",
+            "html_url" => "https://github.com/tuist/tuist/releases/tag/4.201.0-canary.#{n}",
+            "assets" => []
+          }
+        end)
+
+      stable = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "CLI 4.200.0",
+        "tag_name" => "4.200.0",
+        "html_url" => "https://github.com/tuist/tuist/releases/tag/4.200.0",
+        "assets" => []
+      }
+
+      stub(Req, :get, fn url, _opts ->
+        cond do
+          url == releases_url ->
+            {:ok,
+             %Req.Response{
+               status: 200,
+               body: page_one,
+               headers: %{"link" => ["<#{next_url}>; rel=\"next\""]}
+             }}
+
+          url == next_url ->
+            {:ok, %Req.Response{status: 200, body: [stable], headers: %{}}}
+        end
+      end)
+
+      # When
+      release = Releases.get_latest_cli_release()
+
+      # Then
+      assert release.tag_name == "4.200.0"
+    end
+
     test "returns cached release when update: false and cache exists" do
       # Given
       published_at = DateTime.utc_now()
