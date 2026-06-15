@@ -76,6 +76,8 @@ func main() {
 		tailscaleAcceptRoutes        bool
 		vmKuraEgressCIDR             string
 		vmClusterDNSIP               string
+		vmCachePNID                  string
+		vmCachePNCIDR                string
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
@@ -174,6 +176,19 @@ func main() {
 			"lets Tart VMs reach on port 53, so the runner VM's /etc/resolver "+
 			"entry can resolve *.svc.cluster.local. Requires --vm-kura-egress-cidr; "+
 			"flows from the chart's macosFleet.vmClusterEgress.clusterDNSIP.")
+	flag.StringVar(&vmCachePNID, "vm-cache-pn-id",
+		envOrDefault("CAPI_VM_CACHE_PN_ID", ""),
+		"Scaleway Private Network ID carrying the kura runner-cache NodePort "+
+			"endpoints. When set with --vm-cache-pn-cidr, the operator attaches "+
+			"every Mac mini to this PN, resolves the per-host VLAN, and bootstrap "+
+			"materializes the VLAN interface + VM egress pass + NAT. Flows from "+
+			"the chart's macosFleet.vmCachePrivateNetwork.id.")
+	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
+		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
+		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22). "+
+			"The VM egress firewall lets Tart VMs reach it on the Kubernetes "+
+			"NodePort range only. Flows from the chart's "+
+			"macosFleet.vmCachePrivateNetwork.cidr.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -418,6 +433,8 @@ func main() {
 		TailscaleAcceptRoutes:        tailscaleAcceptRoutes,
 		VMKuraEgressCIDR:             vmKuraEgressCIDR,
 		VMClusterDNSIP:               vmClusterDNSIP,
+		VMCachePNID:                  vmCachePNID,
+		VMCachePNCIDR:                vmCachePNCIDR,
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
@@ -432,6 +449,26 @@ func main() {
 		RunnerResolver:               runnerResolver,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup MachineReconciler")
+		os.Exit(1)
+	}
+
+	// Linux Scaleway Instance machines (the kura runner-cache pool). Same
+	// provider, separate reconciler: regular Instances created on demand
+	// that self-join via the CAPI kubeadm cloud-init.
+	instanceClient, err := scaleway.NewInstanceClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway instance client")
+		os.Exit(1)
+	}
+	if err := (&controllers.ScalewayInstanceMachineReconciler{
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		ScalewayClient: instanceClient,
+		Recorder:       mgr.GetEventRecorderFor("scalewayinstancemachine-controller"),
+		DefaultImage:   "ubuntu_noble",
+		DefaultZone:    "fr-par-1",
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup ScalewayInstanceMachineReconciler")
 		os.Exit(1)
 	}
 

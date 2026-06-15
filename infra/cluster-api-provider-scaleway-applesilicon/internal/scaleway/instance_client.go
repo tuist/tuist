@@ -57,6 +57,25 @@ func NewInstanceClient(client *scw.Client) *InstanceClient {
 	}
 }
 
+// NewInstanceClientFromEnv builds an InstanceClient with the same env/profile
+// auth the Apple Silicon NewClient uses, for wiring in the manager.
+func NewInstanceClientFromEnv() (*InstanceClient, error) {
+	if cfg, err := scw.LoadConfig(); err == nil {
+		if profile, perr := cfg.GetActiveProfile(); perr == nil {
+			client, cerr := scw.NewClient(scw.WithProfile(profile), scw.WithEnv())
+			if cerr != nil {
+				return nil, fmt.Errorf("scaleway client: %w", cerr)
+			}
+			return NewInstanceClient(client), nil
+		}
+	}
+	client, err := scw.NewClient(scw.WithEnv())
+	if err != nil {
+		return nil, fmt.Errorf("scaleway client: %w", err)
+	}
+	return NewInstanceClient(client), nil
+}
+
 // CreateInstanceParams is the desired shape of one Linux instance.
 type CreateInstanceParams struct {
 	Name             string
