@@ -94,7 +94,7 @@ msgid "Cache Runs"
 msgstr ""
 
 #: lib/tuist_web/live/layout_live.ex:106
-#: lib/tuist_web/live/layout_live.ex:191
+#: lib/tuist_web/live/layout_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr ""
@@ -334,7 +334,7 @@ msgstr ""
 msgid "The account %{account_handle} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:168
+#: lib/tuist_web/live/layout_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -372,7 +372,7 @@ msgstr ""
 msgid "The run with ID %{run_id} was not found."
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:270
+#: lib/tuist_web/live/layout_live.ex:267
 #, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
 msgstr ""
@@ -387,8 +387,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:586
-#: lib/tuist_web/components/app_layout_components.ex:623
+#: lib/tuist_web/components/app_layout_components.ex:585
+#: lib/tuist_web/components/app_layout_components.ex:622
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -574,7 +574,7 @@ msgstr ""
 msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
 msgstr ""
 
-#: lib/tuist_web/components/layouts/ops.html.heex:8
+#: lib/tuist_web/components/layouts/ops.html.heex:7
 #, elixir-autogen, elixir-format
 msgid "Tuist Ops"
 msgstr ""
