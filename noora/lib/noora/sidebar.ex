@@ -77,6 +77,7 @@ defmodule Noora.Sidebar do
         data-part="collapsible-group"
         phx-hook="NooraCollapsible"
         data-open={@default_open}
+        data-persist-key={@id}
         data-disabled={@disabled}
         {@rest}
       >
