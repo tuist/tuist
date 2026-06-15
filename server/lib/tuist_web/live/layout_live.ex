@@ -135,7 +135,6 @@ defmodule TuistWeb.LayoutLive do
        ]
      })
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:selected_project, selected_project)
      |> assign(:current_user, current_user)
@@ -201,7 +200,6 @@ defmodule TuistWeb.LayoutLive do
        Authorization.authorize(:billing_read, current_user, selected_account) == :ok
      )
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:selected_account, selected_account)
      |> assign(:current_user, current_user)
      |> assign(:current_user_accounts, current_user_accounts)}
@@ -214,7 +212,6 @@ defmodule TuistWeb.LayoutLive do
      socket
      |> assign_current_path()
      |> assign_latest_app_release()
-     |> assign_latest_cli_release()
      |> assign(:current_user, current_user)}
   end
 
@@ -287,24 +284,6 @@ defmodule TuistWeb.LayoutLive do
       end
 
     {:ok, %{latest_app_release: latest_app_release}}
-  end
-
-  def assign_latest_cli_release(socket) do
-    assign_async(socket, :latest_cli_release, &get_latest_cli_release/0)
-  end
-
-  defp get_latest_cli_release do
-    latest_cli_release = Releases.get_latest_cli_release()
-
-    latest_cli_release =
-      if not is_nil(latest_cli_release) do
-        %{published_at: published_at} = latest_cli_release
-
-        if Timex.after?(published_at, Timex.shift(Timex.today(), days: -1)),
-          do: latest_cli_release
-      end
-
-    {:ok, %{latest_cli_release: latest_cli_release}}
   end
 
   defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
