@@ -28,12 +28,16 @@ rules:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
       - scalewayapplesiliconclusters
+      - scalewayinstancemachines
+      - scalewayinstancemachinetemplates
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
       - scalewayapplesiliconclusters/status
+      - scalewayinstancemachines/status
+      - scalewayinstancemachines/finalizers
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
@@ -54,7 +58,9 @@ rules:
     # host is released back to Scaleway (the kubelet can't deregister
     # itself once the VM is gone).
     resources: [nodes]
-    verbs: [get, list, watch, delete]
+    # `patch` lets the Instance reconciler stamp the foreign providerID
+    # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
+    verbs: [get, list, watch, patch, delete]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
@@ -299,6 +305,17 @@ spec:
             # `*.svc.cluster.local`. Verify with
             # `kubectl -n kube-system get svc kube-dns`.
             - --vm-cluster-dns-ip={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.id }}
+            # Scaleway Private Network carrying the kura runner-cache
+            # NodePort endpoints. The operator attaches every mini,
+            # resolves the per-host VLAN, and bootstrap materializes
+            # the VLAN interface + VM egress pass + NAT — the data
+            # plane dispatch's node-port cache_endpoint_url rides.
+            - --vm-cache-pn-id={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
+            - --vm-cache-pn-cidr={{ . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the

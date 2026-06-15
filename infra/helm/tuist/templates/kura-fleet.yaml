@@ -1,0 +1,121 @@
+{{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
+{{- $fleetName := include "tuist.componentName" (dict "root" . "component" "kura-fleet") }}
+{{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
+{{- $k8sMinor := .Values.kuraFleet.kubernetesMinorVersion | default "v1.34" }}
+{{- /*
+Kura runner-cache fleet — declarative Scaleway Linux Instances.
+
+Mirrors macos-fleet.yaml, but for regular Scaleway Instances (the PRO2-S
+kura runner-cache pool) instead of Apple Silicon Macs. The infra side is a
+ScalewayInstanceMachineTemplate the in-house provider reconciles into a
+Scaleway Instance; the bootstrap side is a real KubeadmConfigTemplate (Linux
+nodes self-join via kubeadm, unlike the Macs' noop bootstrap). The pool label
++ the runner-cache taint live here, declaratively — the taint is what the kura
+runner-cache pods' toleration targets.
+
+OnDelete strategy: don't auto-churn the cache node on a template change (it
+loses cache warmth + re-bootstraps the mesh); roll it deliberately by deleting
+the Machine.
+*/ -}}
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: ScalewayInstanceMachineTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+spec:
+  template:
+    spec:
+      commercialType: {{ .Values.kuraFleet.machine.commercialType | default "PRO2-S" | quote }}
+      zone: {{ .Values.kuraFleet.machine.zone | default "fr-par-1" | quote }}
+      image: {{ .Values.kuraFleet.machine.image | default "ubuntu_noble" | quote }}
+      rootVolumeGB: {{ .Values.kuraFleet.machine.rootVolumeGB | default 50 }}
+      privateNetworkID: {{ required "kuraFleet.machine.privateNetworkID is required" .Values.kuraFleet.machine.privateNetworkID | quote }}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-fleet
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          criSocket: unix:///run/containerd/containerd.sock
+          kubeletExtraArgs:
+            # The reconciler sets the foreign providerID on the Node, but
+            # passing it here too lets kubelet self-report it from first boot.
+            cloud-provider: external
+          taints:
+            - key: tuist.dev/runner-cache
+              value: "true"
+              effect: NoSchedule
+      preKubeadmCommands:
+        - set -euo pipefail
+        - swapoff -a && sed -ri '/\sswap\s/s/^/#/' /etc/fstab
+        - modprobe overlay && modprobe br_netfilter
+        - printf 'overlay\nbr_netfilter\n' > /etc/modules-load.d/k8s.conf
+        - printf 'net.bridge.bridge-nf-call-iptables=1\nnet.ipv4.ip_forward=1\nnet.bridge.bridge-nf-call-ip6tables=1\n' > /etc/sysctl.d/k8s.conf
+        - sysctl --system
+        - export DEBIAN_FRONTEND=noninteractive
+        - apt-get update
+        - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+        - mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml
+        - sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+        - systemctl restart containerd && systemctl enable containerd
+        - mkdir -p /etc/apt/keyrings
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ $k8sMinor }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ $k8sMinor }}/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update
+        - apt-get install -y kubelet kubeadm kubectl
+        - apt-mark hold kubelet kubeadm kubectl
+        - systemctl enable kubelet
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: {{ $fleetName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-fleet
+    tuist.dev/fleet: {{ $fleetName }}
+    cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+spec:
+  clusterName: {{ $clusterName }}
+  replicas: {{ .Values.kuraFleet.replicas | default 1 }}
+  strategy:
+    type: OnDelete
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+      tuist.dev/fleet: {{ $fleetName }}
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: {{ $clusterName }}
+        tuist.dev/fleet: {{ $fleetName }}
+        # CAPI propagates node.cluster.x-k8s.io/* Machine labels to the Node,
+        # so the pool label lands declaratively (the runner-cache region's
+        # nodeSelector pins the cache pods here).
+        node.cluster.x-k8s.io/pool: {{ .Values.kuraFleet.nodePool | default "kura-scw-fr-par" | quote }}
+    spec:
+      clusterName: {{ $clusterName }}
+      version: {{ .Values.kuraFleet.kubernetesVersion | default "v1.34.8" | quote }}
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: {{ $fleetName }}
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: ScalewayInstanceMachineTemplate
+        name: {{ $fleetName }}
+{{- end }}

@@ -547,6 +547,29 @@ capi:
         name: onepassword
         kind: ClusterSecretStore
 
+# Kura runner-cache fleet — declarative Scaleway Linux Instances (the
+# PRO2-S co-located with the Mac fleet). Off by default; managed envs that
+# run the runner cache enable it and set the PN id. Scale with
+# `kubectl scale machinedeployment <name> --replicas=N`.
+kuraFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
+  # region's nodeSelector pins the cache pods here.
+  nodePool: kura-scw-fr-par
+  # Kubernetes apt repo minor (pkgs.k8s.io channel) + the joined kubelet
+  # version. Keep both in step with the cluster's control-plane version.
+  kubernetesMinorVersion: "v1.34"
+  kubernetesVersion: "v1.34.8"
+  machine:
+    commercialType: PRO2-S
+    zone: fr-par-1
+    image: ubuntu_noble
+    rootVolumeGB: 50
+    # Required when enabled: the VPC Private Network the instance attaches to
+    # (the runner-cache PN shared with the Mac fleet).
+    privateNetworkID: ""
+
 # Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
 macosFleet:
   enabled: false
@@ -757,6 +780,15 @@ macosFleet:
   vmClusterEgress:
     kuraServiceCIDR: ""
     clusterDNSIP: ""
+  # Scaleway Private Network for the kura runner-cache node-port data
+  # plane (per-account NodePorts on the kura-scw-fr-par pool). Both
+  # fields required to enable; the PN must exist in the env's Scaleway
+  # project and the kura node pool must be attached to it. The
+  # operator's IAM principal needs Apple Silicon Private Networks
+  # permissions to attach minis.
+  vmCachePrivateNetwork:
+    id: ""
+    cidr: ""
   machine:
     # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
     # it has the most reliable inventory in fr-par-1 and the
