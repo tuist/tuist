@@ -62,3 +62,7 @@ services:
       LATENCY_MS: "${LATENCY_MS:-50}"
       CHUNK_KB: "${CHUNK_KB:-256}"
       MIN_SPEEDUP: "${MIN_SPEEDUP:-4}"
+      # Patched window derived from the chart by generate-confs.sh, so the
+      # client's reference ceiling tracks helm (default 4m if run outside run.sh).
+      PATCHED_WINDOW_BYTES: "${PATCHED_WINDOW_BYTES:-4194304}"
+      PATCHED_WINDOW_LABEL: "${PATCHED_WINDOW_LABEL:-4m}"

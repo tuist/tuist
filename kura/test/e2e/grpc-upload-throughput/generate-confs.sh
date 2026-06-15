@@ -26,6 +26,19 @@ cfg() {
     ".\"${GATEWAY_KEY}\".controller.config.\"$1\" // \"null\"" < "$CHART_VALUES"
 }
 
+# Convert an nginx size token (e.g. 4m, 64k) to bytes. Portable across BSD/GNU.
+to_bytes() {
+  local v="$1" num unit
+  num="$(printf '%s' "$v" | tr -dc '0-9')"
+  unit="$(printf '%s' "$v" | tr -d '0-9')"
+  case "$unit" in
+    k|K) echo $(( num * 1024 )) ;;
+    m|M) echo $(( num * 1024 * 1024 )) ;;
+    g|G) echo $(( num * 1024 * 1024 * 1024 )) ;;
+    *)   echo "${num:-0}" ;;
+  esac
+}
+
 cbb="$(cfg client-body-buffer-size)"
 streams="$(cfg http2-max-concurrent-streams)"
 snippet="$(cfg http-snippet)"
@@ -59,6 +72,23 @@ render() {
 }
 render patched generated/patched.conf
 render baseline generated/baseline.conf
+
+# Derive the advertised HTTP/2 window from the chart so the client's reference
+# ceiling reflects helm rather than a constant. Falls back to nginx's default
+# when the override is absent (i.e. the fix was removed).
+window_label="nginx-default"
+window_bytes=65536
+if [ "$snippet" != "null" ]; then
+  size="$(printf '%s' "$snippet" | sed -n 's/.*http2_body_preread_size *\([0-9]*[kKmMgG]*\).*/\1/p')"
+  if [ -n "$size" ]; then
+    window_label="$size"
+    window_bytes="$(to_bytes "$size")"
+  fi
+fi
+{
+  echo "PATCHED_WINDOW_LABEL=${window_label}"
+  echo "PATCHED_WINDOW_BYTES=${window_bytes}"
+} > generated/window.env
 
 echo "generate-confs: from ${CHART_VALUES} [${GATEWAY_KEY}]"
 echo "  client-body-buffer-size=${cbb}  http2-max-concurrent-streams=${streams}  http-snippet=\"${snippet}\""

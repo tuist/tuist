@@ -20,6 +20,15 @@ cleanup
 # Render baseline/patched nginx confs from the live chart values.
 ./generate-confs.sh
 
+# Export the chart-derived patched window so the client's reference ceiling
+# reflects helm too (compose interpolates these into the client env).
+if [ -f generated/window.env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./generated/window.env
+  set +a
+fi
+
 # Build only the measurement client. kura is built lazily by `up` from source
 # if its image (KURA_IMAGE, default kura:e2e) isn't present locally; in CI the
 # image is prebuilt and retagged, so no kura rebuild happens here.

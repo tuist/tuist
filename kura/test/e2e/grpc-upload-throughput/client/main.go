@@ -31,6 +31,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// Framework defaults used only for the informational reference ceilings — NOT
+// chart values, so they are not read from helm: the baseline path inherits
+// nginx's default HTTP/2 request-body window, and the direct path is bounded by
+// the default HTTP/2 stream window kura's tonic/hyper server advertises. The
+// patched window IS a chart value and arrives via PATCHED_WINDOW_BYTES.
+const (
+	nginxDefaultWindowBytes = 64 * 1024
+	kuraDefaultWindowBytes  = 1024 * 1024
+)
+
 type target struct {
 	name     string
 	listen   string // address toxiproxy listens on, inside its own container
@@ -65,6 +75,10 @@ func main() {
 	sizeMB := envInt("SIZE_MB", 24)
 	chunkKB := envInt("CHUNK_KB", 256)
 	minSpeedup := float64(envInt("MIN_SPEEDUP", 4))
+	// Patched window comes from the chart (via generate-confs.sh + run.sh), so
+	// even the printed expectation tracks helm, not a hardcoded value.
+	patchedWindowBytes := envInt("PATCHED_WINDOW_BYTES", 4*1024*1024)
+	patchedWindowLabel := env("PATCHED_WINDOW_LABEL", "4m")
 
 	sizeBytes := sizeMB * 1024 * 1024
 	chunk := chunkKB * 1024
@@ -84,9 +98,9 @@ func main() {
 	fmt.Printf("=== Kura gRPC upload throughput e2e ===\n")
 	fmt.Printf("payload=%dMB chunk=%dKB injected RTT=%dms (%dms each direction)\n\n", sizeMB, chunkKB, rttMs, latencyMs)
 	fmt.Printf("window-bound throughput ceilings at %dms RTT (1 stream):\n", rttMs)
-	fmt.Printf("  baseline nginx  64KB window -> ~%6.2f MB/s\n", mbpsCeiling(64*1024, rttMs))
-	fmt.Printf("  patched  nginx   4MB window -> ~%6.2f MB/s\n", mbpsCeiling(4*1024*1024, rttMs))
-	fmt.Printf("  direct   kura    1MB window -> ~%6.2f MB/s\n\n", mbpsCeiling(1024*1024, rttMs))
+	fmt.Printf("  baseline nginx  default ~64KB window      -> ~%6.2f MB/s\n", mbpsCeiling(nginxDefaultWindowBytes, rttMs))
+	fmt.Printf("  patched  nginx  %-5s window (from chart)   -> ~%6.2f MB/s\n", patchedWindowLabel, mbpsCeiling(patchedWindowBytes, rttMs))
+	fmt.Printf("  direct   kura   default ~1MB window        -> ~%6.2f MB/s\n\n", mbpsCeiling(kuraDefaultWindowBytes, rttMs))
 
 	results := map[string]float64{}
 	for i, t := range targets {
