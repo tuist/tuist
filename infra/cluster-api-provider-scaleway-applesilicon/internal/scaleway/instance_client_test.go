@@ -18,6 +18,7 @@ type fakeInstanceAPI struct {
 	actions      []instance.ServerAction
 	listServers  []*instance.Server
 	getServer    *instance.Server
+	getServerErr error
 	deleteServer *instance.DeleteServerRequest
 }
 
@@ -27,6 +28,9 @@ func (f *fakeInstanceAPI) CreateServer(req *instance.CreateServerRequest, _ ...s
 }
 
 func (f *fakeInstanceAPI) GetServer(req *instance.GetServerRequest, _ ...scw.RequestOption) (*instance.GetServerResponse, error) {
+	if f.getServerErr != nil {
+		return nil, f.getServerErr
+	}
 	return &instance.GetServerResponse{Server: f.getServer}, nil
 }
 
@@ -68,7 +72,7 @@ func (f *fakeIPAMAPI) ListIPs(req *ipam.ListIPsRequest, _ ...scw.RequestOption) 
 	return &ipam.ListIPsResponse{IPs: f.ips}, nil
 }
 
-func TestCreateInstance_OrdersResolvesAttachesAndPowersOn(t *testing.T) {
+func TestCreateInstance_OrdersAndSetsUserDataOnly(t *testing.T) {
 	inst := &fakeInstanceAPI{}
 	mkt := &fakeMarketplaceAPI{}
 	c := &InstanceClient{Instance: inst, Marketplace: mkt, IPAM: &fakeIPAMAPI{}, ProjectID: "proj-1"}
@@ -97,12 +101,121 @@ func TestCreateInstance_OrdersResolvesAttachesAndPowersOn(t *testing.T) {
 	if inst.userData == nil || inst.userData.Key != "cloud-init" {
 		t.Fatalf("expected cloud-init user-data set, got %#v", inst.userData)
 	}
+	// PN attach and poweron are separate idempotent steps now, not part of create.
+	if inst.nic != nil {
+		t.Fatalf("expected no PN attach during create, got %#v", inst.nic)
+	}
+	if len(inst.actions) != 0 {
+		t.Fatalf("expected no power actions during create, got %v", inst.actions)
+	}
+}
+
+func TestEnsurePrivateNIC_AttachesWhenAbsentSkipsWhenPresent(t *testing.T) {
+	inst := &fakeInstanceAPI{}
+	c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+
+	if err := c.EnsurePrivateNIC(context.Background(), scw.ZoneFrPar1, &instance.Server{ID: "srv-1"}, "pn-1"); err != nil {
+		t.Fatal(err)
+	}
 	if inst.nic == nil || inst.nic.PrivateNetworkID != "pn-1" {
-		t.Fatalf("expected PN attach, got %#v", inst.nic)
+		t.Fatalf("expected PN attach when absent, got %#v", inst.nic)
+	}
+
+	inst.nic = nil
+	attached := &instance.Server{ID: "srv-1", PrivateNics: []*instance.PrivateNIC{{ID: "nic-1", PrivateNetworkID: "pn-1"}}}
+	if err := c.EnsurePrivateNIC(context.Background(), scw.ZoneFrPar1, attached, "pn-1"); err != nil {
+		t.Fatal(err)
+	}
+	if inst.nic != nil {
+		t.Fatalf("expected no re-attach when NIC already present, got %#v", inst.nic)
+	}
+}
+
+func TestEnsurePoweredOn_PowersStoppedSkipsRunning(t *testing.T) {
+	inst := &fakeInstanceAPI{}
+	c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+
+	if err := c.EnsurePoweredOn(context.Background(), scw.ZoneFrPar1, &instance.Server{ID: "srv-1", State: instance.ServerStateStopped}); err != nil {
+		t.Fatal(err)
 	}
 	if len(inst.actions) != 1 || inst.actions[0] != instance.ServerActionPoweron {
-		t.Fatalf("expected exactly one poweron action, got %v", inst.actions)
+		t.Fatalf("expected one poweron on a stopped server, got %v", inst.actions)
 	}
+
+	inst.actions = nil
+	if err := c.EnsurePoweredOn(context.Background(), scw.ZoneFrPar1, &instance.Server{ID: "srv-1", State: instance.ServerStateRunning}); err != nil {
+		t.Fatal(err)
+	}
+	if len(inst.actions) != 0 {
+		t.Fatalf("expected no action on a running server, got %v", inst.actions)
+	}
+}
+
+func TestDeleteInstance_StateMachine(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("running powers off and requeues", func(t *testing.T) {
+		inst := &fakeInstanceAPI{getServer: &instance.Server{ID: "srv-1", State: instance.ServerStateRunning}}
+		c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+		done, err := c.DeleteInstance(ctx, scw.ZoneFrPar1, "srv-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done {
+			t.Fatal("expected not-done while powering off")
+		}
+		if len(inst.actions) != 1 || inst.actions[0] != instance.ServerActionPoweroff {
+			t.Fatalf("expected one poweroff, got %v", inst.actions)
+		}
+		if inst.deleteServer != nil {
+			t.Fatal("expected no delete before the server is stopped")
+		}
+	})
+
+	t.Run("stopping just requeues", func(t *testing.T) {
+		inst := &fakeInstanceAPI{getServer: &instance.Server{ID: "srv-1", State: instance.ServerStateStopping}}
+		c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+		done, err := c.DeleteInstance(ctx, scw.ZoneFrPar1, "srv-1")
+		if err != nil || done {
+			t.Fatalf("expected (false,nil) while stopping, got (%v,%v)", done, err)
+		}
+		if len(inst.actions) != 0 || inst.deleteServer != nil {
+			t.Fatal("expected no poweroff/delete while already stopping")
+		}
+	})
+
+	t.Run("stopped deletes and is done", func(t *testing.T) {
+		inst := &fakeInstanceAPI{getServer: &instance.Server{ID: "srv-1", State: instance.ServerStateStopped}}
+		c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+		done, err := c.DeleteInstance(ctx, scw.ZoneFrPar1, "srv-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !done {
+			t.Fatal("expected done after delete")
+		}
+		if len(inst.actions) != 0 {
+			t.Fatalf("expected no poweroff on an already-stopped server, got %v", inst.actions)
+		}
+		if inst.deleteServer == nil {
+			t.Fatal("expected the server to be deleted")
+		}
+	})
+
+	t.Run("already gone is done", func(t *testing.T) {
+		inst := &fakeInstanceAPI{getServerErr: &scw.ResourceNotFoundError{Resource: "server", ResourceID: "srv-1"}}
+		c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+		done, err := c.DeleteInstance(ctx, scw.ZoneFrPar1, "srv-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !done {
+			t.Fatal("expected done when the server is already gone")
+		}
+		if len(inst.actions) != 0 || inst.deleteServer != nil {
+			t.Fatal("expected no actions on an absent server")
+		}
+	})
 }
 
 func TestFindServerByName_MatchesExact(t *testing.T) {

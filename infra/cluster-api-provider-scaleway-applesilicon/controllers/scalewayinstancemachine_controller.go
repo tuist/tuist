@@ -142,19 +142,20 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		return r.fail(machine, "InvalidZone", fmt.Sprintf("zone %q: %v", machine.Spec.Zone, err))
 	}
 
-	// Provision (idempotent): reuse the server named after this Machine if
-	// it already exists, otherwise mint the kubelet identity, render a
-	// self-join cloud-init, and create the instance with it.
+	// Provision: find-or-create the server named after this Machine, then run
+	// the post-create steps (PN attach, power on) idempotently. ServerID is
+	// recorded as soon as the server exists — before those steps — so a
+	// failure mid-provision leaves a cleanable instance rather than an
+	// untracked paid server, and providerID is set only once both steps
+	// succeed so a transient failure is retried instead of stranding a
+	// half-configured node.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
-		existing, findErr := r.ScalewayClient.FindServerByName(ctx, zone, machine.Name)
+		server, findErr := r.ScalewayClient.FindServerByName(ctx, zone, machine.Name)
 		if findErr != nil {
 			return ctrl.Result{}, findErr
 		}
 
-		var serverID string
-		if existing != nil {
-			serverID = existing.ID
-		} else {
+		if server == nil {
 			identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
 			if idErr != nil {
 				machine.Status.Phase = "Pending"
@@ -178,13 +179,20 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 			if createErr != nil {
 				return ctrl.Result{}, createErr
 			}
-			serverID = created.ID
-			logger.Info("provisioned Scaleway instance", "id", serverID)
-			r.event(machine, "Provisioned", "Ordered Scaleway instance %s", serverID)
+			server = created
+			logger.Info("provisioned Scaleway instance", "id", server.ID)
+			r.event(machine, "Provisioned", "Ordered Scaleway instance %s", server.ID)
+		}
+		machine.Status.ServerID = server.ID
+
+		if err := r.ScalewayClient.EnsurePrivateNIC(ctx, zone, server, machine.Spec.PrivateNetworkID); err != nil {
+			return ctrl.Result{}, err
+		}
+		if err := r.ScalewayClient.EnsurePoweredOn(ctx, zone, server); err != nil {
+			return ctrl.Result{}, err
 		}
 
-		providerID := scaleway.ProviderID(zone, serverID)
-		machine.Status.ServerID = serverID
+		providerID := scaleway.ProviderID(zone, server.ID)
 		machine.Spec.ProviderID = &providerID
 		machine.Status.Phase = "Provisioning"
 		return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
@@ -260,9 +268,14 @@ func (r *ScalewayInstanceMachineReconciler) reconcileDelete(ctx context.Context,
 	if machine.Status.ServerID != "" {
 		zone, err := scw.ParseZone(firstNonEmpty(machine.Spec.Zone, r.DefaultZone))
 		if err == nil {
-			if delErr := r.ScalewayClient.DeleteInstance(ctx, zone, machine.Status.ServerID); delErr != nil {
+			done, delErr := r.ScalewayClient.DeleteInstance(ctx, zone, machine.Status.ServerID)
+			if delErr != nil {
 				r.event(machine, "DeleteFailed", "delete Scaleway instance %s: %v (will retry)", machine.Status.ServerID, delErr)
 				return ctrl.Result{}, delErr
+			}
+			if !done {
+				machine.Status.Phase = "Deleting"
+				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 			}
 		}
 	}

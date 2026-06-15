@@ -3,7 +3,9 @@ package scaleway
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	instance "github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	ipam "github.com/scaleway/scaleway-sdk-go/api/ipam/v1"
@@ -116,10 +118,12 @@ func (c *InstanceClient) FindServerByName(ctx context.Context, zone scw.Zone, na
 	return nil, nil
 }
 
-// CreateInstance orders the server (root volume from the resolved image),
-// sets the bootstrap cloud-init as user-data, attaches the Private Network,
-// and powers it on. Returns the created server. Idempotent at the caller via
-// FindServerByName.
+// CreateInstance orders the server (root volume from the resolved image) and
+// sets the bootstrap cloud-init as user-data. It deliberately stops short of
+// attaching the Private Network and powering on: those are separate idempotent
+// steps (EnsurePrivateNIC, EnsurePoweredOn) the reconciler drives once the
+// server's ID is recorded, so a failure after create (e.g. a PN-attach IAM
+// denial) is retried instead of stranding a half-configured paid server.
 func (c *InstanceClient) CreateInstance(ctx context.Context, p CreateInstanceParams) (*instance.Server, error) {
 	img, err := c.Marketplace.GetLocalImageByLabel(&marketplace.GetLocalImageByLabelRequest{
 		ImageLabel:     p.ImageLabel,
@@ -162,25 +166,47 @@ func (c *InstanceClient) CreateInstance(ctx context.Context, p CreateInstancePar
 		}
 	}
 
-	if p.PrivateNetworkID != "" {
-		if _, err := c.Instance.CreatePrivateNIC(&instance.CreatePrivateNICRequest{
-			Zone:             p.Zone,
-			ServerID:         server.ID,
-			PrivateNetworkID: p.PrivateNetworkID,
-		}, scw.WithContext(ctx)); err != nil {
-			return nil, fmt.Errorf("attach private network %s to %s: %w", p.PrivateNetworkID, server.ID, err)
+	return server, nil
+}
+
+// EnsurePrivateNIC attaches the server to the Private Network unless a NIC on
+// that PN already exists. Idempotent, so a reconcile that re-finds a server
+// whose attach previously failed retries it without duplicating the NIC.
+func (c *InstanceClient) EnsurePrivateNIC(ctx context.Context, zone scw.Zone, server *instance.Server, privateNetworkID string) error {
+	if privateNetworkID == "" {
+		return nil
+	}
+	for _, n := range server.PrivateNics {
+		if n.PrivateNetworkID == privateNetworkID {
+			return nil
 		}
 	}
+	if _, err := c.Instance.CreatePrivateNIC(&instance.CreatePrivateNICRequest{
+		Zone:             zone,
+		ServerID:         server.ID,
+		PrivateNetworkID: privateNetworkID,
+	}, scw.WithContext(ctx)); err != nil {
+		return fmt.Errorf("attach private network %s to %s: %w", privateNetworkID, server.ID, err)
+	}
+	return nil
+}
 
+// EnsurePoweredOn issues a poweron unless the server is already running or
+// starting. Idempotent: Scaleway rejects poweron outside a stopped state, so
+// gating on State keeps a retried provision from erroring on a live server.
+func (c *InstanceClient) EnsurePoweredOn(ctx context.Context, zone scw.Zone, server *instance.Server) error {
+	switch server.State {
+	case instance.ServerStateRunning, instance.ServerStateStarting:
+		return nil
+	}
 	if _, err := c.Instance.ServerAction(&instance.ServerActionRequest{
-		Zone:     p.Zone,
+		Zone:     zone,
 		ServerID: server.ID,
 		Action:   instance.ServerActionPoweron,
 	}, scw.WithContext(ctx)); err != nil {
-		return nil, fmt.Errorf("power on %s: %w", server.ID, err)
+		return fmt.Errorf("power on %s: %w", server.ID, err)
 	}
-
-	return server, nil
+	return nil
 }
 
 // GetServer fetches the current server state.
@@ -192,20 +218,57 @@ func (c *InstanceClient) GetServer(ctx context.Context, zone scw.Zone, serverID 
 	return resp.Server, nil
 }
 
-// DeleteInstance powers the server off and deletes it. Caller drains the Node
-// first (CAPI handles cordon/drain on the Machine).
-func (c *InstanceClient) DeleteInstance(ctx context.Context, zone scw.Zone, serverID string) error {
-	if _, err := c.Instance.ServerAction(&instance.ServerActionRequest{
-		Zone:     zone,
-		ServerID: serverID,
-		Action:   instance.ServerActionPoweroff,
-	}, scw.WithContext(ctx)); err != nil {
-		return fmt.Errorf("power off %s: %w", serverID, err)
+// DeleteInstance tears the server down across the stop→delete transition,
+// returning done=true only once the server is gone. It's a small state machine
+// the caller re-drives on requeue: a running server is powered off (Scaleway
+// rejects DeleteServer on a live server), an in-flight stop just requeues, a
+// stopped server is deleted. An already-absent server (or one that 404s mid
+// stop) counts as done, so a CR whose instance was removed out of band — or
+// whose poweroff already ran — releases its finalizer instead of wedging.
+func (c *InstanceClient) DeleteInstance(ctx context.Context, zone scw.Zone, serverID string) (bool, error) {
+	server, err := c.GetServer(ctx, zone, serverID)
+	if err != nil {
+		if isNotFound(err) {
+			return true, nil
+		}
+		return false, err
 	}
-	if err := c.Instance.DeleteServer(&instance.DeleteServerRequest{Zone: zone, ServerID: serverID}, scw.WithContext(ctx)); err != nil {
-		return fmt.Errorf("delete server %s: %w", serverID, err)
+
+	switch server.State {
+	case instance.ServerStateStopped, instance.ServerStateStoppedInPlace:
+		if delErr := c.Instance.DeleteServer(&instance.DeleteServerRequest{Zone: zone, ServerID: serverID}, scw.WithContext(ctx)); delErr != nil {
+			if isNotFound(delErr) {
+				return true, nil
+			}
+			return false, fmt.Errorf("delete server %s: %w", serverID, delErr)
+		}
+		return true, nil
+	case instance.ServerStateStopping:
+		return false, nil
+	default:
+		if _, actErr := c.Instance.ServerAction(&instance.ServerActionRequest{
+			Zone:     zone,
+			ServerID: serverID,
+			Action:   instance.ServerActionPoweroff,
+		}, scw.WithContext(ctx)); actErr != nil {
+			return false, fmt.Errorf("power off %s: %w", serverID, actErr)
+		}
+		return false, nil
 	}
-	return nil
+}
+
+// isNotFound reports whether a Scaleway SDK error is a 404 / resource-not-found,
+// the signal that a server is already gone.
+func isNotFound(err error) bool {
+	var notFound *scw.ResourceNotFoundError
+	if errors.As(err, &notFound) {
+		return true
+	}
+	var respErr *scw.ResponseError
+	if errors.As(err, &respErr) {
+		return respErr.StatusCode == http.StatusNotFound
+	}
+	return false
 }
 
 // PrivateNetworkIP returns the IPAM-assigned address of the server's NIC on
