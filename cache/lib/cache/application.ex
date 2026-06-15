@@ -4,7 +4,6 @@ defmodule Cache.Application do
   use Application
 
   alias Cache.DBConnection.TelemetryListener
-  alias TuistCommon.HTTP.FinchTracer
   alias TuistCommon.HTTP.TransportLogger
 
   require Logger
@@ -124,7 +123,7 @@ defmodule Cache.Application do
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
       OpentelemetryEcto.setup(event_prefix: [:cache, :repo])
-      FinchTracer.setup()
+      OpentelemetryFinch.setup()
       OpentelemetryBroadway.setup()
     end
   end
