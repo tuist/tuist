@@ -28,6 +28,8 @@ defmodule TuistOpsWeb.SlackController do
   alias TuistOps.Environment
   alias TuistOps.JIT.SlackBlocks
   alias TuistOps.JIT.SlackClient
+  alias TuistOps.ProjectAccess.Approvals, as: ProjectAccessApprovals
+  alias TuistOps.ProjectAccess.SlackBlocks, as: ProjectAccessSlackBlocks
 
   require Logger
 
@@ -108,6 +110,12 @@ defmodule TuistOpsWeb.SlackController do
 
       "revoke" ->
         do_revoke(conn, value, user_slack_id, user_email)
+
+      "pa_approve" ->
+        do_pa_approve(conn, value, user_slack_id, user_email, channel_id)
+
+      "pa_deny" ->
+        do_pa_deny(conn, value, user_slack_id, user_email)
 
       other ->
         Logger.warning("tuist_ops: unknown action #{inspect(other)}")
@@ -190,6 +198,76 @@ defmodule TuistOpsWeb.SlackController do
       _ ->
         send_resp(conn, 200, "")
     end
+  end
+
+  # ----------------------------------------------------------------
+  # Operator project-access (admin tier) approve / deny
+  # ----------------------------------------------------------------
+
+  defp do_pa_approve(conn, value, actor_slack_id, actor_email, channel_id) do
+    case ProjectAccessSlackBlocks.decode_value(value) do
+      {:ok, request_id} ->
+        case ProjectAccessApprovals.approve(request_id, %{
+               slack_id: actor_slack_id,
+               email: actor_email
+             }) do
+          {:ok, _req, _grant} ->
+            send_resp(conn, 200, "")
+
+          {:error, :cannot_self_approve} ->
+            pa_ephemeral(
+              conn,
+              channel_id,
+              actor_slack_id,
+              ":no_entry: A second human has to approve admin access to a customer org. You can't approve your own request."
+            )
+
+          {:error, :approver_not_authorized} ->
+            pa_ephemeral(
+              conn,
+              channel_id,
+              actor_slack_id,
+              ":no_entry: Approving admin access to a customer org requires an Owner or Admin role on the tailnet."
+            )
+
+          {:error, :approval_expired} ->
+            pa_ephemeral(
+              conn,
+              channel_id,
+              actor_slack_id,
+              ":hourglass: This access request has expired. The operator needs to start again."
+            )
+
+          {:error, reason} ->
+            pa_ephemeral(
+              conn,
+              channel_id,
+              actor_slack_id,
+              "Approval failed: #{human_error(reason)}"
+            )
+        end
+
+      :error ->
+        send_resp(conn, 200, "")
+    end
+  end
+
+  defp do_pa_deny(conn, value, actor_slack_id, actor_email) do
+    case ProjectAccessSlackBlocks.decode_value(value) do
+      {:ok, request_id} ->
+        _ =
+          ProjectAccessApprovals.deny(request_id, %{slack_id: actor_slack_id, email: actor_email})
+
+        send_resp(conn, 200, "")
+
+      :error ->
+        send_resp(conn, 200, "")
+    end
+  end
+
+  defp pa_ephemeral(conn, channel_id, actor_slack_id, text) do
+    SlackClient.ephemeral(channel_id, actor_slack_id, text)
+    send_resp(conn, 200, "")
   end
 
   # ----------------------------------------------------------------

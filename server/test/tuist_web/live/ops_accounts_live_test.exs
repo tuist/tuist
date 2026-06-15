@@ -6,7 +6,6 @@ defmodule TuistWeb.OpsAccountsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
-  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -15,7 +14,7 @@ defmodule TuistWeb.OpsAccountsLiveTest do
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture(preload: [:account])
     conn = log_in_user(conn, user)
-    Mimic.stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    Mimic.stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     %{conn: conn, user: user}
   end
