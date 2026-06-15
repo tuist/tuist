@@ -4,3 +4,11 @@ authenticateHostname: authenticate.kube-prod.tuist.dev
 
 ingress:
   tlsSecretName: pomerium-production-tls
+
+# Front ops.tuist.dev (operator grant/audit surface) with this Pomerium.
+# PREREQUISITE: the `signing_key` field must exist on the POMERIUM_PRODUCTION
+# 1P item before this deploys — otherwise ESO sync fails and Pomerium
+# (which also serves the live kube-prod kubectl gateway) CrashLoops. The
+# tuist-ops chart drops its own ops.tuist.dev Ingress at the same time.
+opsRoute:
+  enabled: true

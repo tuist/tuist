@@ -67,6 +67,23 @@ server:
     # DNS reachable from the host and from inside a Tart runner VM.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
+    # Operator project-access grants — server half only. The public key
+    # is non-secret; its matching private key signs grants minted at
+    # ops.tuist.dev. This is a throwaway pair for the staging server-half
+    # e2e (verify offline EdDSA verification + SSO bypass on a token that
+    # arrives) until the 1Password-managed key lands. The redirect to ops
+    # is deliberately NOT wired here (no TUIST_OPS_REASON_FORM_URL): the
+    # single prod-only ops instance mints tuist-server audience tokens and
+    # does not publicly route /grants, so a staging redirect would dead-end.
+    # The redirect turns on per-env once ops is Pomerium-fronted with a
+    # matching audience + return_to allowlist.
+    - name: TUIST_OPERATOR_GRANT_PUBLIC_KEY
+      value: |-
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAh2RLuH3uKcpF8PsVE8CJI4onfajexC5RB/0ldQEeSO4=
+        -----END PUBLIC KEY-----
+    - name: TUIST_OPERATOR_GRANT_AUDIENCE
+      value: tuist-server-staging
 
   appUrl: https://staging.tuist.dev
 

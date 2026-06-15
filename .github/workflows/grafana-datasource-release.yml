@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: grafana-datasource
     env:
-      GRAFANA_ACCESS_POLICY_TOKEN: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
       TAG: ${{ needs.check-releases.outputs.next-version }}
       VERSION: ${{ needs.check-releases.outputs.next-version-number }}
     steps:
@@ -70,7 +70,7 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
+          install_args: "git-cliff 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -101,9 +101,19 @@ jobs:
           mage -v
           ls -la dist/gpx_tuist_datasource_* >/dev/null
 
+      # Grafana only issues a signature after the plugin is reviewed and granted a
+      # signature level, so signing fails until then. Publish unsigned and warn
+      # rather than block the release; it signs automatically once approved.
       - name: Sign the plugin
-        if: ${{ env.GRAFANA_ACCESS_POLICY_TOKEN != '' }}
-        run: npm run sign
+        if: ${{ env.OP_SERVICE_ACCOUNT_TOKEN != '' }}
+        run: |
+          GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/TUIST_GRAFANA_PLUGIN_TOKEN/password")
+          export GRAFANA_ACCESS_POLICY_TOKEN
+          if npm run sign; then
+            echo "Plugin signed."
+          else
+            echo "::warning::Plugin not signed — Grafana issues a signature only after the plugin is reviewed at grafana.com (My Plugins). Publishing unsigned; re-release to sign once a signature level is granted."
+          fi
 
       - name: Package
         run: |

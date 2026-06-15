@@ -104,6 +104,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - Slack bot access tokens and incoming-webhook URLs (treated as bearer credentials)
 - Outbound webhook endpoint URLs and signing secrets on `webhook_endpoints` (treated as bearer credentials — path/query tokens often appear in destination URLs)
 - GitHub-issued JIT runner configs (minted on demand for runner Pods at dispatch time and never persisted server-side)
+- Operator project-access audit trail: the reason-gated, time-boxed grants a Tuist operator obtains to access a customer account (`project_access_requests` / `project_access_grants`, storing the operator's email, the customer account handle, the access tier, the stated reason, return URL, approver, and lifecycle timestamps). This lives in the separate tuist-ops Postgres (not the customer-facing server database), is internal security/audit data rather than customer-owned content, and is retained for accountability. It is not part of the standard customer export archive, but the access history for a given account can be surfaced on a legal/transparency request.
 
 ## Binary Files
 

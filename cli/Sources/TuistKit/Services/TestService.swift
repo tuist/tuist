@@ -35,6 +35,7 @@ public enum TestServiceError: FatalError, Equatable {
     case unspecifiedPlatform(target: String, platforms: [String])
     case shardPlanningRequiresBuildOnly
     case shardIndexRequiresWithoutBuilding
+    case shardingRequiresFullHandle
 
     // Error description
 
@@ -84,6 +85,9 @@ public enum TestServiceError: FatalError, Equatable {
         case .shardIndexRequiresWithoutBuilding:
             return
                 "--shard-index only applies when executing a previously built shard. Pass --without-building to run the shard, or remove --shard-index to run tests normally."
+        case .shardingRequiresFullHandle:
+            return
+                "Test sharding requires a Tuist account. The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
         }
     }
 
@@ -94,7 +98,8 @@ public enum TestServiceError: FatalError, Equatable {
         case .schemeNotFound, .schemeWithoutTestableTargets, .testPlanNotFound,
              .testIdentifierInvalid, .duplicatedTestTargets,
              .nothingToSkip, .actionInvalid, .testProductsNotFound, .unspecifiedPlatform,
-             .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding:
+             .shardPlanningRequiresBuildOnly, .shardIndexRequiresWithoutBuilding,
+             .shardingRequiresFullHandle:
             return .abort
         }
     }
@@ -652,7 +657,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         mode: TestProcessingMode
     ) async throws {
         guard let fullHandle = config.fullHandle else {
-            throw TestServiceError.actionInvalid
+            throw TestServiceError.shardingRequiresFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)

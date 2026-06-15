@@ -16,6 +16,18 @@ image:
 host: ops.tuist.dev
 port: 8080
 
+# Pomerium-verified identity for the operator HTML surface
+# (/grants, /audit). tuist-ops reads the email from the
+# X-Pomerium-Jwt-Assertion signature, not the bare claim header.
+# `publicKey` is Pomerium's signing public key (PEM, non-secret);
+# set it as part of the ops.tuist.dev → Pomerium cutover (see
+# infra/helm/pomerium opsRoute). Empty by default → tuist-ops has no
+# verified identity and the HTML surface fails closed, which is the
+# correct posture until Pomerium fronts ops.tuist.dev.
+pomerium:
+  audience: ops.tuist.dev
+  publicKey: ""
+
 # Internal name used by the tailscale operator to expose this
 # Service as a tailnet device. Pomerium pods in workload clusters
 # dial this hostname through their cluster's tailscale-egress
@@ -27,7 +39,12 @@ tailnetHostname: ops
 # Backups go to S3 (Tigris).
 postgresql:
   instances: 1
-  storageSize: 5Gi
+  # Sized for headroom against WAL backlog, not data volume: with
+  # archiving healthy, pg_wal stays small, but a stalled archive must
+  # not fill the disk fast enough to wedge the instance before it's
+  # noticed. CNPG storage can only grow, so this also matches the
+  # live 20Gi a helm upgrade would otherwise reject as a shrink.
+  storageSize: 20Gi
   storageClass: ""
   database: tuist_ops
   owner: tuist_ops

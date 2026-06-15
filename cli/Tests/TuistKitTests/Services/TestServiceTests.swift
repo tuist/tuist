@@ -405,6 +405,25 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_throws_when_shard_index_is_passed_without_full_handle() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: nil))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            {
+                try await testRun(
+                    path: try temporaryPath(),
+                    action: .testWithoutBuilding,
+                    shardIndex: 0
+                )
+            },
+            TestServiceError.shardingRequiresFullHandle
+        )
+    }
+
     func test_throws_an_error_when_config_is_not_for_generated_project() async throws {
         // Given
         givenGenerator()
