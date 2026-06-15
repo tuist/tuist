@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -32,11 +31,14 @@ type FloatingIPManager interface {
 	Assign(ctx context.Context, floatingIPName string, serverID int64) error
 }
 
-// FailoverReconciler keeps a single healthy candidate node designated as the
-// stable-egress gateway: it carries the active label (which the
-// CiliumEgressGatewayPolicy + host-configurer select on) and holds the Hetzner
-// Floating IP. On loss of the active node it re-elects another Ready candidate
-// and moves both together.
+// FailoverReconciler keeps a single healthy node designated as the stable-egress
+// gateway: it carries the active label (which the CiliumEgressGatewayPolicy +
+// host-configurer select on) and holds the Hetzner Floating IP. It ADOPTS a
+// healthy node that already holds the active label — even one outside the
+// candidate pool — so enabling the controller over an existing gateway, or any
+// steady state, never moves the Floating IP needlessly (no Cilium
+// reconvergence, no egress blip). Only when there is no healthy active node
+// does it fail over to a Ready candidate, moving the IP + label together.
 type FailoverReconciler struct {
 	client.Client
 	FIP FloatingIPManager
@@ -64,28 +66,29 @@ const reconcileName = "stable-egress"
 func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	var nodes corev1.NodeList
-	if err := r.List(ctx, &nodes, client.MatchingLabels{r.CandidateLabelKey: r.CandidateLabelValue}); err != nil {
+	var candidates corev1.NodeList
+	if err := r.List(ctx, &candidates, client.MatchingLabels{r.CandidateLabelKey: r.CandidateLabelValue}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("listing candidate nodes: %w", err)
 	}
+	var labeled corev1.NodeList
+	if err := r.List(ctx, &labeled, client.MatchingLabels{r.ActiveLabelKey: r.ActiveLabelValue}); err != nil {
+		return ctrl.Result{}, fmt.Errorf("listing active-labelled nodes: %w", err)
+	}
 
-	ready := readyCandidateNames(nodes.Items)
-	current := r.activeNodeName(nodes.Items)
-	desired := selectActive(ready, current)
-
-	if desired == "" {
-		// Nothing healthy to fail over to — leave the (stale) label/IP as-is
-		// so the active node recovering in place needs no action, and surface
-		// the gap. A monitoring alert on "no active gateway" belongs here.
-		logger.Error(nil, "no Ready stable-egress candidate node available; egress has no healthy gateway",
+	desiredNode := selectGateway(candidates.Items, labeled.Items)
+	if desiredNode == nil {
+		// No healthy active node and no Ready candidate — leave any stale
+		// label/IP as-is so an active node recovering in place needs no action,
+		// and surface the gap (a monitoring alert on "no active gateway" belongs
+		// here).
+		logger.Error(nil, "no healthy stable-egress gateway: no healthy active node and no Ready candidate",
 			"candidateLabel", r.CandidateLabelKey+"="+r.CandidateLabelValue)
 		return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
 	}
 
-	desiredNode := nodeByName(nodes.Items, desired)
 	serverID, err := parseHCloudServerID(desiredNode.Spec.ProviderID)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("resolving server id for node %q: %w", desired, err)
+		return ctrl.Result{}, fmt.Errorf("resolving server id for node %q: %w", desiredNode.Name, err)
 	}
 
 	// Fail closed if the Floating IP is not within the documented egress set —
@@ -105,7 +108,7 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 				"floatingIP", r.FloatingIPName, "address", addr, "allowlist", prefixesString(r.EgressIPAllowlist))
 			return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
 		}
-		logger.Info("active egress IP", "address", addr, "node", desired)
+		logger.Info("active egress IP", "address", addr, "node", desiredNode.Name)
 	}
 
 	// 1) Make the Floating IP follow the elected node (idempotent).
@@ -115,7 +118,7 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	}
 	if currentServer != serverID {
 		logger.Info("reassigning Floating IP", "floatingIP", r.FloatingIPName,
-			"fromServer", currentServer, "toServer", serverID, "node", desired)
+			"fromServer", currentServer, "toServer", serverID, "node", desiredNode.Name)
 		if err := r.FIP.Assign(ctx, r.FloatingIPName, serverID); err != nil {
 			return ctrl.Result{}, fmt.Errorf("assigning Floating IP to server %d: %w", serverID, err)
 		}
@@ -167,15 +170,6 @@ func (r *FailoverReconciler) reconcileActiveLabel(ctx context.Context, desired *
 	return nil
 }
 
-func (r *FailoverReconciler) activeNodeName(nodes []corev1.Node) string {
-	for i := range nodes {
-		if nodes[i].Labels[r.ActiveLabelKey] == r.ActiveLabelValue {
-			return nodes[i].Name
-		}
-	}
-	return ""
-}
-
 func (r *FailoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	mapToSingleton := func(context.Context, client.Object) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: reconcileName}}}
@@ -186,35 +180,32 @@ func (r *FailoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// selectActive picks the gateway node: keep the current one if it is still a
-// Ready candidate (avoids needless Floating IP churn), otherwise the
-// lexically-lowest Ready candidate. Returns "" when nothing is eligible.
-func selectActive(readyCandidates []string, current string) string {
-	for _, n := range readyCandidates {
-		if n == current {
-			return current
-		}
+// selectGateway picks the node that should hold the egress gateway. It adopts a
+// healthy node that already carries the active label — even one outside the
+// candidate pool — so a working gateway is never disturbed (no Floating IP
+// churn, no Cilium reconvergence, no egress blip). Only when there is no healthy
+// active node does it fail over to the lexically-lowest Ready candidate.
+// Returns nil when nothing is eligible.
+func selectGateway(candidates, labeled []corev1.Node) *corev1.Node {
+	if n := lowestReady(labeled); n != nil {
+		return n
 	}
-	if len(readyCandidates) == 0 {
-		return ""
-	}
-	sorted := append([]string(nil), readyCandidates...)
-	sort.Strings(sorted)
-	return sorted[0]
+	return lowestReady(candidates)
 }
 
-func readyCandidateNames(nodes []corev1.Node) []string {
-	var out []string
+// lowestReady returns the lexically-lowest Ready, non-terminating node, or nil.
+func lowestReady(nodes []corev1.Node) *corev1.Node {
+	var best *corev1.Node
 	for i := range nodes {
 		n := &nodes[i]
-		if n.DeletionTimestamp != nil {
+		if n.DeletionTimestamp != nil || !isNodeReady(n) {
 			continue
 		}
-		if isNodeReady(n) {
-			out = append(out, n.Name)
+		if best == nil || n.Name < best.Name {
+			best = n
 		}
 	}
-	return out
+	return best
 }
 
 func isNodeReady(n *corev1.Node) bool {
@@ -224,15 +215,6 @@ func isNodeReady(n *corev1.Node) bool {
 		}
 	}
 	return false
-}
-
-func nodeByName(nodes []corev1.Node, name string) *corev1.Node {
-	for i := range nodes {
-		if nodes[i].Name == name {
-			return &nodes[i]
-		}
-	}
-	return nil
 }
 
 // ipInAllowlist reports whether addr falls within any of the allowed prefixes.

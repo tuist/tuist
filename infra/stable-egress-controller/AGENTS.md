@@ -10,12 +10,16 @@ policy routes through one gateway node, and the Floating IP can only be assigned
 to one server at a time — so the gateway is inherently active/standby. This
 controller makes the failover automatic.
 
-It watches the egress **candidate** node pool and keeps exactly one Ready
-candidate designated **active**: that node holds the Floating IP (Hetzner Cloud
-API) and the active gateway label. On loss of the active node it re-elects
-another candidate and moves both together. This replaces the manual
-`hcloud floating-ip assign` + relabel runbook that caused a multi-hour egress
-outage on 2026-06-14 when a hand-labelled gateway node was replaced.
+It keeps one Ready node designated **active** — holding the Floating IP (Hetzner
+Cloud API) and the active gateway label. It **adopts** whatever node already
+holds the active label as long as that node is Ready (even one outside the
+candidate pool), so it never disturbs a working gateway — enabling it over an
+existing hand-configured gateway moves nothing (no Floating IP churn, no Cilium
+reconvergence, no egress blip). Only when there is no healthy active node does it
+fail over to a Ready candidate from the egress pool, moving the IP + label
+together. This replaces the manual `hcloud floating-ip assign` + relabel runbook
+that caused a multi-hour egress outage on 2026-06-14 when a hand-labelled gateway
+node was replaced.
 
 ## Architecture
 

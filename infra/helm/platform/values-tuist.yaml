@@ -19,16 +19,13 @@ ciliumEgressGateway:
     hostConfigurator:
       enabled: true
     failoverController:
-      # Stays false until its prerequisites are met, so merging this never
-      # points production at a missing image or starts an unplanned gateway
-      # cutover. Flip to true (separate change) only after:
-      #   1. the controller image is released (k8s:install-platform resolves the
-      #      stable-egress-controller@<semver> tag at deploy time, like the
-      #      fleet/runtime images — no tag pinned here);
-      #   2. the md-egress nodes are Ready and carry the candidate label;
-      #   3. you're ready for the one-time IP/label cutover off the current
-      #      hand-labelled gateway node.
-      enabled: false
+      # Enabled. The controller ADOPTS the node that currently holds the active
+      # label (today the hand-labelled general worker) on first reconcile — no
+      # Floating IP move, no Cilium reconvergence, no egress blip — and only
+      # fails over to an md-egress candidate when that node stops being Ready.
+      # So enabling is a no-op for the live datapath. The image tag is resolved
+      # at deploy time by k8s:install-platform (no pinned tag here).
+      enabled: true
       floatingIpName: tuist-production-server-egress
       # Reserved egress set customers allowlist: Hetzner Floating IPs
       # tuist-production-server-egress (116.202.0.10, active) + -2

@@ -21,22 +21,40 @@ const (
 	actVal  = "server"
 )
 
-func TestSelectActive(t *testing.T) {
+func tnode(name string, ready bool) corev1.Node {
+	st := corev1.ConditionFalse
+	if ready {
+		st = corev1.ConditionTrue
+	}
+	return corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: st}}},
+	}
+}
+
+func TestSelectGateway(t *testing.T) {
 	tests := []struct {
-		name    string
-		ready   []string
-		current string
-		want    string
+		name       string
+		candidates []corev1.Node
+		labeled    []corev1.Node
+		want       string // "" => nil
 	}{
-		{"sticky to current healthy", []string{"a", "b"}, "b", "b"},
-		{"failover when current gone", []string{"b", "c"}, "a", "b"},
-		{"lexical pick with no current", []string{"c", "a", "b"}, "", "a"},
-		{"none ready", nil, "a", ""},
+		{"adopt healthy active even if non-candidate", []corev1.Node{tnode("c1", true), tnode("c2", true)}, []corev1.Node{tnode("general-1", true)}, "general-1"},
+		{"sticky to active candidate", []corev1.Node{tnode("a", true), tnode("b", true)}, []corev1.Node{tnode("a", true)}, "a"},
+		{"failover to candidate when active NotReady", []corev1.Node{tnode("b", true), tnode("c", true)}, []corev1.Node{tnode("a", false)}, "b"},
+		{"elect lexically-lowest candidate when no active", []corev1.Node{tnode("c", true), tnode("a", true), tnode("b", true)}, nil, "a"},
+		{"nothing eligible", nil, nil, ""},
+		{"active NotReady and no Ready candidate", []corev1.Node{tnode("b", false)}, []corev1.Node{tnode("a", false)}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := selectActive(tt.ready, tt.current); got != tt.want {
-				t.Fatalf("selectActive(%v, %q) = %q, want %q", tt.ready, tt.current, got, tt.want)
+			got := selectGateway(tt.candidates, tt.labeled)
+			name := ""
+			if got != nil {
+				name = got.Name
+			}
+			if name != tt.want {
+				t.Fatalf("selectGateway = %q, want %q", name, tt.want)
 			}
 		})
 	}
@@ -172,28 +190,52 @@ func TestReconcileRejectsOutOfAllowlistIP(t *testing.T) {
 	}
 }
 
-// Cutover from a manual setup: a non-candidate node carries the active label
-// (e.g. a hand-labelled general worker). Electing a candidate must strip that
-// stale label cluster-wide so two nodes don't both match Cilium's selector.
-func TestReconcileStripsStaleNonCandidateLabel(t *testing.T) {
+// Enabling over an existing gateway: a healthy non-candidate node already holds
+// the active label + FIP. The controller ADOPTS it — no FIP reassign, no relabel
+// (the zero-blip enable) — rather than migrating to the candidate.
+func TestReconcileAdoptsHealthyNonCandidateActive(t *testing.T) {
 	candidate := candidateNode("egress-a", "hcloud://222", true, false)
-	stale := &corev1.Node{
+	active := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "general-1", Labels: map[string]string{actKey: actVal}}, // active, NOT a candidate
+		Spec:       corev1.NodeSpec{ProviderID: "hcloud://111"},
+		Status:     corev1.NodeStatus{Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}},
+	}
+	fip := &fakeFIP{server: 111} // FIP already on the active node
+	r := newReconciler(fip, candidate, active)
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("must not reassign the FIP when adopting, got %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "general-1" {
+		t.Fatalf("active nodes = %v, want [general-1] (adopted, not migrated)", got)
+	}
+}
+
+// Failover off a dead non-candidate active node: when the hand-labelled gateway
+// is NotReady, the controller migrates to a Ready candidate AND strips the dead
+// node's active label cluster-wide so two nodes don't both match Cilium.
+func TestReconcileStripsDeadNonCandidateLabelOnFailover(t *testing.T) {
+	candidate := candidateNode("egress-a", "hcloud://222", true, false)
+	dead := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "general-1",
 			Labels: map[string]string{actKey: actVal}, // active label, NOT a candidate
 		},
 		Status: corev1.NodeStatus{
-			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+			Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionFalse}}, // NotReady
 		},
 	}
 	fip := &fakeFIP{server: 111}
-	r := newReconciler(fip, candidate, stale)
+	r := newReconciler(fip, candidate, dead)
 
 	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
 		t.Fatal(err)
 	}
 	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
-		t.Fatalf("active nodes = %v, want [egress-a] (stale label must be stripped)", got)
+		t.Fatalf("active nodes = %v, want [egress-a] (dead non-candidate label must be stripped)", got)
 	}
 	if fip.server != 222 {
 		t.Fatalf("Floating IP on server %d, want 222", fip.server)

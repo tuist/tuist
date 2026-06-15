@@ -93,10 +93,14 @@ automatic failover — no manual steps and no SPOF:
   it survives MachineHealthCheck remediation (CAPI's metadata-label sync would
   not — it only passes node-role/node-restriction/node.cluster prefixes).
 - **Election + IP:** the stable-egress controller (leader-elected, 2 replicas)
-  picks one Ready candidate as active and keeps the Hetzner Floating IP (Cloud
-  API) **and** the active `tuist.dev/stable-egress-gateway` label on it. On loss
-  of the active node it re-elects the other candidate and moves both together
-  (~30–60s: node-NotReady detection + reassign; faster on node deletion).
+  keeps the Hetzner Floating IP (Cloud API) **and** the active
+  `tuist.dev/stable-egress-gateway` label on one node. It **adopts** whatever
+  node already holds the active label as long as that node is Ready — even one
+  outside the candidate pool — so it never disturbs a working gateway (enabling
+  the controller, or any steady state, moves nothing: no blip). Only when there
+  is no healthy active node does it fail over to a Ready `md-egress` candidate,
+  moving the IP + label together (~30–60s: node-NotReady detection + reassign;
+  faster on deletion).
 - **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
   host-configurer reschedules onto the new active node automatically.
 
