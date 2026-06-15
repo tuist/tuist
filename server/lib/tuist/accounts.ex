@@ -1288,20 +1288,19 @@ defmodule Tuist.Accounts do
 
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
     String.ends_with?(String.downcase(email), "@" <> Environment.operator_email_domain()) and
-      operator_email_verified?(user)
+      signed_in_with_google?(user)
   end
 
   defp operator_email?(_), do: false
 
-  # The operator-domain email must be a verified one. It's verified when the
-  # user confirmed it via the email flow, OR when an OAuth provider (Google
-  # Workspace, GitHub, …) asserted it at sign-in — those providers verify the
-  # address themselves and never set `confirmed_at`, so checking `confirmed_at`
-  # alone wrongly locks out every operator who signs in with Google.
-  defp operator_email_verified?(%User{confirmed_at: confirmed_at}) when not is_nil(confirmed_at), do: true
-
-  defp operator_email_verified?(%User{id: id}) do
-    Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^id))
+  # Operators authenticate through Google Workspace SSO — our preferred,
+  # org-restricted sign-in, which is what actually proves the operator-domain
+  # address belongs to a member. Google never sets `confirmed_at` (the address
+  # is provider-verified, not confirmed through the email flow), so the gate
+  # keys off the persisted Google OAuth identity. The email/password
+  # confirmation flow and other OAuth providers do not qualify an operator.
+  defp signed_in_with_google?(%User{id: id}) do
+    Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^id and o.provider == :google))
   end
 
   defp user_has_sso_enforced_organization?(user) do

@@ -491,12 +491,14 @@ defmodule Tuist.Authorization.ChecksTest do
   end
 
   describe "internal_ops_access/2 (the static /ops panel gate)" do
-    test "returns true for a confirmed operator-domain user" do
+    test "returns true for an operator-domain user signed in with Google" do
       operator =
         AccountsFixtures.user_fixture(
           email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
           preload: [:account]
         )
+
+      AccountsFixtures.oauth2_identity_fixture(user: operator, provider: :google)
 
       assert Checks.internal_ops_access(operator, nil) == true
       assert Checks.internal_ops_access(operator, :ops) == true
@@ -601,10 +603,14 @@ defmodule Tuist.Authorization.ChecksTest do
   end
 
   defp operator_user do
-    AccountsFixtures.user_fixture(
-      email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
-      preload: [:account]
-    )
+    user =
+      AccountsFixtures.user_fixture(
+        email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+        preload: [:account]
+      )
+
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    user
   end
 
   defp put_grant(user, account_id, tier, opts \\ []) do

@@ -294,10 +294,14 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   end
 
   defp operator_user do
-    AccountsFixtures.user_fixture(
-      email: "operator-#{System.unique_integer([:positive])}@tuist.dev",
-      preload: [:account]
-    )
+    user =
+      AccountsFixtures.user_fixture(
+        email: "operator-#{System.unique_integer([:positive])}@tuist.dev",
+        preload: [:account]
+      )
+
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    user
   end
 
   defp with_handles(conn, account_handle, project_handle) do

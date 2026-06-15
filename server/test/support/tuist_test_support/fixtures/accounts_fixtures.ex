@@ -2,6 +2,7 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   @moduledoc false
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Oauth2Identity
 
   def user_fixture(opts \\ []) do
     email = Keyword.get(opts, :email, unique_user_email())
@@ -24,6 +25,22 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
       Accounts.create_user(email, create_opts)
 
     Tuist.Repo.preload(user, Keyword.get(opts, :preload, [:account]))
+  end
+
+  def oauth2_identity_fixture(opts \\ []) do
+    user = Keyword.get_lazy(opts, :user, fn -> user_fixture() end)
+    provider = Keyword.get(opts, :provider, :google)
+
+    {:ok, identity} =
+      %Oauth2Identity{}
+      |> Oauth2Identity.create_changeset(%{
+        provider: provider,
+        id_in_provider: Keyword.get(opts, :id_in_provider, "#{provider}-#{TuistTestSupport.Utilities.unique_integer()}"),
+        user_id: user.id
+      })
+      |> Tuist.Repo.insert()
+
+    identity
   end
 
   def organization_fixture(opts \\ []) do
