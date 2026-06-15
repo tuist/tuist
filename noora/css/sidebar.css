@@ -150,6 +150,11 @@
       }
 
       & [data-part="indicator"] {
+        /* Flex blockifies the inline-grid icon-transition child, dropping the
+           line-box strut that otherwise made the box 21px tall and pushed the
+           chevron below the row's vertical center. */
+        display: flex;
+        align-items: center;
         color: var(--noora-surface-label-secondary);
 
         & svg {
