@@ -27,6 +27,7 @@ defmodule Tuist.Application do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunArgument
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunHash
   alias Tuist.Tests.TestCaseRunRepetition
   alias Tuist.Tests.TestModuleRun
   alias Tuist.Tests.TestSuiteRun
@@ -297,6 +298,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(Buffer, id: Buffer),
         Supervisor.child_spec(Gradle.Task.Buffer, id: Gradle.Task.Buffer),
         Supervisor.child_spec(TestCaseRun.Buffer, id: TestCaseRun.Buffer),
+        Supervisor.child_spec(TestCaseRunHash.Buffer, id: TestCaseRunHash.Buffer),
         Supervisor.child_spec(TestModuleRun.Buffer, id: TestModuleRun.Buffer),
         Supervisor.child_spec(TestSuiteRun.Buffer, id: TestSuiteRun.Buffer),
         Supervisor.child_spec(TestCase.Buffer, id: TestCase.Buffer),

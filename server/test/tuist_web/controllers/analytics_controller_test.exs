@@ -748,6 +748,64 @@ defmodule TuistWeb.AnalyticsControllerTest do
                url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{existing_test_run.id}")
     end
 
+    test "enqueues hash-based flaky detection for a test run with an xcode graph", %{
+      conn: conn,
+      user: user
+    } do
+      # Given
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+      conn = Authentication.put_current_user(conn, user)
+
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, existing_test_run} =
+        RunsFixtures.test_fixture(project_id: project.id, account_id: account.id, status: "success")
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          "/api/analytics?project_id=#{account.name}/#{project.name}",
+          %{
+            name: "test",
+            command_arguments: ["test", "MyScheme"],
+            duration: 3000,
+            tuist_version: "4.56.0",
+            swift_version: "5.9",
+            macos_version: "14.0",
+            is_ci: true,
+            client_id: "client-id",
+            test_run_id: existing_test_run.id,
+            xcode_graph: %{
+              name: "Graph",
+              projects: [
+                %{
+                  name: "App",
+                  path: "App",
+                  targets: [
+                    %{
+                      name: "AppTests",
+                      selective_testing_metadata: %{hash: "hash-app-tests", hit: "remote"}
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, command_event} = CommandEvents.get_command_event_by_id(response["id"])
+
+      assert_enqueued(
+        worker: Tuist.Tests.Workers.FlakyTestsByHashWorker,
+        args: %{"command_event_id" => command_event.id, "test_run_id" => existing_test_run.id}
+      )
+    end
+
     test "does not create test run when CLI version is 4.110.0 or higher", %{
       conn: conn,
       user: user

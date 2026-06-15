@@ -25,6 +25,28 @@ defmodule Tuist.Xcode do
     {:ok, xcode_graph}
   end
 
+  @doc """
+  Returns a `%{target_name => selective_testing_hash}` map for every target
+  of the given command event that carries a selective-testing hash.
+
+  Used by hash-based flaky detection to resolve a test case run's
+  `module_name` to the hash of the module it ran against. Unlike
+  `selective_testing_analytics/2` this is not paginated and selects only the
+  two columns the lookup needs.
+  """
+  def selective_testing_hashes_by_name(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
+    from(xt in XcodeTarget,
+      where: xt.command_event_id == ^run.id,
+      where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
+      where: not is_nil(xt.selective_testing_hash),
+      select: {xt.name, xt.selective_testing_hash}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
   def selective_testing_analytics(run, flop_params \\ %{}) do
     {start_dt, end_dt} = event_date_range(run)
 

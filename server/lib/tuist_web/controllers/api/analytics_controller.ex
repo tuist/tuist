@@ -489,6 +489,10 @@ defmodule TuistWeb.API.AnalyticsController do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
     end
 
+    if not is_nil(test_run_id) and not is_nil(xcode_graph) do
+      Tests.enqueue_flaky_tests_by_hash_detection(command_event.id, test_run_id)
+    end
+
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
       VCS.enqueue_vcs_pull_request_comment(%{
         git_commit_sha: git_commit_sha,
