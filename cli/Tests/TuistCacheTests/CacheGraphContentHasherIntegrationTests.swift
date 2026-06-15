@@ -158,6 +158,80 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
+    ) func contentHashes_xctestSupportFrameworkUsedByTestsIsComputed() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let testSupportTarget = makeFramework(
+            name: "TestSupport",
+            sources: [source1],
+            dependencies: [.xctest]
+        )
+        let featureTarget = makeFramework(
+            name: "Feature",
+            sources: [source2]
+        )
+        let testsTarget = Target.test(
+            name: "FeatureTests",
+            product: .unitTests,
+            dependencies: [
+                .target(name: featureTarget.name),
+                .target(name: testSupportTarget.name),
+            ]
+        )
+        let project = Project.test(
+            path: temporaryPath.appending(component: "Project"),
+            settings: .default,
+            targets: [testSupportTarget, featureTarget, testsTarget]
+        )
+        let testSupport = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let feature = GraphTarget(
+            path: project.path,
+            target: project.targets["Feature"]!,
+            project: project
+        )
+        let tests = GraphTarget(
+            path: project.path,
+            target: project.targets["FeatureTests"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            dependencies: [
+                .target(name: testSupportTarget.name, path: project.path): [
+                    .testSDK(name: "XCTest.framework"),
+                ],
+                .target(name: testsTarget.name, path: project.path): [
+                    .target(name: featureTarget.name, path: project.path),
+                    .target(name: testSupportTarget.name, path: project.path),
+                ],
+            ]
+        )
+
+        // When
+        let contentHash = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        #expect(contentHash[testSupport] != nil)
+        #expect(contentHash[feature] != nil)
+        #expect(contentHash[tests] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
     ) func contentHashes_hashIsConsistent() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
@@ -549,7 +623,8 @@ struct ContentHashingIntegrationTests {
         sources: [SourceFile] = [],
         resources: ResourceFileElements = .init([]),
         coreDataModels: [CoreDataModel] = [],
-        targetScripts: [TargetScript] = []
+        targetScripts: [TargetScript] = [],
+        dependencies: [TargetDependency] = []
     ) -> Target {
         .test(
             name: name,
@@ -559,7 +634,8 @@ struct ContentHashingIntegrationTests {
             sources: sources,
             resources: resources,
             coreDataModels: coreDataModels,
-            scripts: targetScripts
+            scripts: targetScripts,
+            dependencies: dependencies
         )
     }
 }

@@ -68,7 +68,6 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             Logger.current.debug("Graph used for hashing exported to \(exportPath.pathString)")
         }
 
-        let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
@@ -81,7 +80,6 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             include: {
                 isGraphTargetHashable(
                     $0,
-                    graphTraverser: graphTraverser,
                     excludedTargets: excludedTargets
                 )
             },
@@ -98,7 +96,6 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
 
     private func isGraphTargetHashable(
         _ target: GraphTarget,
-        graphTraverser: GraphTraversing,
         excludedTargets: Set<String>
     ) -> Bool {
         let product = target.target.product
@@ -107,10 +104,10 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         // The second condition is to exclude the resources bundle associated to the given target name
         let isExcluded = excludedTargets.contains(name) || excludedTargets
             .contains(target.target.name.dropPrefix("\(target.project.name)_"))
-        let dependsOnXCTest = graphTraverser.dependsOnXCTest(path: target.path, name: name)
+        let isTestBundle = target.target.product.testsBundle
         let isHashableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
 
-        return isHashableProduct && !isExcluded && !dependsOnXCTest
+        return isHashableProduct && !isExcluded && !isTestBundle
     }
 
     private func isMacro(_ target: GraphTarget, graphTraverser: GraphTraversing) -> Bool {
