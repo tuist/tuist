@@ -7,16 +7,16 @@
 ---
 # Releases
 
-Tuist uses a continuous release system that automatically publishes new versions whenever meaningful changes are merged to the main branch. This approach ensures that improvements reach users quickly without manual intervention from maintainers.
+Tuist publishes new versions automatically as changes are merged to the main branch. The server and app are released continuously, so improvements reach users immediately. The CLI builds on the same tooling but ships through release channels (canary, release candidate, stable) so the recommended install stays stable and slow-moving; cutting a release candidate and promoting it to stable are deliberate, maintainer-triggered steps.
 
 ## Overview
 
-We continuously release three main components:
-- **Tuist CLI** - The command-line tool
-- **Tuist Server** - The backend services
-- **Tuist App** - The macOS and iOS apps (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release)
+We release these main components:
+- **Tuist CLI** - The command-line tool, shipped through canary, release candidate, and stable [channels](#cli-release-channels)
+- **Tuist Server** - The backend services, released continuously
+- **Tuist App** - The macOS and iOS apps, released continuously (iOS app is only continuously deployed to TestFlight, see more [here](#app-store-release))
 
-Each component has its own release pipeline that runs automatically on every push to the main branch.
+The server and app publish automatically on every push to the main branch. The CLI publishes a canary prerelease on every push, but reaches a stable release only when a maintainer cuts and promotes it (see [CLI release channels](#cli-release-channels)).
 
 ## How it works
 
@@ -39,6 +39,8 @@ Format: `type(scope): description`
 | `test` | Test additions/changes | No release | `test: add unit tests for cache` |
 | `chore` | Maintenance tasks | No release | `chore: update dependencies` |
 | `ci` | CI/CD changes | No release | `ci: add workflow for releases` |
+
+For the CLI, these bumps determine the canary version and the changelog grouping. Stable CLI versions are minor lines (`X.Y.0`) cut by hand, and stable patches (`X.Y.Z`) come only from backports, so a `feat` or `fix` reaches CLI users through the channel flow below rather than as an immediate stable release.
 
 #### Breaking changes
 
@@ -70,6 +72,8 @@ When releasable changes are detected:
 5. **Release creation**: A GitHub release is created with artifacts
 6. **Distribution**: Updates are pushed to package managers (e.g., Homebrew for CLI)
 
+For the server and app this produces a stable release. For the CLI this same automatic pipeline produces a **canary** prerelease only; release candidates and stable releases are cut manually (see [CLI release channels](#cli-release-channels)).
+
 ### 4. Scope filtering
 
 Each component only releases when it has relevant changes:
@@ -77,6 +81,47 @@ Each component only releases when it has relevant changes:
 - **CLI**: Commits with `(cli)` scope or no scope
 - **App**: Commits with `(app)` scope
 - **Server**: Commits with `(server)` scope
+
+## CLI release channels
+
+Unlike the server and app, the CLI is not promoted to a stable release on every push to `main`. It ships through three channels so the recommended install stays stable and slow-moving while early adopters keep per-commit builds. The <.localized_link href="/cli/release-channels">Release channels</.localized_link> page documents this from a user's perspective; this section is the maintainer runbook.
+
+| Channel | Version | Cut by |
+|---------|---------|--------|
+| Canary | `X.Y.0-canary.N` | Automatically, on every CLI-touching push to `main` (`cli-release.yml`) |
+| Release candidate | `X.Y.0-rc.N` | Manually, on a `releases/<major>.<minor>.x` branch (`cli-rc.yml`) |
+| Stable | `X.Y.Z` | Manually, by promoting a soaked RC (`cli-promote.yml`); patches via `cli-backport.yml` |
+
+Canary and RC builds are published as GitHub prereleases (never marked "Latest", never pushed to Homebrew), so package managers only resolve them on explicit opt-in. Canary always targets the next unreleased minor: once an RC line is cut, `main`'s canary advances to the following minor.
+
+You never hand-pick version numbers. Every channel's next version is derived from the existing git tags by `mise/tasks/cli/release/channel-version.sh`, which the workflows below invoke.
+
+### Cutting a release candidate
+
+When the next minor is ready to soak, cut a new line:
+
+1. Run the **CLI Release Candidate** workflow (`cli-rc.yml`) with an empty `branch` input.
+2. It publishes `X.Y.0-rc.1` and, after that succeeds, creates the protected `releases/X.Y.x` branch at the built commit.
+
+To pull a critical fix or regression into a soaking line, cherry-pick it onto the release branch through a PR (the same flow as backports; CI never cherry-picks), then iterate the RC:
+
+1. Branch off `releases/X.Y.x`, cherry-pick the fix, open a PR back into the release branch, resolve any conflicts there, and merge.
+2. Run **CLI Release Candidate** again with `branch=releases/X.Y.x`. It publishes `X.Y.0-rc.(N+1)` from the branch HEAD.
+
+A soaking line is feature-frozen: only critical fixes and regressions go onto it.
+
+### Promoting to stable
+
+After the RC has soaked cleanly (about a week):
+
+1. Run the **CLI Promote to Stable** workflow (`cli-promote.yml`) with `branch=releases/X.Y.x`.
+2. It publishes the bare `X.Y.0` tag with `make_latest=true` and updates the Homebrew formula.
+
+Promotion refuses to run unless the branch HEAD is exactly the commit the latest RC points at. So if any fix merged onto the line after the last RC, you must cut a new RC and let it soak before it can ship as stable.
+
+### Backporting fixes to a stable line
+
+Once a line is stable, ship patches with the **CLI Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes all fixes, the previous line takes critical and security fixes only.
 
 ## Writing good commit messages
 
@@ -106,14 +151,17 @@ Users need to clear their cache after updating.
 
 ## Release workflows
 
-The release workflow is defined in `.github/workflows/release.yml`.
+The server, app, cache, Gradle plugin, skills, Noora, and infrastructure components release through `.github/workflows/release.yml`. It runs on pushes to main, uses git cliff for change detection, and handles the full process including artifacts and GitHub releases.
 
-It coordinates the component-specific jobs for the CLI, app, server, cache, Gradle plugin, skills, and Noora releases. For the CLI, it also generates and publishes a `tuist.spec.json` artifact so downstream tooling can consume the command interface.
+The CLI has its own set of workflows (it is excluded from `release.yml`):
 
-The workflow:
-- Runs on pushes to main
-- Uses git cliff for change detection
-- Handles the full release process, including artifacts and GitHub releases
+- `cli-release.yml` - publishes a canary on every CLI-touching push to main
+- `cli-rc.yml` - manually cuts or iterates a release candidate
+- `cli-promote.yml` - manually promotes a soaked RC to stable
+- `cli-backport.yml` - manually cuts a patch on a stable line
+- `cli-build-publish.yml` - the shared build and publish pipeline the four above call
+
+The CLI build (`cli-build-publish.yml`) also produces and publishes a `tuist.spec.json` artifact (generated from `tuist --experimental-dump-help`) so downstream tooling can consume the command interface. All CLI workflows serialize through one `cli-publish` concurrency group so version resolution and tagging never race.
 
 ## Monitoring releases
 
@@ -144,7 +192,8 @@ If a release fails:
 For urgent fixes that need immediate release:
 1. Ensure your commit has a clear scope
 2. After merging, monitor the release workflow
-3. If needed, trigger a manual release
+3. For the server or app, the fix ships on the next push; if needed, trigger a manual release
+4. For the CLI, the fix lands on canary automatically. To get it to stable users, backport it to the maintained stable line(s) (see [Backporting fixes to a stable line](#backporting-fixes-to-a-stable-line))
 
 ## App Store release
 
