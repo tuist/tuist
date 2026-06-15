@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: write
+  # Build provenance attestation for the release artifact (OIDC-signed).
+  id-token: write
+  attestations: write
 
 concurrency:
   group: grafana-datasource-release
@@ -64,7 +67,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.3"
+          go-version: "1.26.4"
 
       - uses: jdx/mise-action@v4.0.1
         with:
@@ -114,6 +117,11 @@ jobs:
             echo "ZIP=grafana-datasource/$id-$VERSION.zip"
             echo "SHA1=grafana-datasource/$id-$VERSION.zip.sha1"
           } >> "$GITHUB_ENV"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ZIP }}
 
       - name: Validate the plugin (informational)
         run: |
