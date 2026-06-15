@@ -118,8 +118,9 @@ originate from a documented, allowlisted address.
 
 Operator procurement: reserve the extra Floating IPs up front, then add their
 `/32`s to **both** `egressIpAllowlist` (here) and the customer network guide
-(`server/priv/docs/en/guides/server/network.md`) *before* they are used. Today
-only `116.202.0.10` is provisioned.
+(`server/priv/docs/en/guides/server/network.md`) *before* they are used. The
+prod set is `tuist-production-server-egress[-2..4]` (4 reserved Floating IPs in
+the `tuist-workloads` project); `116.202.0.10` is the active member.
 
 > Background: a 2026-06-14 production outage traced to this binding being a
 > single hand-labelled general worker. It got remediated; neither the label nor
