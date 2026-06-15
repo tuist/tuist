@@ -58,6 +58,28 @@ use crate::{
 const DEFAULT_INSTANCE_NAME: &str = "default";
 const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+
+// HTTP/2 flow-control windows the REAPI gRPC server advertises. hyper's 1 MiB
+// defaults cap a single upload stream at ~window/RTT, which throttles large
+// Bazel ByteStream writes even after the gateway nginx window is raised in
+// front (the kura hop becomes the next bottleneck). Lift both; the connection
+// window is sized for several concurrent full streams so a fan-out of uploads
+// does not starve on the connection-level window.
+const REAPI_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
+const REAPI_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
+
+// A REAPI connection is recycled after this age: the server sends GOAWAY, then
+// lets in-flight RPCs run for the grace period before closing. Raised from 5min
+// so connection recycling does not sever a large in-flight upload; stalls are
+// bounded by REAPI_WRITE_STALL_TIMEOUT instead, so a connection with data
+// actively flowing is never cut.
+const REAPI_MAX_CONNECTION_AGE: Duration = Duration::from_secs(3600);
+const REAPI_MAX_CONNECTION_AGE_GRACE: Duration = Duration::from_secs(3600);
+
+// Abort a ByteStream upload only when no chunk arrives within this window. The
+// timer resets on every chunk received, so an actively transferring upload is
+// never interrupted, while a stalled or vanished client is reclaimed promptly.
+const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
@@ -91,8 +113,10 @@ where
     let byte_stream = ByteStreamServer::new(service).max_decoding_message_size(64 << 20);
 
     let mut builder = Server::builder()
-        .max_connection_age(Duration::from_secs(300))
-        .max_connection_age_grace(Duration::from_secs(300))
+        .initial_stream_window_size(REAPI_HTTP2_STREAM_WINDOW_BYTES)
+        .initial_connection_window_size(REAPI_HTTP2_CONNECTION_WINDOW_BYTES)
+        .max_connection_age(REAPI_MAX_CONNECTION_AGE)
+        .max_connection_age_grace(REAPI_MAX_CONNECTION_AGE_GRACE)
         .layer(GrpcRequestAccountingLayer { state });
     if let Some(tls) = tls {
         builder = builder
@@ -753,7 +777,24 @@ impl ByteStream for ReapiService {
         let mut hasher = Sha256::new();
         let mut finished = false;
 
-        while let Some(chunk) = stream.message().await? {
+        loop {
+            // Bound only on inactivity: every received chunk resets the timer,
+            // so an upload that keeps sending is never cut, but a stalled client
+            // is reclaimed instead of holding the temp file open indefinitely.
+            let chunk = match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await
+            {
+                Ok(result) => match result? {
+                    Some(chunk) => chunk,
+                    None => break,
+                },
+                Err(_elapsed) => {
+                    self.state.io.remove_file_if_exists(&temp_path).await;
+                    return Err(Status::deadline_exceeded(format!(
+                        "no upload data received within {}s; aborting stalled write",
+                        REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                    )));
+                }
+            };
             if finished {
                 self.state.io.remove_file_if_exists(&temp_path).await;
                 return Err(Status::invalid_argument(
