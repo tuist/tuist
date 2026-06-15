@@ -393,6 +393,56 @@ defmodule Tuist.KuraTest do
 
       assert [_] = Accounts.list_account_cache_endpoints(account, :kura)
     end
+
+    test "prunes the superseded :kura endpoint when the server's public URL changes" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+      # Region template now renders a new host; re-activation must replace the
+      # mirror, not accumulate a second row.
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+    end
+
+    test "leaves other regions' :kura endpoints and :default endpoints intact when pruning" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: "0.5.2"})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+
+      # Another region's Kura endpoint (distinct URL) and a user-configured
+      # default endpoint that happens to share the pruned URL.
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://other-region.example.com",
+          technology: :kura
+        })
+
+      {:ok, _} =
+        Accounts.create_account_cache_endpoint(account, %{url: "http://localhost:4100", technology: :default})
+
+      stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+      {:ok, _server} = Kura.activate_server(server, "0.5.2")
+
+      kura_urls =
+        account |> Accounts.list_account_cache_endpoints(:kura) |> Enum.map(& &1.url) |> Enum.sort()
+
+      assert kura_urls == ["http://localhost:4200", "https://other-region.example.com"]
+      assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :default)
+    end
   end
 
   describe "destroy_server/1" do
