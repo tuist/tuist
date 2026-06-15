@@ -90,10 +90,12 @@ client image and takes ~30-60s.
 
 ## CI
 
-The `e2e-throughput` job in `.github/workflows/kura.yml` runs this on every PR
-that touches `kura/**` or `infra/helm/platform/values.yaml` (the chart whose
-window values the test reads). It reuses the kura image the workflow already
-built from source — so CI tests the CI version — and only builds the Go client.
+This runs as the `gateway-throughput` shard of the `e2e` matrix in
+`.github/workflows/kura.yml`, on every PR that touches `kura/**` or
+`infra/helm/platform/values.yaml` (the chart whose window values the test
+reads). The shard sets `KURA_E2E_THROUGHPUT=1` so the spec opts in, and reuses
+the kura image the workflow already built from source (retagged `kura:e2e`) —
+so CI tests the CI version and only builds the Go client.
 
 ## Notes / scope
 
