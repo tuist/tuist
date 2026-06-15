@@ -1,0 +1,54 @@
+name: kura-throughput-e2e
+
+# Topology (single injected RTT applied identically to all three paths):
+#
+#   client ─► toxiproxy ─► nginx-baseline (64KB window) ─► kura
+#                       ─► nginx-patched  (4MB window)  ─► kura
+#                       ─► kura (direct, tonic default window)
+#
+# toxiproxy's proxies + latency toxics are created at runtime by the client.
+
+services:
+  kura:
+    image: ${KURA_IMAGE:-ghcr.io/tuist/kura:0.10.1}
+    environment:
+      # Minimal standalone config: gRPC h2c on 50051, no peers, no auth extension.
+      KURA_PORT: "4000"
+      KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_TENANT_ID: "e2e"
+      KURA_REGION: "local"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_NODE_URL: "http://kura:7443"
+      KURA_OTEL_SERVICE_NAME: "kura-e2e"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "e2e"
+      KURA_EXTENSION_ENABLED: "false"
+      RUST_LOG: "warn"
+
+  nginx-baseline:
+    image: nginx:1.27
+    depends_on: [kura]
+    volumes:
+      - ./nginx/baseline.conf:/etc/nginx/nginx.conf:ro
+
+  nginx-patched:
+    image: nginx:1.27
+    depends_on: [kura]
+    volumes:
+      - ./nginx/patched.conf:/etc/nginx/nginx.conf:ro
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    # Default entrypoint already runs the server with -host=0.0.0.0 (API :8474).
+
+  client:
+    build: ./client
+    depends_on: [toxiproxy, nginx-baseline, nginx-patched, kura]
+    environment:
+      TOXIPROXY_API: "http://toxiproxy:8474"
+      TOXIPROXY_HOST: "toxiproxy"
+      SIZE_MB: "${SIZE_MB:-16}"
+      LATENCY_MS: "${LATENCY_MS:-50}"
+      CHUNK_KB: "${CHUNK_KB:-256}"
+      MIN_SPEEDUP: "${MIN_SPEEDUP:-4}"
