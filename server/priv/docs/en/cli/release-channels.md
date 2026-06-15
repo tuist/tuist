@@ -22,7 +22,7 @@ Canary and release candidate builds are published as prereleases. Tools like Mis
 
 ### Canary {#canary}
 
-Every commit to `main` publishes a canary. Canary always represents the **next unreleased minor**: once a line is cut for release, `main` advances to the following minor (for example, from `4.200.0-canary.42` to `4.201.0-canary.1`). Canary is the right channel for internal dogfooding and for verifying that a fix you contributed behaves as expected before it reaches stable.
+Every commit to `main` publishes a canary. Canary always represents the **next unreleased minor**: once a line is cut for release, `main` advances to the following minor (for example, from `4.200.0-canary.42` to `4.201.0-canary.1`). Canary is the right channel for early adopters who want the earliest possible signal, or to verify that a fix you reported or contributed behaves as expected before it reaches stable.
 
 ### Release candidate {#release-candidate}
 
@@ -50,7 +50,7 @@ With Homebrew, `brew install --formula tuist` always installs the latest stable;
 
 1. **Pin to a stable line**, for example `tuist@4.200`. That line receives only backported fixes, never new features, so day-to-day upgrades stay low-risk.
 2. **Adopt new features deliberately.** When you are ready for the next minor, soak it on the release candidate channel, then move your pin to the new stable line.
-3. **Dogfood on canary** in a non-critical environment if you want the earliest possible signal.
+3. **Try canary** in a non-critical environment if you are an early adopter who wants the earliest possible signal.
 
 ## Support and backports {#support-and-backports}
 
