@@ -10,6 +10,8 @@ Releasing the CLI used to be a manual step. Then we adopted conventional commits
 
 But continuous release has a cost that grows with the size of your team. When every commit is "latest", upgrading is a gamble. A version that has the fix you need also carries every unrelated change merged around it, and occasionally one of those is a regression. The advice we kept repeating, "pin a version and upgrade carefully", was a workaround for a problem we had created. We wanted to fix it at the source.
 
+We do our best to keep regressions out. Every change runs through an extensive test suite, and acceptance tests exercise real CLI commands against the server on every deployment. But Xcode projects in the wild are remarkably varied and complex, and some issues only surface when a release meets that diversity. No suite we write fully substitutes for running a new version against real-world projects, which is the gap this change is meant to close.
+
 So we are introducing release channels.
 
 ## Three channels
