@@ -4,6 +4,6 @@
 // neither imports nor is imported by. Keeping it separate lets the plugin track
 // the latest grafana-plugin-sdk-go (and the go version it needs) without
 // forcing those dependency versions onto the infra modules.
-go 1.26.3
+go 1.26.4
 
 use .
