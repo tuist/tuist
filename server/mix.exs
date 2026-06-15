@@ -163,7 +163,12 @@ defmodule Tuist.MixProject do
       {:opentelemetry_phoenix, "~> 2.0"},
       {:opentelemetry_ecto,
        github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_ecto"},
-      {:opentelemetry_finch, "~> 0.2"},
+      # The hex package (bancolombia/opentelemetry_finch 0.2.0) is unmaintained since 2022 and
+      # crashes its [:finch, :request, :stop] handler on streamed requests (reads response.status
+      # off Req's {request, response} accumulator → BadMapError → handler permanently detached).
+      # The contrib monorepo version handles streaming results.
+      {:opentelemetry_finch,
+       github: "open-telemetry/opentelemetry-erlang-contrib", sparse: "instrumentation/opentelemetry_finch"},
       {:opentelemetry_logger_metadata, "~> 0.1"},
       {:opentelemetry_bandit, "~> 0.3"},
       {:opentelemetry_broadway, "~> 0.3"},
