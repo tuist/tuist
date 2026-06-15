@@ -16,6 +16,14 @@ cleanup() { docker compose down -v --remove-orphans >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 cleanup
-docker compose build
+
+# Render baseline/patched nginx confs from the live chart values.
+./generate-confs.sh
+
+# Build only the measurement client. kura is built lazily by `up` from source
+# if its image (KURA_IMAGE, default kura:e2e) isn't present locally; in CI the
+# image is prebuilt and retagged, so no kura rebuild happens here.
+docker compose build client
+
 # --exit-code-from propagates the client's exit code and stops the stack when it ends.
 docker compose up --abort-on-container-exit --exit-code-from client

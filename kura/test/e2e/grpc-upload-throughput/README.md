@@ -23,9 +23,15 @@ client ─► toxiproxy ─► nginx-baseline (64KB window, today)  ─► kura
                     ─► kura (direct, tonic default ~1MB window)
 ```
 
-`nginx/baseline.conf` and `nginx/patched.conf` are identical except for the
-three directives the `kura-controller` ConfigMap and the platform chart now
-render — so the measured difference is attributable to that change alone.
+Both nginx configs are **generated** by `generate-confs.sh` from a single
+template (`nginx/nginx.conf.tmpl`): `patched` injects the HTTP/2 window
+directives read live from the platform chart
+(`infra/helm/platform/values.yaml`), `baseline` omits them (nginx defaults).
+The only difference between the two is those directives, and because they are
+read from the chart rather than hand-copied, the test tracks the real config
+instead of a frozen snapshot. A unit test in `infra/kura-controller`
+(`TestGatewayNginxConfigMatchesChart`) additionally asserts the dedicated-
+gateway ConfigMap equals the chart values, so the two render paths can't drift.
 
 ## Measured results
 
@@ -47,7 +53,7 @@ kura's own ~1MB tonic stream window — which is why the kura-side
 
 ## Run it
 
-Standalone (uses the pinned released image `ghcr.io/tuist/kura:0.10.1`):
+Standalone:
 
 ```bash
 ./run.sh
@@ -61,7 +67,17 @@ SIZE_MB=16 LATENCY_MS=96 MIN_SPEEDUP=4 ./run.sh    # 192ms RTT, production-faith
 | `LATENCY_MS` | 50  | one-way latency; injected on both streams, so RTT ≈ 2x |
 | `CHUNK_KB`   | 256 | ByteStream chunk size |
 | `MIN_SPEEDUP`| 4   | required patched/baseline ratio (test fails below it) |
-| `KURA_IMAGE` | `ghcr.io/tuist/kura:0.10.1` | kura image under test |
+| `KURA_IMAGE` | `kura:e2e` | kura image under test; built from source if absent |
+
+By default the harness **builds kura from the repo source** (so it always tests
+the current version, never a pinned tag). The first standalone build compiles
+rocksdb and is slow; it's cached afterward. For fast local *window* tuning —
+where kura's version is irrelevant — skip the build with a released image:
+
+```bash
+docker pull ghcr.io/tuist/kura:latest
+KURA_IMAGE=ghcr.io/tuist/kura:latest ./run.sh
+```
 
 Via the shellspec suite (builds + tests the local kura source as `kura:e2e`):
 
@@ -71,6 +87,13 @@ KURA_E2E_THROUGHPUT=1 mise run test-e2e -- spec/e2e/grpc_upload_throughput_spec.
 
 The spec is skipped unless `KURA_E2E_THROUGHPUT=1` because it builds a small Go
 client image and takes ~30-60s.
+
+## CI
+
+The `e2e-throughput` job in `.github/workflows/kura.yml` runs this on every PR
+that touches `kura/**` or `infra/helm/platform/values.yaml` (the chart whose
+window values the test reads). It reuses the kura image the workflow already
+built from source — so CI tests the CI version — and only builds the Go client.
 
 ## Notes / scope
 

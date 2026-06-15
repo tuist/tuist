@@ -10,7 +10,15 @@ name: kura-throughput-e2e
 
 services:
   kura:
-    image: ${KURA_IMAGE:-ghcr.io/tuist/kura:0.10.1}
+    # Build from the repo's kura source so the test always runs against the
+    # current version. In CI the e2e-images job has already built this and the
+    # job retags it to kura:e2e, so compose reuses it (no rebuild). For fast
+    # local window tuning, set KURA_IMAGE=ghcr.io/tuist/kura:latest to skip the
+    # source build (kura's version is irrelevant to the nginx-window behavior).
+    image: ${KURA_IMAGE:-kura:e2e}
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
     environment:
       # Minimal standalone config: gRPC h2c on 50051, no peers, no auth extension.
       KURA_PORT: "4000"
@@ -26,17 +34,19 @@ services:
       KURA_EXTENSION_ENABLED: "false"
       RUST_LOG: "warn"
 
+  # Both confs are rendered by generate-confs.sh from the live chart values
+  # (run.sh does this before `up`); they differ only in the window directives.
   nginx-baseline:
     image: nginx:1.27
     depends_on: [kura]
     volumes:
-      - ./nginx/baseline.conf:/etc/nginx/nginx.conf:ro
+      - ./generated/baseline.conf:/etc/nginx/nginx.conf:ro
 
   nginx-patched:
     image: nginx:1.27
     depends_on: [kura]
     volumes:
-      - ./nginx/patched.conf:/etc/nginx/nginx.conf:ro
+      - ./generated/patched.conf:/etc/nginx/nginx.conf:ro
 
   toxiproxy:
     image: ghcr.io/shopify/toxiproxy:2.12.0

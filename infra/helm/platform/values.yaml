@@ -78,7 +78,12 @@ kura-eu-central-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
+    # Anchored so all three regional Kura gateways share ONE nginx config
+    # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
+    # derives its patched nginx config from these keys, and the dedicated-
+    # gateway ConfigMap in infra/kura-controller is asserted equal to them in a
+    # unit test — so the window settings cannot silently drift across the three.
+    config: &kuraGatewayNginxConfig
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
@@ -113,15 +118,7 @@ kura-us-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
-      use-forwarded-headers: "true"
-      use-proxy-protocol: "true"
-      compute-full-forwarded-for: "true"
-      upstream-keepalive-timeout: "10"
-      # HTTP/2 upload windows — see kura-eu-central-ingress-nginx above.
-      client-body-buffer-size: "4m"
-      http2-max-concurrent-streams: "32"
-      http-snippet: "http2_body_preread_size 4m;"
+    config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
 
@@ -140,15 +137,7 @@ kura-us-west-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
-      use-forwarded-headers: "true"
-      use-proxy-protocol: "true"
-      compute-full-forwarded-for: "true"
-      upstream-keepalive-timeout: "10"
-      # HTTP/2 upload windows — see kura-eu-central-ingress-nginx above.
-      client-body-buffer-size: "4m"
-      http2-max-concurrent-streams: "32"
-      http-snippet: "http2_body_preread_size 4m;"
+    config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
 

@@ -7,11 +7,17 @@ on:
     paths:
       - kura/**
       - .github/workflows/kura.yml
+      # The gateway nginx config the upload-throughput e2e validates lives in
+      # the platform chart, so chart window changes must exercise this workflow.
+      - infra/helm/platform/values.yaml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - kura/**
       - .github/workflows/kura.yml
+      # The gateway nginx config the upload-throughput e2e validates lives in
+      # the platform chart, so chart window changes must exercise this workflow.
+      - infra/helm/platform/values.yaml
   merge_group: {}
 
 permissions:
@@ -226,3 +232,37 @@ jobs:
 
       - name: Run end-to-end suite
         run: shellspec ${{ matrix.specs }}
+
+  e2e-throughput:
+    name: E2E gateway upload throughput
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: e2e-images
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Docker tooling
+        run: docker compose version
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: kura-e2e-images
+          path: kura/prebuilt-images
+
+      - name: Load prebuilt Docker images
+        run: zstd -dc prebuilt-images/kura-e2e-images.tar.zst | docker load
+
+      # Reuse the kura image this workflow already built from source (concern:
+      # the test must run against the CI version, never a pinned release tag).
+      # The harness's compose resolves KURA_IMAGE, so no kura rebuild happens.
+      - name: Tag built kura image for the throughput harness
+        run: docker tag kura-kura-us kura:e2e
+
+      # Runs run.sh directly (this job is the gate, so the spec's opt-in flag
+      # is unnecessary). generate-confs.sh derives the patched nginx config from
+      # infra/helm/platform/values.yaml; only the Go client image is built here.
+      - name: Run gateway upload-throughput e2e
+        run: ./test/e2e/grpc-upload-throughput/run.sh
+        env:
+          KURA_IMAGE: kura:e2e
