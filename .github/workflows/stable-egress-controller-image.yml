@@ -13,9 +13,6 @@ on:
   push:
     branches:
       - main
-      # TEMPORARY (revert before merge): build a :sha image from this branch so
-      # the controller can be e2e-tested on staging without merging the PR.
-      - claude/durable-stable-egress-gateway
     paths:
       - infra/stable-egress-controller/**
       - .github/workflows/stable-egress-controller-image.yml
