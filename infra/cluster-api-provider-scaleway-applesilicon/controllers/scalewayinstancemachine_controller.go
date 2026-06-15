@@ -23,6 +23,8 @@ import (
 	"github.com/scaleway/scaleway-sdk-go/scw"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
 
@@ -48,6 +50,17 @@ type ScalewayInstanceMachineReconciler struct {
 	Scheme         *runtime.Scheme
 	ScalewayClient *scaleway.InstanceClient
 	Recorder       record.EventRecorder
+
+	// CredentialsManager mints the kubelet node identity (token + CA), and
+	// Kubeconfig renders it into a kubelet kubeconfig — the same machinery
+	// the Apple Silicon reconciler uses. The node self-registers with that
+	// kubeconfig; no CAPI kubeadm bootstrap is involved.
+	CredentialsManager *credentials.Manager
+	Kubeconfig         *kubeconfig.Builder
+
+	// KubernetesMinor is the pkgs.k8s.io channel the cloud-init installs
+	// kubelet from (e.g. "v1.34"); keep in step with the control plane.
+	KubernetesMinor string
 
 	// DefaultImage / DefaultZone fill in a Machine spec that left them
 	// empty (the kubebuilder defaults cover the common path; these guard
@@ -129,16 +142,9 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		return r.fail(machine, "InvalidZone", fmt.Sprintf("zone %q: %v", machine.Spec.Zone, err))
 	}
 
-	// The CAPI kubeadm bootstrap provider renders the join cloud-init into
-	// the owner Machine's bootstrap data Secret; without it there's nothing
-	// to hand the instance, so wait.
-	if ownerMachine == nil || ownerMachine.Spec.Bootstrap.DataSecretName == nil {
-		machine.Status.Phase = "Pending"
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
-	}
-
 	// Provision (idempotent): reuse the server named after this Machine if
-	// it already exists, otherwise create it with the bootstrap cloud-init.
+	// it already exists, otherwise mint the kubelet identity, render a
+	// self-join cloud-init, and create the instance with it.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
 		existing, findErr := r.ScalewayClient.FindServerByName(ctx, zone, machine.Name)
 		if findErr != nil {
@@ -149,10 +155,16 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		if existing != nil {
 			serverID = existing.ID
 		} else {
-			cloudInit, secretErr := r.bootstrapData(ctx, machine.Namespace, *ownerMachine.Spec.Bootstrap.DataSecretName)
-			if secretErr != nil {
-				return ctrl.Result{}, secretErr
+			identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+			if idErr != nil {
+				machine.Status.Phase = "Pending"
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
 			}
+			kubeconfigYAML, kcErr := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+			if kcErr != nil {
+				return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
+			}
+			cloudInit := renderLinuxCloudInit(machine.Name, kubeconfigYAML, firstNonEmpty(r.KubernetesMinor, "v1.34"), machine.Spec.NodeTaints)
 			created, createErr := r.ScalewayClient.CreateInstance(ctx, scaleway.CreateInstanceParams{
 				Name:             machine.Name,
 				Zone:             zone,
@@ -160,7 +172,7 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 				ImageLabel:       firstNonEmpty(machine.Spec.Image, r.DefaultImage),
 				RootVolumeGB:     machine.Spec.RootVolumeGB,
 				PrivateNetworkID: machine.Spec.PrivateNetworkID,
-				CloudInit:        cloudInit,
+				CloudInit:        []byte(cloudInit),
 				Tags:             []string{"capi", "scalewayinstancemachine=" + machine.Name},
 			})
 			if createErr != nil {
@@ -256,18 +268,6 @@ func (r *ScalewayInstanceMachineReconciler) reconcileDelete(ctx context.Context,
 	}
 	controllerutil.RemoveFinalizer(machine, InstanceMachineFinalizer)
 	return ctrl.Result{}, nil
-}
-
-func (r *ScalewayInstanceMachineReconciler) bootstrapData(ctx context.Context, namespace, secretName string) ([]byte, error) {
-	secret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: secretName}, secret); err != nil {
-		return nil, fmt.Errorf("get bootstrap secret %s: %w", secretName, err)
-	}
-	data, ok := secret.Data["value"]
-	if !ok {
-		return nil, fmt.Errorf("bootstrap secret %s has no 'value' key", secretName)
-	}
-	return data, nil
 }
 
 func (r *ScalewayInstanceMachineReconciler) fail(machine *infrav1.ScalewayInstanceMachine, reason, message string) (ctrl.Result, error) {

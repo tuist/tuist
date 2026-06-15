@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -44,16 +45,23 @@ type ScalewayInstanceMachineSpec struct {
 	// to set the node's `tuist.dev/pn-ipv4` label after it registers.
 	// +optional
 	PrivateNetworkID string `json:"privateNetworkID,omitempty"`
+
+	// NodeTaints are passed to the kubelet's `--register-with-taints` in the
+	// generated join cloud-init. The kura runner-cache pool carries
+	// `tuist.dev/runner-cache=true:NoSchedule` here so only the cache pods
+	// (which tolerate it) land on the shared-NIC node.
+	// +optional
+	NodeTaints []corev1.Taint `json:"nodeTaints,omitempty"`
 }
 
-// Bootstrap, node labels, and taints are deliberately NOT on this spec.
-// The instance joins via a standard CAPI KubeadmConfigTemplate: the kubeadm
-// bootstrap provider renders the join cloud-init (token, CA hash, join
-// endpoint, `nodeRegistration` labels + taints) into the Machine's bootstrap
-// data Secret, and the reconciler passes that as the instance's cloud-init
-// user-data. Static labels/taints (pool, runner-cache) live in that template;
-// the dynamic `tuist.dev/pn-ipv4` label is patched onto the Node by the
-// controller once the PN address is known.
+// Bootstrap is provider-generated, not via a CAPI KubeadmConfigTemplate: the
+// reconciler mints a kubelet token kubeconfig (the same machinery the Apple
+// Silicon kind uses) and renders a cloud-init that installs kubelet and
+// self-registers the node against the externally-managed control plane —
+// CABPK can't render a kubeadm join for this cluster (no cluster CA secret).
+// The pool label rides CAPI Machine→Node propagation; the dynamic
+// `tuist.dev/pn-ipv4` label is patched onto the Node once its PN address is
+// known.
 
 // ScalewayInstanceMachineStatus is the observed state of the Machine.
 type ScalewayInstanceMachineStatus struct {

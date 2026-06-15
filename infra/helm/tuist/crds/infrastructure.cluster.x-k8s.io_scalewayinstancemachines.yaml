@@ -69,6 +69,12 @@ spec:
                 privateNetworkID:
                   description: VPC Private Network the instance is attached to before bootstrap.
                   type: string
+                nodeTaints:
+                  description: Taints passed to the kubelet's --register-with-taints in the join cloud-init.
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
               type: object
             status:
               description: ScalewayInstanceMachineStatus is the observed state.

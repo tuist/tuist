@@ -444,12 +444,15 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controllers.ScalewayInstanceMachineReconciler{
-		Client:         mgr.GetClient(),
-		Scheme:         mgr.GetScheme(),
-		ScalewayClient: instanceClient,
-		Recorder:       mgr.GetEventRecorderFor("scalewayinstancemachine-controller"),
-		DefaultImage:   "ubuntu_noble",
-		DefaultZone:    "fr-par-1",
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		ScalewayClient:     instanceClient,
+		Recorder:           mgr.GetEventRecorderFor("scalewayinstancemachine-controller"),
+		CredentialsManager: credsManager,
+		Kubeconfig:         kubeconfigBuilder,
+		KubernetesMinor:    "v1.34",
+		DefaultImage:       "ubuntu_noble",
+		DefaultZone:        "fr-par-1",
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup ScalewayInstanceMachineReconciler")
 		os.Exit(1)

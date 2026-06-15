@@ -1,21 +1,20 @@
 {{- if and .Values.capi.enabled .Values.kuraFleet.enabled }}
 {{- $fleetName := include "tuist.componentName" (dict "root" . "component" "kura-fleet") }}
 {{- $clusterName := include "tuist.componentName" (dict "root" . "component" "capi") }}
-{{- $k8sMinor := .Values.kuraFleet.kubernetesMinorVersion | default "v1.34" }}
+{{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
 {{- /*
-Kura runner-cache fleet — declarative Scaleway Linux Instances.
+Kura runner-cache fleet — declarative Scaleway Linux Instances (the PRO2-S
+co-located with the Mac fleet), replacing the hand-joined node.
 
-Mirrors macos-fleet.yaml, but for regular Scaleway Instances (the PRO2-S
-kura runner-cache pool) instead of Apple Silicon Macs. The infra side is a
-ScalewayInstanceMachineTemplate the in-house provider reconciles into a
-Scaleway Instance; the bootstrap side is a real KubeadmConfigTemplate (Linux
-nodes self-join via kubeadm, unlike the Macs' noop bootstrap). The pool label
-+ the runner-cache taint live here, declaratively — the taint is what the kura
-runner-cache pods' toleration targets.
+Like the macOS fleet, bootstrap is `noop-bootstrap` (no CAPI kubeadm join):
+this cluster's control plane is externally managed (Hetzner/caph), so CABPK
+has no cluster CA to mint a kubeadm join. Instead the ScalewayInstanceMachine
+reconciler mints a kubelet token kubeconfig and renders a self-join cloud-init
+itself — the same machinery the Apple Silicon kind uses, as cloud-init.
 
-OnDelete strategy: don't auto-churn the cache node on a template change (it
-loses cache warmth + re-bootstraps the mesh); roll it deliberately by deleting
-the Machine.
+The runner-cache taint rides nodeTaints on the MachineTemplate (the reconciler
+passes it to the kubelet's --register-with-taints); the pool label rides CAPI
+Machine→Node propagation. OnDelete strategy: don't auto-churn the cache node.
 */ -}}
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: ScalewayInstanceMachineTemplate
@@ -34,49 +33,10 @@ spec:
       image: {{ .Values.kuraFleet.machine.image | default "ubuntu_noble" | quote }}
       rootVolumeGB: {{ .Values.kuraFleet.machine.rootVolumeGB | default 50 }}
       privateNetworkID: {{ required "kuraFleet.machine.privateNetworkID is required" .Values.kuraFleet.machine.privateNetworkID | quote }}
----
-apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-kind: KubeadmConfigTemplate
-metadata:
-  name: {{ $fleetName }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-fleet
-spec:
-  template:
-    spec:
-      joinConfiguration:
-        nodeRegistration:
-          criSocket: unix:///run/containerd/containerd.sock
-          kubeletExtraArgs:
-            # The reconciler sets the foreign providerID on the Node, but
-            # passing it here too lets kubelet self-report it from first boot.
-            cloud-provider: external
-          taints:
-            - key: tuist.dev/runner-cache
-              value: "true"
-              effect: NoSchedule
-      preKubeadmCommands:
-        - set -euo pipefail
-        - swapoff -a && sed -ri '/\sswap\s/s/^/#/' /etc/fstab
-        - modprobe overlay && modprobe br_netfilter
-        - printf 'overlay\nbr_netfilter\n' > /etc/modules-load.d/k8s.conf
-        - printf 'net.bridge.bridge-nf-call-iptables=1\nnet.ipv4.ip_forward=1\nnet.bridge.bridge-nf-call-ip6tables=1\n' > /etc/sysctl.d/k8s.conf
-        - sysctl --system
-        - export DEBIAN_FRONTEND=noninteractive
-        - apt-get update
-        - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
-        - mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml
-        - sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-        - systemctl restart containerd && systemctl enable containerd
-        - mkdir -p /etc/apt/keyrings
-        - curl -fsSL https://pkgs.k8s.io/core:/stable:/{{ $k8sMinor }}/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-        - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ $k8sMinor }}/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
-        - apt-get update
-        - apt-get install -y kubelet kubeadm kubectl
-        - apt-mark hold kubelet kubeadm kubectl
-        - systemctl enable kubelet
+      nodeTaints:
+        - key: tuist.dev/runner-cache
+          value: "true"
+          effect: NoSchedule
 ---
 apiVersion: cluster.x-k8s.io/v1beta1
 kind: MachineDeployment
@@ -110,10 +70,7 @@ spec:
       clusterName: {{ $clusterName }}
       version: {{ .Values.kuraFleet.kubernetesVersion | default "v1.34.8" | quote }}
       bootstrap:
-        configRef:
-          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
-          kind: KubeadmConfigTemplate
-          name: {{ $fleetName }}
+        dataSecretName: {{ $bootstrapSecret }}
       infrastructureRef:
         apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
         kind: ScalewayInstanceMachineTemplate

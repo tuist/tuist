@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/cluster-api/api/v1beta1"
 )
@@ -398,6 +399,13 @@ func (in *ScalewayInstanceMachineSpec) DeepCopyInto(out *ScalewayInstanceMachine
 		in, out := &in.ProviderID, &out.ProviderID
 		*out = new(string)
 		**out = **in
+	}
+	if in.NodeTaints != nil {
+		in, out := &in.NodeTaints, &out.NodeTaints
+		*out = make([]corev1.Taint, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 }
 
