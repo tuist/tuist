@@ -136,6 +136,84 @@ Describe 'core cluster behaviour'
     The variable module_body should eq 'part-one-part-two'
   End
 
+  It 'keeps module artifacts larger than one segment readable after a node restart'
+    marker="$(new_marker)"
+    module_id="large-module-${marker}"
+    module_hash="large-hash-${marker}"
+    module_name="LargeModule-${marker}.framework"
+    # Kura assembles module-cache parts into one artifact before persistence.
+    # 52 * 10 MiB = 520 MiB, just over Kura's 512 MiB segment size.
+    module_part_size=$((10 * 1024 * 1024))
+    module_part_count=52
+    module_size=$((module_part_size * module_part_count))
+    expected_path="${SUITE_TMP_DIR}/large-module-${marker}.bin"
+    part_path="${SUITE_TMP_DIR}/large-module-part-${marker}.bin"
+    before_restart_path="${SUITE_TMP_DIR}/large-module-before-${marker}.bin"
+    after_restart_path="${SUITE_TMP_DIR}/large-module-after-${marker}.bin"
+
+    : >"${expected_path}"
+    capture_into start_response \
+      curl -fsS -X POST \
+      "${KURA_US_URL}/api/cache/module/start?tenant_id=acme&namespace_id=ios&hash=${module_hash}&name=${module_name}&cache_category=builds" || return 1
+    upload_id="$(extract_upload_id "${start_response}")"
+    The value "${upload_id}" should be present
+
+    parts_json=""
+    for part_number in $(seq 1 "${module_part_count}"); do
+      head -c "${module_part_size}" /dev/zero >"${part_path}" || return 1
+      cat "${part_path}" >>"${expected_path}"
+
+      part_status="$(status_only -X POST \
+        "${KURA_US_URL}/api/cache/module/part?upload_id=${upload_id}&part_number=${part_number}" \
+        -H "content-type: application/octet-stream" \
+        --data-binary "@${part_path}")"
+      if [ "${part_status}" != "204" ]; then
+        printf 'module part %s returned %s\n' "${part_number}" "${part_status}" >&2
+        return 1
+      fi
+
+      rm -f "${part_path}"
+      if [ -n "${parts_json}" ]; then
+        parts_json="${parts_json},"
+      fi
+      parts_json="${parts_json}${part_number}"
+    done
+    expected_size="$(wc -c <"${expected_path}" | tr -d '[:space:]')"
+    The variable expected_size should eq "${module_size}"
+
+    complete_status="$(status_only -X POST \
+      "${KURA_US_URL}/api/cache/module/complete?upload_id=${upload_id}" \
+      -H "content-type: application/json" \
+      -d "{\"parts\":[${parts_json}]}")"
+    The variable complete_status should eq 204
+
+    module_url="${KURA_US_URL}/api/cache/module/${module_id}?tenant_id=acme&namespace_id=ios&hash=${module_hash}&name=${module_name}&cache_category=builds"
+    capture_into head_status wait_for_head_status "${module_url}" 204 || return 1
+    The variable head_status should eq 204
+
+    curl -fsS "${module_url}" -o "${before_restart_path}" || return 1
+    before_restart_size="$(wc -c <"${before_restart_path}" | tr -d '[:space:]')"
+    The variable before_restart_size should eq "${module_size}"
+    before_restart_match="$(cmp -s "${expected_path}" "${before_restart_path}" && echo match || echo differ)"
+    The variable before_restart_match should eq "match"
+
+    dc restart kura-us >/dev/null 2>&1 || return 1
+    resolve_http_node KURA_US kura-us
+    wait_for_http "${KURA_US_URL}/up" || return 1
+    capture_into us_up wait_for_contains "${KURA_US_URL}/up" '"ring_members":3' || return 1
+    The variable us_up should include '"ring_members":3'
+
+    module_url="${KURA_US_URL}/api/cache/module/${module_id}?tenant_id=acme&namespace_id=ios&hash=${module_hash}&name=${module_name}&cache_category=builds"
+    capture_into restarted_head_status wait_for_head_status "${module_url}" 204 || return 1
+    The variable restarted_head_status should eq 204
+
+    curl -fsS "${module_url}" -o "${after_restart_path}" || return 1
+    after_restart_size="$(wc -c <"${after_restart_path}" | tr -d '[:space:]')"
+    The variable after_restart_size should eq "${module_size}"
+    after_restart_match="$(cmp -s "${expected_path}" "${after_restart_path}" && echo match || echo differ)"
+    The variable after_restart_match should eq "match"
+  End
+
   It 'removes namespace artifacts across the cluster on clean'
     delete_status="$(status_only -X DELETE \
       "${KURA_AP_URL}/api/cache/clean?tenant_id=acme&namespace_id=ios")"
