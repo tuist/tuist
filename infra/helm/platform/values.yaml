@@ -246,8 +246,10 @@ ciliumEgressGateway:
       enabled: false
       image:
         repository: ghcr.io/tuist/tuist-stable-egress-controller
-        # release.yml bumps this to the released semver tag; `latest` is a
-        # draft placeholder.
+        # Fallback only. Real deploys resolve the released
+        # stable-egress-controller@<semver> tag at deploy time
+        # (k8s:install-platform --set), like the fleet/runtime images, so this
+        # `latest` is never used in CI deploys.
         tag: latest
         pullPolicy: IfNotPresent
       # HA via leader election — keep ≥2 so the controller itself isn't a SPOF.

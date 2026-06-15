@@ -20,22 +20,15 @@ ciliumEgressGateway:
       enabled: true
     failoverController:
       # Stays false until its prerequisites are met, so merging this never
-      # points production at a missing/mutable image or starts an unplanned
-      # gateway cutover. Flip to true (separate change) only after:
-      #   1. go.sum is committed and the controller image is released + the
-      #      `image.tag` below is pinned to that semver (not `latest`);
+      # points production at a missing image or starts an unplanned gateway
+      # cutover. Flip to true (separate change) only after:
+      #   1. the controller image is released (k8s:install-platform resolves the
+      #      stable-egress-controller@<semver> tag at deploy time, like the
+      #      fleet/runtime images — no tag pinned here);
       #   2. the md-egress nodes are Ready and carry the candidate label;
       #   3. you're ready for the one-time IP/label cutover off the current
-      #      hand-labelled gateway node (see the platform README runbook).
+      #      hand-labelled gateway node.
       enabled: false
-      # Pinned to a released semver (never `latest` in prod). release.yml
-      # publishes the ghcr tag; Renovate tracks it and opens the bump PR (see
-      # renovate.json), which the platform chart deploy rolls out on merge.
-      # 0.1.0 is the controller's initial_version — it exists once the first
-      # release runs; keep enabled:false until then.
-      image:
-        # renovate: datasource=docker depName=ghcr.io/tuist/tuist-stable-egress-controller
-        tag: 0.1.0
       floatingIpName: tuist-production-server-egress
       # Reserved egress set customers allowlist: Hetzner Floating IPs
       # tuist-production-server-egress (116.202.0.10, active) + -2

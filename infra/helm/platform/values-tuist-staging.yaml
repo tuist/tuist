@@ -15,9 +15,8 @@ ciliumEgressGateway:
       enabled: true
     failoverController:
       enabled: true
-      image:
-        # renovate: datasource=docker depName=ghcr.io/tuist/tuist-stable-egress-controller
-        tag: 0.1.0
+      # Image tag is resolved at deploy time by k8s:install-platform (the
+      # highest stable-egress-controller@<semver> reachable from the commit).
       floatingIpName: tuist-staging-server-egress
       egressIpAllowlist:
         - 78.47.186.71/32

@@ -32,14 +32,6 @@
     },
     {
       "customType": "regex",
-      "description": "stable-egress-controller image pin in the platform chart env overlays. Renovate tracks the ghcr tag the release pushes and opens the bump PR; the platform chart deploy rolls it out on merge.",
-      "fileMatch": ["^infra/helm/platform/values-tuist(-staging|-canary)?\\.yaml$"],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+tag: (?<currentValue>[^\\s]+)"
-      ]
-    },
-    {
-      "customType": "regex",
       "description": "Gradle plugin version the CLI references (gradlePluginVersion in Constants.swift). Renovate tracks the dev.tuist plugin on the Gradle Plugin Portal and opens the bump PR.",
       "fileMatch": ["^cli/Sources/TuistConstants/Constants\\.swift$"],
       "matchStrings": [
@@ -82,17 +74,6 @@
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["infra/k8s/mgmt/hetzner-robot-controller.yaml"],
       "commitMessagePrefix": "fix(hetzner-robot-controller):",
-      "automerge": true
-    },
-    {
-      "description": "stable-egress-controller platform-chart image pin.",
-      "matchManagers": ["custom.regex"],
-      "matchFileNames": [
-        "infra/helm/platform/values-tuist.yaml",
-        "infra/helm/platform/values-tuist-staging.yaml",
-        "infra/helm/platform/values-tuist-canary.yaml"
-      ],
-      "commitMessagePrefix": "fix(stable-egress-controller):",
       "automerge": true
     },
     {

@@ -78,14 +78,16 @@ Wired into the standard component release flow (`mise/tasks/release/components.j
 + `release.yml`), like the other infra controllers: a conventional commit scoped
 `…(stable-egress-controller)` touching `infra/stable-egress-controller/**`
 triggers a `stable-egress-controller@<semver>` tag + a
-`ghcr.io/tuist/tuist-stable-egress-controller:<semver>` image. Renovate then
-bumps the platform chart pin (`failoverController.image.tag` in
-`values-tuist.yaml`) and the chart deploy rolls it out. The
-`stable-egress-controller-image.yml` workflow only builds `:sha-*`/`:latest` for
-pre-release iteration.
+`ghcr.io/tuist/tuist-stable-egress-controller:<semver>` image. The deployed tag
+is **resolved at deploy time** by `k8s:install-platform` — the highest
+`stable-egress-controller@<semver>` reachable from the deployed commit, `--set`
+onto the platform chart (same pattern as the fleet/runtime images, see
+`server-deployment.yml`'s resolve step). No tag is pinned in the chart values.
+The `stable-egress-controller-image.yml` workflow only builds `:sha-*`/`:latest`
+for pre-release iteration.
 
-Keep `failoverController.enabled: false` in prod until the image is released and
-the tag pinned (the first `stable-egress-controller@0.1.0` release publishes it).
+Keep `failoverController.enabled: false` in prod until the image is released
+(the first `stable-egress-controller@0.1.0` release publishes it).
 
 ## Future work
 
