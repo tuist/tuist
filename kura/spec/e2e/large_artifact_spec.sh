@@ -10,7 +10,14 @@ Describe 'module artifact larger than the segment size'
   }
 
   setup_suite() {
-    COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
+    # The override disables the replication bandwidth limiter: this suite checks
+    # replication correctness, not production rate-shaping, and the limiter's
+    # latency-pressure throttle otherwise starves the >512 MiB transfer past the
+    # peer client's fixed 30s timeout (tuist/tuist#11297).
+    COMPOSE_FILES=(
+      -f "${PROJECT_ROOT}/docker-compose.yml"
+      -f "${PROJECT_ROOT}/spec/e2e/docker-compose.large-artifact.yml"
+    )
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-large-artifact
