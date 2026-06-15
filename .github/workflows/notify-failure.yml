@@ -27,6 +27,7 @@ on:
       - Server Deployment
       - Server Kura Regional Deployment
       - Server Production Deployment
+      - Tuist Ops Deployment
       - Xcode Processor
       - Xcode Processor Deploy
     branches: [main]
