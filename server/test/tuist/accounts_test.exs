@@ -12,6 +12,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.AgentRegistrationEvent
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.Invitation
+  alias Tuist.Accounts.Oauth2Identity
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
@@ -314,6 +315,58 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert got == 1
+    end
+  end
+
+  describe "tuist_operator?/1" do
+    test "true for a confirmed operator-domain email" do
+      user =
+        user_fixture(
+          email: "op-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: DateTime.utc_now()
+        )
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "true for an unconfirmed operator email backed by an OAuth identity" do
+      # Google/OAuth sign-ins never set confirmed_at, but the provider verifies
+      # the address — so an operator who only ever signs in with Google qualifies.
+      user =
+        user_fixture(
+          email: "g-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      Tuist.Repo.insert!(
+        Oauth2Identity.create_changeset(%Oauth2Identity{}, %{
+          provider: :google,
+          id_in_provider: "google-#{System.unique_integer([:positive])}",
+          user_id: user.id
+        })
+      )
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false for an unconfirmed operator email with no OAuth identity" do
+      user =
+        user_fixture(
+          email: "ghost-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for a confirmed non-operator-domain email" do
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: DateTime.utc_now()
+        )
+
+      refute Accounts.tuist_operator?(user)
     end
   end
 

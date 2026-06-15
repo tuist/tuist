@@ -1286,12 +1286,23 @@ defmodule Tuist.Accounts do
 
   def tuist_operator?(_), do: false
 
-  defp operator_email?(%User{confirmed_at: confirmed_at, email: email})
-       when not is_nil(confirmed_at) and is_binary(email) do
-    String.ends_with?(String.downcase(email), "@" <> Environment.operator_email_domain())
+  defp operator_email?(%User{email: email} = user) when is_binary(email) do
+    String.ends_with?(String.downcase(email), "@" <> Environment.operator_email_domain()) and
+      operator_email_verified?(user)
   end
 
   defp operator_email?(_), do: false
+
+  # The operator-domain email must be a verified one. It's verified when the
+  # user confirmed it via the email flow, OR when an OAuth provider (Google
+  # Workspace, GitHub, …) asserted it at sign-in — those providers verify the
+  # address themselves and never set `confirmed_at`, so checking `confirmed_at`
+  # alone wrongly locks out every operator who signs in with Google.
+  defp operator_email_verified?(%User{confirmed_at: confirmed_at}) when not is_nil(confirmed_at), do: true
+
+  defp operator_email_verified?(%User{id: id}) do
+    Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^id))
+  end
 
   defp user_has_sso_enforced_organization?(user) do
     user
