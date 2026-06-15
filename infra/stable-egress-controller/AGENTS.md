@@ -74,14 +74,25 @@ against controller-runtime's fake client + a fake Floating IP manager.
 > Draft note: `go.sum` is not committed yet — run `go mod tidy` (needs network)
 > before the image builds.
 
+## Releasing
+
+Wired into the standard component release flow (`mise/tasks/release/components.json`
++ `release.yml`), like the other infra controllers: a conventional commit scoped
+`…(stable-egress-controller)` touching `infra/stable-egress-controller/**`
+triggers a `stable-egress-controller@<semver>` tag + a
+`ghcr.io/tuist/tuist-stable-egress-controller:<semver>` image. Renovate then
+bumps the platform chart pin (`failoverController.image.tag` in
+`values-tuist.yaml`) and the chart deploy rolls it out. The
+`stable-egress-controller-image.yml` workflow only builds `:sha-*`/`:latest` for
+pre-release iteration.
+
+**One remaining prerequisite before the first release/enable:** commit `go.sum`
+(`go mod tidy` — needs network), otherwise the Docker build's `go mod download`
+fails. Keep `failoverController.enabled: false` in prod until the image is
+released and the tag pinned.
+
 ## Future work
 
-- **Release wiring (required before prod enable).** Commit `go.sum`
-  (`go mod tidy`), then add this controller to `release.yml` like
-  `hetzner-robot-controller` (check-releases output, a `release-…` job, the
-  components list, GitHub-release step) + a `cliff.toml`, so the image is
-  semver-tagged and the chart `image.tag` is pinned rather than running
-  `latest`. Until then keep `failoverController.enabled: false` in prod.
 - Emit a metric / Kubernetes Event when no Ready candidate exists, and alert on
   it (the silent gap that hid the original outage).
 - Consider faster NotReady detection than the kubelet node-monitor grace period.

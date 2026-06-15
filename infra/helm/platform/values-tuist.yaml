@@ -28,10 +28,14 @@ ciliumEgressGateway:
       #   3. you're ready for the one-time IP/label cutover off the current
       #      hand-labelled gateway node (see the platform README runbook).
       enabled: false
-      # Pin to the released semver once the controller ships (release.yml will
-      # own this, like the other infra controllers). Do not run `latest` here.
+      # Pinned to a released semver (never `latest` in prod). release.yml
+      # publishes the ghcr tag; Renovate tracks it and opens the bump PR (see
+      # renovate.json), which the platform chart deploy rolls out on merge.
+      # 0.1.0 is the controller's initial_version — it exists once the first
+      # release runs; keep enabled:false until then.
       image:
-        tag: latest
+        # renovate: datasource=docker depName=ghcr.io/tuist/tuist-stable-egress-controller
+        tag: 0.1.0
       floatingIpName: tuist-production-server-egress
       # Reserved egress pool customers allowlist. Active egress only ever
       # originates from an IP in this set; growing capacity / migrating the
