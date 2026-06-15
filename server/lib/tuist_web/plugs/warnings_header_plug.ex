@@ -7,7 +7,6 @@ defmodule TuistWeb.WarningsHeaderPlug do
   use TuistWeb, :controller
 
   alias Tuist.CLIVersions
-  alias Tuist.GitHub.Releases
   alias TuistWeb.Headers
 
   @assign_key :warnings
@@ -49,26 +48,10 @@ defmodule TuistWeb.WarningsHeaderPlug do
     end
   end
 
-  defp get_latest_cli_version do
-    # Prefer the bare semver `tag_name` (e.g. "4.196.0") over `name`
-    # (e.g. "CLI 4.196.0"); the former is the version string users actually
-    # install.
-    case Releases.get_latest_cli_release(update_if_needed: false) do
-      nil -> nil
-      release -> release.tag_name
-    end
-  end
-
   defp maybe_add_cli_deprecation_warning(warnings, cli_version) do
     if should_show_cli_deprecation_warning?(cli_version) do
-      latest_cli_version = get_latest_cli_version()
-
       message =
-        if latest_cli_version do
-          "Your Tuist version #{cli_version} is deprecated. Please upgrade to version #{latest_cli_version} for server-side features to continue working."
-        else
-          "Your Tuist version #{cli_version} is deprecated. Please upgrade to the latest version for server-side features to continue working."
-        end
+        "Your Tuist version #{cli_version} is deprecated. Please upgrade to the latest version for server-side features to continue working."
 
       [message | warnings]
     else

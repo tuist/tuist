@@ -1,16 +1,8 @@
 defmodule Tuist.GitHub.Releases do
   @moduledoc ~S"""
-  This module provides functionality to fetch and manage information about the latest CLI release
-  of Tuist from GitHub. It uses a GenServer to periodically fetch and cache the release data,
-  ensuring that the information is up-to-date while minimizing API calls.
-
-  The module offers the following main features:
-  - Fetches the latest CLI and App release information from the Tuist GitHub repository
-  - Caches the release data and refreshes it periodically
-  - Provides a function to retrieve the latest CLI release information
-
-  The GenServer runs with a 1-hour refresh interval, balancing between having recent data
-  and avoiding excessive API requests to GitHub.
+  Fetches and caches the latest Tuist App release from GitHub, used to surface
+  the macOS app download in the dashboard. Results are cached with a 1-hour TTL
+  to minimize API calls.
   """
 
   alias Tuist.GitHub.Retry
@@ -20,49 +12,9 @@ defmodule Tuist.GitHub.Releases do
 
   @releases_url "https://api.github.com/repos/tuist/tuist/releases"
   @ttl to_timeout(hour: 1)
-  # Canaries are published on every CLI-touching commit, so the latest stable
-  # CLI release can sit several pages behind canary/RC/component releases (the
-  # endpoint is ordered by publish date, not semver). Walk up to this many pages
-  # of 100 so the highest-semver stable is always in the set we max over; bump it
-  # if CLI commit volume ever outgrows the window between two promotions.
-  @max_release_pages 10
 
   def releases_url do
     @releases_url
-  end
-
-  def get_latest_cli_release(opts \\ []) do
-    if Tuist.Environment.dev?() do
-      nil
-    else
-      update_if_needed = Keyword.get(opts, :update_if_needed, true)
-
-      releases =
-        if update_if_needed do
-          fetch_releases(opts)
-        else
-          [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
-        end
-
-      # Pick the highest-semver stable CLI release, not the first one GitHub
-      # returns. The releases endpoint is ordered by publish date, so a backport
-      # patch (e.g. 4.192.1) published after a newer minor (4.195.0) would
-      # otherwise be mistaken for the latest. CLI tags are bare semver
-      # ("4.196.0") while component tags are scoped ("runners-controller@0.11.0")
-      # and don't parse as a Version, so Version.parse/1 also filters those out.
-      # Prerelease channels (X.Y.0-rc.N, X.Y.0-canary.N) are excluded too: they
-      # are published as GitHub prereleases and must never be advertised as the
-      # recommended install. A bare `Version` compare wouldn't catch this — a
-      # canary like 4.201.0-canary.5 sorts above the latest stable 4.200.x — so
-      # the empty-`pre` guard, not max-by, is what keeps them out.
-      releases
-      |> Enum.filter(&match?({:ok, %Version{pre: []}}, Version.parse(&1["tag_name"] || "")))
-      |> Enum.max_by(&Version.parse!(&1["tag_name"]), Version, fn -> nil end)
-      |> case do
-        nil -> nil
-        release -> map_release(release)
-      end
-    end
   end
 
   def get_latest_app_release(opts \\ []) do
@@ -77,56 +29,6 @@ defmodule Tuist.GitHub.Releases do
         end
       )
     end
-  end
-
-  defp fetch_releases(opts) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "github_releases"],
-      [ttl: Keyword.get(opts, :ttl, @ttl)],
-      fn ->
-        req_releases()
-      end
-    )
-  end
-
-  defp req_releases do
-    req_cli_release_pages(releases_url(), 1, [])
-  end
-
-  # Accumulate stable bare-semver CLI releases across paginated GitHub responses.
-  # Scoped component tags and prerelease channels are dropped as we go, so the
-  # cached list stays small no matter how many canaries and component releases
-  # interleave on the first pages. On a mid-pagination error we keep what we
-  # already have rather than discarding everything.
-  defp req_cli_release_pages(url, page, acc) do
-    headers = github_auth_headers()
-    # per_page is only set on the first request; GitHub's Link "next" URLs carry
-    # it forward, so passing params again would duplicate the query parameter.
-    page_params = if page == 1, do: [params: [per_page: 100]], else: []
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ page_params ++ Retry.retry_options()
-
-    case Req.get(url, req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases, headers: resp_headers}} ->
-        acc = acc ++ Enum.filter(releases, &stable_cli_release?/1)
-
-        case extract_next_url(resp_headers) do
-          next_url when is_binary(next_url) and page < @max_release_pages ->
-            req_cli_release_pages(next_url, page + 1, acc)
-
-          _ ->
-            acc
-        end
-
-      {:ok, %Req.Response{status: status}} when status in 500..599 ->
-        acc
-
-      {:error, _reason} ->
-        acc
-    end
-  end
-
-  defp stable_cli_release?(release) do
-    match?({:ok, %Version{pre: []}}, Version.parse(release["tag_name"] || ""))
   end
 
   defp github_auth_headers do
