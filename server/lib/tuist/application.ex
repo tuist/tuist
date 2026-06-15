@@ -34,6 +34,7 @@ defmodule Tuist.Application do
   alias Tuist.Xcode.XcodeGraph
   alias Tuist.Xcode.XcodeProject
   alias Tuist.Xcode.XcodeTarget
+  alias TuistCommon.HTTP.FinchTracer
   alias TuistCommon.HTTP.TransportLogger
 
   require Logger
@@ -88,7 +89,7 @@ defmodule Tuist.Application do
       OpentelemetryLoggerMetadata.setup()
       OpentelemetryBandit.setup()
       OpentelemetryPhoenix.setup(adapter: :bandit)
-      OpentelemetryFinch.setup()
+      FinchTracer.setup()
       OpentelemetryBroadway.setup()
       ecto_skip_metrics = [additional_span_attributes: %{:"metrics.skip" => true}]
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
