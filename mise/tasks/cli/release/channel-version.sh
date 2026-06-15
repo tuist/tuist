@@ -2,177 +2,113 @@
 #MISE description="Compute the next CLI version for a release channel (canary | rc-new | rc | promote)"
 set -euo pipefail
 
-# Resolve the next CLI version for one of the release channels and emit it (with
-# the SHA to build and the changelog base) to GITHUB_OUTPUT, falling back to
-# stdout when run locally.
+# Resolve the next CLI version for one of the release channels and emit it, with
+# the SHA to build and the changelog base, to GITHUB_OUTPUT (and stdout). Run by
+# the release workflows as `mise run cli:release:channel-version -- <channel>`:
+#
+#   canary            cli-release.yml   next X.Y.0-canary.N off main
+#   rc-new            cli-rc.yml        cut next minor: X.Y.0-rc.1 (+ branch to create)
+#   rc      <branch>  cli-rc.yml        iterate X.Y.0-rc.(N+1) on a release branch
+#   promote <branch>  cli-promote.yml   promote X.Y.0 stable from a release branch
 #
 # The "cut lines" that anchor the scheme are the stable tags (X.Y.Z) and the RC
-# tags (X.Y.0-rc.N). Canary tags are deliberately NOT counted as cut lines: they
-# track unreleased work for the *next* minor, so counting them would make canary
-# chase its own tail. Because rc-new creates the release branch and publishes
-# rc.1 atomically, a line is "cut" the moment its first RC tag exists — there is
-# never a release branch without a matching tag to scan.
-#
-# Usage:
-#   channel-version.sh canary               # next X.Y.0-canary.N off main
-#   channel-version.sh rc-new               # cut next minor: X.Y.0-rc.1 (+ branch)
-#   channel-version.sh rc      <branch>     # iterate X.Y.0-rc.(N+1) on a branch
-#   channel-version.sh promote <branch>     # promote X.Y.0 stable from a branch
+# tags (X.Y.0-rc.N). Canary tags are deliberately NOT counted: they track the
+# *next* minor, so counting them would make canary chase its own tail. rc-new
+# creates the release branch and publishes rc.1 atomically, so a line is "cut"
+# the moment its first RC tag exists.
 
 CHANNEL="${1:-}"
 BRANCH="${2:-}"
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
+cd "$(git rev-parse --show-toplevel)"
+SHA=$(git rev-parse HEAD)
 
 emit() {
-  local key=$1 value=$2
-  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-    printf '%s=%s\n' "$key" "$value" >> "$GITHUB_OUTPUT"
-  fi
-  printf '%s=%s\n' "$key" "$value"
+  [[ -n "${GITHUB_OUTPUT:-}" ]] && printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+  printf '%s=%s\n' "$1" "$2"
 }
 
-# Escape a literal version string for use inside a grep -E pattern.
-# shellcheck disable=SC2016  # the sed program is a literal, nothing to expand
-escape_re() { printf '%s' "$1" | sed 's/[.[\*^$()+?{|]/\\&/g'; }
+die() { echo "::error::$1" >&2; exit 1; }
 
 stable_tags() { git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; }
-
 latest_stable_tag() { stable_tags | sort -V | tail -n1; }
+tag_exists() { git rev-parse --verify --quiet "refs/tags/$1" >/dev/null; }
 
-# Highest minor line that has been cut, as "X.Y" (over stable and rc tags).
-highest_cut_line() {
-  {
-    stable_tags | sed -E 's/^([0-9]+\.[0-9]+)\..*$/\1/'
-    git tag -l | grep -E '^[0-9]+\.[0-9]+\.0-rc\.[0-9]+$' | sed -E 's/^([0-9]+\.[0-9]+)\..*$/\1/' || true
-  } | sort -u | sort -V | tail -n1
-}
-
-next_minor() {
-  local line=$1 major minor
-  major=${line%.*}
-  minor=${line#*.}
-  printf '%s.%s' "$major" "$((minor + 1))"
-}
-
-# Highest N among tags matching <target>-<channel>.N. Prints nothing when none
-# exist; callers default to 0.
+# Highest N among existing <target>-<channel>.N tags; empty when none exist.
 highest_prerelease_n() {
-  local target=$1 channel=$2 target_re
-  target_re=$(escape_re "$target")
-  git tag -l \
-    | { grep -E "^${target_re}-${channel}\.[0-9]+$" || true; } \
-    | sed -E "s/.*-${channel}\.([0-9]+)$/\1/" \
-    | sort -n | tail -n1
+  local target_re=${1//./\\.} channel=$2
+  git tag -l | { grep -E "^${target_re}-${channel}\.[0-9]+$" || true; } \
+    | sed -E 's/.*\.([0-9]+)$/\1/' | sort -n | tail -n1
 }
 
-# Highest RC tag (not just its N) for a target, e.g. 4.200.0-rc.3. Empty if none.
-highest_rc_tag() {
-  local target=$1 target_re
-  target_re=$(escape_re "$target")
-  git tag -l | { grep -E "^${target_re}-rc\.[0-9]+$" || true; } | sort -V | tail -n1
+# Next minor ("X.Y") above the highest cut line, over stable and RC tags.
+next_target_minor() {
+  local line
+  line=$(
+    {
+      stable_tags
+      git tag -l | { grep -E '^[0-9]+\.[0-9]+\.0-rc\.[0-9]+$' || true; }
+    } | sed -E 's/^([0-9]+\.[0-9]+)\..*/\1/' | sort -V | tail -n1
+  )
+  [[ -z "$line" ]] && die "No stable or RC tags found to anchor the next minor."
+  printf '%s.%s' "${line%.*}" "$(( ${line#*.} + 1 ))"
 }
 
+# Validate a releases/<major>.<minor>.x branch and echo its "X.Y" line.
 line_from_branch() {
-  local branch=$1
-  if ! printf '%s' "$branch" | grep -qE '^releases/[0-9]+\.[0-9]+\.x$'; then
-    echo "::error::Branch must be named releases/<major>.<minor>.x (got '${branch:-<empty>}')." >&2
-    exit 1
-  fi
-  local line=${branch#releases/}
-  printf '%s' "${line%.x}"
+  [[ "$1" =~ ^releases/([0-9]+\.[0-9]+)\.x$ ]] ||
+    die "Branch must be named releases/<major>.<minor>.x (got '${1:-<empty>}')."
+  printf '%s' "${BASH_REMATCH[1]}"
 }
-
-SHA=$(git rev-parse HEAD)
 
 case "$CHANNEL" in
   canary)
-    line=$(highest_cut_line)
-    if [[ -z "$line" ]]; then
-      echo "::error::No stable or RC tags found to anchor the canary line." >&2
-      exit 1
-    fi
-    target="$(next_minor "$line").0"
-    latest_n=$(highest_prerelease_n "$target" canary)
-    emit version "${target}-canary.$(( ${latest_n:-0} + 1 ))"
-    emit sha "$SHA"
-    emit changelog_from "$(latest_stable_tag)"
+    target="$(next_target_minor).0"
+    n=$(highest_prerelease_n "$target" canary)
+    emit version "${target}-canary.$(( ${n:-0} + 1 ))"
     ;;
 
   rc-new)
-    line=$(highest_cut_line)
-    if [[ -z "$line" ]]; then
-      echo "::error::No stable or RC tags found to anchor the next RC line." >&2
-      exit 1
-    fi
-    next="$(next_minor "$line")"
-    target="${next}.0"
-    branch="releases/${next}.x"
-
+    minor="$(next_target_minor)"
+    target="${minor}.0"
+    branch="releases/${minor}.x"
     if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
-      echo "::error::Branch ${branch} already exists. Use the 'rc' channel with branch=${branch} to iterate its RC." >&2
-      exit 1
+      die "Branch ${branch} already exists. Use the 'rc' channel with branch=${branch} to iterate its RC."
     fi
-    if [[ -n "$(highest_prerelease_n "$target" rc)" ]]; then
-      echo "::error::An RC already exists for ${target}. Use the 'rc' channel to iterate it." >&2
-      exit 1
-    fi
-    if git rev-parse --verify --quiet "refs/tags/${target}" >/dev/null; then
-      echo "::error::Stable tag ${target} already exists; cannot start a new RC line for it." >&2
-      exit 1
-    fi
-
+    [[ -n "$(highest_prerelease_n "$target" rc)" ]] &&
+      die "An RC already exists for ${target}. Use the 'rc' channel to iterate it."
+    tag_exists "$target" &&
+      die "Stable tag ${target} already exists; cannot start a new RC line for it."
     emit version "${target}-rc.1"
     emit branch "$branch"
-    emit sha "$SHA"
-    emit changelog_from "$(latest_stable_tag)"
     ;;
 
   rc)
-    line=$(line_from_branch "$BRANCH")
-    target="${line}.0"
-    if git rev-parse --verify --quiet "refs/tags/${target}" >/dev/null; then
-      echo "::error::${target} is already stable; the RC line is closed." >&2
-      exit 1
-    fi
-    latest_n=$(highest_prerelease_n "$target" rc)
-    if [[ -z "$latest_n" ]]; then
-      echo "::error::No existing RC for ${target}. Cut the line first via the 'rc-new' channel." >&2
-      exit 1
-    fi
-    emit version "${target}-rc.$((latest_n + 1))"
-    emit sha "$SHA"
-    emit changelog_from "$(latest_stable_tag)"
+    target="$(line_from_branch "$BRANCH").0"
+    tag_exists "$target" && die "${target} is already stable; the RC line is closed."
+    n=$(highest_prerelease_n "$target" rc)
+    [[ -z "$n" ]] && die "No existing RC for ${target}. Cut the line first via the 'rc-new' channel."
+    emit version "${target}-rc.$(( n + 1 ))"
     ;;
 
   promote)
-    line=$(line_from_branch "$BRANCH")
-    target="${line}.0"
-    if git rev-parse --verify --quiet "refs/tags/${target}" >/dev/null; then
-      echo "::error::${target} has already been promoted to stable." >&2
-      exit 1
-    fi
-    rc_tag=$(highest_rc_tag "$target")
-    if [[ -z "$rc_tag" ]]; then
-      echo "::error::No RC has been published for ${target}; promote only after at least one RC has soaked." >&2
-      exit 1
-    fi
+    target="$(line_from_branch "$BRANCH").0"
+    tag_exists "$target" && die "${target} has already been promoted to stable."
+    n=$(highest_prerelease_n "$target" rc)
+    [[ -z "$n" ]] && die "No RC has been published for ${target}; promote only after at least one RC has soaked."
     # Promote exactly what soaked: the branch HEAD must be the commit the latest
-    # RC points at. If fixes landed on the branch after the last RC, they have
-    # not soaked, so a new RC must be cut (and soak) before promotion.
-    rc_commit=$(git rev-list -n1 "$rc_tag")
-    if [[ "$rc_commit" != "$SHA" ]]; then
-      echo "::error::Branch HEAD (${SHA}) is ahead of the latest RC ${rc_tag} (${rc_commit}). Cut a new RC with the 'rc' channel and let it soak before promoting." >&2
-      exit 1
-    fi
+    # RC points at. Fixes landed after the last RC have not soaked, so a new RC
+    # must be cut (and soak) first.
+    rc_commit=$(git rev-list -n1 "${target}-rc.${n}")
+    [[ "$rc_commit" == "$SHA" ]] ||
+      die "Branch HEAD (${SHA}) is ahead of the latest RC ${target}-rc.${n} (${rc_commit}). Cut a new RC with the 'rc' channel and let it soak before promoting."
     emit version "$target"
-    emit sha "$SHA"
-    emit changelog_from "$(latest_stable_tag)"
     ;;
 
   *)
-    echo "::error::Unknown channel '${CHANNEL:-<empty>}'. Expected one of: canary | rc-new | rc | promote." >&2
-    exit 1
+    die "Unknown channel '${CHANNEL:-<empty>}'. Expected one of: canary | rc-new | rc | promote."
     ;;
 esac
+
+emit sha "$SHA"
+emit changelog_from "$(latest_stable_tag)"
