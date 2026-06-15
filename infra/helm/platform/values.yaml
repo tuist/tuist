@@ -273,8 +273,9 @@ ciliumEgressGateway:
       tokenSecretRef:
         # caph writes this Secret into kube-system once the first
         # control-plane node is up; HCCM + hcloud-csi read the same one.
+        # `token` is the canonical key bootstrap-workload waits for.
         name: hcloud
-        key: hcloud
+        key: token
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

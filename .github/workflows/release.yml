@@ -2055,6 +2055,7 @@ jobs:
         check-releases,
         release-capi-scaleway,
         release-runners-controller,
+        release-stable-egress-controller,
         release-xcresult-processor-image,
         release-runner-image,
         release-linux-runner-image,
@@ -2099,6 +2100,7 @@ jobs:
           }
           tag_release "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" "${{ needs.release-capi-scaleway.result }}" "${{ needs.check-releases.outputs.capi-scaleway-next-version }}"
           tag_release "${{ needs.check-releases.outputs.runners-controller-should-release }}" "${{ needs.release-runners-controller.result }}" "${{ needs.check-releases.outputs.runners-controller-next-version }}"
+          tag_release "${{ needs.check-releases.outputs.stable-egress-controller-should-release }}" "${{ needs.release-stable-egress-controller.result }}" "${{ needs.check-releases.outputs.stable-egress-controller-next-version }}"
           tag_release "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" "${{ needs.release-xcresult-processor-image.result }}" "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}"
           tag_release "${{ needs.check-releases.outputs.runner-image-should-release }}" "${{ needs.release-runner-image.result }}" "${{ needs.check-releases.outputs.runner-image-next-version }}"
           tag_release "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" "${{ needs.release-linux-runner-image.result }}" "${{ needs.check-releases.outputs.linux-runner-image-next-version }}"
@@ -2128,6 +2130,7 @@ jobs:
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
