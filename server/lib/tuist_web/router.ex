@@ -722,6 +722,7 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/kura/usage", KuraUsageController, :create
+    post "/kura/mesh/enroll", KuraMeshController, :enroll
   end
 
   scope "/oauth2", TuistWeb.Oauth do

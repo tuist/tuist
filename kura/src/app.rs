@@ -65,6 +65,8 @@ impl ShutdownBudget {
 pub async fn run() -> Result<(), String> {
     let nofile_raise_error = raise_nofile_soft_to_hard().err();
 
+    crate::enrollment::enroll_on_boot().await?;
+
     let config = Config::from_env().map_err(|error| format!("invalid configuration: {error}"))?;
     let geoip = GeoIp::open();
     let node_location = resolve_node_location(

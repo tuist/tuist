@@ -68,6 +68,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_EXTENSION_JWT_VERIFIER_TUIST_SECRET")
     end
 
+    test "points managed nodes at the account mesh peer-TLS secret when bridging is enabled" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.FeatureFlags, :kura_mesh_bridging_enabled?, fn _account -> true end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %Tuist.Accounts.Account{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      assert manifest["spec"]["peerTLSSecretName"] == "kura-tuist-eu-central-1-mesh-peer-tls"
+    end
+
     test "normalizes account handles for DNS-label KuraInstance fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

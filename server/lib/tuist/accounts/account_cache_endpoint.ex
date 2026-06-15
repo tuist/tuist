@@ -13,7 +13,7 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
   @primary_key {:id, :binary_id, autogenerate: true}
   schema "account_cache_endpoints" do
     field :url, :string
-    field :technology, Ecto.Enum, values: [default: 0, kura: 1], default: :default
+    field :technology, Ecto.Enum, values: [default: 0, kura: 1, kura_self_hosted: 2], default: :default
 
     belongs_to :account, Account
 

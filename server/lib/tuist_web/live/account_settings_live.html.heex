@@ -25,6 +25,14 @@
       add_kura_server_form={@add_kura_server_form}
       latest_kura_version={@latest_kura_version}
     />
+    <.kura_self_hosted_section
+      :if={@kura_enabled}
+      self_hosted_kura_endpoints={@self_hosted_kura_endpoints}
+      self_hosted_kura_clients={@self_hosted_kura_clients}
+      add_self_hosted_endpoint_form={@add_self_hosted_endpoint_form}
+      new_self_hosted_client_form={@new_self_hosted_client_form}
+      new_self_hosted_client_secret={@new_self_hosted_client_secret}
+    />
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -182,6 +190,14 @@
       available_kura_regions={@available_kura_regions}
       add_kura_server_form={@add_kura_server_form}
       latest_kura_version={@latest_kura_version}
+    />
+    <.kura_self_hosted_section
+      :if={@kura_enabled}
+      self_hosted_kura_endpoints={@self_hosted_kura_endpoints}
+      self_hosted_kura_clients={@self_hosted_kura_clients}
+      add_self_hosted_endpoint_form={@add_self_hosted_endpoint_form}
+      new_self_hosted_client_form={@new_self_hosted_client_form}
+      new_self_hosted_client_secret={@new_self_hosted_client_secret}
     />
     <.card_section data-part="rename-card-section">
       <div data-part="header">

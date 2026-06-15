@@ -2008,7 +2008,14 @@ defmodule Tuist.Accounts do
 
   defp kura_cache_endpoints(%Account{} = account) do
     if FeatureFlags.kura_cache_enabled?(account) do
-      list_account_cache_endpoints(account, :kura)
+      # Both Tuist-managed Kura endpoints (mirrored from `kura_servers`) and
+      # customer self-hosted Kura meshes resolve under the `:kura` technology —
+      # they are the same kind of node from the CLI's perspective.
+      Repo.all(
+        from(e in AccountCacheEndpoint,
+          where: e.account_id == ^account.id and e.technology in [:kura, :kura_self_hosted]
+        )
+      )
     else
       []
     end

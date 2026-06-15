@@ -13,6 +13,7 @@ defmodule TuistWeb.AccountSettingsLive do
   alias Tuist.Environment
   alias Tuist.Kura
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.Server
   alias Tuist.Locale, as: SharedLocale
 
@@ -48,7 +49,11 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(kura_enabled: kura_enabled)
       |> assign(preferred_locale_form: preferred_locale_form)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
+      |> assign(:add_self_hosted_endpoint_form, to_form(AccountCacheEndpoint.create_changeset(%{})))
+      |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
+      |> assign(:new_self_hosted_client_secret, nil)
       |> load_kura_state()
+      |> load_self_hosted_kura_state()
 
     {:ok, socket}
   end
@@ -308,6 +313,89 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, assign(socket, selected_account: updated_account)}
   end
 
+  def handle_event(
+        "create_self_hosted_endpoint",
+        %{"account_cache_endpoint" => %{"url" => url}},
+        %{assigns: %{kura_enabled: true, selected_account: account}} = socket
+      ) do
+    case Accounts.create_account_cache_endpoint(account, %{url: url, technology: :kura_self_hosted}) do
+      {:ok, _endpoint} ->
+        {:noreply,
+         socket
+         |> assign(:add_self_hosted_endpoint_form, to_form(AccountCacheEndpoint.create_changeset(%{})))
+         |> load_self_hosted_kura_state()
+         |> push_event("close-modal", %{id: "add-self-hosted-endpoint-modal"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :add_self_hosted_endpoint_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("create_self_hosted_endpoint", _params, socket), do: {:noreply, socket}
+
+  def handle_event("delete_self_hosted_endpoint", %{"id" => id}, %{assigns: %{selected_account: account}} = socket) do
+    with endpoint when not is_nil(endpoint) <- Accounts.get_account_cache_endpoint(account, id),
+         {:ok, _} <- Accounts.delete_account_cache_endpoint(endpoint) do
+      {:noreply, load_self_hosted_kura_state(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "create_self_hosted_client",
+        params,
+        %{assigns: %{kura_enabled: true, selected_account: account}} = socket
+      ) do
+    case SelfHostedClients.create_self_hosted_client(account, %{name: get_in(params, ["self_hosted_client", "name"])}) do
+      {:ok, {client, secret}} ->
+        {:noreply,
+         socket
+         |> assign(:new_self_hosted_client_secret, %{
+           client_id: client.client_id,
+           secret: secret,
+           name: client.name
+         })
+         |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
+         |> load_self_hosted_kura_state()
+         |> push_event("close-modal", %{id: "add-self-hosted-client-modal"})}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :new_self_hosted_client_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("create_self_hosted_client", _params, socket), do: {:noreply, socket}
+
+  def handle_event("dismiss_self_hosted_client_secret", _params, socket) do
+    {:noreply, assign(socket, :new_self_hosted_client_secret, nil)}
+  end
+
+  def handle_event("revoke_self_hosted_client", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.self_hosted_kura_clients, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      client ->
+        {:ok, _} = SelfHostedClients.revoke_self_hosted_client(client)
+        {:noreply, load_self_hosted_kura_state(socket)}
+    end
+  end
+
+  def handle_event("close-add-self-hosted-endpoint-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> push_event("close-modal", %{id: "add-self-hosted-endpoint-modal"})
+     |> assign(:add_self_hosted_endpoint_form, to_form(AccountCacheEndpoint.create_changeset(%{})))}
+  end
+
+  def handle_event("close-add-self-hosted-client-modal", _params, socket) do
+    {:noreply,
+     socket
+     |> push_event("close-modal", %{id: "add-self-hosted-client-modal"})
+     |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))}
+  end
+
   @impl true
   def handle_info({:kura_server, _event, _server}, %{assigns: %{kura_enabled: true}} = socket) do
     {:noreply, load_kura_state(socket)}
@@ -346,6 +434,18 @@ defmodule TuistWeb.AccountSettingsLive do
     |> assign(:available_kura_regions, available_regions)
     |> assign(:latest_kura_version, latest)
     |> assign(:add_kura_server_form, default_kura_server_form(available_regions))
+  end
+
+  defp load_self_hosted_kura_state(%{assigns: %{kura_enabled: false}} = socket) do
+    socket
+    |> assign(:self_hosted_kura_endpoints, [])
+    |> assign(:self_hosted_kura_clients, [])
+  end
+
+  defp load_self_hosted_kura_state(%{assigns: %{selected_account: account}} = socket) do
+    socket
+    |> assign(:self_hosted_kura_endpoints, Accounts.list_account_cache_endpoints(account, :kura_self_hosted))
+    |> assign(:self_hosted_kura_clients, SelfHostedClients.list_self_hosted_clients(account))
   end
 
   defp kura_enabled?(account) do
@@ -970,6 +1070,234 @@ defmodule TuistWeb.AccountSettingsLive do
             <% end %>
           </:col>
         </.table>
+      </div>
+    </.card_section>
+    """
+  end
+
+  attr(:self_hosted_kura_endpoints, :list, required: true)
+  attr(:self_hosted_kura_clients, :list, required: true)
+  attr(:add_self_hosted_endpoint_form, Form, required: true)
+  attr(:new_self_hosted_client_form, Form, required: true)
+  attr(:new_self_hosted_client_secret, :map, default: nil)
+
+  def kura_self_hosted_section(assigns) do
+    ~H"""
+    <.card_section data-part="kura-self-hosted-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Self-hosted Kura nodes")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Run your own Kura cache mesh in your infrastructure. Register the URL the CLI should reach, then issue a credential your nodes use to authorize requests against Tuist."
+          )}
+        </span>
+      </div>
+
+      <div :if={@new_self_hosted_client_secret} data-part="content">
+        <.alert
+          status="warning"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "Copy your client secret now. For security, it will not be shown again."
+            )
+          }
+        />
+        <div data-part="credential-reveal">
+          <div data-part="credential-field">
+            <span data-part="label">{dgettext("dashboard_account", "Client ID")}</span>
+            <code data-part="value">{@new_self_hosted_client_secret.client_id}</code>
+          </div>
+          <div data-part="credential-field">
+            <span data-part="label">{dgettext("dashboard_account", "Client secret")}</span>
+            <code data-part="value">{@new_self_hosted_client_secret.secret}</code>
+          </div>
+        </div>
+        <.button
+          type="button"
+          label={dgettext("dashboard_account", "Done")}
+          variant="secondary"
+          size="small"
+          phx-click="dismiss_self_hosted_client_secret"
+        />
+      </div>
+
+      <div data-part="subsection">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Credentials")}
+          </span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Tenant-scoped credentials your nodes present to Tuist. A credential can only authorize this account's traffic."
+            )}
+          </span>
+        </div>
+        <div data-part="button-container">
+          <.form
+            for={@new_self_hosted_client_form}
+            id="add-self-hosted-client-form"
+            phx-submit="create_self_hosted_client"
+          >
+            <.modal
+              id="add-self-hosted-client-modal"
+              title={dgettext("dashboard_account", "Generate credential")}
+              header_size="large"
+              on_dismiss="close-add-self-hosted-client-modal"
+            >
+              <:trigger :let={attrs}>
+                <.button
+                  id="add-self-hosted-client-button"
+                  label={dgettext("dashboard_account", "Generate credential")}
+                  variant="secondary"
+                  size="medium"
+                  type="button"
+                  {attrs}
+                />
+              </:trigger>
+              <.line_divider />
+              <div data-part="modal-content">
+                <.text_input
+                  field={@new_self_hosted_client_form[:name]}
+                  type="basic"
+                  label={dgettext("dashboard_account", "Name")}
+                  placeholder={dgettext("dashboard_account", "Production mesh")}
+                />
+              </div>
+              <.line_divider />
+              <:footer>
+                <.modal_footer>
+                  <:action>
+                    <.button
+                      type="reset"
+                      label={dgettext("dashboard_account", "Cancel")}
+                      variant="secondary"
+                      phx-click="close-add-self-hosted-client-modal"
+                    />
+                  </:action>
+                  <:action>
+                    <.button
+                      type="submit"
+                      label={dgettext("dashboard_account", "Generate")}
+                      variant="primary"
+                    />
+                  </:action>
+                </.modal_footer>
+              </:footer>
+            </.modal>
+          </.form>
+        </div>
+        <div :if={not Enum.empty?(@self_hosted_kura_clients)} data-part="content">
+          <.table id="self-hosted-kura-clients-table" rows={@self_hosted_kura_clients}>
+            <:col :let={client} label={dgettext("dashboard_account", "Name")}>
+              <.text_cell label={client.name} />
+            </:col>
+            <:col :let={client} label={dgettext("dashboard_account", "Client ID")}>
+              <.text_cell label={client.client_id} />
+            </:col>
+            <:col :let={client} label="">
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Revoke")}
+                variant="destructive"
+                size="small"
+                phx-click="revoke_self_hosted_client"
+                phx-value-id={client.id}
+              />
+            </:col>
+          </.table>
+        </div>
+      </div>
+
+      <div data-part="subsection">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_account", "Endpoints")}
+          </span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "The URL the CLI uses to reach your mesh (for example, the load balancer in front of your nodes). Tuist never connects to it directly."
+            )}
+          </span>
+        </div>
+        <div data-part="button-container">
+          <.form
+            for={@add_self_hosted_endpoint_form}
+            id="add-self-hosted-endpoint-form"
+            phx-submit="create_self_hosted_endpoint"
+          >
+            <.modal
+              id="add-self-hosted-endpoint-modal"
+              title={dgettext("dashboard_account", "Add Kura endpoint")}
+              header_size="large"
+              on_dismiss="close-add-self-hosted-endpoint-modal"
+            >
+              <:trigger :let={attrs}>
+                <.button
+                  id="add-self-hosted-endpoint-button"
+                  label={dgettext("dashboard_account", "Add endpoint")}
+                  variant="secondary"
+                  size="medium"
+                  type="button"
+                  {attrs}
+                />
+              </:trigger>
+              <.line_divider />
+              <div data-part="modal-content">
+                <.text_input
+                  field={@add_self_hosted_endpoint_form[:url]}
+                  type="basic"
+                  label={dgettext("dashboard_account", "Endpoint URL")}
+                  placeholder="https://kura.example.com"
+                />
+              </div>
+              <.line_divider />
+              <:footer>
+                <.modal_footer>
+                  <:action>
+                    <.button
+                      type="reset"
+                      label={dgettext("dashboard_account", "Cancel")}
+                      variant="secondary"
+                      phx-click="close-add-self-hosted-endpoint-modal"
+                    />
+                  </:action>
+                  <:action>
+                    <.button
+                      type="submit"
+                      label={dgettext("dashboard_account", "Add")}
+                      variant="primary"
+                    />
+                  </:action>
+                </.modal_footer>
+              </:footer>
+            </.modal>
+          </.form>
+        </div>
+        <div :if={not Enum.empty?(@self_hosted_kura_endpoints)} data-part="content">
+          <.table id="self-hosted-kura-endpoints-table" rows={@self_hosted_kura_endpoints}>
+            <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
+              <.text_cell label={endpoint.url} />
+            </:col>
+            <:col :let={endpoint} label="">
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Delete")}
+                variant="destructive"
+                size="small"
+                phx-click="delete_self_hosted_endpoint"
+                phx-value-id={endpoint.id}
+              />
+            </:col>
+          </.table>
+        </div>
       </div>
     </.card_section>
     """

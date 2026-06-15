@@ -241,6 +241,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_ID` | OAuth client id used for Kura control-plane calls. | Yes | disabled |
 | `KURA_CONTROL_PLANE_CLIENT_SECRET` | OAuth client secret used for Kura control-plane calls. | Yes | disabled |
+| `KURA_ENROLL_ON_BOOT` | When `true`, the node enrolls with the control plane on boot: it generates a keypair locally, sends a CSR to `/_internal/kura/mesh/enroll` with the control-plane credentials, writes the issued certificate, account CA, and key to the `KURA_INTERNAL_TLS_*` paths, and derives `KURA_TENANT_ID` and `KURA_PEERS` from the response. Requires `KURA_CONTROL_PLANE_*`, `KURA_NODE_URL`, and the three `KURA_INTERNAL_TLS_*` paths. | Yes | `false` |
 | `KURA_USAGE_WINDOW_SECS` | Usage rollup window size. Kura aggregates request traffic in memory by bounded dimensions before writing closed windows to the durable usage outbox. | Yes | `60` |
 | `KURA_USAGE_FLUSH_INTERVAL_MS` | How often closed usage windows are flushed from memory to RocksDB. | Yes | `60000` |
 | `KURA_USAGE_DELIVERY_INTERVAL_MS` | How often the usage outbox attempts delivery to the control plane. Delivery pauses under critical memory pressure. | Yes | `5000` |

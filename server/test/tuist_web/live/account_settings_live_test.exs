@@ -153,6 +153,64 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "https://test-org-us-east-1.kura.tuist.dev"
   end
 
+  test "renders the self-hosted Kura section when Kura is enabled", %{conn: conn, account: account} do
+    enable_kura(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    assert html =~ "Self-hosted Kura nodes"
+    assert html =~ "create_self_hosted_client"
+    assert html =~ "create_self_hosted_endpoint"
+  end
+
+  test "hides the self-hosted Kura section when Kura is disabled", %{conn: conn, account: account} do
+    disable_kura(account)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    refute html =~ "Self-hosted Kura nodes"
+  end
+
+  test "generates a tenant-scoped credential and reveals the secret once", %{conn: conn, account: account} do
+    enable_kura(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
+
+    html =
+      render_submit(lv, "create_self_hosted_client", %{"self_hosted_client" => %{"name" => "production"}})
+
+    assert html =~ "production"
+    assert html =~ "Client secret"
+    assert [client] = Kura.SelfHostedClients.list_self_hosted_clients(account)
+    assert client.name == "production"
+
+    # The one-time secret banner is dismissable and the credential persists.
+    html = render_click(lv, "dismiss_self_hosted_client_secret")
+    refute html =~ "Client secret"
+    assert html =~ "production"
+  end
+
+  test "adds and deletes a self-hosted endpoint URL", %{conn: conn, account: account} do
+    enable_kura(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings")
+
+    html =
+      render_submit(lv, "create_self_hosted_endpoint", %{
+        "account_cache_endpoint" => %{"url" => "https://mesh.acme.test"}
+      })
+
+    assert html =~ "https://mesh.acme.test"
+    assert [endpoint] = Accounts.list_account_cache_endpoints(account, :kura_self_hosted)
+
+    html = render_click(lv, "delete_self_hosted_endpoint", %{"id" => endpoint.id})
+    refute html =~ "https://mesh.acme.test"
+    assert Accounts.list_account_cache_endpoints(account, :kura_self_hosted) == []
+  end
+
   defp kura_section_assigns(overrides) do
     server = %Server{
       id: 1,

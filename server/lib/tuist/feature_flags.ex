@@ -35,6 +35,16 @@ defmodule Tuist.FeatureFlags do
     FunWithFlags.enabled?(:kura_cache, for: account)
   end
 
+  @doc """
+  Whether the account's Tuist-managed Kura nodes should join the same
+  mutually-authenticated mesh as its self-hosted nodes. When enabled, managed
+  nodes are issued peer certificates from the account's mesh CA so they trust,
+  and are trusted by, the customer's self-hosted nodes.
+  """
+  def kura_mesh_bridging_enabled?(account) do
+    FunWithFlags.enabled?(:kura_mesh_bridging, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

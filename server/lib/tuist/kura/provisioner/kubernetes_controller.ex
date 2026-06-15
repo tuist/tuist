@@ -14,7 +14,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Entitlements
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura.Mesh
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
 
@@ -39,6 +41,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       case apply_manifests(
              [
                gateway_manifest(gateway, account, region),
+               peer_tls_secret_manifest(name, account, region),
                manifest(name, image_tag, account, region, server, hook_script, gateway)
              ],
              region
@@ -186,7 +189,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "publicHost" => public_host(account_handle, region),
           "grpcPublicHost" => grpc_public_host(account_handle, region),
           "ingressClassName" => ingress_class_name(region, gateway),
-          "peerTLSSecretName" => peer_tls_secret_name(region),
+          "peerTLSSecretName" => peer_tls_secret_name(name, account, region),
           "private" => Regions.private?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
@@ -255,10 +258,78 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp maybe_put_gateway_annotation(annotations, %{name: gateway_name}),
     do: Map.put(annotations, @gateway_annotation, gateway_name)
 
+  # When the account joins the managed mesh, its managed nodes use a peer-TLS
+  # secret issued from the account mesh CA so they trust the customer's
+  # self-hosted nodes. Otherwise the region's configured secret (if any) is used
+  # and the Go controller falls back to its per-instance self-signed secret, the
+  # behavior for every non-bridged account.
+  defp peer_tls_secret_name(name, account, region) do
+    if mesh_bridging_enabled?(account) do
+      mesh_peer_tls_secret_name(name)
+    else
+      peer_tls_secret_name(region)
+    end
+  end
+
+  defp mesh_bridging_enabled?(%Account{} = account), do: FeatureFlags.kura_mesh_bridging_enabled?(account)
+
+  defp mesh_bridging_enabled?(_account), do: false
+
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
 
   defp peer_tls_secret_name(_region), do: nil
+
+  defp mesh_peer_tls_secret_name(name), do: "#{name}-mesh-peer-tls"
+
+  # Materializes the per-account-CA peer-TLS secret the managed nodes mount.
+  # Returns nil (and changes nothing) for accounts that have not joined the mesh.
+  defp peer_tls_secret_manifest(name, account, %Regions{} = region) do
+    if mesh_bridging_enabled?(account) do
+      build_peer_tls_secret_manifest(name, account, region)
+    end
+  end
+
+  defp build_peer_tls_secret_manifest(name, %Account{} = account, %Regions{} = region) do
+    {:ok, certificate} = Mesh.issue_node_certificate(account, peer_tls_dns_names(name))
+
+    %{
+      "apiVersion" => "v1",
+      "kind" => "Secret",
+      "type" => "Opaque",
+      "metadata" => %{
+        "name" => mesh_peer_tls_secret_name(name),
+        "namespace" => @namespace,
+        "labels" => %{
+          "app.kubernetes.io/name" => "kura",
+          "app.kubernetes.io/instance" => name,
+          "tuist.dev/account" => dns_handle(account.name),
+          "tuist.dev/region" => region.id
+        }
+      },
+      "stringData" => %{
+        "ca.pem" => certificate.ca_certificate_pem,
+        "tls.crt" => certificate.certificate_pem,
+        "tls.key" => certificate.private_key_pem
+      }
+    }
+  end
+
+  # The in-cluster DNS names managed peers reach each other by, mirroring the Go
+  # controller's `peerTLSDNSNames` (headless Service `<name>-headless`).
+  defp peer_tls_dns_names(name) do
+    headless = "#{name}-headless"
+
+    [
+      "*.#{headless}.#{@namespace}.svc.cluster.local",
+      "*.#{headless}.#{@namespace}.svc",
+      "*.#{headless}.#{@namespace}",
+      headless,
+      "#{headless}.#{@namespace}",
+      "#{headless}.#{@namespace}.svc",
+      "#{headless}.#{@namespace}.svc.cluster.local"
+    ]
+  end
 
   # Tuist-platform-wide secrets (JWT verifier, control-plane client
   # secret) are
