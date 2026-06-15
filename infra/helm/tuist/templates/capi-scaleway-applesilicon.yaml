@@ -306,17 +306,6 @@ spec:
             # `kubectl -n kube-system get svc kube-dns`.
             - --vm-cluster-dns-ip={{ . }}
             {{- end }}
-            {{- with .Values.macosFleet.vmCachePrivateNetwork.id }}
-            # Scaleway Private Network carrying the kura runner-cache
-            # NodePort endpoints. The operator attaches every mini,
-            # resolves the per-host VLAN, and bootstrap materializes
-            # the VLAN interface + VM egress pass + NAT — the data
-            # plane dispatch's node-port cache_endpoint_url rides.
-            - --vm-cache-pn-id={{ . }}
-            {{- end }}
-            {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
-            - --vm-cache-pn-cidr={{ . }}
-            {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the
             # set of Ready Mac minis changes, so Pods spread across new

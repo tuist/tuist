@@ -293,8 +293,11 @@ xcresultProcessor:
 # Declarative Scaleway Linux kura runner-cache node, replacing the
 # hand-joined PRO2-S. The provider orders the Instance, attaches it to the
 # runner-cache PN, and it self-joins via kubeadm with the runner-cache taint.
+# Disabled in the chart deploy so helm --wait isn't gated on the fleet's
+# MachineDeployment going Ready (the node provision + kubeadm join is applied
+# and iterated out-of-band first). Flip to true once the join is proven.
 kuraFleet:
-  enabled: true
+  enabled: false
   replicas: 1
   machine:
     privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
