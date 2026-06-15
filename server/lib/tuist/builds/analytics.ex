@@ -409,6 +409,114 @@ defmodule Tuist.Builds.Analytics do
     normalize_result(value)
   end
 
+  def build_duration_percentiles_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    series_query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(series_query, params)
+
+    series =
+      Enum.map(rows, fn [date, average, p50, p90, p99] ->
+        %{date: date, average: average, p50: p50, p90: p90, p99: p99}
+      end)
+
+    average_durations = build_series_durations(series, :average, start_datetime, end_datetime, date_period)
+    p50_durations = build_series_durations(series, :p50, start_datetime, end_datetime, date_period)
+    p90_durations = build_series_durations(series, :p90, start_datetime, end_datetime, date_period)
+    p99_durations = build_series_durations(series, :p99, start_datetime, end_datetime, date_period)
+
+    current_period = build_period_aggregates(project_id, start_datetime, end_datetime, opts)
+
+    previous_period =
+      build_period_aggregates(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    %{
+      trend: trend(previous_value: previous_period.average, current_value: current_period.average),
+      total_average_duration: current_period.average,
+      p50: current_period.p50,
+      p90: current_period.p90,
+      p99: current_period.p99,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
+    }
+  end
+
+  defp build_series_durations(series, key, start_datetime, end_datetime, date_period) do
+    series
+    |> Enum.map(fn row -> %{date: row.date, value: Map.get(row, key)} end)
+    |> process_durations_data(start_datetime, end_datetime, date_period)
+  end
+
+  defp build_period_aggregates(project_id, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: [[average, p50, p90, p99]]}} = ClickHouseRepo.query(query, params)
+
+    %{
+      average: normalize_result(average),
+      p50: normalize_result(p50),
+      p90: normalize_result(p90),
+      p99: normalize_result(p99)
+    }
+  end
+
   def build_success_rate_analytics(project_id, opts \\ []) do
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))

@@ -40,6 +40,7 @@ var tuistDependencies: [Target.Dependency] = [
     .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
     "TuistAuthCommand",
     "TuistCacheCommand",
+    "TuistBazelCommand",
     "TuistVersionCommand",
     "TuistAccountCommand",
     "TuistProjectCommand",
@@ -56,13 +57,30 @@ var tuistDependencies: [Target.Dependency] = [
     argumentParserDependency,
     "TuistServer",
     pathDependency,
+    fileSystemDependency,
     swiftToolsSupportDependency,
 ]
+var tuistBazelCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistEnvironment",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistHTTP",
+    "TuistAlert",
+    "TuistConfigLoader",
+]
+
 var tuistCacheCommandDependencies: [Target.Dependency] = [
     pathDependency,
     argumentParserDependency,
     loggingDependency,
     swiftToolsSupportDependency,
+    fileSystemDependency,
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -621,6 +639,11 @@ var targets: [Target] = [
         name: "TuistCacheCommand",
         dependencies: tuistCacheCommandDependencies,
         path: "cli/Sources/TuistCacheCommand"
+    ),
+    .target(
+        name: "TuistBazelCommand",
+        dependencies: tuistBazelCommandDependencies,
+        path: "cli/Sources/TuistBazelCommand"
     ),
     .target(
         name: "TuistAuthCommand",
@@ -1796,10 +1819,7 @@ let package = Package(
         .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
         .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
         .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
-        .package(
-            url: "https://github.com/tuist/swifterpm",
-            revision: "672a723f962cf243f1b6de65274c744c51e82acc"
-        ),
+        .package(url: "https://github.com/tuist/swifterpm", exact: "0.8.9"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

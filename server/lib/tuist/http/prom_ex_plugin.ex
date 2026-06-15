@@ -229,18 +229,22 @@ defmodule Tuist.HTTP.PromExPlugin do
   end
 
   defp request_metadata_to_tag_values(metadata) do
-    response_attrs =
-      case metadata[:result] do
-        {:ok, %{status: status}} -> %{response_status: status}
-        {:error, exception} -> %{error: Sanitizer.sanitize_value(exception)}
-      end
-
     %{
       name: metadata.name
     }
-    |> Map.merge(response_attrs)
+    |> Map.merge(result_to_tag_values(metadata[:result]))
     |> Map.merge(request_to_tag_values(metadata.request))
   end
+
+  defp result_to_tag_values({:ok, {_request, %{status: status}}}), do: %{response_status: status}
+  defp result_to_tag_values({:ok, %{status: status}}), do: %{response_status: status}
+
+  defp result_to_tag_values({:error, exception, {_request, _response}}), do: %{error: Sanitizer.sanitize_value(exception)}
+
+  defp result_to_tag_values({:error, {_request, exception}}), do: %{error: Sanitizer.sanitize_value(exception)}
+
+  defp result_to_tag_values({:error, exception}), do: %{error: Sanitizer.sanitize_value(exception)}
+  defp result_to_tag_values(result), do: %{error: Sanitizer.sanitize_value(result)}
 
   defp queue_metadata_to_tag_values(metadata) do
     Map.merge(%{name: metadata.name}, request_to_tag_values(metadata.request))

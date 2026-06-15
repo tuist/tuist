@@ -1,0 +1,9 @@
+// Self-contained workspace for the Grafana data source plugin. It is
+// intentionally NOT part of the repo-root go.work: that workspace exists to
+// resolve cross-imports between the infra/ controllers, which this plugin
+// neither imports nor is imported by. Keeping it separate lets the plugin track
+// the latest grafana-plugin-sdk-go (and the go version it needs) without
+// forcing those dependency versions onto the infra modules.
+go 1.26.3
+
+use .

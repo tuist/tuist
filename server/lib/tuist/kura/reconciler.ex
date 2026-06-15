@@ -67,6 +67,11 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   def reconcile do
+    # Converge runner-cache nodes with runner enablement before the rest
+    # of the loop so a freshly enabled account's node enters the normal
+    # provisioning/observation path within the same tick.
+    Tuist.Kura.RunnerCache.reconcile()
+
     with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
       log_scheduled_deployments(scheduled)
       reconcile_destroying_servers()

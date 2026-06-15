@@ -490,6 +490,11 @@ public enum EnvKey: String, CaseIterable {
     case cacheConfigForceRefresh = "TUIST_CACHE_CONFIG_FORCE_REFRESH"
     case cacheConfigServerURL = "TUIST_CACHE_CONFIG_SERVER_URL"
 
+    // BAZEL
+
+    case bazelSetupPath = "TUIST_BAZEL_SETUP_PATH"
+    case bazelCredentialHelperPath = "TUIST_BAZEL_CREDENTIAL_HELPER_PATH"
+
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]
     }
