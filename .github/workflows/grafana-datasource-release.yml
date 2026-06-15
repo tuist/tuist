@@ -137,6 +137,13 @@ jobs:
             echo "Tag $TAG already exists on origin"
             exit 0
           fi
+          # Commit the version stamped into package.json/lock so the tagged source
+          # matches the published plugin.json — Grafana's validator compares the
+          # two. Only the tag is pushed, so main stays free of release commits.
+          git add grafana-datasource/package.json grafana-datasource/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(grafana-datasource): stamp version $VERSION"
+          fi
           git tag "$TAG"
           git push origin "refs/tags/$TAG"
 
