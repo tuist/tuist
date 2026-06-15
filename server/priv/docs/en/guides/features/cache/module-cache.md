@@ -117,11 +117,11 @@ Precedence when resolving the effective behavior (highest to lowest):
 
 Only the following target products are cacheable by Tuist:
 
-- Frameworks (static and dynamic) that don't depend on [XCTest](https://developer.apple.com/documentation/xctest)
+- Frameworks (static and dynamic), including test-support frameworks that depend on [XCTest](https://developer.apple.com/documentation/xctest) or Swift Testing
 - Bundles
 - Swift Macros
 
-We are working on supporting libraries and targets that depend on XCTest.
+Test bundles remain excluded from the module cache. This means `unitTests` and `uiTests` targets are not cached as binaries, but regular framework targets that tests depend on can be cached even when they link XCTest or Swift Testing.
 
 > [!NOTE]
 > **Upstream Dependencies**
