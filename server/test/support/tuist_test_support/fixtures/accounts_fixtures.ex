@@ -31,17 +31,28 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     user = Keyword.get_lazy(opts, :user, fn -> user_fixture() end)
     provider = Keyword.get(opts, :provider, :google)
 
+    # Google records the Workspace it authenticated against as the hosted
+    # domain (`hd`); model it from the user's email so an `@tuist.dev` operator
+    # fixture lands in the `tuist.dev` Workspace by default.
+    provider_organization_id =
+      Keyword.get_lazy(opts, :provider_organization_id, fn ->
+        if provider == :google, do: email_domain(user.email)
+      end)
+
     {:ok, identity} =
       %Oauth2Identity{}
       |> Oauth2Identity.create_changeset(%{
         provider: provider,
         id_in_provider: Keyword.get(opts, :id_in_provider, "#{provider}-#{TuistTestSupport.Utilities.unique_integer()}"),
+        provider_organization_id: provider_organization_id,
         user_id: user.id
       })
       |> Tuist.Repo.insert()
 
     identity
   end
+
+  defp email_domain(email), do: email |> String.split("@") |> List.last()
 
   def organization_fixture(opts \\ []) do
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer(6)}")

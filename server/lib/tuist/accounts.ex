@@ -1287,20 +1287,28 @@ defmodule Tuist.Accounts do
   def tuist_operator?(_), do: false
 
   defp operator_email?(%User{email: email} = user) when is_binary(email) do
-    String.ends_with?(String.downcase(email), "@" <> Environment.operator_email_domain()) and
-      signed_in_with_google?(user)
+    domain = Environment.operator_email_domain()
+
+    String.ends_with?(String.downcase(email), "@" <> domain) and
+      google_workspace_member?(user, domain)
   end
 
   defp operator_email?(_), do: false
 
   # Operators authenticate through Google Workspace SSO — our preferred,
-  # org-restricted sign-in, which is what actually proves the operator-domain
-  # address belongs to a member. Google never sets `confirmed_at` (the address
-  # is provider-verified, not confirmed through the email flow), so the gate
-  # keys off the persisted Google OAuth identity. The email/password
-  # confirmation flow and other OAuth providers do not qualify an operator.
-  defp signed_in_with_google?(%User{id: id}) do
-    Repo.exists?(from(o in Oauth2Identity, where: o.user_id == ^id and o.provider == :google))
+  # org-restricted sign-in. We verify membership the same way org SSO does:
+  # Google's hosted-domain (`hd`) claim, captured at sign-in as the identity's
+  # `provider_organization_id`. Matching it against the operator domain proves
+  # the account belongs to our Workspace rather than inferring it from the
+  # email string. The email/password confirmation flow (which sets
+  # `confirmed_at`, something Google sign-in never does) and other OAuth
+  # providers do not qualify an operator.
+  defp google_workspace_member?(%User{id: id}, domain) do
+    Repo.exists?(
+      from(o in Oauth2Identity,
+        where: o.user_id == ^id and o.provider == :google and o.provider_organization_id == ^domain
+      )
+    )
   end
 
   defp user_has_sso_enforced_organization?(user) do

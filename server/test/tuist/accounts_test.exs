@@ -318,18 +318,44 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "tuist_operator?/1" do
-    test "true for an operator-domain email signed in with Google" do
-      # Google sign-ins never set confirmed_at, but Google Workspace SSO is
-      # org-restricted, so a persisted Google identity proves operator status.
+    test "true for an operator-domain email in the operator Google Workspace" do
+      # Google sign-ins never set confirmed_at; membership is proven by the
+      # hosted-domain (hd) claim stored as the identity's provider_organization_id.
       user =
         user_fixture(
           email: "g-#{System.unique_integer([:positive])}@tuist.dev",
           confirmed_at: nil
         )
 
-      oauth2_identity_fixture(user: user, provider: :google)
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "tuist.dev")
 
       assert Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email whose Google identity has no hosted domain" do
+      # The historical-row case: a Google identity without a captured hd does
+      # not prove Workspace membership, so it must not qualify.
+      user =
+        user_fixture(
+          email: "nohd-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: nil)
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email signed into a different Google Workspace" do
+      user =
+        user_fixture(
+          email: "other-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "evil.example")
+
+      refute Accounts.tuist_operator?(user)
     end
 
     test "false for an operator-domain email that only confirmed via the email flow" do
@@ -354,14 +380,14 @@ defmodule Tuist.AccountsTest do
       refute Accounts.tuist_operator?(user)
     end
 
-    test "false for a non-operator-domain email signed in with Google" do
+    test "false for a non-operator-domain email in its own Google Workspace" do
       user =
         user_fixture(
           email: "ext-#{System.unique_integer([:positive])}@example.com",
           confirmed_at: nil
         )
 
-      oauth2_identity_fixture(user: user, provider: :google)
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
 
       refute Accounts.tuist_operator?(user)
     end
