@@ -43,28 +43,25 @@ server:
       # kata fleet (Falkenstein). Requires the `kura-scw-fr-par` node
       # pool + scw-bssd CSI to exist in the cluster.
       value: eu-central,hetzner-staging-runners,scw-fr-par-runners
-    # Runner platforms whose fleets can reach `*.svc.cluster.local` —
-    # the dispatch gate for handing out `cache_endpoint_url`
-    # (Catalog.fleet_on_cluster_network?/1). Unset, this defaults to
-    # `linux` (kata Pods on the CNI). Flip to `linux,macos` ONLY after
-    # the macOS network path is verified end-to-end on a staging Mac
-    # mini, because clients treat TUIST_CACHE_ENDPOINT as a hard
-    # override — handing macOS VMs an unreachable URL breaks their
-    # caching outright. Verification checklist (in order):
-    #   1. infra/tailscale/acls.json synced in the Tailscale admin
-    #      console (macmini->10.128.0.0/12 grant + autoApprovers).
-    #   2. tailscale-operator chart upgraded: staging Connector
-    #      advertises 10.128.0.0/12 (route shows "approved" in the
-    #      admin console).
-    #   3. Mac mini hosts re-bootstrapped/drift-rolled with
-    #      --tailscale-accept-routes + the vmClusterEgress carve-out
-    #      (macosFleet values below), then from a runner VM:
-    #      `curl http://<kura-clusterip>:4000/up` and
-    #      `dig @10.128.0.10 kubernetes.default.svc.cluster.local`.
-    # Verified end-to-end on 2026-06-11: route via the staging
-    # Connector (approved + auto-approver in ACLs), host accept-routes
-    # + pf carve-out live on the runners-fleet mini, kura /up + cluster
-    # DNS reachable from the host and from inside a Tart runner VM.
+    # Runner platforms whose fleets can reach their region's private
+    # cache endpoint — the dispatch gate for handing out
+    # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).
+    # Unset, this defaults to `linux` (kata Pods on the CNI reaching
+    # `*.svc.cluster.local`). For `macos` the endpoint is the
+    # node-port form (`http://<node PN address>:<NodePort>` on the
+    # scw-fr-par-runners region), so flip it on ONLY when the
+    # Private Network path exists end-to-end — clients treat
+    # TUIST_CACHE_ENDPOINT as a hard override, and an unreachable URL
+    # breaks macOS caching outright. Checklist (in order):
+    #   1. The PN + kura-scw-fr-par node pool exist and the minis are
+    #      attached (macosFleet.vmCachePrivateNetwork values below;
+    #      the CAPI operator attaches minis and resolves VLANs).
+    #   2. Mac mini hosts bootstrapped/drift-rolled so the VLAN
+    #      interface + pf pass + VM NAT are live, then from a runner
+    #      VM: `curl http://<node PN address>:<account NodePort>/up`.
+    # Verified end-to-end on 2026-06-12 (smoke run 27416065883):
+    # dispatch-sourced endpoint http://172.16.0.2:32675 from a Tart
+    # runner VM, cold 5.34x / warm 2.46x vs the public baseline.
     - name: TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS
       value: linux,macos
     # Operator project-access grants — server half only. The public key
@@ -293,6 +290,15 @@ xcresultProcessor:
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
 # CR per replica; the cluster-api-provider-scaleway-applesilicon
+# Declarative Scaleway Linux kura runner-cache node, replacing the
+# hand-joined PRO2-S. The provider orders the Instance, attaches it to the
+# runner-cache PN, and it self-joins via kubeadm with the runner-cache taint.
+kuraFleet:
+  enabled: true
+  replicas: 1
+  machine:
+    privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
+
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
@@ -325,6 +331,12 @@ macosFleet:
   vmClusterEgress:
     kuraServiceCIDR: "10.128.0.0/12"
     clusterDNSIP: "10.128.0.10"
+  # Staging PN kura-runner-cache (172.16.0.0/22) in the staging
+  # Scaleway project: minis + the kura-scw-fr-par node are attached;
+  # dispatch hands VMs http://<node PN address>:<account NodePort>.
+  vmCachePrivateNetwork:
+    id: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
+    cidr: 172.16.0.0/22
   machine:
     # Staging tracks the chart default (M2-L on Scaleway: M2 Pro
     # 10-core / 16 GB). Drop to M2-M if staging capacity gets tight
