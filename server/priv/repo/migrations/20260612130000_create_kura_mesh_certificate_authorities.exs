@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateKuraMeshCertificateAuthorities do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:kura_mesh_certificate_authorities, primary_key: false) do

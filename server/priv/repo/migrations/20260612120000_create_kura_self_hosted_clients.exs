@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateKuraSelfHostedClients do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:kura_self_hosted_clients, primary_key: false) do
