@@ -6,7 +6,7 @@ excerpt: "Until now, every commit to main became the latest Tuist release. We ar
 author: fortmarek
 ---
 
-For most of Tuist's life the CLI has been released continuously: every commit that landed on `main` became the new latest version. It served us well. It kept the feedback loop short and meant fixes reached you within minutes of merging.
+Releasing the CLI used to be a manual step. Then we adopted conventional commits and [git-cliff](https://git-cliff.org) and moved to continuous release: every commit that landed on `main` became the new latest version. It served us well. It kept the feedback loop short and meant fixes reached you within minutes of merging.
 
 But continuous release has a cost that grows with the size of your team. When every commit is "latest", upgrading is a gamble. A version that has the fix you need also carries every unrelated change merged around it, and occasionally one of those is a regression. The advice we kept repeating, "pin a version and upgrade carefully", was a workaround for a problem we had created. We wanted to fix it at the source.
 
