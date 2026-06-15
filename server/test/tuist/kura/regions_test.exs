@@ -58,6 +58,15 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end
 
+    test "tolerates the runner-cache node taint only on the scaleway runner-cache region" do
+      assert Regions.get("scw-fr-par-runners").provisioner_config.tolerations == [
+               %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
+
+      # The Hetzner runner-cache pool isn't tainted, so its region carries no toleration.
+      assert Regions.get("hetzner-staging-runners").provisioner_config.tolerations == []
+    end
+
     test "exposes a local controller-backed region for kind smoke tests" do
       assert %Regions{
                id: "local-controller",

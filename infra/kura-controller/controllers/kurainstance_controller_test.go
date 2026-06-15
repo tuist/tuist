@@ -1863,3 +1863,49 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 		t.Fatalf("expected external service deleted when exposure is disabled, got %v", err)
 	}
 }
+
+func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-scw-fr-par", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "scw-fr-par-runners",
+			Image:         "ghcr.io/tuist/kura:0.5.2",
+			Private:       true,
+			NodeSelector:  map[string]string{"node.cluster.x-k8s.io/pool": "kura-scw-fr-par"},
+			Tolerations: []corev1.Toleration{{
+				Key:      "tuist.dev/runner-cache",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		},
+	}
+	sharedSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: sharedSecretsName, Namespace: instance.Namespace, ResourceVersion: "12345"},
+	}
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, sharedSecret).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tol := range sts.Spec.Template.Spec.Tolerations {
+		if tol.Key == "tuist.dev/runner-cache" && tol.Effect == corev1.TaintEffectNoSchedule {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
+	}
+}

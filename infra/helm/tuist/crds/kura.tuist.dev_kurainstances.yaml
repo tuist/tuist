@@ -119,6 +119,11 @@ spec:
                   type: object
                   additionalProperties:
                     type: string
+                tolerations:
+                  type: array
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                 extraEnv:
                   type: array
                   items:

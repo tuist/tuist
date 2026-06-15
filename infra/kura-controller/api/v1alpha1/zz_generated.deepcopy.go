@@ -168,6 +168,12 @@ func (in *KuraInstanceSpec) DeepCopyInto(out *KuraInstanceSpec) {
 			out.NodeSelector[key] = value
 		}
 	}
+	if in.Tolerations != nil {
+		out.Tolerations = make([]corev1.Toleration, len(in.Tolerations))
+		for i := range in.Tolerations {
+			in.Tolerations[i].DeepCopyInto(&out.Tolerations[i])
+		}
+	}
 	if in.ExtraEnv != nil {
 		out.ExtraEnv = make([]corev1.EnvVar, len(in.ExtraEnv))
 		for i := range in.ExtraEnv {

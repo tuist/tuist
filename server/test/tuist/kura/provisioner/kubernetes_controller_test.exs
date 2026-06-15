@@ -100,6 +100,40 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(unmeshed["spec"], "mesh")
     end
 
+    test "emits tolerations only when the region declares them" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      tolerations = [%{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}]
+
+      tolerated =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{tolerations: tolerations}),
+          %Server{},
+          "return true"
+        )
+
+      assert tolerated["spec"]["tolerations"] == tolerations
+
+      untolerated =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      refute Map.has_key?(untolerated["spec"], "tolerations")
+    end
+
     test "normalizes account handles for DNS-label KuraInstance fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 

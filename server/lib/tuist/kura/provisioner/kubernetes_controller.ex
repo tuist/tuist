@@ -220,6 +220,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
           "nodeSelector" => node_selector(region),
+          "tolerations" => tolerations(region),
           "extensionScript" => hook_script,
           "extraEnv" => extension_env(region)
         }
@@ -359,6 +360,10 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp node_selector(%Regions{provisioner_config: %{node_selector: node_selector}}), do: node_selector
 
   defp node_selector(_), do: nil
+
+  defp tolerations(%Regions{provisioner_config: %{tolerations: [_ | _] = tolerations}}), do: tolerations
+
+  defp tolerations(_), do: nil
 
   # nil (not []) when unset so the manifest builder's reject drops the
   # key entirely.

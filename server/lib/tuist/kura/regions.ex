@@ -109,7 +109,14 @@ defmodule Tuist.Kura.Regions do
       # pool's node NIC is shared by every tenant pod on it; the cap
       # keeps one account's restore burst from starving the rest while
       # still letting a lone tenant pull at half a PRO2-S NIC.
-      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"}
+      pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
+      # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
+      # taint so general workloads stay off this shared-NIC, egress-capped
+      # node; the cache pods tolerate it (node_selector already pins them
+      # here). Matches the `tuist.dev/macos` / `runner-tier` taint pattern.
+      tolerations: [
+        %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+      ]
     },
     %{
       id: "hetzner-staging-runners",
@@ -258,6 +265,7 @@ defmodule Tuist.Kura.Regions do
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: Map.get(spec, :pod_annotations, %{}),
+        tolerations: Map.get(spec, :tolerations, []),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
