@@ -121,7 +121,7 @@ Promotion refuses to run unless the branch HEAD is exactly the commit the latest
 
 ### Backporting fixes to a stable line
 
-Once a line is stable, ship patches with the **CLI Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes all fixes, the previous line takes critical and security fixes only.
+Once a line is stable, ship patches with the **CLI Backport Release** workflow (`cli-backport.yml`): cherry-pick the fix onto `releases/X.Y.x` through a PR, then run the workflow with that branch to cut `X.Y.(Z+1)`. Backports never move the "Latest" pointer or the Homebrew formula. Two lines are maintained at a time: the current line takes regressions and security fixes, the previous line takes critical and security fixes only. Other bug fixes are not backported and ship with the next minor.
 
 ## Writing good commit messages
 

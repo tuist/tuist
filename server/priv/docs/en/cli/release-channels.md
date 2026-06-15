@@ -58,10 +58,10 @@ Two stable lines are actively maintained at any time:
 
 | Line | Receives |
 | --- | --- |
-| Current (`X.Y.x`) | All fixes: bugs, regressions, and security |
+| Current (`X.Y.x`) | Regressions and security fixes |
 | Previous (`X.(Y-1).x`) | Critical and security fixes only |
 | Older | None — upgrade to a maintained line |
 
-Fixes land first on `main` (canary), then are cherry-picked onto the current stable line, and onto the previous line only when they are critical or security-related. When a new line is promoted to stable, the line that was current becomes "previous", and the line that was "previous" stops receiving backports.
+Fixes land first on `main` (canary). Regressions and security fixes are backported to the current stable line, and the previous line receives critical and security fixes only. Other bug fixes are not backported; they ship with the next minor. When a new line is promoted to stable, the line that was current becomes "previous", and the line that was "previous" stops receiving backports.
 
 Independently of the channel, the Tuist server stays [compatible](/en/cli/compatibility) with any CLI released in the last 3 months, so pinning to a stable line never puts you outside the supported window as long as you upgrade within that period.
