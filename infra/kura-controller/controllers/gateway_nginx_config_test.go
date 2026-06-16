@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/yaml"
@@ -11,52 +13,93 @@ import (
 // gateway ingress-nginx ConfigMaps, relative to this package.
 const chartValuesPath = "../../helm/platform/values.yaml"
 
-// windowKeys are the HTTP/2 upload-window settings that must be identical
-// between the dedicated-gateway ConfigMap (this controller) and the regional
-// gateway config (the platform chart). If they diverge, large gRPC uploads
-// regress on one path but not the other.
-var windowKeys = []string{
+// requiredGatewayConfigKeys are the nginx settings every regional Kura gateway
+// must carry and keep equal to the dedicated-gateway ConfigMap
+// (gatewayNginxConfigData): the client-IP / proxy-protocol base plus the HTTP/2
+// upload-window keys. A region missing any of these — or setting a different
+// value — fails the test, because such a gateway mishandles client IPs or
+// throttles large gRPC uploads. Keys gatewayNginxConfigData also produces but
+// that are NOT listed here are optional for the regional path (a region need
+// not set them), yet still must match wherever a region does set one, so no
+// value can silently diverge between the two render paths.
+var requiredGatewayConfigKeys = []string{
+	"use-forwarded-headers",
+	"use-proxy-protocol",
+	"compute-full-forwarded-for",
+	"upstream-keepalive-timeout",
 	"client-body-buffer-size",
 	"http2-max-concurrent-streams",
 	"http-snippet",
 }
 
-// TestGatewayNginxConfigMatchesChart guards against the two gateway render
-// paths drifting: the dedicated gateway (gatewayNginxConfigData here) and the
-// regional gateways (infra/helm/platform/values.yaml) must agree on the
-// HTTP/2 upload-window keys. The chart's three regional blocks share one
-// anchored config node, so checking any one of them covers all three.
+// TestGatewayNginxConfigMatchesChart guards the two gateway render paths against
+// drift: the dedicated gateway (gatewayNginxConfigData here) and the regional
+// gateways (the kura-*-ingress-nginx blocks in infra/helm/platform/values.yaml).
+// For every regional block it asserts the required keys are present with the
+// controller's value, and that any other controller key matches wherever the
+// region also sets it. It checks every regional block (not a single sampled
+// region), so a future de-anchoring that diverges one region is caught.
 func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 	raw, err := os.ReadFile(chartValuesPath)
 	if err != nil {
 		t.Fatalf("read chart values %s: %v", chartValuesPath, err)
 	}
 
-	var values struct {
-		Gateway struct {
-			Controller struct {
-				Config map[string]string `json:"config"`
-			} `json:"controller"`
-		} `json:"kura-us-west-ingress-nginx"`
-	}
-	if err := yaml.Unmarshal(raw, &values); err != nil {
+	// values.yaml is heterogeneous at the top level, so decode each entry as
+	// raw JSON and only parse the gateway blocks. sigs.k8s.io/yaml resolves the
+	// YAML anchor/aliases first, so every region carries its effective config
+	// whether or not it still shares the anchored node.
+	var top map[string]json.RawMessage
+	if err := yaml.Unmarshal(raw, &top); err != nil {
 		t.Fatalf("parse chart values: %v", err)
 	}
 
-	chart := values.Gateway.Controller.Config
-	if len(chart) == 0 {
-		t.Fatal("no controller.config found for kura-us-west-ingress-nginx; chart layout changed")
+	controller := gatewayNginxConfigData()
+
+	// Guard the required list against drifting from the controller itself: a
+	// required key the controller no longer produces is a test-maintenance bug.
+	required := make(map[string]bool, len(requiredGatewayConfigKeys))
+	for _, key := range requiredGatewayConfigKeys {
+		if _, ok := controller[key]; !ok {
+			t.Errorf("required key %q is not produced by gatewayNginxConfigData(); update the test", key)
+		}
+		required[key] = true
 	}
 
-	controller := gatewayNginxConfigData()
-	for _, key := range windowKeys {
-		got, ok := chart[key]
-		if !ok {
-			t.Errorf("chart regional gateway config is missing window key %q", key)
+	compared := 0
+	for name, rawBlock := range top {
+		if !strings.HasPrefix(name, "kura-") || !strings.HasSuffix(name, "-ingress-nginx") {
 			continue
 		}
-		if want := controller[key]; got != want {
-			t.Errorf("window key %q drifted: controller=%q chart=%q — update both render paths together", key, want, got)
+
+		var block struct {
+			Controller struct {
+				Config map[string]string `json:"config"`
+			} `json:"controller"`
 		}
+		if err := json.Unmarshal(rawBlock, &block); err != nil {
+			t.Errorf("%s: parse controller.config: %v", name, err)
+			continue
+		}
+
+		chart := block.Controller.Config
+		if len(chart) == 0 {
+			continue
+		}
+		compared++
+
+		for key, want := range controller {
+			got, present := chart[key]
+			switch {
+			case required[key] && !present:
+				t.Errorf("%s: missing required gateway config key %q (controller=%q)", name, key, want)
+			case present && got != want:
+				t.Errorf("%s: gateway config key %q drifted: controller=%q chart=%q — update both render paths together", name, key, want, got)
+			}
+		}
+	}
+
+	if compared == 0 {
+		t.Fatal("no kura-*-ingress-nginx blocks with controller.config found; chart layout changed")
 	}
 }

@@ -139,9 +139,10 @@ func (r *KuraGatewayReconciler) deleteRenamedIngressClass(ctx context.Context, g
 }
 
 // gatewayNginxConfigData is the ingress-nginx ConfigMap for dedicated Kura
-// gateways. The HTTP/2 upload-window keys here must stay equal to the regional
-// gateway config in infra/helm/platform/values.yaml; TestGatewayNginxConfigMatchesChart
-// asserts that so the two render paths cannot drift.
+// gateways. The keys it shares with the regional gateway config in
+// infra/helm/platform/values.yaml must stay equal; TestGatewayNginxConfigMatchesChart
+// asserts that (required keys present and matching, any other shared key
+// matching where a region sets it) so the two render paths cannot drift.
 func gatewayNginxConfigData() map[string]string {
 	return map[string]string{
 		"use-forwarded-headers":       "true",
