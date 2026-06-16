@@ -11,6 +11,15 @@ metadata:
     app.kubernetes.io/component: xcresult-processor
 spec:
   replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  # maxSurge: 0 (below) replaces one Tart VM at a time: terminate the
+  # old VM to free hostPort 9091, then boot a fresh one. A full macOS
+  # VM teardown + boot routinely overruns the 600s k8s default, which
+  # flips the Deployment to Progress-deadline-exceeded mid-roll. The
+  # deploy's `helm upgrade --atomic` then rolls back the whole release,
+  # so a slow processor image bump (e.g. 0.23.1 -> 0.24.0) blocks every
+  # prod deploy until it lands. Give a single VM cycle ample headroom,
+  # still well under helm's 60m --timeout.
+  progressDeadlineSeconds: 1800
   strategy:
     {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
   selector:
