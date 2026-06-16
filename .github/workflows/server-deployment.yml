@@ -202,12 +202,19 @@ jobs:
       # The kura runtime image (the Rust mesh node, not the controller) is
       # otherwise only published by release.yml on push-to-main. Building the
       # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
-      # change before it's released; the deploy job only pins it on staging,
-      # while canary/production stay on the resolved `kura@` release tag.
+      # change before it's released.
+      #
+      # Staging-only on purpose, in lockstep with the deploy job: only staging
+      # pins kuraRuntime.image.tag to this sha image; canary/production resolve
+      # the released `kura@` tag and never reference it, so building it there
+      # would be a wasted ~10-20min Rust compile + an unused push. The
+      # production cascade already skips this whole job (it passes image_tag),
+      # so this guard only matters for a manual canary/production dispatch.
       # kura/Dockerfile builds from source (context = kura/); the staging
       # node pool is amd64 (Hetzner ccx), so the runner-native build suffices.
       - uses: docker/build-push-action@v6
         name: Build and push Kura runtime image
+        if: inputs.environment == 'staging'
         with:
           context: ./kura
           file: ./kura/Dockerfile
