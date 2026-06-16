@@ -107,7 +107,7 @@ struct ShardPlanServiceTests {
         #expect(!dsymExists)
 
         verify(startShardUploadService)
-            .startUpload(fullHandle: .any, serverURL: .any, reference: .any)
+            .startUpload(fullHandle: .any, serverURL: .any, reference: .any, artifact: .any)
             .called(0)
     }
 }

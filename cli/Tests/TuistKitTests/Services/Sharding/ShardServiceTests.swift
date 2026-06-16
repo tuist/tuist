@@ -343,6 +343,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/should-not-be-used",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
                 suites: .init()
@@ -416,6 +417,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
                 suites: .init()
@@ -460,6 +462,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
                 suites: .init()
@@ -528,6 +531,7 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
                 suites: .init()
