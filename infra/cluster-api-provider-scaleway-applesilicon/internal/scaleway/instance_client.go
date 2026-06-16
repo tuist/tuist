@@ -142,6 +142,11 @@ func (c *InstanceClient) CreateInstance(ctx context.Context, p CreateInstancePar
 		Image:          &img.ID,
 		Project:        &c.ProjectID,
 		Tags:           p.Tags,
+		// A dynamic public IPv4 so cloud-init can pull kubelet/containerd and
+		// the node can reach the externally-managed (Hetzner) control plane to
+		// register. Cache traffic still rides the Private Network; only the
+		// join path and image pulls use the public IP.
+		DynamicIPRequired: scw.BoolPtr(true),
 		Volumes: map[string]*instance.VolumeServerTemplate{
 			"0": {
 				Boot:       scw.BoolPtr(true),

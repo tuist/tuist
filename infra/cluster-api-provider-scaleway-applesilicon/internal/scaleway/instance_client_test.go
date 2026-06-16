@@ -98,6 +98,9 @@ func TestCreateInstance_OrdersAndSetsUserDataOnly(t *testing.T) {
 	if inst.created == nil || inst.created.Image == nil || *inst.created.Image != "img-uuid" {
 		t.Fatalf("expected server created with resolved image, got %#v", inst.created)
 	}
+	if inst.created.DynamicIPRequired == nil || !*inst.created.DynamicIPRequired {
+		t.Fatalf("expected a dynamic public IP requested for the join path, got %#v", inst.created.DynamicIPRequired)
+	}
 	if inst.userData == nil || inst.userData.Key != "cloud-init" {
 		t.Fatalf("expected cloud-init user-data set, got %#v", inst.userData)
 	}
