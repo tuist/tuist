@@ -248,6 +248,20 @@ macosFleet:
     tags: ["tag:tuist-macmini-canary"]
   controlPlane:
     host: api-canary.tuist.dev
+  # Runner-cache data plane: attach the minis to the same Private
+  # Network as the kura node (kuraFleet.machine.privateNetworkID), so
+  # the CAPI operator resolves each host's VLAN and bootstrap
+  # materializes the VLAN interface + VM egress pass + NAT. This is the
+  # durable half; it does NOT route cache traffic on its own. Dispatch
+  # only hands macOS fleets the node-port endpoint once
+  # TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS includes `macos` (server
+  # env, off here by default) — flip that ONLY after verifying from a
+  # runner VM that `curl http://<node PN address>:<account NodePort>/up`
+  # succeeds, since clients treat the cache endpoint as a hard override
+  # and an unreachable URL breaks macOS caching outright.
+  vmCachePrivateNetwork:
+    id: e92e14c5-65ff-4ffd-91c3-f8154f569caf
+    cidr: 172.16.0.0/22
 
 # Customer-runner Mac mini fleet — sibling of macosFleet.
 # Canary keeps one warm runner so the production rollout can be
