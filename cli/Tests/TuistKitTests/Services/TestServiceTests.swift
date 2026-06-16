@@ -24,6 +24,8 @@ import XcodeGraph
 import XCResultParser
 import XCTest
 
+import struct TSCUtility.Version
+
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -402,6 +404,25 @@ final class TestServiceTests: TuistUnitTestCase {
                 )
             },
             TestServiceError.shardIndexRequiresWithoutBuilding
+        )
+    }
+
+    func test_throws_when_shard_index_is_passed_without_full_handle() async throws {
+        // Given
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: nil))
+
+        // When / Then
+        await XCTAssertThrowsSpecific(
+            {
+                try await testRun(
+                    path: try temporaryPath(),
+                    action: .testWithoutBuilding,
+                    shardIndex: 0
+                )
+            },
+            TestServiceError.shardingRequiresFullHandle
         )
     }
 
@@ -4262,6 +4283,76 @@ final class TestServiceTests: TuistUnitTestCase {
             .willReturn(generator)
     }
 
+    private struct ShardPlanBuildFixture {
+        let path: AbsolutePath
+        let testProductsPath: AbsolutePath
+    }
+
+    private func givenShardPlanBuild(onShardPlanDestination: ((String?) -> Void)? = nil) async throws -> ShardPlanBuildFixture {
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "TestProducts.xctestproducts")
+        let projectPath = AbsolutePath.root.appending(component: "Project")
+        let scheme = Scheme.test(name: "ProjectScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [scheme]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTests", product: .unitTests),
+                    ]
+                ),
+            ]
+        )
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, graph,
+                    MapperEnvironment()
+                )
+            }
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        given(shardPlanService)
+            .plan(
+                xctestproductsPath: .any,
+                destination: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .any,
+                archivePath: .any
+            )
+            .willProduce { _, destination, _, _, _, _, _, _, _, _, _, _, _ in
+                onShardPlanDestination?(destination)
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: []
+                )
+            }
+
+        return ShardPlanBuildFixture(path: path, testProductsPath: testProductsPath)
+    }
+
     func test_run_testWithoutBuilding_skipsGeneration_whenSelectiveTestingGraphExists() async throws {
         // Given
         let path = try temporaryPath()
@@ -4878,7 +4969,7 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(shardPlanService)
             .plan(
                 xctestproductsPath: .value(testProductsPath),
-                destination: .value("platform=iOS"),
+                destination: .value("platform=iOS Simulator,id=3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC"),
                 reference: .any,
                 shardGranularity: .any,
                 shardMin: .any,
@@ -4890,6 +4981,341 @@ final class TestServiceTests: TuistUnitTestCase {
                 buildRunId: .any,
                 skipUpload: .value(false),
                 archivePath: .value(shardArchivePath)
+            )
+            .called(1)
+    }
+
+    func test_run_build_resolvesPlatformOnlySimulatorDestinationForSuiteShardPlanning() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "TestProducts.xctestproducts")
+        let projectPath = AbsolutePath.root.appending(component: "Project")
+        let scheme = Scheme.test(name: "ProjectScheme")
+        let graph: Graph = .test(
+            workspace: .test(schemes: [scheme]),
+            projects: [
+                projectPath: .test(
+                    path: projectPath,
+                    targets: [
+                        .test(name: "AppTests", product: .unitTests),
+                    ]
+                ),
+            ]
+        )
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, graph,
+                    MapperEnvironment()
+                )
+            }
+
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([scheme])
+
+        given(shardPlanService)
+            .plan(
+                xctestproductsPath: .any,
+                destination: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .any,
+                archivePath: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: []
+                )
+            )
+
+        // When
+        try await testRun(
+            path: path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=iOS Simulator",
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(testProductsPath),
+                destination: .value("platform=iOS Simulator,id=3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_build_preservesConcreteSimulatorDestinationForSuiteShardPlanning() async throws {
+        // Given
+        let fixture = try await givenShardPlanBuild()
+        given(simulatorController)
+            .findAvailableDevice(udid: .any)
+            .willReturn(.test(device: .test(name: "Test iPhone")))
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+                "-destination", "platform=iOS Simulator,id=existing-device-id",
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(fixture.testProductsPath),
+                destination: .value("platform=iOS Simulator,id=existing-device-id"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_build_preservesMacOSDestinationForSuiteShardPlanning() async throws {
+        // Given
+        let fixture = try await givenShardPlanBuild()
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(fixture.testProductsPath),
+                destination: .value("platform=macOS"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_build_usesExplicitSimulatorOSVersionForSuiteShardPlanning() async throws {
+        // Given
+        let fixture = try await givenShardPlanBuild()
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+                "-destination", "platform=iOS Simulator,OS=18.0",
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(fixture.testProductsPath),
+                destination: .value("platform=iOS Simulator,id=3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
+            )
+            .called(1)
+        verify(simulatorController)
+            .findAvailableDevice(
+                platform: .value(.iOS),
+                version: .value(Version(18, 0, 0)),
+                minVersion: .any,
+                deviceName: .any
+            )
+            .called(1)
+    }
+
+    func test_run_build_infersSimulatorDestinationForSuiteShardPlanning() async throws {
+        // Given
+        let fixture = try await givenShardPlanBuild()
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(fixture.testProductsPath),
+                destination: .value("platform=iOS Simulator,id=3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
+            )
+            .called(1)
+    }
+
+    func test_run_build_fallsBackToExplicitDestinationWhenSimulatorResolutionFailsForSuiteShardPlanning() async throws {
+        // Given
+        var plannedDestination: String?
+        let fixture = try await givenShardPlanBuild { destination in
+            plannedDestination = destination
+        }
+        simulatorController.reset()
+        given(simulatorController)
+            .findAvailableDevice(
+                platform: .any,
+                version: .any,
+                minVersion: .any,
+                deviceName: .any
+            )
+            .willThrow(TestError("Simulator unavailable"))
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+                "-destination", "platform=iOS Simulator",
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        XCTAssertEqual(plannedDestination, "platform=iOS Simulator")
+    }
+
+    func test_run_build_fallsBackToPlatformDestinationWhenSimulatorResolutionFailsForSuiteShardPlanning() async throws {
+        // Given
+        let fixture = try await givenShardPlanBuild()
+        let macOSTarget = Target.test(
+            name: "AppTests",
+            destinations: [.mac],
+            product: .unitTests,
+            deploymentTargets: .macOS("13.0")
+        )
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any,
+                testPlan: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test(target: macOSTarget))
+        given(simulatorController)
+            .macOSDestination(catalyst: .any)
+            .willThrow(TestError("macOS destination unavailable"))
+
+        // When
+        try await testRun(
+            path: fixture.path,
+            platform: "macOS",
+            action: .build,
+            passthroughXcodeBuildArguments: [
+                "-testProductsPath", fixture.testProductsPath.pathString,
+            ],
+            shardGranularity: .suite,
+            shardTotal: 2
+        )
+
+        // Then
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(fixture.testProductsPath),
+                destination: .value("platform=macOS"),
+                reference: .any,
+                shardGranularity: .value(.suite),
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                skipUpload: .value(false),
+                archivePath: .value(nil)
             )
             .called(1)
     }
@@ -5379,6 +5805,7 @@ final class TestServiceTests: TuistUnitTestCase {
         passthroughXcodeBuildArguments: [String] = [],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
         shardTotal: Int? = nil,
@@ -5415,6 +5842,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
                 shardTotal: shardTotal,

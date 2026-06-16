@@ -274,7 +274,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
     }
 
     private var swifterPMIsEnabled: Bool {
-        environmentVariables()[Constants.EnvironmentVariables.useSwifterPM] != nil
+        Environment(variables: environmentVariables()).isVariableTruthy(Constants.EnvironmentVariables.useSwifterPM)
     }
 
     private func swifterPMRequest(

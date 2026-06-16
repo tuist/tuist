@@ -544,8 +544,8 @@ defmodule Tuist.Authorization do
 
   object :ops do
     action :read do
-      desc("Allows ops access for authorized users.")
-      allow([:authenticated_as_user, :ops_access])
+      desc("Allows Tuist operators to access the internal ops panel.")
+      allow([:authenticated_as_user, :internal_ops_access])
     end
   end
 end

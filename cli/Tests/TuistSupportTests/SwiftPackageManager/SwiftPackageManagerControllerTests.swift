@@ -127,6 +127,35 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertEqual(request.scmToRegistryTransformation, .replaceSCMWithRegistry)
     }
 
+    func test_resolve_when_swifterpm_is_not_truthy_usesSwiftPackageManager() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+
+        // Then
+        XCTAssertTrue(swifterPM.resolveRequests.isEmpty)
+    }
+
     func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
         // Given
         let path = try temporaryPath()

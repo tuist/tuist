@@ -25,6 +25,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
+            case headersPath = "HeadersPath"
             case platform = "SupportedPlatform"
             case platformVariant = "SupportedPlatformVariant"
             case architectures = "SupportedArchitectures"
@@ -42,6 +43,9 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
         /// Path to the library.
         public let path: RelativePath
 
+        /// Path to the library headers.
+        public let headersPath: RelativePath?
+
         /// Declares if the library is mergeable or not
         public let mergeable: Bool
 
@@ -57,6 +61,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(identifier, forKey: .identifier)
             try container.encode(path, forKey: .path)
+            try container.encodeIfPresent(headersPath, forKey: .headersPath)
             try container.encode(mergeable, forKey: .mergeable)
             try container.encode(architectures, forKey: .architectures)
             try container.encode(platform, forKey: .platform)
@@ -66,6 +71,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
         public init(
             identifier: String,
             path: RelativePath,
+            headersPath: RelativePath? = nil,
             mergeable: Bool,
             platform: Platform,
             platformVariant: PlatformVariant? = nil,
@@ -73,6 +79,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
         ) {
             self.identifier = identifier
             self.path = path
+            self.headersPath = headersPath
             self.mergeable = mergeable
             self.platform = platform
             self.platformVariant = platformVariant
@@ -83,6 +90,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             identifier = try container.decode(String.self, forKey: .identifier)
             path = try container.decode(RelativePath.self, forKey: .path)
+            headersPath = try container.decodeIfPresent(RelativePath.self, forKey: .headersPath)
             platform = try container.decode(Platform.self, forKey: .platform)
             platformVariant = try container.decodeIfPresent(PlatformVariant.self, forKey: .platformVariant)
             architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
@@ -94,6 +102,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
                 identifier: String = "test",
                 // swiftlint:disable:next force_try
                 path: RelativePath = try! RelativePath(validating: "relative/to/library"),
+                headersPath: RelativePath? = nil,
                 mergeable: Bool = false,
                 platform: Platform = .iOS,
                 platformVariant: PlatformVariant? = nil,
@@ -102,6 +111,7 @@ public struct XCFrameworkInfoPlist: Codable, Hashable, Equatable, Sendable {
                 XCFrameworkInfoPlist.Library(
                     identifier: identifier,
                     path: path,
+                    headersPath: headersPath,
                     mergeable: mergeable,
                     platform: platform,
                     platformVariant: platformVariant,

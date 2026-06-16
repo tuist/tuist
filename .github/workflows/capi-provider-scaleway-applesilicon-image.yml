@@ -114,7 +114,7 @@ jobs:
         id: tags
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
-          # are owned by release.yml's release-capi-operator job.
+          # are owned by server-production-deployment.yml's release-capi-operator job.
           GIT_SHA="${GITHUB_SHA::8}"
           echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GIT_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6

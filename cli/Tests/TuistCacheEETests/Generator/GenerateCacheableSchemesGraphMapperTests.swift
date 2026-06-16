@@ -15,19 +15,21 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .app)
         let targetC = Target.test(name: "C", destinations: [.mac], product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", destinations: [.mac], product: .dynamicLibrary)
         let bundle = Target.test(name: "Bundle", destinations: [.appleTv], product: .bundle)
         let macro = Target.test(name: "Macro", destinations: [.appleTv], product: .macro)
 
-        let includedTargets = [targetA, targetC, bundle, macro].map(\.name)
+        let includedTargets = [targetA, staticLibrary, targetC, dynamicLibrary, bundle, macro].map(\.name)
         let subject = GenerateCacheableSchemesGraphMapper(targets: [
-            .iOS: Set([.named(targetA.name)]),
-            .macOS: Set([.named(targetC.name)]),
+            .iOS: Set([.named(targetA.name), .named(staticLibrary.name)]),
+            .macOS: Set([.named(targetC.name), .named(dynamicLibrary.name)]),
             .tvOS: Set([.named(bundle.name), .named(macro.name)]),
         ])
         let projectAPath = directory.appending(component: "ProjectA")
         let projectBPath = directory.appending(component: "ProjectB")
-        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA, bundle, macro])
-        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB, targetC])
+        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA, staticLibrary, bundle, macro])
+        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB, targetC, dynamicLibrary])
 
         let graph = Graph.test(
             workspace: Workspace.test(projects: [projectAPath, projectBPath]),
@@ -68,6 +70,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 .map(\.name),
             [
                 "A",
+                "StaticLibrary",
             ]
         )
         XCTAssertEqual(
@@ -76,6 +79,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 .map(\.name),
             [
                 "C",
+                "DynamicLibrary",
             ]
         )
         XCTAssertEqual(

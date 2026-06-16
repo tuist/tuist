@@ -88,12 +88,36 @@ let liveSocket = new LiveSocket("/live", Socket, {
 });
 
 // Show progress bar on live navigation and form submits
+// topbar draws on a canvas and can't resolve var() or light-dark(), so
+// resolve the color through a probe element, which the browser evaluates
+// against the current color scheme. Resolved on every show so runtime theme
+// switches are picked up.
+function loadingBarColor() {
+  const probe = document.createElement("div");
+  probe.style.color =
+    "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#29d";
+}
+
 topbar.config({
-  barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
-window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.config({ barColors: { 0: loadingBarColor() } });
+  topbar.show(300);
+});
+window.addEventListener("phx:page-loading-stop", (info) => {
+  topbar.hide();
+  // The content pane is its own scroll container, so LiveView's document
+  // scroll reset on live navigation doesn't reach it. Patches keep their
+  // scroll position, matching document behavior.
+  if (info.detail?.kind === "redirect") {
+    document.querySelector(".layout__content")?.scrollTo(0, 0);
+  }
+});
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();

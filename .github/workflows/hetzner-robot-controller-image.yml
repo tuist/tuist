@@ -6,8 +6,8 @@ name: Hetzner Robot Controller Image
 # operator doesn't hand-author one per box) and auto-fills disk
 # WWNs once caph populates hardwareDetails.
 #
-# Steady-state image promotion is owned by release.yml's
-# release-hetzner-robot-controller job; this workflow only handles
+# Steady-state image promotion is owned by
+# hetzner-robot-controller-release.yml; this workflow only handles
 # pre-release iteration via `:sha-<git-sha>` tags.
 
 on:

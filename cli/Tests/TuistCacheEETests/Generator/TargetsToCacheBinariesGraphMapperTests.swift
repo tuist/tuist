@@ -250,6 +250,89 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
+    func test_map_when_library_binaries_are_fetched_successfully() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", platform: .iOS, product: .staticLibrary)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", platform: .iOS, product: .dynamicLibrary)
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let project = Project.test(path: path, targets: [app, staticLibrary, dynamicLibrary])
+        let staticLibraryGraphTarget = GraphTarget(
+            path: path,
+            target: project.targets["StaticLibrary"]!,
+            project: project
+        )
+        let dynamicLibraryGraphTarget = GraphTarget(
+            path: path,
+            target: project.targets["DynamicLibrary"]!,
+            project: project
+        )
+        let staticLibraryHash = "StaticLibrary"
+        let dynamicLibraryHash = "DynamicLibrary"
+        let staticLibraryXCFrameworkPath = path.appending(component: "StaticLibrary.xcframework")
+        let dynamicLibraryXCFrameworkPath = path.appending(component: "DynamicLibrary.xcframework")
+        let inputGraph = Graph.test(
+            name: "input",
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): [
+                    .target(name: staticLibrary.name, path: path),
+                    .target(name: dynamicLibrary.name, path: path),
+                ],
+            ]
+        )
+        let outputGraph = Graph.test(
+            name: "output",
+            projects: inputGraph.projects,
+            dependencies: inputGraph.dependencies
+        )
+
+        given(cacheGraphContentHasher)
+            .contentHashes(
+                for: .any,
+                configuration: .any,
+                defaultConfiguration: .any,
+                excludedTargets: .any,
+                destination: .any
+            )
+            .willReturn([
+                staticLibraryGraphTarget: .test(hash: staticLibraryHash),
+                dynamicLibraryGraphTarget: .test(hash: dynamicLibraryHash),
+            ])
+        given(cacheStorage).fetch(
+            .value(
+                Set([
+                    CacheStorableItem(name: "StaticLibrary", hash: staticLibraryHash),
+                    CacheStorableItem(name: "DynamicLibrary", hash: dynamicLibraryHash),
+                ])
+            ),
+            cacheCategory: .value(.binaries)
+        ).willReturn([
+            .test(name: "StaticLibrary", hash: staticLibraryHash): staticLibraryXCFrameworkPath,
+            .test(name: "DynamicLibrary", hash: dynamicLibraryHash): dynamicLibraryXCFrameworkPath,
+        ])
+        given(cacheGraphMutator)
+            .map(
+                graph: .value(inputGraph),
+                precompiledArtifacts: .value([
+                    staticLibraryGraphTarget: staticLibraryXCFrameworkPath,
+                    dynamicLibraryGraphTarget: dynamicLibraryXCFrameworkPath,
+                ]),
+                sources: .any,
+                keepSourceTargets: .value(
+                    config.project.generatedProject?.cacheOptions.keepSourceTargets ?? false
+                )
+            )
+            .willReturn(outputGraph)
+
+        // When
+        let (got, _, _) = try await subject.map(graph: inputGraph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(got, outputGraph)
+    }
+
     func test_map_hashes_preserved_sources_graph_and_scopes_hashes_to_current_graph() async throws {
         let path = try temporaryPath()
 

@@ -184,7 +184,7 @@ struct CacheGraphContentHasherTests {
 
     @Test(
         .withMockedSwiftVersionProvider
-    ) func contentHashes_when_target_depends_on_XCTest_hashes_are_not_computed() async throws {
+    ) func contentHashes_when_target_is_test_bundle_hashes_are_not_computed() async throws {
         // Given
         let included = Target.test(name: "Included", product: .framework)
         let testSupport = Target.test(name: "TestSupport", product: .uiTests)
@@ -238,6 +238,194 @@ struct CacheGraphContentHasherTests {
                 for: .any,
                 include: .matching { filter in
                     filter(includedTarget) && !filter(xctestTarget)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_framework_depends_on_XCTest_hashes_are_computed() async throws {
+        // Given
+        let testSupport = Target.test(name: "TestSupport", product: .framework)
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [testSupport]
+        )
+        let testSupportTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ],
+            dependencies: [
+                .target(name: testSupport.name, path: project.path): [
+                    .testSDK(name: "XCTest.framework"),
+                ],
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(testSupportTarget)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_framework_enables_testing_search_paths_hashes_are_computed() async throws {
+        // Given
+        let testSupport = Target.test(
+            name: "TestSupport",
+            product: .framework,
+            settings: .test(base: [
+                "ENABLE_TESTING_SEARCH_PATHS": "YES",
+            ])
+        )
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [testSupport]
+        )
+        let testSupportTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(testSupportTarget)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_targets_are_libraries_hashes_are_computed() async throws {
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", product: .dynamicLibrary)
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [staticLibrary, dynamicLibrary]
+        )
+        let staticLibraryTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["StaticLibrary"]!,
+            project: project
+        )
+        let dynamicLibraryTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["DynamicLibrary"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(staticLibraryTarget) && filter(dynamicLibraryTarget)
                 },
                 destination: .any,
                 additionalStrings: .any
