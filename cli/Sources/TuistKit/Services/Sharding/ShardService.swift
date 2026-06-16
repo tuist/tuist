@@ -117,17 +117,20 @@ public struct ShardService: ShardServicing {
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
-            guard let downloadURL = URL(string: shard.download_url) else {
-                throw ShardServiceError.invalidDownloadURL(shard.download_url)
-            }
-            let shardArchivePath = try await retryProvider.runWithRetries {
-                try await fileClient.download(url: downloadURL)
-            }
-            Logger.current.debug("Downloaded test products bundle.")
-
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
-            try? await fileSystem.remove(shardArchivePath)
+            // The shard's products are split across artifacts (a shared bundle plus one per module
+            // assigned to the shard); download each and extract them into a single merged directory.
+            for downloadURLString in shard.download_urls {
+                guard let downloadURL = URL(string: downloadURLString) else {
+                    throw ShardServiceError.invalidDownloadURL(downloadURLString)
+                }
+                let shardArchivePath = try await retryProvider.runWithRetries {
+                    try await fileClient.download(url: downloadURL)
+                }
+                try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
+                try? await fileSystem.remove(shardArchivePath)
+            }
+            Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }

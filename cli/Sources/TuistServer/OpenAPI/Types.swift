@@ -5429,7 +5429,11 @@ public enum Components {
             /// Presigned URL to download the shared test products bundle.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/download_url`.
-            public var download_url: Swift.String
+            public var download_url: Swift.String?
+            /// Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle).
+            ///
+            /// - Remark: Generated from `#/components/schemas/Shard/download_urls`.
+            public var download_urls: [Swift.String]
             /// The test modules assigned to this shard.
             ///
             /// - Remark: Generated from `#/components/schemas/Shard/modules`.
@@ -5470,18 +5474,21 @@ public enum Components {
             ///   - shard_plan_id: The UUID of the shard plan.
             ///   - suites: The test suites assigned to this shard, grouped by module name.
             public init(
-                download_url: Swift.String,
+                download_url: Swift.String? = nil,
+                download_urls: [Swift.String],
                 modules: [Swift.String],
                 shard_plan_id: Swift.String,
                 suites: Components.Schemas.Shard.suitesPayload
             ) {
                 self.download_url = download_url
+                self.download_urls = download_urls
                 self.modules = modules
                 self.shard_plan_id = shard_plan_id
                 self.suites = suites
             }
             public enum CodingKeys: String, CodingKey {
                 case download_url
+                case download_urls
                 case modules
                 case shard_plan_id
                 case suites
@@ -9042,22 +9049,30 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/upload_id`.
             public var upload_id: Swift.String
+            /// The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/CompleteShardUploadParams/artifact`.
+            public var artifact: Swift.String?
             /// Creates a new `CompleteShardUploadParams`.
             ///
             /// - Parameters:
             ///   - parts: The uploaded parts with their ETags.
             ///   - reference: The shard plan reference.
             ///   - upload_id: The multipart upload ID.
+            ///   - artifact: The artifact being completed.
             public init(
+                artifact: Swift.String? = nil,
                 parts: Components.Schemas.CompleteShardUploadParams.partsPayload,
                 reference: Swift.String,
                 upload_id: Swift.String
             ) {
+                self.artifact = artifact
                 self.parts = parts
                 self.reference = reference
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
+                case artifact
                 case parts
                 case reference
                 case upload_id
@@ -9397,14 +9412,24 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/reference`.
             public var reference: Swift.String
+            /// The artifact to upload ("shared" or "module:<name>"). Defaults to the legacy single bundle when omitted.
+            ///
+            /// - Remark: Generated from `#/components/schemas/StartShardUploadParams/artifact`.
+            public var artifact: Swift.String?
             /// Creates a new `StartShardUploadParams`.
             ///
             /// - Parameters:
             ///   - reference: The shard plan reference.
-            public init(reference: Swift.String) {
+            ///   - artifact: The artifact to upload.
+            public init(
+                artifact: Swift.String? = nil,
+                reference: Swift.String
+            ) {
+                self.artifact = artifact
                 self.reference = reference
             }
             public enum CodingKeys: String, CodingKey {
+                case artifact
                 case reference
             }
         }
@@ -10811,22 +10836,30 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/upload_id`.
             public var upload_id: Swift.String
+            /// The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.
+            ///
+            /// - Remark: Generated from `#/components/schemas/GenerateShardUploadURLParams/artifact`.
+            public var artifact: Swift.String?
             /// Creates a new `GenerateShardUploadURLParams`.
             ///
             /// - Parameters:
             ///   - part_number: The part number.
             ///   - reference: The shard plan reference.
             ///   - upload_id: The multipart upload ID.
+            ///   - artifact: The artifact being uploaded.
             public init(
+                artifact: Swift.String? = nil,
                 part_number: Swift.Int,
                 reference: Swift.String,
                 upload_id: Swift.String
             ) {
+                self.artifact = artifact
                 self.part_number = part_number
                 self.reference = reference
                 self.upload_id = upload_id
             }
             public enum CodingKeys: String, CodingKey {
+                case artifact
                 case part_number
                 case reference
                 case upload_id
@@ -11888,22 +11921,30 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/upload_id`.
                     public var upload_id: Swift.String
+                    /// The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/complete/POST/requestBody/json/artifact`.
+                    public var artifact: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - parts: The uploaded parts with their ETags.
                     ///   - reference: The shard plan reference.
                     ///   - upload_id: The multipart upload ID.
+                    ///   - artifact: The artifact being completed.
                     public init(
+                        artifact: Swift.String? = nil,
                         parts: Operations.completeShardUpload.Input.Body.jsonPayload.partsPayload,
                         reference: Swift.String,
                         upload_id: Swift.String
                     ) {
+                        self.artifact = artifact
                         self.parts = parts
                         self.reference = reference
                         self.upload_id = upload_id
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case artifact
                         case parts
                         case reference
                         case upload_id
@@ -29217,22 +29258,30 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/upload_id`.
                     public var upload_id: Swift.String
+                    /// The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/generate-url/POST/requestBody/json/artifact`.
+                    public var artifact: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - part_number: The part number.
                     ///   - reference: The shard plan reference.
                     ///   - upload_id: The multipart upload ID.
+                    ///   - artifact: The artifact being uploaded.
                     public init(
+                        artifact: Swift.String? = nil,
                         part_number: Swift.Int,
                         reference: Swift.String,
                         upload_id: Swift.String
                     ) {
+                        self.artifact = artifact
                         self.part_number = part_number
                         self.reference = reference
                         self.upload_id = upload_id
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case artifact
                         case part_number
                         case reference
                         case upload_id
@@ -33847,14 +33896,24 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/reference`.
                     public var reference: Swift.String
+                    /// The artifact to upload ("shared" or "module:<name>"). Defaults to the legacy single bundle when omitted.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/upload/start/POST/requestBody/json/artifact`.
+                    public var artifact: Swift.String?
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
                     ///   - reference: The shard plan reference.
-                    public init(reference: Swift.String) {
+                    ///   - artifact: The artifact to upload.
+                    public init(
+                        artifact: Swift.String? = nil,
+                        reference: Swift.String
+                    ) {
+                        self.artifact = artifact
                         self.reference = reference
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case artifact
                         case reference
                     }
                 }

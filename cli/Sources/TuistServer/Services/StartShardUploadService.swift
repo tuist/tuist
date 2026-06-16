@@ -7,7 +7,8 @@ public protocol StartShardUploadServicing {
     func startUpload(
         fullHandle: String,
         serverURL: URL,
-        reference: String
+        reference: String,
+        artifact: String?
     ) async throws -> String
 }
 
@@ -38,7 +39,8 @@ public struct StartShardUploadService: StartShardUploadServicing {
     public func startUpload(
         fullHandle: String,
         serverURL: URL,
-        reference: String
+        reference: String,
+        artifact: String? = nil
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -48,7 +50,7 @@ public struct StartShardUploadService: StartShardUploadServicing {
                 account_handle: handles.accountHandle,
                 project_handle: handles.projectHandle
             ),
-            body: .json(.init(reference: reference))
+            body: .json(.init(artifact: artifact, reference: reference))
         )
 
         switch response {

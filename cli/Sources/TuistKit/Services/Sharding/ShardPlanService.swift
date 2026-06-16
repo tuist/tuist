@@ -166,45 +166,116 @@
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
-                let uploadId = try await startShardUploadService.startUpload(
+                try await uploadSplitArtifacts(
+                    xctestproductsPath: xctestproductsPath,
                     fullHandle: fullHandle,
                     serverURL: serverURL,
                     reference: reference
                 )
-
-                Logger.current.debug("Uploading test products bundle...")
-                let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-                let archivePath = archiveDirectory.appending(component: "bundle.aar")
-                try await archiveXCTestProducts(xctestproductsPath, to: archivePath)
-                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                    artifactPath: archivePath,
-                    generateUploadURL: { part in
-                        try await multipartUploadGenerateURLShardsService.generateUploadURL(
-                            fullHandle: fullHandle,
-                            serverURL: serverURL,
-                            reference: reference,
-                            uploadId: uploadId,
-                            partNumber: part.number
-                        )
-                    },
-                    updateProgress: { progress in
-                        Logger.current.debug("Upload progress: \(Int(progress * 100))%")
-                    }
-                )
-
-                try await multipartUploadCompleteShardsService.completeUpload(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference,
-                    uploadId: uploadId,
-                    parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }
-                )
-
-                Logger.current.debug("Upload complete. Shard matrix ready.")
             }
             try await shardMatrixOutputService.output(shardPlan)
 
             return shardPlan
+        }
+
+        /// Uploads the shard test products split so each shard downloads only what it needs: a single
+        /// `shared` artifact (everything except the per-module test bundles) plus one artifact per
+        /// module's `.xctest`. The server hands each shard the shared artifact plus its modules' artifacts.
+        private func uploadSplitArtifacts(
+            xctestproductsPath: AbsolutePath,
+            fullHandle: String,
+            serverURL: URL,
+            reference: String
+        ) async throws {
+            Logger.current.debug("Uploading test products artifacts...")
+            try await stripDebugSymbols(in: xctestproductsPath)
+
+            let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
+
+            let sharedArchive = archiveDirectory.appending(component: "shared.aar")
+            try await appleArchiver.compress(
+                directory: xctestproductsPath,
+                to: sharedArchive,
+                excludePatterns: [".dSYM", ".xctest"]
+            )
+            try await uploadArtifact(
+                archivePath: sharedArchive,
+                artifact: "shared",
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference
+            )
+
+            let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"]).collect()
+            for xctestPath in xctestPaths {
+                let module = xctestPath.basenameWithoutExt
+                let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
+                try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
+                try await uploadArtifact(
+                    archivePath: moduleArchive,
+                    artifact: "module:\(module)",
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    reference: reference
+                )
+            }
+
+            Logger.current.debug("Upload complete. Shard matrix ready.")
+        }
+
+        private func uploadArtifact(
+            archivePath: AbsolutePath,
+            artifact: String,
+            fullHandle: String,
+            serverURL: URL,
+            reference: String
+        ) async throws {
+            let uploadId = try await startShardUploadService.startUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                artifact: artifact
+            )
+            let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                artifactPath: archivePath,
+                generateUploadURL: { part in
+                    try await multipartUploadGenerateURLShardsService.generateUploadURL(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        reference: reference,
+                        uploadId: uploadId,
+                        partNumber: part.number,
+                        artifact: artifact
+                    )
+                },
+                updateProgress: { progress in
+                    Logger.current.debug("Upload progress (\(artifact)): \(Int(progress * 100))%")
+                }
+            )
+            try await multipartUploadCompleteShardsService.completeUpload(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                reference: reference,
+                uploadId: uploadId,
+                parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) },
+                artifact: artifact
+            )
+        }
+
+        /// Archives a single module's `.xctest` preserving its path relative to the products root,
+        /// so extracting it alongside the shared artifact reconstructs the original layout.
+        private func archiveModuleProduct(
+            _ xctestPath: AbsolutePath,
+            productsPath: AbsolutePath,
+            to archivePath: AbsolutePath
+        ) async throws {
+            let relativePath = xctestPath.relative(to: productsPath)
+            let stageDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-module")
+            let stagedXCTestPath = stageDirectory.appending(relativePath)
+            try await fileSystem.makeDirectory(at: stagedXCTestPath.parentDirectory)
+            try await fileSystem.copy(xctestPath, to: stagedXCTestPath)
+            try await appleArchiver.compress(directory: stageDirectory, to: archivePath, excludePatterns: [])
+            try? await fileSystem.remove(stageDirectory)
         }
 
         /// Creates a compressed archive of the test products bundle, excluding dSYMs

@@ -83,13 +83,13 @@ defmodule Tuist.Shards do
     end
   end
 
-  def start_upload(%Project{} = project, %Account{} = account, reference) do
+  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan.id), account)
+        upload_id = Storage.multipart_start(artifact_object_key(account, project, plan.id, artifact), account)
         {:ok, upload_id}
     end
   end
@@ -105,32 +105,38 @@ defmodule Tuist.Shards do
             {:error, :invalid_shard_index}
 
           %{modules: modules, suites: suites} ->
-            download_url =
-              Storage.generate_download_url(bundle_object_key(account, project, plan.id), account)
+            {download_url, download_urls} = shard_download_urls(account, project, plan.id, modules)
 
             {:ok,
              %{
                shard_plan_id: plan.id,
                modules: modules,
                suites: suites,
-               download_url: download_url
+               download_url: download_url,
+               download_urls: download_urls
              }}
         end
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts) do
+  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        Storage.multipart_complete_upload(bundle_object_key(account, project, plan.id), upload_id, parts, account)
+        Storage.multipart_complete_upload(
+          artifact_object_key(account, project, plan.id, artifact),
+          upload_id,
+          parts,
+          account
+        )
+
         :ok
     end
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
+  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
@@ -138,7 +144,7 @@ defmodule Tuist.Shards do
       plan ->
         url =
           Storage.multipart_generate_url(
-            bundle_object_key(account, project, plan.id),
+            artifact_object_key(account, project, plan.id, artifact),
             upload_id,
             part_number,
             account
@@ -148,8 +154,40 @@ defmodule Tuist.Shards do
     end
   end
 
+  # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
+  # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
+  # shard. Falls back to the legacy single per-plan bundle when split artifacts weren't uploaded.
+  defp shard_download_urls(account, project, plan_id, modules) do
+    shared_key = artifact_object_key(account, project, plan_id, "shared")
+
+    if Storage.object_exists?(shared_key, account) do
+      shared_url = Storage.generate_download_url(shared_key, account)
+
+      module_urls =
+        Enum.map(modules, fn module ->
+          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), account)
+        end)
+
+      {nil, [shared_url | module_urls]}
+    else
+      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+      {bundle_url, [bundle_url]}
+    end
+  end
+
   def bundle_object_key(account, project, plan_id) do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
+  end
+
+  def artifact_object_key(account, project, plan_id, artifact) do
+    base = "#{account.id}/#{project.id}/shards/#{plan_id}"
+
+    case artifact do
+      nil -> "#{base}/bundle.zip"
+      "shared" -> "#{base}/shared.aar"
+      "module:" <> module_name -> "#{base}/modules/#{module_name}.aar"
+      _ -> "#{base}/bundle.zip"
+    end
   end
 
   defp insert_shard_targets(plan, project_id, shards, "module", now) do

@@ -2248,8 +2248,17 @@ components:
       description: A shard with its assigned modules, suites, and download URLs.
       properties:
         download_url:
-          description: Presigned URL to download the shared test products bundle.
+          description: Presigned URL to download the legacy single test products bundle. Present only for plans uploaded as one bundle; omitted when per-shard artifacts are used.
           type: string
+          x-struct:
+          x-validate:
+        download_urls:
+          description: 'Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle).'
+          items:
+            type: string
+            x-struct:
+            x-validate:
+          type: array
           x-struct:
           x-validate:
         modules:
@@ -2284,7 +2293,7 @@ components:
         - shard_plan_id
         - modules
         - suites
-        - download_url
+        - download_urls
       title: Shard
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Shards.Shard
@@ -6372,6 +6381,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: 'The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.'
+                  type: string
+                  x-struct:
+                  x-validate:
                 parts:
                   description: The uploaded parts with their ETags.
                   items:
@@ -11904,6 +11918,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: 'The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.'
+                  type: string
+                  x-struct:
+                  x-validate:
                 part_number:
                   description: The part number.
                   type: integer
@@ -13347,6 +13366,11 @@ paths:
           application/json:
             schema:
               properties:
+                artifact:
+                  description: 'The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module''s test bundle. Defaults to the legacy single bundle when omitted.'
+                  type: string
+                  x-struct:
+                  x-validate:
                 reference:
                   description: The shard plan reference.
                   type: string

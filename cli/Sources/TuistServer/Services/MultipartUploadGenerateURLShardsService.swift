@@ -9,7 +9,8 @@ public protocol MultipartUploadGenerateURLShardsServicing {
         serverURL: URL,
         reference: String,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        artifact: String?
     ) async throws -> String
 }
 
@@ -43,7 +44,8 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
         serverURL: URL,
         reference: String,
         uploadId: String,
-        partNumber: Int
+        partNumber: Int,
+        artifact: String? = nil
     ) async throws -> String {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -55,6 +57,7 @@ public struct MultipartUploadGenerateURLShardsService: MultipartUploadGenerateUR
             ),
             body: .json(
                 .init(
+                    artifact: artifact,
                     part_number: partNumber,
                     reference: reference,
                     upload_id: uploadId

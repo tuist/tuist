@@ -137,7 +137,12 @@ defmodule TuistWeb.API.ShardsController do
          title: "StartShardUploadParams",
          type: :object,
          properties: %{
-           reference: %Schema{type: :string, description: "The shard plan reference."}
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s(The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module's test bundle. Defaults to the legacy single bundle when omitted.)
+           }
          },
          required: [:reference]
        }},
@@ -159,13 +164,14 @@ defmodule TuistWeb.API.ShardsController do
   )
 
   def start_upload(
-        %{assigns: %{selected_project: selected_project}, body_params: %{reference: reference}} = conn,
+        %{assigns: %{selected_project: selected_project}, body_params: %{reference: reference} = body_params} = conn,
         _params
       ) do
     case Shards.start_upload(
            selected_project,
            selected_project.account,
-           reference
+           reference,
+           Map.get(body_params, :artifact)
          ) do
       {:ok, upload_id} ->
         json(conn, %{data: %{upload_id: upload_id}})
@@ -235,7 +241,8 @@ defmodule TuistWeb.API.ShardsController do
           shard_plan_id: result.shard_plan_id,
           modules: result.modules,
           suites: result.suites,
-          download_url: result.download_url
+          download_url: result.download_url,
+          download_urls: result.download_urls
         })
 
       {:error, :not_found} ->
@@ -275,7 +282,12 @@ defmodule TuistWeb.API.ShardsController do
          properties: %{
            reference: %Schema{type: :string, description: "The shard plan reference."},
            upload_id: %Schema{type: :string, description: "The multipart upload ID."},
-           part_number: %Schema{type: :integer, description: "The part number."}
+           part_number: %Schema{type: :integer, description: "The part number."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.}
+           }
          },
          required: [:reference, :upload_id, :part_number]
        }},
@@ -299,7 +311,7 @@ defmodule TuistWeb.API.ShardsController do
   def generate_url(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{reference: reference, upload_id: upload_id, part_number: part_number}
+          body_params: %{reference: reference, upload_id: upload_id, part_number: part_number} = body_params
         } = conn,
         _params
       ) do
@@ -308,7 +320,8 @@ defmodule TuistWeb.API.ShardsController do
            selected_project.account,
            reference,
            upload_id,
-           part_number
+           part_number,
+           Map.get(body_params, :artifact)
          ) do
       {:ok, url} ->
         json(conn, %{data: %{url: url}})
@@ -356,6 +369,11 @@ defmodule TuistWeb.API.ShardsController do
                },
                required: [:part_number, :etag]
              }
+           },
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.}
            }
          },
          required: [:reference, :upload_id, :parts]
@@ -375,7 +393,7 @@ defmodule TuistWeb.API.ShardsController do
   def complete(
         %{
           assigns: %{selected_project: selected_project},
-          body_params: %{reference: reference, upload_id: upload_id, parts: parts}
+          body_params: %{reference: reference, upload_id: upload_id, parts: parts} = body_params
         } = conn,
         _params
       ) do
@@ -389,7 +407,8 @@ defmodule TuistWeb.API.ShardsController do
            selected_project.account,
            reference,
            upload_id,
-           parts_list
+           parts_list,
+           Map.get(body_params, :artifact)
          ) do
       :ok ->
         json(conn, %{status: "success"})

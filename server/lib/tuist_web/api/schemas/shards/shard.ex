@@ -29,9 +29,16 @@ defmodule TuistWeb.API.Schemas.Shards.Shard do
       },
       download_url: %Schema{
         type: :string,
-        description: "Presigned URL to download the shared test products bundle."
+        description:
+          "Presigned URL to download the legacy single test products bundle. Present only for plans uploaded as one bundle; omitted when per-shard artifacts are used."
+      },
+      download_urls: %Schema{
+        type: :array,
+        items: %Schema{type: :string},
+        description:
+          "Presigned URLs to download the products this shard needs: the shared artifact plus one per assigned module (or the single legacy bundle)."
       }
     },
-    required: [:shard_plan_id, :modules, :suites, :download_url]
+    required: [:shard_plan_id, :modules, :suites, :download_urls]
   })
 end

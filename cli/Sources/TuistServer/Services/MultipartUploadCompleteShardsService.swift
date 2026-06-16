@@ -9,7 +9,8 @@ public protocol MultipartUploadCompleteShardsServicing {
         serverURL: URL,
         reference: String,
         uploadId: String,
-        parts: [(partNumber: Int, etag: String)]
+        parts: [(partNumber: Int, etag: String)],
+        artifact: String?
     ) async throws
 }
 
@@ -43,7 +44,8 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
         serverURL: URL,
         reference: String,
         uploadId: String,
-        parts: [(partNumber: Int, etag: String)]
+        parts: [(partNumber: Int, etag: String)],
+        artifact: String? = nil
     ) async throws {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -62,6 +64,7 @@ public struct MultipartUploadCompleteShardsService: MultipartUploadCompleteShard
             ),
             body: .json(
                 .init(
+                    artifact: artifact,
                     parts: partsPayload,
                     reference: reference,
                     upload_id: uploadId
