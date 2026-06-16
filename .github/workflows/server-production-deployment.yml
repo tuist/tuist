@@ -92,30 +92,10 @@ env:
 
 jobs:
   # --------------------------------------------------------------------------
-  # Gate - resolves the deploy SHA and hotfix flag from the inputs. The
-  # decision of WHETHER to deploy lives upstream (release.yml's
-  # deploy-production `if:` on the release_call path, or the operator on a
-  # manual dispatch), so this always proceeds. Kept as a thin job so the
-  # cascade below can keep reading needs.gate.outputs.*.
-  # --------------------------------------------------------------------------
-  gate:
-    name: Gate
-    runs-on: tuist-linux
-    timeout-minutes: 5
-    outputs:
-      should_deploy: ${{ steps.decide.outputs.should_deploy }}
-      deploy_sha: ${{ steps.decide.outputs.deploy_sha }}
-      is_hotfix: ${{ steps.decide.outputs.is_hotfix }}
-    steps:
-      - id: decide
-        run: |
-          set -euo pipefail
-          {
-            echo "should_deploy=true"
-            echo "deploy_sha=${{ inputs.commit_sha || github.sha }}"
-            echo "is_hotfix=${{ inputs.hotfix }}"
-          } >> "$GITHUB_OUTPUT"
-
+  # The deploy SHA is inputs.commit_sha (release.yml passes github.sha; a
+  # manual dispatch may leave it blank, falling back to the event SHA). The
+  # hotfix fast-path is driven by inputs.hotfix. The decision of WHETHER to
+  # deploy lives upstream in release.yml's deploy-production `if:`.
   # --------------------------------------------------------------------------
   # Build once - the image is env-agnostic (MIX_ENV=prod, all env secrets
   # baked in, TUIST_DEPLOY_ENV picks the runtime behavior). Every downstream leg
@@ -123,8 +103,6 @@ jobs:
   # --------------------------------------------------------------------------
   build:
     name: Build server image
-    needs: gate
-    if: needs.gate.outputs.should_deploy == 'true'
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
@@ -136,11 +114,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.deploy_sha }}
+          ref: ${{ inputs.commit_sha || github.sha }}
           submodules: false
       - id: tag
         env:
-          DEPLOY_SHA: ${{ needs.gate.outputs.deploy_sha }}
+          DEPLOY_SHA: ${{ inputs.commit_sha || github.sha }}
         run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
       - id: buildx
         uses: docker/setup-buildx-action@v3
@@ -163,7 +141,7 @@ jobs:
           path: |
             og-cache-marketing
             og-cache-docs
-          key: server-og-cache-${{ needs.gate.outputs.deploy_sha }}
+          key: server-og-cache-${{ inputs.commit_sha || github.sha }}
           restore-keys: |
             server-og-cache-
       - name: Seed OG cache mounts into BuildKit
@@ -194,7 +172,7 @@ jobs:
           build-args: |
             TUIST_HOSTED=1
             MIX_ENV=prod
-            APT_CACHE_BUST=${{ needs.gate.outputs.deploy_sha }}
+            APT_CACHE_BUST=${{ inputs.commit_sha || github.sha }}
       - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
@@ -215,19 +193,19 @@ jobs:
   # the resolved value.
   # --------------------------------------------------------------------------
   canary:
-    needs: [gate, build]
-    if: ${{ needs.gate.outputs.is_hotfix != 'true' }}
+    needs: build
+    if: ${{ !inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: canary
-      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   acceptance-tests:
     name: Acceptance Tests
-    needs: [gate, canary]
+    needs: canary
     runs-on: tuist-macos
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -237,7 +215,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.deploy_sha }}
+          ref: ${{ inputs.commit_sha || github.sha }}
           token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
       - uses: jdx/mise-action@v4.0.1
@@ -273,7 +251,7 @@ jobs:
   # --------------------------------------------------------------------------
   backward-compatibility-acceptance:
     name: Backward-Compatibility Acceptance
-    needs: [gate, canary]
+    needs: canary
     runs-on: tuist-macos-26-3
     timeout-minutes: 15
     environment: server-k8s-canary
@@ -289,7 +267,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.gate.outputs.deploy_sha }}
+          ref: ${{ inputs.commit_sha || github.sha }}
           submodules: false
       - name: Resolve oldest supported CLI version
         # Single source of truth: Tuist.CLIVersions.minimum_supported_version/0,
@@ -331,30 +309,31 @@ jobs:
   # hotfix job below runs instead).
   # --------------------------------------------------------------------------
   production:
-    needs: [gate, build, acceptance-tests, backward-compatibility-acceptance]
-    if: ${{ needs.gate.outputs.is_hotfix != 'true' }}
+    needs: [build, acceptance-tests, backward-compatibility-acceptance]
+    if: ${{ !inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
-      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
 
   # --------------------------------------------------------------------------
-  # Hotfix fast-path: "(hotfix)" in the commit subject (push) or the hotfix
-  # dispatch input ships production without waiting for canary + acceptance
-  # tests. Kept independent of the cascade so a flaky acceptance test can't
-  # block an urgent fix; canary is skipped above on hotfix so the fast-path
-  # is the only deploy in flight.
+  # Hotfix fast-path: the hotfix input (release.yml derives it from the
+  # "(hotfix)" commit subject; a manual dispatch sets it directly) ships
+  # production without waiting for canary + acceptance tests. Kept independent
+  # of the cascade so a flaky acceptance test can't block an urgent fix;
+  # canary is skipped above on hotfix so the fast-path is the only deploy in
+  # flight.
   # --------------------------------------------------------------------------
   production-hotfix:
-    needs: [gate, build]
-    if: ${{ needs.gate.outputs.is_hotfix == 'true' }}
+    needs: build
+    if: ${{ inputs.hotfix }}
     uses: ./.github/workflows/server-deployment.yml
     with:
       environment: production
-      commit_sha: ${{ needs.gate.outputs.deploy_sha }}
+      commit_sha: ${{ inputs.commit_sha || github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
       kura_runtime_image_tag: ${{ inputs.kura_runtime_image_tag }}
     secrets: inherit
