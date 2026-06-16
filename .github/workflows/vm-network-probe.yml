@@ -50,9 +50,12 @@ jobs:
           probe () {
             local LABEL="$1"; local URL="$2"
             echo "###### $LABEL ######"
-            if ! curl -sI --max-time 20 -r 0-0 "$URL" >/dev/null 2>&1; then
-              echo "  unreachable / no Range support"; return
-            fi
+            local code
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -r 0-0 "$URL" 2>/dev/null)
+            case "$code" in
+              200|206) ;;
+              *) echo "  unreachable (HTTP ${code:-000})"; return ;;
+            esac
             curl -so /dev/null \
               -w "  SERIAL    : %{speed_download} B/s  (HTTP %{http_code})  total=%{time_total}s\n" \
               --max-time 300 -r 0-$((SIZE-1)) "$URL"
