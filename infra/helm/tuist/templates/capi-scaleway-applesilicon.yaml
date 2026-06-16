@@ -85,16 +85,17 @@ rules:
     resources: [clusterrolebindings]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["rbac.authorization.k8s.io"]
-    # `bind` verb on the specific tart-kubelet ClusterRole — k8s's
-    # privilege-escalation rule otherwise blocks the operator's SA
-    # from creating a ClusterRoleBinding to a Role whose permissions
-    # it doesn't hold itself (Pod read, Node create, etc.). The
-    # `bind` meta-verb is the documented escape hatch for exactly
-    # this controller-creates-binding pattern. Scoped to the one role
-    # by name so the operator can't bind itself to anything broader.
+    # `bind` verb on the two ClusterRoles the operator binds node identities to:
+    # the chart's tart-kubelet role (the macOS shim) and the built-in system:node
+    # (the Linux kura nodes). k8s's privilege-escalation rule otherwise blocks the
+    # operator's SA from creating a ClusterRoleBinding to a role whose permissions
+    # it doesn't hold itself (Pod read, Node create, ...). The `bind` meta-verb is
+    # the documented escape hatch for this controller-creates-binding pattern;
+    # scoped to these roles by name so it can't bind to anything broader.
     resources: [clusterroles]
     resourceNames:
       - {{ include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+      - system:node
     verbs: [bind]
   - apiGroups: ["coordination.k8s.io"]
     resources: [leases]
@@ -305,6 +306,17 @@ spec:
             # `*.svc.cluster.local`. Verify with
             # `kubectl -n kube-system get svc kube-dns`.
             - --vm-cluster-dns-ip={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.id }}
+            # Scaleway Private Network carrying the kura runner-cache
+            # NodePort endpoints. The operator attaches every mini,
+            # resolves the per-host VLAN, and bootstrap materializes
+            # the VLAN interface + VM egress pass + NAT — the data
+            # plane dispatch's node-port cache_endpoint_url rides.
+            - --vm-cache-pn-id={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.vmCachePrivateNetwork.cidr }}
+            - --vm-cache-pn-cidr={{ . }}
             {{- end }}
             {{- if .Values.xcresultProcessor.enabled }}
             # Auto-roll the xcresult-processor Deployment whenever the

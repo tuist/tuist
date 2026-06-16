@@ -151,29 +151,32 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 	}
 
 	// Provision: find-or-create the server named after this Machine, then run
-	// the post-create steps (PN attach, power on) idempotently. ServerID is
-	// recorded as soon as the server exists — before those steps — so a
-	// failure mid-provision leaves a cleanable instance rather than an
-	// untracked paid server, and providerID is set only once both steps
-	// succeed so a transient failure is retried instead of stranding a
-	// half-configured node.
+	// the post-create steps (set user-data, attach PN, power on) idempotently.
+	// The kubelet identity + cloud-init are (re)computed every pass, and
+	// user-data is set before power-on, so a server created but not yet
+	// configured (a partial-create failure) is finished on the next reconcile
+	// instead of booting blank. ServerID is recorded as soon as the server
+	// exists, so a mid-provision failure leaves a cleanable instance; providerID
+	// is set only once every step succeeds, so a transient failure retries
+	// instead of stranding a half-configured node.
 	if machine.Spec.ProviderID == nil || *machine.Spec.ProviderID == "" {
 		server, findErr := r.ScalewayClient.FindServerByName(ctx, zone, machine.Name)
 		if findErr != nil {
 			return ctrl.Result{}, findErr
 		}
 
+		identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, linuxNodeIdentityClusterRole)
+		if idErr != nil {
+			machine.Status.Phase = "Pending"
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
+		}
+		kubeconfigYAML, kcErr := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
+		if kcErr != nil {
+			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
+		}
+		cloudInit := renderLinuxCloudInit(machine.Name, kubeconfigYAML, firstNonEmpty(r.KubernetesMinor, "v1.34"), machine.Spec.NodeTaints)
+
 		if server == nil {
-			identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, linuxNodeIdentityClusterRole)
-			if idErr != nil {
-				machine.Status.Phase = "Pending"
-				return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
-			}
-			kubeconfigYAML, kcErr := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
-			if kcErr != nil {
-				return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
-			}
-			cloudInit := renderLinuxCloudInit(machine.Name, kubeconfigYAML, firstNonEmpty(r.KubernetesMinor, "v1.34"), machine.Spec.NodeTaints)
 			created, createErr := r.ScalewayClient.CreateInstance(ctx, scaleway.CreateInstanceParams{
 				Name:             machine.Name,
 				Zone:             zone,
@@ -181,7 +184,6 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 				ImageLabel:       firstNonEmpty(machine.Spec.Image, r.DefaultImage),
 				RootVolumeGB:     machine.Spec.RootVolumeGB,
 				PrivateNetworkID: machine.Spec.PrivateNetworkID,
-				CloudInit:        []byte(cloudInit),
 				Tags:             []string{"capi", "scalewayinstancemachine=" + machine.Name},
 			})
 			if createErr != nil {
@@ -193,6 +195,9 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		}
 		machine.Status.ServerID = server.ID
 
+		if err := r.ScalewayClient.EnsureUserData(ctx, zone, server, []byte(cloudInit)); err != nil {
+			return ctrl.Result{}, err
+		}
 		if err := r.ScalewayClient.EnsurePrivateNIC(ctx, zone, server, machine.Spec.PrivateNetworkID); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -303,6 +308,15 @@ func (r *ScalewayInstanceMachineReconciler) reconcileDelete(ctx context.Context,
 			}
 		}
 	}
+
+	// Drop the per-machine kubelet identity (ServiceAccount + token Secret +
+	// ClusterRoleBinding) once the instance is gone, so a deleted machine
+	// doesn't leave behind a long-lived token bound to system:node.
+	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
+		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+
 	controllerutil.RemoveFinalizer(machine, InstanceMachineFinalizer)
 	return ctrl.Result{}, nil
 }

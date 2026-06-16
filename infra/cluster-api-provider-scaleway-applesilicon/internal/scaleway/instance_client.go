@@ -87,7 +87,6 @@ type CreateInstanceParams struct {
 	ImageLabel       string
 	RootVolumeGB     int
 	PrivateNetworkID string
-	CloudInit        []byte
 	Tags             []string
 }
 
@@ -120,11 +119,12 @@ func (c *InstanceClient) FindServerByName(ctx context.Context, zone scw.Zone, na
 }
 
 // CreateInstance orders the server (root volume from the resolved image) and
-// sets the bootstrap cloud-init as user-data. It deliberately stops short of
-// attaching the Private Network and powering on: those are separate idempotent
-// steps (EnsurePrivateNIC, EnsurePoweredOn) the reconciler drives once the
-// server's ID is recorded, so a failure after create (e.g. a PN-attach IAM
-// denial) is retried instead of stranding a half-configured paid server.
+// nothing more. Setting the bootstrap cloud-init, attaching the Private
+// Network, and powering on are separate idempotent steps (EnsureUserData,
+// EnsurePrivateNIC, EnsurePoweredOn) the reconciler drives once the server's ID
+// is recorded, so a failure after create (a user-data hiccup, a PN-attach IAM
+// denial) is retried on the re-found server instead of booting a blank or
+// half-configured paid instance.
 func (c *InstanceClient) CreateInstance(ctx context.Context, p CreateInstanceParams) (*instance.Server, error) {
 	img, err := c.Marketplace.GetLocalImageByLabel(&marketplace.GetLocalImageByLabelRequest{
 		ImageLabel:     p.ImageLabel,
@@ -159,20 +159,27 @@ func (c *InstanceClient) CreateInstance(ctx context.Context, p CreateInstancePar
 	if err != nil {
 		return nil, fmt.Errorf("create server %q: %w", p.Name, err)
 	}
-	server := created.Server
+	return created.Server, nil
+}
 
-	if len(p.CloudInit) > 0 {
-		if err := c.Instance.SetServerUserData(&instance.SetServerUserDataRequest{
-			Zone:     p.Zone,
-			ServerID: server.ID,
-			Key:      "cloud-init",
-			Content:  bytes.NewReader(p.CloudInit),
-		}, scw.WithContext(ctx)); err != nil {
-			return nil, fmt.Errorf("set cloud-init user-data on %s: %w", server.ID, err)
-		}
+// EnsureUserData sets the bootstrap cloud-init as the server's user-data. It's a
+// PUT, so it's idempotent and safe to re-run every provision pass — which is the
+// point: a server created before its user-data was set (a partial CreateInstance
+// failure) gets it on the next reconcile, before EnsurePoweredOn boots it,
+// instead of powering on blank and sitting in Bootstrapping forever.
+func (c *InstanceClient) EnsureUserData(ctx context.Context, zone scw.Zone, server *instance.Server, cloudInit []byte) error {
+	if len(cloudInit) == 0 {
+		return nil
 	}
-
-	return server, nil
+	if err := c.Instance.SetServerUserData(&instance.SetServerUserDataRequest{
+		Zone:     zone,
+		ServerID: server.ID,
+		Key:      "cloud-init",
+		Content:  bytes.NewReader(cloudInit),
+	}, scw.WithContext(ctx)); err != nil {
+		return fmt.Errorf("set cloud-init user-data on %s: %w", server.ID, err)
+	}
+	return nil
 }
 
 // EnsurePrivateNIC attaches the server to the Private Network unless a NIC on

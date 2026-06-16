@@ -72,7 +72,7 @@ func (f *fakeIPAMAPI) ListIPs(req *ipam.ListIPsRequest, _ ...scw.RequestOption) 
 	return &ipam.ListIPsResponse{IPs: f.ips}, nil
 }
 
-func TestCreateInstance_OrdersAndSetsUserDataOnly(t *testing.T) {
+func TestCreateInstance_OrdersServerOnly(t *testing.T) {
 	inst := &fakeInstanceAPI{}
 	mkt := &fakeMarketplaceAPI{}
 	c := &InstanceClient{Instance: inst, Marketplace: mkt, IPAM: &fakeIPAMAPI{}, ProjectID: "proj-1"}
@@ -84,7 +84,6 @@ func TestCreateInstance_OrdersAndSetsUserDataOnly(t *testing.T) {
 		ImageLabel:       "ubuntu_noble",
 		RootVolumeGB:     50,
 		PrivateNetworkID: "pn-1",
-		CloudInit:        []byte("#cloud-config\n"),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -101,15 +100,38 @@ func TestCreateInstance_OrdersAndSetsUserDataOnly(t *testing.T) {
 	if inst.created.DynamicIPRequired == nil || !*inst.created.DynamicIPRequired {
 		t.Fatalf("expected a dynamic public IP requested for the join path, got %#v", inst.created.DynamicIPRequired)
 	}
-	if inst.userData == nil || inst.userData.Key != "cloud-init" {
-		t.Fatalf("expected cloud-init user-data set, got %#v", inst.userData)
+	// User-data, PN attach, and power-on are separate idempotent steps now, not
+	// part of create, so a partial-create failure is retried on the re-found server.
+	if inst.userData != nil {
+		t.Fatalf("expected no user-data set during create, got %#v", inst.userData)
 	}
-	// PN attach and poweron are separate idempotent steps now, not part of create.
 	if inst.nic != nil {
 		t.Fatalf("expected no PN attach during create, got %#v", inst.nic)
 	}
 	if len(inst.actions) != 0 {
 		t.Fatalf("expected no power actions during create, got %v", inst.actions)
+	}
+}
+
+func TestEnsureUserData_SetsCloudInitIdempotently(t *testing.T) {
+	inst := &fakeInstanceAPI{}
+	c := &InstanceClient{Instance: inst, ProjectID: "proj-1"}
+	server := &instance.Server{ID: "srv-1"}
+
+	if err := c.EnsureUserData(context.Background(), scw.ZoneFrPar1, server, []byte("#cloud-config\n")); err != nil {
+		t.Fatal(err)
+	}
+	if inst.userData == nil || inst.userData.Key != "cloud-init" || inst.userData.ServerID != "srv-1" {
+		t.Fatalf("expected cloud-init user-data set on the server, got %#v", inst.userData)
+	}
+
+	// Empty cloud-init is a no-op (nothing to set).
+	inst.userData = nil
+	if err := c.EnsureUserData(context.Background(), scw.ZoneFrPar1, server, nil); err != nil {
+		t.Fatal(err)
+	}
+	if inst.userData != nil {
+		t.Fatalf("expected no user-data call for empty cloud-init, got %#v", inst.userData)
 	}
 }
 
