@@ -112,7 +112,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
-  - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
+  - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.
