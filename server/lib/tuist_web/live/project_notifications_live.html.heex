@@ -369,6 +369,7 @@
                   id="create-alert-git-branch"
                   name="git_branch"
                   value={@create_alert_form_git_branch}
+                  error={@create_alert_form_branch_error}
                   placeholder={dgettext("dashboard_projects", "e.g. main")}
                   phx-keyup="update_create_alert_form_git_branch"
                   phx-debounce="300"
@@ -687,6 +688,7 @@
                         id={"edit-alert-git-branch-#{rule.id}"}
                         name="git_branch"
                         value={form[:git_branch] || rule.git_branch || ""}
+                        error={form[:branch_error]}
                         placeholder={dgettext("dashboard_projects", "e.g. main")}
                         phx-keyup="update_edit_alert_form_git_branch"
                         phx-value-id={rule.id}
