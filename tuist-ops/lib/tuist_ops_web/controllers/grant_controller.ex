@@ -79,7 +79,12 @@ defmodule TuistOpsWeb.GrantController do
     subject = subject(conn)
     account = params["account_handle"]
     return_to = params["return_to"]
-    tier = params["tier"]
+    # The Noora select's zag hook leaves the hidden <select> empty unless the
+    # operator opens the dropdown and actively picks an option, so a blank or
+    # absent tier means they kept the default. Coerce anything outside @tiers to
+    # "read" (the default and lowest-privilege, self-serve tier), matching
+    # new/2; admin still requires an explicit selection that writes "admin".
+    tier = if params["tier"] in @tiers, do: params["tier"], else: "read"
     reason = params |> Map.get("reason", "") |> to_string() |> String.trim()
     ttl_seconds = parse_ttl(params["ttl_minutes"])
 
@@ -95,9 +100,6 @@ defmodule TuistOpsWeb.GrantController do
 
       not valid_account_handle?(account) ->
         render_error(conn, 400, "Bad request", "Invalid account handle.")
-
-      tier not in @tiers ->
-        render_error(conn, 400, "Bad request", "Unknown access tier.")
 
       String.length(reason) < 5 ->
         conn
