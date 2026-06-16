@@ -1,20 +1,22 @@
 name: Notify Slack on deploy success
 
-# Mirrors notify-failure.yml but for successes, scoped to deploy
-# workflows where a green run is newsworthy. Today that's just
-# "Server Production Deployment" — we intentionally stay quiet on
-# staging/canary successes and only ping Slack when production lands.
+# Mirrors notify-failure.yml but for successes, scoped to where a green
+# run means production landed. The production deploy runs as a job inside
+# the "Release" workflow (release.yml's deploy-production calls the
+# server-production-deployment reusable workflow); a manual re-promote runs
+# "Server Production Deployment" directly. We watch both — we intentionally
+# stay quiet on staging/canary successes and only ping when production lands.
 #
-# A "Server Production Deployment" run can be green without deploying:
-# its gate job defers to release.yml (skipping the cascade) when a
-# fleet/runtime image is releasing this push. So we notify only when the
-# run's production deploy job actually succeeded, not on any green run.
+# Either run can be green without deploying: a Release can publish with no
+# deployable change, and a manual dispatch can no-op. So we notify only when
+# the run's production deploy job actually succeeded, not on any green run.
 # That job is named "… / Deploy to tuist" — "tuist" is the production
 # namespace; canary/staging are "Deploy to tuist-canary"/"-staging".
 
 on:
   workflow_run:
     workflows:
+      - Release
       - Server Production Deployment
     branches: [main]
     types: [completed]

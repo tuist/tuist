@@ -28,9 +28,9 @@ concurrency:
   # same version and collide.
   #
   # Queue rather than cancel: a run pushes component tags, publishes GitHub
-  # Releases, and dispatches the deploy as side effects, so each must
-  # complete atomically — cancelling mid-run could tear a release or skip
-  # the deploy dispatch. GitHub keeps only the latest pending run, so a
+  # Releases, and runs the production deploy as side effects, so each must
+  # complete atomically — cancelling mid-run could tear a release or a
+  # helm --atomic deploy. GitHub keeps only the latest pending run, so a
   # burst of merges collapses into one run that covers them all via
   # cumulative check-releases.
   group: release-workflow-${{ github.ref }}
@@ -99,6 +99,7 @@ jobs:
       stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
       should-release-any: ${{ steps.check.outputs.should-release-any }}
+      deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -119,6 +120,26 @@ jobs:
       - id: runner-image-matrix
         run: |
           echo "matrix=$(jq -c '{xcode: .}' infra/runner-image/profiles.json)" >> "$GITHUB_OUTPUT"
+      - id: deployable
+        # Mirrors the path set that used to gate server-production-deployment.yml's
+        # push trigger. A change to any of these deploys the server; the
+        # deploy-production job ORs this with the fleet/runtime image-release flags.
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base="$BEFORE"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            # No reliable base (new branch / force-push): deploy to be safe.
+            echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$base" "${{ github.sha }}" \
+            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/k8s-monitoring/|\.github/workflows/(release|server-deployment|server-production-deployment)\.yml)'; then
+            echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
   release-server:
     name: Release Server (amd64)
@@ -2038,15 +2059,14 @@ jobs:
 
   # --------------------------------------------------------------------------
   # Deploy orchestration. This pipeline tags every fleet/runtime image it
-  # builds and then dispatches the server production deployment, which
-  # resolves those tags at deploy time — one build-then-deploy pass.
+  # builds and then runs the server production deployment in-sequence as the
+  # deploy-production job below, which resolves those tags at deploy time —
+  # one build-then-deploy pass on this workflow's serialized concurrency lane,
+  # with no cross-workflow dispatch.
   #
-  # It owns the deploy ONLY when a fleet/runtime image is releasing, because
-  # that deploy must wait for the image build + tag, so it belongs here,
-  # downstream of the build. Server / chart / config changes with no fleet
-  # image release are deployed directly by server-production-deployment.yml's
-  # own push trigger (its gate job defers to this dispatch when a fleet image
-  # is releasing), off this workflow's serialized concurrency lane.
+  # tag-infra-releases pushes the image tags; deploy-production needs it so a
+  # freshly built image ships with the server. The deploy fires when a
+  # deployable path changed OR any fleet/runtime image released this run.
   # --------------------------------------------------------------------------
   tag-infra-releases:
     name: Tag fleet and runtime image releases
@@ -2112,21 +2132,22 @@ jobs:
           fi
           tag_release "${{ needs.check-releases.outputs.kura-should-release }}" "$KURA_RESULT" "${{ needs.check-releases.outputs.kura-next-version }}"
 
-  trigger-deploy:
-    name: Trigger server production deployment
+  deploy-production:
+    name: Deploy server to production
     needs: [check-releases, tag-infra-releases]
-    # Dispatches the deploy ONLY when a fleet/runtime image released this
-    # run, so the new image ships with the server in this same pass (the
-    # deploy must wait for the build + tag, which is why it lives here
-    # downstream of tag-infra-releases). Server / chart / config changes with
-    # no fleet image release are deployed by server-production-deployment.yml's
-    # own push trigger, whose gate job defers to this dispatch when a fleet
-    # image is releasing — so no push deploys twice or is skipped.
+    # Runs the production deployment in-sequence, after the fleet/runtime
+    # images are built + tagged, so a freshly released image ships with the
+    # server in this same pass. Fires when a deployable path changed OR any
+    # fleet/runtime image released this run. Calling the deploy as a reusable
+    # workflow (not a cross-workflow dispatch) keeps it on release.yml's
+    # serialized lane and spends no API rate limit. "(hotfix)" in the commit
+    # subject drives the production fast-path via the hotfix input.
     if: >-
       always() &&
       needs.check-releases.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
@@ -2135,30 +2156,14 @@ jobs:
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
       )
-    # GitHub-hosted Ubuntu includes gh; the dispatch needs no checkout, so
-    # the repo is targeted explicitly via --repo.
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      HEAD_MSG: ${{ github.event.head_commit.message }}
-    steps:
-      - name: Dispatch server production deployment
-        # Dispatched as its own workflow run (not a needs edge) so
-        # release.yml's concurrency can never interrupt an in-flight
-        # helm --atomic deploy. The "(hotfix)" subject convention drives
-        # the production fast-path via the dispatch input. HEAD_MSG is
-        # passed through the env, never interpolated into the shell, so a
-        # commit subject can't break the script.
-        run: |
-          set -euo pipefail
-          HOTFIX=false
-          case "$HEAD_MSG" in
-            *'(hotfix)'*) HOTFIX=true ;;
-          esac
-          echo "Dispatching production deployment for ${{ github.sha }} (hotfix=$HOTFIX)"
-          gh workflow run server-production-deployment.yml \
-            --repo "${{ github.repository }}" \
-            --ref main \
-            -f commit_sha="${{ github.sha }}" \
-            -f hotfix="$HOTFIX"
+    permissions:
+      contents: read
+      packages: write
+      # The acceptance-test legs authenticate to canary via OIDC, so the
+      # reusable workflow needs id-token granted by this caller job.
+      id-token: write
+    uses: ./.github/workflows/server-production-deployment.yml
+    with:
+      commit_sha: ${{ github.sha }}
+      hotfix: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
+    secrets: inherit
