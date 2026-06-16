@@ -247,8 +247,17 @@ func TestPrivateNetworkIP_ReadsIPAMForTheNIC(t *testing.T) {
 		Zone:        scw.ZoneFrPar1,
 		PrivateNics: []*instance.PrivateNIC{{ID: "nic-1", PrivateNetworkID: "pn-1", MacAddress: "de:ad:be:ef:00:01"}},
 	}
+	upperMAC := "DE:AD:BE:EF:00:01"
+	otherMAC := "00:11:22:33:44:55"
 	c := &InstanceClient{
-		IPAM:      &fakeIPAMAPI{ips: []*ipam.IP{{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("172.16.0.2"), Mask: net.CIDRMask(22, 32)}}}}},
+		// The NIC carries an IPv6 and an IPv4, IPAM reports the MAC uppercase
+		// (the Instance API gives it lowercase), and a different NIC's IP also
+		// sits on the PN — the IPv4 for the matching NIC must be selected.
+		IPAM: &fakeIPAMAPI{ips: []*ipam.IP{
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("172.16.9.9")}}, Resource: &ipam.Resource{MacAddress: &otherMAC}},
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("fd58::1")}}, Resource: &ipam.Resource{MacAddress: &upperMAC}},
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("172.16.0.2"), Mask: net.CIDRMask(22, 32)}}, Resource: &ipam.Resource{MacAddress: &upperMAC}},
+		}},
 		ProjectID: "proj-1",
 	}
 
@@ -257,6 +266,6 @@ func TestPrivateNetworkIP_ReadsIPAMForTheNIC(t *testing.T) {
 		t.Fatal(err)
 	}
 	if ip != "172.16.0.2" {
-		t.Fatalf("expected 172.16.0.2, got %q", ip)
+		t.Fatalf("expected the matching NIC's IPv4 172.16.0.2, got %q", ip)
 	}
 }

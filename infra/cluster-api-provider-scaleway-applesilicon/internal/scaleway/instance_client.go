@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	instance "github.com/scaleway/scaleway-sdk-go/api/instance/v1"
 	ipam "github.com/scaleway/scaleway-sdk-go/api/ipam/v1"
@@ -291,17 +292,29 @@ func (c *InstanceClient) PrivateNetworkIP(ctx context.Context, server *instance.
 		return "", nil
 	}
 
-	zonal := server.Zone.String()
+	// Filter by the Private Network only: the IPAM API requires exactly one of
+	// Zonal/PrivateNetworkID/SubnetID, so the original Zonal+PN combination was
+	// rejected and returned nothing. Match the NIC client-side instead — the
+	// Instance API reports the MAC lowercase while IPAM stores it uppercase, and
+	// the NIC carries both an IPv4 and an IPv6, so compare case-insensitively
+	// and return the IPv4 (the value dispatch routes runner cache traffic to).
 	resp, err := c.IPAM.ListIPs(&ipam.ListIPsRequest{
-		Zonal:            &zonal,
 		PrivateNetworkID: &privateNetworkID,
-		MacAddress:       &nic.MacAddress,
 		ProjectID:        &c.ProjectID,
 	}, scw.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("list IPAM IPs for PN %s: %w", privateNetworkID, err)
 	}
 	for _, ip := range resp.IPs {
+		if ip.Resource == nil || ip.Resource.MacAddress == nil {
+			continue
+		}
+		if !strings.EqualFold(*ip.Resource.MacAddress, nic.MacAddress) {
+			continue
+		}
+		if ip.Address.IP.To4() == nil {
+			continue
+		}
 		return ip.Address.IP.String(), nil
 	}
 	return "", nil

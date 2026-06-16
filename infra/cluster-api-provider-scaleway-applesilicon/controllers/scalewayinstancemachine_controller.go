@@ -212,9 +212,18 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		return ctrl.Result{}, err
 	}
 
+	// The PN IPAM address can lag the node going Ready, so keep reconciling
+	// until the pn-ipv4 label is stamped — otherwise a node that becomes Ready
+	// before its address resolves would never get labelled (dispatch needs it
+	// to route runner cache traffic over the Private Network).
+	pnLabelPending := machine.Spec.PrivateNetworkID != "" && node.Labels[pnIPv4Label] == ""
+
 	if nodeReady(node) {
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
+		if pnLabelPending {
+			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+		}
 		return ctrl.Result{}, nil
 	}
 	machine.Status.Phase = "Bootstrapping"
