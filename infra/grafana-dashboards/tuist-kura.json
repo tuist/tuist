@@ -3381,119 +3381,6 @@
             "version": "13.1.0-27262365585"
           }
         }
-      },
-      "panel-56": {
-        "kind": "Panel",
-        "spec": {
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "hidden": false,
-                    "query": {
-                      "datasource": {
-                        "name": "$datasource"
-                      },
-                      "group": "prometheus",
-                      "kind": "DataQuery",
-                      "spec": {
-                        "app": "grafana-assistant-app",
-                        "expr": "sort_desc(sum by(instance) (increase(cache_kv_eviction_entries_total[$__range])))",
-                        "instant": true,
-                        "legendFormat": "{{instance}}",
-                        "queryType": "instant",
-                        "range": false
-                      },
-                      "version": "v0"
-                    },
-                    "refId": "A"
-                  }
-                }
-              ],
-              "queryOptions": {},
-              "transformations": [
-                {
-                  "group": "labelsToFields",
-                  "kind": "Transformation",
-                  "spec": {
-                    "disabled": false,
-                    "options": {
-                      "mode": "columns"
-                    }
-                  }
-                },
-                {
-                  "group": "merge",
-                  "kind": "Transformation",
-                  "spec": {
-                    "disabled": false,
-                    "options": {}
-                  }
-                }
-              ]
-            }
-          },
-          "description": "Total entries evicted per cache node over the selected time range, sorted highest first. Nodes with the most evictions are candidates for sharding — high eviction pressure means the cache is too small for the working set.",
-          "id": 56,
-          "links": [],
-          "title": "Cache Evictions by Node (selected period)",
-          "vizConfig": {
-            "group": "bargauge",
-            "kind": "VizConfig",
-            "spec": {
-              "fieldConfig": {
-                "defaults": {
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "color": "green",
-                        "value": 0
-                      },
-                      {
-                        "color": "red",
-                        "value": 80
-                      }
-                    ]
-                  },
-                  "unit": "short"
-                },
-                "overrides": []
-              },
-              "options": {
-                "displayMode": "gradient",
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": false
-                },
-                "maxVizHeight": 300,
-                "minVizHeight": 16,
-                "minVizWidth": 8,
-                "namePlacement": "auto",
-                "orientation": "horizontal",
-                "reduceOptions": {
-                  "calcs": [
-                    "lastNotNull"
-                  ],
-                  "fields": "Value",
-                  "values": true
-                },
-                "showUnfilled": true,
-                "sizing": "auto",
-                "valueMode": "color"
-              }
-            },
-            "version": "13.1.0-27262365585"
-          }
-        }
       }
     },
     "layout": {
@@ -3516,19 +3403,6 @@
                           "name": "panel-27"
                         },
                         "height": 6,
-                        "width": 24,
-                        "x": 0,
-                        "y": 0
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-56"
-                        },
-                        "height": 10,
                         "width": 24,
                         "x": 0,
                         "y": 0
