@@ -288,20 +288,20 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
-# CR per replica; the cluster-api-provider-scaleway-applesilicon
 # Declarative Scaleway Linux kura runner-cache node, replacing the
 # hand-joined PRO2-S. The provider orders the Instance, attaches it to the
-# runner-cache PN, and it self-joins via kubeadm with the runner-cache taint.
-# Disabled in the chart deploy so helm --wait isn't gated on the fleet's
-# MachineDeployment going Ready (the node provision + kubeadm join is applied
-# and iterated out-of-band first). Flip to true once the join is proven.
+# runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint (this
+# cluster's control plane is externally managed, so there's no CAPI kubeadm
+# join — the reconciler bootstraps the node itself).
 kuraFleet:
-  enabled: false
+  enabled: true
   replicas: 1
   machine:
     privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
 
+# Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine
+# CR per replica; the cluster-api-provider-scaleway-applesilicon
 # operator orders each Mac mini, then SSH-bootstraps it with
 # tart-kubelet. The Mac mini joins the cluster as a real Node.
 macosFleet:
