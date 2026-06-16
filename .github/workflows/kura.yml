@@ -7,17 +7,11 @@ on:
     paths:
       - kura/**
       - .github/workflows/kura.yml
-      # The gateway nginx config the upload-throughput e2e validates lives in
-      # the platform chart, so chart window changes must exercise this workflow.
-      - infra/helm/platform/values.yaml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - kura/**
       - .github/workflows/kura.yml
-      # The gateway nginx config the upload-throughput e2e validates lives in
-      # the platform chart, so chart window changes must exercise this workflow.
-      - infra/helm/platform/values.yaml
   merge_group: {}
 
 permissions:
