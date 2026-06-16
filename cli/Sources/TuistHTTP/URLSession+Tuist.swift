@@ -48,6 +48,16 @@ private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> 
     return configuration
 }
 
+private func tuistArtifactTransferURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> URLSessionConfiguration {
+    let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
+    // Artifact transfers (shard bundles, cache artifacts) can be hundreds of MB and slow on
+    // constrained CI networks. The short resource cap that suits small API calls would kill a
+    // healthy-but-slow transfer mid-flight, so allow the whole transfer far more time and let
+    // timeoutIntervalForRequest catch genuine stalls (no data) instead.
+    configuration.timeoutIntervalForResource = 3600
+    return configuration
+}
+
 private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
     #if canImport(TuistHAR)
         return URLSession(
@@ -60,10 +70,29 @@ private func makeTuistURLSession(useEnvironmentProxy: Bool) -> URLSession {
     #endif
 }
 
+private func makeTuistArtifactTransferURLSession(useEnvironmentProxy: Bool) -> URLSession {
+    #if canImport(TuistHAR)
+        return URLSession(
+            configuration: tuistArtifactTransferURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy),
+            delegate: URLSessionMetricsDelegate.shared,
+            delegateQueue: nil
+        )
+    #else
+        return URLSession(
+            configuration: tuistArtifactTransferURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
+        )
+    #endif
+}
+
 private final class SharedTuistURLSession: @unchecked Sendable {
     private let lock = NSLock()
+    private let makeSession: @Sendable (Bool) -> URLSession
     private var useEnvironmentProxy: Bool?
     private var session: URLSession?
+
+    init(makeSession: @escaping @Sendable (Bool) -> URLSession) {
+        self.makeSession = makeSession
+    }
 
     func resolve(useEnvironmentProxy: Bool) -> URLSession {
         let sessionToInvalidate: URLSession?
@@ -75,7 +104,7 @@ private final class SharedTuistURLSession: @unchecked Sendable {
         }
 
         sessionToInvalidate = session
-        let session = makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
+        let session = makeSession(useEnvironmentProxy)
         self.useEnvironmentProxy = useEnvironmentProxy
         self.session = session
         lock.unlock()
@@ -94,10 +123,13 @@ private final class SharedTuistURLSession: @unchecked Sendable {
     }
 }
 
-private let sharedTuistURLSession = SharedTuistURLSession()
+private let sharedTuistURLSession = SharedTuistURLSession(makeSession: makeTuistURLSession)
+private let sharedTuistArtifactTransferURLSession =
+    SharedTuistURLSession(makeSession: makeTuistArtifactTransferURLSession)
 
 func invalidateSharedTuistURLSession() {
     sharedTuistURLSession.invalidate()
+    sharedTuistArtifactTransferURLSession.invalidate()
 }
 
 extension URLSession {
@@ -107,6 +139,13 @@ extension URLSession {
 
     public static func tuistShared(useEnvironmentProxy: Bool) -> URLSession {
         makeTuistURLSession(useEnvironmentProxy: useEnvironmentProxy)
+    }
+
+    /// A session tuned for large artifact transfers (downloads/uploads of shard bundles, cache
+    /// artifacts). Same configuration as `tuistShared` but with a generous resource timeout so a
+    /// slow-but-progressing transfer isn't killed by the API-tuned wall-clock cap.
+    public static var tuistArtifactTransfer: URLSession {
+        sharedTuistArtifactTransferURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
 }
 

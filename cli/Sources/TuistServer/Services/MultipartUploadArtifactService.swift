@@ -132,7 +132,7 @@ public struct MultipartUploadArtifactService: MultipartUploadArtifactServicing {
     }
 
     private func upload(for request: URLRequest) async throws -> String {
-        let urlSession = urlSession ?? .tuistShared
+        let urlSession = urlSession ?? .tuistArtifactTransfer
         let (data, response) = try await urlSession.data(for: request)
         guard let urlResponse = response as? HTTPURLResponse else {
             throw MultipartUploadArtifactServiceError.noURLResponse(request.url)

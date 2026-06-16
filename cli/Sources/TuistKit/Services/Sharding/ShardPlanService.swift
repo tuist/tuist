@@ -1,4 +1,5 @@
 #if os(macOS)
+    import Command
     import FileSystem
     import Foundation
     import Mockable
@@ -61,6 +62,7 @@
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
+        private let commandRunner: CommandRunning
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -75,7 +77,8 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            appleArchiver: AppleArchiving = AppleArchiver()
+            appleArchiver: AppleArchiving = AppleArchiver(),
+            commandRunner: CommandRunning = CommandRunner()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -88,6 +91,7 @@
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
+            self.commandRunner = commandRunner
         }
 
         public func plan(
@@ -206,11 +210,46 @@
             if try await !fileSystem.exists(archivePath.parentDirectory, isDirectory: true) {
                 try await fileSystem.makeDirectory(at: archivePath.parentDirectory)
             }
+            try await stripDebugSymbols(in: xctestproductsPath)
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: archivePath,
                 excludePatterns: [".dSYM"]
             )
+        }
+
+        /// Strips debug symbols (`strip -S`) from every Mach-O in the test products before archiving.
+        /// Test products are built in Debug and carry large symbol tables that aren't needed to run the
+        /// tests on shard runners, so removing them shrinks the uploaded and downloaded bundle.
+        private func stripDebugSymbols(in directory: AbsolutePath) async throws {
+            let files = try await fileSystem.glob(directory: directory, include: ["**/*"]).collect()
+            var strippedCount = 0
+            for file in files where isMachO(file) {
+                do {
+                    try await commandRunner.runAndWait(arguments: ["/usr/bin/strip", "-S", file.pathString])
+                    strippedCount += 1
+                } catch {
+                    Logger.current.debug("Skipped stripping \(file.pathString): \(error.localizedDescription)")
+                }
+            }
+            if strippedCount > 0 {
+                Logger.current.debug("Stripped debug symbols from \(strippedCount) binary(ies) before archiving.")
+            }
+        }
+
+        private func isMachO(_ path: AbsolutePath) -> Bool {
+            guard let handle = FileHandle(forReadingAtPath: path.pathString) else { return false }
+            defer { try? handle.close() }
+            guard let data = try? handle.read(upToCount: 4), data.count == 4 else { return false }
+            let magics: Set<[UInt8]> = [
+                [0xCF, 0xFA, 0xED, 0xFE], // 64-bit little-endian
+                [0xCE, 0xFA, 0xED, 0xFE], // 32-bit little-endian
+                [0xFE, 0xED, 0xFA, 0xCF], // 64-bit big-endian
+                [0xFE, 0xED, 0xFA, 0xCE], // 32-bit big-endian
+                [0xCA, 0xFE, 0xBA, 0xBE], // universal (fat)
+                [0xBE, 0xBA, 0xFE, 0xCA], // universal (fat, byte-swapped)
+            ]
+            return magics.contains(Array(data))
         }
     }
 #endif

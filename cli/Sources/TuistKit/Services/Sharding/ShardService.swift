@@ -117,7 +117,7 @@ public struct ShardService: ShardServicing {
             guard let downloadURL = URL(string: shard.download_url) else {
                 throw ShardServiceError.invalidDownloadURL(shard.download_url)
             }
-            let shardArchivePath = try await fileClient.download(url: downloadURL)
+            let shardArchivePath = try await downloadWithRetries(downloadURL)
             Logger.current.debug("Downloaded test products bundle.")
 
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
@@ -169,6 +169,23 @@ public struct ShardService: ShardServicing {
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph
         )
+    }
+
+    private func downloadWithRetries(_ url: URL, attempts: Int = 3) async throws -> AbsolutePath {
+        var lastError: Error?
+        for attempt in 1 ... attempts {
+            do {
+                return try await fileClient.download(url: url)
+            } catch {
+                lastError = error
+                guard attempt < attempts else { break }
+                Logger.current.debug(
+                    "Shard bundle download failed (attempt \(attempt)/\(attempts)): \(error.localizedDescription). Retrying..."
+                )
+                try await Task.sleep(nanoseconds: UInt64(attempt) * 1_000_000_000)
+            }
+        }
+        throw lastError ?? ShardServiceError.invalidDownloadURL(url.absoluteString)
     }
 
     private func normalizeExtractedTestProductsPath(_ extractedPath: AbsolutePath) async throws -> AbsolutePath {
