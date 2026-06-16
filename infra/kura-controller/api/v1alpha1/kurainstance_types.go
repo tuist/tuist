@@ -29,6 +29,19 @@ type KuraInstanceSpec struct {
 	// no public host to advertise, and the runner Pods reach the cache
 	// at `<instance>.<namespace>.svc.cluster.local`.
 	Private bool `json:"private,omitempty"`
+
+	// MeshBridgingEnabled exposes this instance's internal/replication (peer
+	// mTLS) plane publicly so the account's self-hosted nodes can join the same
+	// mesh. The controller provisions a per-pod LoadBalancer Service (TLS
+	// passthrough; mTLS terminates at the pod) and advertises each pod at its
+	// public host. Requires InternalPublicHost.
+	MeshBridgingEnabled bool `json:"meshBridgingEnabled,omitempty"`
+
+	// InternalPublicHost is the base public host for the internal plane, e.g.
+	// `internal.<account>-<cluster>.kura.tuist.dev`. Each pod is advertised at
+	// `<pod>.<InternalPublicHost>`, and pod 0 also answers the base host as the
+	// discovery seed.
+	InternalPublicHost string `json:"internalPublicHost,omitempty"`
 }
 
 type KuraInstanceStatus struct {

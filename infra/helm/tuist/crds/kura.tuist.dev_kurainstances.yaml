@@ -90,6 +90,14 @@ spec:
                 # (runner-cache nodes).
                 private:
                   type: boolean
+                # Exposes the internal/replication (peer mTLS) plane publicly so
+                # the account's self-hosted nodes can join the managed mesh. The
+                # controller provisions a per-pod LoadBalancer (TLS passthrough)
+                # and advertises each pod at `<pod>.<internalPublicHost>`.
+                meshBridgingEnabled:
+                  type: boolean
+                internalPublicHost:
+                  type: string
                 peerTLSSecretName:
                   type: string
                 storageClassName:

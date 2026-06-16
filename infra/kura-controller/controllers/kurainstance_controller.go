@@ -206,6 +206,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePeerService(ctx, instance, primaryPod); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.reconcilePerPodPublicPeerServices(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err := r.reconcilePublicIngress(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -344,6 +347,80 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 		return err
 	}
 	return r.Delete(ctx, service)
+}
+
+func perPodPublicPeerServiceName(instance *kurav1alpha1.KuraInstance, ordinal int32) string {
+	return fmt.Sprintf("%s-peer-public-%d", instance.Name, ordinal)
+}
+
+// reconcilePerPodPublicPeerServices exposes each pod's internal/replication
+// (peer mTLS) port to the internet when the account bridges into the managed
+// mesh. Replication is point-to-point per pod, so each pod gets its own
+// LoadBalancer Service; the LoadBalancer is a raw TCP forwarder, so the peer
+// mTLS passes through and terminates at the pod (the per-account CA client-cert
+// check happens in the Kura process). external-dns publishes
+// `<pod>.<InternalPublicHost>` per pod, and pod 0 also publishes the base host
+// as the discovery seed. When bridging is disabled the Services are removed.
+func (r *KuraInstanceReconciler) reconcilePerPodPublicPeerServices(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	desired := int32(0)
+	if instance.Spec.MeshBridgingEnabled && instance.Spec.InternalPublicHost != "" {
+		desired = replicas(instance)
+	}
+
+	for ordinal := int32(0); ordinal < desired; ordinal++ {
+		podName := fmt.Sprintf("%s-%d", instance.Name, ordinal)
+		hostnames := podName + "." + instance.Spec.InternalPublicHost
+		if ordinal == 0 {
+			hostnames = hostnames + "," + instance.Spec.InternalPublicHost
+		}
+
+		service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: perPodPublicPeerServiceName(instance, ordinal), Namespace: instance.Namespace}}
+		if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, service, func() error {
+			if err := controllerutil.SetControllerReference(instance, service, r.Scheme); err != nil {
+				return err
+			}
+			service.Labels = labels(instance)
+			if service.Annotations == nil {
+				service.Annotations = map[string]string{}
+			}
+			service.Annotations["external-dns.alpha.kubernetes.io/hostname"] = hostnames
+			service.Spec.Type = corev1.ServiceTypeLoadBalancer
+			service.Spec.Selector = map[string]string{podNameLabel: podName}
+			service.Spec.Ports = []corev1.ServicePort{
+				{Name: "peer", Port: peerPort, TargetPort: intstr.FromString("peer"), Protocol: corev1.ProtocolTCP},
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+
+	return r.deletePerPodPublicPeerServices(ctx, instance, desired)
+}
+
+func (r *KuraInstanceReconciler) deletePerPodPublicPeerServices(ctx context.Context, instance *kurav1alpha1.KuraInstance, keep int32) error {
+	var services corev1.ServiceList
+	if err := r.List(ctx, &services, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+
+	prefix := instance.Name + "-peer-public-"
+	for i := range services.Items {
+		svc := &services.Items[i]
+		if !strings.HasPrefix(svc.Name, prefix) {
+			continue
+		}
+		ordinal, err := strconv.ParseInt(strings.TrimPrefix(svc.Name, prefix), 10, 32)
+		if err != nil {
+			continue
+		}
+		if int32(ordinal) >= keep {
+			if err := r.Delete(ctx, svc); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
@@ -1207,6 +1284,13 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	if environment == "" {
 		environment = "production"
 	}
+	// When the account bridges into the managed mesh, the node must advertise a
+	// publicly-reachable address so the customer's self-hosted peers can dial it.
+	// Otherwise it advertises its in-cluster headless DNS.
+	nodeURL := fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)
+	if instance.Spec.MeshBridgingEnabled && instance.Spec.InternalPublicHost != "" {
+		nodeURL = fmt.Sprintf("https://$(POD_NAME).%s:%d", instance.Spec.InternalPublicHost, peerPort)
+	}
 	env := []corev1.EnvVar{
 		{Name: "POD_NAME", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
 		{Name: "POD_NAMESPACE", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.namespace"}}},
@@ -1216,7 +1300,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 		{Name: "KURA_REGION", Value: instance.Spec.Region},
 		{Name: "KURA_TMP_DIR", Value: "/var/cache/kura/tmp"},
 		{Name: "KURA_DATA_DIR", Value: "/var/cache/kura"},
-		{Name: "KURA_NODE_URL", Value: fmt.Sprintf("https://$(POD_NAME).%s.$(POD_NAMESPACE).svc.cluster.local:%d", headlessServiceName(instance), peerPort)},
+		{Name: "KURA_NODE_URL", Value: nodeURL},
 		{Name: "KURA_DISCOVERY_DNS_NAME", Value: fmt.Sprintf("%s.$(POD_NAMESPACE).svc.cluster.local", headlessServiceName(instance))},
 		{Name: "KURA_INTERNAL_PORT", Value: fmt.Sprintf("%d", peerPort)},
 		{Name: "KURA_INTERNAL_TLS_CA_CERT_PATH", Value: peerTLSMountPath + "/" + peerTLSCAFile},

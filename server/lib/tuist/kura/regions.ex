@@ -33,6 +33,12 @@ defmodule Tuist.Kura.Regions do
   @managed_region_node_pool_label "node.cluster.x-k8s.io/pool"
   @managed_region_public_host_template "{account_handle}-{cluster_id}.kura.tuist.dev"
   @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+  # Public ingress for the internal/replication (peer mTLS) plane, used only by
+  # accounts that bridge their self-hosted nodes into the managed mesh. The base
+  # host seeds discovery; individual pods are reached at
+  # `<pod>.internal.{account_handle}-{cluster_id}.kura.tuist.dev`.
+  @managed_region_internal_public_host_template "internal.{account_handle}-{cluster_id}.kura.tuist.dev"
+  @managed_region_internal_port 7443
   @managed_region_storage_class "hcloud-volumes"
   @managed_region_specs [
     %{
@@ -131,6 +137,35 @@ defmodule Tuist.Kura.Regions do
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
 
+  @doc """
+  The public host for this region's internal/replication plane (peer mTLS),
+  interpolated for the account, or `nil` if the region has no such template.
+  Only relevant for accounts that bridge self-hosted nodes into the managed mesh.
+  """
+  def internal_public_host(account_handle, %__MODULE__{
+        provisioner_config: %{internal_public_host_template: template, cluster_id: cluster_id}
+      })
+      when is_binary(account_handle) and is_binary(template) do
+    template
+    |> String.replace("{account_handle}", String.downcase(account_handle))
+    |> String.replace("{cluster_id}", cluster_id)
+  end
+
+  def internal_public_host(_account_handle, _region), do: nil
+
+  @doc """
+  Seed peer URL a customer's self-hosted node uses to reach this managed
+  region's mesh over the internet, or `nil`.
+  """
+  def internal_public_peer_url(account_handle, %__MODULE__{provisioner_config: %{internal_port: port}} = region) do
+    case internal_public_host(account_handle, region) do
+      nil -> nil
+      host -> "https://#{host}:#{port}"
+    end
+  end
+
+  def internal_public_peer_url(_account_handle, _region), do: nil
+
   @doc "The region with the given ID in the current runtime, or `nil` if unavailable."
   def available_region(id) when is_binary(id), do: Enum.find(available(), &(&1.id == id))
   def available_region(_), do: nil
@@ -170,6 +205,8 @@ defmodule Tuist.Kura.Regions do
         hetzner_location: spec.hetzner_location,
         public_host_template: @managed_region_public_host_template,
         grpc_public_host_template: @managed_region_grpc_public_host_template,
+        internal_public_host_template: @managed_region_internal_public_host_template,
+        internal_port: @managed_region_internal_port,
         ingress_class_name: spec.ingress_class_name,
         storage_class: @managed_region_storage_class,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),

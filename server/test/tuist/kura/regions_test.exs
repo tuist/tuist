@@ -282,4 +282,22 @@ defmodule Tuist.Kura.RegionsTest do
       end
     end)
   end
+
+  describe "internal_public_host/2 and internal_public_peer_url/2" do
+    test "interpolate the account handle and cluster for a managed region" do
+      region = Regions.get("eu-central")
+
+      assert Regions.internal_public_host("Acme", region) == "internal.acme-eu-central-1.kura.tuist.dev"
+
+      assert Regions.internal_public_peer_url("Acme", region) ==
+               "https://internal.acme-eu-central-1.kura.tuist.dev:7443"
+    end
+
+    test "return nil for regions without an internal public host (local controller)" do
+      region = Regions.get("local-controller")
+
+      assert Regions.internal_public_host("acme", region) == nil
+      assert Regions.internal_public_peer_url("acme", region) == nil
+    end
+  end
 end

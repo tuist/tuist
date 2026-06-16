@@ -190,6 +190,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "grpcPublicHost" => grpc_public_host(account_handle, region),
           "ingressClassName" => ingress_class_name(region, gateway),
           "peerTLSSecretName" => peer_tls_secret_name(name, account, region),
+          "meshBridgingEnabled" => mesh_bridging_enabled?(account),
+          "internalPublicHost" => internal_public_host_for_spec(account, region),
           "private" => Regions.private?(region),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
@@ -275,6 +277,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_bridging_enabled?(_account), do: false
 
+  # The base public host for the region's internal plane, only when the account
+  # bridges into the managed mesh. `nil` (and so dropped from the spec) otherwise.
+  defp internal_public_host_for_spec(%Account{} = account, %Regions{} = region) do
+    if mesh_bridging_enabled?(account), do: Regions.internal_public_host(account.name, region)
+  end
+
+  defp internal_public_host_for_spec(_account, _region), do: nil
+
   defp peer_tls_secret_name(%Regions{provisioner_config: %{peer_tls_secret_name: secret_name}})
        when is_binary(secret_name) and secret_name != "", do: secret_name
 
@@ -291,7 +301,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp build_peer_tls_secret_manifest(name, %Account{} = account, %Regions{} = region) do
-    {:ok, certificate} = Mesh.issue_node_certificate(account, peer_tls_dns_names(name))
+    dns_names = peer_tls_dns_names(name) ++ public_internal_dns_names(account, region)
+    {:ok, certificate} = Mesh.issue_node_certificate(account, dns_names)
 
     %{
       "apiVersion" => "v1",
@@ -313,6 +324,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "tls.key" => certificate.private_key_pem
       }
     }
+  end
+
+  # The public internal hostnames a bridged account's managed pods are reached at
+  # from outside the cluster: the seed host plus a wildcard covering the per-pod
+  # hosts (`<pod>.internal.<account>-<cluster>.kura.tuist.dev`). Empty when the
+  # region has no internal public host.
+  defp public_internal_dns_names(%Account{} = account, %Regions{} = region) do
+    case Regions.internal_public_host(account.name, region) do
+      nil -> []
+      host -> [host, "*.#{host}"]
+    end
   end
 
   # The in-cluster DNS names managed peers reach each other by, mirroring the Go

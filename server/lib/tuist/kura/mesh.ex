@@ -13,7 +13,10 @@ defmodule Tuist.Kura.Mesh do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
+  alias Tuist.FeatureFlags
+  alias Tuist.Kura
   alias Tuist.Kura.MeshCertificateAuthority
+  alias Tuist.Kura.Regions
   alias Tuist.Repo
   alias X509.Certificate.Extension
 
@@ -163,12 +166,45 @@ defmodule Tuist.Kura.Mesh do
   def mesh_peers(%Account{} = account, opts \\ []) do
     exclude = Keyword.get(opts, :exclude)
 
-    from(e in AccountCacheEndpoint,
-      where: e.account_id == ^account.id and e.technology == :kura_self_hosted,
-      select: e.url
-    )
-    |> Repo.all()
+    (self_hosted_peer_urls(account) ++ managed_peer_urls(account))
+    |> Enum.uniq()
     |> Enum.reject(&(&1 == exclude))
+  end
+
+  defp self_hosted_peer_urls(%Account{} = account) do
+    Repo.all(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account.id and e.technology == :kura_self_hosted,
+        select: e.url
+      )
+    )
+  end
+
+  # When the account bridges into the managed mesh, its self-hosted nodes also
+  # need to reach the Tuist-managed regions, so we seed their peer list with each
+  # managed region's public internal endpoint. Discovery expands these seeds to
+  # the individual managed pods.
+  defp managed_peer_urls(%Account{} = account) do
+    if FeatureFlags.kura_mesh_bridging_enabled?(account) do
+      account.id
+      |> Kura.list_servers_for_account()
+      |> Enum.flat_map(&managed_server_peer_urls(account, &1))
+    else
+      []
+    end
+  end
+
+  defp managed_server_peer_urls(%Account{} = account, server) do
+    case Regions.get(server.region) do
+      %Regions{} = region ->
+        case Regions.internal_public_peer_url(account.name, region) do
+          nil -> []
+          url -> [url]
+        end
+
+      _ ->
+        []
+    end
   end
 
   defp register_node_endpoint(%Account{} = account, node_url) do
