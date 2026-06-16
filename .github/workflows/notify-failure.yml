@@ -22,7 +22,6 @@ on:
       - Noora Storybook Deployment
       - Processor
       - Processor Deploy
-      - Release
       - Secret Scanning
       - Skills Release
       - Slack
