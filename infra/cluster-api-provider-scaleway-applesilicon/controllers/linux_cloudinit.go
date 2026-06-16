@@ -7,6 +7,167 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// linuxCloudInitOptions parameterizes the self-join bootstrap across the two
+// Linux machine kinds. The regular Instance kind uses the zero value
+// (root user, no PN VLAN bring-up), delivered as cloud-init user-data; the
+// Elastic Metal kind sets BootstrapUser ("ubuntu") and PrivateNetworkVLAN so
+// the rendered script escalates with sudo and materializes the tagged-VLAN
+// interface before kubelet starts, delivered over SSH.
+type linuxCloudInitOptions struct {
+	// NodeName is the kubelet --hostname-override so the Node name matches
+	// the Machine.
+	NodeName string
+
+	// KubeconfigYAML is the rendered kubelet kubeconfig (token-based, from
+	// kubeconfig.Builder).
+	KubeconfigYAML string
+
+	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
+	K8sMinor string
+
+	// Taints are rendered into kubelet's --register-with-taints.
+	Taints []corev1.Taint
+
+	// BootstrapUser is the OS login user the install lands on. Empty (the
+	// Instance default) means the bootstrap runs directly as root with no
+	// privilege-escalation prefix. A non-root value (Elastic Metal's
+	// "ubuntu") prefixes every privileged command with sudo, since the
+	// bare-metal Ubuntu install logs in as that user.
+	BootstrapUser string
+
+	// PrivateNetworkVLAN, when non-zero, makes the bootstrap bring up the
+	// Private Network as a tagged VLAN on the primary NIC and DHCP it before
+	// kubelet starts. Instances leave this 0: their PN arrives as an
+	// auto-DHCP'd second interface, so no host-side VLAN setup is needed.
+	PrivateNetworkVLAN uint32
+}
+
+const (
+	modulesLoadContent = `overlay
+br_netfilter
+`
+	sysctlContent = `net.bridge.bridge-nf-call-iptables  = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward                 = 1
+`
+	kubeletConfigContent = `apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    enabled: true
+authorization:
+  mode: Webhook
+clusterDomain: cluster.local
+runtimeRequestTimeout: 5m
+serverTLSBootstrap: true
+`
+)
+
+// kubeletUnitContent renders the kubelet systemd unit with the node's
+// hostname-override and any register-with-taints argument.
+func kubeletUnitContent(nodeName, taintArg string) string {
+	return fmt.Sprintf(`[Unit]
+Description=kubelet (tuist runner-cache node)
+After=containerd.service network-online.target
+Wants=containerd.service network-online.target
+[Service]
+ExecStart=/usr/bin/kubelet \
+  --kubeconfig=/var/lib/kubelet/kubeconfig \
+  --config=/var/lib/kubelet/config.yaml \
+  --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
+  --hostname-override=%s \
+  %s--node-labels=node.cluster.x-k8s.io/instance-type=scaleway
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+`, nodeName, taintArg)
+}
+
+// bootstrapBody renders the post-write_files bootstrap steps (swap off, kernel
+// modules, containerd, kubelet install + enable), shared by the cloud-init and
+// SSH-script forms. sudo/sudoE are the privilege-escalation prefixes (empty for
+// root), writeFile redirects into root-owned paths, and vlanSetup optionally
+// brings the PN VLAN up first. The leading indent prefix is supplied by the
+// caller so it nests correctly under cloud-init's YAML block or stands alone in
+// a bare script.
+func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup string) string {
+	containerdConfig := writeFile("containerd config default", "/etc/containerd/config.toml")
+	aptSource := writeFile(
+		fmt.Sprintf(`echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /"`, k8sMinor),
+		"/etc/apt/sources.list.d/kubernetes.list",
+	)
+	return fmt.Sprintf(`%[6]s%[2]sswapoff -a
+%[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
+%[2]smodprobe overlay
+%[2]smodprobe br_netfilter
+%[2]ssysctl --system
+export DEBIAN_FRONTEND=noninteractive
+%[3]sapt-get update
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
+%[2]smkdir -p /etc/containerd
+%[4]s
+%[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+%[2]ssystemctl restart containerd
+%[2]ssystemctl enable containerd
+%[2]smkdir -p /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+%[5]s
+%[3]sapt-get update
+%[3]sapt-get install -y kubelet
+%[2]sapt-mark hold kubelet
+%[2]ssystemctl daemon-reload
+%[2]ssystemctl enable --now kubelet`,
+		k8sMinor, sudo, sudoE, containerdConfig, aptSource, vlanSetup)
+}
+
+// vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
+// VLAN id is set. Elastic Metal delivers the PN as a tagged VLAN on the primary
+// NIC that the host must bring up itself before kubelet starts. The primary NIC
+// name varies by hardware (e.g. enp65s0f0), so detect it at runtime: prefer the
+// default-route interface, else the first non-lo physical NIC. Empty (and
+// therefore a no-op) for the Instance kind, whose PN auto-DHCPs as a second
+// interface.
+func vlanBringUp(sudo string, vlan uint32) string {
+	if vlan == 0 {
+		return ""
+	}
+	return fmt.Sprintf(`PRIMARY_NIC="$(ip -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)"
+if [ -z "$PRIMARY_NIC" ]; then
+  PRIMARY_NIC="$(for n in /sys/class/net/*; do ifn="$(basename "$n")"; case "$ifn" in lo|pn*) continue;; esac; if [ -e "$n/device" ]; then echo "$ifn"; break; fi; done)"
+fi
+%[1]sip link add link "$PRIMARY_NIC" name pn0 type vlan id %[2]d || true
+%[1]sip link set pn0 up
+%[1]sdhclient -nw pn0 || %[1]sdhclient pn0 || true
+`, sudo, vlan)
+}
+
+// escalation returns the (sudo, sudoE) prefixes for the bootstrap commands.
+// Empty for root (the Instance kind, byte-identical to the original); "sudo "
+// and "sudo -E " for a non-root install user (Elastic Metal's "ubuntu").
+func escalation(bootstrapUser string) (sudo, sudoE string) {
+	if bootstrapUser != "" && bootstrapUser != "root" {
+		return "sudo ", "sudo -E "
+	}
+	return "", ""
+}
+
+// writeFileFunc returns a redirect-into-a-root-owned-path renderer. Under root
+// the plain `producer > path` redirect works; under sudo the redirect itself
+// runs as the unprivileged user (the file open happens before sudo), so route
+// the producer's stdout through `sudo tee` instead.
+func writeFileFunc(sudo string) func(producer, path string) string {
+	return func(producer, path string) string {
+		if sudo == "" {
+			return producer + " > " + path
+		}
+		return producer + " | sudo tee " + path + " > /dev/null"
+	}
+}
+
 // renderLinuxCloudInit builds the cloud-init user-data that joins a Scaleway
 // Linux Instance to the externally-managed (Hetzner/caph) cluster WITHOUT
 // kubeadm — mirroring how the Apple Silicon kind bootstraps kubelet directly,
@@ -18,64 +179,52 @@ import (
 // kubeconfigYAML is the rendered kubelet kubeconfig (token-based, from
 // kubeconfig.Builder). k8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
 // nodeName is the --hostname-override so the Node name matches the Machine.
+//
+// This is the Instance-kind entry point and is byte-for-byte unchanged: it
+// delegates to renderLinuxCloudInitWithOptions with the root/no-VLAN defaults.
 func renderLinuxCloudInit(nodeName, kubeconfigYAML, k8sMinor string, taints []corev1.Taint) string {
-	kubelet := indent(kubeconfigYAML, "      ")
-	registerTaints := formatTaints(taints)
+	return renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
+		NodeName:       nodeName,
+		KubeconfigYAML: kubeconfigYAML,
+		K8sMinor:       k8sMinor,
+		Taints:         taints,
+	})
+}
 
-	taintArg := ""
-	if registerTaints != "" {
-		taintArg = "--register-with-taints=" + registerTaints + " "
-	}
+// renderLinuxCloudInitWithOptions is the parameterized cloud-init renderer both
+// Linux kinds can use. The Instance kind passes the zero value for
+// BootstrapUser and PrivateNetworkVLAN, which reproduces the original
+// root-user / no-VLAN output. (Elastic Metal has no cloud-init user-data
+// channel, so it uses renderLinuxBootstrapScript over SSH instead — but the
+// parameterization lives here so both forms share one source of truth.)
+func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
+	kubelet := indent(opts.KubeconfigYAML, "      ")
+	taintArg := taintArgFor(opts.Taints)
+	sudo, sudoE := escalation(opts.BootstrapUser)
+	writeFile := writeFileFunc(sudo)
+	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
+	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup), "      ")
 
 	return fmt.Sprintf(`#cloud-config
 write_files:
   - path: /var/lib/kubelet/kubeconfig
     permissions: '0600'
     content: |
-%s
+%[1]s
   - path: /etc/modules-load.d/k8s.conf
     content: |
-      overlay
-      br_netfilter
+%[2]s
   - path: /etc/sysctl.d/99-k8s.conf
     content: |
-      net.bridge.bridge-nf-call-iptables  = 1
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.ipv4.ip_forward                 = 1
+%[3]s
   - path: /etc/systemd/system/kubelet.service
     permissions: '0644'
     content: |
-      [Unit]
-      Description=kubelet (tuist runner-cache node)
-      After=containerd.service network-online.target
-      Wants=containerd.service network-online.target
-      [Service]
-      ExecStart=/usr/bin/kubelet \
-        --kubeconfig=/var/lib/kubelet/kubeconfig \
-        --config=/var/lib/kubelet/config.yaml \
-        --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
-        --hostname-override=%s \
-        %s--node-labels=node.cluster.x-k8s.io/instance-type=scaleway
-      Restart=always
-      RestartSec=5
-      [Install]
-      WantedBy=multi-user.target
+%[4]s
   - path: /var/lib/kubelet/config.yaml
     permissions: '0644'
     content: |
-      apiVersion: kubelet.config.k8s.io/v1beta1
-      kind: KubeletConfiguration
-      cgroupDriver: systemd
-      authentication:
-        anonymous:
-          enabled: false
-        webhook:
-          enabled: true
-      authorization:
-        mode: Webhook
-      clusterDomain: cluster.local
-      runtimeRequestTimeout: 5m
-      serverTLSBootstrap: true
+%[5]s
   - path: /opt/bootstrap-node.sh
     permissions: '0755'
     content: |
@@ -85,30 +234,67 @@ write_files:
       # bootstrap in a script invoked under bash so pipefail and the curl|gpg
       # pipe fail fast.
       set -euxo pipefail
-      swapoff -a
-      sed -ri '/\sswap\s/s/^/#/' /etc/fstab
-      modprobe overlay
-      modprobe br_netfilter
-      sysctl --system
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y apt-transport-https ca-certificates curl gpg containerd
-      mkdir -p /etc/containerd
-      containerd config default > /etc/containerd/config.toml
-      sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-      systemctl restart containerd
-      systemctl enable containerd
-      mkdir -p /etc/apt/keyrings
-      curl -fsSL https://pkgs.k8s.io/core:/stable:/%s/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
-      apt-get update
-      apt-get install -y kubelet
-      apt-mark hold kubelet
-      systemctl daemon-reload
-      systemctl enable --now kubelet
+%[6]s
 runcmd:
   - [bash, /opt/bootstrap-node.sh]
-`, kubelet, nodeName, taintArg, k8sMinor, k8sMinor)
+`,
+		kubelet,
+		indent(modulesLoadContent, "      "),
+		indent(sysctlContent, "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg), "      "),
+		indent(kubeletConfigContent, "      "),
+		body,
+	)
+}
+
+// renderLinuxBootstrapScript renders the same self-join as a standalone bash
+// script for delivery over SSH (Elastic Metal has no cloud-init user-data
+// channel). It writes the identical files via heredocs and then runs the shared
+// bootstrap body. The script is meant to be piped to `bash` on the host as the
+// install user; commands escalate with sudo per BootstrapUser.
+func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
+	taintArg := taintArgFor(opts.Taints)
+	sudo, sudoE := escalation(opts.BootstrapUser)
+	writeFile := writeFileFunc(sudo)
+	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
+	body := bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup)
+
+	heredoc := func(path, content string) string {
+		// `<<'EOF'` keeps the body literal (no shell expansion of $ or `).
+		writer := sudo + "tee " + path + " > /dev/null"
+		return fmt.Sprintf("%s <<'TUIST_EOF'\n%sTUIST_EOF", writer, ensureTrailingNewline(content))
+	}
+
+	return fmt.Sprintf(`#!/usr/bin/env bash
+set -euxo pipefail
+%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
+%[2]s
+%[1]schmod 0600 /var/lib/kubelet/kubeconfig
+%[3]s
+%[4]s
+%[5]s
+%[6]s
+%[7]s
+`,
+		sudo,
+		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
+		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
+		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg)),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent),
+		body,
+	)
+}
+
+// taintArgFor renders the --register-with-taints argument (with a trailing
+// space so it slots into the kubelet ExecStart line), or "" when there are no
+// taints.
+func taintArgFor(taints []corev1.Taint) string {
+	registerTaints := formatTaints(taints)
+	if registerTaints == "" {
+		return ""
+	}
+	return "--register-with-taints=" + registerTaints + " "
 }
 
 // formatTaints renders []corev1.Taint as kubelet's --register-with-taints
@@ -127,4 +313,11 @@ func indent(s, prefix string) string {
 		lines[i] = prefix + l
 	}
 	return strings.Join(lines, "\n")
+}
+
+func ensureTrailingNewline(s string) string {
+	if strings.HasSuffix(s, "\n") {
+		return s
+	}
+	return s + "\n"
 }

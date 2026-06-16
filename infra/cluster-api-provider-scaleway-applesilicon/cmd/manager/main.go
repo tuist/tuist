@@ -475,6 +475,32 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Elastic Metal (bare-metal) machines (the kura runner-cache pool's
+	// high-throughput shape). Same provider, separate reconciler: bare-metal
+	// servers ordered through the Baremetal API that pass through an OS-install
+	// wait, attach the PN as a tagged VLAN, then SSH-bootstrap the same
+	// self-join the Instance kind delivers via cloud-init.
+	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway baremetal client")
+		os.Exit(1)
+	}
+	if err := (&controllers.ScalewayElasticMetalMachineReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		ScalewayClient:     baremetalClient,
+		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
+		CredentialsManager: credsManager,
+		Kubeconfig:         kubeconfigBuilder,
+		KubernetesMinor:    "v1.34",
+		DefaultOfferType:   "EM-B220E-NVME",
+		DefaultOS:          "ubuntu_noble",
+		DefaultZone:        "fr-par-1",
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
+		os.Exit(1)
+	}
+
 	if fleetSpreadDeployment != "" {
 		ns := fleetSpreadNamespace
 		if ns == "" {
