@@ -57,6 +57,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_deviation: 20.0)
     |> assign(create_alert_form_rolling_window_size: 100)
     |> assign(create_alert_form_git_branch: "")
+    |> assign(create_alert_form_branch_error: nil)
     |> assign(create_alert_form_scheme: "")
     |> assign(create_alert_form_bundle_name: "")
     |> assign(create_alert_form_environment: "any")
@@ -235,6 +236,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_deviation: 20.0)
       |> assign(create_alert_form_rolling_window_size: 100)
       |> assign(create_alert_form_git_branch: "")
+      |> assign(create_alert_form_branch_error: nil)
       |> assign(create_alert_form_scheme: "")
       |> assign(create_alert_form_bundle_name: "")
       |> assign(create_alert_form_environment: "any")
@@ -262,7 +264,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply,
      socket
      |> assign(create_alert_form_category: category)
-     |> assign(create_alert_form_metric: default_metric)}
+     |> assign(create_alert_form_metric: default_metric)
+     |> assign(create_alert_form_branch_error: nil)}
   end
 
   def handle_event("update_create_alert_form_metric", %{"metric" => metric}, socket) do
@@ -284,7 +287,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_create_alert_form_git_branch", %{"value" => git_branch}, socket) do
-    {:noreply, assign(socket, create_alert_form_git_branch: git_branch)}
+    {:noreply,
+     socket
+     |> assign(create_alert_form_git_branch: git_branch)
+     |> assign(create_alert_form_branch_error: nil)}
   end
 
   def handle_event("update_create_alert_form_scheme", %{"value" => scheme}, socket) do
@@ -340,7 +346,12 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_edit_alert_form_git_branch", %{"id" => id, "value" => git_branch}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :git_branch, git_branch)}
+    socket =
+      socket
+      |> update_edit_alert_form(id, :git_branch, git_branch)
+      |> update_edit_alert_form(id, :branch_error, nil)
+
+    {:noreply, socket}
   end
 
   def handle_event("update_edit_alert_form_scheme", %{"id" => id, "value" => scheme}, socket) do
@@ -372,14 +383,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
       slack_webhook_url: assigns.create_alert_form_webhook_url
     }
 
-    {:ok, _alert_rule} = Alerts.create_alert_rule(attrs)
+    case Alerts.create_alert_rule(attrs) do
+      {:ok, _alert_rule} ->
+        socket =
+          socket
+          |> assign_alert_defaults(assigns.selected_project)
+          |> push_event("close-modal", %{id: "create-alert-modal"})
 
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "create-alert-modal"})
+        {:noreply, socket}
 
-    {:noreply, socket}
+      {:error, changeset} ->
+        {:noreply, assign(socket, create_alert_form_branch_error: branch_error(changeset))}
+    end
   end
 
   def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
@@ -404,14 +419,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
         slack_webhook_url: form.webhook_url
       }
 
-      {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
+      case Alerts.update_alert_rule(alert_rule, attrs) do
+        {:ok, _alert_rule} ->
+          socket =
+            socket
+            |> assign_alert_defaults(assigns.selected_project)
+            |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
 
-      socket =
-        socket
-        |> assign_alert_defaults(assigns.selected_project)
-        |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+          {:noreply, socket}
 
-      {:noreply, socket}
+        {:error, changeset} ->
+          {:noreply, update_edit_alert_form(socket, id, :branch_error, branch_error(changeset))}
+      end
     else
       {:noreply, socket}
     end
@@ -596,6 +615,13 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp get_local_hour(utc_datetime, _timezone), do: utc_datetime.hour
 
   # Alert helper functions
+
+  defp branch_error(changeset) do
+    case changeset.errors[:git_branch] do
+      {_message, _opts} -> dgettext("dashboard_projects", "Branch is required.")
+      nil -> nil
+    end
+  end
 
   defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
