@@ -219,7 +219,7 @@ defmodule TuistOpsWeb.SlackController do
               conn,
               channel_id,
               actor_slack_id,
-              ":no_entry: A second human has to approve admin access to a customer org. You can't approve your own request."
+              ":no_entry: Only Owners/Admins can self-approve admin access to a customer org. You'll need a second human to click Approve."
             )
 
           {:error, :approver_not_authorized} ->
