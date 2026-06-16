@@ -1,13 +1,96 @@
 .noora-sidebar {
   display: none;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--noora-spacing-7);
-  padding: var(--noora-spacing-7) var(--noora-spacing-4);
-  width: 220px;
+  position: relative;
+  /* border-box so the rendered box is exactly 228px even with the layout's
+     1px border-right. */
+  box-sizing: border-box;
+  width: 228px;
 
   @media (min-width: 1024px) {
+    display: block;
+  }
+
+  /* The native scrollbar is hidden and replaced by the overlay scrollbar
+     below, so it never reserves a gutter and content doesn't shift when it
+     appears. */
+  & > [data-part="viewport"] {
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--noora-spacing-7);
+    /* border-box so the padding stays inside height: 100% — otherwise the
+       viewport overflows the wrapper by its vertical padding and the bottom
+       of the list is clipped. */
+    box-sizing: border-box;
+    padding: var(--noora-spacing-9) var(--noora-spacing-5);
+    height: 100%;
+    overflow-y: auto;
+    /* The sidebar is a scroll partition: wheel inside it never chains to the
+       page scroll, even when its own scroll hits an edge. */
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* Bottom fade hinting that there is more content to scroll. Driven by the
+     NooraScrollArea hook via data-scrollable / data-at-end. */
+  &::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 48px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      var(--noora-surface-background-primary)
+    );
+    opacity: 0;
+    transition: opacity 150ms var(--ease-out-cubic);
+    pointer-events: none;
+  }
+
+  &[data-scrollable]:not([data-at-end])::after {
+    opacity: 1;
+  }
+
+  & > [data-part="scrollbar"] {
+    display: none;
+    position: absolute;
+    top: var(--noora-spacing-4);
+    right: 0;
+    bottom: var(--noora-spacing-4);
+    width: 12px;
+    z-index: 1;
+
+    & [data-part="thumb"] {
+      position: absolute;
+      top: 0;
+      right: 2px;
+      width: 3px;
+      border-radius: 999px;
+      background: light-dark(
+        var(--noora-neutral-light-600),
+        var(--noora-neutral-dark-600)
+      );
+      cursor: default;
+      transition: width 150ms var(--ease-out-cubic);
+    }
+
+    &:hover [data-part="thumb"],
+    &[data-dragging] [data-part="thumb"] {
+      width: 6px;
+    }
+  }
+
+  @media (pointer: fine) {
+    &[data-scrollable] > [data-part="scrollbar"] {
+      display: block;
+    }
   }
 
   & [data-part="group"] {
@@ -23,20 +106,43 @@
   }
 
   & [data-part="collapsible-group"] {
+    & [data-part="header"] {
+      gap: var(--noora-spacing-0);
+      padding: var(--noora-spacing-0);
+
+      & [data-part="link"] {
+        display: flex;
+        flex-grow: 1;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+        border-radius: var(--noora-radius-3);
+        padding: var(--noora-spacing-3) var(--noora-spacing-0)
+          var(--noora-spacing-3) var(--noora-spacing-4);
+        min-width: 0;
+        color: inherit;
+        user-select: none;
+        text-decoration: unset;
+      }
+
+      & > [data-part="trigger"] {
+        display: flex;
+        align-items: center;
+        margin: var(--noora-spacing-0);
+        border: none;
+        background: transparent;
+        padding: var(--noora-spacing-3) var(--noora-spacing-4);
+
+        &:hover [data-part="indicator"] {
+          color: var(--noora-surface-label-primary);
+        }
+      }
+    }
+
     & [data-part="trigger"] {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--noora-spacing-4);
       cursor: pointer;
       border-radius: var(--noora-radius-3);
       user-select: none;
       text-decoration: unset;
-      &:not(a) {
-        flex-direction: row;
-        align-items: center;
-        padding: var(--noora-spacing-3) var(--noora-spacing-4);
-      }
 
       & [data-part="label"] {
         flex-grow: 1;
@@ -44,34 +150,44 @@
       }
 
       & [data-part="indicator"] {
+        /* Flex blockifies the inline-grid icon-transition child, dropping the
+           line-box strut that otherwise made the box 21px tall and pushed the
+           chevron below the row's vertical center. */
+        display: flex;
+        align-items: center;
         color: var(--noora-surface-label-secondary);
-      }
 
-      &:not([data-state="open"]) [data-part="indicator-up"] {
-        display: none;
-      }
-
-      &[data-state="open"] [data-part="indicator-down"] {
-        display: none;
+        & svg {
+          width: 18px;
+          height: 18px;
+          display: block;
+        }
       }
     }
 
     & [data-part="root"] {
-      &:not([data-state="open"]) [data-part="content"] {
-        display: none;
-      }
-
-      &[data-state="open"] [data-part="content"] {
-        display: flex;
-      }
-
       & [data-part="content"] {
+        display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-6);
-        margin-top: 20px;
+        box-sizing: border-box;
         margin-left: 14px;
         border-left: 1.5px solid var(--noora-surface-border-primary);
+        padding-top: 20px;
         padding-left: 20px;
+        overflow: hidden;
+
+        &[data-state="open"] {
+          animation: noora-sidebar-content-expand 250ms var(--ease-out-cubic);
+        }
+
+        &[data-state="closed"] {
+          animation: noora-sidebar-content-collapse 160ms var(--ease-out-cubic);
+        }
+
+        &[hidden] {
+          display: none;
+        }
       }
     }
   }
@@ -79,5 +195,57 @@
   & [data-part="item"] {
     user-select: none;
     text-decoration: none;
+  }
+}
+
+/* Expand/collapse animation for collapsible group content. `--height` is
+   measured and set by the zag.js collapsible (see NooraCollapsible); it keeps
+   the content mounted until the closing animation ends. */
+/* Vertical padding must animate alongside height: with border-box sizing the
+   box can never be shorter than its padding, so a fixed padding-top would make
+   the sweep stall at 20px and snap. */
+@keyframes noora-sidebar-content-expand {
+  from {
+    height: 0;
+    padding-top: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: var(--height);
+    padding-top: 20px;
+    opacity: 1;
+  }
+}
+
+/* Fade-dominant close: the items are gone halfway through while the height
+   finishes sweeping shut, so closing reads as a quick fade-out rather than a
+   reversed slide. */
+@keyframes noora-sidebar-content-collapse {
+  from {
+    height: var(--height);
+    padding-top: 20px;
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+
+  to {
+    height: 0;
+    padding-top: 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* zag detects animation-name: none and skips waiting for animationend. */
+  .noora-sidebar [data-part="collapsible-group"] [data-part="content"] {
+    animation: none;
+  }
+
+  .noora-sidebar > [data-part="scrollbar"] [data-part="thumb"] {
+    transition: none;
   }
 }
