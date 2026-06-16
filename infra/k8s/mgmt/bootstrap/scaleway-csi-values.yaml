@@ -44,3 +44,10 @@ node:
   nodeSelector:
     kubernetes.io/os: linux
     node.cluster.x-k8s.io/pool: kura-scw-fr-par
+  # Declarative kura nodes carry the runner-cache NoSchedule taint (the
+  # cache pods tolerate it); the CSI node plugin has to tolerate it too or
+  # it never lands on them and their scw-bssd PVCs can't attach.
+  tolerations:
+    - key: tuist.dev/runner-cache
+      operator: Exists
+      effect: NoSchedule
