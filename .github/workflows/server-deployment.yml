@@ -204,17 +204,20 @@ jobs:
       # per-commit `sha-<SHA>` image here lets staging run an in-flight kura
       # change before it's released.
       #
-      # Staging-only on purpose, in lockstep with the deploy job: only staging
-      # pins kuraRuntime.image.tag to this sha image; canary/production resolve
-      # the released `kura@` tag and never reference it, so building it there
-      # would be a wasted ~10-20min Rust compile + an unused push. The
-      # production cascade already skips this whole job (it passes image_tag),
-      # so this guard only matters for a manual canary/production dispatch.
-      # kura/Dockerfile builds from source (context = kura/); the staging
-      # node pool is amd64 (Hetzner ccx), so the runner-native build suffices.
+      # Guarded to exactly the case the deploy job will consume this image, so
+      # nothing builds an image that won't be deployed:
+      #   - environment == 'staging': only staging pins kuraRuntime.image.tag to
+      #     this sha; canary/production resolve the released `kura@` tag and
+      #     never reference it (the production cascade also skips this whole job
+      #     via image_tag, so the env guard only bites a manual prod/canary run).
+      #   - kura_runtime_image_tag == '': when the caller pins an explicit kura
+      #     tag, the deploy uses that instead, so building the sha image is waste.
+      # Keep these two conditions in lockstep with the deploy precedence below.
+      # kura/Dockerfile builds from source (context = kura/); the staging node
+      # pool is amd64 (Hetzner ccx), so the runner-native build suffices.
       - uses: docker/build-push-action@v6
         name: Build and push Kura runtime image
-        if: inputs.environment == 'staging'
+        if: inputs.environment == 'staging' && inputs.kura_runtime_image_tag == ''
         with:
           context: ./kura
           file: ./kura/Dockerfile
@@ -675,15 +678,18 @@ jobs:
 
           # Kura runtime image tag precedence:
           #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
-          #   2. staging tracks the per-commit sha-<SHA> image built in the
-          #      build job — like server + kuraController — so an in-flight
-          #      kura change is exercised on staging before it's released.
-          #   3. canary/production pin the released kura@ tag resolved from
-          #      git, so they never run an unreleased binary.
+          #   2. staging tracks the per-commit sha-<SHA> image — but only when
+          #      THIS run actually built it (image_tag empty ⇒ the build job
+          #      ran). A staging re-roll of a prebuilt server image_tag skips
+          #      the build job, so the kura sha image may not exist; fall
+          #      through to (3) rather than pin a tag that ImagePullBackOffs.
+          #   3. canary/production — and staging re-rolls of a prebuilt image —
+          #      pin the released kura@ tag resolved from git, so they never
+          #      run an unreleased (or never-built) binary.
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
-          elif [ "${{ inputs.environment }}" = "staging" ]; then
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
             kura_runtime_tag="$IMAGE_TAG"
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
