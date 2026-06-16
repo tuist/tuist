@@ -208,8 +208,7 @@ defmodule Tuist.Runners do
   # `:no_work_yet` the web layer and the polling Pod already handle.
   # Every other reason — `:drain`, `:no_pool_label`, `:github_mint_failed`,
   # … — passes through untouched.
-  defp to_caller_result({:error, reason}) when reason in [:empty, :lost_race, :pod_in_use],
-    do: {:error, :no_work_yet}
+  defp to_caller_result({:error, reason}) when reason in [:empty, :lost_race, :pod_in_use], do: {:error, :no_work_yet}
 
   defp to_caller_result(result), do: result
 
