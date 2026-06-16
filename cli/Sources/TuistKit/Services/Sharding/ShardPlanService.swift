@@ -63,6 +63,7 @@
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
         private let commandRunner: CommandRunning
+        private let precompiledMetadataProvider: PrecompiledMetadataProviding
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -78,7 +79,8 @@
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
             appleArchiver: AppleArchiving = AppleArchiver(),
-            commandRunner: CommandRunning = CommandRunner()
+            commandRunner: CommandRunning = CommandRunner(),
+            precompiledMetadataProvider: PrecompiledMetadataProviding = PrecompiledMetadataProvider()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -92,6 +94,7 @@
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
             self.commandRunner = commandRunner
+            self.precompiledMetadataProvider = precompiledMetadataProvider
         }
 
         public func plan(
@@ -238,18 +241,8 @@
         }
 
         private func isMachO(_ path: AbsolutePath) -> Bool {
-            guard let handle = FileHandle(forReadingAtPath: path.pathString) else { return false }
-            defer { try? handle.close() }
-            guard let data = try? handle.read(upToCount: 4), data.count == 4 else { return false }
-            let magics: Set<[UInt8]> = [
-                [0xCF, 0xFA, 0xED, 0xFE], // 64-bit little-endian
-                [0xCE, 0xFA, 0xED, 0xFE], // 32-bit little-endian
-                [0xFE, 0xED, 0xFA, 0xCF], // 64-bit big-endian
-                [0xFE, 0xED, 0xFA, 0xCE], // 32-bit big-endian
-                [0xCA, 0xFE, 0xBA, 0xBE], // universal (fat)
-                [0xBE, 0xBA, 0xFE, 0xCA], // universal (fat, byte-swapped)
-            ]
-            return magics.contains(Array(data))
+            guard let architectures = try? precompiledMetadataProvider.architectures(binaryPath: path) else { return false }
+            return !architectures.isEmpty
         }
     }
 #endif
