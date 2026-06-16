@@ -8,20 +8,13 @@ LAUNCH_DIR="${WORKTREE_ROOT}/.claude"
 LAUNCH_FILE="${LAUNCH_DIR}/launch.json"
 
 # Ports are owned by dev_instance_env.sh, which mise sources for every task via
-# mise.toml's [env]._.source. Consume the exported values so launch.json always
-# matches what the dev servers actually bind. Fall back to a nested mise exec
-# when the task is invoked outside a mise-sourced environment.
+# mise.toml's [env]._.source, so they are already exported in this task's
+# environment.
 server_port="${TUIST_SERVER_PORT:-}"
 cache_port="${TUIST_CACHE_PORT:-}"
-if [[ -z "${server_port}" || -z "${cache_port}" ]]; then
-  read -r server_port cache_port < <(
-    cd "${WORKTREE_ROOT}" &&
-      mise exec -- bash -c 'printf "%s %s" "${TUIST_SERVER_PORT:-}" "${TUIST_CACHE_PORT:-}"' 2>/dev/null || true
-  ) || true
-fi
 
 if ! [[ "${server_port}" =~ ^[0-9]+$ && "${cache_port}" =~ ^[0-9]+$ ]]; then
-  echo "claude:regenerate-launch-json: could not resolve dev ports; skipping" >&2
+  echo "claude:regenerate-launch-json: dev ports unset (run this via mise); skipping" >&2
   exit 0
 fi
 
