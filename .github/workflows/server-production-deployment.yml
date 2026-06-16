@@ -136,6 +136,7 @@ jobs:
             "${{ steps.check.outputs.runner-image-should-release }}" \
             "${{ steps.check.outputs.linux-runner-image-should-release }}" \
             "${{ steps.check.outputs.runners-controller-should-release }}" \
+            "${{ steps.check.outputs.stable-egress-controller-should-release }}" \
             "${{ steps.check.outputs.capi-scaleway-should-release }}" \
             "${{ steps.check.outputs.xcresult-processor-image-should-release }}" \
             "${{ steps.check.outputs.kura-should-release }}"; do

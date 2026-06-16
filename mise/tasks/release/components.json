@@ -162,6 +162,14 @@
       "include_paths": ["infra/hetzner-robot-controller/**/*"]
     },
     {
+      "name": "stable-egress-controller",
+      "tag_prefix": "stable-egress-controller@",
+      "tag_regex": "^stable-egress-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "cliff_config": "infra/stable-egress-controller/cliff.toml",
+      "initial_version": "0.1.0",
+      "include_paths": ["infra/stable-egress-controller/**/*"]
+    },
+    {
       "name": "grafana-datasource",
       "tag_prefix": "grafana-datasource@",
       "tag_regex": "^grafana-datasource@[0-9]+\\.[0-9]+\\.[0-9]+$",

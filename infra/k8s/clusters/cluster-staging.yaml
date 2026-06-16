@@ -60,6 +60,24 @@ spec:
           name: md-0
           replicas: 2
           failureDomain: fsn1
+        # Stable-egress gateway pool (HA, ≥2 nodes) — mirrors production so
+        # the failover controller + cutover are exercised end to end on
+        # staging before production. Nodes self-apply the candidate label
+        # `tuist.dev/stable-egress-candidate=server`; the controller keeps the
+        # Floating IP + active label on one Ready node and fails over on loss.
+        - class: hcloud-worker
+          name: md-egress
+          replicas: 2
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: egress
+          variables:
+            overrides:
+              - name: hcloudWorkerMachineType
+                value: cpx21
+              - name: workerNodeLabels
+                value: tuist.dev/stable-egress-candidate=server
         # Dedicated Kura pool. Staging exposes eu-central so the
         # controller-backed provisioning path can be exercised end to
         # end before the production regional pools receive the same

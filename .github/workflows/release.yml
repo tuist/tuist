@@ -95,6 +95,9 @@ jobs:
       hetzner-robot-controller-should-release: ${{ steps.check.outputs.hetzner-robot-controller-should-release }}
       hetzner-robot-controller-next-version: ${{ steps.check.outputs.hetzner-robot-controller-next-version }}
       hetzner-robot-controller-next-version-number: ${{ steps.check.outputs.hetzner-robot-controller-next-version-number }}
+      stable-egress-controller-should-release: ${{ steps.check.outputs.stable-egress-controller-should-release }}
+      stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
+      stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
       should-release-any: ${{ steps.check.outputs.should-release-any }}
     steps:
       - uses: actions/checkout@v4
@@ -1071,6 +1074,87 @@ jobs:
             infra/hetzner-robot-controller/CHANGELOG.md
           retention-days: 1
 
+  release-stable-egress-controller:
+    name: Release stable-egress-controller
+    needs: check-releases
+    if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^stable-egress-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/stable-egress-controller/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/stable-egress-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/stable-egress-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update CHANGELOG.md
+        working-directory: infra/stable-egress-controller
+        run: |
+          INCLUDE_PATHS=(
+            --include-path "infra/stable-egress-controller/**/*"
+          )
+
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.stable-egress-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/stable-egress-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+            ghcr.io/tuist/tuist-stable-egress-controller:latest
+
+      - name: Upload stable-egress-controller artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          # The platform chart image pin
+          # (infra/helm/platform/values-tuist.yaml's failoverController.image.tag)
+          # is bumped by a Renovate PR that tracks the ghcr tag pushed above, not
+          # by the release pipeline — see renovate.json. The platform chart
+          # deploy rolls it out on that PR's merge. So we only ship the CHANGELOG.
+          name: stable-egress-controller-artifacts
+          path: |
+            infra/stable-egress-controller/CHANGELOG.md
+          retention-days: 1
+
   release-xcresult-processor-image:
     name: Release xcresult processor image
     needs: check-releases
@@ -1546,6 +1630,7 @@ jobs:
         release-capi-scaleway,
         release-runners-controller,
         release-hetzner-robot-controller,
+        release-stable-egress-controller,
         release-xcresult-processor-image,
         release-runner-image,
         release-linux-runner-image,
@@ -1705,6 +1790,15 @@ jobs:
           name: hetzner-robot-controller-artifacts
           path: infra/hetzner-robot-controller
 
+      - name: Download stable-egress-controller artifacts
+        # Carries only infra/stable-egress-controller/CHANGELOG.md; the platform
+        # chart image pin is bumped by a Renovate PR (see renovate.json), not here.
+        if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true' && needs.release-stable-egress-controller.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: stable-egress-controller-artifacts
+          path: infra/stable-egress-controller
+
       - name: Download xcresult-processor-image artifacts
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: actions/download-artifact@v4
@@ -1852,6 +1946,20 @@ jobs:
 
             ${{ needs.release-hetzner-robot-controller.outputs.release-notes }}
 
+      - name: Create stable-egress-controller GitHub Release
+        if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true' && needs.release-stable-egress-controller.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Stable Egress Controller ${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.stable-egress-controller-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}`
+
+            ${{ needs.release-stable-egress-controller.outputs.release-notes }}
+
       - name: Create xcresult-processor-image GitHub Release
         if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' && needs.release-xcresult-processor-image.result == 'success'
         uses: softprops/action-gh-release@v2
@@ -1947,6 +2055,7 @@ jobs:
         check-releases,
         release-capi-scaleway,
         release-runners-controller,
+        release-stable-egress-controller,
         release-xcresult-processor-image,
         release-runner-image,
         release-linux-runner-image,
@@ -1991,6 +2100,7 @@ jobs:
           }
           tag_release "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" "${{ needs.release-capi-scaleway.result }}" "${{ needs.check-releases.outputs.capi-scaleway-next-version }}"
           tag_release "${{ needs.check-releases.outputs.runners-controller-should-release }}" "${{ needs.release-runners-controller.result }}" "${{ needs.check-releases.outputs.runners-controller-next-version }}"
+          tag_release "${{ needs.check-releases.outputs.stable-egress-controller-should-release }}" "${{ needs.release-stable-egress-controller.result }}" "${{ needs.check-releases.outputs.stable-egress-controller-next-version }}"
           tag_release "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" "${{ needs.release-xcresult-processor-image.result }}" "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}"
           tag_release "${{ needs.check-releases.outputs.runner-image-should-release }}" "${{ needs.release-runner-image.result }}" "${{ needs.check-releases.outputs.runner-image-next-version }}"
           tag_release "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" "${{ needs.release-linux-runner-image.result }}" "${{ needs.check-releases.outputs.linux-runner-image-next-version }}"
@@ -2020,6 +2130,7 @@ jobs:
         needs.check-releases.outputs.runner-image-should-release == 'true' ||
         needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
         needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
         needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
         needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
         needs.check-releases.outputs.kura-should-release == 'true'
