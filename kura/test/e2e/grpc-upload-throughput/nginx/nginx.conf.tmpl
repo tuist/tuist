@@ -1,7 +1,7 @@
 # Template for the gateway nginx config used by the throughput harness.
 #
-# generate-confs.sh renders two files from this template by substituting the
-# single marker line in the http{} block below:
+# The confgen step (the client's `genconfs` subcommand) renders two files from
+# this template by substituting the single marker line in the http{} block below:
 #   - generated/patched.conf : marker replaced with the HTTP/2 upload-window
 #     directives DERIVED FROM the live chart values
 #     (infra/helm/platform/values.yaml), so the test tracks the real config

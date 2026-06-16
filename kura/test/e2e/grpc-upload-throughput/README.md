@@ -23,13 +23,15 @@ client ─► toxiproxy ─► nginx-baseline (default window, today)        ─
                     ─► kura (direct, kura's own stream window)
 ```
 
-Both nginx configs are **generated** by `generate-confs.sh` from a single
-template (`nginx/nginx.conf.tmpl`): `patched` injects the HTTP/2 window
-directives read live from the platform chart
+Both nginx configs are **generated** by the harness (the client image's
+`genconfs` subcommand) from a single template (`nginx/nginx.conf.tmpl`):
+`patched` injects the HTTP/2 window directives read live from the platform chart
 (`infra/helm/platform/values.yaml`), `baseline` omits them (nginx defaults).
 The only difference between the two is those directives, and because they are
 read from the chart rather than hand-copied, the test tracks the real config
-instead of a frozen snapshot. A unit test in `infra/kura-controller`
+instead of a frozen snapshot. `genconfs` reads the window keys from **every**
+`kura-*-ingress-nginx` block and fails if they diverge, so it never silently
+renders a de-anchored region. A unit test in `infra/kura-controller`
 (`TestGatewayNginxConfigMatchesChart`) additionally asserts the dedicated-
 gateway ConfigMap equals the chart values, so the two render paths can't drift.
 

@@ -4,7 +4,7 @@ name: kura-throughput-e2e
 #
 #   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
 #                       ─► nginx-patched  (raised window, from chart) ─► kura
-#                       ─► kura (direct, tonic default window)
+#                       ─► kura (direct, kura's own stream window)
 #
 # toxiproxy's proxies + latency toxics are created at runtime by the client.
 
@@ -34,8 +34,9 @@ services:
       KURA_EXTENSION_ENABLED: "false"
       RUST_LOG: "warn"
 
-  # Both confs are rendered by generate-confs.sh from the live chart values
-  # (run.sh does this before `up`); they differ only in the window directives.
+  # Both confs are rendered by the confgen step (the client image's `genconfs`
+  # subcommand, run by run.sh before `up`) from the live chart values; they
+  # differ only in the window directives.
   nginx-baseline:
     image: nginx:1.27
     depends_on: [kura]
@@ -54,6 +55,7 @@ services:
 
   client:
     build: ./client
+    image: kura-throughput-client
     depends_on: [toxiproxy, nginx-baseline, nginx-patched, kura]
     environment:
       TOXIPROXY_API: "http://toxiproxy:8474"
@@ -62,7 +64,24 @@ services:
       LATENCY_MS: "${LATENCY_MS:-50}"
       CHUNK_KB: "${CHUNK_KB:-256}"
       MIN_SPEEDUP: "${MIN_SPEEDUP:-4}"
-      # Patched window derived from the chart by generate-confs.sh, so the
+      # Patched window derived from the chart by the confgen step, so the
       # client's reference ceiling tracks helm (default 4m if run outside run.sh).
       PATCHED_WINDOW_BYTES: "${PATCHED_WINDOW_BYTES:-4194304}"
       PATCHED_WINDOW_LABEL: "${PATCHED_WINDOW_LABEL:-4m}"
+
+  # Renders generated/{baseline,patched}.conf + window.env from the live chart
+  # values using the SAME image as the client (its `genconfs` subcommand) — no
+  # third-party yq image to parse YAML. run.sh runs this before `up`; the
+  # `confgen` profile keeps it out of the default `up` lifecycle.
+  confgen:
+    image: kura-throughput-client
+    profiles: ["confgen"]
+    command: ["genconfs"]
+    environment:
+      CHART_VALUES: "/chart/values.yaml"
+      TEMPLATE_PATH: "/harness/nginx/nginx.conf.tmpl"
+      OUT_DIR: "/harness/generated"
+    volumes:
+      - ../../../../infra/helm/platform/values.yaml:/chart/values.yaml:ro
+      - ./nginx:/harness/nginx:ro
+      - ./generated:/harness/generated

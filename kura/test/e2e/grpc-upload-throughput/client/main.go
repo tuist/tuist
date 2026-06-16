@@ -23,12 +23,17 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gopkg.in/yaml.v3"
 )
 
 // Reference points used only for the informational ceilings printed below —
@@ -70,14 +75,220 @@ func mbpsCeiling(windowBytes, rttMs int) float64 {
 	return (float64(windowBytes) / (float64(rttMs) / 1000.0)) / (1024 * 1024)
 }
 
+var preReadSizeRe = regexp.MustCompile(`http2_body_preread_size\s+([0-9]+[kKmMgG]?)`)
+
+// genConfs renders generated/{baseline,patched}.conf from the nginx template
+// and writes generated/window.env, pulling the HTTP/2 upload-window values from
+// the live platform chart. It replaces a shell + yq-in-docker step: the same Go
+// binary that measures throughput also reads the chart (with anchor/alias
+// resolution), so the harness needs no third-party image to parse YAML.
+//
+// It reads the window keys from EVERY regional gateway block and requires them
+// to agree rather than trusting the shared YAML anchor — so a future per-region
+// override that unwinds the anchor fails loudly here instead of silently
+// rendering one region's config.
+//
+//	patched.conf  = template + window directives derived from values.yaml
+//	baseline.conf = template with the window directives removed (nginx defaults)
+func genConfs() error {
+	chartValues := env("CHART_VALUES", "../../../../infra/helm/platform/values.yaml")
+	tmplPath := env("TEMPLATE_PATH", "nginx/nginx.conf.tmpl")
+	outDir := env("OUT_DIR", "generated")
+
+	raw, err := os.ReadFile(chartValues)
+	if err != nil {
+		return fmt.Errorf("read chart values %s: %w", chartValues, err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return fmt.Errorf("parse chart values: %w", err)
+	}
+	cfg, regions, err := agreedGatewayWindow(doc)
+	if err != nil {
+		return err
+	}
+
+	cbb := cfg["client-body-buffer-size"]
+	streams := cfg["http2-max-concurrent-streams"]
+	snippet := cfg["http-snippet"]
+
+	var directives strings.Builder
+	if cbb != "" {
+		fmt.Fprintf(&directives, "    client_body_buffer_size %s;\n", cbb)
+	}
+	if streams != "" {
+		fmt.Fprintf(&directives, "    http2_max_concurrent_streams %s;\n", streams)
+	}
+	if snippet != "" {
+		// http-snippet is already raw nginx (e.g. "http2_body_preread_size 4m;").
+		fmt.Fprintf(&directives, "    %s\n", snippet)
+	}
+
+	tmpl, err := os.ReadFile(tmplPath)
+	if err != nil {
+		return fmt.Errorf("read template %s: %w", tmplPath, err)
+	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", outDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "patched.conf"), renderConf(tmpl, directives.String()), 0o644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(outDir, "baseline.conf"), renderConf(tmpl, ""), 0o644); err != nil {
+		return err
+	}
+
+	// Reference ceiling for the client: the advertised window from the chart,
+	// falling back to nginx's default when the override is absent.
+	windowLabel, windowBytes := "nginx-default", 65536
+	if size := preReadSize(snippet); size != "" {
+		windowLabel, windowBytes = size, toBytes(size)
+	}
+	windowEnv := fmt.Sprintf("PATCHED_WINDOW_LABEL=%s\nPATCHED_WINDOW_BYTES=%d\n", windowLabel, windowBytes)
+	if err := os.WriteFile(filepath.Join(outDir, "window.env"), []byte(windowEnv), 0o644); err != nil {
+		return err
+	}
+
+	fmt.Printf("genconfs: from %s [%d gateway blocks: %s]\n", chartValues, len(regions), strings.Join(regions, ", "))
+	fmt.Printf("  client-body-buffer-size=%s  http2-max-concurrent-streams=%s  http-snippet=%q\n", cbb, streams, snippet)
+	return nil
+}
+
+// windowKeys are the gateway config keys this harness renders into the patched
+// nginx conf. We only require these to agree across regions; the full
+// controller-vs-chart drift guard over every shared key lives in the
+// infra/kura-controller unit test (TestGatewayNginxConfigMatchesChart).
+var windowKeys = []string{
+	"client-body-buffer-size",
+	"http2-max-concurrent-streams",
+	"http-snippet",
+}
+
+// agreedGatewayWindow reads windowKeys from every kura-*-ingress-nginx block
+// that defines a controller.config and returns the agreed values plus the
+// blocks consulted. It fails if a key diverges across regions or is set in some
+// but not all of them (the shared anchor was unwound), or if no gateway block
+// is found. A key absent from every region is simply omitted (e.g. the fix was
+// reverted), matching nginx defaults.
+func agreedGatewayWindow(doc map[string]any) (map[string]string, []string, error) {
+	var regions []string
+	for name := range doc {
+		if strings.HasPrefix(name, "kura-") && strings.HasSuffix(name, "-ingress-nginx") {
+			if len(gatewayConfig(doc, name)) > 0 {
+				regions = append(regions, name)
+			}
+		}
+	}
+	sort.Strings(regions)
+	if len(regions) == 0 {
+		return nil, nil, fmt.Errorf("no kura-*-ingress-nginx block with controller.config found; chart layout changed")
+	}
+
+	agreed := map[string]string{}
+	for _, key := range windowKeys {
+		var setIn []string
+		var value string
+		for _, name := range regions {
+			v, ok := gatewayConfig(doc, name)[key]
+			if !ok {
+				continue
+			}
+			if len(setIn) > 0 && v != value {
+				return nil, nil, fmt.Errorf(
+					"regional gateway config diverged on %q: %s=%q vs %s=%q — the shared anchor was unwound; update every kura-*-ingress-nginx block together",
+					key, setIn[0], value, name, v)
+			}
+			setIn = append(setIn, name)
+			value = v
+		}
+		switch len(setIn) {
+		case 0:
+			// Key used by no region (e.g. fix reverted) — leave it unset.
+		case len(regions):
+			agreed[key] = value
+		default:
+			return nil, nil, fmt.Errorf(
+				"gateway config key %q is set in %d of %d regional blocks (%s) — diverged; update every kura-*-ingress-nginx block together",
+				key, len(setIn), len(regions), strings.Join(setIn, ", "))
+		}
+	}
+	return agreed, regions, nil
+}
+
+// gatewayConfig returns <gatewayKey>.controller.config as string->string,
+// tolerating a missing block.
+func gatewayConfig(doc map[string]any, gatewayKey string) map[string]string {
+	out := map[string]string{}
+	gw, _ := doc[gatewayKey].(map[string]any)
+	ctrl, _ := gw["controller"].(map[string]any)
+	cfg, _ := ctrl["config"].(map[string]any)
+	for k, v := range cfg {
+		out[k] = fmt.Sprintf("%v", v)
+	}
+	return out
+}
+
+// renderConf emits the template with the marker line replaced by directives
+// (patched) or removed (baseline).
+func renderConf(tmpl []byte, directives string) []byte {
+	var out strings.Builder
+	for _, line := range strings.Split(strings.TrimRight(string(tmpl), "\n"), "\n") {
+		if strings.Contains(line, "__WINDOW_DIRECTIVES__") {
+			out.WriteString(directives)
+			continue
+		}
+		out.WriteString(line)
+		out.WriteByte('\n')
+	}
+	return []byte(out.String())
+}
+
+func preReadSize(snippet string) string {
+	if m := preReadSizeRe.FindStringSubmatch(snippet); len(m) == 2 {
+		return m[1]
+	}
+	return ""
+}
+
+// toBytes converts an nginx size token (e.g. 4m, 64k) to bytes.
+func toBytes(v string) int {
+	if v == "" {
+		return 0
+	}
+	mult, num := 1, v
+	switch v[len(v)-1] {
+	case 'k', 'K':
+		mult, num = 1024, v[:len(v)-1]
+	case 'm', 'M':
+		mult, num = 1024*1024, v[:len(v)-1]
+	case 'g', 'G':
+		mult, num = 1024*1024*1024, v[:len(v)-1]
+	}
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return 0
+	}
+	return n * mult
+}
+
 func main() {
+	// Subcommand: render the nginx confs from the chart. run.sh invokes this
+	// via the same image before `up`.
+	if len(os.Args) > 1 && os.Args[1] == "genconfs" {
+		if err := genConfs(); err != nil {
+			fmt.Fprintln(os.Stderr, "genconfs:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	toxAPI := env("TOXIPROXY_API", "http://toxiproxy:8474")
 	toxHost := env("TOXIPROXY_HOST", "toxiproxy")
 	latencyMs := envInt("LATENCY_MS", 50) // one-way; injected on both streams => RTT ~= 2x
 	sizeMB := envInt("SIZE_MB", 24)
 	chunkKB := envInt("CHUNK_KB", 256)
 	minSpeedup := float64(envInt("MIN_SPEEDUP", 4))
-	// Patched window comes from the chart (via generate-confs.sh + run.sh), so
+	// Patched window comes from the chart (via the confgen step + run.sh), so
 	// even the printed expectation tracks helm, not a hardcoded value.
 	patchedWindowBytes := envInt("PATCHED_WINDOW_BYTES", 4*1024*1024)
 	patchedWindowLabel := env("PATCHED_WINDOW_LABEL", "4m")
