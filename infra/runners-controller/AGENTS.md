@@ -66,6 +66,20 @@ independent workqueues:
   scale-down. A pool with an unrecognised `OS` (or without autoscaling
   enabled) skips the allocator entirely.
 
+  **Allocation observability (`internal/metrics`).** Each tick the
+  reconciler publishes the squeeze on the controller's existing
+  `--metrics-bind-address` endpoint, per `pool`:
+  `tuist_runners_autoscaler_target_replicas` (the pool's full ask, pre-
+  allocation), `..._allocated_replicas` (what it got = `spec.replicas`),
+  `..._min_warm_floor_replicas` (configured `minWarmPoolFloor`), and
+  `..._warm_deficit_replicas` — the warm floor the allocator wanted to
+  fund but couldn't under contention (`max(0, min(load+floor, target) −
+  allocated)`, clamped so load starvation isn't counted). The deficit is
+  the leading indicator for cold boots: alive-vs-desired only shows the
+  pool converging to the *already-squeezed* target, never the squeeze
+  itself. Series are dropped (`metrics.Clear`) when a pool is deleted or
+  opts out of autoscaling.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,
