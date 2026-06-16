@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Probe serial vs parallel download throughput
         run: |
-          set -uo pipefail
+          set +e +o pipefail   # GitHub injects `bash -e`; keep probing past a failed leg
           SIZE=331525911                          # match the ~316 MB shard bundle
           PUBLIC_URL="https://speed.hetzner.de/1GB.bin"   # Range-supporting static file near fr-par
 
@@ -42,16 +42,21 @@ jobs:
           echo "DNS storage.tuist.dev:"; dig +short storage.tuist.dev 2>/dev/null | head
           echo "DNS t3.storage.dev:";    dig +short t3.storage.dev 2>/dev/null | head
 
-          echo "###### Latency to Tigris (storage.tuist.dev) ######"
-          ping -c 5 storage.tuist.dev 2>/dev/null | tail -2 || echo "icmp blocked"
-          curl -so /dev/null -w 'connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
+          echo "###### Latency to Tigris ######"
+          echo "storage.tuist.dev:"
+          ping -c 5 storage.tuist.dev 2>/dev/null | tail -1 || echo "icmp blocked"
+          curl -so /dev/null -w '  connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
             --max-time 20 https://storage.tuist.dev || true
+          echo "t3.storage.dev (endpoint the original CI failure used):"
+          ping -c 5 t3.storage.dev 2>/dev/null | tail -1 || echo "icmp blocked"
+          curl -so /dev/null -w '  connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
+            --max-time 20 https://t3.storage.dev || true
 
           probe () {
             local LABEL="$1"; local URL="$2"
             echo "###### $LABEL ######"
             local code
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -r 0-0 "$URL" 2>/dev/null)
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -r 0-0 "$URL" 2>/dev/null || true)
             case "$code" in
               200|206) ;;
               *) echo "  unreachable (HTTP ${code:-000})"; return ;;
@@ -74,11 +79,11 @@ jobs:
             run_par 8; run_par 16; run_par 32
           }
 
-          probe "Public baseline (Hetzner, Range)" "$PUBLIC_URL"
-
           if [ -n "${BUNDLE_URL:-}" ]; then
             probe "Tigris (shard bundle)" "$BUNDLE_URL"
           else
             echo "###### Tigris (shard bundle) ######"
             echo "  skipped: dispatch with a fresh bundle_url input (or set a BUNDLE_URL secret) for the exact VM->Tigris number"
           fi
+
+          probe "Public baseline (Hetzner, Range)" "$PUBLIC_URL"
