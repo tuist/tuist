@@ -38,6 +38,14 @@ const (
 	// address of the runner-cache node. kubelet can't self-set tuist.dev/*
 	// labels under NodeRestriction, so the controller patches it.
 	pnIPv4Label = "tuist.dev/pn-ipv4"
+
+	// linuxNodeIdentityClusterRole binds the Linux kura node's kubelet identity
+	// to the built-in system:node ClusterRole — the complete, canonical kubelet
+	// permission set — instead of the chart's scoped tart-kubelet role (which
+	// only covers what the macOS shim exercises). A real Linux kubelet needs the
+	// full set (leases, services, PVCs, CSI, ...), and discovering those one
+	// forbidden error at a time is its own kind of outage.
+	linuxNodeIdentityClusterRole = "system:node"
 )
 
 // ScalewayInstanceMachineReconciler reconciles a ScalewayInstanceMachine: it
@@ -156,7 +164,7 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		}
 
 		if server == nil {
-			identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name)
+			identity, idErr := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, linuxNodeIdentityClusterRole)
 			if idErr != nil {
 				machine.Status.Phase = "Pending"
 				return ctrl.Result{RequeueAfter: 20 * time.Second}, fmt.Errorf("mint node identity: %w", idErr)
