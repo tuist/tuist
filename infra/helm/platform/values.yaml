@@ -80,9 +80,10 @@ kura-eu-central-ingress-nginx:
       annotations: {}
     # Anchored so all three regional Kura gateways share ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
-    # derives its patched nginx config from these keys, and the dedicated-
-    # gateway ConfigMap in infra/kura-controller is asserted equal to them in a
-    # unit test — so the window settings cannot silently drift across the three.
+    # derives its patched nginx config from the window keys here, and the
+    # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
+    # every shared key in a unit test (TestGatewayNginxConfigMatchesChart) — so
+    # these settings cannot silently drift between the two render paths.
     config: &kuraGatewayNginxConfig
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"

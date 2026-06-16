@@ -20,7 +20,7 @@ toxiproxy injecting identical symmetric latency:
 ```
 client ─► toxiproxy ─► nginx-baseline (default window, today)        ─► kura
        (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura
-                    ─► kura (direct, tonic default ~1MB window)
+                    ─► kura (direct, kura's own stream window)
 ```
 
 Both nginx configs are **generated** by `generate-confs.sh` from a single
@@ -33,23 +33,17 @@ instead of a frozen snapshot. A unit test in `infra/kura-controller`
 (`TestGatewayNginxConfigMatchesChart`) additionally asserts the dedicated-
 gateway ConfigMap equals the chart values, so the two render paths can't drift.
 
-## Measured results
+## Measured results (2026-06-15)
 
-At the production round-trip time (192ms — the latency measured from the
-Bazel client to `grpc.tuist-us-west-1`), 16MB payload:
+At the staging round-trip time (192ms — the latency measured from the Bazel
+client), 16MB payload:
 
 | path | HTTP/2 upload window | throughput | notes |
 |------|----------------------|-----------|-------|
-| baseline    | 64KB (nginx default) | **0.32 MB/s** (≈335 KB/s) | reproduces the production ~310 KB/s |
-| patched     | 4MB                  | **12.24 MB/s** | **38.7x faster** |
-| direct_kura | ~1MB (tonic default) | 3.76 MB/s | nginx-free control; bounded by kura's own window |
-
-The baseline figure matches both the first-principles prediction
-(64KB ÷ 0.192s = 0.33 MB/s) and the throughput observed in the production
-Bazel gRPC logs, so the harness is reproducing the real bug, not an artifact.
-`patched` exceeds `direct_kura` because nginx's 4MB window is larger than
-kura's own ~1MB tonic stream window — which is why the kura-side
-`max_connection_age` / window work is tracked as a separate follow-up.
+| baseline    | 64KB (nginx default)  | **0.32 MB/s** (≈335 KB/s) | reproduces the production ~310 KB/s |
+| patched     | 4MB (kura 1MB window) | **12.24 MB/s** | **38.7x faster** |
+| direct_kura | ~1MB (tonic default)  | 3.76 MB/s | nginx-free control; bounded by tonic default window |
+| direct_kura | 4MB (new window)      | 5.75 MB/s | nginx-free control; bounded by kura's own window |
 
 ## Run it
 

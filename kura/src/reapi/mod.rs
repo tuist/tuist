@@ -70,13 +70,14 @@ const REAPI_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 
 // A REAPI connection is recycled after this age: the server sends GOAWAY (stop
 // opening new streams), then lets in-flight RPCs run for the grace period before
-// closing. GOAWAY does not sever an in-flight upload — the grace does — so the
-// age stays short (mesh rebalancing onto fresh pods after a rolling deploy), and
-// only the grace is sized to outlast the largest legitimate upload. The previous
-// 300s grace was the bug: it cut large uploads at age+grace=600s. Worst-case
-// connection lifetime is now age+grace=20min, down from the 2h a 3600+3600 pair
-// allowed a slow-but-active stream to hold. Stalls are still bounded by
-// REAPI_WRITE_STALL_TIMEOUT, so a connection with data flowing is never cut.
+// forcibly closing. GOAWAY does not by itself sever an in-flight upload — the
+// grace does — so the age stays short (connections rebalance onto fresh pods
+// after a rolling deploy) while the grace is sized to outlast the largest
+// legitimate upload. The original 300s grace caused bugs, as it cut large 
+// uploads at age+grace=600s, well under the ~680s a 784MB blob needs at WAN RTT.
+// An in-flight upload is still ultimately bounded by age+grace (~20min) — ample
+// for any real upload, not unbounded — and idle streams are reclaimed much
+// sooner by REAPI_WRITE_STALL_TIMEOUT.
 const REAPI_MAX_CONNECTION_AGE: Duration = Duration::from_secs(300);
 const REAPI_MAX_CONNECTION_AGE_GRACE: Duration = Duration::from_secs(900);
 
