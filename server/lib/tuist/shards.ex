@@ -42,7 +42,13 @@ defmodule Tuist.Shards do
         max_duration: Map.get(params, :shard_max_duration)
       )
 
-    shards = BinPacker.pack(units_with_durations, shard_count)
+    shards =
+      if granularity == "suite" do
+        BinPacker.pack(units_with_durations, shard_count, &suite_module/1)
+      else
+        BinPacker.pack(units_with_durations, shard_count)
+      end
+
     now = NaiveDateTime.utc_now()
 
     shard_assignments =
@@ -274,6 +280,15 @@ defmodule Tuist.Shards do
 
   defp extract_units(params, "module"), do: Map.get(params, :modules, [])
   defp extract_units(params, "suite"), do: Map.get(params, :test_suites, [])
+
+  # Suite units are named "Module/Suite"; the module prefix is what determines
+  # which per-module test bundle a shard needs to download.
+  defp suite_module(name) do
+    case String.split(name, "/", parts: 2) do
+      [module | _] -> module
+      _ -> name
+    end
+  end
 
   defp fetch_timing_data(project, "module") do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
