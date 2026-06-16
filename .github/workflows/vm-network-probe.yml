@@ -1,0 +1,81 @@
+name: VM Network Probe
+
+# Diagnostic-only workflow: measures download throughput from inside a tuist-macos
+# tart VM to isolate whether the shard-bundle download bottleneck lives in the VM
+# network path (vs the Scaleway host or Tigris, both of which measured fast).
+# Safe to delete once the investigation concludes.
+
+on:
+  push:
+    branches:
+      - claude/vm-network-probe
+  workflow_dispatch:
+    inputs:
+      bundle_url:
+        description: "Presigned Tigris URL to measure VM->Tigris throughput directly (optional)"
+        required: false
+        default: ""
+
+jobs:
+  vm-network-probe:
+    name: VM network throughput probe
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    env:
+      BUNDLE_URL: ${{ github.event.inputs.bundle_url || secrets.BUNDLE_URL }}
+    steps:
+      - name: Probe serial vs parallel download throughput
+        run: |
+          set -uo pipefail
+          SIZE=331525911                          # match the ~316 MB shard bundle
+          PUBLIC_URL="https://speed.hetzner.de/1GB.bin"   # Range-supporting static file near fr-par
+
+          echo "###### VM identity ######"
+          hostname; sw_vers | tr '\n' ' '; echo; uname -m
+
+          echo "###### Network config ######"
+          route -n get default 2>/dev/null | grep -E "interface|gateway"
+          PRIMARY=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+          ifconfig "$PRIMARY" 2>/dev/null | grep -E "mtu|inet "
+          echo "egress IPv4: $(curl -s4 --max-time 10 https://ifconfig.me || echo n/a)"
+          echo "egress IPv6: $(curl -s6 --max-time 10 https://ifconfig.me || echo n/a)"
+          echo "DNS storage.tuist.dev:"; dig +short storage.tuist.dev 2>/dev/null | head
+          echo "DNS t3.storage.dev:";    dig +short t3.storage.dev 2>/dev/null | head
+
+          echo "###### Latency to Tigris (storage.tuist.dev) ######"
+          ping -c 5 storage.tuist.dev 2>/dev/null | tail -2 || echo "icmp blocked"
+          curl -so /dev/null -w 'connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
+            --max-time 20 https://storage.tuist.dev || true
+
+          probe () {
+            local LABEL="$1"; local URL="$2"
+            echo "###### $LABEL ######"
+            if ! curl -sI --max-time 20 -r 0-0 "$URL" >/dev/null 2>&1; then
+              echo "  unreachable / no Range support"; return
+            fi
+            curl -so /dev/null \
+              -w "  SERIAL    : %{speed_download} B/s  (HTTP %{http_code})  total=%{time_total}s\n" \
+              --max-time 300 -r 0-$((SIZE-1)) "$URL"
+            run_par () {
+              local N=$1; local C=$(((SIZE+N-1)/N)); local s i lo hi e
+              s=$(date +%s.%N)
+              for i in $(seq 0 $((N-1))); do
+                lo=$((i*C)); hi=$((lo+C-1)); [ $hi -ge $SIZE ] && hi=$((SIZE-1))
+                curl -s --max-time 300 -r ${lo}-${hi} -o /dev/null "$URL" &
+              done
+              wait
+              e=$(date +%s.%N)
+              awk -v s="$s" -v e="$e" -v z="$SIZE" -v n="$N" \
+                'BEGIN{t=e-s; if(t<=0)t=0.001; printf "  PARALLEL %2d: %.2f MB/s  total=%.1fs\n", n, z/t/1048576, t}'
+            }
+            run_par 8; run_par 16; run_par 32
+          }
+
+          probe "Public baseline (Hetzner, Range)" "$PUBLIC_URL"
+
+          if [ -n "${BUNDLE_URL:-}" ]; then
+            probe "Tigris (shard bundle)" "$BUNDLE_URL"
+          else
+            echo "###### Tigris (shard bundle) ######"
+            echo "  skipped: dispatch with a fresh bundle_url input (or set a BUNDLE_URL secret) for the exact VM->Tigris number"
+          fi
