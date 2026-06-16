@@ -68,13 +68,17 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 const REAPI_HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const REAPI_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 
-// A REAPI connection is recycled after this age: the server sends GOAWAY, then
-// lets in-flight RPCs run for the grace period before closing. Raised from 5min
-// so connection recycling does not sever a large in-flight upload; stalls are
-// bounded by REAPI_WRITE_STALL_TIMEOUT instead, so a connection with data
-// actively flowing is never cut.
-const REAPI_MAX_CONNECTION_AGE: Duration = Duration::from_secs(3600);
-const REAPI_MAX_CONNECTION_AGE_GRACE: Duration = Duration::from_secs(3600);
+// A REAPI connection is recycled after this age: the server sends GOAWAY (stop
+// opening new streams), then lets in-flight RPCs run for the grace period before
+// closing. GOAWAY does not sever an in-flight upload — the grace does — so the
+// age stays short (mesh rebalancing onto fresh pods after a rolling deploy), and
+// only the grace is sized to outlast the largest legitimate upload. The previous
+// 300s grace was the bug: it cut large uploads at age+grace=600s. Worst-case
+// connection lifetime is now age+grace=20min, down from the 2h a 3600+3600 pair
+// allowed a slow-but-active stream to hold. Stalls are still bounded by
+// REAPI_WRITE_STALL_TIMEOUT, so a connection with data flowing is never cut.
+const REAPI_MAX_CONNECTION_AGE: Duration = Duration::from_secs(300);
+const REAPI_MAX_CONNECTION_AGE_GRACE: Duration = Duration::from_secs(900);
 
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
