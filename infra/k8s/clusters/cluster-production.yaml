@@ -90,7 +90,7 @@ spec:
               # workload, so it doesn't need the general pool's dedicated
               # vCPU shape.
               - name: hcloudWorkerMachineType
-                value: cpx21
+                value: cpx22
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
         # Dedicated processor pool: xcactivitylog parsing.
