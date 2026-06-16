@@ -87,4 +87,13 @@ rules:
   - apiGroups: ["certificates.k8s.io"]
     resources: [certificatesigningrequests]
     verbs: [get, list, watch, create]
+  # Mounting CSI volumes (the scw-bssd cache PVCs) needs the kubelet to read
+  # the PVC/PV bound to each pod and watch the VolumeAttachment the external
+  # attacher creates.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [volumeattachments]
+    verbs: [get, list, watch]
 {{- end }}
