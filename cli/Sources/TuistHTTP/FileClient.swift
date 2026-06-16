@@ -166,7 +166,7 @@ import Path
         }
 
         private func resolvedSession() -> URLSession {
-            session ?? .tuistArtifactTransfer
+            session ?? .tuistShared
         }
 
         // MARK: - HAR Recording

@@ -225,15 +225,22 @@
         /// Test products are built in Debug and carry large symbol tables that aren't needed to run the
         /// tests on shard runners, so removing them shrinks the uploaded and downloaded bundle.
         private func stripDebugSymbols(in directory: AbsolutePath) async throws {
-            let files = try await fileSystem.glob(directory: directory, include: ["**/*"]).collect()
-            var strippedCount = 0
-            for file in files where isMachO(file) {
-                do {
-                    try await commandRunner.runAndWait(arguments: ["/usr/bin/strip", "-S", file.pathString])
-                    strippedCount += 1
-                } catch {
-                    Logger.current.debug("Skipped stripping \(file.pathString): \(error.localizedDescription)")
+            let machOFiles = try await fileSystem.glob(directory: directory, include: ["**/*"])
+                .collect()
+                .filter { isMachO($0) }
+            let strippedCount = await withTaskGroup(of: Bool.self) { group in
+                for file in machOFiles {
+                    group.addTask {
+                        do {
+                            try await commandRunner.runAndWait(arguments: ["/usr/bin/strip", "-S", file.pathString])
+                            return true
+                        } catch {
+                            Logger.current.debug("Skipped stripping \(file.pathString): \(error.localizedDescription)")
+                            return false
+                        }
+                    }
                 }
+                return await group.reduce(into: 0) { $0 += $1 ? 1 : 0 }
             }
             if strippedCount > 0 {
                 Logger.current.debug("Stripped debug symbols from \(strippedCount) binary(ies) before archiving.")
