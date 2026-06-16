@@ -56,8 +56,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
-  CAPI_SCALEWAY_IMAGE_NAME: tuist/capi-provider-scaleway-applesilicon
-  RUNNERS_CONTROLLER_IMAGE_NAME: tuist/tuist-runners-controller
 
 jobs:
   check-releases:
@@ -1844,33 +1842,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-      # Built per-SHA and pinned with the chart (server-deployment.yml sets
-      # macosFleet.image.tag to this same tag) so the capi manager binary and
-      # the flags the chart passes it never skew. The cascade pre-builds it
-      # once here; every env leg then deploys the pinned tag.
-      - uses: docker/build-push-action@v6
-        name: Build and push CAPI Scaleway Apple Silicon provider image
-        with:
-          context: .
-          file: ./infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.CAPI_SCALEWAY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=capi-scaleway-applesilicon
-          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
-      # Per-SHA, same rationale as capi: the chart and the controller binary
-      # it passes flags to must come from one commit. Pre-built once here and
-      # fanned out as the pinned tag to each environment leg.
-      - uses: docker/build-push-action@v6
-        name: Build and push runners-controller image
-        with:
-          context: .
-          file: ./infra/runners-controller/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.RUNNERS_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=runners-controller
-          cache-to: type=gha,mode=max,scope=runners-controller
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary

@@ -99,8 +99,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
-  CAPI_SCALEWAY_IMAGE_NAME: tuist/capi-provider-scaleway-applesilicon
-  RUNNERS_CONTROLLER_IMAGE_NAME: tuist/tuist-runners-controller
   HELM_CHART_PATH: infra/helm/tuist
   HELM_RELEASE_NAME: tuist
   OBSERVABILITY_CHART_PATH: infra/helm/k8s-monitoring
@@ -200,38 +198,6 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-      # Built per-deploy-SHA and pinned alongside the chart (see the
-      # `macosFleet.image.tag` --set below) so the capi manager binary and
-      # the flags the chart passes it always come from the same commit. The
-      # semver `capi-scaleway@` release path stays for tracking, but the
-      # deploy no longer resolves it: a chart that gained a new manager flag
-      # ahead of the latest release would otherwise crash-loop the manager
-      # on `flag provided but not defined`. Native arch only (the cluster is
-      # amd64); the release workflow owns the multi-arch images.
-      - uses: docker/build-push-action@v6
-        name: Build and push CAPI Scaleway Apple Silicon provider image
-        with:
-          context: .
-          file: ./infra/cluster-api-provider-scaleway-applesilicon/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.CAPI_SCALEWAY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=capi-scaleway-applesilicon
-          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon
-      # Same per-SHA rationale as the capi image above: this branch passes
-      # the runners-controller new `-cluster-dns-ip` / `-cluster-domain`
-      # flags, which a stale released image wouldn't define (flag.Parse,
-      # os.Exit(2), CrashLoopBackOff). Build + pin from the deploy SHA.
-      - uses: docker/build-push-action@v6
-        name: Build and push runners-controller image
-        with:
-          context: .
-          file: ./infra/runners-controller/Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.RUNNERS_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=runners-controller
-          cache-to: type=gha,mode=max,scope=runners-controller
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
@@ -510,6 +476,8 @@ jobs:
             echo "KURA_RUNTIME_TAG=$(resolve 'kura@')"
             echo "RUNNER_IMAGE_SEMVER=$(resolve 'runner-image@')"
             echo "LINUX_RUNNER_IMAGE_VERSION=$(resolve 'linux-runner-image@')"
+            echo "CAPI_TAG=$(resolve 'capi-scaleway@')"
+            echo "RUNNERS_CONTROLLER_TAG=$(resolve 'runners-controller@')"
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
@@ -689,6 +657,8 @@ jobs:
             kura_runtime_tag="${KURA_RUNTIME_TAG:-}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+          add_set "macosFleet.image.tag" "${CAPI_TAG:-}"
+          add_set "runnersController.image.tag" "${RUNNERS_CONTROLLER_TAG:-}"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -696,8 +666,6 @@ jobs:
             -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
             --set server.image.tag="$IMAGE_TAG" \
             --set kuraController.image.tag="$IMAGE_TAG" \
-            --set macosFleet.image.tag="$IMAGE_TAG" \
-            --set runnersController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
