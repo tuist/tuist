@@ -1,20 +1,15 @@
 name: VM Network Probe
 
 # Diagnostic-only workflow: measures download throughput from inside a tuist-macos
-# tart VM to isolate whether the shard-bundle download bottleneck lives in the VM
-# network path (vs the Scaleway host or Tigris, both of which measured fast).
-# Safe to delete once the investigation concludes.
+# tart VM to compare Tigris endpoints (near "storage.tuist.dev" vs far
+# "t3.tigrisfiles.io") serial-vs-parallel, isolating the shard-bundle download
+# bottleneck. Safe to delete once the investigation concludes.
 
 on:
   push:
     branches:
       - claude/vm-network-probe
   workflow_dispatch:
-    inputs:
-      bundle_url:
-        description: "Presigned Tigris URL to measure VM->Tigris throughput directly (optional)"
-        required: false
-        default: ""
 
 jobs:
   vm-network-probe:
@@ -22,13 +17,13 @@ jobs:
     runs-on: tuist-macos
     timeout-minutes: 30
     env:
-      BUNDLE_URL: ${{ github.event.inputs.bundle_url || secrets.BUNDLE_URL }}
+      NEAR_URL: ${{ secrets.BUNDLE_URL_NEAR }}
+      T3_URL: ${{ secrets.BUNDLE_URL_T3 }}
     steps:
-      - name: Probe serial vs parallel download throughput
+      - name: Probe serial vs parallel download throughput per endpoint
         run: |
           set +e +o pipefail   # GitHub injects `bash -e`; keep probing past a failed leg
-          SIZE=331525911                          # match the ~316 MB shard bundle
-          PUBLIC_URL="https://speed.hetzner.de/1GB.bin"   # Range-supporting static file near fr-par
+          SIZE=331525911       # match the ~316 MB shard bundle
 
           echo "###### VM identity ######"
           hostname; sw_vers | tr '\n' ' '; echo; uname -m
@@ -39,18 +34,18 @@ jobs:
           ifconfig "$PRIMARY" 2>/dev/null | grep -E "mtu|inet "
           echo "egress IPv4: $(curl -s4 --max-time 10 https://ifconfig.me || echo n/a)"
           echo "egress IPv6: $(curl -s6 --max-time 10 https://ifconfig.me || echo n/a)"
-          echo "DNS storage.tuist.dev:"; dig +short storage.tuist.dev 2>/dev/null | head
-          echo "DNS t3.storage.dev:";    dig +short t3.storage.dev 2>/dev/null | head
 
-          echo "###### Latency to Tigris ######"
-          echo "storage.tuist.dev:"
-          ping -c 5 storage.tuist.dev 2>/dev/null | tail -1 || echo "icmp blocked"
-          curl -so /dev/null -w '  connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
-            --max-time 20 https://storage.tuist.dev || true
-          echo "t3.storage.dev (endpoint the original CI failure used):"
-          ping -c 5 t3.storage.dev 2>/dev/null | tail -1 || echo "icmp blocked"
-          curl -so /dev/null -w '  connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
-            --max-time 20 https://t3.storage.dev || true
+          latency () {
+            local H="$1"
+            echo "$H:"
+            ping -c 5 "$H" 2>/dev/null | tail -1 || echo "  icmp blocked"
+            curl -so /dev/null -w '  connect=%{time_connect}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s\n' \
+              --max-time 20 "https://$H" || true
+          }
+          echo "###### Latency to Tigris endpoints ######"
+          latency storage.tuist.dev
+          latency t3.storage.dev
+          latency tuist-prod-storage.t3.tigrisfiles.io
 
           probe () {
             local LABEL="$1"; local URL="$2"
@@ -79,11 +74,14 @@ jobs:
             run_par 8; run_par 16; run_par 32
           }
 
-          if [ -n "${BUNDLE_URL:-}" ]; then
-            probe "Tigris (shard bundle)" "$BUNDLE_URL"
+          if [ -n "${NEAR_URL:-}" ]; then
+            probe "NEAR endpoint (storage.tuist.dev, ~1.4ms)" "$NEAR_URL"
           else
-            echo "###### Tigris (shard bundle) ######"
-            echo "  skipped: dispatch with a fresh bundle_url input (or set a BUNDLE_URL secret) for the exact VM->Tigris number"
+            echo "###### NEAR endpoint ######"; echo "  skipped: no BUNDLE_URL_NEAR secret"
           fi
 
-          probe "Public baseline (Hetzner, Range)" "$PUBLIC_URL"
+          if [ -n "${T3_URL:-}" ]; then
+            probe "T3 endpoint (t3.tigrisfiles.io, far)" "$T3_URL"
+          else
+            echo "###### T3 endpoint ######"; echo "  skipped: no BUNDLE_URL_T3 secret"
+          fi
