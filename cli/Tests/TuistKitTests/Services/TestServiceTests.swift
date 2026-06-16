@@ -1107,6 +1107,104 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_uploads_skipped_test_run_when_scheme_is_in_initial_graph_only() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            var environment = MapperEnvironment()
+            environment.initialGraph = .test(
+                projects: [
+                    try temporaryPath(): .test(schemes: [.test(name: "ProjectSchemeOne")]),
+                ]
+            )
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (
+                        path,
+                        .test(),
+                        environment
+                    )
+                }
+            given(createTestService)
+                .createTest(
+                    fullHandle: .any,
+                    serverURL: .any,
+                    id: .any,
+                    testSummary: .any,
+                    buildRunId: .any,
+                    gitBranch: .any,
+                    gitCommitSHA: .any,
+                    gitRef: .any,
+                    gitRemoteURLOrigin: .any,
+                    isCI: .any,
+                    modelIdentifier: .any,
+                    macOSVersion: .any,
+                    xcodeVersion: .any,
+                    ciRunId: .any,
+                    ciProjectHandle: .any,
+                    ciHost: .any,
+                    ciProvider: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any
+                )
+                .willReturn(
+                    Components.Schemas.RunsTest(
+                        duration: 0,
+                        id: "skipped-test-run-id",
+                        project_id: 0,
+                        test_case_runs: [],
+                        _type: .test,
+                        url: ""
+                    )
+                )
+            given(xcodebuildController)
+                .version()
+                .willReturn(Version(16, 0, 0))
+
+            // When
+            try await testRun(
+                schemeName: "ProjectSchemeOne",
+                path: try temporaryPath()
+            )
+
+            // Then
+            XCTAssertEmpty(testedSchemes)
+            verify(createTestService)
+                .createTest(
+                    fullHandle: .value("tuist/tuist"),
+                    serverURL: .value(URL(string: "https://tuist.dev")!),
+                    id: .value(nil),
+                    testSummary: .matching { summary in
+                        summary.testPlanName == "ProjectSchemeOne"
+                            && summary.status == .skipped
+                            && summary.testModules.isEmpty
+                    },
+                    buildRunId: .value(nil),
+                    gitBranch: .any,
+                    gitCommitSHA: .any,
+                    gitRef: .any,
+                    gitRemoteURLOrigin: .any,
+                    isCI: .value(false),
+                    modelIdentifier: .any,
+                    macOSVersion: .any,
+                    xcodeVersion: .any,
+                    ciRunId: .any,
+                    ciProjectHandle: .any,
+                    ciHost: .any,
+                    ciProvider: .any,
+                    shardPlanId: .value(nil),
+                    shardIndex: .value(nil)
+                )
+                .called(1)
+            let testRunId = await runMetadataStorage.testRunId
+            XCTAssertEqual(testRunId, "skipped-test-run-id")
+        }
+    }
+
     func test_skips_running_tests_when_all_tests_are_cached() async throws {
         try await withMockedDependencies {
             // Given
