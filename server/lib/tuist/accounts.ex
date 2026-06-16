@@ -1270,13 +1270,18 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
-  Returns true when at least one organization on this instance has an SSO
-  provider configured. Drives whether the login page surfaces the SSO entry
-  point: the generic login form has no email yet, so it can't resolve a single
-  organization and instead asks whether SSO is reachable on the instance at all.
+  Returns true when at least one organization on this instance has an Okta or
+  generic OAuth2 SSO provider configured. Drives whether the login page surfaces
+  the SSO entry point: the generic login form has no email yet, so it can't
+  resolve a single organization and instead asks whether SSO is reachable on the
+  instance at all.
+
+  Scoped to `:okta`/`:oauth2` because those are the providers the email-based
+  `/users/log_in/sso` flow resolves by domain. Google SSO logs in through the
+  regular Google button instead, so it must not surface a dead-end SSO entry.
   """
   def sso_configured? do
-    Repo.exists?(from(o in Organization, where: not is_nil(o.sso_provider)))
+    Repo.exists?(from(o in Organization, where: o.sso_provider in [:okta, :oauth2]))
   end
 
   @doc """
