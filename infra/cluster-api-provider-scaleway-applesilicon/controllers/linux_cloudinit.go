@@ -76,23 +76,38 @@ write_files:
       clusterDomain: cluster.local
       runtimeRequestTimeout: 5m
       serverTLSBootstrap: true
+  - path: /opt/bootstrap-node.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      # cloud-init runs runcmd entries under dash, which rejects pipefail with
+      # an "Illegal option" error and aborts the whole bootstrap. Keep the
+      # bootstrap in a script invoked under bash so pipefail and the curl|gpg
+      # pipe fail fast.
+      set -euxo pipefail
+      swapoff -a
+      sed -ri '/\sswap\s/s/^/#/' /etc/fstab
+      modprobe overlay
+      modprobe br_netfilter
+      sysctl --system
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y apt-transport-https ca-certificates curl gpg containerd
+      mkdir -p /etc/containerd
+      containerd config default > /etc/containerd/config.toml
+      sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+      systemctl restart containerd
+      systemctl enable containerd
+      mkdir -p /etc/apt/keyrings
+      curl -fsSL https://pkgs.k8s.io/core:/stable:/%s/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+      apt-get update
+      apt-get install -y kubelet
+      apt-mark hold kubelet
+      systemctl daemon-reload
+      systemctl enable --now kubelet
 runcmd:
-  - set -euxo pipefail
-  - swapoff -a && sed -ri '/\sswap\s/s/^/#/' /etc/fstab
-  - modprobe overlay && modprobe br_netfilter && sysctl --system
-  - export DEBIAN_FRONTEND=noninteractive
-  - apt-get update
-  - apt-get install -y apt-transport-https ca-certificates curl gpg containerd
-  - mkdir -p /etc/containerd && containerd config default > /etc/containerd/config.toml
-  - sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-  - systemctl restart containerd && systemctl enable containerd
-  - mkdir -p /etc/apt/keyrings
-  - curl -fsSL https://pkgs.k8s.io/core:/stable:/%s/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
-  - apt-get update
-  - apt-get install -y kubelet
-  - apt-mark hold kubelet
-  - systemctl daemon-reload && systemctl enable --now kubelet
+  - [bash, /opt/bootstrap-node.sh]
 `, kubelet, nodeName, taintArg, k8sMinor, k8sMinor)
 }
 
