@@ -245,13 +245,20 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNode(ctx context.Context, m
 	}
 
 	if machine.Spec.PrivateNetworkID != "" && node.Labels[pnIPv4Label] == "" {
+		logger := log.FromContext(ctx)
 		ip, ipErr := r.privateNetworkIP(ctx, machine)
-		if ipErr == nil && ip != "" {
+		switch {
+		case ipErr != nil:
+			logger.Info("pn-ipv4 unresolved, will retry", "node", node.Name, "err", ipErr.Error())
+		case ip == "":
+			logger.Info("pn-ipv4 IPAM address not assigned yet, will retry", "node", node.Name)
+		default:
 			if node.Labels == nil {
 				node.Labels = map[string]string{}
 			}
 			node.Labels[pnIPv4Label] = ip
 			changed = true
+			logger.Info("stamped pn-ipv4 label", "node", node.Name, "ip", ip)
 		}
 	}
 

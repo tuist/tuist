@@ -269,3 +269,27 @@ func TestPrivateNetworkIP_ReadsIPAMForTheNIC(t *testing.T) {
 		t.Fatalf("expected the matching NIC's IPv4 172.16.0.2, got %q", ip)
 	}
 }
+
+func TestPrivateNetworkIP_MatchesByResourceNameWhenNicsEmpty(t *testing.T) {
+	// GetServer doesn't always populate PrivateNics; the IPAM resource name is
+	// set to the server name, so the IPv4 still resolves off the name alone.
+	server := &instance.Server{Name: "kura-scw-fr-par-xyz", Zone: scw.ZoneFrPar1}
+	name := "kura-scw-fr-par-xyz"
+	other := "someone-else"
+	c := &InstanceClient{
+		IPAM: &fakeIPAMAPI{ips: []*ipam.IP{
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("172.16.9.9")}}, Resource: &ipam.Resource{Name: &other}},
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("fd58::5")}}, Resource: &ipam.Resource{Name: &name}},
+			{Address: scw.IPNet{IPNet: net.IPNet{IP: net.ParseIP("172.16.0.7"), Mask: net.CIDRMask(22, 32)}}, Resource: &ipam.Resource{Name: &name}},
+		}},
+		ProjectID: "proj-1",
+	}
+
+	ip, err := c.PrivateNetworkIP(context.Background(), server, "pn-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip != "172.16.0.7" {
+		t.Fatalf("expected the server's IPv4 172.16.0.7 matched by name, got %q", ip)
+	}
+}

@@ -281,23 +281,9 @@ func isNotFound(err error) bool {
 // the given Private Network (without the CIDR suffix), or "" if not yet
 // assigned. Used for the node's tuist.dev/pn-ipv4 label.
 func (c *InstanceClient) PrivateNetworkIP(ctx context.Context, server *instance.Server, privateNetworkID string) (string, error) {
-	var nic *instance.PrivateNIC
-	for _, n := range server.PrivateNics {
-		if n.PrivateNetworkID == privateNetworkID {
-			nic = n
-			break
-		}
-	}
-	if nic == nil {
-		return "", nil
-	}
-
 	// Filter by the Private Network only: the IPAM API requires exactly one of
 	// Zonal/PrivateNetworkID/SubnetID, so the original Zonal+PN combination was
-	// rejected and returned nothing. Match the NIC client-side instead — the
-	// Instance API reports the MAC lowercase while IPAM stores it uppercase, and
-	// the NIC carries both an IPv4 and an IPv6, so compare case-insensitively
-	// and return the IPv4 (the value dispatch routes runner cache traffic to).
+	// rejected and returned nothing.
 	resp, err := c.IPAM.ListIPs(&ipam.ListIPsRequest{
 		PrivateNetworkID: &privateNetworkID,
 		ProjectID:        &c.ProjectID,
@@ -305,11 +291,25 @@ func (c *InstanceClient) PrivateNetworkIP(ctx context.Context, server *instance.
 	if err != nil {
 		return "", fmt.Errorf("list IPAM IPs for PN %s: %w", privateNetworkID, err)
 	}
+
+	// Match this server's IPAM row by the resource name (Scaleway sets the PN
+	// DNS record to the server name) or any of its NIC MACs, then return the
+	// IPv4. Both are needed because GetServer doesn't always populate
+	// PrivateNics, and when it does the Instance API reports the MAC lowercase
+	// while IPAM stores it uppercase; the NIC also carries an IPv6 to skip.
+	macs := map[string]bool{}
+	for _, n := range server.PrivateNics {
+		if n.PrivateNetworkID == privateNetworkID {
+			macs[strings.ToLower(n.MacAddress)] = true
+		}
+	}
 	for _, ip := range resp.IPs {
-		if ip.Resource == nil || ip.Resource.MacAddress == nil {
+		if ip.Resource == nil {
 			continue
 		}
-		if !strings.EqualFold(*ip.Resource.MacAddress, nic.MacAddress) {
+		nameMatch := ip.Resource.Name != nil && *ip.Resource.Name == server.Name
+		macMatch := ip.Resource.MacAddress != nil && macs[strings.ToLower(*ip.Resource.MacAddress)]
+		if !nameMatch && !macMatch {
 			continue
 		}
 		if ip.Address.IP.To4() == nil {
