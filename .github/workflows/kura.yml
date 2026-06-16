@@ -192,6 +192,8 @@ jobs:
             specs: "spec/e2e/discovery_spec.sh spec/e2e/faults_spec.sh spec/e2e/handoff_spec.sh"
           - shard_name: extension-mtls
             specs: "spec/e2e/extension_spec.sh spec/e2e/mtls_spec.sh"
+          - shard_name: large-artifact
+            specs: "spec/e2e/large_artifact_spec.sh"
     env:
       KURA_E2E_SKIP_BUILD: "1"
     steps:
@@ -216,7 +218,7 @@ jobs:
 
       - name: Retag prebuilt Docker images for every suite project
         run: |
-          for project in kura-e2e kura-clients kura-discovery kura-faults kura-handoff kura-extension kura-mtls kura-rollout; do
+          for project in kura-e2e kura-clients kura-discovery kura-faults kura-handoff kura-extension kura-mtls kura-rollout kura-large-artifact; do
             for service in kura-us kura-eu kura-ap; do
               docker tag "kura-${service}" "${project}-${service}"
             done
