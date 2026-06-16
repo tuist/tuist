@@ -53,14 +53,32 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     end
   end
 
-  test "allows ops users to access settings for any account", %{conn: conn} do
+  test "allows an operator holding an admin grant to access settings for any account", %{
+    conn: conn
+  } do
     organization =
       AccountsFixtures.organization_fixture(preload: [:account])
 
-    user = AccountsFixtures.user_fixture()
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    now = System.system_time(:second)
 
-    conn = log_in_user(conn, user)
+    conn =
+      conn
+      |> log_in_user(user)
+      |> Plug.Conn.put_session("operator_grants", %{
+        organization.account.name => %{
+          tier: :admin,
+          account_id: organization.account.id,
+          account_handle: organization.account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+      })
 
     {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings")
 

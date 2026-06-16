@@ -51,6 +51,7 @@ where
         tmp_dir: temp_dir.path().join("tmp"),
         data_dir: temp_dir.path().join("data"),
         tmp_dir_max_bytes: 8 * 1024 * 1024 * 1024,
+        cas_capacity_bytes: None,
         node_url: "http://127.0.0.1:7443".into(),
         peer_gateway_url: None,
         peers: vec!["http://127.0.0.1:7443".into()],

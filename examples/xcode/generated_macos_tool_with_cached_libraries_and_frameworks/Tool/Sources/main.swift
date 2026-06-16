@@ -1,0 +1,4 @@
+import DiagnosticsDynamicLibrary
+import FeatureFramework
+
+print(DiagnosticsDynamicLibrary.decorate(FeatureFramework.message))

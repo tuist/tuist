@@ -125,6 +125,11 @@ async fn run_with_config(
         config.memory_hard_limit_bytes,
     );
     let store = Store::open(&config, io.clone(), memory.clone())?;
+    match store.sweep_orphaned_segments().await {
+        Ok(0) => {}
+        Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
+        Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
+    }
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
     let internal_tls = match &config.peer_tls {

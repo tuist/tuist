@@ -25,8 +25,8 @@ public protocol GraphContentHashing {
 }
 
 /// `GraphContentHasher`
-/// is responsible for computing an hash that uniquely identifies a Tuist `Graph`.
-/// It considers only targets that are considered cacheable: frameworks without dependencies on XCTest or on non-cacheable targets
+/// is responsible for computing a hash that uniquely identifies a Tuist `Graph`.
+/// It hashes targets included by the caller when their target dependencies are hashable too.
 public struct GraphContentHasher: GraphContentHashing {
     private let contentHasher: ContentHashing
     private let targetContentHasher: TargetContentHashing

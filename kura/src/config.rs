@@ -17,6 +17,7 @@ const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
 const KURA_DATA_DIR: &str = "KURA_DATA_DIR";
 const KURA_TMP_DIR_MAX_BYTES: &str = "KURA_TMP_DIR_MAX_BYTES";
+const KURA_CAS_CAPACITY_BYTES: &str = "KURA_CAS_CAPACITY_BYTES";
 const KURA_NODE_URL: &str = "KURA_NODE_URL";
 const KURA_PEER_GATEWAY_URL: &str = "KURA_PEER_GATEWAY_URL";
 const KURA_PEERS: &str = "KURA_PEERS";
@@ -112,6 +113,9 @@ pub struct Config {
     pub tmp_dir: PathBuf,
     pub data_dir: PathBuf,
     pub tmp_dir_max_bytes: u64,
+    /// Operator-provided CAS segment-ring budget. When unset, the store
+    /// derives the budget from the data-dir filesystem size at startup.
+    pub cas_capacity_bytes: Option<u64>,
     pub node_url: String,
     pub peer_gateway_url: Option<String>,
     pub peers: Vec<String>,
@@ -394,6 +398,19 @@ impl Config {
             .unwrap_or(DEFAULT_TMP_DIR_MAX_BYTES);
         if tmp_dir_max_bytes == 0 {
             invalid.push(format!("{KURA_TMP_DIR_MAX_BYTES} must be greater than 0"));
+        }
+        let cas_capacity_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_CAS_CAPACITY_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_CAS_CAPACITY_BYTES} must be a valid u64"))
+            },
+        );
+        if cas_capacity_bytes == Some(0) {
+            invalid.push(format!("{KURA_CAS_CAPACITY_BYTES} must be greater than 0"));
         }
         let node_url = required_value(&mut lookup, KURA_NODE_URL, &mut missing);
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
@@ -1290,6 +1307,7 @@ impl Config {
             tmp_dir: tmp_dir.expect("tmp_dir should be present when configuration is valid"),
             data_dir: data_dir.expect("data_dir should be present when configuration is valid"),
             tmp_dir_max_bytes,
+            cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
             peers: peers.expect("peers should be present when configuration is valid"),
@@ -1738,6 +1756,32 @@ mod tests {
         .expect("expected geoip config to parse");
 
         assert_eq!(config.geoip_refresh_interval_secs, 3_600);
+    }
+
+    #[test]
+    fn cas_capacity_bytes_defaults_to_unset() {
+        let config = config_from(&[]).expect("expected config to parse");
+
+        assert_eq!(config.cas_capacity_bytes, None);
+    }
+
+    #[test]
+    fn from_lookup_parses_cas_capacity_bytes_override() {
+        let config = config_from(&[(KURA_CAS_CAPACITY_BYTES, "21474836480")])
+            .expect("expected cas capacity config to parse");
+
+        assert_eq!(config.cas_capacity_bytes, Some(21_474_836_480));
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_cas_capacity_bytes() {
+        let error = config_from(&[(KURA_CAS_CAPACITY_BYTES, "invalid")])
+            .expect_err("expected invalid cas capacity to be rejected");
+        assert!(error.contains(KURA_CAS_CAPACITY_BYTES));
+
+        let error = config_from(&[(KURA_CAS_CAPACITY_BYTES, "0")])
+            .expect_err("expected zero cas capacity to be rejected");
+        assert!(error.contains(KURA_CAS_CAPACITY_BYTES));
     }
 
     #[test]

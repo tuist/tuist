@@ -76,8 +76,7 @@ defmodule TuistWeb.CacheLiveTest do
     refute html =~ "Kura"
   end
 
-  test "shows cache server state, domain, and version", %{conn: conn, user: user, account: account} do
-    enable_ops_for(user)
+  test "shows cache server state, domain, and version", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
@@ -150,12 +149,7 @@ defmodule TuistWeb.CacheLiveTest do
     assert html =~ "https://test-org-us-east-1.kura.tuist.dev"
   end
 
-  test "allows adding another managed region when one is already deployed", %{
-    conn: conn,
-    user: user,
-    account: account
-  } do
-    enable_ops_for(user)
+  test "allows adding another managed region when one is already deployed", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Environment, :test?, fn -> false end)
     stub(Environment, :kura_available_region_ids, fn -> ["eu-central", "us-east", "us-west"] end)
@@ -172,8 +166,7 @@ defmodule TuistWeb.CacheLiveTest do
     assert has_element?(lv, "button", "Deploy server")
   end
 
-  test "deploys a cache server", %{conn: conn, user: user, account: account} do
-    enable_ops_for(user)
+  test "deploys a cache server", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.2", released_at: DateTime.utc_now(:second)}] end)
 
@@ -200,10 +193,6 @@ defmodule TuistWeb.CacheLiveTest do
       add_cache_server_form: Phoenix.Component.to_form(%{}, as: :server),
       latest_version: nil
     }
-  end
-
-  defp enable_ops_for(user) do
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
   end
 
   defp enable_cache(account) do

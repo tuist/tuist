@@ -12,6 +12,7 @@ import NooraDropdownCheckbox from "./DropdownCheckbox.js";
 import NooraIconTransition from "./IconTransition.js";
 import NooraModal from "./Modal.js";
 import NooraPopover from "./Popover.js";
+import NooraScrollArea from "./ScrollArea.js";
 import NooraSelect from "./Select.js";
 import NooraTabs from "./Tabs.js";
 import NooraTagsInput from "./TagsInput.js";
@@ -31,6 +32,7 @@ const Hooks = {
   NooraIconTransition,
   NooraModal,
   NooraPopover,
+  NooraScrollArea,
   NooraSelect,
   NooraTabs,
   NooraTagsInput,

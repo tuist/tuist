@@ -58,7 +58,11 @@ services:
       - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/tuist.xml:ro
       - clickhouse-data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider --quiet http://127.0.0.1:8123/ping"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --quiet --output-document=- --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" \"http://127.0.0.1:8123/?database=$$CLICKHOUSE_DB&query=SELECT%201\" | grep -q '^1$'",
+        ]
       interval: 5s
       timeout: 5s
       retries: 30

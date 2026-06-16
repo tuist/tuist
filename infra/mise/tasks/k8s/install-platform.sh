@@ -48,6 +48,21 @@ HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"
   --set "ingress-nginx.controller.service.annotations.load-balancer\.hetzner\.cloud/name=${CLUSTER_NAME}-ingress"
 )
+
+# Resolve the stable-egress-controller image tag at deploy time, same as the
+# server deploy resolves fleet/runtime images: the highest
+# stable-egress-controller@<semver> tag reachable from the deployed commit, so a
+# release rolls forward on the next deploy. Requires tags (the platform job
+# checks out with fetch-depth: 0). No tag reachable (e.g. before the first
+# release) falls back to the chart default. Harmless when the controller is
+# disabled — the template only renders when failoverController.enabled is true.
+EGRESS_CONTROLLER_TAG="$(git -C "$REPO_ROOT" tag --list 'stable-egress-controller@*' --merged HEAD \
+  | sed 's|^stable-egress-controller@||' \
+  | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+if [ -n "$EGRESS_CONTROLLER_TAG" ]; then
+  log "Resolved stable-egress-controller image tag: $EGRESS_CONTROLLER_TAG"
+  HELM_SET_ARGS+=(--set "ciliumEgressGateway.server.failoverController.image.tag=$EGRESS_CONTROLLER_TAG")
+fi
 HELM_VALUES_ARGS=(-f "$CHART_PATH/values-hetzner.yaml")
 CLUSTER_VALUES_FILE="$CHART_PATH/values-${CLUSTER_NAME}.yaml"
 

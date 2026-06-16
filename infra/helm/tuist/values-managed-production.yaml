@@ -34,6 +34,19 @@ server:
     # decide placement.
     - name: TUIST_KURA_AVAILABLE_REGIONS
       value: eu-central,us-east,us-west
+    # Operator project-access grants. The public key verifies grants
+    # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
+    # which MUST be stored before this deploys). The reason-form URL turns
+    # the server→ops redirect ON: a non-member operator hitting a customer
+    # project is bounced to ops to justify access. Audience defaults to
+    # tuist-server on both sides (ops mints with the same default).
+    - name: TUIST_OPERATOR_GRANT_PUBLIC_KEY
+      value: |-
+        -----BEGIN PUBLIC KEY-----
+        MCowBQYDK2VwAyEAbdu2yr3sVDWPTsBOYNK18QoOh1gVYunaGapJkHwC1n8=
+        -----END PUBLIC KEY-----
+    - name: TUIST_OPS_REASON_FORM_URL
+      value: https://ops.tuist.dev/grants/new
 
   autoscaling:
     enabled: true

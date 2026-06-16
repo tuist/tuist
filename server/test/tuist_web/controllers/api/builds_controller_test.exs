@@ -551,6 +551,30 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       assert json_response(conn, :forbidden)
     end
+
+    test "starts the upload against the project's account, not the authenticated subject's", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      test_pid = self()
+
+      stub(Storage, :multipart_start, fn _key, account ->
+        send(test_pid, {:multipart_start_account, account.id})
+        "multipart-upload-id-123"
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{organization.account.name}/#{project.name}/builds/upload/start", %{
+        build_id: Ecto.UUID.generate()
+      })
+
+      assert_received {:multipart_start_account, account_id}
+      assert account_id == organization.account.id
+      refute account_id == user.account.id
+    end
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/builds/upload/generate-url" do

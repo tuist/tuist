@@ -77,7 +77,7 @@ This section is normative for agents (Claude, Codex, anything driving `kubectl` 
 
 The team's Google Workspace identity carries through to every workload cluster via Pomerium fronting `https://kube-<env>.tuist.dev`. From an agent running on a teammate's laptop, `kubectl --context tuist-k8s-<env>` works for any read operation: `get pods`, `logs`, `describe`, `get configmap`, `get events`. The `pomerium-cli` exec credential plugin handles the bearer; the teammate's existing browser-cached session is used silently. Each request then flows through the `kube-impersonator` sidecar in the Pomerium pod, which calls tuist-ops's `/api/v1/policy` over the tailnet; the policy returns `Impersonate-User: <email>` + `Impersonate-Group: tuist-eng` (or `tuist-admins` for Owner/Admin tailnet roles). RBAC binds those groups to `view`, which **excludes `Secret`s** — deliberate, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of agent context.
 
-For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely.
+For anything an agent typically needs (looking at a failing pod, tailing logs, sanity-checking a deploy), this is the right path. Use it freely. The one-time local kubeconfig setup (install `pomerium-cli`, merge the three per-env contexts) is in [`k8s/onboarding.md` → Engineer read access](k8s/onboarding.md#engineer-read-access-pomerium-kubeconfig).
 
 ### Writes: never escalate without explicit human approval
 
@@ -112,7 +112,7 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
 
 - **Tuist server** (managed) is deployed to our self-hosted CAPI Kubernetes clusters via the CI workflows:
   - `.github/workflows/server-deployment.yml` — build + deploy to one environment (workflow_dispatch or workflow_call).
-  - `.github/workflows/server-production-deployment.yml` — cascade on push-to-main: canary → acceptance tests → production, with hotfix fast-path.
+  - `.github/workflows/server-production-deployment.yml` — the monorepo release pipeline (push-on-main): releases the server + fleet/runtime images and, at its tail, runs the production deploy cascade (build → canary → acceptance tests → production, with hotfix fast-path). One serialized lane, no cross-workflow dispatch. Manual re-promotes/rollbacks of a pinned SHA go through `server-deployment.yml`'s own `workflow_dispatch`.
 - **Noora Storybook** (managed) is deployed via `.github/workflows/noora-storybook-deployment.yml` using the standalone `infra/helm/noora-storybook` chart.
 - **Slack invitation app** (managed) is deployed via `.github/workflows/slack-deployment.yml` using the standalone `infra/helm/slack` chart.
 - **Registry Router** — `wrangler deploy` from `registry-router/`.

@@ -473,6 +473,91 @@ defmodule Tuist.Builds.AnalyticsTest do
     end
   end
 
+  describe "build_duration_percentiles_analytics/2" do
+    test "returns average and p50/p90/p99 series in a single result" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      for duration <- [1_000_000, 4000, 2000, 2000] do
+        RunsFixtures.build_fixture(
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          duration: duration,
+          inserted_at: ~U[2024-04-30 03:00:00Z]
+        )
+      end
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_percentiles_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z]
+        )
+
+      # Then
+      # Daily buckets: [04-28 (empty), 04-29, 04-30]
+      assert length(got.dates) == 3
+      # avg per day: 04-29 = 1500, 04-30 = (1_000_000 + 4000 + 2000 + 2000) / 4 = 252_000
+      assert got.values == [0, 1500.0, 252_000.0]
+      # p50 per day: 04-30 = p50([2000, 2000, 4000, 1_000_000]) = 3000
+      assert got.p50_values == [0, 1500.0, 3000.0]
+      # Whole-period p50([1500, 2000, 2000, 4000, 1_000_000]) = 2000
+      assert got.p50 == 2000.0
+      # Whole-period average = (1500 + 2000 + 2000 + 4000 + 1_000_000) / 5 = 201_900
+      assert got.total_average_duration == 201_900.0
+      assert got.p90 >= got.p50
+      assert got.p99 >= got.p90
+    end
+
+    test "applies the is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 5000,
+        is_ci: true,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_percentiles_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          is_ci: true
+        )
+
+      # Then
+      assert got.total_average_duration == 5000.0
+    end
+  end
+
   describe "build_analytics/2" do
     test "returns builds analytics for the last three days" do
       # Given
