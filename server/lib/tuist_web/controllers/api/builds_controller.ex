@@ -1024,10 +1024,9 @@ defmodule TuistWeb.API.BuildsController do
         %{assigns: %{selected_project: selected_project}, body_params: %{build_id: build_id}} = conn,
         _params
       ) do
-    account = Authentication.authenticated_subject_account(conn)
     object_key = Builds.build_storage_key(selected_project.account.name, selected_project.name, build_id)
 
-    multipart_upload_id = Storage.multipart_start(object_key, account)
+    multipart_upload_id = Storage.multipart_start(object_key, selected_project.account)
 
     json(conn, %{status: "success", data: %{upload_id: multipart_upload_id}})
   end
