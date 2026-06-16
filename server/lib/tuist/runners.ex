@@ -141,52 +141,77 @@ defmodule Tuist.Runners do
   """
   def dispatch_for_sa(namespace, sa_name) when is_binary(namespace) and is_binary(sa_name) do
     :telemetry.span(Telemetry.event_name_dispatch_request(), %{}, fn ->
-      result = do_dispatch_for_sa(namespace, sa_name)
-      {result, %{outcome: dispatch_outcome(result)}}
+      {result, fleet_name} = do_dispatch_for_sa(namespace, sa_name)
+      {to_caller_result(result), %{outcome: dispatch_outcome(result), fleet: fleet_name || "unknown"}}
     end)
   end
 
+  # Returns `{result, fleet_name}`. `result` carries the *granular*
+  # reason (`:empty`, `:lost_race`, `:pod_in_use`, …) so the dispatch
+  # telemetry can tell "queue was empty" apart from "lost the claim
+  # race" — the old blanket `:no_work_yet` hid that distinction and
+  # made a real dispatch stall indistinguishable from an idle warm
+  # pool polling. `fleet_name` is the resolved pool label (or `nil`
+  # when the SA / label lookup failed) so the dispatch metric is
+  # sliceable per fleet. The web-facing collapse back to `:no_work_yet`
+  # happens in `to_caller_result/1`.
   defp do_dispatch_for_sa(namespace, sa_name) do
     with {:ok, sa} <- K8sClient.get_service_account(namespace, sa_name),
-         {:ok, fleet_name} <- pool_label(sa),
-         :ok <- check_not_stale(namespace, sa_name, fleet_name) do
-      with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
-           {:ok, claim} <-
-             Claims.attempt(
-               candidate.workflow_job_id,
-               candidate.account_id,
-               fleet_name,
-               sa_name
-             ) do
-        Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
-        serve_claim(namespace, sa_name, fleet_name, candidate, claim)
-      else
-        {:error, :empty} ->
-          {:error, :no_work_yet}
-
-        {:error, reason} when reason in [:lost_race, :pod_in_use] ->
-          # All transactional-claim outcomes that mean "this poll
-          # gets nothing right now" — collapsed for the caller.
-          # The candidate (if we had one) stays queued in CH for
-          # the next poll on this fleet to pick up.
-          Logger.debug("runners: claim attempt declined",
-            reason: reason,
-            fleet: fleet_name,
-            sa: sa_name
-          )
-
-          {:error, :no_work_yet}
-
-        {:error, reason} ->
-          Logger.warning("runners: dispatch_for_sa failed",
-            reason: inspect(reason),
-            fleet: fleet_name
-          )
-
-          {:error, :no_work_yet}
+         {:ok, fleet_name} <- pool_label(sa) do
+      case check_not_stale(namespace, sa_name, fleet_name) do
+        :ok -> {claim_and_serve(namespace, sa_name, fleet_name), fleet_name}
+        {:error, reason} -> {{:error, reason}, fleet_name}
       end
+    else
+      {:error, reason} -> {{:error, reason}, nil}
     end
   end
+
+  defp claim_and_serve(namespace, sa_name, fleet_name) do
+    with {:ok, candidate} <- Jobs.pick_queued(fleet_name, []),
+         {:ok, claim} <-
+           Claims.attempt(
+             candidate.workflow_job_id,
+             candidate.account_id,
+             fleet_name,
+             sa_name
+           ) do
+      Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
+      serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+    else
+      {:error, :empty} ->
+        {:error, :empty}
+
+      {:error, reason} when reason in [:lost_race, :pod_in_use] ->
+        # Lost the Postgres claim race (or the Pod already holds a
+        # claim). The candidate stays queued in CH for the next poll.
+        Logger.debug("runners: claim attempt declined",
+          reason: reason,
+          fleet: fleet_name,
+          sa: sa_name
+        )
+
+        {:error, reason}
+
+      {:error, reason} ->
+        Logger.warning("runners: dispatch_for_sa failed",
+          reason: inspect(reason),
+          fleet: fleet_name
+        )
+
+        {:error, reason}
+    end
+  end
+
+  # The dispatch poll loop only needs "nothing for you this tick", so
+  # the empty-queue / claim-contention family collapses to the single
+  # `:no_work_yet` the web layer and the polling Pod already handle.
+  # Every other reason — `:drain`, `:no_pool_label`, `:github_mint_failed`,
+  # … — passes through untouched.
+  defp to_caller_result({:error, reason}) when reason in [:empty, :lost_race, :pod_in_use],
+    do: {:error, :no_work_yet}
+
+  defp to_caller_result(result), do: result
 
   defp dispatch_outcome({:ok, _}), do: "served"
   defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
