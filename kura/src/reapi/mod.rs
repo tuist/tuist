@@ -781,20 +781,20 @@ impl ByteStream for ReapiService {
             // Bound only on inactivity: every received chunk resets the timer,
             // so an upload that keeps sending is never cut, but a stalled client
             // is reclaimed instead of holding the temp file open indefinitely.
-            let chunk = match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await
-            {
-                Ok(result) => match result? {
-                    Some(chunk) => chunk,
-                    None => break,
-                },
-                Err(_elapsed) => {
-                    self.state.io.remove_file_if_exists(&temp_path).await;
-                    return Err(Status::deadline_exceeded(format!(
-                        "no upload data received within {}s; aborting stalled write",
-                        REAPI_WRITE_STALL_TIMEOUT.as_secs()
-                    )));
-                }
-            };
+            let chunk =
+                match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await {
+                    Ok(result) => match result? {
+                        Some(chunk) => chunk,
+                        None => break,
+                    },
+                    Err(_elapsed) => {
+                        self.state.io.remove_file_if_exists(&temp_path).await;
+                        return Err(Status::deadline_exceeded(format!(
+                            "no upload data received within {}s; aborting stalled write",
+                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                        )));
+                    }
+                };
             if finished {
                 self.state.io.remove_file_if_exists(&temp_path).await;
                 return Err(Status::invalid_argument(
