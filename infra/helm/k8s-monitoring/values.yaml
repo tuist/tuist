@@ -122,6 +122,15 @@ k8s-monitoring:
   hostMetrics:
     enabled: true
     collector: alloy-metrics
+    # The default allow-list drops per-interface network counters, so cluster
+    # nodes report no host bandwidth (the macOS fleet only has it via the custom
+    # :9100 scrape below). Keep them additively so we can measure the Scaleway
+    # kura runner-cache node's PN throughput (device ens6) and compare it to the
+    # Hetzner kura nodes — the data we need before deciding on dedicated nodes.
+    metricsTuning:
+      includeMetrics:
+        - node_network_receive_bytes_total
+        - node_network_transmit_bytes_total
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it
