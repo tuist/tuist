@@ -279,6 +279,184 @@ impl ReapiService {
         }
         Ok(())
     }
+
+    // Body of ByteStream::write. Every step here is fallible via `?`; the caller
+    // (write) removes temp_path on any error this returns, so this never cleans
+    // up inline — which is what keeps transport/cancel/write/flush failures from
+    // leaking partial temp files.
+    async fn write_to_temp(
+        &self,
+        temp_path: &std::path::Path,
+        request: Request<tonic::Streaming<bytestream::WriteRequest>>,
+    ) -> Result<Response<bytestream::WriteResponse>, Status> {
+        // ByteStream Write learns its namespace from the first chunk's
+        // resource_name, which is not available until we read the stream. Capture
+        // the metadata now and authorize below, once the namespace is known, so
+        // project-scoped tokens authorize against the real project (not the
+        // account) — matching the namespace the blob is ultimately stored under.
+        let metadata = request.metadata().clone();
+        let mut temp_file = self
+            .state
+            .io
+            .create_file(temp_path)
+            .await
+            .map_err(Status::internal)?;
+        let mut stream = request.into_inner();
+        let mut resource_name = None::<String>;
+        let mut resource = None::<BlobResource>;
+        let mut principal = None::<Principal>;
+        let mut written = 0_u64;
+        let mut hasher = Sha256::new();
+        let mut finished = false;
+
+        loop {
+            // Bound only on inactivity: every received chunk resets the timer, so
+            // an upload that keeps sending is never cut, but a stalled client is
+            // reclaimed (write removes the temp file once this returns the error).
+            let chunk =
+                match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await {
+                    Ok(result) => match result? {
+                        Some(chunk) => chunk,
+                        None => break,
+                    },
+                    Err(_elapsed) => {
+                        return Err(Status::deadline_exceeded(format!(
+                            "no upload data received within {}s; aborting stalled write",
+                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                        )));
+                    }
+                };
+            if finished {
+                return Err(Status::invalid_argument(
+                    "received data after finish_write=true",
+                ));
+            }
+            let chunk_resource_name = if chunk.resource_name.is_empty() {
+                resource_name.clone().ok_or_else(|| {
+                    Status::invalid_argument("first write request must include resource_name")
+                })?
+            } else {
+                chunk.resource_name.clone()
+            };
+            if let Some(existing) = &resource_name {
+                if existing != &chunk_resource_name {
+                    return Err(Status::invalid_argument("resource_name changed mid-stream"));
+                }
+            } else {
+                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
+                let write_extension = GrpcExtensionSpec {
+                    route: "reapi.bytestream.write",
+                    operation: "artifact.write",
+                    namespace_id: Some(&parsed_resource.namespace_id),
+                    producer: Some("reapi"),
+                    artifact_key: None,
+                    artifact_hash: None,
+                };
+                principal = self.authorize_metadata(&metadata, write_extension).await?;
+                ensure_tmp_dir_capacity(
+                    &self.state.config.tmp_dir,
+                    parsed_resource.size_bytes,
+                    self.state.config.tmp_dir_max_bytes,
+                )
+                .await
+                .map_err(|error| {
+                    Status::resource_exhausted(format!(
+                        "temporary storage budget exhausted: {error}"
+                    ))
+                })?;
+                resource = Some(parsed_resource);
+                resource_name = Some(chunk_resource_name);
+            }
+            if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
+                return Err(Status::invalid_argument("unexpected write_offset"));
+            }
+            if !chunk.data.is_empty() {
+                tokio::io::AsyncWriteExt::write_all(&mut temp_file, &chunk.data)
+                    .await
+                    .map_err(|error| {
+                        Status::internal(format!("failed to write temp blob: {error}"))
+                    })?;
+                hasher.update(&chunk.data);
+                written = written.saturating_add(chunk.data.len() as u64);
+            }
+            if chunk.finish_write {
+                finished = true;
+            }
+        }
+
+        let resource = resource.ok_or_else(|| Status::invalid_argument("empty write stream"))?;
+        if !finished {
+            return Err(Status::invalid_argument("write stream did not finish"));
+        }
+        if written != resource.size_bytes {
+            return Err(Status::invalid_argument(
+                "uploaded blob size did not match digest",
+            ));
+        }
+        let actual_hash = hex::encode(hasher.finalize());
+        if actual_hash != resource.hash {
+            return Err(Status::invalid_argument(
+                "uploaded blob digest did not match content",
+            ));
+        }
+
+        // Flush tokio's internal write buffer to the OS and close the write handle before
+        // the blob is persisted. persist_artifact_from_path re-opens this path on a
+        // separate descriptor to stat and copy it into a segment; without an explicit
+        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
+        // append fails with "appended N bytes, expected M" — which silently breaks remote
+        // caching of any action that uploads many blobs concurrently (e.g. cargo build
+        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
+        tokio::io::AsyncWriteExt::flush(&mut temp_file)
+            .await
+            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
+        drop(temp_file);
+
+        let targets = replication_targets(&self.state).await;
+        let manifest = self
+            .state
+            .store
+            .persist_artifact_from_path_and_enqueue(
+                ArtifactProducer::Reapi,
+                &resource.namespace_id,
+                &resource.key,
+                "application/octet-stream",
+                temp_path,
+                &targets,
+            )
+            .await
+            .map_err(|error| {
+                if is_fd_pool_exhausted_error(&error) {
+                    Status::resource_exhausted(format!(
+                        "file descriptor pool exhausted while persisting CAS blob: {error}"
+                    ))
+                } else {
+                    Status::internal(format!("failed to persist CAS blob: {error}"))
+                }
+            })?;
+        self.state.notify.notify_one();
+        self.state
+            .metrics
+            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
+
+        let mut response = Response::new(bytestream::WriteResponse {
+            committed_size: written as i64,
+        });
+        self.apply_response_headers(
+            &mut response,
+            GrpcExtensionSpec {
+                route: "reapi.bytestream.write",
+                operation: "artifact.write",
+                namespace_id: Some(&resource.namespace_id),
+                producer: Some("reapi"),
+                artifact_key: Some(resource.key),
+                artifact_hash: Some(resource.hash),
+            },
+            principal.as_ref(),
+        )
+        .await?;
+        Ok(response)
+    }
 }
 
 #[tonic::async_trait]
@@ -753,12 +931,6 @@ impl ByteStream for ReapiService {
         &self,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
-        // ByteStream Write learns its namespace from the first chunk's
-        // resource_name, which is not available until we read the stream. Capture
-        // the metadata now and authorize below, once the namespace is known, so
-        // project-scoped tokens authorize against the real project (not the
-        // account) — matching the namespace the blob is ultimately stored under.
-        let metadata = request.metadata().clone();
         let temp_path = temp_file_path(&self.state.config.tmp_dir.join("uploads"), "reapi-write");
         if let Some(parent) = temp_path.parent() {
             self.state
@@ -767,187 +939,18 @@ impl ByteStream for ReapiService {
                 .await
                 .map_err(Status::internal)?;
         }
-        let mut temp_file = self
-            .state
-            .io
-            .create_file(&temp_path)
-            .await
-            .map_err(Status::internal)?;
-        let mut stream = request.into_inner();
-        let mut resource_name = None::<String>;
-        let mut resource = None::<BlobResource>;
-        let mut principal = None::<Principal>;
-        let mut written = 0_u64;
-        let mut hasher = Sha256::new();
-        let mut finished = false;
 
-        loop {
-            // Bound only on inactivity: every received chunk resets the timer,
-            // so an upload that keeps sending is never cut, but a stalled client
-            // is reclaimed instead of holding the temp file open indefinitely.
-            let chunk =
-                match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await {
-                    Ok(result) => match result? {
-                        Some(chunk) => chunk,
-                        None => break,
-                    },
-                    Err(_elapsed) => {
-                        self.state.io.remove_file_if_exists(&temp_path).await;
-                        return Err(Status::deadline_exceeded(format!(
-                            "no upload data received within {}s; aborting stalled write",
-                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
-                        )));
-                    }
-                };
-            if finished {
-                self.state.io.remove_file_if_exists(&temp_path).await;
-                return Err(Status::invalid_argument(
-                    "received data after finish_write=true",
-                ));
-            }
-            let chunk_resource_name = if chunk.resource_name.is_empty() {
-                resource_name.clone().ok_or_else(|| {
-                    Status::invalid_argument("first write request must include resource_name")
-                })?
-            } else {
-                chunk.resource_name.clone()
-            };
-            if let Some(existing) = &resource_name {
-                if existing != &chunk_resource_name {
-                    self.state.io.remove_file_if_exists(&temp_path).await;
-                    return Err(Status::invalid_argument("resource_name changed mid-stream"));
-                }
-            } else {
-                let parsed_resource = parse_write_resource_name(&chunk_resource_name)?;
-                let write_extension = GrpcExtensionSpec {
-                    route: "reapi.bytestream.write",
-                    operation: "artifact.write",
-                    namespace_id: Some(&parsed_resource.namespace_id),
-                    producer: Some("reapi"),
-                    artifact_key: None,
-                    artifact_hash: None,
-                };
-                match self.authorize_metadata(&metadata, write_extension).await {
-                    Ok(authorized) => principal = authorized,
-                    Err(status) => {
-                        self.state.io.remove_file_if_exists(&temp_path).await;
-                        return Err(status);
-                    }
-                }
-                if let Err(error) = ensure_tmp_dir_capacity(
-                    &self.state.config.tmp_dir,
-                    parsed_resource.size_bytes,
-                    self.state.config.tmp_dir_max_bytes,
-                )
-                .await
-                {
-                    self.state.io.remove_file_if_exists(&temp_path).await;
-                    return Err(Status::resource_exhausted(format!(
-                        "temporary storage budget exhausted: {error}"
-                    )));
-                }
-                resource = Some(parsed_resource);
-                resource_name = Some(chunk_resource_name);
-            }
-            if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
-                self.state.io.remove_file_if_exists(&temp_path).await;
-                return Err(Status::invalid_argument("unexpected write_offset"));
-            }
-            if !chunk.data.is_empty() {
-                tokio::io::AsyncWriteExt::write_all(&mut temp_file, &chunk.data)
-                    .await
-                    .map_err(|error| {
-                        Status::internal(format!("failed to write temp blob: {error}"))
-                    })?;
-                hasher.update(&chunk.data);
-                written = written.saturating_add(chunk.data.len() as u64);
-            }
-            if chunk.finish_write {
-                finished = true;
-            }
-        }
-
-        let resource = match resource {
-            Some(resource) => resource,
-            None => {
-                self.state.io.remove_file_if_exists(&temp_path).await;
-                return Err(Status::invalid_argument("empty write stream"));
-            }
-        };
-        if !finished {
+        // Funnel everything that touches the temp file through write_to_temp so a
+        // single place reclaims the partial file on ANY error. A cancelled or
+        // RST'd upload (transport error, mid-stream stall, write/flush failure)
+        // would otherwise leak a partial that counts against the tmp dir budget
+        // forever — there is no janitor for reapi uploads. On success the persist
+        // step already unlinks the temp file, so this cleanup is a no-op there.
+        let result = self.write_to_temp(&temp_path, request).await;
+        if result.is_err() {
             self.state.io.remove_file_if_exists(&temp_path).await;
-            return Err(Status::invalid_argument("write stream did not finish"));
         }
-        if written != resource.size_bytes {
-            self.state.io.remove_file_if_exists(&temp_path).await;
-            return Err(Status::invalid_argument(
-                "uploaded blob size did not match digest",
-            ));
-        }
-        let actual_hash = hex::encode(hasher.finalize());
-        if actual_hash != resource.hash {
-            self.state.io.remove_file_if_exists(&temp_path).await;
-            return Err(Status::invalid_argument(
-                "uploaded blob digest did not match content",
-            ));
-        }
-
-        // Flush tokio's internal write buffer to the OS and close the write handle before
-        // the blob is persisted. persist_artifact_from_path re-opens this path on a
-        // separate descriptor to stat and copy it into a segment; without an explicit
-        // flush, tokio::fs::File's lazily-flushed writes race that read and the segment
-        // append fails with "appended N bytes, expected M" — which silently breaks remote
-        // caching of any action that uploads many blobs concurrently (e.g. cargo build
-        // scripts' directory outputs). The HTTP upload path flushes for the same reason.
-        tokio::io::AsyncWriteExt::flush(&mut temp_file)
-            .await
-            .map_err(|error| Status::internal(format!("failed to flush temp blob: {error}")))?;
-        drop(temp_file);
-
-        let targets = replication_targets(&self.state).await;
-        let manifest = self
-            .state
-            .store
-            .persist_artifact_from_path_and_enqueue(
-                ArtifactProducer::Reapi,
-                &resource.namespace_id,
-                &resource.key,
-                "application/octet-stream",
-                &temp_path,
-                &targets,
-            )
-            .await
-            .map_err(|error| {
-                if is_fd_pool_exhausted_error(&error) {
-                    Status::resource_exhausted(format!(
-                        "file descriptor pool exhausted while persisting CAS blob: {error}"
-                    ))
-                } else {
-                    Status::internal(format!("failed to persist CAS blob: {error}"))
-                }
-            })?;
-        self.state.notify.notify_one();
-        self.state
-            .metrics
-            .record_artifact_write(ArtifactProducer::Reapi, "ok", manifest.size);
-
-        let mut response = Response::new(bytestream::WriteResponse {
-            committed_size: written as i64,
-        });
-        self.apply_response_headers(
-            &mut response,
-            GrpcExtensionSpec {
-                route: "reapi.bytestream.write",
-                operation: "artifact.write",
-                namespace_id: Some(&resource.namespace_id),
-                producer: Some("reapi"),
-                artifact_key: Some(resource.key),
-                artifact_hash: Some(resource.hash),
-            },
-            principal.as_ref(),
-        )
-        .await?;
-        Ok(response)
+        result
     }
 
     async fn query_write_status(
