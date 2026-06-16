@@ -994,6 +994,7 @@ defmodule TuistWeb.Router do
       live "/webhooks", WebhooksLive
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
+      live "/cache", CacheLive
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive

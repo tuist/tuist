@@ -1,0 +1,140 @@
+#account-cache {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+
+  & > [data-part="page-header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & > [data-part="cache-disabled-card"] {
+    padding: var(--noora-spacing-8);
+  }
+
+  & > [data-part="servers-card"],
+  & > [data-part="credentials-card"],
+  & > [data-part="endpoints-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+      & > [data-part="title-group"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        min-width: 0;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
+    & > .noora-table {
+      box-sizing: border-box;
+      margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
+      width: calc(100% - 2 * var(--noora-spacing-8));
+    }
+  }
+
+  & [data-part="credential-reveal"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    margin: 0 var(--noora-spacing-8) var(--noora-spacing-6);
+
+    & > .noora-alert {
+      align-self: stretch;
+    }
+
+    & [data-part="credential-field"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-1);
+
+      & [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & [data-part="value"] {
+        box-shadow: var(--noora-border-section);
+        border-radius: var(--noora-radius-4);
+        background: var(--noora-surface-background-tertiary);
+        padding: var(--noora-spacing-3) var(--noora-spacing-4);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+        word-break: break-all;
+      }
+    }
+  }
+}
+
+/* Deploy-server modal — lives on this page. */
+#add-cache-server-modal {
+  & [data-part="modal-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+    & > [data-part="select-label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="selected-region"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      box-shadow: var(--noora-border-section);
+      border-radius: var(--noora-radius-4);
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="hint"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+}

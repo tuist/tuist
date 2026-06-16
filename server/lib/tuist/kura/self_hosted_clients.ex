@@ -17,7 +17,7 @@ defmodule Tuist.Kura.SelfHostedClients do
   alias Tuist.Kura.SelfHostedClient
   alias Tuist.Repo
 
-  @client_id_prefix "kura"
+  @client_id_prefix "cache"
 
   @doc "Lists the self-hosted credentials issued for an account."
   def list_self_hosted_clients(%Account{} = account) do
