@@ -281,10 +281,17 @@ func isNotFound(err error) bool {
 // the given Private Network (without the CIDR suffix), or "" if not yet
 // assigned. Used for the node's tuist.dev/pn-ipv4 label.
 func (c *InstanceClient) PrivateNetworkIP(ctx context.Context, server *instance.Server, privateNetworkID string) (string, error) {
-	// Filter by the Private Network only: the IPAM API requires exactly one of
-	// Zonal/PrivateNetworkID/SubnetID, so the original Zonal+PN combination was
-	// rejected and returned nothing.
+	// The IPAM API is regional and has no default region configured on the
+	// client, so Region must be set explicitly (derived from the server's zone)
+	// or the request fails "field Region cannot be empty". Filter by the Private
+	// Network only — the API requires exactly one of Zonal/PrivateNetworkID/
+	// SubnetID, so the original Zonal+PN combination was invalid too.
+	region, regErr := server.Zone.Region()
+	if regErr != nil {
+		return "", fmt.Errorf("region for zone %q: %w", server.Zone, regErr)
+	}
 	resp, err := c.IPAM.ListIPs(&ipam.ListIPsRequest{
+		Region:           region,
 		PrivateNetworkID: &privateNetworkID,
 		ProjectID:        &c.ProjectID,
 	}, scw.WithContext(ctx))
