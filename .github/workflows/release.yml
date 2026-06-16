@@ -15,6 +15,16 @@ on:
       - Package.swift
       - Package.resolved
       - .xcode-version-releases
+      # Components with their own release workflows (extracted from this
+      # pipeline) so a change to them alone does not spin up the monorepo run.
+      - cache/**
+      - gradle/**
+      - skills/**
+      - infra/hetzner-robot-controller/**
+      - .github/workflows/cache-release.yml
+      - .github/workflows/gradle-release.yml
+      - .github/workflows/skills-release.yml
+      - .github/workflows/hetzner-robot-controller-release.yml
 
 permissions:
   contents: write
@@ -58,18 +68,9 @@ jobs:
       server-should-release: ${{ steps.check.outputs.server-should-release }}
       server-next-version: ${{ steps.check.outputs.server-next-version }}
       server-next-version-number: ${{ steps.check.outputs.server-next-version-number }}
-      cache-should-release: ${{ steps.check.outputs.cache-should-release }}
-      cache-next-version: ${{ steps.check.outputs.cache-next-version }}
-      cache-next-version-number: ${{ steps.check.outputs.cache-next-version-number }}
       kura-should-release: ${{ steps.check.outputs.kura-should-release }}
       kura-next-version: ${{ steps.check.outputs.kura-next-version }}
       kura-next-version-number: ${{ steps.check.outputs.kura-next-version-number }}
-      gradle-should-release: ${{ steps.check.outputs.gradle-should-release }}
-      gradle-next-version: ${{ steps.check.outputs.gradle-next-version }}
-      gradle-next-version-number: ${{ steps.check.outputs.gradle-next-version-number }}
-      skills-should-release: ${{ steps.check.outputs.skills-should-release }}
-      skills-next-version: ${{ steps.check.outputs.skills-next-version }}
-      skills-next-version-number: ${{ steps.check.outputs.skills-next-version-number }}
       noora-should-release: ${{ steps.check.outputs.noora-should-release }}
       noora-next-version: ${{ steps.check.outputs.noora-next-version }}
       noora-next-version-number: ${{ steps.check.outputs.noora-next-version-number }}
@@ -92,9 +93,6 @@ jobs:
       runners-controller-should-release: ${{ steps.check.outputs.runners-controller-should-release }}
       runners-controller-next-version: ${{ steps.check.outputs.runners-controller-next-version }}
       runners-controller-next-version-number: ${{ steps.check.outputs.runners-controller-next-version-number }}
-      hetzner-robot-controller-should-release: ${{ steps.check.outputs.hetzner-robot-controller-should-release }}
-      hetzner-robot-controller-next-version: ${{ steps.check.outputs.hetzner-robot-controller-next-version }}
-      hetzner-robot-controller-next-version-number: ${{ steps.check.outputs.hetzner-robot-controller-next-version-number }}
       stable-egress-controller-should-release: ${{ steps.check.outputs.stable-egress-controller-should-release }}
       stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
@@ -290,79 +288,6 @@ jobs:
 
           docker buildx imagetools inspect "${IMAGE}:${{ needs.check-releases.outputs.server-next-version-number }}"
 
-  release-cache:
-    name: Release Cache
-    needs: check-releases
-    if: needs.check-releases.outputs.cache-should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 30
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Get release notes
-        id: release-notes
-        working-directory: cache
-        run: |
-          # Get the latest cache version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^cache@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: cache
-        run: git cliff --include-path "cache/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.cache-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./cache/Dockerfile
-          push: true
-          build-args: |
-            CACHE_VERSION=${{ needs.check-releases.outputs.cache-next-version-number }}
-            MIX_ENV=prod
-          tags: |
-            ghcr.io/tuist/cache:${{ needs.check-releases.outputs.cache-next-version-number }}
-            ghcr.io/tuist/cache:latest
-
-      - name: Upload Cache artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: cache-artifacts
-          path: |
-            cache/CHANGELOG.md
-          retention-days: 1
-
   release-kura-prepare:
     name: Release Kura Metadata
     needs: check-releases
@@ -534,177 +459,6 @@ jobs:
           tags: |
             ghcr.io/tuist/kura:${{ needs.check-releases.outputs.kura-next-version-number }}
             ghcr.io/tuist/kura:latest
-
-  release-gradle:
-    name: Release Gradle Plugin
-    needs: check-releases
-    if: needs.check-releases.outputs.gradle-should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 30
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "java gradle git-cliff 1password-cli"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          cache-disabled: true
-
-      - name: Get release notes
-        id: release-notes
-        run: |
-          # Get the latest gradle version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^gradle@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          if [ -n "$LATEST_VERSION" ]; then
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
-          else
-            RELEASE_NOTES=$(git cliff --config gradle/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2)
-          fi
-
-          if [ -z "$(echo "$RELEASE_NOTES" | tr -d '[:space:]')" ]; then
-            echo "Gradle release notes are empty. Refusing to publish a release without notes." >&2
-            exit 1
-          fi
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: gradle
-        run: git cliff --include-path "gradle/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.gradle-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Publish to Gradle Plugin Portal
-        working-directory: gradle
-        run: |
-          PUBLISH_KEY=$(op read "op://tuist/GRADLE_PUBLISH_KEY/password")
-          PUBLISH_SECRET=$(op read "op://tuist/GRADLE_PUBLISH_SECRET/password")
-          ./gradlew publishPlugins -Pversion=${{ needs.check-releases.outputs.gradle-next-version-number }} -Pgradle.publish.key="$PUBLISH_KEY" -Pgradle.publish.secret="$PUBLISH_SECRET"
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-
-      - name: Update version in settings.gradle.kts
-        run: |
-          sed -i 's/id("dev.tuist") version ".*"/id("dev.tuist") version "${{ needs.check-releases.outputs.gradle-next-version-number }}"/' gradle/settings.gradle.kts
-
-      - name: Tag Gradle release
-        run: |
-          TAG=${{ needs.check-releases.outputs.gradle-next-version }}
-
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists on origin"
-            exit 0
-          fi
-
-          git tag "$TAG"
-          git push origin "refs/tags/$TAG"
-
-      - name: Create Gradle GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          name: Gradle Plugin ${{ needs.check-releases.outputs.gradle-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.gradle-next-version }}
-          body: |
-            Gradle Plugin Portal: `dev.tuist:${{ needs.check-releases.outputs.gradle-next-version-number }}`
-
-            ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-
-      - name: Upload Gradle artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-artifacts
-          path: |
-            gradle/CHANGELOG.md
-            gradle/settings.gradle.kts
-            gradle/src/main/kotlin/dev/tuist/gradle/TuistBuildCache.kt
-          retention-days: 1
-
-  release-skills:
-    name: Release Skills
-    needs: check-releases
-    if: needs.check-releases.outputs.skills-should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 15
-    env:
-      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    outputs:
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
-          cache: "false"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Get release notes
-        id: release-notes
-        run: |
-          # Get the latest skills version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^skills@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff --include-path "skills/**/*" --config skills/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: skills
-        run: git cliff --include-path "skills/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.skills-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Push to tuist/agent-skills
-        run: |
-          VERSION="${{ needs.check-releases.outputs.skills-next-version-number }}"
-          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/tuist/agent-skills.git /tmp/agent-skills
-          rm -rf /tmp/agent-skills/skills
-          cp -r skills/skills /tmp/agent-skills/skills
-          cd /tmp/agent-skills
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "Release ${VERSION}"
-            git tag "${VERSION}"
-            git push origin main --tags
-          else
-            echo "No changes to push"
-          fi
-
-      - name: Upload Skills artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: skills-artifacts
-          path: |
-            skills/CHANGELOG.md
-          retention-days: 1
 
   release-noora:
     name: Release Noora
@@ -1012,87 +766,6 @@ jobs:
           name: runners-controller-artifacts
           path: |
             infra/runners-controller/CHANGELOG.md
-          retention-days: 1
-
-  release-hetzner-robot-controller:
-    name: Release hetzner-robot-controller
-    needs: check-releases
-    if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 30
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: jdx/mise-action@v4.0.1
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff"
-          cache: "true"
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Get release notes
-        id: release-notes
-        run: |
-          LATEST_VERSION=$(git tag -l | grep -E "^hetzner-robot-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          INCLUDE_PATHS=(
-            --include-path "infra/hetzner-robot-controller/**/*"
-          )
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/hetzner-robot-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff "${INCLUDE_PATHS[@]}" --config infra/hetzner-robot-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update CHANGELOG.md
-        working-directory: infra/hetzner-robot-controller
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "infra/hetzner-robot-controller/**/*"
-          )
-
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../../" --tag "${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/hetzner-robot-controller/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ghcr.io/tuist/tuist-hetzner-robot-controller:${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}
-            ghcr.io/tuist/tuist-hetzner-robot-controller:latest
-
-      - name: Upload hetzner-robot-controller artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          # The mgmt-cluster Deployment manifest's image pin
-          # (infra/k8s/mgmt/hetzner-robot-controller.yaml) is bumped by a
-          # Renovate PR that tracks the ghcr tag pushed above, not by the
-          # release pipeline — see renovate.json. mgmt-cluster-apply.yml
-          # rolls it out on that PR's merge. So we only ship the CHANGELOG.
-          name: hetzner-robot-controller-artifacts
-          path: |
-            infra/hetzner-robot-controller/CHANGELOG.md
           retention-days: 1
 
   release-stable-egress-controller:
@@ -1640,17 +1313,13 @@ jobs:
         check-releases,
         release-server,
         release-server-manifest,
-        release-cache,
         release-kura-prepare,
         release-kura-binaries,
         release-kura-docker,
-        release-gradle,
-        release-skills,
         release-noora,
         release-helm,
         release-capi-scaleway,
         release-runners-controller,
-        release-hetzner-robot-controller,
         release-stable-egress-controller,
         release-xcresult-processor-image,
         release-runner-image,
@@ -1685,13 +1354,6 @@ jobs:
         with:
           name: server-artifacts
           path: server
-
-      - name: Download Cache artifacts
-        if: needs.check-releases.outputs.cache-should-release == 'true' && needs.release-cache.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: cache-artifacts
-          path: cache
 
       - name: Download Kura release metadata
         if: |
@@ -1750,20 +1412,6 @@ jobs:
             mv "build-kura/$target"/kura-*.tar.gz build-kura/
           done
 
-      - name: Download Gradle artifacts
-        if: needs.check-releases.outputs.gradle-should-release == 'true' && needs.release-gradle.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: gradle-artifacts
-          path: gradle
-
-      - name: Download Skills artifacts
-        if: needs.check-releases.outputs.skills-should-release == 'true' && needs.release-skills.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: skills-artifacts
-          path: skills
-
       - name: Download Noora artifacts
         if: needs.check-releases.outputs.noora-should-release == 'true' && needs.release-noora.result == 'success'
         uses: actions/download-artifact@v4
@@ -1799,17 +1447,6 @@ jobs:
         with:
           name: runners-controller-artifacts
           path: infra/runners-controller
-
-      - name: Download hetzner-robot-controller artifacts
-        # Same shape as runners-controller above — artifact carries
-        # only `infra/hetzner-robot-controller/CHANGELOG.md`. The
-        # mgmt-cluster Deployment manifest's image pin is rewritten
-        # by the chart-bump step below against this job's checkout.
-        if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true' && needs.release-hetzner-robot-controller.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: hetzner-robot-controller-artifacts
-          path: infra/hetzner-robot-controller
 
       - name: Download stable-egress-controller artifacts
         # Carries only infra/stable-egress-controller/CHANGELOG.md; the platform
@@ -1866,34 +1503,6 @@ jobs:
             Docker image: `ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}`
 
             ${{ needs.release-server.outputs.release-notes }}
-
-      - name: Create Cache GitHub Release
-        if: needs.check-releases.outputs.cache-should-release == 'true' && needs.release-cache.result == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
-          name: Cache ${{ needs.check-releases.outputs.cache-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.cache-next-version }}
-          body: |
-            Docker image: `ghcr.io/tuist/cache:${{ needs.check-releases.outputs.cache-next-version-number }}`
-
-            ${{ needs.release-cache.outputs.release-notes }}
-
-      - name: Create Skills GitHub Release
-        if: needs.check-releases.outputs.skills-should-release == 'true' && needs.release-skills.result == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
-          name: Skills ${{ needs.check-releases.outputs.skills-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.skills-next-version }}
-          body: |
-            GitHub: https://github.com/tuist/agent-skills/releases/tag/${{ needs.check-releases.outputs.skills-next-version-number }}
-
-            ${{ needs.release-skills.outputs.release-notes }}
 
       - name: Create Noora GitHub Release
         if: needs.check-releases.outputs.noora-should-release == 'true' && needs.release-noora.result == 'success'
@@ -1952,20 +1561,6 @@ jobs:
             Docker image: `ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}`
 
             ${{ needs.release-runners-controller.outputs.release-notes }}
-
-      - name: Create hetzner-robot-controller GitHub Release
-        if: needs.check-releases.outputs.hetzner-robot-controller-should-release == 'true' && needs.release-hetzner-robot-controller.result == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
-          name: Hetzner Robot Controller ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.hetzner-robot-controller-next-version }}
-          body: |
-            Docker image: `ghcr.io/tuist/tuist-hetzner-robot-controller:${{ needs.check-releases.outputs.hetzner-robot-controller-next-version-number }}`
-
-            ${{ needs.release-hetzner-robot-controller.outputs.release-notes }}
 
       - name: Create stable-egress-controller GitHub Release
         if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true' && needs.release-stable-egress-controller.result == 'success'
