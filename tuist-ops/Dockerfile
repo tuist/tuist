@@ -26,8 +26,14 @@ RUN mix deps.compile
 
 COPY tuist-ops/priv priv
 COPY tuist-ops/lib lib
+COPY tuist-ops/assets assets
 
 RUN mix compile --warnings-as-errors
+
+# Bundle the operator UI. esbuild resolves Noora from the Hex package's
+# prebuilt priv/static/noora.js (no node/npm), and downloads its own
+# standalone binary on first run.
+RUN mix assets.deploy
 
 COPY tuist-ops/config/runtime.exs config/
 

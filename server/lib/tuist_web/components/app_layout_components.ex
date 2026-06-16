@@ -549,7 +549,6 @@ defmodule TuistWeb.AppLayoutComponents do
   attr(:breadcrumbs, :list, required: true)
   attr(:current_user, :map, required: true)
   attr(:selected_account, :map, required: true)
-  attr(:latest_cli_release, :map, required: true)
   attr(:latest_app_release, :map, required: true)
   attr(:title, :string, default: nil)
 

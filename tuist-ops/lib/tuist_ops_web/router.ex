@@ -20,6 +20,34 @@ defmodule TuistOpsWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :browser do
+    # The operator HTML surface (reason form + audit trail). Fronted by
+    # Pomerium (Google Workspace OIDC); identity comes from the verified
+    # `X-Pomerium-Jwt-Assertion` (see `TuistOps.Pomerium`). The session
+    # exists only to carry the CSRF token: read grants mint on POST, so
+    # `protect_from_forgery` keeps a cross-site form from minting one.
+    plug :accepts, ["html", "json"]
+    plug :fetch_session
+    plug :fetch_query_params
+    plug :protect_from_forgery
+    plug :put_root_layout, html: {TuistOpsWeb.Layouts, :root}
+  end
+
+  scope "/", TuistOpsWeb do
+    pipe_through :browser
+
+    get "/", AuditController, :root
+    get "/audit", AuditController, :index
+  end
+
+  scope "/grants", TuistOpsWeb do
+    pipe_through :browser
+
+    get "/new", GrantController, :new
+    post "/", GrantController, :create
+    get "/:id/pending", GrantController, :pending
+  end
+
   scope "/webhooks/slack", TuistOpsWeb do
     pipe_through :slack_webhook
 

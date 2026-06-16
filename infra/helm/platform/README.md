@@ -73,37 +73,100 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
 
 - `CiliumEgressGatewayPolicy/tuist-server-stable-egress`, which selects server
   pods in the configured namespace and SNATs public-internet traffic to the
-  configured egress IP.
-- `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which
-  runs only on the node labelled `tuist.dev/stable-egress-gateway=server` and
-  keeps the Floating IP plus source route present on that node's `eth0`.
+  configured egress IP via the node carrying the **active** label
+  `tuist.dev/stable-egress-gateway=server`.
+- `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
+  on the active node and keeps the Floating IP + source route present on its
+  `eth0`.
+- When `failoverController.enabled`, the
+  `Deployment/kube-system/stable-egress-controller` (see
+  [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
 
-If the gateway node is replaced or you need to fail over manually:
+### HA failover (no single point of failure)
+
+The gateway runs **active/standby across a dedicated ≥2-node egress pool**, with
+automatic failover — no manual steps and no SPOF:
+
+- **Candidate pool:** the `md-egress` pool (`cluster-production.yaml`,
+  `replicas: 2`) self-applies `tuist.dev/stable-egress-candidate=server` via the
+  ClusterClass `workerNodeLabels` variable. kubelet sets it at registration, so
+  it survives MachineHealthCheck remediation (CAPI's metadata-label sync would
+  not — it only passes node-role/node-restriction/node.cluster prefixes).
+- **Election + IP:** the stable-egress controller (leader-elected, 2 replicas)
+  keeps the Hetzner Floating IP (Cloud API) **and** the active
+  `tuist.dev/stable-egress-gateway` label on one node. It **adopts** whatever
+  node already holds the active label as long as that node is Ready — even one
+  outside the candidate pool — so it never disturbs a working gateway (enabling
+  the controller, or any steady state, moves nothing: no blip). Only when there
+  is no healthy active node does it fail over to a Ready `md-egress` candidate,
+  moving the IP + label together (~30–60s: node-NotReady detection + reassign;
+  faster on deletion).
+- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
+  host-configurer reschedules onto the new active node automatically.
+
+Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
+gateway node by lexical order with no health-based failover (cilium/cilium#30157
+— HA is Enterprise), and it has no concept of the Hetzner Floating IP, which
+must be reassigned via the Cloud API. The controller owns both.
+
+### Reserved egress set (stable customer allowlist)
+
+Customers allowlist a **fixed, reserved set** of egress IPs, not a single one,
+so migrating the active address never forces an allowlist change on their side
+(allowlist changes are slow, high-friction enterprise operations). The
+controller's `egressIpAllowlist` lists the set's CIDRs and **fails closed** if
+the active Floating IP falls outside it — egress can only ever originate from a
+documented, allowlisted address.
+
+The prod set is `tuist-production-server-egress` + `-2` (two reserved Floating
+IPs in the `tuist-workloads` project: `116.202.0.10` active + `116.202.4.195`
+spare). Two is enough because it's active/standby — only one IP is ever live;
+the spare exists so the active can be migrated (Hetzner reclaim, region change)
+without a customer allowlist change. To grow the set, reserve more Floating IPs
+and add their `/32`s to **both** `egressIpAllowlist` (here) and the customer
+network guide (`server/priv/docs/en/guides/server/network.md`) *before* they are
+used.
+
+#### Why a set of `/32`s, not a single CIDR
+
+A contiguous block customers could allowlist as one line isn't available on
+Hetzner Cloud: `hcloud floating-ip create` has no range/subnet parameter —
+addresses come from Hetzner's pools, scattered. The alternatives, none of which
+fit today:
+
+- **Hetzner Robot** can order contiguous subnets (`/29`…`/24`) — but only for
+  *dedicated* servers, not the Cloud nodes the egress pool runs on.
+- **BYOIP** (own a PI `/24` + announce via BGP) — fully portable, the gold
+  standard, but a real project (IPv4 `/24` acquisition + ASN + BGP). Only worth
+  it if a stable egress *range* becomes a hard enterprise-sales requirement.
+- **IPv6** Cloud Floating IPs are a `/64` (a real range) — but customer
+  allowlists are virtually always IPv4.
+
+So the set of `/32`s is the right shape here; BYOIP is the someday-if-needed path.
+
+> Background: a 2026-06-14 production outage traced to this binding being a
+> single hand-labelled general worker. It got remediated; neither the label nor
+> the Floating IP migrated, so all server egress black-holed and the server
+> crash-looped on its first outbound call. The HA pool + controller remove both
+> the SPOF and the manual runbook.
+
+### Manual failover (fallback)
+
+Only needed if the controller is disabled or unavailable mid-incident:
 
 ```bash
 export KUBECONFIG=~/.kube/tuist-production.yaml
 export FLOATING_IP_NAME=tuist-production-server-egress
-export EGRESS_IP=116.202.0.10
-export OLD_NODE=<old-gateway-node>
-export NEW_NODE=<new-general-pool-node>
+export NEW_NODE=<a-ready-md-egress-node>
 
-# Move the cloud route in Hetzner first. Use the tuist-workloads hcloud token.
+# Move the cloud route in Hetzner, then the active label; the host-configurer
+# follows the label and Cilium re-selects within ~1s.
 hcloud floating-ip assign "$FLOATING_IP_NAME" "$NEW_NODE"
-
-kubectl label node "$OLD_NODE" tuist.dev/stable-egress-gateway- --overwrite
 kubectl label node "$NEW_NODE" tuist.dev/stable-egress-gateway=server --overwrite
 
-# Force Cilium to re-select the gateway after the label move.
-kubectl annotate ciliumegressgatewaypolicy tuist-server-stable-egress \
-  "tuist.dev/reapplied-at=$(date -u +%s)" --overwrite
-
-# Verify from any server pod.
+# Verify from any server pod (should print the configured egress IP).
 kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.org
 ```
-
-The verification command should print the environment's configured egress IP.
-Existing outbound connections may reset when the gateway node changes; new
-connections should use the new gateway once the policy is re-applied.
 
 ## Notes
 

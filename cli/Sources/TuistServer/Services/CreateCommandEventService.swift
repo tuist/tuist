@@ -148,7 +148,6 @@
                                             .miss
                                         }
                                         return .init(
-                                            build_duration: binaryCacheMetadata.buildDuration.map { Int($0) },
                                             hash: binaryCacheMetadata.hash,
                                             hit: hit,
                                             subhashes: binaryCacheMetadata.subhashes.map { subhashes in

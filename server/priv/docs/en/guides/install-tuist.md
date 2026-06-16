@@ -26,6 +26,9 @@ mise use -g tuist@system       # Use the system's tuist as the global default
 
 If you clone a project that already has a Tuist version pinned in `mise.toml`, run `mise install` to install it.
 
+> [!TIP]
+> `tuist@latest` resolves to the latest **stable** release. Tuist also publishes prerelease canary and release candidate builds; those are opt-in only and are never resolved by `latest`. See <.localized_link href="/cli/release-channels">Release channels</.localized_link> for how to pin a stable line you can trust and how to opt into prereleases.
+
 <details>
 <summary>Linux support</summary>
 

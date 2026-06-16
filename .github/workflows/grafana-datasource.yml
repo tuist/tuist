@@ -1,0 +1,133 @@
+name: Grafana data source
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - grafana-datasource/**
+      - .github/workflows/grafana-datasource.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - grafana-datasource/**
+      - .github/workflows/grafana-datasource.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grafana-datasource-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: grafana-datasource
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: npm ci
+      - run: npm run typecheck
+
+  lint:
+    name: Lint
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: npm ci
+      - run: npm run test:ci
+
+  build:
+    name: Build
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: npm ci
+      - run: npm run build
+
+  go-format:
+    name: Go Format
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: test -z "$(gofmt -l pkg/)" || { gofmt -l pkg/; exit 1; }
+
+  go-vet:
+    name: Go Vet
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: go vet ./...
+
+  go-test:
+    name: Go Tests
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          working_directory: grafana-datasource
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: go test ./...

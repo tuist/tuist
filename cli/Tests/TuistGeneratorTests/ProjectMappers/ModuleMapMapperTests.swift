@@ -99,12 +99,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             settings: .test(base: [
                 "OTHER_CFLAGS": .array([
                     "Other",
-                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                    "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
                 ]),
                 "OTHER_SWIFT_FLAGS": .array([
                     "Other",
                     "-Xcc",
-                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                    "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
                 ]),
                 "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B1/include", "$(SRCROOT)/../B/B2/include"]),
             ]),
@@ -125,12 +125,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             settings: .test(base: [
                 "OTHER_CFLAGS": .array([
                     "$(inherited)",
-                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap",
+                    "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap\"",
                 ]),
                 "OTHER_SWIFT_FLAGS": .array([
                     "$(inherited)",
                     "-Xcc",
-                    "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap",
+                    "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/B1-deps.modulemap\"",
                 ]),
                 "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B1/include", "$(SRCROOT)/B2/include"]),
             ]),
@@ -257,12 +257,12 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 base: [
                     "OTHER_CFLAGS": .array([
                         "$(inherited)",
-                        "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                        "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
                     ]),
                     "OTHER_SWIFT_FLAGS": .array([
                         "$(inherited)",
                         "-Xcc",
-                        "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                        "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
                     ]),
                     "HEADER_SEARCH_PATHS": .array(["$(inherited)", "$(SRCROOT)/../B/B/include"]),
                 ],
@@ -405,14 +405,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             .array([
                 "Other",
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
 
@@ -426,14 +426,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "-D",
                 "FEATURE",
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
         XCTAssertBetterEqual(
             debugConfiguration.settings["OTHER_CFLAGS"],
             .array([
                 "-DDEBUG",
-                "-fmodule-map-file=$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap",
+                "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
             ])
         )
 
@@ -545,14 +545,14 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             .array([
                 "Other",
                 "-Xcc",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap",
+                "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap\"",
             ])
         )
         XCTAssertBetterEqual(
             gotTargetA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap",
+                "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/A/A-deps.modulemap\"",
             ])
         )
         XCTAssertBetterEqual(
@@ -698,7 +698,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             gotCoreA.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/PackageA/Core-deps.modulemap",
+                "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/PackageA/Core-deps.modulemap\"",
             ])
         )
 
@@ -707,7 +707,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
             gotCoreB.settings?.base["OTHER_CFLAGS"],
             .array([
                 "Other",
-                "-fmodule-map-file=$(PROJECT_DIR)/../../ModuleMaps/PackageB/Core-deps.modulemap",
+                "-fmodule-map-file=\"$(PROJECT_DIR)/../../ModuleMaps/PackageB/Core-deps.modulemap\"",
             ])
         )
 

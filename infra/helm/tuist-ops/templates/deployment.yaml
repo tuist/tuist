@@ -59,6 +59,19 @@ spec:
                 secretKeyRef:
                   name: {{ $pgSecret }}
                   key: uri
+            {{- if .Values.pomerium.audience }}
+            - name: POMERIUM_AUDIENCE
+              value: {{ .Values.pomerium.audience | quote }}
+            {{- end }}
+            {{- if .Values.pomerium.publicKey }}
+            # Pomerium's signing public key (non-secret). tuist-ops
+            # verifies X-Pomerium-Jwt-Assertion with it; empty until
+            # ops.tuist.dev is Pomerium-fronted, so identity is absent
+            # and the operator HTML surface fails closed.
+            - name: POMERIUM_JWT_PUBLIC_KEY
+              value: |-
+                {{- .Values.pomerium.publicKey | nindent 16 }}
+            {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "tuist-ops.runtimeSecretName" . }}

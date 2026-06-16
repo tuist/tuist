@@ -25,6 +25,9 @@ spec:
     - hosts:
         - {{ .Values.publicHostname }}
         - {{ .Values.authenticateHostname }}
+        {{- if .Values.opsRoute.enabled }}
+        - {{ .Values.opsRoute.host }}
+        {{- end }}
       secretName: {{ .Values.ingress.tlsSecretName }}
   rules:
     - host: {{ .Values.publicHostname }}
@@ -47,3 +50,22 @@ spec:
                 name: {{ include "pomerium.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}
+    {{- if .Values.opsRoute.enabled }}
+    # ops.tuist.dev → Pomerium. Pomerium matches its own per-prefix
+    # routes (/grants, /audit via OIDC; /webhooks/slack public) and 404s
+    # anything else, so /api/v1/policy is not publicly reachable here.
+    # cert-manager extends the TLS cert to this host; external-dns
+    # points the A record at this Ingress. The tuist-ops chart's own
+    # Ingress for this host must be disabled at the same time
+    # (`ingress.enabled: false`) so the two don't both claim it.
+    - host: {{ .Values.opsRoute.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pomerium.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+    {{- end }}

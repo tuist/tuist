@@ -6,6 +6,65 @@ We run a **management cluster** (a single-node Talos VM in Hetzner project `tuis
 
 This doc is the runbook for onboarding **a new workload cluster** end-to-end. The mgmt cluster itself is bootstrapped by the migration PR's runbook; re-bootstrapping it is documented inline in [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml).
 
+If you just want to **read** an existing cluster (the day-to-day case — `kubectl get pods`, `logs`, `describe`), you don't need any of the cluster-provisioning steps below. Jump to [Engineer read access](#engineer-read-access-pomerium-kubeconfig).
+
+---
+
+## Engineer read access (Pomerium kubeconfig)
+
+Every engineer's Google Workspace identity already carries `view`-tier read access to all three workload clusters through the Pomerium gateway — no grant, no per-person provisioning. There's nothing secret to download: you assemble a small kubeconfig locally that registers `pomerium-cli` as an [exec credential plugin](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins). On the first call the plugin opens a browser for Google OIDC and caches the session for ~24h. The full identity flow is documented in [`infra/helm/pomerium/NOTES.md`](../helm/pomerium/NOTES.md); the agent-facing rules (read is always allowed, writes go through the JIT Slack flow) are in [`infra/AGENTS.md`](../AGENTS.md#cluster-access-for-agents).
+
+`view` deliberately excludes `Secret`s, so `MASTER_KEY`, `DATABASE_URL`, and ESO-synced secrets stay out of reach on this path. Mutating operations (`apply`, `delete`, `scale`, `patch`, `create`) return `403` until you elevate via `/elevate <env>` in Slack.
+
+### Setup
+
+1. `pomerium-cli` is pinned in the root [`mise.toml`](../../mise.toml) — `mise install` from the repo root puts it on your `PATH`.
+2. Merge the three contexts below into your `~/.kube/config`. They contain no secrets — the hostnames are public and all auth happens at call time. Each env needs its own gateway host in the exec `args`, so there's one user per env. Production's host is `kube-prod`, not `kube-production`.
+
+   ```yaml
+   clusters:
+     - name: tuist-k8s-staging
+       cluster: { server: https://kube-staging.tuist.dev }
+     - name: tuist-k8s-canary
+       cluster: { server: https://kube-canary.tuist.dev }
+     - name: tuist-k8s-production
+       cluster: { server: https://kube-prod.tuist.dev }
+   contexts:
+     - name: tuist-k8s-staging
+       context: { cluster: tuist-k8s-staging, user: pomerium-staging }
+     - name: tuist-k8s-canary
+       context: { cluster: tuist-k8s-canary, user: pomerium-canary }
+     - name: tuist-k8s-production
+       context: { cluster: tuist-k8s-production, user: pomerium-production }
+   users:
+     - name: pomerium-staging
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-staging.tuist.dev"]
+     - name: pomerium-canary
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-canary.tuist.dev"]
+     - name: pomerium-production
+       user:
+         exec:
+           apiVersion: client.authentication.k8s.io/v1beta1
+           command: pomerium-cli
+           args: ["k8s", "exec-credential", "https://kube-prod.tuist.dev"]
+   ```
+
+3. Verify (a browser opens once per env for the Google login):
+
+   ```bash
+   kubectl --context tuist-k8s-staging get pods -A
+   ```
+
+> **This is not the admin kubeconfig.** The cluster-admin kubeconfigs in the `tuist-k8s-<env>` 1Password vaults bypass Pomerium and impersonation entirely; they're break-glass only and gated behind 1Password biometric on purpose. Don't reach for them for routine reads, and never have an agent fetch one. See [Workload-cluster incident recovery](#workload-cluster-incident-recovery).
+
 ---
 
 ## Prerequisites

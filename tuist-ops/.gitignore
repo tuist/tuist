@@ -27,3 +27,6 @@ priv/repo/dump.sql
 
 # Local secrets
 priv/secrets/dev.key
+
+# esbuild output (Noora + app bundle)
+/priv/static/assets/

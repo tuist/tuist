@@ -147,6 +147,29 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
   end
 
+  test "re-activates an active server whose stored URL drifted from the rendered host" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+    # The region template now renders a different host (e.g. an
+    # environment-scoped public-host rename). The image is unchanged, so only
+    # the URL-aware convergence check forces the server back through activation.
+    stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4200"} = Repo.get!(Server, server.id)
+    assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
+  end
+
   test "marks destroying servers destroyed after the KuraInstance disappears" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)

@@ -1,9 +1,24 @@
 defmodule TuistOpsWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :tuist_ops
 
-  # Slack and Pomerium both POST application/json — no static assets,
-  # no LiveView socket, no session cookies needed. The Slack webhook
-  # plug reads raw body for signature verification.
+  # The operator HTML pages need the Noora bundle; Slack/Pomerium are
+  # still JSON. The Slack webhook plug reads raw body for signatures.
+
+  # Cookie session, used only to carry the CSRF token for the grant
+  # reason form (identity is Pomerium's, not this session). SameSite=Lax
+  # so a cross-site POST can't replay it.
+  @session_options [
+    store: :cookie,
+    key: "_tuist_ops_key",
+    signing_salt: "tuist-ops-session",
+    same_site: "Lax"
+  ]
+
+  plug Plug.Static,
+    at: "/",
+    from: {:tuist_ops, "priv/static"},
+    gzip: false,
+    only: TuistOpsWeb.static_paths()
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
@@ -16,5 +31,6 @@ defmodule TuistOpsWeb.Endpoint do
 
   plug Plug.MethodOverride
   plug Plug.Head
+  plug Plug.Session, @session_options
   plug TuistOpsWeb.Router
 end
