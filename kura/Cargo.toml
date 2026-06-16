@@ -5,6 +5,7 @@ edition = "2024"
 license = "AGPL-3.0-only"
 
 [dependencies]
+arc-swap = "1.7.1"
 axum = "0.8.9"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 base64 = "0.22.1"

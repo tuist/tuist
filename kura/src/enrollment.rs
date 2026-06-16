@@ -35,6 +35,11 @@ const KURA_PEERS: &str = "KURA_PEERS";
 pub struct EnrollmentOutcome {
     pub tenant_id: String,
     pub peers: Vec<String>,
+    pub renew_after_seconds: u64,
+}
+
+fn default_renew_after_seconds() -> u64 {
+    86_400
 }
 
 #[derive(Deserialize)]
@@ -44,6 +49,8 @@ struct EnrollmentResponse {
     ca_certificate: String,
     #[serde(default)]
     peers: Vec<String>,
+    #[serde(default = "default_renew_after_seconds")]
+    renew_after_seconds: u64,
 }
 
 struct EnrollmentInputs {
@@ -134,7 +141,15 @@ async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> 
     Ok(EnrollmentOutcome {
         tenant_id: body.tenant_id,
         peers: body.peers,
+        renew_after_seconds: body.renew_after_seconds,
     })
+}
+
+/// Re-enrolls using the same environment configuration as boot, writing fresh
+/// certificate material to the `KURA_INTERNAL_TLS_*` paths. Called by the
+/// background cert-renewal task; the caller hot-reloads the new material.
+pub async fn renew() -> Result<EnrollmentOutcome, String> {
+    enroll(&inputs()?).await
 }
 
 /// Generates an ECDSA P-256 keypair and a CSR carrying its public key. The

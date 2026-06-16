@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use arc_swap::ArcSwap;
+use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
 use tokio::{
     sync::{Mutex, Notify, Semaphore},
@@ -38,12 +40,27 @@ pub struct AppState {
     pub analytics: Option<Analytics>,
     pub usage: Option<Usage>,
     pub geoip: Option<GeoIp>,
-    pub client: Client,
+    // Outbound peer client, behind an atomic swap so cert rotation can replace
+    // it in place. Read it with `state.client()`.
+    pub client: ArcSwap<Client>,
     pub peer_client_factory: PeerClientFactory,
+    // The inbound internal mTLS server config, retained so cert rotation can
+    // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
+    pub internal_tls: Option<RustlsConfig>,
+    // Peers learned after boot (e.g. from cert-renewal re-enrollment), merged
+    // into discovery/replication targets on top of the static `config.peers`.
+    pub dynamic_peers: ArcSwap<Vec<String>>,
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+}
+
+impl AppState {
+    /// The current outbound peer HTTP client (picks up rotated certs).
+    pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.client.load()
+    }
 }
 
 pub type SharedState = Arc<AppState>;
@@ -304,6 +321,7 @@ impl AppState {
     pub async fn replication_targets(&self) -> Vec<String> {
         let snapshot = self.readiness_snapshot().await;
         let mut targets = self.config.peers.iter().cloned().collect::<BTreeSet<_>>();
+        targets.extend(self.dynamic_peers.load().iter().cloned());
         targets.extend(snapshot.known_peers);
         targets.remove(&self.config.node_url);
         targets.into_iter().collect()

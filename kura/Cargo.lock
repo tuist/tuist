@@ -1360,6 +1360,7 @@ dependencies = [
 name = "kura"
 version = "0.8.0"
 dependencies = [
+ "arc-swap",
  "axum",
  "axum-server",
  "base64",

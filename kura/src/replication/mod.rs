@@ -123,14 +123,14 @@ async fn membership_task_loop(state: SharedState) {
     loop {
         let mut members = BTreeSet::new();
         let mut peer_nodes = BTreeMap::new();
-        let targets = discovery_targets(&state.config).await;
+        let targets = discovery_targets(&state.config, &state.dynamic_peers.load()).await;
         let mut peer_status_successes = 0_usize;
         let lookups = futures_util::future::join_all(targets.iter().map(|peer| {
             let client = match &peer.resolved {
                 Some(resolved) => state
                     .peer_client_factory
                     .build_resolving(&resolved.host, resolved.address),
-                None => Ok(state.client.clone()),
+                None => Ok(state.client().as_ref().clone()),
             };
             let url = match peer.scope {
                 DiscoveryScope::Local => format!("{}/_internal/status", peer.url),
@@ -365,7 +365,7 @@ async fn bootstrap_artifact_from_peer(
         url_encode(&manifest.artifact_id)
     );
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -484,7 +484,7 @@ async fn fetch_bootstrap_manifests_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -509,7 +509,7 @@ async fn fetch_bootstrap_tombstones_page(
     }
 
     let response = state
-        .client
+        .client()
         .get(&url)
         .send()
         .await
@@ -550,10 +550,11 @@ async fn read_bounded_body(
     Ok(buffer)
 }
 
-async fn discovery_targets(config: &Config) -> Vec<DiscoveryTarget> {
+async fn discovery_targets(config: &Config, dynamic_peers: &[String]) -> Vec<DiscoveryTarget> {
     let mut targets = config
         .peers
         .iter()
+        .chain(dynamic_peers.iter())
         .cloned()
         .map(|peer| DiscoveryTarget {
             label: peer.clone(),
@@ -756,7 +757,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 );
 
                 let response = state
-                    .client
+                    .client()
                     .put(&url)
                     .headers(headers)
                     .body(body)
@@ -805,7 +806,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 let mut headers = reqwest::header::HeaderMap::new();
                 inject_current_trace_context(&mut headers);
                 let response = state
-                    .client
+                    .client()
                     .delete(&url)
                     .headers(headers)
                     .send()
@@ -924,7 +925,7 @@ mod tests {
         })
         .await;
 
-        let targets = discovery_targets(&ctx.state.config).await;
+        let targets = discovery_targets(&ctx.state.config, &ctx.state.dynamic_peers.load()).await;
 
         assert!(targets.iter().any(|target| {
             target.url == "https://seed.kura.internal:7443" && target.resolved.is_none()
