@@ -224,6 +224,15 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          # Self-warming registry layer cache across staging deploys: each
+          # deploy exports its layers, and the next one reuses them. Because the
+          # image layers are a pure function of kura/ (the build context), a
+          # staging deploy whose kura/ is unchanged from the last one is a full
+          # layer-cache hit — the expensive Rust + librocksdb-sys compile is
+          # pulled, not re-run. Only a deploy that actually changes kura/ pays a
+          # cold build (then re-warms the cache for the deploys after it).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.KURA_RUNTIME_IMAGE_NAME }}-buildcache:staging,mode=max
   observability-install:
     # Installs / upgrades the grafana/k8s-monitoring wrapper chart ahead of
     # the server rollout so the Alloy OTLP receiver is ready before the
