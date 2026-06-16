@@ -108,6 +108,50 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(account) == ["hetzner-staging-runners"]
   end
 
+  test "an enabled account beyond the first candidate page still gets a node" do
+    # Default profiles are auto-created for every account, so
+    # non-enabled accounts dominate the candidate set and never leave
+    # it. The enabled account is created LAST (highest id): a single
+    # capped page ordered by id would return only non-enabled rows
+    # forever and starve it.
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    now_utc = DateTime.truncate(DateTime.utc_now(), :second)
+
+    filler_rows =
+      for i <- 1..110 do
+        %{
+          name: "starved-filler-#{i}-#{System.unique_integer([:positive])}",
+          billing_email: "starved-filler-#{i}@tuist.dev",
+          created_at: now,
+          updated_at: now
+        }
+      end
+
+    {110, filler_accounts} = Repo.insert_all(Tuist.Accounts.Account, filler_rows, returning: [:id])
+
+    profile_rows =
+      for %{id: account_id} <- filler_accounts do
+        %{
+          account_id: account_id,
+          name: "linux",
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 16,
+          inserted_at: now_utc,
+          updated_at: now_utc
+        }
+      end
+
+    Repo.insert_all(Profile, profile_rows)
+
+    enabled = account_with_profiles([:linux])
+    enable_runners_for([enabled.id])
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(enabled) == ["hetzner-staging-runners"]
+  end
+
   test "macOS-only accounts get no node in the linux-serving region" do
     account = account_with_profiles([:macos])
     enable_runners_for([account.id])

@@ -170,22 +170,29 @@ defmodule Tuist.Runners.Catalog do
   def fleet_platform(_), do: nil
 
   @doc """
-  Whether jobs on this fleet run with the cluster's pod network — i.e.
-  can resolve and reach `*.svc.cluster.local` URLs.
+  Whether jobs on this fleet can reach the private (in-cluster) Kura
+  runner-cache endpoint dispatch would hand them.
 
-  This is a runtime-networking property, not a platform policy: Linux
-  pools run as kata Pods on the CNI, so they always qualify. macOS
-  pools run Tart VMs on vmnet, which bypasses cluster DNS/routing — but
-  an environment can give its Mac mini fleet a route into the cluster
-  (tailnet subnet router + host `--accept-routes` + VM firewall
-  carve-out + the in-VM `/etc/resolver` cluster-DNS entry), at which
-  point its macOS fleets qualify too. That per-environment fact is
-  declared via `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS` (see
-  `Tuist.Environment.runners_cluster_network_platforms/0`), so flipping
-  an environment on is a values change, not a code change. Unrecognized
-  fleets answer `false`: handing an unreachable hard override to an
-  unknown runtime breaks caching outright, while withholding it merely
-  falls back to default cache resolution.
+  This is a runtime-networking property, not a platform policy, and
+  what "reach" means depends on the region's data plane:
+
+    * Cluster-DNS regions publish `*.svc.cluster.local` URLs. Linux
+      pools run as kata Pods on the CNI, so they always qualify.
+    * Node-port regions publish `http://<node private address>:<port>`
+      URLs. macOS fleets qualify once the environment's Mac minis
+      share that private network and the host firewall/NAT carve-out
+      is in place (the macos-host-bootstrap `vmCachePrivateNetwork`
+      wiring).
+
+  The per-environment fact is declared via
+  `TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS` (see
+  `Tuist.Environment.runners_cluster_network_platforms/0`), so
+  flipping an environment on is a values change, not a code change —
+  enable a platform only when the matching region AND its physical
+  path exist in that environment. Unrecognized fleets answer `false`:
+  handing an unreachable hard override to an unknown runtime breaks
+  caching outright, while withholding it merely falls back to default
+  cache resolution.
   """
   def fleet_on_cluster_network?(fleet_name) do
     case fleet_platform(fleet_name) do

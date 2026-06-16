@@ -53,7 +53,12 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
-  @max_provision_candidates_per_tick 100
+  @provision_page_size 100
+  # Backstop against a pathological candidate set (e.g. the flag
+  # globally enabled in an env where every auto-profile account
+  # matches): a tick scans at most this many pages before deferring
+  # the rest to the next tick.
+  @max_provision_pages_per_tick 50
 
   @doc """
   Converges runner-cache nodes with runner enablement. Safe to call on
@@ -139,33 +144,56 @@ defmodule Tuist.Kura.RunnerCache do
     # The SQL narrows to "has profiles, lacks a node"; the flag check
     # runs per account in Elixir because FunWithFlags gates are
     # actor-scoped (and can be set via a global boolean gate, so they
-    # can't be pre-joined as a column). In prod the candidate set is
-    # tiny (runner customers), but in an env with the flag globally on
-    # and many auto-profile accounts it isn't — cap the SQL load so a
-    # tick reads a bounded number of rows into BEAM. Provisioning is
-    # convergent, so any overflow is picked up on the next tick; a
-    # capped tick is logged so a growing backlog is visible.
-    candidates =
-      Repo.all(
-        from(a in Account,
-          as: :account,
-          where: exists(profile_exists),
-          where: not exists(server_exists),
-          limit: @max_provision_candidates_per_tick
-        )
+    # can't be pre-joined as a column). Since default profiles are
+    # auto-created for every account, non-enabled accounts dominate
+    # the candidate set and never leave it (no node ever gets
+    # provisioned for them) — so a single capped page would return
+    # the same non-enabled rows every tick and permanently starve an
+    # enabled account that sorts after them. Keyset-page through the
+    # whole set instead, with a page backstop so a pathological env
+    # still yields a bounded tick.
+    base =
+      from(a in Account,
+        as: :account,
+        where: exists(profile_exists),
+        where: not exists(server_exists),
+        order_by: [asc: a.id],
+        limit: @provision_page_size
       )
 
-    if length(candidates) == @max_provision_candidates_per_tick do
-      Logger.warning("kura.runner_cache: provision candidate query hit the per-tick cap",
-        cap: @max_provision_candidates_per_tick,
-        region: region_id
-      )
-    end
-
-    candidates
-    |> Enum.filter(&runner_cache_enabled?/1)
-    |> Enum.map(& &1.id)
+    collect_enabled_candidates(base, region_id, nil, [], @max_provision_pages_per_tick)
   end
+
+  defp collect_enabled_candidates(_base, region_id, _cursor, enabled_ids, 0) do
+    Logger.warning("kura.runner_cache: provision candidate scan hit the per-tick page cap",
+      pages: @max_provision_pages_per_tick,
+      region: region_id
+    )
+
+    Enum.reverse(enabled_ids)
+  end
+
+  defp collect_enabled_candidates(base, region_id, cursor, enabled_ids, pages_left) do
+    page =
+      base
+      |> after_cursor(cursor)
+      |> Repo.all()
+
+    enabled_ids =
+      page
+      |> Enum.filter(&runner_cache_enabled?/1)
+      |> Enum.map(& &1.id)
+      |> Enum.reverse(enabled_ids)
+
+    if length(page) < @provision_page_size do
+      Enum.reverse(enabled_ids)
+    else
+      collect_enabled_candidates(base, region_id, List.last(page).id, enabled_ids, pages_left - 1)
+    end
+  end
+
+  defp after_cursor(query, nil), do: query
+  defp after_cursor(query, cursor), do: where(query, [a], a.id > ^cursor)
 
   defp nodes_to_tear_down(%Regions{id: region_id} = region) do
     platforms = region_platforms(region)
