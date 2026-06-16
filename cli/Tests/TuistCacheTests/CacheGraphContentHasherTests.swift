@@ -369,4 +369,67 @@ struct CacheGraphContentHasherTests {
             )
             .called(1)
     }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_targets_are_libraries_hashes_are_computed() async throws {
+        // Given
+        let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", product: .dynamicLibrary)
+        let project = Project.test(
+            path: "/Project/Path",
+            targets: [staticLibrary, dynamicLibrary]
+        )
+        let staticLibraryTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["StaticLibrary"]!,
+            project: project
+        )
+        let dynamicLibraryTarget = GraphTarget(
+            path: project.path,
+            target: project.targets["DynamicLibrary"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .matching { filter in
+                    filter(staticLibraryTarget) && filter(dynamicLibraryTarget)
+                },
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
 }

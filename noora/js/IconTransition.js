@@ -236,6 +236,15 @@ export default {
       subtree: true,
       attributeFilter: ["data-state"],
     });
+
+    // Enable CSS transitions only after the initial state has painted, so a
+    // state established during mount (e.g. a sibling collapsible opening)
+    // lands without animating. Double rAF clears the first paint reliably.
+    this.readyRaf = requestAnimationFrame(() => {
+      this.readyRaf = requestAnimationFrame(() => {
+        this.el.setAttribute("data-ready", "");
+      });
+    });
   },
 
   setupMorph() {
@@ -314,6 +323,7 @@ export default {
 
   cleanup() {
     cancelAnimationFrame(this.raf);
+    cancelAnimationFrame(this.readyRaf);
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;

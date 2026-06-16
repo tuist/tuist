@@ -6,7 +6,7 @@ name: Stable Egress Controller Image
 # single Ready node from the egress candidate pool and fails over to another on
 # node loss.
 #
-# Steady-state image promotion is owned by release.yml; this workflow only
+# Steady-state image promotion is owned by server-production-deployment.yml; this workflow only
 # handles pre-release iteration via `:sha-<git-sha>` tags.
 
 on:

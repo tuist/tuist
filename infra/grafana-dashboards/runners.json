@@ -39,6 +39,39 @@
           "type": "datasource"
         },
         {
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "hide": 0,
+          "includeAll": false,
+          "label": "Environment",
+          "multi": false,
+          "name": "env",
+          "options": [
+            {
+              "selected": true,
+              "text": "production",
+              "value": "production"
+            },
+            {
+              "selected": false,
+              "text": "canary",
+              "value": "canary"
+            },
+            {
+              "selected": false,
+              "text": "staging",
+              "value": "staging"
+            }
+          ],
+          "query": "production,canary,staging",
+          "queryValue": "",
+          "skipUrlSync": false,
+          "type": "custom"
+        },
+        {
           "allValue": ".*",
           "current": {
             "selected": true,
@@ -139,7 +172,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
+            "expr": "sum(sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")))",
             "instant": true,
             "refId": "A"
           }
@@ -198,7 +231,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\"}))",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"claimed\", env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -249,7 +282,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\"}))",
+            "expr": "sum(max by (fleet) (tuist_runners_claims_count{lifecycle_state=\"running\", env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -300,7 +333,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(max by (fleet) (tuist_runners_pool_replicas_desired))",
+            "expr": "sum(max by (fleet) (tuist_runners_pool_replicas_desired{env=\"$env\"}))",
             "instant": true,
             "refId": "A"
           }
@@ -651,14 +684,14 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_desired{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}} desired",
             "refId": "A"
           },
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(kube_pod_status_phase{namespace=\"tuist-runners\", phase=~\"Pending|Running\", pod=~\".*runner-pool-(linux|macos).*\", pod=~\".*$platform.*\"}, \"platform\", \"$1\", \"pod\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(kube_pod_status_phase{namespace=\"tuist-runners\", phase=~\"Pending|Running\", pod=~\".*runner-pool-(linux|macos).*\", pod=~\".*$platform.*\", env=\"$env\"}, \"platform\", \"$1\", \"pod\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}} alive",
             "refId": "B"
           }
@@ -758,7 +791,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(sum by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -812,7 +845,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_queue_length{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -866,7 +899,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\"))",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -1122,13 +1155,130 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\"}) or vector(0)",
+            "expr": "sum(kube_pod_status_unschedulable{namespace=\"tuist-runners\", env=\"$env\"}) or vector(0)",
             "instant": true,
             "refId": "A"
           }
         ],
         "title": "Unscheduled",
         "type": "stat"
+      },
+      {
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 48
+        },
+        "id": 130,
+        "panels": [],
+        "title": "Allocation (cold-boot risk)",
+        "type": "row"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Warm Pods the fleet allocator WANTED to keep ready (minWarmPoolFloor above real load) but could not fund because the shared bare-metal node pool was memory-contended. Emitted by the runners-controller (tuist_runners_autoscaler_warm_deficit_replicas). 0 = warm pool fully funded. A sustained non-zero value means this shape's warm buffer is reaped toward its raw load, so the next demand burst pays cold-start. This is the leading indicator for cold boots that alive/desired can't surface.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "lineWidth": 2,
+              "stacking": {
+                "mode": "normal"
+              }
+            },
+            "min": 0,
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 49
+        },
+        "id": 131,
+        "options": {
+          "legend": {
+            "calcs": ["max", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_warm_deficit_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Warm-pool deficit (unfunded warm replicas) by platform",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "What the autoscaler wanted (target = DesiredReplicas, the pool's full ask incl. warm floor + p95 headroom) vs what the fleet allocator granted (allocated = spec.replicas) after splitting shared capacity across sibling shapes. A persistent gap is the squeeze: warm pool and headroom yielding to other pools' real queued work under contention. Both emitted by the runners-controller.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 2
+            },
+            "min": 0,
+            "unit": "short"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 49
+        },
+        "id": 132,
+        "options": {
+          "legend": {
+            "calcs": ["lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_target_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} target",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum by (platform) (label_replace(max by (pool) (tuist_runners_autoscaler_allocated_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"pool\", \".*runner-pool-(linux|macos).*\"))",
+            "legendFormat": "{{platform}} allocated",
+            "refId": "B"
+          }
+        ],
+        "title": "Autoscaler target vs allocated by platform",
+        "type": "timeseries"
       }
     ]
   }
