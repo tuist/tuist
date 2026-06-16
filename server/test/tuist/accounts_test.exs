@@ -318,6 +318,25 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "tuist_operator?/1" do
+    setup do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "false when the instance is not tuist-hosted, even for a Workspace member" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "selfhosted-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "tuist.dev")
+
+      refute Accounts.tuist_operator?(user)
+    end
+
     test "true for an operator-domain email in the operator Google Workspace" do
       # Google sign-ins never set confirmed_at; membership is proven by the
       # hosted-domain (hd) claim stored as the identity's provider_organization_id.

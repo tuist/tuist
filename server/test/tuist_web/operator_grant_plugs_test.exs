@@ -10,6 +10,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
   describe "redirect_to_ops_if_operator/2" do
     setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       stub(Tuist.Environment, :ops_reason_form_url, fn -> "https://ops.tuist.dev/grants/new" end)
       :ok
     end
@@ -90,6 +91,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
   describe "accept_operator_grant/2" do
     setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       jwk = JOSE.JWK.generate_key({:okp, :Ed25519})
       pub_pem = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_pem() |> unwrap()
 
@@ -242,6 +244,11 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   end
 
   describe "active_grant?/2 (SSO bypass binding)" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
     test "true for the operator the grant was minted for (case-insensitive handle)" do
       operator = operator_user()
       conn = assign(Phoenix.ConnTest.build_conn(), :current_user, %{operator | operator_grant: grant_for(operator)})

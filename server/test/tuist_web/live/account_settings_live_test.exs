@@ -61,6 +61,7 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     organization =
       AccountsFixtures.organization_fixture(preload: [:account])
 
+    stub(Environment, :tuist_hosted?, fn -> true end)
     user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
     AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
     now = System.system_time(:second)

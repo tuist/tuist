@@ -1270,9 +1270,13 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
-  Returns true when `user` is a Tuist operator: in dev, or any
-  confirmed account whose email belongs to the operator email domain
-  (the Tuist Google Workspace, `Tuist.Environment.operator_email_domain/0`).
+  Returns true when `user` is a Tuist operator: in dev, or — only on
+  tuist-hosted instances — an account that signed into the Tuist Google
+  Workspace (`Tuist.Environment.operator_email_domain/0`).
+
+  Operators are a tuist.dev (hosted, multi-tenant) concept; a self-hosted
+  customer instance has no Tuist Google Workspace, so the Workspace check
+  is gated on `Tuist.Environment.tuist_hosted?/0` and never matches there.
 
   This is an eligibility heuristic, not an authorization boundary: it
   decides whether a non-member is routed to the ops.tuist.dev reason
@@ -1281,7 +1285,7 @@ defmodule Tuist.Accounts do
   static `ops_user_handles` allowlist.
   """
   def tuist_operator?(%User{} = user) do
-    Environment.dev?() or operator_email?(user)
+    Environment.dev?() or (Environment.tuist_hosted?() and operator_email?(user))
   end
 
   def tuist_operator?(_), do: false

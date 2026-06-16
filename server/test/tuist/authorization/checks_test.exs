@@ -491,6 +491,11 @@ defmodule Tuist.Authorization.ChecksTest do
   end
 
   describe "internal_ops_access/2 (the static /ops panel gate)" do
+    setup do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
     test "returns true for an operator-domain user signed in with Google" do
       operator =
         AccountsFixtures.user_fixture(
@@ -502,6 +507,20 @@ defmodule Tuist.Authorization.ChecksTest do
 
       assert Checks.internal_ops_access(operator, nil) == true
       assert Checks.internal_ops_access(operator, :ops) == true
+    end
+
+    test "returns false on a self-hosted instance even for a Workspace member" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      operator =
+        AccountsFixtures.user_fixture(
+          email: "operator-#{TuistTestSupport.Utilities.unique_integer()}@tuist.dev",
+          preload: [:account]
+        )
+
+      AccountsFixtures.oauth2_identity_fixture(user: operator, provider: :google)
+
+      assert Checks.internal_ops_access(operator, nil) == false
     end
 
     test "returns false for a non-operator-domain user", %{user: user} do
@@ -517,6 +536,7 @@ defmodule Tuist.Authorization.ChecksTest do
 
   describe "ops_access/2 (grant-based)" do
     setup %{organization: organization} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
       %{project: project, account: organization.account, user: operator_user()}
     end
@@ -583,6 +603,7 @@ defmodule Tuist.Authorization.ChecksTest do
 
   describe "ops_write_access/2 (admin-tier grant only)" do
     setup %{organization: organization} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
       %{project: project, user: operator_user()}
     end
