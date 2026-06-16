@@ -8,10 +8,10 @@ defmodule TuistOps.ProjectAccess.Approvals do
       Grant inline (returns `{:ok, :granted, grant}`). For `admin` it
       creates a `pending` Request and posts a Slack approval card
       (returns `{:ok, :pending, request}`).
-    * `approve/2` — a second human clicked Approve on an admin
-      request in Slack. Gates self-approval out entirely (admin
-      access always needs a second human) and requires the approver
-      to be an Owner/Admin on the tailnet, then spawns the Grant.
+    * `approve/2` — someone clicked Approve on an admin request in
+      Slack. The approver must be an Owner/Admin on the tailnet.
+      Owners/Admins (the founders) may self-approve; every other
+      role needs a second human. Spawns the Grant.
     * `deny/2` — a second human clicked Deny.
 
   The Grant row is the audit record; the signed token the customer
@@ -108,9 +108,9 @@ defmodule TuistOps.ProjectAccess.Approvals do
 
   @doc """
   Approves an admin request. `actor` is the Slack user who clicked
-  Approve. Admin access to a customer org always needs a second
-  human, so the requester can never self-approve, and the approver
-  must be an Owner/Admin on the tailnet. Idempotent on replay.
+  Approve. The approver must be an Owner/Admin on the tailnet.
+  Owners/Admins may self-approve (mirroring JIT elevation); every
+  other role needs a second human. Idempotent on replay.
   """
   def approve(request_id, %{slack_id: actor_slack_id, email: actor_email}) do
     fn ->
@@ -136,7 +136,8 @@ defmodule TuistOps.ProjectAccess.Approvals do
               notify_closed(expired, "expired")
               {:expired, expired}
 
-            String.downcase(req.requester_email) == String.downcase(actor_email) ->
+            String.downcase(req.requester_email) == String.downcase(actor_email) and
+                not Policy.self_approval_allowed?(actor_email) ->
               Repo.rollback(:cannot_self_approve)
 
             not Policy.admin_approver_allowed?(actor_email) ->

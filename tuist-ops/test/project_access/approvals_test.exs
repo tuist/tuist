@@ -102,12 +102,28 @@ defmodule TuistOps.ProjectAccess.ApprovalsTest do
       assert grant.account_handle == "acme"
     end
 
-    test "the requester cannot self-approve", %{request: request} do
+    test "an Owner/Admin requester can self-approve", %{request: request} do
+      stub(TailscaleClient, :user_role, fn "marek@tuist.dev" -> {:ok, :owner} end)
+
+      assert {:ok, approved, grant} =
+               Approvals.approve(request.id, %{slack_id: "U_MAREK", email: "marek@tuist.dev"})
+
+      assert approved.status == "approved"
+      assert approved.approver_email == "marek@tuist.dev"
+      assert grant.tier == "admin"
+      assert grant.status == "active"
+    end
+
+    test "a Member requester cannot self-approve", %{request: request} do
+      stub(TailscaleClient, :user_role, fn "marek@tuist.dev" -> {:ok, :member} end)
+
       assert {:error, :cannot_self_approve} =
                Approvals.approve(request.id, %{slack_id: "U_MAREK", email: "marek@tuist.dev"})
     end
 
-    test "self-approval is rejected case-insensitively", %{request: request} do
+    test "a Member's self-approval is rejected case-insensitively", %{request: request} do
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :member} end)
+
       assert {:error, :cannot_self_approve} =
                Approvals.approve(request.id, %{slack_id: "U_MAREK", email: "Marek@TUIST.dev"})
     end

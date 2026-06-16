@@ -20,7 +20,11 @@ customer's SSO enforcement, which is how SSO-enforced orgs become reachable.
   was authorized by the grant.
 - **Identities**: `requester_email` = the operator's `@tuist.dev` Google Workspace
   identity (from Pomerium's `X-Pomerium-Claim-Email`). `approver_email`/`approver_slack_id`
-  (admin tier only) is the second human.
+  (admin tier only) is who approved. Normally a second human, but Owners/Admins (the
+  founders) may self-approve, mirroring the JIT elevation policy where Owner/Admin can
+  self-approve any env. When `approver_email == requester_email` on an admin grant, it
+  was a founder self-approval: segregation of duties did not apply, but the grant row
+  still records it for the audit.
 
 ## Trail 1: Slack thread (admin tier only)
 

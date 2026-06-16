@@ -11,9 +11,11 @@ defmodule TuistOps.ProjectAccess.Policy do
 
     * `admin` — acting with admin privileges on a customer org
       ("sign in as admins"). Treated like a production kubectl write:
-      it always needs a **second human** to approve in Slack, and
-      that approver must be an Owner or Admin on the tailnet. The
-      requester can never self-approve.
+      the approver must be an Owner or Admin on the tailnet. A second
+      human normally clicks Approve, but Owners/Admins (the founders)
+      may self-approve, mirroring the JIT elevation policy where
+      Owner/Admin can self-approve any env. Members and every other
+      role still need a second human.
 
   Source of truth for the approver gate is the Tailscale tailnet role
   (`TuistOps.JIT.TailscaleClient.user_role/1`), the same one the JIT
@@ -48,12 +50,22 @@ defmodule TuistOps.ProjectAccess.Policy do
   Members (engineers) and any other role cannot approve admin access
   to a customer org.
   """
-  def admin_approver_allowed?(approver_email) when is_binary(approver_email) do
-    case TailscaleClient.user_role(approver_email) do
+  def admin_approver_allowed?(approver_email), do: owner_or_admin?(approver_email)
+
+  @doc """
+  Returns true if `requester_email` may approve their own admin-tier
+  request. Mirrors the JIT elevation policy: only Owners/Admins (the
+  founders) can self-approve. Members and every other role still need
+  a second human.
+  """
+  def self_approval_allowed?(requester_email), do: owner_or_admin?(requester_email)
+
+  defp owner_or_admin?(email) when is_binary(email) do
+    case TailscaleClient.user_role(email) do
       {:ok, role} -> role in [:owner, :admin]
       _ -> false
     end
   end
 
-  def admin_approver_allowed?(_), do: false
+  defp owner_or_admin?(_), do: false
 end
