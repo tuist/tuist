@@ -50,11 +50,11 @@ private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> 
 
 private func tuistArtifactTransferURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> URLSessionConfiguration {
     let configuration = tuistURLSessionConfigurationResolved(useEnvironmentProxy: useEnvironmentProxy)
-    // Artifact transfers (shard bundles, cache artifacts) can be hundreds of MB and slow on
-    // constrained CI networks. The short resource cap that suits small API calls would kill a
-    // healthy-but-slow transfer mid-flight, so allow the whole transfer far more time and let
-    // timeoutIntervalForRequest catch genuine stalls (no data) instead.
-    configuration.timeoutIntervalForResource = 3600
+    // Artifact transfers (shard bundles, cache artifacts) are larger than API calls, so the 90s cap
+    // is too tight. But a transfer that can't finish within 180s (well under 2 MB/s for a
+    // few-hundred-MB bundle) is pathological: fail and let the caller's retry ride out a transient
+    // blip rather than hang. timeoutIntervalForRequest still catches genuine stalls (no data) sooner.
+    configuration.timeoutIntervalForResource = 180
     return configuration
 }
 
@@ -142,8 +142,8 @@ extension URLSession {
     }
 
     /// A session tuned for large artifact transfers (downloads/uploads of shard bundles, cache
-    /// artifacts). Same configuration as `tuistShared` but with a generous resource timeout so a
-    /// slow-but-progressing transfer isn't killed by the API-tuned wall-clock cap.
+    /// artifacts). Same configuration as `tuistShared` but with a larger (still bounded) resource
+    /// timeout so a slow-but-progressing transfer isn't killed by the API-tuned wall-clock cap.
     public static var tuistArtifactTransfer: URLSession {
         sharedTuistArtifactTransferURLSession.resolve(useEnvironmentProxy: HTTPSettings.current.useEnvironmentProxy)
     }
