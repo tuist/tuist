@@ -59,7 +59,7 @@ spec:
           variables:
             overrides:
               - name: hcloudWorkerMachineType
-                value: cpx21
+                value: cpx22
               - name: workerNodeLabels
                 value: tuist.dev/stable-egress-candidate=server
         # Dedicated Kura pool. Kura StatefulSets default to this node
