@@ -163,6 +163,27 @@ type Config struct {
 	// `*.svc.cluster.local` names. Must parse as an IPv4 address.
 	VMClusterDNSIP string
 
+	// VMCachePNCIDR, when non-empty, allows VM egress to the Scaleway
+	// Private Network subnet where the kura runner-cache node pool
+	// publishes per-account NodePort endpoints — the addresses
+	// dispatch hands out as `cache_endpoint_url` for macOS fleets on
+	// node-port-data-plane regions. Only the Kubernetes NodePort
+	// range (30000-32767) is passed; the rest of the RFC1918
+	// blocklist stays blocked. Must parse as an IPv4 CIDR; bootstrap
+	// fails closed otherwise.
+	VMCachePNCIDR string
+
+	// VMCachePNVLAN is the VLAN ID of this server's Private Network
+	// attachment (per-host — Scaleway assigns it at attach time; the
+	// CAPI provider reads it from the Apple Silicon Private Networks
+	// API). When set together with VMCachePNCIDR, bootstrap creates
+	// the macOS VLAN interface on en0 and DHCPs it so Scaleway IPAM
+	// hands the host its PN address; the VM NAT leg derives the
+	// interface from the route this creates. 0 skips interface
+	// management (the firewall pass rule still applies if the CIDR
+	// is set, for hosts configured out-of-band).
+	VMCachePNVLAN uint32
+
 	// NodeExporterBinary is the darwin/arm64 node_exporter binary
 	// (cross-compiled in the operator image from
 	// github.com/prometheus/node_exporter at build time). Installed
@@ -266,6 +287,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
 	}
+	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install vm cache pn interface: %w", err)
+	}
 	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install vm egress firewall: %w", err)
 	}
@@ -346,6 +370,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh vm cache pn interface: %w", err)
 	}
 	if err := installVMEgressFirewall(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh vm egress firewall: %w", err)
@@ -1054,6 +1081,22 @@ pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
 		return fmt.Errorf("vm cluster dns ip set without vm kura egress cidr; refusing a DNS-only carve-out")
 	}
 
+	if cfg.VMCachePNCIDR != "" {
+		ip, _, err := net.ParseCIDR(cfg.VMCachePNCIDR)
+		if err != nil || ip.To4() == nil {
+			return fmt.Errorf("vm cache pn cidr %q is not an IPv4 CIDR: %v", cfg.VMCachePNCIDR, err)
+		}
+		carveOut += fmt.Sprintf(`
+# Runner-cache Private Network carve-out: VMs dial per-account Kura
+# NodePorts published by the kura node pool on the Scaleway Private
+# Network (the endpoint dispatch hands out on node-port regions).
+# 30000:32767 is Kubernetes' default NodePort range. The kura-side
+# NetworkPolicies admit only this subnet, and Kura's app-layer JWT
+# tenant check is the per-account boundary.
+pass out quick proto tcp from <vm_sources> to %s port 30000:32767 keep state
+`, cfg.VMCachePNCIDR)
+	}
+
 	script := `set -euo pipefail
 
 # Idempotent install of the pf anchor file. The anchor namespaces
@@ -1171,41 +1214,63 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-runners.p
 	if err := RunCommand(ctx, client, script); err != nil {
 		return err
 	}
-	if cfg.VMKuraEgressCIDR == "" {
+	if cfg.VMKuraEgressCIDR == "" && cfg.VMCachePNCIDR == "" {
 		return nil
 	}
 	natScript := fmt.Sprintf(`set -euo pipefail
 sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #!/bin/sh
-# Loads the VM->cluster NAT rule into the com.apple/tuist.vmnat pf
+# Loads the VM->cache NAT rules into the com.apple/tuist.vmnat pf
 # sub-anchor (see installVMEgressFirewall in macos-host-bootstrap).
-# Idempotent and cheap; re-run on an interval so a tailscaled
-# restart that renumbers the utun device re-converges within a
-# minute. No tailnet route yet (tailscaled down, route unapproved)
-# -> leaves the anchor untouched and exits 0.
+# Two legs, each skipped when unconfigured or its route is absent:
+#   - tailnet: VM -> cluster Service CIDR via the tailscale utun.
+#     MSS-clamped: the utun MTU (1280) is smaller than the VM's
+#     vmnet MTU (1500) and pf-NAT'd flows don't reliably deliver
+#     ICMP frag-needed back to the guest, so full-size segments
+#     blackhole (tiny /up probes work, bulk cache reads hang).
+#     1200 = 1280 - 40 (TCP/IP headers) with margin.
+#   - Private Network: VM -> PN subnet via the macOS VLAN
+#     interface (installVMCachePNInterface). No clamp: the VLAN
+#     runs at the same 1500 MTU as vmnet.
+# vmnet's built-in NAT only translates toward the default-route
+# interface, so both legs need explicit pf NAT. Idempotent and
+# cheap; re-run on an interval so a tailscaled restart (utun
+# renumber) or VLAN recreation re-converges within a minute.
 CIDR="%s"
-TSIF=$(route -n get "${CIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
-case "$TSIF" in
-  utun*) ;;
-  *) exit 0 ;;
-esac
-HAVE=$(pfctl -a "com.apple/tuist.vmnat" -sn 2>/dev/null | head -1)
-case "$HAVE" in
-  "nat on $TSIF "*) exit 0 ;;
-esac
-# MSS clamp alongside the NAT: the tailscale utun MTU (1280) is
-# smaller than the VM's vmnet interface MTU (1500), and pf-NAT'd
-# flows don't reliably deliver ICMP frag-needed back to the guest,
-# so full-size segments blackhole (tiny /up probes work, bulk cache
-# reads hang). Clamping both directions keeps TCP under the tunnel
-# MTU. 1200 = 1280 - 40 (TCP/IP headers) with margin.
-pfctl -a "com.apple/tuist.vmnat" -f - <<RULES
-scrub from 192.168.64.0/22 to $CIDR max-mss 1200
-scrub from $CIDR to 192.168.64.0/22 max-mss 1200
-nat on $TSIF from 192.168.64.0/22 to $CIDR -> ($TSIF)
-RULES
+PNCIDR="%s"
+RULES=""
+NL="
+"
+if [ -n "$CIDR" ]; then
+  TSIF=$(route -n get "${CIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
+  case "$TSIF" in
+    utun*)
+      RULES="${RULES}scrub from 192.168.64.0/22 to $CIDR max-mss 1200${NL}"
+      RULES="${RULES}scrub from $CIDR to 192.168.64.0/22 max-mss 1200${NL}"
+      RULES="${RULES}nat on $TSIF from 192.168.64.0/22 to $CIDR -> ($TSIF)${NL}"
+      ;;
+  esac
+fi
+if [ -n "$PNCIDR" ]; then
+  PNIF=$(route -n get "${PNCIDR%%%%/*}" 2>/dev/null | awk '/interface/{print $2}')
+  case "$PNIF" in
+    vlan*)
+      RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
+      ;;
+  esac
+fi
+[ -z "$RULES" ] && exit 0
+# pf requires normalization (scrub) before translation (nat) within
+# a ruleset load; the legs above append in that order.
+printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null && exit 0
+printf '%%s' "$RULES" | pfctl -a "com.apple/tuist.vmnat" -f -
+mkdir -p /usr/local/etc
+printf '%%s' "$RULES" > /usr/local/etc/tuist-vmnat.loaded
 VMNAT
 sudo chmod 0755 /usr/local/bin/tuist-pf-vmnat
+# Force a reload with the freshly-rendered config on install; the
+# cache only short-circuits steady-state interval runs.
+sudo rm -f /usr/local/etc/tuist-vmnat.loaded
 sudo /usr/local/bin/tuist-pf-vmnat
 
 sudo tee /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist >/dev/null <<'PLIST'
@@ -1232,8 +1297,39 @@ sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
 sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
 sudo launchctl bootout system/dev.tuist.pfctl-vmnat 2>/dev/null || true
 sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.pfctl-vmnat.plist
-`, cfg.VMKuraEgressCIDR)
+`, cfg.VMKuraEgressCIDR, cfg.VMCachePNCIDR)
 	return RunCommand(ctx, client, natScript)
+}
+
+// installVMCachePNInterface materializes the macOS side of the
+// server's Scaleway Private Network attachment: a VLAN interface on
+// en0 carrying the attachment's VLAN tag, configured for DHCP so
+// Scaleway IPAM hands the host its PN address. The VM NAT leg
+// (tuist-pf-vmnat) derives the interface from the route this
+// creates, and the kura runner-cache NodePort endpoints live behind
+// it. Recreates the interface when the tag changed (a re-attachment
+// gets a fresh VLAN). No-op unless both the PN CIDR and VLAN are
+// configured.
+func installVMCachePNInterface(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.VMCachePNCIDR == "" || cfg.VMCachePNVLAN == 0 {
+		return nil
+	}
+	script := fmt.Sprintf(`set -euo pipefail
+VLAN_TAG=%d
+CURRENT_TAG=$(networksetup -listVLANs 2>/dev/null | awk '/^VLAN User Defined Name: pn$/{found=1; next} found && /^Tag: /{print $2; exit} found && /^VLAN User Defined Name: /{exit}')
+if [ "${CURRENT_TAG:-}" != "$VLAN_TAG" ]; then
+  if [ -n "${CURRENT_TAG:-}" ]; then
+    sudo networksetup -deleteVLAN pn en0 "$CURRENT_TAG" || true
+    sleep 2
+  fi
+  sudo networksetup -createVLAN pn en0 "$VLAN_TAG"
+  sleep 3
+fi
+# The VLAN surfaces as a network service whose name varies by macOS
+# version ("pn Configuration" on Tahoe). Force DHCP either way.
+sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -setdhcp pn
+`, cfg.VMCachePNVLAN)
+	return RunCommand(ctx, client, script)
 }
 
 // installTailscale joins the Mac mini to the cluster's tailnet using
