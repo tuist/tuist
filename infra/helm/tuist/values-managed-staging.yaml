@@ -291,9 +291,9 @@ xcresultProcessor:
 # Declarative Scaleway Linux kura runner-cache node, replacing the
 # hand-joined PRO2-S. The provider orders the Instance, attaches it to the
 # runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint (this
+# cloud-init that registers the Node with the runner-cache taint. This
 # cluster's control plane is externally managed, so there's no CAPI kubeadm
-# join — the reconciler bootstraps the node itself).
+# join; the reconciler bootstraps the node itself.
 kuraFleet:
   enabled: true
   replicas: 1
