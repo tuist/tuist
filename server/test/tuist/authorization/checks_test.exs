@@ -509,7 +509,7 @@ defmodule Tuist.Authorization.ChecksTest do
       assert Checks.internal_ops_access(operator, :ops) == true
     end
 
-    test "returns false on a self-hosted instance even for a Workspace member" do
+    test "returns true on a self-hosted instance for an operator-domain user (no Google check)" do
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
 
       operator =
@@ -518,9 +518,7 @@ defmodule Tuist.Authorization.ChecksTest do
           preload: [:account]
         )
 
-      AccountsFixtures.oauth2_identity_fixture(user: operator, provider: :google)
-
-      assert Checks.internal_ops_access(operator, nil) == false
+      assert Checks.internal_ops_access(operator, nil) == true
     end
 
     test "returns false for a non-operator-domain user", %{user: user} do

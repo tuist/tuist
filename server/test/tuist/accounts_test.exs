@@ -323,7 +323,9 @@ defmodule Tuist.AccountsTest do
       :ok
     end
 
-    test "false when the instance is not tuist-hosted, even for a Workspace member" do
+    test "true on a self-hosted instance for an operator-domain email (no Google check)" do
+      # Self-hosted has no Tuist Google Workspace; the operator-domain email
+      # match alone qualifies, with no Google identity required.
       stub(Environment, :tuist_hosted?, fn -> false end)
 
       user =
@@ -332,7 +334,17 @@ defmodule Tuist.AccountsTest do
           confirmed_at: nil
         )
 
-      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "tuist.dev")
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false on a self-hosted instance for a non-operator-domain email" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: nil
+        )
 
       refute Accounts.tuist_operator?(user)
     end

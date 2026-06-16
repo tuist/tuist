@@ -1270,13 +1270,16 @@ defmodule Tuist.Accounts do
   def sso_enforced_for_email?(_email), do: false
 
   @doc """
-  Returns true when `user` is a Tuist operator: in dev, or — only on
-  tuist-hosted instances — an account that signed into the Tuist Google
-  Workspace (`Tuist.Environment.operator_email_domain/0`).
+  Returns true when `user` is a Tuist operator: in dev, or an account whose
+  email belongs to the operator email domain
+  (`Tuist.Environment.operator_email_domain/0`).
 
-  Operators are a tuist.dev (hosted, multi-tenant) concept; a self-hosted
-  customer instance has no Tuist Google Workspace, so the Workspace check
-  is gated on `Tuist.Environment.tuist_hosted?/0` and never matches there.
+  On tuist-hosted (tuist.dev) the domain match alone isn't enough: operators
+  sign into the org-restricted Tuist Google Workspace, so we additionally
+  require the Google hosted-domain (`hd`) match. A self-hosted instance has no
+  Tuist Google Workspace — operators there are whoever the instance configures
+  via the operator email domain — so the Google check is skipped, not the whole
+  operator concept.
 
   This is an eligibility heuristic, not an authorization boundary: it
   decides whether a non-member is routed to the ops.tuist.dev reason
@@ -1285,7 +1288,7 @@ defmodule Tuist.Accounts do
   static `ops_user_handles` allowlist.
   """
   def tuist_operator?(%User{} = user) do
-    Environment.dev?() or (Environment.tuist_hosted?() and operator_email?(user))
+    Environment.dev?() or operator_email?(user)
   end
 
   def tuist_operator?(_), do: false
@@ -1294,19 +1297,19 @@ defmodule Tuist.Accounts do
     domain = Environment.operator_email_domain()
 
     String.ends_with?(String.downcase(email), "@" <> domain) and
-      google_workspace_member?(user, domain)
+      (not Environment.tuist_hosted?() or google_workspace_member?(user, domain))
   end
 
   defp operator_email?(_), do: false
 
-  # Operators authenticate through Google Workspace SSO — our preferred,
-  # org-restricted sign-in. We verify membership the same way org SSO does:
-  # Google's hosted-domain (`hd`) claim, captured at sign-in as the identity's
-  # `provider_organization_id`. Matching it against the operator domain proves
-  # the account belongs to our Workspace rather than inferring it from the
-  # email string. The email/password confirmation flow (which sets
-  # `confirmed_at`, something Google sign-in never does) and other OAuth
-  # providers do not qualify an operator.
+  # Only enforced on tuist-hosted. Operators authenticate through Google
+  # Workspace SSO — our preferred, org-restricted sign-in. We verify membership
+  # the same way org SSO does: Google's hosted-domain (`hd`) claim, captured at
+  # sign-in as the identity's `provider_organization_id`. Matching it against
+  # the operator domain proves the account belongs to our Workspace rather than
+  # inferring it from the email string. The email/password confirmation flow
+  # (which sets `confirmed_at`, something Google sign-in never does) and other
+  # OAuth providers do not qualify a hosted operator.
   defp google_workspace_member?(%User{id: id}, domain) do
     Repo.exists?(
       from(o in Oauth2Identity,
