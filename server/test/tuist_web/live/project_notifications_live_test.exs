@@ -217,6 +217,58 @@ defmodule TuistWeb.ProjectNotificationsLiveTest do
     end
   end
 
+  describe "bundle_size branch validation" do
+    test "shows an error and does not create a bundle_size alert when the branch is blank", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      {:ok, channel_token} =
+        Tuist.Slack.sign_channel_result(%{
+          channel_id: "C123456",
+          channel_name: "test-channel",
+          webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+        })
+
+      # When: user configures a bundle_size alert but leaves the branch blank
+      render_hook(lv, "update_create_alert_form_category", %{"category" => "bundle_size"})
+      render_hook(lv, "update_create_alert_form_name", %{"value" => "Bundle alert"})
+      render_hook(lv, "create_alert_form_channel_selected", %{"channel_token" => channel_token})
+
+      html = render_hook(lv, "create_alert_rule", %{})
+
+      # Then: no alert is created and the branch error is surfaced (no silent failure)
+      assert Alerts.get_project_alert_rules(project) == []
+      assert html =~ "Branch is required"
+    end
+
+    test "shows an error and keeps the existing branch when clearing the branch of a bundle_size alert", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: an existing bundle_size alert rule on branch "main"
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(project: project, category: :bundle_size, git_branch: "main")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/settings/notifications")
+
+      # When: user clears the branch and saves
+      render_hook(lv, "update_edit_alert_form_git_branch", %{"id" => alert_rule.id, "value" => ""})
+      html = render_hook(lv, "update_alert_rule", %{"id" => alert_rule.id})
+
+      # Then: the alert rule keeps its branch and the error is surfaced (no silent failure)
+      {:ok, unchanged_rule} = Alerts.get_alert_rule(alert_rule.id)
+      assert unchanged_rule.git_branch == "main"
+      assert html =~ "Branch is required"
+    end
+  end
+
   describe "create_alert_rule" do
     test "does not allow creating an alert rule when user lacks project_update permission", %{
       conn: conn,

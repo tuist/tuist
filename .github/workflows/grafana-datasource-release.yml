@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: write
+  # Build provenance attestation for the release artifact (OIDC-signed).
+  id-token: write
+  attestations: write
 
 concurrency:
   group: grafana-datasource-release
@@ -42,7 +45,7 @@ jobs:
         run: mise run release:check grafana-datasource
 
   release:
-    name: Build, sign and release
+    name: Build and release
     needs: check-releases
     if: needs.check-releases.outputs.should-release == 'true'
     runs-on: tuist-linux
@@ -51,7 +54,6 @@ jobs:
       run:
         working-directory: grafana-datasource
     env:
-      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
       TAG: ${{ needs.check-releases.outputs.next-version }}
       VERSION: ${{ needs.check-releases.outputs.next-version-number }}
     steps:
@@ -65,12 +67,12 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.3"
+          go-version: "1.26.4"
 
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: "git-cliff 1password-cli"
+          install_args: "git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
 
@@ -101,20 +103,10 @@ jobs:
           mage -v
           ls -la dist/gpx_tuist_datasource_* >/dev/null
 
-      # Grafana only issues a signature after the plugin is reviewed and granted a
-      # signature level, so signing fails until then. Publish unsigned and warn
-      # rather than block the release; it signs automatically once approved.
-      - name: Sign the plugin
-        if: ${{ env.OP_SERVICE_ACCOUNT_TOKEN != '' }}
-        run: |
-          GRAFANA_ACCESS_POLICY_TOKEN=$(op read "op://tuist/TUIST_GRAFANA_PLUGIN_TOKEN/password")
-          export GRAFANA_ACCESS_POLICY_TOKEN
-          if npm run sign; then
-            echo "Plugin signed."
-          else
-            echo "::warning::Plugin not signed — Grafana issues a signature only after the plugin is reviewed at grafana.com (My Plugins). Publishing unsigned; re-release to sign once a signature level is granted."
-          fi
-
+      # No signing step yet: Grafana issues a plugin signature only after the
+      # plugin is reviewed in the catalog. Releases are unsigned until then; the
+      # signing step (token from 1Password) is added back once a signature level
+      # is granted.
       - name: Package
         run: |
           id=$(node -p "require('./src/plugin.json').id")
@@ -125,6 +117,11 @@ jobs:
             echo "ZIP=grafana-datasource/$id-$VERSION.zip"
             echo "SHA1=grafana-datasource/$id-$VERSION.zip.sha1"
           } >> "$GITHUB_ENV"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ZIP }}
 
       - name: Validate the plugin (informational)
         run: |
@@ -139,6 +136,13 @@ jobs:
           if git ls-remote --tags --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on origin"
             exit 0
+          fi
+          # Commit the version stamped into package.json/lock so the tagged source
+          # matches the published plugin.json — Grafana's validator compares the
+          # two. Only the tag is pushed, so main stays free of release commits.
+          git add grafana-datasource/package.json grafana-datasource/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(grafana-datasource): stamp version $VERSION"
           fi
           git tag "$TAG"
           git push origin "refs/tags/$TAG"

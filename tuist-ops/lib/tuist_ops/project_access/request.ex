@@ -9,8 +9,10 @@ defmodule TuistOps.ProjectAccess.Request do
       moment the reason is recorded (the request is created already
       `approved` and immediately spawns a `Grant`).
     * `admin` — act with admin privileges on the customer's org
-      ("sign in as admins"). Stays `pending` until a second human
-      approves in Slack, exactly like a production kubectl write.
+      ("sign in as admins"). Stays `pending` until an Owner/Admin
+      approves in Slack, like a production kubectl write. An
+      Owner/Admin requester may self-approve; anyone else needs a
+      second human.
 
   Goes through: `pending → approved | denied | expired | failed`.
   An approved request spawns a `TuistOps.ProjectAccess.Grant`; the
@@ -48,7 +50,7 @@ defmodule TuistOps.ProjectAccess.Request do
 
   @doc """
   Changeset for a brand-new request. For the `admin` tier
-  `expires_at` is the deadline by which a second human must approve
+  `expires_at` is the deadline by which an Owner/Admin must approve
   in Slack; for the `read` tier it equals the grant's own expiry
   since there is no approval step.
   """

@@ -31,8 +31,13 @@ defmodule Tuist.Kura.Regions do
   # instance N runs Kura on `kura-dev-N`.
   @local_controller_kura_base_port 4100
   @managed_region_node_pool_label "node.cluster.x-k8s.io/pool"
-  @managed_region_public_host_template "{account_handle}-{cluster_id}.kura.tuist.dev"
-  @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+  # Public Kura hostnames for every environment share the single
+  # `*.kura.tuist.dev` Cloudflare zone. `{env_suffix}` is filled at runtime
+  # (see `managed_region_host_suffix/0`): empty in production and
+  # `-staging`/`-canary` elsewhere, so non-production deployments mint
+  # distinct hostnames (e.g. `acme-eu-central-1-staging.kura.tuist.dev`).
+  @managed_region_public_host_template "{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
+  @managed_region_grpc_public_host_template "grpc.{account_handle}-{cluster_id}{env_suffix}.kura.tuist.dev"
   @managed_region_storage_class "hcloud-volumes"
   @managed_region_specs [
     %{
@@ -227,6 +232,8 @@ defmodule Tuist.Kura.Regions do
   end
 
   defp managed_region(spec) do
+    host_suffix = managed_region_host_suffix()
+
     %__MODULE__{
       id: spec.id,
       display_name: spec.display_name,
@@ -234,8 +241,8 @@ defmodule Tuist.Kura.Regions do
       provisioner_config: %{
         cluster_id: spec.cluster_id,
         hetzner_location: spec.hetzner_location,
-        public_host_template: @managed_region_public_host_template,
-        grpc_public_host_template: @managed_region_grpc_public_host_template,
+        public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
         storage_class: @managed_region_storage_class,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
@@ -246,6 +253,20 @@ defmodule Tuist.Kura.Regions do
         mesh: true
       }
     }
+  end
+
+  # Environment suffix woven into managed-region public hostnames so the
+  # ingress hosts, external-dns Cloudflare records, and cert-manager
+  # certificates of staging/canary never collide with production. The
+  # managed regions (e.g. `eu-central`) are exposed in every environment
+  # and share a `cluster_id`, so without a per-environment suffix all three
+  # would mint the identical hostname and fight over the same DNS record.
+  defp managed_region_host_suffix do
+    case Tuist.Environment.env() do
+      :stag -> "-staging"
+      :can -> "-canary"
+      _ -> ""
+    end
   end
 
   defp private_region(spec) do

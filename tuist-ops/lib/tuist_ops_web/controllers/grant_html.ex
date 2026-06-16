@@ -76,7 +76,7 @@ defmodule TuistOpsWeb.GrantHTML do
     <div class="ops-centered">
       <div class="ops-page__header">
         <h1 class="ops-page__title">Waiting for approval</h1>
-        <p class="ops-page__subtitle">Admin access to a customer org needs a second human.</p>
+        <p class="ops-page__subtitle">Admin access to a customer org needs an Owner/Admin to approve.</p>
       </div>
 
       <.card icon="clock_hour_4" title={"Access #{@account}"}>

@@ -47,4 +47,28 @@ defmodule TuistOps.ProjectAccess.PolicyTest do
       refute Policy.admin_approver_allowed?(nil)
     end
   end
+
+  describe "self_approval_allowed?/1" do
+    test "true for Owner and Admin tailnet roles (the founders)" do
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :owner} end)
+      assert Policy.self_approval_allowed?("owner@tuist.dev")
+
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :admin} end)
+      assert Policy.self_approval_allowed?("admin@tuist.dev")
+    end
+
+    test "false for a Member (engineer)" do
+      stub(TailscaleClient, :user_role, fn _ -> {:ok, :member} end)
+      refute Policy.self_approval_allowed?("eng@tuist.dev")
+    end
+
+    test "false when the tailnet lookup fails" do
+      stub(TailscaleClient, :user_role, fn _ -> {:error, :not_found} end)
+      refute Policy.self_approval_allowed?("ghost@tuist.dev")
+    end
+
+    test "false for a nil requester" do
+      refute Policy.self_approval_allowed?(nil)
+    end
+  end
 end

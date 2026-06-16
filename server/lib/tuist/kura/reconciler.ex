@@ -336,7 +336,7 @@ defmodule Tuist.Kura.Reconciler do
   end
 
   defp converge(%Server{} = server, desired) do
-    if converged?(server, desired) do
+    if converged?(server, desired) and endpoint_in_sync?(server) do
       refresh_node_port_url(server)
     else
       do_converge(server, desired)
@@ -363,6 +363,23 @@ defmodule Tuist.Kura.Reconciler do
   defp converged?(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag}, tag), do: true
 
   defp converged?(%Server{}, _desired), do: false
+
+  # The URL the region template renders can change without the image changing
+  # (e.g. an environment-scoped public-host rename). `kura_servers.url` and the
+  # `account_cache_endpoints` mirror are derived from it, but `converged?` only
+  # tracks the image, so a healthy node would otherwise never re-derive them.
+  # Treating a drifted URL as out of sync routes the server back through the
+  # endpoint-gated `activate_server`, which re-probes the new host and rewrites
+  # the mirror; once they match this is a no-op, so steady-state nodes are still
+  # not re-written every tick. A non-binary render (e.g. unknown region) leaves
+  # the existing `converged?` behaviour untouched.
+  defp endpoint_in_sync?(%Server{url: url} = server) do
+    case Provisioner.public_url(server.account, server) do
+      ^url -> true
+      rendered when is_binary(rendered) -> false
+      _ -> true
+    end
+  end
 
   # Already active on the observed image: a no-op. Skip the write and
   # broadcast so a healthy server is not re-locked, re-written, and

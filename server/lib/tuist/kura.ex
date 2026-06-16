@@ -556,7 +556,7 @@ defmodule Tuist.Kura do
         %Server{status: :destroyed} ->
           Repo.rollback(:server_destroyed)
 
-        %Server{} = server ->
+        %Server{url: previous_url} = server ->
           with {:ok, server} <-
                  server
                  |> Server.observation_changeset(%{
@@ -567,7 +567,8 @@ defmodule Tuist.Kura do
                    last_observed_at: now_truncated()
                  })
                  |> Repo.update(),
-               :ok <- ensure_cache_endpoint(account, url) do
+               :ok <- ensure_cache_endpoint(account, url),
+               :ok <- prune_superseded_cache_endpoint(account, previous_url, url) do
             server
           else
             {:error, reason} -> Repo.rollback(reason)
@@ -731,6 +732,23 @@ defmodule Tuist.Kura do
       {:ok, _} -> :ok
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  # Drops the endpoint row left behind when a server's `public_url` changes
+  # (e.g. an environment-scoped host rename). Scoped to the server's *previous*
+  # URL so an account's endpoints for other regions — which carry their own
+  # distinct URLs — are never touched. A no-op when the URL is unchanged or the
+  # stale row is already gone.
+  defp prune_superseded_cache_endpoint(_account, previous_url, url) when previous_url in [nil, url], do: :ok
+
+  defp prune_superseded_cache_endpoint(%Account{id: account_id}, previous_url, _url) do
+    Repo.delete_all(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^previous_url
+      )
+    )
+
+    :ok
   end
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok

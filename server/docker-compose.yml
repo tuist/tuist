@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   db:
     image: postgres:16
@@ -27,7 +26,8 @@ services:
     environment:
       PGWEB_DATABASE_URL: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   tuist:
     build:
@@ -35,7 +35,8 @@ services:
       dockerfile: Dockerfile
     container_name: tuist
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "80:80"
       - "8080:8080"

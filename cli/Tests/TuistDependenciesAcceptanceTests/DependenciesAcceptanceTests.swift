@@ -63,7 +63,7 @@ struct DependenciesAcceptanceTests {
         try await TuistTest.run(
             TestCommand.self,
             [
-                "AppKit",
+                "App Kit",
                 "--device",
                 simulator.name,
                 "--path",

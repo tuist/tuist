@@ -9,7 +9,6 @@ import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 import XCActivityLogParser
-import XCLogParser
 
 enum XCActivityLogControllerError: LocalizedError, Equatable {
     case failedToParseActivityLog(path: AbsolutePath, reason: String)
@@ -33,11 +32,6 @@ public protocol XCActivityLogControlling {
         filter: @escaping (XCActivityLogFile) -> Bool
     )
         async throws -> XCActivityLogFile?
-    func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws -> [
-        String: Double
-    ]
-    func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
-        -> [String: Double]
     func parse(_ path: AbsolutePath) async throws -> XCActivityLog
 }
 
@@ -65,87 +59,6 @@ public struct XCActivityLogController: XCActivityLogControlling {
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
         self.gitController = gitController
-    }
-
-    public func buildTimesByTarget(projectDerivedDataDirectory: AbsolutePath) async throws
-        -> [String: Double]
-    {
-        let buildLogsPath = projectDerivedDataDirectory.appending(components: [
-            "Logs",
-            "Build",
-        ])
-        let logStoreManifestPlistPath = buildLogsPath.appending(components: [
-            "LogStoreManifest.plist",
-        ])
-        let logStoreManifest: XCLogStoreManifestPlist
-        do {
-            logStoreManifest = try await fileSystem.readPlistFile(
-                at: logStoreManifestPlistPath
-            )
-        } catch {
-            throw XCActivityLogControllerError.wrap(error, path: logStoreManifestPlistPath)
-        }
-
-        let activityLogPaths = logStoreManifest.logs.keys.map {
-            buildLogsPath.appending(components: ["\($0).xcactivitylog"])
-        }
-
-        return try await buildTimesByTarget(activityLogPaths: activityLogPaths)
-    }
-
-    public func buildTimesByTarget(activityLogPaths: [AbsolutePath]) async throws
-        -> [String: Double]
-    {
-        var buildTimes: [String: Double] = [:]
-        for activityLogPath in activityLogPaths {
-            let activityLog: IDEActivityLog
-            do {
-                activityLog = try XCLogParser.ActivityParser().parseActivityLogInURL(
-                    activityLogPath.url,
-                    redacted: false,
-                    withoutBuildSpecificInformation: false
-                )
-            } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
-            }
-            let buildStep: BuildStep
-            do {
-                buildStep = try XCLogParser.ParserBuildSteps(
-                    omitWarningsDetails: true,
-                    omitNotesDetails: true,
-                    truncLargeIssues: true
-                )
-                .parse(activityLog: activityLog)
-            } catch {
-                throw XCActivityLogControllerError.wrap(error, path: activityLogPath)
-            }
-
-            for (targetName, targetBuildDuration) in flattenedXCLogParserBuildStep([buildStep])
-                .filter({ $0.title.starts(with: "Build target") }).map({
-                    ($0.signature, $0.subSteps.reduce(into: 0) { duration, subStep in
-                        duration += subStep.compilationDuration * 1000 // From seconds to miliseconds
-                    })
-                })
-            {
-                // If a target supports multiple platforms, the time will persist is the time of the latest platform that we
-                // built.
-                buildTimes[targetName] = targetBuildDuration
-            }
-        }
-
-        return buildTimes
-    }
-
-    private func flattenedXCLogParserBuildStep(_ buildSteps: [XCLogParser.BuildStep])
-        -> [XCLogParser.BuildStep]
-    {
-        return buildSteps.flatMap { step in
-            var flattened = [step]
-            if !step.subSteps.isEmpty {
-                flattened.append(contentsOf: flattenedXCLogParserBuildStep(step.subSteps))
-            }
-            return flattened
-        }
     }
 
     public func mostRecentActivityLogFile(

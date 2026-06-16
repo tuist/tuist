@@ -23,6 +23,7 @@ defmodule Tuist.Shards do
   @default_module_duration_ms 30_000
   @default_suite_duration_ms 5_000
   @timing_lookback_days 30
+  @timing_quantile 0.90
 
   def create_shard_plan(%Project{} = project, params) do
     granularity = Map.get(params, :granularity, "module")
@@ -242,13 +243,12 @@ defmodule Tuist.Shards do
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
-      where: mr.git_branch == ^project.default_branch,
       where: mr.ran_at >= ^cutoff,
       group_by: mr.name,
-      select: %{name: mr.name, avg_duration: fragment("avg(?)", mr.duration)}
+      select: %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
+    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
   end
 
   defp fetch_timing_data(project, "suite") do
@@ -257,13 +257,12 @@ defmodule Tuist.Shards do
     from(sr in TestSuiteRun,
       where: sr.project_id == ^project.id,
       where: sr.is_ci == true,
-      where: sr.git_branch == ^project.default_branch,
       where: sr.ran_at >= ^cutoff,
       group_by: sr.name,
-      select: %{name: sr.name, avg_duration: fragment("avg(?)", sr.duration)}
+      select: %{name: sr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, avg_duration: avg} -> {name, round(avg)} end)
+    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
   end
 
   defp assign_durations(unit_names, timing_data, granularity) do

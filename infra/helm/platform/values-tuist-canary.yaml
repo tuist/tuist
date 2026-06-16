@@ -1,9 +1,11 @@
 # Canary workload-cluster overlay. Loaded by k8s:install-platform when
 # CLUSTER_NAME=tuist-canary.
 
-# Stable outbound source IP for canary Tuist server traffic. The IP is a
-# Hetzner Floating IP assigned to the gateway node, so the host-configurer keeps
-# the /32 address and source route present on the host interface.
+# Stable outbound source IP for canary Tuist server traffic. The gateway runs HA
+# across the md-egress pool (see cluster-canary.yaml): the failover controller
+# keeps the Floating IP + active label on one Ready node; the host-configurer
+# configures eth0 on it. Mirrors prod/staging so the flow is exercised in the
+# deployment cascade before production.
 ciliumEgressGateway:
   server:
     enabled: true
@@ -11,6 +13,12 @@ ciliumEgressGateway:
     egressIP: 78.47.174.50
     hostConfigurator:
       enabled: true
+    failoverController:
+      enabled: true
+      # Image tag resolved at deploy time by k8s:install-platform.
+      floatingIpName: tuist-canary-server-egress
+      egressIpAllowlist:
+        - 78.47.174.50/32
 
 ingress-nginx:
   controller:

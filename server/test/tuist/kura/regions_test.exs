@@ -84,6 +84,38 @@ defmodule Tuist.Kura.RegionsTest do
       assert config.node_selector == %{"kubernetes.io/os" => "linux"}
     end
 
+    test "weaves a per-environment suffix into managed-region public hostnames" do
+      stub(Tuist.Environment, :env, fn -> :stag end)
+
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.public_host_template == "{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+
+      assert config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}-staging.kura.tuist.dev"
+
+      stub(Tuist.Environment, :env, fn -> :can end)
+
+      canary_config = Regions.get("us-east").provisioner_config
+
+      assert canary_config.public_host_template ==
+               "{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+
+      assert canary_config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}-canary.kura.tuist.dev"
+    end
+
+    test "omits the environment suffix from managed-region public hostnames in production" do
+      stub(Tuist.Environment, :env, fn -> :prod end)
+
+      config = Regions.get("eu-central").provisioner_config
+
+      assert config.public_host_template == "{account_handle}-{cluster_id}.kura.tuist.dev"
+
+      assert config.grpc_public_host_template ==
+               "grpc.{account_handle}-{cluster_id}.kura.tuist.dev"
+    end
+
     test "reads the managed-region Tuist base URL from the environment adapter" do
       stub(Tuist.Environment, :kura_tuist_base_url, fn ->
         "http://tuist-tuist-server.tuist-canary.svc.cluster.local:80"

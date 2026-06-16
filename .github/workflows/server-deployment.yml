@@ -403,6 +403,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          # Full history + tags so k8s:install-platform can resolve the
+          # stable-egress-controller@<semver> image tag reachable from this commit.
+          fetch-depth: 0
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "helm kubectl"

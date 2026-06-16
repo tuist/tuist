@@ -211,6 +211,19 @@ spec:
         openAPIV3Schema:
           type: string
           default: ""
+    # Extra kubelet node-labels for a worker pool, in kubelet's
+    # `k=v,k=v` form. Set as a per-MachineDeployment override so a pool
+    # self-applies role labels at registration. Unlike MachineDeployment
+    # metadata labels (which CAPI only syncs for the
+    # node-role/node-restriction/node.cluster.x-k8s.io prefixes), this
+    # reaches the node directly and survives node replacement — which is
+    # why the stable-egress gateway role is pinned this way.
+    - name: workerNodeLabels
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
     # Bare-metal cluster gate. Each per-cluster topology sets this
     # to its own env (`staging` / `canary` / `production`) so the
     # `HetznerBareMetalMachineTemplateClusterSelector` patch below
@@ -344,6 +357,27 @@ spec:
               path: "/spec/template/spec/placementGroupName"
               valueFrom:
                 variable: hcloudWorkerMachinePlacementGroupName
+    # Append per-pool kubelet node-labels to the worker bootstrap. The
+    # shared worker KubeadmConfigTemplate carries only cloud-provider +
+    # config args; this appends `--node-labels=<workerNodeLabels>` for any
+    # MachineDeployment that overrides the variable (no-op otherwise). It
+    # is how the stable-egress gateway pool self-labels its node so the
+    # role survives MachineHealthCheck remediation.
+    - name: KubeadmConfigTemplateWorkerNodeLabels
+      enabledIf: '{{ if ne .workerNodeLabels "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
     # Inject the per-cluster gate into the shared bare-metal HBMM
     # template. `hetzner-robot-controller` stamps each HBM with
     # `tuist.dev/cluster=<env>` based on the Robot server name; the

@@ -1,0 +1,120 @@
+name: CLI Release Candidate
+
+# Publish a release candidate (X.Y.0-rc.N) for the upcoming stable minor.
+#
+# Two modes, selected by the `branch` input:
+#
+#   1. Cut a new line (branch empty): publishes X.Y.0-rc.1 for the current canary
+#      minor and, only after that publish succeeds, creates the protected
+#      releases/<major>.<minor>.x branch at the built commit. The moment that RC
+#      tag exists, main's canary advances to the next minor, so main keeps moving
+#      while the line soaks. The branch is created last so a failed publish leaves
+#      no half-cut line: re-running with an empty branch starts cleanly.
+#
+#   2. Iterate an existing line (branch=releases/X.Y.x): after critical fixes /
+#      regressions are cherry-picked onto the release branch via PR (same flow as
+#      cli-backport.yml — CI never cherry-picks), publishes X.Y.0-rc.(N+1) from the
+#      branch HEAD.
+#
+# RCs are GitHub prereleases: never "Latest", never pushed to Homebrew. After a
+# clean soak, promote the line to stable with cli-promote.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Existing release branch to iterate an RC on (releases/<major>.<minor>.x). Leave empty to cut a new RC line from main."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+  # Capped down into the reusable workflow's release-cli job (which mints an
+  # OIDC token); a called workflow's job permissions can't exceed the caller's.
+  id-token: write
+
+concurrency:
+  # Shared with cli-release.yml / cli-promote.yml / cli-backport.yml so version
+  # resolution and tag creation never race.
+  group: cli-publish
+  cancel-in-progress: false
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  prepare:
+    name: Resolve RC version
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      branch: ${{ steps.resolve.outputs.branch }}
+      changelog_from: ${{ steps.resolve.outputs.changelog_from }}
+    steps:
+      # Cutting a new line resolves off main; iterating resolves off the branch.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch == '' && github.event.repository.default_branch || inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: resolve
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BRANCH" ]; then
+            mise run --no-deps cli:release:channel-version -- rc-new
+          else
+            mise run --no-deps cli:release:channel-version -- rc "$BRANCH"
+          fi
+
+  build-publish:
+    name: Build and publish RC
+    needs: prepare
+    uses: ./.github/workflows/cli-build-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      # An immutable SHA so every job builds and tags the identical commit.
+      ref: ${{ needs.prepare.outputs.sha }}
+      changelog_from: ${{ needs.prepare.outputs.changelog_from }}
+      # RCs are prereleases: never "Latest", never Homebrew.
+      make_latest: false
+      prerelease: true
+      update_homebrew: false
+    secrets: inherit
+
+  create-branch:
+    name: Create the release branch
+    # Only when cutting a new line, and only after the RC has actually published.
+    # Deferring the branch push until here means a failed build/publish leaves no
+    # orphan branch, so the cut can simply be re-run with an empty branch.
+    needs: [prepare, build-publish]
+    if: ${{ inputs.branch == '' }}
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Push the release branch at the published commit
+        env:
+          NEW_BRANCH: ${{ needs.prepare.outputs.branch }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git push origin "${SHA}:refs/heads/${NEW_BRANCH}"

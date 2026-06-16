@@ -48,7 +48,7 @@ defmodule TuistOps.ProjectAccess.SlackBlocks do
           %{
             type: "mrkdwn",
             text:
-              "Admin access to a customer org needs a second human. Approval expires <!date^#{expiry_unix}^{date_short_pretty} at {time}|soon>. The requester cannot approve their own request, and only Owners/Admins may approve."
+              "Only Owners/Admins may approve admin access to a customer org. Approval expires <!date^#{expiry_unix}^{date_short_pretty} at {time}|soon>. An Owner/Admin requester may self-approve; anyone else needs a second human."
           }
         ]
       },

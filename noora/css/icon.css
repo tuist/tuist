@@ -12,6 +12,14 @@
 .noora-icon-transition > [data-part="icon-to"] {
   grid-area: 1 / 1;
   display: inline-flex;
+}
+
+/* Transitions are only enabled once the hook flags the element ready (after
+   the initial state has painted), so establishing the starting state on
+   mount — e.g. a collapsible setting its open state after this icon
+   initializes — never animates. */
+.noora-icon-transition[data-ready] > [data-part="icon-from"],
+.noora-icon-transition[data-ready] > [data-part="icon-to"] {
   transition:
     opacity 200ms var(--ease-out-cubic),
     transform 200ms var(--ease-out-cubic);

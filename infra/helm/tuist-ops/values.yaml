@@ -50,7 +50,13 @@ postgresql:
   owner: tuist_ops
   image:
     repository: ghcr.io/cloudnative-pg/postgresql
-    tag: "16.6"
+    # Pinned to the live cluster's image. #11224 bumped this to 16.6 AND
+    # added max_connections in one change, but CNPG's webhook rejects
+    # changing the image and parameters in the same apply — which is why
+    # tuist-ops hasn't deployed since 2026-06-11. Apply the parameters
+    # first (image unchanged = config-only change); the 16.6 bump lands in
+    # a follow-up once this is live (image-only change, also allowed).
+    tag: "16.4"
   parameters:
     max_connections: "40"
   resources:
