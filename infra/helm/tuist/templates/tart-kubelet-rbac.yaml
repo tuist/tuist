@@ -94,6 +94,6 @@ rules:
     resources: [persistentvolumeclaims, persistentvolumes]
     verbs: [get, list, watch]
   - apiGroups: ["storage.k8s.io"]
-    resources: [volumeattachments]
+    resources: [volumeattachments, csidrivers]
     verbs: [get, list, watch]
 {{- end }}
