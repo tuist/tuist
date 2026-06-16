@@ -468,14 +468,24 @@ import XcodeGraph
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheGraphTargetBuiltArtifact] {
             var xcframeworks: [CacheGraphTargetBuiltArtifact] = []
-            let cacheableTargets = cacheableTargets.filter { $0.0.target.product.isFramework && !$0.0.target.isAggregate }
+            let cacheableTargets = cacheableTargets.filter {
+                $0.0.target.isXCFrameworkCacheableProduct && !$0.0.target.isAggregate
+            }
 
             for cacheableTarget in cacheableTargets {
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
                 let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
-                    let artifactPath = $0.appending(components: [cacheableTarget.0.target.productNameWithExtension])
-                    return try await fileSystem.exists(artifactPath) ? artifactPath : nil
+                    artifactDirectory -> (artifactPath: AbsolutePath, publicHeadersPath: AbsolutePath?)? in
+                    let artifactPath = artifactDirectory.appending(
+                        components: [cacheableTarget.0.target.productNameWithExtension]
+                    )
+                    guard try await fileSystem.exists(artifactPath) else { return nil }
+                    let publicHeadersPath = try await libraryPublicHeadersPath(
+                        for: cacheableTarget.0.target,
+                        artifactDirectory: artifactDirectory
+                    )
+                    return (artifactPath: artifactPath, publicHeadersPath: publicHeadersPath)
                 }
 
                 let xcframeworkPath = temporaryDirectory.appending(components: [
@@ -484,8 +494,19 @@ import XcodeGraph
                 ])
 
                 let xcodebuildArguments: [String] = artifactsIncludingTarget
-                    .flatMap { artifactPath in
-                        ["-framework", artifactPath.pathString]
+                    .flatMap { artifactPath -> [String] in
+                        switch cacheableTarget.0.target.product {
+                        case .framework, .staticFramework:
+                            return ["-framework", artifactPath.artifactPath.pathString]
+                        case .staticLibrary, .dynamicLibrary:
+                            var arguments = ["-library", artifactPath.artifactPath.pathString]
+                            if let publicHeadersPath = artifactPath.publicHeadersPath {
+                                arguments.append(contentsOf: ["-headers", publicHeadersPath.pathString])
+                            }
+                            return arguments
+                        default:
+                            return []
+                        }
                     } + ["-allow-internal-distribution"]
 
                 Logger.current.info("Creating XCFramework for \(cacheableTarget.0.target.name)", metadata: .section)
@@ -534,6 +555,27 @@ import XcodeGraph
             }
 
             return xcframeworks
+        }
+
+        private func libraryPublicHeadersPath(
+            for target: Target,
+            artifactDirectory: AbsolutePath
+        ) async throws -> AbsolutePath? {
+            guard [.staticLibrary, .dynamicLibrary].contains(target.product),
+                  let publicHeaders = target.headers?.public,
+                  !publicHeaders.isEmpty
+            else { return nil }
+
+            let builtHeadersPath = artifactDirectory.appending(components: "usr", "local", "include")
+            if try await fileSystem.exists(builtHeadersPath, isDirectory: true) {
+                return builtHeadersPath
+            }
+
+            return publicHeaders
+                .map(\.parentDirectory)
+                .reduce(publicHeaders[0].parentDirectory) { commonAncestor, headerDirectory in
+                    commonAncestor.commonAncestor(with: headerDirectory)
+                }
         }
 
         private func collectForeignBuildArtifacts(
@@ -893,6 +935,19 @@ import XcodeGraph
             return cacheableTargets.compactMap {
                 existingTargetHashes.contains($0.hash) ? nil : ($0.target, $0.hash)
             }
+        }
+    }
+#endif
+
+#if canImport(TuistCacheEE)
+    extension Target {
+        fileprivate var isXCFrameworkCacheableProduct: Bool {
+            [
+                .framework,
+                .staticFramework,
+                .staticLibrary,
+                .dynamicLibrary,
+            ].contains(product)
         }
     }
 #endif
