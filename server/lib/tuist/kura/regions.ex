@@ -97,7 +97,12 @@ defmodule Tuist.Kura.Regions do
       display_name: "Scaleway fr-par (runner cache)",
       cluster_id: "scw-fr-par",
       node_pool: "kura-scw-fr-par",
-      storage_class: "scw-bssd",
+      # The pool runs on Scaleway Elastic Metal (bare metal), which can't
+      # attach scw-bssd block volumes — and a regenerable cache wants fast
+      # local NVMe anyway. Per-account PVs come from the node's local NVMe
+      # via the local-path provisioner (`scw-local-nvme` StorageClass,
+      # installed on the pool out-of-band).
+      storage_class: "scw-local-nvme",
       storage_size: "50Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
@@ -110,10 +115,11 @@ defmodule Tuist.Kura.Regions do
       # client's source address, which the per-instance NetworkPolicy
       # only admits through this ipBlock.
       client_cidrs: ["172.16.0.0/22"],
-      # Per-account egress ceiling (Cilium bandwidth manager). The
-      # pool's node NIC is shared by every tenant pod on it; the cap
-      # keeps one account's restore burst from starving the rest while
-      # still letting a lone tenant pull at half a PRO2-S NIC.
+      # Per-account egress ceiling (Cilium bandwidth manager). The pool's
+      # node NIC is shared by every tenant pod on it; the cap keeps one
+      # account's restore burst from starving the rest. Conservative
+      # against the Elastic Metal node's 10G PN (~13 tenants at the cap
+      # before the NIC binds), so there's headroom to raise it.
       pod_annotations: %{"kubernetes.io/egress-bandwidth" => "750M"},
       # The pool's nodes carry a `tuist.dev/runner-cache=true:NoSchedule`
       # taint so general workloads stay off this shared-NIC, egress-capped

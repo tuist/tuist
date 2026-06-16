@@ -288,16 +288,21 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Linux kura runner-cache node, replacing the
-# hand-joined PRO2-S. The provider orders the Instance, attaches it to the
-# runner-cache PN, mints a kubelet identity, and renders a self-join
-# cloud-init that registers the Node with the runner-cache taint. This
-# cluster's control plane is externally managed, so there's no CAPI kubeadm
-# join; the reconciler bootstraps the node itself.
+# Declarative Scaleway Elastic Metal kura runner-cache node. The provider
+# orders the bare-metal server, attaches it to the runner-cache PN, mints a
+# kubelet identity, and renders a self-join cloud-init that registers the Node
+# with the runner-cache taint. This cluster's control plane is externally
+# managed, so there's no CAPI kubeadm join; the reconciler bootstraps the node
+# itself.
 kuraFleet:
   enabled: true
   replicas: 1
   machine:
+    kind: elasticMetal
+    # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
+    # that still mirrors the production NVMe + 10G PN path, so staging
+    # validates the same local-NVMe + bare-metal-PN data plane prod runs on.
+    offerType: EM-B220E-NVME
     privateNetworkID: 8c9cf4c1-74f0-4303-9061-fa9d9591e7b8
 
 # Mac mini fleet. The chart renders one ScalewayAppleSiliconMachine

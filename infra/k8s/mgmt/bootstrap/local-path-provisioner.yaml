@@ -1,0 +1,183 @@
+# local-path-provisioner — serves per-account cache PVCs from local NVMe on
+# the `kura-scw-fr-par` Elastic Metal node(s).
+#
+# Why not scaleway-csi here: Elastic Metal bare-metal servers can't attach
+# scw-bssd block volumes (that's an Instance-only feature), so the cache PVCs
+# have to live on the node's local NVMe. Each PVC becomes a hostPath-backed PV
+# under /opt/local-path-provisioner on the node — per-account isolation by
+# directory, capacity bounded by the box's NVMe (EM-I220E = 1.92TB).
+#
+# The StorageClass name `scw-local-nvme` is load-bearing: the server's
+# `scw-fr-par-runners` kura region spec will provision PVCs with this class
+# (server/lib/tuist/kura/regions.ex, storage_class). That server-side switch
+# from `scw-bssd` to `scw-local-nvme` is handled separately — see the kura
+# region spec change in the parallel server work.
+#
+# Applied out-of-band on the workload cluster the same way as
+# scaleway-csi-values.yaml (the macOS-runner-cache bootstrap), pinned to the
+# Rancher local-path-provisioner v0.0.31 manifest with the storage path,
+# nodeSelector, taint toleration, and StorageClass adapted for this pool.
+#
+#   kubectl --kubeconfig ~/.kube/tuist-<env>.yaml apply -f \
+#     infra/k8s/mgmt/bootstrap/local-path-provisioner.yaml
+#
+# Re-apply after any pinned-version bump.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-path-storage
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: local-path-provisioner-service-account
+  namespace: local-path-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: local-path-provisioner-role
+rules:
+  - apiGroups: [""]
+    resources: [nodes, persistentvolumeclaims, configmaps, pods, pods/log]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, create, patch, update, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: local-path-provisioner-bind
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: local-path-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: local-path-provisioner-service-account
+    namespace: local-path-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: local-path-provisioner
+  namespace: local-path-storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: local-path-provisioner
+  template:
+    metadata:
+      labels:
+        app: local-path-provisioner
+    spec:
+      serviceAccountName: local-path-provisioner-service-account
+      # The provisioner only manages PVs for the kura Elastic Metal pool, so
+      # pin it there. It runs a helper Pod per provision/delete on the target
+      # node (the node where the consuming pod is scheduled), so it must
+      # tolerate the runner-cache taint to land its helper Pods on the cache
+      # node alongside the cache pods.
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: kura-scw-fr-par
+      tolerations:
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: local-path-provisioner
+          image: rancher/local-path-provisioner:v0.0.31
+          imagePullPolicy: IfNotPresent
+          command:
+            - local-path-provisioner
+            - --debug
+            - start
+            - --config
+            - /etc/config/config.json
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config/
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: config-volume
+          configMap:
+            name: local-path-config
+---
+# WaitForFirstConsumer so a PV is carved on the node the cache pod lands on
+# (the kura pod's nodeSelector + toleration already pin it to this pool).
+# reclaimPolicy: Delete — cache volumes are disposable; the kura RunnerCache
+# reconciler tears instances down when accounts lose runner profiles, and a
+# retained orphan dir wastes NVMe until hand-deleted. Mirrors the scw-bssd
+# class the Instance path used.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: scw-local-nvme
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+# local-path PVs are a directory on one node; they grow with the underlying
+# filesystem, not an expandable block device.
+allowVolumeExpansion: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-path-config
+  namespace: local-path-storage
+data:
+  # Single path on the Elastic Metal NVMe root filesystem. The provisioner
+  # creates one sub-directory per PV here. nodePathMap with a single
+  # DEFAULT_PATH_FOR_NON_LISTED_NODES entry applies to every node the
+  # provisioner runs on (gated to this pool by the Deployment nodeSelector).
+  config.json: |-
+    {
+      "nodePathMap": [
+        {
+          "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
+          "paths": ["/opt/local-path-provisioner"]
+        }
+      ]
+    }
+  setup: |-
+    #!/bin/sh
+    set -eu
+    mkdir -m 0777 -p "$VOL_DIR"
+  teardown: |-
+    #!/bin/sh
+    set -eu
+    rm -rf "$VOL_DIR"
+  helperPod.yaml: |-
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: helper-pod
+    spec:
+      # The helper Pod runs on the target cache node to create/remove the PV
+      # directory, so it has to tolerate the runner-cache taint too.
+      tolerations:
+        - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: helper-pod
+          image: busybox
+          imagePullPolicy: IfNotPresent

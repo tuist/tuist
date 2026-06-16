@@ -309,16 +309,22 @@ xcresultProcessor:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
 
-# Declarative Scaleway Linux kura runner-cache node, co-located with the Mac
-# fleet in fr-par. The provider orders the Instance, attaches it to the
-# runner-cache PN, mints a kubelet identity, and renders a self-join cloud-init
-# that registers the Node with the runner-cache taint. The control plane is
-# externally managed, so there's no CAPI kubeadm join; the reconciler bootstraps
-# the node itself.
+# Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
+# Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
+# the runner-cache PN, mints a kubelet identity, and renders a self-join
+# cloud-init that registers the Node with the runner-cache taint. The control
+# plane is externally managed, so there's no CAPI kubeadm join; the reconciler
+# bootstraps the node itself.
 kuraFleet:
   enabled: true
   replicas: 1
   machine:
+    kind: elasticMetal
+    # EM-I220E-NVME (128GB RAM / 1.92TB NVMe / 25G PN) is the best RAM+NVMe
+    # value for the cache pods: RAM (warm-set size = hit rate) and NVMe
+    # capacity are the per-account density limiters here, not PN bandwidth or
+    # CPU, so we pay for memory + disk rather than a bigger NIC.
+    offerType: EM-I220E-NVME
     privateNetworkID: 6e4d95e8-d8cd-487c-9a3e-fc92136790e7
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so

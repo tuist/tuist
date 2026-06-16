@@ -9,6 +9,12 @@
 # synced by scaleway-csi-externalsecret.yaml from the per-env
 # SCALEWAY_API 1Password item.
 
+# Only needed while the `kura-scw-fr-par` pool runs Scaleway Instances. The
+# managed envs moved this pool to Elastic Metal (bare metal can't attach
+# scw-bssd), where the cache PVCs come from local NVMe via the
+# local-path-provisioner (local-path-provisioner.yaml, StorageClass
+# `scw-local-nvme`) instead. Keep this installed only on clusters whose
+# kuraFleet still uses `machine.kind: instance`.
 storageClasses:
   # The name `scw-bssd` is load-bearing: the server's
   # `scw-fr-par-runners` kura region spec provisions PVCs with this
