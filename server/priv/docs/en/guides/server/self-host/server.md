@@ -197,6 +197,7 @@ You'll then need to expose the following environment variables in the environmen
 | --- | --- | --- | --- | --- |
 | `TUIST_GITHUB_APP_CLIENT_ID` | The client ID of the GitHub application | Yes | | `Iv1.a629723000043722` |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application | Yes | | `232f972951033b89799b0fd24566a04d83f44ccc` |
+| `TUIST_GITHUB_AUTH_ENABLED` | Whether GitHub can be used to sign in. The GitHub App you configure for platform integrations (PR comments, etc.) shares its client credentials with sign-in, so it otherwise appears as a login option. Set to `0` to keep the App while removing GitHub from the login page | No | `1` | `0` |
 
 #### Google {#google}
 
