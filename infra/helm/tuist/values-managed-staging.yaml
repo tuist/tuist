@@ -296,7 +296,10 @@ xcresultProcessor:
 # itself.
 kuraFleet:
   enabled: true
-  replicas: 1
+  # Temporarily 0: the EM node is brought up out-of-band (scaled to 1 after
+  # the deploy) so a flaky bare-metal/PN provision can't trip the release's
+  # --atomic rollback. Restore to 1 before merge.
+  replicas: 0
   machine:
     kind: elasticMetal
     # EM-B220E-NVME (~EUR120/mo) is the cheapest in-stock Elastic Metal box
