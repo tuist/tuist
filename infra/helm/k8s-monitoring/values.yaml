@@ -382,6 +382,59 @@ k8s-monitoring:
           scrape_timeout = "10s"
         }
 
+        // Linux k8s node-exporter. `hostMetrics` (the chart feature meant
+        // to scrape the node-exporter DaemonSet) is enabled above but ships
+        // no Linux node series to Grafana Cloud — only the macOS job and the
+        // standalone cache hosts' `integrations/unix` job carry node_*
+        // metrics — so the bare-metal runner Nodes have zero host
+        // memory / CPU / PSI signal. That blind spot is why a host-level
+        // microVM die-off (QEMU SIGBUS under RAM pressure) was invisible in
+        // metrics and only the Node journal showed it. Scrape the DaemonSet
+        // Pods directly, same explicit pattern as the macOS node-exporter
+        // above. The Pods are hostNetwork (:9100), so Pod IP == host IP;
+        // kubelet/cAdvisor already scrape these Nodes over the same path, so
+        // reachability is proven. instance = Node name so dashboards survive
+        // a CAPI machine rename. Distinct job name (not `integrations/unix`)
+        // so this never collides with the cache fleet or a future revived
+        // `hostMetrics`.
+        discovery.kubernetes "tuist_linux_node_exporter" {
+          role = "pod"
+          namespaces {
+            names = ["observability"]
+          }
+        }
+
+        discovery.relabel "tuist_linux_node_exporter" {
+          targets = discovery.kubernetes.tuist_linux_node_exporter.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            regex = "k8s-monitoring-node-exporter-.*"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_host_ip"]
+            regex = "(.+)"
+            replacement = "$1:9100"
+            target_label = "__address__"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "instance"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_node_name"]
+            target_label = "node"
+          }
+        }
+
+        prometheus.scrape "tuist_linux_node_exporter" {
+          targets = discovery.relabel.tuist_linux_node_exporter.output
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          job_name = "tuist-linux-node-exporter"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+        }
+
         // CloudNativePG instance metrics. Managed clusters don't install
         // prometheus-operator CRDs, and CNPG doesn't add prometheus.io/*
         // annotations to instance pods, so annotationAutodiscovery can't
