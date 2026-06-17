@@ -836,7 +836,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (op) (rate(cnpg_tuist_query_stats_total_exec_time_ms{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval])) / clamp_min(sum by (op) (rate(cnpg_tuist_query_stats_calls{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval])), 1)",
+            "expr": "sum by (op) (rate(cnpg_tuist_query_stats_total_exec_time_ms{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval])) / sum by (op) (rate(cnpg_tuist_query_stats_calls{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}[$__rate_interval]))",
             "legendFormat": "{{op}}",
             "range": true,
             "refId": "A"

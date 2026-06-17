@@ -23,6 +23,10 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql
+    # CNPG watches ConfigMaps/Secrets carrying this label and reloads the
+    # instances when they change, so edits to the query below propagate
+    # without a manual `kubectl cnpg reload`.
+    cnpg.io/reload: "true"
 data:
   queries: |
     tuist_query_stats:
