@@ -368,7 +368,7 @@ func ensureTrailingNewline(s string) string {
 
 // shellSingleQuote wraps s in single quotes so it survives as a literal shell
 // argument (newlines included), escaping any embedded single quotes via the
-// '\'' idiom.
+// '\” idiom.
 func shellSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
