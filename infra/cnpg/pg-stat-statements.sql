@@ -13,6 +13,13 @@
 -- must exist there. The query in the ConfigMap filters to the application
 -- database's statements by dbid. Idempotent and re-runnable.
 --
+-- Only needed for clusters that were already bootstrapped before query-stats
+-- was enabled. Fresh clusters create the extension automatically via the
+-- Cluster CR's `bootstrap.initdb.postInitSQL` (gated on queryStats.enabled),
+-- and the extension persists across physical restores. A future CNPG >= 1.26
+-- upgrade would let `Database.spec.extensions` reconcile this declaratively on
+-- existing clusters too, retiring this file.
+--
 -- See infra/cnpg/README.md for how to run.
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
