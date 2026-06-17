@@ -684,7 +684,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_commit{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
             "legendFormat": "commit {{datname}}",
             "range": true,
             "refId": "A"
@@ -692,7 +692,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_xact_rollback{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
             "legendFormat": "rollback {{datname}}",
             "range": true,
             "refId": "B"
@@ -756,7 +756,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_inserted{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_inserted{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
             "legendFormat": "insert {{datname}}",
             "range": true,
             "refId": "A"
@@ -764,7 +764,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_updated{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_updated{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
             "legendFormat": "update {{datname}}",
             "range": true,
             "refId": "B"
@@ -772,7 +772,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_deleted{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
+            "expr": "sum by (datname) (rate(cnpg_pg_stat_database_tup_deleted{instance_role=\"primary\", namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}[$__rate_interval]))",
             "legendFormat": "delete {{datname}}",
             "range": true,
             "refId": "C"
