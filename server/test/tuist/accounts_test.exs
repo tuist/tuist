@@ -3504,6 +3504,45 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "sso_configured?/0" do
+    test "returns false when no organization has SSO configured" do
+      AccountsFixtures.organization_fixture()
+
+      refute Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has Okta SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has generic OAuth2 SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://id.company.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://id.company.com/authorize",
+        oauth2_token_url: "https://id.company.com/token",
+        oauth2_user_info_url: "https://id.company.com/userinfo"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns false when the only SSO organization uses Google" do
+      AccountsFixtures.organization_fixture(sso_provider: :google, sso_organization_id: "company.com")
+
+      refute Accounts.sso_configured?()
+    end
+  end
+
   describe "sso_organization_for_user_email/1" do
     test "returns organization when user exists and has okta organization" do
       user = AccountsFixtures.user_fixture()

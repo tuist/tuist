@@ -383,6 +383,29 @@ spec:
             - key: tuist.dev/runner-tier
               value: bare-metal
               effect: NoSchedule
+          # Reserve host headroom so the kube-scheduler stops bin-packing
+          # runner microVMs to ~100% of RAM. Each kata-qemu Pod's memory
+          # request is its guest RAM; the QEMU + virtiofsd + shim overhead
+          # and the host daemons (kubelet, containerd, Cilium, Alloy) live
+          # OUTSIDE that request. With the kubeadm default
+          # (allocatable == capacity) a burst of large jobs packed one
+          # AX162-R to 248/251 GiB of requests, and the co-located QEMU
+          # guests died with SIGBUS ("guest failure: internal-error") while
+          # the Node stayed Ready — a host-level OOM the in-guest vitals
+          # probe can't see. system/kube-reserved are flat daemon costs
+          # (node-size independent); the memory eviction threshold is a
+          # PERCENTAGE so the headroom scales with box size across the
+          # shared staging/canary/production template, and doubles as a
+          # graceful backstop (evict-with-event) before true host OOM.
+          # Existing nodes only pick this up once the bare-metal MD is
+          # rolled (the flags are baked into the kubelet at kubeadm-join).
+          kubeletExtraArgs:
+            - name: system-reserved
+              value: "cpu=1,memory=2Gi"
+            - name: kube-reserved
+              value: "cpu=1,memory=2Gi"
+            - name: eviction-hard
+              value: "memory.available<10%,nodefs.available<10%,imagefs.available<15%,nodefs.inodesFree<5%"
       preKubeadmCommands:
         # No `set -euo pipefail` here — CAPI's kubeadm-bootstrap
         # renders each `preKubeadmCommands` entry as its own

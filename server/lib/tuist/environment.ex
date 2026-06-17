@@ -658,6 +658,14 @@ defmodule Tuist.Environment do
     github_app_client_id(secrets) != nil and github_app_client_secret(secrets) != nil
   end
 
+  # The GitHub App used for VCS integration shares its client id/secret with
+  # GitHub sign-in, so configuring VCS otherwise forces GitHub onto the login
+  # page. This lever lets a self-hosted operator keep the App while turning the
+  # sign-in method off.
+  def github_auth_enabled? do
+    truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
   def github_app_configured?(secrets \\ secrets()) do
     github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
       github_app_private_key(secrets) != nil
