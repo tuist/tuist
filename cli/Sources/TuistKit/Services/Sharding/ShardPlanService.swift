@@ -1,5 +1,4 @@
 #if os(macOS)
-    import Command
     import FileSystem
     import Foundation
     import Mockable
@@ -62,8 +61,6 @@
         private let fileArchiver: FileArchivingFactorying
         private let shardMatrixOutputService: ShardMatrixOutputServicing
         private let appleArchiver: AppleArchiving
-        private let commandRunner: CommandRunning
-        private let precompiledMetadataProvider: PrecompiledMetadataProviding
 
         public init(
             xcTestEnumerator: XCTestEnumerating = XCTestEnumerator(),
@@ -78,9 +75,7 @@
             fileSystem: FileSysteming = FileSystem(),
             fileArchiver: FileArchivingFactorying = FileArchivingFactory(),
             shardMatrixOutputService: ShardMatrixOutputServicing = ShardMatrixOutputService(),
-            appleArchiver: AppleArchiving = AppleArchiver(),
-            commandRunner: CommandRunning = CommandRunner(),
-            precompiledMetadataProvider: PrecompiledMetadataProviding = PrecompiledMetadataProvider()
+            appleArchiver: AppleArchiving = AppleArchiver()
         ) {
             self.xcTestEnumerator = xcTestEnumerator
             self.createShardPlanService = createShardPlanService
@@ -93,8 +88,6 @@
             self.fileArchiver = fileArchiver
             self.shardMatrixOutputService = shardMatrixOutputService
             self.appleArchiver = appleArchiver
-            self.commandRunner = commandRunner
-            self.precompiledMetadataProvider = precompiledMetadataProvider
         }
 
         public func plan(
@@ -188,7 +181,6 @@
             reference: String
         ) async throws {
             Logger.current.debug("Uploading test products artifacts...")
-            try await stripDebugSymbols(in: xctestproductsPath)
 
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
 
@@ -284,43 +276,11 @@
             if try await !fileSystem.exists(archivePath.parentDirectory, isDirectory: true) {
                 try await fileSystem.makeDirectory(at: archivePath.parentDirectory)
             }
-            try await stripDebugSymbols(in: xctestproductsPath)
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: archivePath,
                 excludePatterns: [".dSYM"]
             )
-        }
-
-        /// Strips debug symbols (`strip -S`) from every Mach-O in the test products before archiving.
-        /// Test products are built in Debug and carry large symbol tables that aren't needed to run the
-        /// tests on shard runners, so removing them shrinks the uploaded and downloaded bundle.
-        private func stripDebugSymbols(in directory: AbsolutePath) async throws {
-            let machOFiles = try await fileSystem.glob(directory: directory, include: ["**/*"])
-                .collect()
-                .filter { isMachO($0) }
-            let strippedCount = await withTaskGroup(of: Bool.self) { group in
-                for file in machOFiles {
-                    group.addTask {
-                        do {
-                            try await commandRunner.runAndWait(arguments: ["/usr/bin/strip", "-S", file.pathString])
-                            return true
-                        } catch {
-                            Logger.current.debug("Skipped stripping \(file.pathString): \(error.localizedDescription)")
-                            return false
-                        }
-                    }
-                }
-                return await group.reduce(into: 0) { $0 += $1 ? 1 : 0 }
-            }
-            if strippedCount > 0 {
-                Logger.current.debug("Stripped debug symbols from \(strippedCount) binary(ies) before archiving.")
-            }
-        }
-
-        private func isMachO(_ path: AbsolutePath) -> Bool {
-            guard let architectures = try? precompiledMetadataProvider.architectures(binaryPath: path) else { return false }
-            return !architectures.isEmpty
         }
     }
 #endif
