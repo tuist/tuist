@@ -1,0 +1,103 @@
+# Bumps the `tuist` dev-tooling pin in mise.toml to the latest CLI release
+# (including canary prereleases) and regenerates mise.lock in the SAME commit.
+#
+# Renovate can't own this: its custom regex manager bumps mise.toml but can't
+# write mise.lock (the six per-platform checksums need fetching, not regex), and
+# its native mise manager's lock update is an unsafe execution the hosted Mend
+# app refuses to run (https://github.com/renovatebot/renovate/discussions/43562).
+# mise does both files atomically, so a small scheduled workflow is simpler than
+# Renovate-bumps-then-a-second-workflow-repairs, and CI passes on the first run.
+name: Update Tuist CLI
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-tuist-cli
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  update:
+    name: Update Tuist CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve latest release
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(grep -E '^[[:space:]]*tuist = "' mise.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          # Bare semver tags only (X.Y.Z / X.Y.Z-canary.N); component tags like
+          # server@1.2.3 or runner-image@… are filtered out. semver-max keeps a
+          # released X.Y.Z above its own prereleases, matching "latest including canary".
+          versions=$(gh api 'repos/tuist/tuist/releases?per_page=100' \
+            --jq '.[] | select(.draft == false) | .tag_name' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || true)
+          if [ -z "$versions" ]; then echo "No release versions found" >&2; exit 1; fi
+          latest=$(printf '%s\n' $versions | xargs npx --yes semver@7 | tail -n1)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "version=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$latest" != "$current" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Bumping tuist $current -> $latest"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Already on latest ($current)"
+          fi
+      - name: Bump mise.toml
+        if: steps.resolve.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          sed -i -E "s|^([[:space:]]*tuist = \")[^\"]+(\")|\1${VERSION}\2|" mise.toml
+          grep -E '^[[:space:]]*tuist = "' mise.toml
+      - uses: jdx/mise-action@v4.0.1
+        if: steps.resolve.outputs.changed == 'true'
+        with:
+          version: ${{ env.MISE_VERSION }}
+          # Installing tuist unlocked rewrites its mise.lock entry across all
+          # platforms (checksums come from the release SHASUMS, so one host
+          # covers macOS and Linux).
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Open pull request
+        id: pr
+        if: steps.resolve.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # A PAT (not GITHUB_TOKEN) so the PR's checks run; GITHUB_TOKEN-authored
+          # PRs don't trigger workflows. Reuses the release pipeline's token.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          branch: automation/update-tuist-cli
+          delete-branch: true
+          commit-message: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
+          title: "chore(cli): update Tuist CLI to ${{ steps.resolve.outputs.version }}"
+          body: |
+            Bumps the `tuist` dev-tooling pin in `mise.toml` to `${{ steps.resolve.outputs.version }}` (latest release, including canary prereleases) with `mise.lock` regenerated in the same commit so CI's `MISE_LOCKED=1` install resolves.
+
+            Opened by the `update-tuist-cli` workflow.
+          add-paths: |
+            mise.toml
+            mise.lock
+          committer: "github-actions <github-actions@github.com>"
+          author: "github-actions <github-actions@github.com>"
+      - name: Enable auto-merge
+        if: steps.resolve.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+        run: gh pr merge --squash --auto "${{ steps.pr.outputs.pull-request-number }}" || true
