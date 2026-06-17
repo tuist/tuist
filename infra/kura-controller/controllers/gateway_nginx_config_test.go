@@ -13,6 +13,13 @@ import (
 // gateway ingress-nginx ConfigMaps, relative to this package.
 const chartValuesPath = "../../helm/platform/values.yaml"
 
+// expectedGatewayRegions is the number of kura-*-ingress-nginx blocks the chart
+// is expected to define (kura-eu-central / kura-us-east / kura-us-west). It is
+// asserted so that accidentally removing or renaming a regional gateway block —
+// which would otherwise silently shrink the drift check's coverage — fails the
+// test. Update this when a regional gateway is intentionally added or removed.
+const expectedGatewayRegions = 3
+
 // requiredGatewayConfigKeys are the nginx settings every regional Kura gateway
 // must carry and keep equal to the dedicated-gateway ConfigMap
 // (gatewayNginxConfigData): the client-IP / proxy-protocol base plus the HTTP/2
@@ -38,7 +45,11 @@ var requiredGatewayConfigKeys = []string{
 // For every regional block it asserts the required keys are present with the
 // controller's value, and that any other controller key matches wherever the
 // region also sets it. It checks every regional block (not a single sampled
-// region), so a future de-anchoring that diverges one region is caught.
+// region), so a future de-anchoring that diverges one region is caught. A block
+// that exists but carries no controller.config is treated as a failure rather
+// than skipped (a de-anchored region emptied of its config would otherwise pass
+// unchecked), and the block count is asserted against expectedGatewayRegions so
+// removing or renaming a region cannot silently shrink coverage.
 func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 	raw, err := os.ReadFile(chartValuesPath)
 	if err != nil {
@@ -66,11 +77,12 @@ func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 		required[key] = true
 	}
 
-	compared := 0
+	matched := 0
 	for name, rawBlock := range top {
 		if !strings.HasPrefix(name, "kura-") || !strings.HasSuffix(name, "-ingress-nginx") {
 			continue
 		}
+		matched++
 
 		var block struct {
 			Controller struct {
@@ -84,9 +96,9 @@ func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 
 		chart := block.Controller.Config
 		if len(chart) == 0 {
+			t.Errorf("%s: controller.config is empty or absent; a regional gateway must carry the shared nginx config", name)
 			continue
 		}
-		compared++
 
 		for key, want := range controller {
 			got, present := chart[key]
@@ -99,7 +111,7 @@ func TestGatewayNginxConfigMatchesChart(t *testing.T) {
 		}
 	}
 
-	if compared == 0 {
-		t.Fatal("no kura-*-ingress-nginx blocks with controller.config found; chart layout changed")
+	if matched != expectedGatewayRegions {
+		t.Fatalf("expected %d kura-*-ingress-nginx blocks, found %d; update expectedGatewayRegions if a regional gateway was intentionally added or removed", expectedGatewayRegions, matched)
 	}
 }

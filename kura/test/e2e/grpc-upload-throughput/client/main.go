@@ -285,7 +285,7 @@ func main() {
 	toxAPI := env("TOXIPROXY_API", "http://toxiproxy:8474")
 	toxHost := env("TOXIPROXY_HOST", "toxiproxy")
 	latencyMs := envInt("LATENCY_MS", 50) // one-way; injected on both streams => RTT ~= 2x
-	sizeMB := envInt("SIZE_MB", 24)
+	sizeMB := envInt("SIZE_MB", 16)       // matches docker-compose / run.sh / README default
 	chunkKB := envInt("CHUNK_KB", 256)
 	minSpeedup := float64(envInt("MIN_SPEEDUP", 4))
 	// Patched window comes from the chart (via the confgen step + run.sh), so
