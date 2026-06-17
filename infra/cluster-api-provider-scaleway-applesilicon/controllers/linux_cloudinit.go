@@ -378,9 +378,13 @@ func shellSingleQuote(s string) string {
 // Service can't be read (RBAC, not found, transient), it returns "" and logs,
 // rather than failing the reconcile — an empty clusterDNS just leaves the
 // kubelet on host DNS, same as before.
-func discoverClusterDNS(ctx context.Context, c client.Client) string {
+//
+// It takes a client.Reader so callers can pass the uncached APIReader: the
+// manager's cached client scopes its Services informer to the egress namespace
+// (see main.go), so a cached Get of kube-system/kube-dns never resolves.
+func discoverClusterDNS(ctx context.Context, r client.Reader) string {
 	svc := &corev1.Service{}
-	if err := c.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}, svc); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}, svc); err != nil {
 		log.FromContext(ctx).Info("could not resolve kube-dns ClusterIP; kubelet clusterDNS will be unset", "err", err.Error())
 		return ""
 	}

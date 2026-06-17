@@ -462,6 +462,7 @@ func main() {
 	}
 	if err := (&controllers.ScalewayInstanceMachineReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		ScalewayClient:     instanceClient,
 		Recorder:           mgr.GetEventRecorderFor("scalewayinstancemachine-controller"),
@@ -487,6 +488,7 @@ func main() {
 	}
 	if err := (&controllers.ScalewayElasticMetalMachineReconciler{
 		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
 		Scheme:             mgr.GetScheme(),
 		ScalewayClient:     baremetalClient,
 		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),

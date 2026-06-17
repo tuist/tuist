@@ -74,6 +74,9 @@ const NodeReadyCondition clusterv1.ConditionType = "NodeReady"
 // VLAN, not an auto-DHCP'd second interface).
 type ScalewayElasticMetalMachineReconciler struct {
 	client.Client
+	// APIReader is the uncached reader for cross-namespace reads the scoped
+	// cache can't serve (kube-system/kube-dns, for clusterDNS discovery).
+	APIReader      client.Reader
 	Scheme         *runtime.Scheme
 	ScalewayClient *scaleway.BaremetalClient
 	Recorder       record.EventRecorder
@@ -265,7 +268,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			Taints:             machine.Spec.NodeTaints,
 			BootstrapUser:      elasticMetalBootstrapUser,
 			PrivateNetworkVLAN: vlan,
-			ClusterDNS:         discoverClusterDNS(ctx, r.Client),
+			ClusterDNS:         discoverClusterDNS(ctx, r.APIReader),
 		})
 
 		machine.Status.Phase = "Bootstrapping"

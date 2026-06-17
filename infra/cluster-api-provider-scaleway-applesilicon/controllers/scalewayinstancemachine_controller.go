@@ -55,6 +55,9 @@ const (
 // nodes join, so r.Client reaches both the CRs and the Nodes.
 type ScalewayInstanceMachineReconciler struct {
 	client.Client
+	// APIReader is the uncached reader for cross-namespace reads the scoped
+	// cache can't serve (kube-system/kube-dns, for clusterDNS discovery).
+	APIReader      client.Reader
 	Scheme         *runtime.Scheme
 	ScalewayClient *scaleway.InstanceClient
 	Recorder       record.EventRecorder
@@ -179,7 +182,7 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 			KubeconfigYAML: kubeconfigYAML,
 			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:         machine.Spec.NodeTaints,
-			ClusterDNS:     discoverClusterDNS(ctx, r.Client),
+			ClusterDNS:     discoverClusterDNS(ctx, r.APIReader),
 		})
 
 		if server == nil {
