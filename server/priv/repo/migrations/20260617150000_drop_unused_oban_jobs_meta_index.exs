@@ -12,13 +12,14 @@ defmodule Tuist.Repo.Migrations.DropUnusedObanJobsMetaIndex do
   # amplification from the hottest table in the database. The args GIN
   # index is kept: it backs the `unique` checks and is actively used.
   def up do
-    drop_if_exists(index(:oban_jobs, [:meta], name: "oban_jobs_meta_index"), concurrently: true)
+    drop_if_exists index(:oban_jobs, [:meta], name: "oban_jobs_meta_index", concurrently: true)
   end
 
   def down do
-    create_if_not_exists(
-      index(:oban_jobs, [:meta], name: "oban_jobs_meta_index", using: "gin"),
-      concurrently: true
-    )
+    create_if_not_exists index(:oban_jobs, [:meta],
+                           name: "oban_jobs_meta_index",
+                           using: "gin",
+                           concurrently: true
+                         )
   end
 end
