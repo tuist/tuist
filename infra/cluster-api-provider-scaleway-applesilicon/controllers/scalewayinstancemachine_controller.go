@@ -174,7 +174,13 @@ func (r *ScalewayInstanceMachineReconciler) reconcileNormal(
 		if kcErr != nil {
 			return ctrl.Result{}, fmt.Errorf("render kubelet kubeconfig: %w", kcErr)
 		}
-		cloudInit := renderLinuxCloudInit(machine.Name, kubeconfigYAML, firstNonEmpty(r.KubernetesMinor, "v1.34"), machine.Spec.NodeTaints)
+		cloudInit := renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
+			NodeName:       machine.Name,
+			KubeconfigYAML: kubeconfigYAML,
+			K8sMinor:       firstNonEmpty(r.KubernetesMinor, "v1.34"),
+			Taints:         machine.Spec.NodeTaints,
+			ClusterDNS:     discoverClusterDNS(ctx, r.Client),
+		})
 
 		if server == nil {
 			created, createErr := r.ScalewayClient.CreateInstance(ctx, scaleway.CreateInstanceParams{

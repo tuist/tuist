@@ -265,6 +265,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 			Taints:             machine.Spec.NodeTaints,
 			BootstrapUser:      elasticMetalBootstrapUser,
 			PrivateNetworkVLAN: vlan,
+			ClusterDNS:         discoverClusterDNS(ctx, r.Client),
 		})
 
 		machine.Status.Phase = "Bootstrapping"

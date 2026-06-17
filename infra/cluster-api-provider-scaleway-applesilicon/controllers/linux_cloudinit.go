@@ -1,10 +1,14 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // linuxCloudInitOptions parameterizes the self-join bootstrap across the two
@@ -40,6 +44,12 @@ type linuxCloudInitOptions struct {
 	// kubelet starts. Instances leave this 0: their PN arrives as an
 	// auto-DHCP'd second interface, so no host-side VLAN setup is needed.
 	PrivateNetworkVLAN uint32
+
+	// ClusterDNS is the workload cluster's kube-dns ClusterIP, set as the
+	// kubelet's clusterDNS so pods resolve in-cluster Services (e.g. the kura
+	// peer mesh). Empty omits the setting, leaving kubelet to log
+	// MissingClusterDNS and fall back to host DNS.
+	ClusterDNS string
 }
 
 const (
@@ -50,7 +60,24 @@ br_netfilter
 net.bridge.bridge-nf-call-ip6tables = 1
 net.ipv4.ip_forward                 = 1
 `
-	kubeletConfigContent = `apiVersion: kubelet.config.k8s.io/v1beta1
+
+	// dockerHubMirrorHostsContent is the containerd registry-host config that
+	// routes docker.io pulls through mirror.gcr.io, sidestepping Docker Hub's
+	// anonymous pull rate limit. Written to
+	// /etc/containerd/certs.d/docker.io/hosts.toml, which containerd reads
+	// because bootstrapBody sets the CRI registry config_path to
+	// /etc/containerd/certs.d.
+	dockerHubMirrorHostsContent = `[host."https://mirror.gcr.io"]
+  capabilities = ["pull", "resolve"]
+`
+)
+
+// kubeletConfigContent renders the KubeletConfiguration. clusterDNS, when
+// non-empty, is appended as the kubelet's clusterDNS (a single-entry list) so
+// pods resolve in-cluster Services; empty omits it (kubelet then logs
+// MissingClusterDNS and falls back to host DNS).
+func kubeletConfigContent(clusterDNS string) string {
+	config := `apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 cgroupDriver: systemd
 authentication:
@@ -64,7 +91,11 @@ clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
 serverTLSBootstrap: true
 `
-)
+	if clusterDNS != "" {
+		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
+	}
+	return config
+}
 
 // kubeletUnitContent renders the kubelet systemd unit with the node's
 // hostname-override and any register-with-taints argument.
@@ -95,12 +126,24 @@ WantedBy=multi-user.target
 // caller so it nests correctly under cloud-init's YAML block or stands alone in
 // a bare script.
 func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path string) string, vlanSetup string) string {
-	containerdConfig := writeFile("containerd config default", "/etc/containerd/config.toml")
+	// Pipe `containerd config default` through sed so the rendered config sets
+	// the CRI registry config_path to /etc/containerd/certs.d. containerd v2
+	// emits an empty `[plugins."io.containerd.grpc.v1.cri".registry]` table, so
+	// append config_path under it; containerd then reads per-registry hosts.toml
+	// files from that directory (the docker.io mirror below).
+	containerdConfig := writeFile(
+		`containerd config default | sed '/\[plugins."io.containerd.grpc.v1.cri".registry\]/a\    config_path = "/etc/containerd/certs.d"'`,
+		"/etc/containerd/config.toml",
+	)
+	mirrorHosts := writeFile(
+		"printf '%s' "+shellSingleQuote(dockerHubMirrorHostsContent),
+		"/etc/containerd/certs.d/docker.io/hosts.toml",
+	)
 	aptSource := writeFile(
 		fmt.Sprintf(`echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/%s/deb/ /"`, k8sMinor),
 		"/etc/apt/sources.list.d/kubernetes.list",
 	)
-	return fmt.Sprintf(`%[6]s%[2]sswapoff -a
+	return fmt.Sprintf(`%[7]s%[2]sswapoff -a
 %[2]ssed -ri '/\sswap\s/s/^/#/' /etc/fstab
 %[2]smodprobe overlay
 %[2]smodprobe br_netfilter
@@ -108,8 +151,9 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
 %[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd
-%[2]smkdir -p /etc/containerd
+%[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
+%[6]s
 %[2]ssed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 %[2]ssystemctl restart containerd
 %[2]ssystemctl enable containerd
@@ -121,7 +165,7 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/%[1]s/deb/Release.key | %[2]sgpg --
 %[2]sapt-mark hold kubelet
 %[2]ssystemctl daemon-reload
 %[2]ssystemctl enable --now kubelet`,
-		k8sMinor, sudo, sudoE, containerdConfig, aptSource, vlanSetup)
+		k8sMinor, sudo, sudoE, containerdConfig, aptSource, mirrorHosts, vlanSetup)
 }
 
 // vlanBringUp renders the PN-VLAN setup prepended to the bootstrap body when a
@@ -242,7 +286,7 @@ runcmd:
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
 		indent(kubeletUnitContent(opts.NodeName, taintArg), "      "),
-		indent(kubeletConfigContent, "      "),
+		indent(kubeletConfigContent(opts.ClusterDNS), "      "),
 		body,
 	)
 }
@@ -281,7 +325,7 @@ set -euxo pipefail
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
 		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg)),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS)),
 		body,
 	)
 }
@@ -320,4 +364,25 @@ func ensureTrailingNewline(s string) string {
 		return s
 	}
 	return s + "\n"
+}
+
+// shellSingleQuote wraps s in single quotes so it survives as a literal shell
+// argument (newlines included), escaping any embedded single quotes via the
+// '\'' idiom.
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// discoverClusterDNS reads the kube-dns Service ClusterIP from kube-system so
+// the self-join can set the kubelet's clusterDNS. It is best-effort: if the
+// Service can't be read (RBAC, not found, transient), it returns "" and logs,
+// rather than failing the reconcile — an empty clusterDNS just leaves the
+// kubelet on host DNS, same as before.
+func discoverClusterDNS(ctx context.Context, c client.Client) string {
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}, svc); err != nil {
+		log.FromContext(ctx).Info("could not resolve kube-dns ClusterIP; kubelet clusterDNS will be unset", "err", err.Error())
+		return ""
+	}
+	return svc.Spec.ClusterIP
 }

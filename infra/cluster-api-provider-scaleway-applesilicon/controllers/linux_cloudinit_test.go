@@ -36,3 +36,62 @@ func TestRenderLinuxCloudInit_BootstrapRunsUnderBash(t *testing.T) {
 		t.Fatalf("expected the v1.34 pkgs channel, got:\n%s", out)
 	}
 }
+
+func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
+	out := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+
+	// containerd must point the CRI registry config_path at /etc/containerd/certs.d
+	// so per-registry hosts.toml files are honored.
+	if !strings.Contains(out, `config_path = "/etc/containerd/certs.d"`) {
+		t.Fatalf("expected containerd registry config_path, got:\n%s", out)
+	}
+	// The docker.io mirror hosts.toml must route through mirror.gcr.io.
+	if !strings.Contains(out, "/etc/containerd/certs.d/docker.io/hosts.toml") {
+		t.Fatalf("expected the docker.io hosts.toml write, got:\n%s", out)
+	}
+	if !strings.Contains(out, `[host."https://mirror.gcr.io"]`) ||
+		!strings.Contains(out, `capabilities = ["pull", "resolve"]`) {
+		t.Fatalf("expected the mirror.gcr.io host entry, got:\n%s", out)
+	}
+
+	// The Elastic Metal (SSH script) form must carry the same mirror config.
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	})
+	if !strings.Contains(script, `config_path = "/etc/containerd/certs.d"`) ||
+		!strings.Contains(script, `[host."https://mirror.gcr.io"]`) {
+		t.Fatalf("expected the bootstrap script to configure the docker.io mirror, got:\n%s", script)
+	}
+}
+
+func TestRenderLinuxCloudInit_ClusterDNS(t *testing.T) {
+	with := renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		ClusterDNS:     "10.96.0.10",
+	})
+	if !strings.Contains(with, "clusterDNS:\n        - 10.96.0.10") {
+		t.Fatalf("expected clusterDNS list entry in cloud-init, got:\n%s", with)
+	}
+
+	without := renderLinuxCloudInit("node-a", "apiVersion: v1\nkind: Config\n", "v1.34", nil)
+	if strings.Contains(without, "clusterDNS:") {
+		t.Fatalf("expected clusterDNS omitted when unset, got:\n%s", without)
+	}
+
+	// The Elastic Metal (SSH script) form threads clusterDNS too.
+	script := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+		ClusterDNS:     "10.96.0.10",
+	})
+	if !strings.Contains(script, "clusterDNS:\n  - 10.96.0.10") {
+		t.Fatalf("expected clusterDNS list entry in bootstrap script, got:\n%s", script)
+	}
+}
