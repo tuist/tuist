@@ -183,36 +183,47 @@
             Logger.current.debug("Uploading test products artifacts...")
 
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
-
-            let sharedArchive = archiveDirectory.appending(component: "shared.aar")
-            // ".xctest/" (with the trailing slash) excludes the per-module test bundles' contents
-            // without also dropping the sibling ".xctestrun" — excludePatterns is a substring match,
-            // and ".xctestrun" contains ".xctest". The .xctestrun must stay in the shared artifact.
-            try await appleArchiver.compress(
-                directory: xctestproductsPath,
-                to: sharedArchive,
-                excludePatterns: [".dSYM", ".xctest/"]
-            )
-            try await uploadArtifact(
-                archivePath: sharedArchive,
-                artifact: "shared",
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                reference: reference
-            )
-
             let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"]).collect()
-            for xctestPath in xctestPaths {
-                let module = xctestPath.basenameWithoutExt
-                let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
-                try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
-                try await uploadArtifact(
-                    archivePath: moduleArchive,
-                    artifact: "module:\(module)",
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference
-                )
+
+            // Each artifact (the shared bundle plus one per module) is an independent compress + upload,
+            // so run them concurrently. The URLSession caps connections per host, so the parallel
+            // multipart uploads don't oversubscribe the network.
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    let sharedArchive = archiveDirectory.appending(component: "shared.aar")
+                    // ".xctest/" (with the trailing slash) excludes the per-module test bundles' contents
+                    // without also dropping the sibling ".xctestrun" — excludePatterns is a substring match,
+                    // and ".xctestrun" contains ".xctest". The .xctestrun must stay in the shared artifact.
+                    try await appleArchiver.compress(
+                        directory: xctestproductsPath,
+                        to: sharedArchive,
+                        excludePatterns: [".dSYM", ".xctest/"]
+                    )
+                    try await uploadArtifact(
+                        archivePath: sharedArchive,
+                        artifact: "shared",
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        reference: reference
+                    )
+                }
+
+                for xctestPath in xctestPaths {
+                    group.addTask {
+                        let module = xctestPath.basenameWithoutExt
+                        let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
+                        try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
+                        try await uploadArtifact(
+                            archivePath: moduleArchive,
+                            artifact: "module:\(module)",
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            reference: reference
+                        )
+                    }
+                }
+
+                try await group.waitForAll()
             }
 
             Logger.current.debug("Upload complete. Shard matrix ready.")
