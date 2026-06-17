@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Non-CLI dependencies are batched on a weekly schedule; the tuist CLI pin overrides this to run at any time (see its packageRule) so the dev-tooling version tracks releases quickly.",
+  "description": "Non-CLI dependencies are batched on a weekly schedule; the tuist CLI pin overrides this (see its custom regex manager + packageRule) to track the latest CLI release, including canary prereleases, at any time so the dev-tooling version tracks releases quickly.",
   "schedule": ["before 6am on monday"],
   "customManagers": [
     {
@@ -40,6 +40,14 @@
       "datasourceTemplate": "maven",
       "depNameTemplate": "dev.tuist:dev.tuist.gradle.plugin",
       "registryUrlTemplate": "https://plugins.gradle.org/m2/"
+    },
+    {
+      "customType": "regex",
+      "description": "Tuist CLI dev-tooling pin in mise.toml. Renovate's native mise manager can't resolve `tuist` (its aqua backend has no built-in short-name mapping), so it never produced a bump. Track tuist/tuist GitHub releases directly; the packageRule turns ignoreUnstable off so the pin rides the latest canary, matching the release-channels flow where main only cuts `X.Y.0-canary.N`.",
+      "fileMatch": ["^mise\\.toml$"],
+      "matchStrings": ["\\n\\s*tuist = \"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "tuist/tuist"
     }
   ],
   "packageRules": [
@@ -61,9 +69,13 @@
       "automerge": true
     },
     {
-      "description": "Tuist CLI dev-tooling pin in mise.toml. Runs at any time (more often than the weekly default) so the pin tracks new CLI releases quickly, and auto-merges.",
-      "matchManagers": ["mise"],
-      "matchPackageNames": ["tuist"],
+      "description": "Tuist CLI dev-tooling pin in mise.toml (extracted by the custom regex manager above). Tracks the latest tuist/tuist release including canary prereleases (ignoreUnstable off), at any time, and auto-merges. respectLatest is off because this monorepo's GitHub `latest` marker points at whichever component released last, not the CLI; versioning is semver so the CLI's bare `X.Y.Z`/`X.Y.Z-canary.N` tags are kept and component tags like `server@1.2.3` are ignored.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["mise.toml"],
+      "matchPackageNames": ["tuist/tuist"],
+      "versioning": "semver",
+      "ignoreUnstable": false,
+      "respectLatest": false,
       "schedule": ["at any time"],
       "commitMessagePrefix": "chore(cli):",
       "commitMessageTopic": "Tuist CLI",
