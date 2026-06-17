@@ -41,12 +41,12 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:225
+#: lib/tuist_web/live/integrations_live.ex:248
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:227
+#: lib/tuist_web/live/integrations_live.ex:250
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
@@ -96,12 +96,12 @@ msgstr ""
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:279
+#: lib/tuist_web/live/integrations_live.ex:302
 #, elixir-autogen, elixir-format
 msgid "Invalid URL"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:306
+#: lib/tuist_web/live/integrations_live.ex:329
 #, elixir-autogen, elixir-format
 msgid "Invalid organization"
 msgstr ""
@@ -131,13 +131,13 @@ msgstr ""
 msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:266
+#: lib/tuist_web/live/integrations_live.ex:289
 #, elixir-autogen, elixir-format
 msgid "Required"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:255
-#: lib/tuist_web/live/integrations_live.ex:287
+#: lib/tuist_web/live/integrations_live.ex:278
+#: lib/tuist_web/live/integrations_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Use a GitHub Enterprise Server URL"
 msgstr ""

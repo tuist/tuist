@@ -78,11 +78,29 @@ kura-eu-central-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
+    # Anchored so all three regional Kura gateways share ONE nginx config
+    # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
+    # derives its patched nginx config from the window keys here, and the
+    # dedicated-gateway ConfigMap in infra/kura-controller is asserted equal to
+    # every shared key in a unit test (TestGatewayNginxConfigMatchesChart) — so
+    # these settings cannot silently drift between the two render paths.
+    config: &kuraGatewayNginxConfig
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
       upstream-keepalive-timeout: "10"
+      # HTTP/2 request-body flow control. nginx's 64KB default window caps
+      # every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
+      # alike) at ~window/RTT — ~310KB/s from a 193ms-RTT client. Both knobs
+      # must move together: http2_body_preread_size is the window advertised
+      # before the body is consumed, client-body-buffer-size paces
+      # WINDOW_UPDATEs while streaming to the upstream. The stream cap bounds
+      # worst-case nginx memory at 32 x 4m = 128MB per client connection.
+      # Keep in sync with the dedicated gateway ConfigMap in
+      # infra/kura-controller (reconcileGatewayConfigMap).
+      client-body-buffer-size: "4m"
+      http2-max-concurrent-streams: "32"
+      http-snippet: "http2_body_preread_size 4m;"
     metrics:
       enabled: true
 
@@ -101,11 +119,7 @@ kura-us-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
-      use-forwarded-headers: "true"
-      use-proxy-protocol: "true"
-      compute-full-forwarded-for: "true"
-      upstream-keepalive-timeout: "10"
+    config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
 
@@ -124,11 +138,7 @@ kura-us-west-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
-    config:
-      use-forwarded-headers: "true"
-      use-proxy-protocol: "true"
-      compute-full-forwarded-for: "true"
-      upstream-keepalive-timeout: "10"
+    config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
 

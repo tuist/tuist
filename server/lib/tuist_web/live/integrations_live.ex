@@ -160,6 +160,7 @@ defmodule TuistWeb.IntegrationsLive do
     }
 
     {:ok, _connection} = Projects.create_vcs_connection(attrs)
+    sync_default_branch(project, repository_full_handle, assigns)
     vcs_connections = vcs_connections(selected_account, force: true)
 
     socket =
@@ -184,6 +185,28 @@ defmodule TuistWeb.IntegrationsLive do
       {:noreply, assign(socket, vcs_connections: vcs_connections)}
     else
       _ -> {:noreply, socket}
+    end
+  end
+
+  # When a project is connected to a GitHub repository, adopt the
+  # repository's default branch as the project's baseline branch. The
+  # repository list is already loaded with `default_branch`, so this is a
+  # free metadata copy with no extra GitHub call. Only the initial
+  # connection syncs; a later manual edit in project settings is preserved.
+  defp sync_default_branch(nil, _repository_full_handle, _assigns), do: :ok
+
+  defp sync_default_branch(project, repository_full_handle, assigns) do
+    repository =
+      assigns
+      |> get_available_repositories()
+      |> Enum.find(&(&1.full_name == repository_full_handle))
+
+    case repository do
+      %{default_branch: default_branch} when is_binary(default_branch) and default_branch != "" ->
+        Projects.update_project(project, %{default_branch: default_branch})
+
+      _ ->
+        :ok
     end
   end
 

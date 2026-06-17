@@ -118,19 +118,35 @@ k8s-monitoring:
     enabled: true
     collector: alloy-singleton
 
-  # Node Exporter for node-level CPU / memory / disk / network metrics.
+  # Node-level CPU / memory / disk / network / PSI metrics from the
+  # node-exporter DaemonSet (deployed by telemetryServices.node-exporter
+  # below, which auto-populates linuxHosts' discovery — no manual namespace
+  # or labelMatchers needed). `hostMetrics.enabled` alone is a no-op:
+  # `linuxHosts.enabled` defaults to false, so before this every Linux k8s
+  # node — including the bare-metal runner hosts — had zero host-memory
+  # signal, and a host-level microVM die-off (QEMU SIGBUS under RAM
+  # pressure) was invisible in metrics, surfacing only in the node journal.
+  # useDefaultAllowList (the chart default) keeps the curated node_cpu.* /
+  # node_memory.* / node_filesystem.* set; that set omits the host-pressure
+  # signals this class of incident actually needs, so add them explicitly:
+  # PSI (the leading indicator of memory/CPU/IO distress), the host
+  # OOM-kill counter, and load average. Scrapes under job
+  # `integrations/node_exporter`.
   hostMetrics:
     enabled: true
     collector: alloy-metrics
-    # The default allow-list drops per-interface network counters, so cluster
-    # nodes report no host bandwidth (the macOS fleet only has it via the custom
-    # :9100 scrape below). Keep them additively so we can measure the Scaleway
-    # kura runner-cache node's PN throughput (device ens6) and compare it to the
-    # Hetzner kura nodes — the data we need before deciding on dedicated nodes.
-    metricsTuning:
-      includeMetrics:
-        - node_network_receive_bytes_total
-        - node_network_transmit_bytes_total
+    linuxHosts:
+      enabled: true
+      metricsTuning:
+        includeMetrics:
+          - node_pressure_.*
+          - node_vmstat_oom_kill
+          - node_load.*
+          # Per-interface network counters (dropped by the default allow-list)
+          # so we can measure the Scaleway kura runner-cache node's PN
+          # throughput against the Hetzner kura nodes.
+          - node_network_receive_bytes_total
+          - node_network_transmit_bytes_total
 
   # DaemonSet-based pod log tailing via /var/log/pods hostPath. A
   # compromised Alloy pod can only read logs from the single node it

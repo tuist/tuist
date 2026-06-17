@@ -100,6 +100,7 @@ defmodule Tuist.Projects.Project do
       :build_system
     ])
     |> validate_name()
+    |> validate_length(:default_branch, max: 255)
     |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
