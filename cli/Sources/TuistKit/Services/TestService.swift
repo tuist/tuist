@@ -749,7 +749,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        if shard.testProductsAreTemporary {
+        // Only Tuist-owned products (downloaded or extracted) are cleaned up; user-provided local
+        // products (passed via -testProductsPath) are left in place.
+        if localTestProductsPath == nil {
             try? await fileSystem.remove(shard.testProductsPath)
         }
 

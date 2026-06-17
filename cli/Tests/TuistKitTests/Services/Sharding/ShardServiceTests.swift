@@ -126,7 +126,6 @@ struct ShardServiceTests {
         )
 
         #expect(shard.testProductsPath == testProductsPath)
-        #expect(shard.testProductsAreTemporary == false)
         #expect(shard.modules == ["AppTests"])
         #expect(shard.shardPlanId == "plan-123")
 
@@ -255,7 +254,6 @@ struct ShardServiceTests {
             testProductsArchivePath: archivePath
         )
 
-        #expect(shard.testProductsAreTemporary == true)
         #expect(shard.modules == ["AppTests"])
         #expect(shard.testProductsPath.basename.hasSuffix(".xctestproducts"))
 

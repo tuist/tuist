@@ -119,9 +119,10 @@ struct XcodeBuildTestCommandService {
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-project", from: passthroughXcodebuildArguments)
 
-            // Temporary (downloaded or extracted) products need an explicit `-testProductsPath`; user-provided
-            // local products are already referenced via the passed-through `-testProductsPath`.
-            if shard.testProductsAreTemporary {
+            // Downloaded or extracted products need an explicit `-testProductsPath` (and get cleaned up
+            // afterwards); user-provided local products are already referenced via the passed-through
+            // `-testProductsPath` and are left in place.
+            if testProductsPath == nil {
                 shardTestProductsPath = shard.testProductsPath
                 passthroughXcodebuildArguments += ["-testProductsPath", shard.testProductsPath.pathString]
             }

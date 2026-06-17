@@ -14,9 +14,6 @@ public struct Shard {
     public let reference: String
     public let shardPlanId: String
     public let testProductsPath: AbsolutePath
-    /// Whether `testProductsPath` is a temporary directory owned by Tuist (downloaded or extracted)
-    /// and therefore safe to delete after the run. `false` when it points at user-provided products.
-    public let testProductsAreTemporary: Bool
     /// xcodebuild `-only-testing` identifiers selecting this shard's work. Suite granularity yields
     /// `Module/Suite` entries; module granularity yields bare `Module` entries.
     public let testIdentifiers: [String]
@@ -102,17 +99,14 @@ public struct ShardService: ShardServicing {
         }
 
         let resolvedTestProductsPath: AbsolutePath
-        let testProductsAreTemporary: Bool
 
         if let testProductsPath {
             resolvedTestProductsPath = testProductsPath
-            testProductsAreTemporary = false
             Logger.current.debug("Using local test products at \(testProductsPath.pathString)")
         } else if let testProductsArchivePath {
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
             try await appleArchiver.decompress(archive: testProductsArchivePath, to: extractedTestProductsPath)
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
-            testProductsAreTemporary = true
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
             guard let downloadURL = URL(string: shard.download_url) else {
@@ -125,7 +119,6 @@ public struct ShardService: ShardServicing {
             try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
             try? await fileSystem.remove(shardArchivePath)
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
-            testProductsAreTemporary = true
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }
 
@@ -154,7 +147,6 @@ public struct ShardService: ShardServicing {
             reference: reference,
             shardPlanId: shard.shard_plan_id,
             testProductsPath: resolvedTestProductsPath,
-            testProductsAreTemporary: testProductsAreTemporary,
             testIdentifiers: testIdentifiers,
             modules: shard.modules,
             selectiveTestingGraph: selectiveTestingGraph

@@ -5450,7 +5450,6 @@ final class TestServiceTests: TuistUnitTestCase {
                     reference: "ref",
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
-                    testProductsAreTemporary: true,
                     testIdentifiers: ["AppTests"],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
@@ -5513,7 +5512,6 @@ final class TestServiceTests: TuistUnitTestCase {
                     reference: "ref",
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
-                    testProductsAreTemporary: true,
                     testIdentifiers: ["AppTests"],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
