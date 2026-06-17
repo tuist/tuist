@@ -1,0 +1,61 @@
+# Renovate bumps the `tuist` pin in mise.toml via a custom regex manager (see
+# renovate.json) because its native mise manager can't resolve `aqua:tuist/tuist`.
+# Custom regex managers don't run mise's lockfile updater, so the bump lands in
+# mise.toml but mise.lock keeps the old version. CI runs with MISE_LOCKED=1 and
+# fails ("<version> is not in the lockfile"). Renovate runs as the hosted Mend
+# app here, so postUpgradeTasks aren't available to regenerate the lock inline.
+#
+# This workflow regenerates mise.lock on the Renovate branch and pushes it back
+# with a token that re-triggers the PR checks, letting the automerge proceed.
+name: Renovate mise.lock
+
+on:
+  push:
+    branches:
+      - "renovate/**"
+    paths:
+      - "mise.toml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: renovate-mise-lock-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MISE_VERSION: "2026.4.18"
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  update-lock:
+    name: Update mise.lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          # A PAT (not GITHUB_TOKEN) so the push-back re-triggers the PR checks
+          # that GITHUB_TOKEN-authored pushes would skip.
+          token: ${{ secrets.TUISTIT_TOKEN || github.token }}
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          # Installing tuist unlocked rewrites its mise.lock entry across all
+          # platforms (checksums come from the release SHASUMS, so one host
+          # covers macOS and Linux).
+          install_args: "tuist"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Commit updated mise.lock
+        run: |
+          if [[ -z "$(git status --porcelain mise.lock)" ]]; then
+            echo "mise.lock already up to date"
+            exit 0
+          fi
+          git config user.name "tuistit"
+          git config user.email "tuistit@users.noreply.github.com"
+          git add mise.lock
+          git commit -m "chore(cli): update mise.lock for Tuist CLI bump"
+          git push origin HEAD:${{ github.ref_name }}
