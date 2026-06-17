@@ -571,6 +571,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 {
                     let shardDestination = try await shardPlanDestination(
                         schemes: schemes,
+                        testPlan: testPlanConfiguration?.testPlan,
                         platform: platform,
                         version: version,
                         deviceName: deviceName,
@@ -1913,11 +1914,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return arguments[valueIndex]
     }
 
-    func inferPlatformDestination(schemes: [Scheme], graphTraverser: GraphTraversing) -> String? {
+    func inferPlatformDestination(
+        schemes: [Scheme],
+        testPlan: String? = nil,
+        graphTraverser: GraphTraversing
+    ) -> String? {
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
-                testPlan: nil,
+                testPlan: testPlan,
                 testTargets: [],
                 skipTestTargets: [],
                 graphTraverser: graphTraverser,
@@ -1933,8 +1938,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
         return nil
     }
 
-    private func shardPlanDestination(
+    func shardPlanDestination(
         schemes: [Scheme],
+        testPlan: String?,
         platform: String?,
         version: Version?,
         deviceName: String?,
@@ -1951,6 +1957,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let destinationVersion = xcodebuildDestinationParameter("OS", in: explicitDestination)?.version() ?? version
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: simulatorPlatform,
                 version: destinationVersion,
                 deviceName: deviceName,
@@ -1962,6 +1969,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: buildPlatform,
                 version: version,
                 deviceName: deviceName,
@@ -1969,13 +1977,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
             ) ?? buildPlatform.xcodebuildPlatformDestination
         }
 
-        if let inferredDestination = inferPlatformDestination(schemes: schemes, graphTraverser: graphTraverser) {
+        if let inferredDestination = inferPlatformDestination(
+            schemes: schemes,
+            testPlan: testPlan,
+            graphTraverser: graphTraverser
+        ) {
             guard let inferredPlatform = xcodebuildPlatform(from: inferredDestination) else {
                 return inferredDestination
             }
 
             return await concreteShardPlanDestinationIfAvailable(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: inferredPlatform,
                 version: version,
                 deviceName: deviceName,
@@ -1988,6 +2001,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func concreteShardPlanDestinationIfAvailable(
         schemes: [Scheme],
+        testPlan: String?,
         platform: XcodeGraph.Platform,
         version: Version?,
         deviceName: String?,
@@ -1996,6 +2010,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         do {
             return try await concreteShardPlanDestination(
                 schemes: schemes,
+                testPlan: testPlan,
                 platform: platform,
                 version: version,
                 deviceName: deviceName,
@@ -2008,6 +2023,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func concreteShardPlanDestination(
         schemes: [Scheme],
+        testPlan: String?,
         platform: XcodeGraph.Platform,
         version: Version?,
         deviceName: String?,
@@ -2016,7 +2032,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
-                testPlan: nil,
+                testPlan: testPlan,
                 testTargets: [],
                 skipTestTargets: [],
                 graphTraverser: graphTraverser,
