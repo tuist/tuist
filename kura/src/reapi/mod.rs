@@ -73,7 +73,7 @@ const REAPI_HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 // forcibly closing. GOAWAY does not by itself sever an in-flight upload — the
 // grace does — so the age stays short (connections rebalance onto fresh pods
 // after a rolling deploy) while the grace is sized to outlast the largest
-// legitimate upload. The original 300s grace caused bugs, as it cut large 
+// legitimate upload. The original 300s grace caused bugs, as it cut large
 // uploads at age+grace=600s, well under the ~680s a 784MB blob needs at WAN RTT.
 // An in-flight upload is still ultimately bounded by age+grace (~20min) — ample
 // for any real upload, not unbounded — and idle streams are reclaimed much
