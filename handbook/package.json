@@ -4,7 +4,7 @@
   "description": "A handbook for Tuist",
   "private": true,
   "devDependencies": {
-    "esbuild": "^0.25.10",
+    "esbuild": "^0.28.1",
     "vitepress": "^1.6.4",
     "vitepress-plugin-llmstxt": "^0.4.2",
     "wrangler": "^4.40.3"
