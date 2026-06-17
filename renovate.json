@@ -69,7 +69,7 @@
       "automerge": true
     },
     {
-      "description": "Tuist CLI dev-tooling pin in mise.toml (extracted by the custom regex manager above). Tracks the latest tuist/tuist release including canary prereleases (ignoreUnstable off), at any time, and auto-merges. respectLatest is off because this monorepo's GitHub `latest` marker points at whichever component released last, not the CLI; versioning is semver so the CLI's bare `X.Y.Z`/`X.Y.Z-canary.N` tags are kept and component tags like `server@1.2.3` are ignored.",
+      "description": "Tuist CLI dev-tooling pin in mise.toml (extracted by the custom regex manager above). Tracks the latest tuist/tuist release including canary prereleases (ignoreUnstable off), at any time, and auto-merges. respectLatest is off because this monorepo's GitHub `latest` marker points at whichever component released last, not the CLI; versioning is semver so the CLI's bare `X.Y.Z`/`X.Y.Z-canary.N` tags are kept and component tags like `server@1.2.3` are ignored. platformAutomerge is off so Renovate merges the PR itself only after the PR's own checks pass, instead of GitHub native auto-merge, which would merge as soon as it is mergeable because main has no required status checks. The CODEOWNERS review on mise.toml is satisfied by the renovate-auto-approve workflow.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["mise.toml"],
       "matchPackageNames": ["tuist/tuist"],
@@ -79,7 +79,8 @@
       "schedule": ["at any time"],
       "commitMessagePrefix": "chore(cli):",
       "commitMessageTopic": "Tuist CLI",
-      "automerge": true
+      "automerge": true,
+      "platformAutomerge": false
     },
     {
       "description": "hetzner-robot-controller mgmt-cluster image pin.",

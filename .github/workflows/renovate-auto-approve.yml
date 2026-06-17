@@ -1,0 +1,43 @@
+name: Renovate Auto-Approve
+
+# main requires one approving CODEOWNERS review on mise.toml (@tuist/engineering),
+# which Renovate's bot PR cannot give itself. This approves Renovate's auto-merge
+# CLI pin bumps with a @tuist/engineering machine identity so the review is
+# satisfied; Renovate (platformAutomerge off) then merges once the PR's checks pass.
+#
+# RENOVATE_APPROVE_TOKEN must be a PAT for a user that is a member of
+# @tuist/engineering (e.g. the tuistit machine account added to the team). A plain
+# GITHUB_TOKEN / github-actions[bot] approval does not count as a CODEOWNERS review.
+#
+# To cover more auto-merge Renovate rules, add their title prefixes to the `if` below.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  approve:
+    name: Approve Renovate CLI bumps
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.user.login == 'renovate[bot]' &&
+      startsWith(github.event.pull_request.title, 'chore(cli): Update Tuist CLI')
+    steps:
+      - name: Approve
+        env:
+          GH_TOKEN: ${{ secrets.RENOVATE_APPROVE_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "RENOVATE_APPROVE_TOKEN is not set; skipping approval." >&2
+            exit 0
+          fi
+          if [ "$(gh pr view "$PR_URL" --json reviewDecision --jq '.reviewDecision')" = "APPROVED" ]; then
+            echo "PR is already approved; nothing to do."
+            exit 0
+          fi
+          gh pr review "$PR_URL" --approve \
+            --body "Auto-approving Renovate Tuist CLI bump so it can merge once checks pass."
