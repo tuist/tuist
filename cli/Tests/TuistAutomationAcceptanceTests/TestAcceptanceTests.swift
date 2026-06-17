@@ -7,6 +7,8 @@ import TuistBuildCommand
 import TuistEnvironment
 import TuistSupport
 import TuistTesting
+import TuistXCResultService
+import XCResultParser
 
 @testable import TuistKit
 @testable import TuistTestCommand
@@ -423,6 +425,81 @@ struct TestAcceptanceTestShardWithLocalTestProducts {
                 "-testProductsPath", testProductsPath.pathString,
                 "-destination", "platform=macOS",
             ]
+        )
+    }
+}
+
+/// Regression test for suite-granularity sharding of Swift Testing suites.
+///
+/// `MacFrameworkTests` mixes one XCTest class with two Swift Testing suites. Earlier the shard's
+/// per-suite selection was written into the bundle's `.xctestrun` as `OnlyTestIdentifiers`, which
+/// does not filter Swift Testing tests, so a shard that owned only Swift Testing suites ran zero
+/// tests yet reported success. This asserts that, across both shards, every suite actually runs.
+struct TestAcceptanceTestShardSuiteGranularityWithSwiftTesting {
+    @Test(
+        .withFixtureConnectedToCanary("generated_ios_app_with_tests"),
+        .inTemporaryDirectory
+    ) func shard_suite_granularity_with_swift_testing() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MacFrameworkTests.xctestproducts")
+        let shardReference = "acceptance-test-\(Int.random(in: 100_000 ... 999_999))"
+
+        Environment.mocked?.variables["GITHUB_ACTIONS"] = "true"
+        Environment.mocked?.variables["GITHUB_RUN_ID"] = shardReference
+        Environment.mocked?.variables["GITHUB_RUN_ATTEMPT"] = "1"
+        let githubOutputPath = temporaryDirectory.appending(component: "github_output")
+        try await FileSystem().writeText("", at: githubOutputPath)
+        Environment.mocked?.variables["GITHUB_OUTPUT"] = githubOutputPath.pathString
+
+        // Build phase: build tests and create a suite-granularity shard plan, skip the S3 upload.
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "MacFrameworkTests",
+                "--build-only",
+                "--shard-total", "2",
+                "--shard-granularity", "suite",
+                "--shard-skip-upload",
+                "--path", fixtureDirectory.pathString,
+                "--",
+                "-testProductsPath", testProductsPath.pathString,
+                "-destination", "platform=macOS",
+            ]
+        )
+
+        // Test phase: run both shards from the local test products, capturing a result bundle each.
+        var executedTestNames: Set<String> = []
+        for shardIndex in 0 ... 1 {
+            let resultBundlePath = temporaryDirectory.appending(component: "shard-\(shardIndex).xcresult")
+            try await TuistTest.run(
+                TestCommand.self,
+                [
+                    "MacFrameworkTests",
+                    "--without-building",
+                    "--shard-index", "\(shardIndex)",
+                    "--path", fixtureDirectory.pathString,
+                    "--result-bundle-path", resultBundlePath.pathString,
+                    "--",
+                    "-testProductsPath", testProductsPath.pathString,
+                    "-destination", "platform=macOS",
+                ]
+            )
+
+            let summary = try await XCResultService().parse(path: resultBundlePath, rootDirectory: nil)
+            let names = summary?.testCases.map(\.name) ?? []
+            executedTestNames.formUnion(names)
+        }
+
+        // The two Swift Testing suites only run if `-only-testing` selection is used; with the old
+        // xctestrun rewrite their shard silently executed nothing.
+        #expect(
+            executedTestNames.contains { $0.contains("greeting_isStable") },
+            "Swift Testing suite MacFrameworkGreetingTests did not run in any shard"
+        )
+        #expect(
+            executedTestNames.contains { $0.contains("greeting_isNotEmpty") },
+            "Swift Testing suite MacFrameworkValueTests did not run in any shard"
         )
     }
 }

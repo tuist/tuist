@@ -5450,7 +5450,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     reference: "ref",
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
-                    xcTestRunPath: nil,
+                    testProductsAreTemporary: true,
+                    testIdentifiers: ["AppTests"],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )
@@ -5476,6 +5477,13 @@ final class TestServiceTests: TuistUnitTestCase {
         verify(xcodebuildController)
             .run(arguments: .matching { args in
                 args.containsConsecutive("-skip-testing", skippedIdentifier.description)
+            })
+            .called(1)
+        // The shard's selection is forwarded as `-only-testing` (xctestrun OnlyTestIdentifiers
+        // does not filter Swift Testing tests).
+        verify(xcodebuildController)
+            .run(arguments: .matching { args in
+                args.containsConsecutive("-only-testing", "AppTests")
             })
             .called(1)
     }
@@ -5505,7 +5513,8 @@ final class TestServiceTests: TuistUnitTestCase {
                     reference: "ref",
                     shardPlanId: "plan-123",
                     testProductsPath: extractedTestProductsPath,
-                    xcTestRunPath: nil,
+                    testProductsAreTemporary: true,
+                    testIdentifiers: ["AppTests"],
                     modules: ["AppTests"],
                     selectiveTestingGraph: nil
                 )

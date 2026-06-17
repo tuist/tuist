@@ -699,16 +699,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: shard.testProductsPath)
 
-        var shardPassthroughArguments = passthroughXcodeBuildArguments
-        if let xcTestRunPath = shard.xcTestRunPath {
-            shardPassthroughArguments = removeOption("-testProductsPath", from: shardPassthroughArguments)
-            shardPassthroughArguments += ["-xctestrun", xcTestRunPath.pathString]
-        }
-
         let xcodebuildArguments = try await buildTestWithoutBuildingArguments(
             testProductsPath: shard.testProductsPath,
             testTargets: testTargets,
             skipTestTargets: skipTestTargets,
+            shardTestIdentifiers: shard.testIdentifiers,
             testPlanConfiguration: testPlanConfiguration,
             deviceName: deviceName,
             platform: platform,
@@ -716,7 +711,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             rosetta: rosetta,
             resultBundlePath: resultBundlePath,
             derivedDataPath: derivedDataPath,
-            passthroughXcodeBuildArguments: shardPassthroughArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
         )
 
         var testError: Error?
@@ -754,9 +749,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             runResultBundlePath: runResultBundlePath,
             resultBundlePath: resultBundlePath
         )
-        if let xcTestRunPath = shard.xcTestRunPath {
-            try? await fileSystem.remove(xcTestRunPath)
-        } else {
+        if shard.testProductsAreTemporary {
             try? await fileSystem.remove(shard.testProductsPath)
         }
 
@@ -896,16 +889,6 @@ public struct TestService { // swiftlint:disable:this type_body_length
         AlertController.current.success(.alert("The project tests ran successfully"))
     }
 
-    private func removeOption(_ option: String, from arguments: [String]) -> [String] {
-        guard let index = arguments.firstIndex(of: option) else { return arguments }
-        var result = arguments
-        result.remove(at: index)
-        if result.indices.contains(index) {
-            result.remove(at: index)
-        }
-        return result
-    }
-
     private func testProductsPathFromArguments(_ arguments: [String], relativeTo path: AbsolutePath) -> AbsolutePath? {
         guard let index = arguments.firstIndex(of: "-testProductsPath"),
               arguments.indices.contains(index + 1)
@@ -921,6 +904,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testProductsPath: AbsolutePath,
         testTargets: [TestIdentifier],
         skipTestTargets: [TestIdentifier],
+        shardTestIdentifiers: [String] = [],
         testPlanConfiguration: TestPlanConfiguration?,
         deviceName: String?,
         platform: String?,
@@ -939,6 +923,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         for testTarget in testTargets {
             arguments += ["-only-testing", testTarget.description]
+        }
+        for shardTestIdentifier in shardTestIdentifiers {
+            arguments += ["-only-testing", shardTestIdentifier]
         }
         for skipTarget in skipTestTargets {
             arguments += ["-skip-testing", skipTarget.description]
