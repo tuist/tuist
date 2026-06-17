@@ -8,6 +8,7 @@ The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.ya
 
 - [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the per-table privileges the worker needs.
 - [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on `public` (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set.
 
 ## When to run
 
@@ -35,6 +36,12 @@ kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
 
 kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -f - \
   < infra/cnpg/tuist-ops-ro-grants.sql
+
+# pg_stat_statements is instance-global and the metrics exporter reads it
+# from the maintenance database, so this one runs against `postgres`, not
+# `tuist`. Only needed where postgresql.cnpg.queryStats.enabled is set.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
+  < infra/cnpg/pg-stat-statements.sql
 ```
 
 Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows the expected `arwd/postgres` shape on the granted tables.

@@ -114,9 +114,19 @@ spec:
     topologyKey: kubernetes.io/hostname
     podAntiAffinityType: required
 
-  {{- with .Values.postgresql.cnpg.monitoring }}
+  {{- if or .Values.postgresql.cnpg.monitoring .Values.postgresql.cnpg.queryStats.enabled }}
   monitoring:
+    {{- with .Values.postgresql.cnpg.monitoring }}
     {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.postgresql.cnpg.queryStats.enabled }}
+    # pg_stat_statements latency metrics (cnpg_tuist_query_stats_*). The
+    # ConfigMap and its prerequisites are described in
+    # templates/postgresql-cnpg-monitoring-queries.yaml.
+    customQueriesConfigMap:
+      - name: {{ include "tuist.componentName" (dict "root" . "component" "pg-monitoring-queries") }}
+        key: queries
+    {{- end }}
   {{- end }}
 
   # Managed roles. CNPG creates the role on bootstrap and rotates the
