@@ -849,6 +849,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
                         .define
                     ),
                     (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                    (.linker, .treatAllWarnings), (.linker, .treatWarning), (.linker, .enableWarning),
                     (
                         _,
                         .defaultIsolation
@@ -1480,6 +1481,15 @@ extension ProjectDescription.TargetDependency {
                     .define
                 ),
                 (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (
+                    .linker,
+                    .treatAllWarnings
+                ), (
+                    .linker,
+                    .treatWarning
+                ), (
+                    .linker,
+                    .enableWarning
+                ), (
                     _,
                     .defaultIsolation
                 ), (
