@@ -434,6 +434,15 @@ func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T)
 	if got := configMap.Data["proxy-request-buffering"]; got != "off" {
 		t.Fatalf("expected request buffering disabled in nginx config, got %q", got)
 	}
+	if got := configMap.Data["client-body-buffer-size"]; got != "4m" {
+		t.Fatalf("expected raised client body buffer for upload throughput, got %q", got)
+	}
+	if got := configMap.Data["http-snippet"]; got != "http2_body_preread_size 4m;" {
+		t.Fatalf("expected raised HTTP/2 body preread window, got %q", got)
+	}
+	if got := configMap.Data["http2-max-concurrent-streams"]; got != "32" {
+		t.Fatalf("expected bounded HTTP/2 concurrent streams, got %q", got)
+	}
 
 	deployment := &appsv1.Deployment{}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {

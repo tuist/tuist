@@ -138,6 +138,40 @@ func (r *KuraGatewayReconciler) deleteRenamedIngressClass(ctx context.Context, g
 	return nil
 }
 
+// gatewayNginxConfigData is the ingress-nginx ConfigMap for dedicated Kura
+// gateways. The keys it shares with the regional gateway config in
+// infra/helm/platform/values.yaml must stay equal; TestGatewayNginxConfigMatchesChart
+// asserts that (required keys present and matching, any other shared key
+// matching where a region sets it) so the two render paths cannot drift.
+func gatewayNginxConfigData() map[string]string {
+	return map[string]string{
+		"use-forwarded-headers":       "true",
+		"use-proxy-protocol":          "true",
+		"compute-full-forwarded-for":  "true",
+		"upstream-keepalive-timeout":  "10",
+		"allow-snippet-annotations":   "false",
+		"enable-real-ip":              "true",
+		"proxy-real-ip-cidr":          "0.0.0.0/0",
+		"proxy-body-size":             "0",
+		"proxy-request-buffering":     "off",
+		"proxy-buffering":             "off",
+		"proxy-max-temp-file-size":    "0",
+		"keep-alive-requests":         "10000",
+		"upstream-keepalive-requests": "10000",
+		// HTTP/2 request-body flow control. nginx's 64KB default window caps
+		// every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
+		// alike) at ~window/RTT — ~310KB/s from a 193ms client. Both knobs must
+		// move together: http2_body_preread_size is the window advertised before
+		// the body is consumed, client-body-buffer-size paces WINDOW_UPDATEs
+		// while streaming to the upstream. The stream cap bounds worst-case nginx
+		// memory at 32 x 4m = 128MB per client connection; excess RPCs queue
+		// client-side.
+		"client-body-buffer-size":      "4m",
+		"http2-max-concurrent-streams": "32",
+		"http-snippet":                 "http2_body_preread_size 4m;",
+	}
+}
+
 func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, gateway *kurav1alpha1.KuraGateway) error {
 	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, configMap, func() error {
@@ -145,21 +179,7 @@ func (r *KuraGatewayReconciler) reconcileGatewayConfigMap(ctx context.Context, g
 			return err
 		}
 		configMap.Labels = gatewayLabels(gateway)
-		configMap.Data = map[string]string{
-			"use-forwarded-headers":       "true",
-			"use-proxy-protocol":          "true",
-			"compute-full-forwarded-for":  "true",
-			"upstream-keepalive-timeout":  "10",
-			"allow-snippet-annotations":   "false",
-			"enable-real-ip":              "true",
-			"proxy-real-ip-cidr":          "0.0.0.0/0",
-			"proxy-body-size":             "0",
-			"proxy-request-buffering":     "off",
-			"proxy-buffering":             "off",
-			"proxy-max-temp-file-size":    "0",
-			"keep-alive-requests":         "10000",
-			"upstream-keepalive-requests": "10000",
-		}
+		configMap.Data = gatewayNginxConfigData()
 		return nil
 	})
 	return err

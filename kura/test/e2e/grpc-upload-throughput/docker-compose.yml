@@ -1,0 +1,87 @@
+name: kura-throughput-e2e
+
+# Topology (single injected RTT applied identically to all three paths):
+#
+#   client ─► toxiproxy ─► nginx-baseline (default window)        ─► kura
+#                       ─► nginx-patched  (raised window, from chart) ─► kura
+#                       ─► kura (direct, kura's own stream window)
+#
+# toxiproxy's proxies + latency toxics are created at runtime by the client.
+
+services:
+  kura:
+    # Build from the repo's kura source so the test always runs against the
+    # current version. In CI the e2e-images job has already built this and the
+    # job retags it to kura:e2e, so compose reuses it (no rebuild). For fast
+    # local window tuning, set KURA_IMAGE=ghcr.io/tuist/kura:latest to skip the
+    # source build (kura's version is irrelevant to the nginx-window behavior).
+    image: ${KURA_IMAGE:-kura:e2e}
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    environment:
+      # Minimal standalone config: gRPC h2c on 50051, no peers, no auth extension.
+      KURA_PORT: "4000"
+      KURA_GRPC_PORT: "50051"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_TENANT_ID: "e2e"
+      KURA_REGION: "local"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_NODE_URL: "http://kura:7443"
+      KURA_OTEL_SERVICE_NAME: "kura-e2e"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "e2e"
+      KURA_EXTENSION_ENABLED: "false"
+      RUST_LOG: "warn"
+
+  # Both confs are rendered by the confgen step (the client image's `genconfs`
+  # subcommand, run by run.sh before `up`) from the live chart values; they
+  # differ only in the window directives.
+  nginx-baseline:
+    image: nginx:1.27
+    depends_on: [kura]
+    volumes:
+      - ./generated/baseline.conf:/etc/nginx/nginx.conf:ro
+
+  nginx-patched:
+    image: nginx:1.27
+    depends_on: [kura]
+    volumes:
+      - ./generated/patched.conf:/etc/nginx/nginx.conf:ro
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    # Default entrypoint already runs the server with -host=0.0.0.0 (API :8474).
+
+  client:
+    build: ./client
+    image: kura-throughput-client
+    depends_on: [toxiproxy, nginx-baseline, nginx-patched, kura]
+    environment:
+      TOXIPROXY_API: "http://toxiproxy:8474"
+      TOXIPROXY_HOST: "toxiproxy"
+      SIZE_MB: "${SIZE_MB:-16}"
+      LATENCY_MS: "${LATENCY_MS:-50}"
+      CHUNK_KB: "${CHUNK_KB:-256}"
+      MIN_SPEEDUP: "${MIN_SPEEDUP:-4}"
+      # Patched window derived from the chart by the confgen step, so the
+      # client's reference ceiling tracks helm (default 4m if run outside run.sh).
+      PATCHED_WINDOW_BYTES: "${PATCHED_WINDOW_BYTES:-4194304}"
+      PATCHED_WINDOW_LABEL: "${PATCHED_WINDOW_LABEL:-4m}"
+
+  # Renders generated/{baseline,patched}.conf + window.env from the live chart
+  # values using the SAME image as the client (its `genconfs` subcommand) — no
+  # third-party yq image to parse YAML. run.sh runs this before `up`; the
+  # `confgen` profile keeps it out of the default `up` lifecycle.
+  confgen:
+    image: kura-throughput-client
+    profiles: ["confgen"]
+    command: ["genconfs"]
+    environment:
+      CHART_VALUES: "/chart/values.yaml"
+      TEMPLATE_PATH: "/harness/nginx/nginx.conf.tmpl"
+      OUT_DIR: "/harness/generated"
+    volumes:
+      - ../../../../infra/helm/platform/values.yaml:/chart/values.yaml:ro
+      - ./nginx:/harness/nginx:ro
+      - ./generated:/harness/generated
