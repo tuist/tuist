@@ -305,6 +305,28 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert html =~ "test-org/test-repo"
   end
 
+  test "adopts the repository's default branch when creating a connection", %{
+    conn: conn,
+    organization: organization,
+    account: account,
+    project: project
+  } do
+    _github_installation = VCSFixtures.github_app_installation_fixture(account_id: account.id)
+
+    stub(VCS, :get_github_app_installation_repositories, fn _installation ->
+      {:ok, [%{id: 123, full_name: "test-org/test-repo", default_branch: "develop"}]}
+    end)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/settings/integrations")
+    render_async(lv)
+
+    render_hook(lv, "select-project", %{"project_id" => Integer.to_string(project.id)})
+    render_hook(lv, "select-repository", %{"repository" => "test-org/test-repo"})
+    render_hook(lv, "create-connection", %{})
+
+    assert Tuist.Projects.get_project_by_id(project.id).default_branch == "develop"
+  end
+
   describe "GitHub Enterprise Server entitlement gate (hosted Tuist server)" do
     setup do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
