@@ -20,6 +20,8 @@ type BaremetalAPI interface {
 	DeleteServer(req *baremetal.DeleteServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
 	GetOfferByName(req *baremetal.GetOfferByNameRequest) (*baremetal.Offer, error)
 	ListOS(req *baremetal.ListOSRequest, opts ...scw.RequestOption) (*baremetal.ListOSResponse, error)
+	ListOptions(req *baremetal.ListOptionsRequest, opts ...scw.RequestOption) (*baremetal.ListOptionsResponse, error)
+	AddOptionServer(req *baremetal.AddOptionServerRequest, opts ...scw.RequestOption) (*baremetal.Server, error)
 }
 
 // BaremetalPrivateNetworkAPI is the slice of the baremetal PrivateNetwork API
@@ -227,6 +229,16 @@ func (c *BaremetalClient) EnsurePrivateNetwork(ctx context.Context, zone scw.Zon
 	if privateNetworkID == "" {
 		return 0, nil
 	}
+	// Elastic Metal delivers Private Networks through a server "Private
+	// Network" option that must be installed and enabled before an attachment
+	// carries traffic — the analog of enabling the VPC option on the Apple
+	// Silicon kind. Without it the API still allocates a VLAN + IPAM address,
+	// but the host's VLAN interface stays dark (the console shows "Private
+	// Networks feature: Disabled"). Install it and requeue until enabled
+	// before attaching, so we never bootstrap a host onto a dead PN.
+	if err := c.ensurePrivateNetworkOption(ctx, zone, serverID); err != nil {
+		return 0, err
+	}
 	list, err := c.PN.ListServerPrivateNetworks(&baremetal.PrivateNetworkAPIListServerPrivateNetworksRequest{
 		Zone:     zone,
 		ServerID: &serverID,
@@ -256,6 +268,44 @@ func (c *BaremetalClient) EnsurePrivateNetwork(ctx context.Context, zone scw.Zon
 		return 0, fmt.Errorf("server %s attachment to %s has no VLAN yet (status %s)", serverID, privateNetworkID, created.Status)
 	}
 	return *created.Vlan, nil
+}
+
+// ensurePrivateNetworkOption makes sure the server's "Private Network" option
+// is installed and enabled, installing it (idempotently) and returning an error
+// to requeue while it is missing or still enabling. The option is identified by
+// its typed `PrivateNetwork` field rather than its display name.
+func (c *BaremetalClient) ensurePrivateNetworkOption(ctx context.Context, zone scw.Zone, serverID string) error {
+	server, err := c.Baremetal.GetServer(&baremetal.GetServerRequest{Zone: zone, ServerID: serverID}, scw.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("get server %s: %w", serverID, err)
+	}
+	for _, o := range server.Options {
+		if o.PrivateNetwork == nil {
+			continue
+		}
+		if o.Status == baremetal.ServerOptionOptionStatusOptionStatusEnable {
+			return nil
+		}
+		return fmt.Errorf("server %s Private Network option not enabled yet (status %s)", serverID, o.Status)
+	}
+	resp, err := c.Baremetal.ListOptions(&baremetal.ListOptionsRequest{Zone: zone, OfferID: &server.OfferID}, scw.WithContext(ctx), scw.WithAllPages())
+	if err != nil {
+		return fmt.Errorf("list options for offer %s: %w", server.OfferID, err)
+	}
+	var optionID string
+	for _, o := range resp.Options {
+		if o.PrivateNetwork != nil {
+			optionID = o.ID
+			break
+		}
+	}
+	if optionID == "" {
+		return fmt.Errorf("offer %s exposes no Private Network option", server.OfferID)
+	}
+	if _, err := c.Baremetal.AddOptionServer(&baremetal.AddOptionServerRequest{Zone: zone, ServerID: serverID, OptionID: optionID}, scw.WithContext(ctx)); err != nil {
+		return fmt.Errorf("install Private Network option on server %s: %w", serverID, err)
+	}
+	return fmt.Errorf("installing Private Network option on server %s; will retry", serverID)
 }
 
 // DeleteServer tears the Elastic Metal server down, returning done=true once it
