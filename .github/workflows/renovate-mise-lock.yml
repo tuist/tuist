@@ -38,7 +38,7 @@ jobs:
           ref: ${{ github.ref_name }}
           # A PAT (not GITHUB_TOKEN) so the push-back re-triggers the PR checks
           # that GITHUB_TOKEN-authored pushes would skip.
-          token: ${{ secrets.TUISTIT_TOKEN || github.token }}
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
@@ -54,8 +54,8 @@ jobs:
             echo "mise.lock already up to date"
             exit 0
           fi
-          git config user.name "tuistit"
-          git config user.email "tuistit@users.noreply.github.com"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           git add mise.lock
           git commit -m "chore(cli): update mise.lock for Tuist CLI bump"
           git push origin HEAD:${{ github.ref_name }}
