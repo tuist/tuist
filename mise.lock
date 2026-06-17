@@ -68,8 +68,8 @@ url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164229"
 
 [tools.aube."platforms.linux-x64"]
 checksum = "sha256:16fcc40dfbaac110ce8f4e88728a440f2366094a45fd6c189bcbcc2b3ea31f06"
-url = "https://github.com/endevco/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/endevco/aube/releases/assets/410164107"
+url = "https://github.com/jdx/aube/releases/download/v1.6.2/aube-v1.6.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/aube/releases/assets/410164107"
 
 [tools.aube."platforms.linux-x64-musl"]
 checksum = "sha256:2ee3821fd62b56bb39cb2ceffe6ad38975e35f82311ca7f9ec6ee28bc6d284b8"
@@ -187,6 +187,11 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.6.0/git-cliff-2.6
 [[tools."github:pomerium/cli"]]
 version = "0.32.2"
 backend = "github:pomerium/cli"
+
+[tools."github:pomerium/cli"."platforms.linux-x64"]
+checksum = "sha256:af40d1a73daa7fdca44c88add8a407014b36dc939588422e973998684dd88014"
+url = "https://github.com/pomerium/cli/releases/download/v0.32.2/pomerium-cli-linux-amd64.tar.gz"
+url_api = "https://api.github.com/repos/pomerium/cli/releases/assets/392602609"
 
 [tools."github:pomerium/cli"."platforms.macos-arm64"]
 checksum = "sha256:83140cab47cb8fbd0fd911d0d94a9d3ef9fc90ad506381aa84a1f298c0503f11"
@@ -315,6 +320,7 @@ url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
 [tools.jq."platforms.linux-x64"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+provenance = "github-attestations"
 
 [tools.jq."platforms.linux-x64-musl"]
 checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
