@@ -87,11 +87,17 @@ client image and takes ~30-60s.
 ## CI
 
 This runs as the `gateway-throughput` shard of the `e2e` matrix in
-`.github/workflows/kura.yml`, on every PR that touches `kura/**` or
-`infra/helm/platform/values.yaml` (the chart whose window values the test
-reads). The shard sets `KURA_E2E_THROUGHPUT=1` so the spec opts in, and reuses
-the kura image the workflow already built from source (retagged `kura:e2e`) —
-so CI tests the CI version and only builds the Go client.
+`.github/workflows/kura.yml`, on every PR that touches `kura/**`. The shard sets
+`KURA_E2E_THROUGHPUT=1` so the spec opts in, and reuses the kura image the
+workflow already built from source (retagged `kura:e2e`) — so CI tests the CI
+version and only builds the Go client.
+
+A change confined to the chart (`infra/helm/platform/values.yaml`) does **not**
+run this shard: that path was dropped from the `kura.yml` triggers so an
+unrelated platform edit no longer fires the full kura matrix. Chart-vs-controller
+drift on the window values stays guarded by the `TestGatewayNginxConfigMatchesChart`
+unit test in `infra/kura-controller`. A scoped change-detection gate that would
+run only this shard for chart edits is tracked in #11321.
 
 ## Notes / scope
 
