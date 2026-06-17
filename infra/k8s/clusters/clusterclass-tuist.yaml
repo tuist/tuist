@@ -456,8 +456,13 @@ spec:
         clusterConfiguration:
           apiServer:
             extraArgs:
+              # InternalIP must precede Hostname: cross-cloud nodes (Scaleway
+              # Elastic Metal + macOS PN fleets) report a reachable InternalIP
+              # but a Hostname the Hetzner apiserver can't resolve, so without
+              # it the apiserver falls through to the Hostname and logs/exec
+              # to those nodes' pods fail.
               - name: kubelet-preferred-address-types
-                value: ExternalIP,Hostname,InternalDNS,ExternalDNS
+                value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
           controllerManager:
             extraArgs:
               - name: cloud-provider
