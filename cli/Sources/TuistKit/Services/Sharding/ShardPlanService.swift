@@ -185,10 +185,13 @@
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
 
             let sharedArchive = archiveDirectory.appending(component: "shared.aar")
+            // ".xctest/" (with the trailing slash) excludes the per-module test bundles' contents
+            // without also dropping the sibling ".xctestrun" — excludePatterns is a substring match,
+            // and ".xctestrun" contains ".xctest". The .xctestrun must stay in the shared artifact.
             try await appleArchiver.compress(
                 directory: xctestproductsPath,
                 to: sharedArchive,
-                excludePatterns: [".dSYM", ".xctest"]
+                excludePatterns: [".dSYM", ".xctest/"]
             )
             try await uploadArtifact(
                 archivePath: sharedArchive,

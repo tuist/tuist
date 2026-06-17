@@ -115,6 +115,33 @@ struct AppleArchiverTests {
         #expect(!swiftmoduleExists)
     }
 
+    /// Guards the shard split: excludePatterns is a substring match, so ".xctest" would also drop the
+    /// sibling ".xctestrun" (which contains it). ".xctest/" must exclude only the bundle's contents.
+    @Test(.inTemporaryDirectory) func compress_excludeXCTestBundle_keepsXCTestRun() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let sourceDir = temporaryDirectory.appending(component: "source")
+        let xctestMacOS = sourceDir.appending(components: ["AppTests.xctest", "Contents", "MacOS"])
+        try await fileSystem.makeDirectory(at: xctestMacOS)
+        try await fileSystem.writeText("binary", at: xctestMacOS.appending(component: "AppTests"))
+        try await fileSystem.writeText("run", at: sourceDir.appending(component: "AppTests.xctestrun"))
+
+        let archivePath = temporaryDirectory.appending(component: "archive.aar")
+        try await subject.compress(directory: sourceDir, to: archivePath, excludePatterns: [".xctest/"])
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let xctestRunExists = try await fileSystem.exists(extractDir.appending(component: "AppTests.xctestrun"))
+        #expect(xctestRunExists)
+        let xctestBinaryExists = try await fileSystem.exists(
+            extractDir.appending(components: ["AppTests.xctest", "Contents", "MacOS", "AppTests"])
+        )
+        #expect(!xctestBinaryExists)
+    }
+
     @Test(.inTemporaryDirectory) func compress_preservesBaseDirectory_wrapsContentsInBundleName() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
