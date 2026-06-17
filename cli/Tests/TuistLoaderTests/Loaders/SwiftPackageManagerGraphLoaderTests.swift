@@ -5,6 +5,7 @@ import Path
 import Synchronization
 import Testing
 import TSCBasic
+import TuistConstants
 import TuistCore
 import TuistNooraTesting
 import TuistSupport
@@ -578,7 +579,12 @@ struct SwiftPackageManagerGraphLoaderTests {
                         packageInfo: .any,
                         path: .any,
                         packageType: .matching { packageType in
-                            if case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _) = packageType {
+                            if case .external(
+                                origin: .remote,
+                                artifactPaths: _,
+                                packagePrebuilts: _,
+                                derivedXCFrameworksPath: _
+                            ) = packageType {
                                 return true
                             }
                             return false
@@ -691,7 +697,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                             guard case let .external(
                                 origin: .remote,
                                 artifactPaths: _,
-                                packagePrebuilts: packagePrebuilts
+                                packagePrebuilts: packagePrebuilts,
+                                derivedXCFrameworksPath: _
                             ) = packageType,
                                 let prebuilt = packagePrebuilts["swift-syntax"]?["SwiftSyntax"]
                             else {
@@ -826,14 +833,25 @@ struct SwiftPackageManagerGraphLoaderTests {
         )
 
         // Then: artifact paths arrive at the mapper resolved against scratchDirectory.
+        let expectedDerivedXCFrameworksPath = temporaryDirectory.appending(
+            components: ".build",
+            Constants.DerivedDirectory.dependenciesDerivedDirectory,
+            Constants.DerivedDirectory.dependenciesXCFrameworkDirectory
+        )
         verify(packageInfoMapper)
             .map(
                 packageInfo: .any,
                 path: .any,
                 packageType: .matching { packageType in
-                    guard case let .external(origin: _, artifactPaths: artifactPaths, packagePrebuilts: _) = packageType
+                    guard case let .external(
+                        origin: _,
+                        artifactPaths: artifactPaths,
+                        packagePrebuilts: _,
+                        derivedXCFrameworksPath: derivedXCFrameworksPath
+                    ) = packageType
                     else { return false }
                     return artifactPaths["Foo"] == expectedArtifactPath
+                        && derivedXCFrameworksPath == expectedDerivedXCFrameworksPath
                 },
                 packageSettings: .any,
                 packageModuleAliases: .any,
@@ -956,7 +974,12 @@ struct SwiftPackageManagerGraphLoaderTests {
                 packageInfo: .any,
                 path: .any,
                 packageType: .matching { packageType in
-                    if case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType {
+                    if case .external(
+                        origin: .local,
+                        artifactPaths: _,
+                        packagePrebuilts: _,
+                        derivedXCFrameworksPath: _
+                    ) = packageType {
                         return true
                     }
                     return false
