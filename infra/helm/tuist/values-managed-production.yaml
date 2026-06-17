@@ -31,9 +31,13 @@ server:
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     # Exposes the managed Kura regions in account settings. Regions now
     # reconcile inside this workload cluster; per-region Kura node pools
-    # decide placement.
+    # decide placement. `hetzner-production-runners` is the private
+    # (runner-cache) region: customers can't select it, the RunnerCache
+    # reconciler provisions nodes on this cluster's `kura` pool for
+    # accounts with runner profiles, and runner dispatch routes their
+    # build-cache traffic to it in-cluster.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central,us-east,us-west
+      value: eu-central,us-east,us-west,hetzner-production-runners
     # Operator project-access grants. The public key verifies grants
     # signed by ops (private half: TUIST_OPS_BOT 1P `project_access_signing_key`,
     # which MUST be stored before this deploys). The reason-form URL turns

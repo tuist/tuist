@@ -176,7 +176,7 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "private runner-cache regions" do
-    test "scaleway and hetzner-staging runner regions are registered as private" do
+    test "scaleway and hetzner runner regions are registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
       assert scw_config.storage_class == "scw-bssd"
@@ -185,17 +185,43 @@ defmodule Tuist.Kura.RegionsTest do
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      assert %Regions{provisioner_config: hetzner_config} = Regions.get("hetzner-staging-runners")
-      assert hetzner_config.private == true
-      assert hetzner_config.storage_class == "hcloud-volumes"
-      assert hetzner_config.replicas == 1
-      assert hetzner_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura"}
+      for {id, cluster_id} <- [
+            {"hetzner-production-runners", "production"},
+            {"hetzner-canary-runners", "canary"},
+            {"hetzner-staging-runners", "staging"}
+          ] do
+        assert %Regions{provisioner_config: config} = Regions.get(id)
+        assert config.private == true
+        assert config.cluster_id == cluster_id
+        assert config.storage_class == "hcloud-volumes"
+        assert config.replicas == 1
+        assert config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura"}
+        refute Map.has_key?(config, :public_host_template)
+        refute Map.has_key?(config, :ingress_class_name)
+      end
+    end
+
+    test "every Hetzner runner-cache region pins a node pool that exists in its cluster manifest" do
+      cluster_manifests = %{
+        "hetzner-production-runners" => "infra/k8s/clusters/cluster-production.yaml",
+        "hetzner-canary-runners" => "infra/k8s/clusters/cluster-canary.yaml",
+        "hetzner-staging-runners" => "infra/k8s/clusters/cluster-staging.yaml"
+      }
+
+      for {id, manifest_path} <- cluster_manifests do
+        node_pool = Regions.get(id).provisioner_config.node_selector["node.cluster.x-k8s.io/pool"]
+
+        assert node_pool in cluster_node_pools(read_repo_yaml(manifest_path)),
+               "#{id} pins node pool #{inspect(node_pool)}, missing from #{manifest_path}"
+      end
     end
   end
 
   describe "private?/1" do
     test "is true only for private regions" do
       assert Regions.private?(Regions.get("scw-fr-par-runners"))
+      assert Regions.private?(Regions.get("hetzner-production-runners"))
+      assert Regions.private?(Regions.get("hetzner-canary-runners"))
       assert Regions.private?(Regions.get("hetzner-staging-runners"))
       refute Regions.private?(Regions.get("eu-central"))
       refute Regions.private?(Regions.get("local-controller"))
@@ -302,6 +328,12 @@ defmodule Tuist.Kura.RegionsTest do
     |> Path.join(path)
     |> File.read!()
     |> YamlElixir.read_from_string!()
+  end
+
+  defp cluster_node_pools(cluster) do
+    cluster
+    |> get_in(["spec", "topology", "workers", "machineDeployments"])
+    |> Enum.map(&get_in(&1, ["metadata", "labels", "node.cluster.x-k8s.io/pool"]))
   end
 
   defp production_node_pool_location(production_cluster, node_pool) do

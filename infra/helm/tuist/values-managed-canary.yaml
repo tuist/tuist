@@ -68,8 +68,13 @@ server:
       value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+    # `hetzner-canary-runners` is the private (runner-cache) region:
+    # customers can't select it, the RunnerCache reconciler provisions
+    # nodes on this cluster's `kura` pool for accounts with runner
+    # profiles, and runner dispatch routes their build-cache traffic to
+    # it in-cluster.
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      value: eu-central
+      value: eu-central,hetzner-canary-runners
 
 objectStorage:
   external:

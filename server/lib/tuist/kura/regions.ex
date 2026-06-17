@@ -65,7 +65,7 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura"
     }
   ]
-  # Private runner-cache regions. Both share the same model: a single-
+  # Private runner-cache regions. They all share the same model: a single-
   # replica `KuraInstance` pinned to a specific node pool of the umbrella
   # cluster, exposed only as a `ClusterIP` Service (no public host, no
   # ingress, no certificate, no LoadBalancer). The runner pool reaches
@@ -73,6 +73,17 @@ defmodule Tuist.Kura.Regions do
   # leaves the cluster. The control plane provisions exactly one of
   # these per account that turns runners on (see `Tuist.Kura.RunnerCache`)
   # and the runner dispatch hands the URL back as `cache_endpoint_url`.
+  #
+  # Each environment reconciles `KuraInstance`s into its own workload
+  # cluster (the provisioner uses the in-cluster Kubernetes API), so the
+  # Hetzner regions differ only by `cluster_id`, which names the instance
+  # (`kura-<handle>-<cluster_id>`) and audits placement. Every environment
+  # pins to its `kura` node pool, co-located with the in-cluster Linux
+  # runner fleet so cache traffic stays on the cluster network. The
+  # Scaleway region is a separate, not-yet-activated target: its
+  # `kura-scw-fr-par` pool lives in a different cluster than the Hetzner
+  # runners, so it needs the dispatch-time cluster-locality check before
+  # any runner can be handed its in-cluster URL.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -81,6 +92,22 @@ defmodule Tuist.Kura.Regions do
       node_pool: "kura-scw-fr-par",
       storage_class: "scw-bssd",
       storage_size: "50Gi"
+    },
+    %{
+      id: "hetzner-production-runners",
+      display_name: "Hetzner production (runner cache)",
+      cluster_id: "production",
+      node_pool: "kura",
+      storage_class: @managed_region_storage_class,
+      storage_size: "20Gi"
+    },
+    %{
+      id: "hetzner-canary-runners",
+      display_name: "Hetzner canary (runner cache)",
+      cluster_id: "canary",
+      node_pool: "kura",
+      storage_class: @managed_region_storage_class,
+      storage_size: "20Gi"
     },
     %{
       id: "hetzner-staging-runners",
