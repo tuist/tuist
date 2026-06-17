@@ -310,28 +310,29 @@ impl ReapiService {
         let mut hasher = Sha256::new();
         let mut finished = false;
 
+        // Stall deadline keyed on byte *progress*, not message arrival: it only
+        // advances when a chunk delivers data. An upload that keeps making
+        // progress is never cut, while a stalled or vanished client — or one
+        // trickling zero-data keepalive frames to pin the stream open — is
+        // reclaimed once the deadline lapses (write removes the temp file when
+        // this returns the error). The window also caps how long a single
+        // decoded message may take to arrive; it is sized to clear the largest
+        // message the server will decode at any realistic upload rate.
+        let mut stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
+
         loop {
-            // Bound only on inactivity: every received chunk resets the timer, so
-            // an upload that keeps sending is never cut, but a stalled client is
-            // reclaimed (write removes the temp file once this returns the error).
-            let chunk =
-                match tokio::time::timeout(REAPI_WRITE_STALL_TIMEOUT, stream.message()).await {
-                    Ok(result) => match result? {
-                        Some(chunk) => chunk,
-                        None => break,
-                    },
-                    Err(_elapsed) => {
-                        return Err(Status::deadline_exceeded(format!(
-                            "no upload data received within {}s; aborting stalled write",
-                            REAPI_WRITE_STALL_TIMEOUT.as_secs()
-                        )));
-                    }
-                };
-            if finished {
-                return Err(Status::invalid_argument(
-                    "received data after finish_write=true",
-                ));
-            }
+            let chunk = match tokio::time::timeout_at(stall_deadline, stream.message()).await {
+                Ok(result) => match result? {
+                    Some(chunk) => chunk,
+                    None => break,
+                },
+                Err(_elapsed) => {
+                    return Err(Status::deadline_exceeded(format!(
+                        "no upload progress within {}s; aborting stalled write",
+                        REAPI_WRITE_STALL_TIMEOUT.as_secs()
+                    )));
+                }
+            };
             let chunk_resource_name = if chunk.resource_name.is_empty() {
                 resource_name.clone().ok_or_else(|| {
                     Status::invalid_argument("first write request must include resource_name")
@@ -379,9 +380,16 @@ impl ReapiService {
                     })?;
                 hasher.update(&chunk.data);
                 written = written.saturating_add(chunk.data.len() as u64);
+                // Only real byte progress extends the deadline, so a client
+                // cannot keep a stalled upload alive with empty frames.
+                stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
             }
+            // finish_write marks the last chunk: stop reading immediately instead
+            // of waiting (up to the stall window) for the client's half-close,
+            // and never block another deadline interval on a completed upload.
             if chunk.finish_write {
                 finished = true;
+                break;
             }
         }
 
@@ -948,8 +956,15 @@ impl ByteStream for ReapiService {
         // forever — there is no janitor for reapi uploads. On success the persist
         // step already unlinks the temp file, so this cleanup is a no-op there.
         let result = self.write_to_temp(&temp_path, request).await;
-        if result.is_err() {
+        if let Err(status) = &result {
             self.state.io.remove_file_if_exists(&temp_path).await;
+            // The success path records "ok" inside write_to_temp; meter the
+            // failure here so stall-timeout, transport, and validation aborts are
+            // visible in metrics instead of surfacing only as client retries.
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "error", 0);
+            tracing::warn!("reapi bytestream write failed: {status}");
         }
         result
     }
