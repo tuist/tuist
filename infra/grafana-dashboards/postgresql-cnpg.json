@@ -499,7 +499,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Connection utilization against the Postgres max_connections setting.",
+        "description": "Most-utilized instance's connections against its own max_connections, computed per instance (not summed across instances or clusters) so it stays correct when multiple pods or all clusters are selected.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -556,7 +556,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "100 * sum(cnpg_backends_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", datname=~\"$database\"}) / clamp_min(max(cnpg_pg_settings_setting{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", name=\"max_connections\"}), 1)",
+            "expr": "100 * max(sum by (namespace, cnpg_cluster, pod) (cnpg_backends_total{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\"}) / on (namespace, cnpg_cluster, pod) clamp_min(max by (namespace, cnpg_cluster, pod) (cnpg_pg_settings_setting{namespace=~\"$namespace\", cnpg_cluster=~\"$cnpg_cluster\", pod=~\"$pod\", name=\"max_connections\"}), 1))",
             "legendFormat": "usage",
             "range": true,
             "refId": "A"
