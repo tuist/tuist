@@ -32,6 +32,8 @@ rules:
       - scalewayinstancemachinetemplates
       - scalewayelasticmetalmachines
       - scalewayelasticmetalmachinetemplates
+      - ovhdedicatedmachines
+      - ovhdedicatedmachinetemplates
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
@@ -42,6 +44,8 @@ rules:
       - scalewayinstancemachines/finalizers
       - scalewayelasticmetalmachines/status
       - scalewayelasticmetalmachines/finalizers
+      - ovhdedicatedmachines/status
+      - ovhdedicatedmachines/finalizers
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]

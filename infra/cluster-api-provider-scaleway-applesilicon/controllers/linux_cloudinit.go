@@ -50,6 +50,12 @@ type linuxCloudInitOptions struct {
 	// peer mesh). Empty omits the setting, leaving kubelet to log
 	// MissingClusterDNS and fall back to host DNS.
 	ClusterDNS string
+
+	// InstanceType is the value of the node's
+	// node.cluster.x-k8s.io/instance-type kubelet label. Empty defaults to
+	// "scaleway" so the Scaleway kinds render byte-identically; the OVH kind
+	// passes "ovh" so a bare-metal OVH node isn't mislabelled as Scaleway.
+	InstanceType string
 }
 
 const (
@@ -98,8 +104,9 @@ serverTLSBootstrap: true
 }
 
 // kubeletUnitContent renders the kubelet systemd unit with the node's
-// hostname-override and any register-with-taints argument.
-func kubeletUnitContent(nodeName, taintArg string) string {
+// hostname-override, any register-with-taints argument, and the
+// node.cluster.x-k8s.io/instance-type label (provider-specific).
+func kubeletUnitContent(nodeName, taintArg, instanceType string) string {
 	return fmt.Sprintf(`[Unit]
 Description=kubelet (tuist runner-cache node)
 After=containerd.service network-online.target
@@ -110,12 +117,21 @@ ExecStart=/usr/bin/kubelet \
   --config=/var/lib/kubelet/config.yaml \
   --container-runtime-endpoint=unix:///run/containerd/containerd.sock \
   --hostname-override=%s \
-  %s--node-labels=node.cluster.x-k8s.io/instance-type=scaleway
+  %s--node-labels=node.cluster.x-k8s.io/instance-type=%s
 Restart=always
 RestartSec=5
 [Install]
 WantedBy=multi-user.target
-`, nodeName, taintArg)
+`, nodeName, taintArg, instanceType)
+}
+
+// instanceTypeOrDefault keeps the Scaleway kinds rendering the original
+// `instance-type=scaleway` label when InstanceType is unset.
+func instanceTypeOrDefault(t string) string {
+	if t == "" {
+		return "scaleway"
+	}
+	return t
 }
 
 // bootstrapBody renders the post-write_files bootstrap steps (swap off, kernel
@@ -285,7 +301,7 @@ runcmd:
 		kubelet,
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
-		indent(kubeletUnitContent(opts.NodeName, taintArg), "      "),
+		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType)), "      "),
 		indent(kubeletConfigContent(opts.ClusterDNS), "      "),
 		body,
 	)
@@ -324,7 +340,7 @@ set -euxo pipefail
 		heredoc("/var/lib/kubelet/kubeconfig", opts.KubeconfigYAML),
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
-		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg)),
+		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType))),
 		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS)),
 		body,
 	)

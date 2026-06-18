@@ -3,6 +3,7 @@ module github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon
 go 1.25
 
 require (
+	github.com/ovh/go-ovh v1.9.0
 	github.com/scaleway/scaleway-sdk-go v1.0.0-beta.31
 	golang.org/x/crypto v0.31.0
 	k8s.io/api v0.32.1
@@ -11,6 +12,8 @@ require (
 	sigs.k8s.io/cluster-api v1.9.4
 	sigs.k8s.io/controller-runtime v0.20.0
 )
+
+require gopkg.in/ini.v1 v1.67.0 // indirect
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -42,7 +45,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/gomega v1.36.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/prometheus/client_golang v1.19.1 // indirect
+	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect

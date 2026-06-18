@@ -43,6 +43,7 @@ import (
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/credentials"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/githubapp"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/kubeconfig"
+	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/ovh"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/runner"
 	"github.com/tuist/tuist/infra/cluster-api-provider-scaleway-applesilicon/internal/scaleway"
 )
@@ -501,6 +502,36 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
 		os.Exit(1)
+	}
+
+	// OVH dedicated (bare-metal) machines (customer-facing Kura cache regions).
+	// Same provider, separate reconciler: pre-ordered OVH boxes adopted by
+	// display-name prefix that pass through an OS install, then SSH-bootstrap
+	// the shared Linux self-join over their public IP (no Scaleway Private
+	// Network). Gated on OVH credentials being present so envs without the
+	// OVH_API item (and the OSS shape) don't crash-loop on a missing config.
+	if os.Getenv("OVH_APPLICATION_KEY") != "" {
+		ovhClient, err := ovh.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "ovh client")
+			os.Exit(1)
+		}
+		if err := (&controllers.OVHDedicatedMachineReconciler{
+			Client:             mgr.GetClient(),
+			APIReader:          mgr.GetAPIReader(),
+			Scheme:             mgr.GetScheme(),
+			OVHClient:          ovhClient,
+			Recorder:           mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
+			CredentialsManager: credsManager,
+			Kubeconfig:         kubeconfigBuilder,
+			KubernetesMinor:    "v1.34",
+			DefaultDatacenter:  "vin",
+			DefaultOS:          "ubuntu_24.04",
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("OVH dedicated machine reconciler enabled")
 	}
 
 	if fleetSpreadDeployment != "" {
