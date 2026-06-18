@@ -64,3 +64,33 @@ subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write
     apiGroup: rbac.authorization.k8s.io
+---
+# Read-only extension to the `view` tier. The upstream `view` ClusterRole
+# omits cluster-scoped and custom resources, so a view-tier identity (every
+# member + their agents) can't observe the infra it routinely needs to:
+# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, and CRDs.
+# This aggregates into `view` via the label below (no extra binding; both
+# tuist-admins and tuist-eng inherit it), and is strictly `get`/`list`/`watch`
+# with no `secrets` rule, so the view tier's deliberate Secret exclusion is
+# untouched. None of these resource kinds embed secret data (CAPI/Kura
+# reference Secrets by name, never inline).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-view-infra-read
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups:
+      - cluster.x-k8s.io
+      - infrastructure.cluster.x-k8s.io
+      - kura.tuist.dev
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
