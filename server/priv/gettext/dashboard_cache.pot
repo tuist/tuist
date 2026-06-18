@@ -136,7 +136,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:80
 #: lib/tuist_web/live/bundles_live.ex:943
 #: lib/tuist_web/live/bundles_live.html.heex:352
-#: lib/tuist_web/live/cache_runs_live.ex:59
+#: lib/tuist_web/live/cache_runs_live.ex:60
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -186,7 +186,7 @@ msgstr ""
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:22
+#: lib/tuist_web/live/cache_runs_live.ex:23
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Cache Runs"
@@ -244,7 +244,7 @@ msgstr ""
 msgid "Cache uploads"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:38
+#: lib/tuist_web/live/cache_runs_live.ex:39
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
 #: lib/tuist_web/live/module_cache_live.html.heex:573
 #, elixir-autogen, elixir-format
@@ -322,7 +322,7 @@ msgstr ""
 msgid "Explore bundle analysis"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:51
+#: lib/tuist_web/live/cache_runs_live.ex:52
 #: lib/tuist_web/live/cache_runs_live.html.heex:93
 #: lib/tuist_web/live/xcode_cache_live.ex:432
 #, elixir-autogen, elixir-format
@@ -366,7 +366,7 @@ msgstr ""
 msgid "Hit Rate"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:67
+#: lib/tuist_web/live/cache_runs_live.ex:68
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
 #: lib/tuist_web/live/cache_runs_live.html.heex:18
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
@@ -501,7 +501,7 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:50
+#: lib/tuist_web/live/cache_runs_live.ex:51
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
 #: lib/tuist_web/live/xcode_cache_live.ex:431
 #, elixir-autogen, elixir-format
@@ -536,7 +536,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:94
+#: lib/tuist_web/live/cache_runs_live.ex:95
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
 #: lib/tuist_web/live/module_cache_live.html.heex:586
 #: lib/tuist_web/live/xcode_cache_live.html.heex:856
@@ -611,7 +611,7 @@ msgstr ""
 msgid "Space usage"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:46
+#: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/xcode_cache_live.ex:420
 #, elixir-autogen, elixir-format
 msgid "Status"
@@ -820,7 +820,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/cache_runs_live.ex:75
+#: lib/tuist_web/live/cache_runs_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
 msgstr ""
