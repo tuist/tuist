@@ -55,26 +55,18 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
             throw BazelSetupCommandServiceError.notAuthenticated
         }
 
-        let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-        guard let host = cacheURL.host else {
-            throw BazelSetupCommandServiceError.invalidCacheEndpoint(cacheURL.absoluteString)
-        }
-        let endpoint = if let port = cacheURL.port {
-            "\(host):\(port)"
-        } else {
-            host
-        }
-        // Plaintext cache endpoints (e.g. local development deployments) expose
-        // plaintext gRPC, while TLS endpoints terminate TLS for gRPC too.
-        let remoteCacheScheme = cacheURL.scheme == "http" ? "grpc" : "grpcs"
+        let (remoteCache, credentialHelperHost) = try await resolveRemoteCache(
+            serverURL: serverURL,
+            accountHandle: accountHandle
+        )
 
         let credentialHelperPath = try await createCredentialHelperScriptIfNeeded()
 
         let bazelrcPath = directoryPath.appending(component: ".bazelrc.tuist")
         let bazelrcContent = """
-        build --remote_cache=\(remoteCacheScheme)://\(endpoint)
+        build --remote_cache=\(remoteCache)
         build --remote_header=x-tuist-account-handle=\(accountHandle)
-        build --credential_helper=\(host)=\(credentialHelperPath.pathString)
+        build --credential_helper=\(credentialHelperHost)=\(credentialHelperPath.pathString)
         build --remote_instance_name=\(projectHandle)
 
         """
@@ -88,6 +80,40 @@ public struct BazelSetupCommandService: BazelSetupCommandServicing {
                 ]
             )
         )
+    }
+
+    /// Resolves the gRPC remote cache endpoint for the `--remote_cache` flag and
+    /// the host the credential helper should be registered for.
+    ///
+    /// `TUIST_CACHE_GRPC_ENDPOINT` short-circuits resolution and is used verbatim
+    /// as the remote cache. Otherwise the endpoint returned by `CacheURLStore` is
+    /// converted to its gRPC form: the scheme becomes `grpc` (plaintext, e.g.
+    /// local development deployments) or `grpcs` (TLS), and the host is prefixed
+    /// with `grpc.` — e.g. `https://acme-eu-central-1.kura.tuist.dev` becomes
+    /// `grpcs://grpc.acme-eu-central-1.kura.tuist.dev`.
+    private func resolveRemoteCache(
+        serverURL: URL,
+        accountHandle: String?
+    ) async throws -> (remoteCache: String, credentialHelperHost: String) {
+        if let grpcEndpoint = Environment.current.variables["TUIST_CACHE_GRPC_ENDPOINT"] {
+            guard let host = URL(string: grpcEndpoint)?.host else {
+                throw BazelSetupCommandServiceError.invalidCacheEndpoint(grpcEndpoint)
+            }
+            return (grpcEndpoint, host)
+        }
+
+        let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        guard let host = cacheURL.host else {
+            throw BazelSetupCommandServiceError.invalidCacheEndpoint(cacheURL.absoluteString)
+        }
+        let grpcHost = "grpc.\(host)"
+        let endpoint = if let port = cacheURL.port {
+            "\(grpcHost):\(port)"
+        } else {
+            grpcHost
+        }
+        let scheme = cacheURL.scheme == "http" ? "grpc" : "grpcs"
+        return ("\(scheme)://\(endpoint)", grpcHost)
     }
 
     private func createCredentialHelperScriptIfNeeded() async throws -> AbsolutePath {

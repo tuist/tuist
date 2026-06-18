@@ -82,9 +82,9 @@ struct BazelSetupCommandServiceTests {
         )
         #expect(
             bazelrcContent == """
-            build --remote_cache=grpcs://cache.tuist.dev
+            build --remote_cache=grpcs://grpc.cache.tuist.dev
             build --remote_header=x-tuist-account-handle=my-account
-            build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)
+            build --credential_helper=grpc.cache.tuist.dev=\(scriptPath.pathString)
             build --remote_instance_name=my-project
 
             """
@@ -120,8 +120,8 @@ struct BazelSetupCommandServiceTests {
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
-        #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev:8443"))
-        #expect(bazelrcContent.contains("build --credential_helper=cache.tuist.dev=\(scriptPath.pathString)"))
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://grpc.cache.tuist.dev:8443"))
+        #expect(bazelrcContent.contains("build --credential_helper=grpc.cache.tuist.dev=\(scriptPath.pathString)"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
@@ -143,8 +143,47 @@ struct BazelSetupCommandServiceTests {
         let bazelrcContent = try await fileSystem.readTextFile(
             at: temporaryDirectory.appending(component: ".bazelrc.tuist")
         )
-        #expect(bazelrcContent.contains("build --remote_cache=grpc://localhost:5091"))
-        #expect(bazelrcContent.contains("build --credential_helper=localhost=\(scriptPath.pathString)"))
+        #expect(bazelrcContent.contains("build --remote_cache=grpc://grpc.localhost:5091"))
+        #expect(bazelrcContent.contains("build --credential_helper=grpc.localhost=\(scriptPath.pathString)"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_short_circuits_to_the_grpc_endpoint_override() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        Environment.mocked?.variables["TUIST_CACHE_GRPC_ENDPOINT"] = "grpcs://custom-grpc.example.com:9999"
+
+        // When
+        try await subject.run(directory: temporaryDirectory.pathString)
+
+        // Then
+        let scriptPath = try credentialHelperPath()
+        let bazelrcContent = try await fileSystem.readTextFile(
+            at: temporaryDirectory.appending(component: ".bazelrc.tuist")
+        )
+        // The override is used verbatim: no `grpc.` prefix or scheme conversion is applied.
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://custom-grpc.example.com:9999"))
+        #expect(bazelrcContent.contains("build --credential_helper=custom-grpc.example.com=\(scriptPath.pathString)"))
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
+    func run_throws_when_the_grpc_endpoint_override_has_no_host() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let (subject, serverAuthenticationController, _) = makeSubject()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+        Environment.mocked?.variables["TUIST_CACHE_GRPC_ENDPOINT"] = ""
+
+        // When/Then
+        await #expect(throws: BazelSetupCommandServiceError.invalidCacheEndpoint("")) {
+            try await subject.run(directory: temporaryDirectory.pathString)
+        }
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
@@ -185,7 +224,7 @@ struct BazelSetupCommandServiceTests {
 
         // Then
         let bazelrcContent = try await fileSystem.readTextFile(at: bazelrcPath)
-        #expect(bazelrcContent.contains("build --remote_cache=grpcs://cache.tuist.dev"))
+        #expect(bazelrcContent.contains("build --remote_cache=grpcs://grpc.cache.tuist.dev"))
     }
 
     @Test(.withMockedEnvironment(), .withMockedDependencies(), .inTemporaryDirectory)
