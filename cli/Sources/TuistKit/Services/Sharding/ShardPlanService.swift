@@ -55,6 +55,11 @@
         /// per-host connection cap.
         private static let maxConcurrentArtifactUploads = 20
 
+        private enum SplitArtifact {
+            case shared
+            case module(AbsolutePath)
+        }
+
         private let xcTestEnumerator: XCTestEnumerating
         private let createShardPlanService: CreateShardPlanServicing
         private let startShardUploadService: StartShardUploadServicing
@@ -190,9 +195,12 @@
             let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
             let xctestPaths = try await fileSystem.glob(directory: xctestproductsPath, include: ["**/*.xctest"]).collect()
 
-            // Each artifact (the shared bundle plus one per module) is an independent compress + upload.
-            var uploads: [@Sendable () async throws -> Void] = [
-                {
+            // Each artifact (the shared bundle plus one per module) is an independent compress + upload;
+            // run them concurrently, capped so a project with many modules doesn't oversubscribe the host.
+            let artifacts: [SplitArtifact] = [.shared] + xctestPaths.map(SplitArtifact.module)
+            _ = try await artifacts.concurrentMap(maxConcurrentTasks: Self.maxConcurrentArtifactUploads) { artifact in
+                switch artifact {
+                case .shared:
                     let sharedArchive = archiveDirectory.appending(component: "shared.aar")
                     // ".xctest/" (with the trailing slash) excludes the per-module test bundles' contents
                     // without also dropping the sibling ".xctestrun" — excludePatterns is a substring match,
@@ -209,10 +217,7 @@
                         serverURL: serverURL,
                         reference: reference
                     )
-                },
-            ]
-            for xctestPath in xctestPaths {
-                uploads.append {
+                case let .module(xctestPath):
                     let module = xctestPath.basenameWithoutExt
                     let moduleArchive = archiveDirectory.appending(component: "\(module).aar")
                     try await archiveModuleProduct(xctestPath, productsPath: xctestproductsPath, to: moduleArchive)
@@ -223,25 +228,6 @@
                         serverURL: serverURL,
                         reference: reference
                     )
-                }
-            }
-
-            // Run them concurrently but capped (sliding window): keep at most
-            // `maxConcurrentArtifactUploads` in flight. The URLSession's per-host connection cap
-            // further bounds the parallel multipart uploads so the network isn't oversubscribed.
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                var next = 0
-                let initial = min(Self.maxConcurrentArtifactUploads, uploads.count)
-                while next < initial {
-                    let work = uploads[next]
-                    group.addTask { try await work() }
-                    next += 1
-                }
-                while try await group.next() != nil {
-                    guard next < uploads.count else { continue }
-                    let work = uploads[next]
-                    group.addTask { try await work() }
-                    next += 1
                 }
             }
 
