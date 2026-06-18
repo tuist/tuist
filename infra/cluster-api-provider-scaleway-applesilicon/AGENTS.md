@@ -1,10 +1,23 @@
 # cluster-api-provider-scaleway-applesilicon
 
-Cluster API infrastructure provider that manages Scaleway Apple
-Silicon Mac minis as Kubernetes nodes. Watches CRs, calls Scaleway's
-API to order machines, SSHes in to bootstrap kubelet + tart-cri,
-waits for `Node.Ready`, surfaces all of it through CAPI's standard
-Machine/MachineDeployment shape.
+Cluster API infrastructure provider that joins Scaleway nodes as
+workers into the existing caph/Hetzner clusters, surfaced through
+CAPI's standard Machine/MachineDeployment shape. It manages three
+machine kinds:
+
+- `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
+  with tart-cri/tart-kubelet.
+- `ScalewayInstanceMachine` — Linux Instances, cloud-init self-join.
+- `ScalewayElasticMetalMachine` — Linux bare metal (e.g. the
+  `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
+  has no user-data channel).
+
+All three order/release via Scaleway's API and bootstrap with an
+operator-minted kubelet identity + self-join, then wait for
+`Node.Ready`. The Linux kinds bind that identity to `system:node`;
+Apple Silicon uses the `tart-kubelet` role. The Linux kinds are
+designed in `docs/scaleway-instance-support.md`; the sections below
+detail the Apple Silicon kind.
 
 ## CRDs
 
@@ -12,7 +25,9 @@ Machine/MachineDeployment shape.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `ScalewayAppleSiliconCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. |
+| `ScalewayInstanceMachine` (+ `…Template`) | One Scaleway Instance (Linux x86/ARM): commercial type, zone, image, PN id, node taints. Cloud-init self-join; SBS (`scw-bssd`) cache volumes. |
+| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. |
+| `ScalewayAppleSiliconCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
 `samm`, `sammt`, `sasc`.
