@@ -1,6 +1,6 @@
 {
   "name": "tuist-metrics-datasource",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "scripts": {
     "ensure:changelog": "node -e \"const fs=require('fs');fs.existsSync('CHANGELOG.md')||fs.writeFileSync('CHANGELOG.md','# Changelog\\n')\"",
     "build": "npm run ensure:changelog && webpack -c ./.config/webpack/webpack.config.ts --env production",
