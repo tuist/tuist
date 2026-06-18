@@ -617,20 +617,19 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 }
 
 // reconcilePublicCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public HTTPS. No-ops when the
-// instance is private, GRPCClusterIssuer is unset, or spec.publicHost is unset.
+// the regional Kura ingress that terminates public HTTPS. Deletes any
+// existing Certificate when the instance is private, GRPCClusterIssuer
+// is unset, or spec.publicHost is unset, so a public→private flip does
+// not leak the Certificate (and the cert-manager-rotated leaf Secret)
+// after the matching Ingress is torn down.
 // cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.Private {
-		return nil
-	}
-
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
 
-	if r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
@@ -661,21 +660,20 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 }
 
 // reconcileGRPCCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public gRPC. No-ops when the
-// instance is private, GRPCClusterIssuer is unset, or spec.grpcPublicHost is
-// unset. cert-manager must be installed in the cluster before
+// the regional Kura ingress that terminates public gRPC. Deletes any
+// existing Certificate when the instance is private, GRPCClusterIssuer
+// is unset, or spec.grpcPublicHost is unset, so a public→private flip
+// does not leak the Certificate (and the cert-manager-rotated leaf
+// Secret) after the matching Ingress is torn down.
+// cert-manager must be installed in the cluster before
 // --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	if instance.Spec.Private {
-		return nil
-	}
-
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(grpcTLSSecretName(instance))
 	cert.SetNamespace(instance.Namespace)
 
-	if r.GRPCClusterIssuer == "" || instance.Spec.GRPCPublicHost == "" {
+	if instance.Spec.Private || r.GRPCClusterIssuer == "" || instance.Spec.GRPCPublicHost == "" {
 		if err := r.Delete(ctx, cert); err != nil && !apierrors.IsNotFound(err) {
 			return client.IgnoreNotFound(err)
 		}
