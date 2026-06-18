@@ -44,10 +44,11 @@ jobs:
             ~/.local/share/aube
             ~/.cache/aube
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: status
+          install: "node aube npm:wrangler"
+          working-directory: status
       - run: aube run typecheck
 
   style:
@@ -64,10 +65,11 @@ jobs:
             ~/.local/share/aube
             ~/.cache/aube
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: status
+          install: "node aube npm:wrangler"
+          working-directory: status
       - run: aube run format:check
 
   test:
@@ -84,10 +86,11 @@ jobs:
             ~/.local/share/aube
             ~/.cache/aube
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: status
+          install: "node aube npm:wrangler"
+          working-directory: status
       - run: aube run test
 
   build:
@@ -104,8 +107,9 @@ jobs:
             ~/.local/share/aube
             ~/.cache/aube
           key: aube-${{ hashFiles('status/aube-lock.yaml') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          working_directory: status
+          install: "node aube npm:wrangler"
+          working-directory: status
       - run: aube run build

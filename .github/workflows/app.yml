@@ -33,6 +33,10 @@ env:
   MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
   MISE_GITHUB_ATTESTATIONS: 0
+  # Install only the tools each job needs (below) and stop mise auto-installing the
+  # rest of the merged root toolset on `mise x`/`mise run` (which would hit the
+  # GitHub API and build erlang from source on every macOS run).
+  MISE_AUTO_INSTALL: "0"
 
 concurrency:
   group: app-${{ github.head_ref || github.run_id }}
@@ -102,10 +106,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "tuist"
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -159,10 +164,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "tuist"
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
@@ -207,10 +213,11 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved', 'Package.swift') }}
-      - uses: jdx/mise-action@v4.0.1
+      - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+          install: "tuist 1password-cli"
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login
