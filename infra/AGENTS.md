@@ -40,8 +40,10 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
 - Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
 - The preview cluster also hosts Slack-requested preview environments:
-  app workloads land on the preview worker pool, while controller-managed Kura
-  pods land on the autoscaled `kura` worker pool.
+  app workloads and preview Kura runtime pods both land on the tainted
+  preview worker pool (`role=preview`, with the preview toleration on the
+  KuraInstance). The Kura controller itself runs once cluster-wide in the
+  `kura` namespace; each preview's `KuraInstance` is created there.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).

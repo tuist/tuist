@@ -30,19 +30,30 @@ fi
 
 log "Platform install for $CLUSTER_NAME"
 
-if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-  CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
-    "op://Founders/cloudflare-tuist-dns/credential")"
-fi
-
 helm dependency update "$CHART_PATH" >/dev/null
 
 KUBECONFIG="$WL_KUBECONFIG" kubectl create namespace platform \
   --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
-  --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
-  --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
-unset CLOUDFLARE_API_TOKEN
+
+# Only require / propagate the Cloudflare DNS-edit token when the Secret
+# isn't already materialised on the cluster. Normal preview deploys then
+# don't have to read or pass the token at all — the bootstrap step that
+# created the Secret is the only place it has to live. First-cluster
+# bootstrap still needs the token (from $CLOUDFLARE_API_TOKEN in CI, or
+# `op read` for local invocations).
+if ! KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform get secret cloudflare-api-token >/dev/null 2>&1; then
+  log "cloudflare-api-token Secret missing — provisioning it"
+  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    CLOUDFLARE_API_TOKEN="$(op read --account tuist.1password.com \
+      "op://Founders/cloudflare-tuist-dns/credential")"
+  fi
+  KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform create secret generic cloudflare-api-token \
+    --from-literal=api-token="$CLOUDFLARE_API_TOKEN" \
+    --dry-run=client -o yaml | KUBECONFIG="$WL_KUBECONFIG" kubectl apply -f -
+  unset CLOUDFLARE_API_TOKEN
+else
+  log "cloudflare-api-token Secret already present — skipping token refresh"
+fi
 
 HELM_SET_ARGS=(
   --set "external-dns.txtOwnerId=${CLUSTER_NAME}-platform"

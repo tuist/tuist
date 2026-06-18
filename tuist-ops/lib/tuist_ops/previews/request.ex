@@ -72,7 +72,7 @@ defmodule TuistOps.Previews.Request do
     |> validate_format(:slug, ~r/^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/)
     |> validate_length(:reason, min: 5)
     |> validate_number(:ttl_seconds, greater_than: 0)
-    |> unique_constraint(:slug, name: :preview_requests_active_slug_index)
+    |> unique_constraint(:slug, name: :preview_requests_active_create_slug_index)
   end
 
   def transition_changeset(%__MODULE__{} = request, attrs) do

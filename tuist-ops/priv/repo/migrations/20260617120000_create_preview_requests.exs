@@ -31,14 +31,20 @@ defmodule TuistOps.Repo.Migrations.CreatePreviewRequests do
     create index(:preview_requests, [:expires_at])
 
     # Stop two concurrent `/preview create <slug>` calls from both racing
-    # past insert and dispatching workflows for the same namespace; the
-    # second one fails closed at the DB. Scoped to in-flight statuses so
-    # a previous failed/terminal row does not block a fresh request.
+    # past insert and dispatching workflows for the same namespace. Scoped
+    # to *create* requests because the GitHub Actions workflow has no
+    # completion callback into tuist-ops yet — the first successful create
+    # leaves a row at `provisioning` indefinitely, and a wider index (one
+    # that also blocked subsequent deletes / updates / re-creates) would
+    # break the documented lifecycle after the first dispatch. Drops to
+    # tuist-ops, not Postgres, get to evolve the lifecycle further (mutable
+    # row per slug, completion callbacks, etc.) without re-shaping the
+    # index.
     create unique_index(
              :preview_requests,
              [:slug],
-             where: "status IN ('requested', 'provisioning', 'deleting')",
-             name: :preview_requests_active_slug_index
+             where: "action = 'create' AND status IN ('requested', 'provisioning')",
+             name: :preview_requests_active_create_slug_index
            )
   end
 end

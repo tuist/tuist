@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-#MISE description="Spin up a multi-node kind cluster and deploy a preview release pinned to role=preview node"
+#MISE description="Spin up a multi-node kind cluster and deploy a preview release (with Kura by default) onto the role=preview worker"
 #USAGE flag "--cluster <name>" help="Kind cluster name" default="tuist-preview"
 #USAGE flag "--release <name>" help="Helm release name" default="pr-demo"
 #USAGE flag "--remote" help="Use pre-built images from ghcr.io instead of building locally"
 #USAGE flag "--version <version>" help="Image version tag when using --remote" default="latest"
-#USAGE flag "--with-kura" help="Also enable the Kura controller and create a shared private two-node KuraInstance"
+#USAGE flag "--without-kura" help="Skip the cluster-wide Kura controller install and the shared KuraInstance. Use only for fast app-only local loops; the default matches the Slack preview shape."
 #USAGE flag "--kura-controller-image <image>" help="Kura controller image repository for local kind" default="tuist-kura-controller"
 #USAGE flag "--kura-runtime-image <image>" help="Kura runtime image repository for local kind" default="tuist-kura"
 #USAGE flag "--kura-image-tag <tag>" help="Kura controller/runtime image tag for local kind" default="kind"
@@ -33,7 +33,14 @@ CLUSTER_NAME="${usage_cluster}"
 RELEASE_NAME="${usage_release}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')"
-WITH_KURA="${usage_with_kura:-false}"
+# Kura is part of the default preview shape so the local kind validation
+# matches what Slack previews actually run. --without-kura is an escape
+# hatch for fast app-only iteration when the change can't affect Kura.
+if [ "${usage_without_kura:-false}" = "true" ]; then
+    WITH_KURA="false"
+else
+    WITH_KURA="true"
+fi
 KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"

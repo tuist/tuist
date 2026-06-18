@@ -195,16 +195,24 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
-      - name: Temporarily remove preview taint for platform hooks
+      - name: Re-apply preview node label
+        # The tuist-hcloud ClusterClass doesn't surface node labels via
+        # topology variables, so workers come up un-labeled. Idempotent
+        # re-label every deploy so MachineDeployment scale events that
+        # bring up fresh nodes get the role=preview selector and the
+        # KuraInstance + app pods schedule onto them.
         run: |
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule- || true
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
       - name: Reconcile platform chart
+        # The platform chart's pods + admission Jobs are configured with a
+        # role=preview toleration through values-tuist-preview.yaml, so we
+        # don't have to untaint/retaint workers around helm upgrade. The
+        # task itself skips reading the Cloudflare API token when the
+        # platform/cloudflare-api-token Secret is already materialised on
+        # the cluster, so normal preview deploys don't propagate the
+        # DNS-edit credential.
         run: |
           set -euo pipefail
-          CLOUDFLARE_API_TOKEN="$(kubectl -n platform get secret cloudflare-api-token \
-            -o jsonpath='{.data.api-token}' | base64 -d)"
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          export CLOUDFLARE_API_TOKEN
           mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
       - name: Reconcile Kura platform (cluster-wide controller)
         if: inputs.profile == 'app-with-kura'
@@ -213,11 +221,6 @@ jobs:
         run: |
           set -euo pipefail
           mise -C infra run k8s:install-kura-platform "$KUBECONFIG"
-      - name: Re-apply preview node label and taint
-        if: always()
-        run: |
-          kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
-          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane' role=preview:NoSchedule --overwrite
       # Mark the namespace as in-progress before any chart mutation so
       # the hourly sweep skips it while helm upgrade is still running.
       # `expires-at` only flips on after the upgrade succeeds.
