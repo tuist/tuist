@@ -149,8 +149,14 @@ attached to the caph cluster, not a ClusterClass topology entry.
 - **Naming**: the provider binary/repo is `...-applesilicon`; with a Linux kind
   alongside Apple Silicon that's a misnomer, kept for now (a rename is broad
   churn: image, chart, RBAC, CRD group). Revisit if it keeps growing.
-- **IAM**: each env's provider key carries `PrivateNetworksFullAccess` +
-  `IPAMReadOnly`.
+- **IAM**: each env's provider key carries `ElasticMetalFullAccess` (list /
+  order / release the EM server), `PrivateNetworksFullAccess` + `IPAMReadOnly`
+  (attach the PN and read its address), plus `AppleSiliconFullAccess` +
+  `SSHKeysFullAccess` shared with the macOS fleet. `ElasticMetalFullAccess` is
+  the easy one to miss: it's a separate Scaleway product from Apple Silicon, so
+  a key with `AppleSiliconFullAccess` but not `ElasticMetalFullAccess` 403s on
+  the EM reconciler's first `list elastic metal servers` call and never orders a
+  node.
 
 ## End-to-end path
 
