@@ -1,0 +1,334 @@
+name: On-Demand Preview Deploy
+
+# Slack-requested preview environments. tuist-ops dispatches this
+# workflow with action=create/delete; the workflow owns Kubernetes mutation so
+# tuist-ops does not need workload-cluster credentials.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: create or delete
+        required: true
+        default: create
+        type: choice
+        options:
+          - create
+          - delete
+      slug:
+        description: DNS-safe environment slug
+        required: true
+      pr_number:
+        description: PR number to deploy
+        required: false
+      commit_sha:
+        description: Commit SHA to deploy
+        required: false
+      ttl_hours:
+        description: Auto-delete after N hours
+        required: false
+        default: "24"
+      requester_email:
+        description: Requesting operator email
+        required: false
+      requester_slack_id:
+        description: Requesting Slack user id
+        required: false
+      reason:
+        description: Request reason
+        required: false
+      kura_controller_image_tag:
+        description: ghcr.io/tuist/kura-controller tag
+        required: false
+        default: latest
+      kura_runtime_image_tag:
+        description: ghcr.io/tuist/kura tag exposed to the server
+        required: false
+        default: latest
+      kura_instance_replicas:
+        description: Optional warm private KuraInstance replicas, 0 disables
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
+  HELM_CHART_PATH: infra/helm/tuist
+  PREVIEW_BASE_DOMAIN: preview.tuist.dev
+
+jobs:
+  resolve:
+    name: Resolve inputs
+    runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.r.outputs.action }}
+      slug: ${{ steps.r.outputs.slug }}
+      release: ${{ steps.r.outputs.release }}
+      namespace: ${{ steps.r.outputs.namespace }}
+      host: ${{ steps.r.outputs.host }}
+      ref: ${{ steps.r.outputs.ref }}
+      short_sha: ${{ steps.r.outputs.short_sha }}
+      expires_at: ${{ steps.r.outputs.expires_at }}
+      ttl_hours: ${{ steps.r.outputs.ttl_hours }}
+      kura_instance_replicas: ${{ steps.r.outputs.kura_instance_replicas }}
+    steps:
+      - id: r
+        env:
+          ACTION: ${{ inputs.action }}
+          SLUG_IN: ${{ inputs.slug }}
+          PR: ${{ inputs.pr_number }}
+          SHA: ${{ inputs.commit_sha }}
+          TTL_HOURS: ${{ inputs.ttl_hours }}
+          KURA_REPLICAS: ${{ inputs.kura_instance_replicas }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ "$ACTION" != "create" ] && [ "$ACTION" != "delete" ]; then
+            echo "::error::action must be create or delete."; exit 1
+          fi
+
+          SLUG="$(echo "$SLUG_IN" | tr '[:upper:]' '[:lower:]')"
+          if ! [[ "$SLUG" =~ ^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$ ]]; then
+            echo "::error::slug must be 1-40 chars of lowercase letters, numbers, and hyphens, starting and ending alphanumeric."; exit 1
+          fi
+
+          if [ "$ACTION" = "create" ]; then
+            if [ -n "$PR" ] && [ -n "$SHA" ]; then
+              echo "::error::Provide pr_number OR commit_sha, not both."; exit 1
+            fi
+            if [ -n "$PR" ] && ! [[ "$PR" =~ ^[0-9]+$ ]]; then
+              echo "::error::pr_number must be a positive integer."; exit 1
+            fi
+            if [ -n "$SHA" ] && ! [[ "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::commit_sha must be 7-40 lowercase hex chars."; exit 1
+            fi
+            if ! [[ "$TTL_HOURS" =~ ^[0-9]+$ ]] || [ "$TTL_HOURS" -lt 1 ] || [ "$TTL_HOURS" -gt 168 ]; then
+              echo "::error::ttl_hours must be an integer between 1 and 168."; exit 1
+            fi
+            if ! [[ "$KURA_REPLICAS" =~ ^[0-9]+$ ]] || [ "$KURA_REPLICAS" -gt 3 ]; then
+              echo "::error::kura_instance_replicas must be an integer between 0 and 3."; exit 1
+            fi
+
+            if [ -n "$PR" ]; then
+              REF=$(gh pr view "$PR" --repo "${{ github.repository }}" --json headRefOid -q .headRefOid)
+            elif [ -n "$SHA" ]; then
+              REF="$SHA"
+            else
+              REF="${{ github.sha }}"
+            fi
+          else
+            REF="${SHA:-${{ github.sha }}}"
+            TTL_HOURS="${TTL_HOURS:-1}"
+            KURA_REPLICAS=0
+          fi
+
+          RELEASE="ondemand-${SLUG}"
+          NAMESPACE="preview-ondemand-${SLUG}"
+          HOST="${SLUG}.${PREVIEW_BASE_DOMAIN}"
+          EXPIRES_AT=$(( $(date +%s) + TTL_HOURS * 3600 ))
+          SHORT_SHA="${REF:0:12}"
+
+          {
+            echo "action=$ACTION"
+            echo "slug=$SLUG"
+            echo "release=$RELEASE"
+            echo "namespace=$NAMESPACE"
+            echo "host=$HOST"
+            echo "ref=$REF"
+            echo "short_sha=$SHORT_SHA"
+            echo "expires_at=$EXPIRES_AT"
+            echo "ttl_hours=$TTL_HOURS"
+            echo "kura_instance_replicas=$KURA_REPLICAS"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build + push
+    needs: resolve
+    if: needs.resolve.outputs.action == 'create'
+    runs-on: tuist-linux-large
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+          submodules: false
+      - id: tag
+        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
+      - id: apt-bust
+        run: echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ steps.apt-bust.outputs.value }}
+
+  create:
+    name: Create ${{ needs.resolve.outputs.slug }}
+    needs: [resolve, build]
+    if: needs.resolve.outputs.action == 'create' && needs.build.result == 'success'
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-preview
+      url: https://${{ needs.resolve.outputs.host }}
+    concurrency:
+      group: preview-ondemand-${{ needs.resolve.outputs.slug }}
+      cancel-in-progress: false
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.resolve.outputs.release }}
+      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
+      HOST: ${{ needs.resolve.outputs.host }}
+      SLUG: ${{ needs.resolve.outputs.slug }}
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
+      KURA_REPLICAS: ${{ needs.resolve.outputs.kura_instance_replicas }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl jq"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Re-apply preview node label and taint
+        run: |
+          kubectl label nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview --overwrite
+          kubectl taint nodes -l '!node-role.kubernetes.io/control-plane,node.cluster.x-k8s.io/pool!=kura' role=preview:NoSchedule --overwrite
+      - name: helm upgrade --install
+        run: |
+          helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
+            --namespace "$NAMESPACE" --create-namespace \
+            -f "$HELM_CHART_PATH/values-preview.yaml" \
+            -f "$HELM_CHART_PATH/values-preview-kura.yaml" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set server.ingress.enabled=true \
+            --set server.ingress.host="$HOST" \
+            --set "server.appUrl=https://$HOST" \
+            --set "kuraController.image.tag=${{ inputs.kura_controller_image_tag }}" \
+            --set "kuraRuntime.image.tag=${{ inputs.kura_runtime_image_tag }}" \
+            --atomic --timeout 20m --wait
+      - name: Label namespace
+        env:
+          REQUESTER_EMAIL: ${{ inputs.requester_email }}
+          REQUESTER_SLACK_ID: ${{ inputs.requester_slack_id }}
+          REQUEST_REASON: ${{ inputs.reason }}
+        run: |
+          NOW=$(date +%s)
+          kubectl label namespace "$NAMESPACE" \
+            "tuist.dev/preview-source=slack" \
+            "tuist.dev/preview=true" \
+            "tuist.dev/slug=$SLUG" \
+            "tuist.dev/release=$RELEASE" \
+            "tuist.dev/expires-at=$EXPIRES_AT" \
+            --overwrite
+          kubectl annotate namespace "$NAMESPACE" \
+            "tuist.dev/owner-email=$REQUESTER_EMAIL" \
+            "tuist.dev/owner-slack-id=$REQUESTER_SLACK_ID" \
+            "tuist.dev/reason=$REQUEST_REASON" \
+            "tuist.dev/host=https://$HOST" \
+            "tuist.dev/created-at=$NOW" \
+            "tuist.dev/last-active-at=$NOW" \
+            --overwrite
+      - name: Optionally create warm KuraInstance
+        if: env.KURA_REPLICAS != '0'
+        env:
+          KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: kura.tuist.dev/v1alpha1
+          kind: KuraInstance
+          metadata:
+            name: ${RELEASE}-kura
+            namespace: kura
+            labels:
+              tuist.dev/preview-source: slack
+              tuist.dev/slug: ${SLUG}
+          spec:
+            accountHandle: ${SLUG}
+            tenantID: ${SLUG}
+            region: eu-central
+            image: ghcr.io/tuist/kura:${KURA_RUNTIME_IMAGE_TAG}
+            replicas: ${KURA_REPLICAS}
+            private: true
+            storageSize: 10Gi
+            extraEnv:
+              - name: KURA_CONTROL_PLANE_URL
+                value: https://${HOST}
+            nodeSelector:
+              node.cluster.x-k8s.io/pool: kura
+          EOF
+      - name: Smoke test
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deploy/${RELEASE}-tuist-server --timeout=10m
+          for i in $(seq 1 20); do
+            if curl -fsSL --max-time 5 "https://${HOST}/ready" >/dev/null; then
+              echo "OK: https://${HOST}/ready returned 200"
+              exit 0
+            fi
+            echo "Attempt $i: https://${HOST}/ready not yet reachable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::https://${HOST}/ready never returned 200 after about 3 min."
+          exit 1
+
+  delete:
+    name: Delete ${{ needs.resolve.outputs.slug }}
+    needs: resolve
+    if: needs.resolve.outputs.action == 'delete'
+    runs-on: tuist-linux
+    environment:
+      name: server-k8s-preview
+    concurrency:
+      group: preview-ondemand-${{ needs.resolve.outputs.slug }}
+      cancel-in-progress: false
+    timeout-minutes: 15
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+      RELEASE: ${{ needs.resolve.outputs.release }}
+      NAMESPACE: ${{ needs.resolve.outputs.namespace }}
+    steps:
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          install_args: "helm kubectl"
+          cache: "false"
+      - name: Load kubeconfig
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: helm uninstall + delete namespace
+        run: |
+          set -euo pipefail
+          if helm status "$RELEASE" --namespace "$NAMESPACE" >/dev/null 2>&1; then
+            helm uninstall "$RELEASE" --namespace "$NAMESPACE" --wait --timeout 5m || true
+          fi
+          kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=false || true
+          if kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+            kubectl delete namespace "$NAMESPACE" --wait=true --timeout 5m || true
+          fi

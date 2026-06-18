@@ -1,0 +1,47 @@
+# Overlay for Slack-requested preview environments.
+#
+# Layer this after values-preview.yaml. It keeps the preview-class dependency
+# shape (embedded Postgres, ClickHouse, and MinIO) but turns on the Kura
+# control plane so each preview can provision in-cluster Kura
+# nodes without touching ClickHouse Cloud or Tigris.
+#
+# Required deploy-time image pins:
+#   --set kuraController.image.tag=<sha-or-release>
+#   --set kuraRuntime.image.tag=<release>
+global:
+  commonLabels:
+    tuist.dev/environment: preview
+    tuist.dev/preview-source: slack
+
+server:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+  extraEnv:
+    - name: TUIST_KURA_AVAILABLE_REGIONS
+      value: eu-central
+    - name: TUIST_DATABASE_POOL_SIZE
+      value: "10"
+
+kuraController:
+  enabled: true
+  namespace: kura
+  replicaCount: 1
+  tlsClusterIssuer: ""
+  telemetry:
+    deploymentEnvironment: preview
+    otlpTracesEndpoint: ""
+  sharedSecrets:
+    enabled: true
+    kuraIntrospection:
+      enabled: true
+      clientId: preview-kura
+      clientSecret: preview-kura-secret
+
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: ""

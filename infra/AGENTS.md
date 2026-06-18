@@ -39,6 +39,9 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
 - `clusters/clusterclass-tuist.yaml` — the `tuist-hcloud` ClusterClass (HA control plane, worker-pool variables, network config, kubeadm + kubelet config).
 - `clusters/cluster-{staging,canary,production,preview}.yaml` — per-env Cluster CRs in topology mode.
 - Production Kura regions are node pools in `clusters/cluster-production.yaml`, not separate workload clusters.
+- The preview cluster also hosts Slack-requested preview environments:
+  app workloads land on the preview worker pool, while controller-managed Kura
+  pods land on the autoscaled `kura` worker pool.
 - `clusters/README.md` — ClusterClass authoring + caph-upstream porting notes.
 - `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
 - `mgmt/bootstrap/` — Helm values for the per-workload bootstrap (Cilium, HCCM, hcloud-csi, ESO `ClusterSecretStore`).

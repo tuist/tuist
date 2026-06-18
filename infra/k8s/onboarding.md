@@ -231,6 +231,8 @@ The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kuber
 
 Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a TTL label and an hourly sweep workflow.
 
+Slack-requested previews use the same cluster and the same embedded dependency shape, but layer `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` to enable the Kura controller. App pods land on the tainted preview worker pool; controller-managed Kura pods land on the autoscaled `kura` worker pool. Requests enter through `/preview` in Slack, are audited in `tuist-ops`, and dispatch `.github/workflows/preview-ondemand-deploy.yml`; TTL cleanup is handled by `.github/workflows/preview-sweep.yml`.
+
 ### 8.1 Wildcard DNS + cert
 
 In Cloudflare's `tuist.dev` zone, create a single A record pointing `*.preview.tuist.dev` at the preview cluster's ingress LB IP (the bootstrap task prints it at the end of step 12). The platform chart issues the wildcard cert via cert-manager DNS-01 against Cloudflare; ingress-nginx picks it up via the `--default-ssl-certificate` flag set in the chart values.
