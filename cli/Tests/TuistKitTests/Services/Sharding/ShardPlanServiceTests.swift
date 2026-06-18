@@ -6,7 +6,6 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistServer
-
 @testable import TuistKit
 
 struct ShardPlanServiceTests {
@@ -49,7 +48,8 @@ struct ShardPlanServiceTests {
                 shardTotal: .any,
                 shardMaxDuration: .any,
                 shardGranularity: .any,
-                buildRunId: .any
+                buildRunId: .any,
+                startUpload: .any
             )
             .willReturn(
                 Components.Schemas.ShardPlan(
@@ -85,7 +85,7 @@ struct ShardPlanServiceTests {
             shardTotal: 2,
             shardMaxDuration: nil,
             fullHandle: "tuist/tuist",
-            serverURL: URL(string: "https://tuist.dev")!,
+            serverURL: try #require(URL(string: "https://tuist.dev")),
             buildRunId: nil,
             skipUpload: true,
             archivePath: archivePath
@@ -105,6 +105,139 @@ struct ShardPlanServiceTests {
 
         let dsymExists = try await fileSystem.exists(extractedPath.appending(component: "MyApp.framework.dSYM"))
         #expect(!dsymExists)
+
+        verify(startShardUploadService)
+            .startUpload(fullHandle: .any, serverURL: .any, reference: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func plan_withRemoteUpload_usesUploadStartedWithShardPlan() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeText("payload", at: testProductsPath.appending(component: "file.txt"))
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any,
+                startUpload: .value(true)
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: [],
+                    upload_id: "upload-id"
+                )
+            )
+
+        let startShardUploadService = MockStartShardUploadServicing()
+        let multipartUploadArtifactService = MockMultipartUploadArtifactServicing()
+        var generateUploadURLCallback: ((MultipartUploadArtifactPart) async throws -> String)?
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .matching { $0.extension == "aar" },
+                generateUploadURL: .matching { callback in
+                    generateUploadURLCallback = callback
+                    return true
+                },
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let multipartUploadGenerateURLShardsService = MockMultipartUploadGenerateURLShardsServicing()
+        given(multipartUploadGenerateURLShardsService)
+            .generateUploadURL(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .value("plan-id"),
+                reference: .any,
+                uploadId: .value("upload-id"),
+                partNumber: .value(1)
+            )
+            .willReturn("https://tuist.dev/upload")
+
+        let multipartUploadCompleteShardsService = MockMultipartUploadCompleteShardsServicing()
+        given(multipartUploadCompleteShardsService)
+            .completeUpload(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .value("plan-id"),
+                reference: .any,
+                uploadId: .value("upload-id"),
+                parts: .matching { parts in
+                    parts.count == 1 && parts[0].partNumber == 1 && parts[0].etag == "etag"
+                }
+            )
+            .willReturn()
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService)
+            .output(.any)
+            .willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            startShardUploadService: startShardUploadService,
+            multipartUploadArtifactService: multipartUploadArtifactService,
+            multipartUploadGenerateURLShardsService: multipartUploadGenerateURLShardsService,
+            multipartUploadCompleteShardsService: multipartUploadCompleteShardsService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            destination: nil,
+            reference: "ref",
+            shardGranularity: .module,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 2,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: false,
+            archivePath: nil
+        )
+
+        let callback = try #require(generateUploadURLCallback)
+        let uploadURL = try await callback(
+            MultipartUploadArtifactPart(
+                number: 1,
+                contentLength: 20
+            )
+        )
+        #expect(uploadURL == "https://tuist.dev/upload")
 
         verify(startShardUploadService)
             .startUpload(fullHandle: .any, serverURL: .any, reference: .any)

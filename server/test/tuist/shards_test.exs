@@ -231,6 +231,24 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload(project, account, "upload-ref-1")
     end
 
+    test "starts a multipart upload for an already-created shard plan" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      plan =
+        ShardsFixtures.shard_plan_fixture(
+          project_id: project.id,
+          reference: "upload-ref-2"
+        )
+
+      stub(Tuist.Storage, :multipart_start, fn key, _account ->
+        assert key == Shards.bundle_object_key(account, project, plan.id)
+        "test-upload-id"
+      end)
+
+      assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
+    end
+
     test "returns not_found when plan does not exist" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
@@ -335,6 +353,20 @@ defmodule Tuist.ShardsTest do
       assert {:ok, url} = Shards.generate_upload_url(project, account, "session-1", "upload-id", 1)
       assert url == "https://upload.example.com/part"
     end
+
+    test "returns upload URL for an already-created shard plan id" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-2")
+
+      stub(Tuist.Storage, :multipart_generate_url, fn key, _upload_id, _part_number, _account ->
+        assert key == Shards.bundle_object_key(account, project, plan.id)
+        "https://upload.example.com/part"
+      end)
+
+      assert {:ok, url} = Shards.generate_upload_url_for_plan(project, account, plan.id, "upload-id", 1)
+      assert url == "https://upload.example.com/part"
+    end
   end
 
   describe "complete_upload/5" do
@@ -349,6 +381,20 @@ defmodule Tuist.ShardsTest do
 
       assert :ok =
                Shards.complete_upload(project, account, "session-1", "upload-id", [])
+    end
+
+    test "completes the multipart upload for an already-created shard plan id" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "session-2")
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn key, _upload_id, _parts, _account ->
+        assert key == Shards.bundle_object_key(account, project, plan.id)
+        :ok
+      end)
+
+      assert :ok =
+               Shards.complete_upload_for_plan(project, account, plan.id, "upload-id", [])
     end
   end
 end

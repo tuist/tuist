@@ -15,7 +15,8 @@ public protocol CreateShardPlanServicing {
         shardTotal: Int?,
         shardMaxDuration: Int?,
         shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
-        buildRunId: String?
+        buildRunId: String?,
+        startUpload: Bool
     ) async throws -> Components.Schemas.ShardPlan
 }
 
@@ -57,7 +58,8 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
         shardTotal: Int?,
         shardMaxDuration: Int?,
         shardGranularity: Components.Schemas.CreateShardPlanParams.granularityPayload,
-        buildRunId: String?
+        buildRunId: String?,
+        startUpload: Bool
     ) async throws -> Components.Schemas.ShardPlan {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -77,6 +79,7 @@ public struct CreateShardPlanService: CreateShardPlanServicing {
                     shard_max_duration: shardMaxDuration,
                     shard_min: shardMin,
                     shard_total: shardTotal,
+                    start_upload: startUpload,
                     test_suites: testSuites
                 )
             )

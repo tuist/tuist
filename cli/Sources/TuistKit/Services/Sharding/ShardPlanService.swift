@@ -136,6 +136,7 @@
 
             Logger.current.notice("Creating shard plan with \(modules.count) test module(s)", metadata: .section)
 
+            let shouldUpload = archivePath == nil && !skipUpload
             let shardPlan = try await createShardPlanService.createShardPlan(
                 fullHandle: fullHandle,
                 serverURL: serverURL,
@@ -147,7 +148,8 @@
                 shardTotal: shardTotal,
                 shardMaxDuration: shardMaxDuration,
                 shardGranularity: shardGranularity,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                startUpload: shouldUpload
             )
 
             Logger.current.notice("Shard plan created: \(shardPlan.shard_count) shards", metadata: .section)
@@ -159,11 +161,19 @@
                 Logger.current
                     .notice("Skipping test products upload. Ensure shard runners can access the test products locally.")
             } else {
-                let uploadId = try await startShardUploadService.startUpload(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    reference: reference
-                )
+                let uploadId: String
+                let shardPlanId: String?
+                if let planUploadId = shardPlan.upload_id {
+                    uploadId = planUploadId
+                    shardPlanId = shardPlan.id
+                } else {
+                    uploadId = try await startShardUploadService.startUpload(
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        reference: reference
+                    )
+                    shardPlanId = nil
+                }
 
                 Logger.current.debug("Uploading test products bundle...")
                 let archiveDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-archive")
@@ -175,6 +185,7 @@
                         try await multipartUploadGenerateURLShardsService.generateUploadURL(
                             fullHandle: fullHandle,
                             serverURL: serverURL,
+                            shardPlanId: shardPlanId,
                             reference: reference,
                             uploadId: uploadId,
                             partNumber: part.number
@@ -188,6 +199,7 @@
                 try await multipartUploadCompleteShardsService.completeUpload(
                     fullHandle: fullHandle,
                     serverURL: serverURL,
+                    shardPlanId: shardPlanId,
                     reference: reference,
                     uploadId: uploadId,
                     parts: parts.map { (partNumber: $0.partNumber, etag: $0.etag) }

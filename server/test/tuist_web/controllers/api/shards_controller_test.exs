@@ -36,6 +36,26 @@ defmodule TuistWeb.API.ShardsControllerTest do
       assert is_list(response["shards"])
     end
 
+    test "starts upload when requested", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+          %{
+            reference: "github-123-upload",
+            modules: ["AppTests", "CoreTests"],
+            shard_max: 2,
+            start_upload: true
+          }
+        )
+
+      response = json_response(conn, :ok)
+      assert response["reference"] == "github-123-upload"
+      assert response["upload_id"] == "upload-id-123"
+    end
+
     test "returns forbidden when user doesn't have access", %{conn: conn} do
       other_user = AccountsFixtures.user_fixture(preload: [:account])
       other_project = ProjectsFixtures.project_fixture(preload: [:account], account_id: other_user.account.id)
@@ -257,6 +277,40 @@ defmodule TuistWeb.API.ShardsControllerTest do
       response = json_response(conn, :ok)
       assert response["data"]["url"] == "https://upload.example.com/part"
     end
+
+    test "returns signed upload URL for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :generate_upload_url_for_plan, fn _project, _account, ^plan_id, _upload_id, _part ->
+        {:ok, "https://upload.example.com/part"}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/generate-url",
+          %{shard_plan_id: plan_id, upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["data"]["url"] == "https://upload.example.com/part"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/generate-url",
+          %{upload_id: "upload-id", part_number: 1}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
+    end
   end
 
   describe "POST /api/projects/:account/:project/tests/shards/upload/complete" do
@@ -276,6 +330,40 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["status"] == "success"
+    end
+
+    test "completes upload successfully for a shard plan id", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :complete_upload_for_plan, fn _project, _account, ^plan_id, _upload_id, _parts ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/complete",
+          %{shard_plan_id: plan_id, upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+        )
+
+      response = json_response(conn, :ok)
+      assert response["status"] == "success"
+    end
+
+    test "returns bad request when shard plan identifier is missing", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/complete",
+          %{upload_id: "upload-id", parts: [%{part_number: 1, etag: "etag1"}]}
+        )
+
+      response = json_response(conn, :bad_request)
+      assert response["message"] =~ "shard_plan_id or reference"
     end
   end
 end

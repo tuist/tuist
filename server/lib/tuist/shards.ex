@@ -89,9 +89,13 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        upload_id = Storage.multipart_start(bundle_object_key(account, project, plan.id), account)
-        {:ok, upload_id}
+        start_upload_for_plan(project, account, plan)
     end
+  end
+
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan) do
+    upload_id = Storage.multipart_start(bundle_object_key(account, project, plan.id), account)
+    {:ok, upload_id}
   end
 
   def get_shard(%Project{} = project, %Account{} = account, reference, shard_index) do
@@ -125,9 +129,13 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        Storage.multipart_complete_upload(bundle_object_key(account, project, plan.id), upload_id, parts, account)
-        :ok
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts)
     end
+  end
+
+  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
+    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+    :ok
   end
 
   def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
@@ -136,16 +144,20 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        url =
-          Storage.multipart_generate_url(
-            bundle_object_key(account, project, plan.id),
-            upload_id,
-            part_number,
-            account
-          )
-
-        {:ok, url}
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number)
     end
+  end
+
+  def generate_upload_url_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+    url =
+      Storage.multipart_generate_url(
+        bundle_object_key(account, project, plan_id),
+        upload_id,
+        part_number,
+        account
+      )
+
+    {:ok, url}
   end
 
   def bundle_object_key(account, project, plan_id) do
