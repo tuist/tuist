@@ -968,19 +968,19 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 		t.Fatalf("expected leaf SANs to cover the public peer host, got %v", cert.DNSNames)
 	}
 
-	current := &kurav1alpha1.KuraInstance{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, current); err != nil {
+	// A non-mesh instance of the SAME account (e.g. a private runner-cache
+	// region) must not delete the account-level public peer Service its
+	// mesh-enabled sibling owns — otherwise they churn it every reconcile.
+	sibling := meshInstance("kura-tuist-scw-1", "tuist")
+	sibling.Spec.Mesh = false
+	if err := reconciler.Create(ctx, sibling); err != nil {
 		t.Fatal(err)
 	}
-	current.Spec.MeshPublicPeerHost = ""
-	if err := reconciler.Update(ctx, current); err != nil {
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: sibling.Name, Namespace: sibling.Namespace}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected public peer Service to be removed when the host is cleared, got %v", err)
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
+		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
 	}
 }
 

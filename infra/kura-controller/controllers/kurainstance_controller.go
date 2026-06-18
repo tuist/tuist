@@ -358,7 +358,12 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 // owns the account CA (meshManagedPeerTLS) and a public host is requested.
 func (r *KuraInstanceReconciler) reconcileAccountPublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
-		return r.deleteLegacyServiceIfExists(ctx, accountPublicPeerServiceName(instance), instance.Namespace)
+		// The public peer Service is account-level but reconciled per-instance,
+		// so a non-mesh instance of the same account (e.g. a private runner-cache
+		// region) must NOT delete the Service its mesh-enabled sibling owns —
+		// otherwise they churn it every reconcile and the LoadBalancer never
+		// stabilizes. No-op here, mirroring reconcileAccountPeerService.
+		return nil
 	}
 
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: accountPublicPeerServiceName(instance), Namespace: instance.Namespace}}
