@@ -72,16 +72,28 @@ jobs:
           # Installing tuist unlocked rewrites its mise.lock entry across all
           # platforms (checksums come from the release SHASUMS, so one host
           # covers macOS and Linux).
-          install_args: "tuist"
+          install_args: "tuist 1password-cli"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Load GitHub App credentials from 1Password
+        if: steps.resolve.outputs.changed == 'true'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          {
+            echo "APP_ID=$(op read 'op://tuist/Tuist Automation GitHub App/app-id')"
+            echo "APP_PRIVATE_KEY<<__OP_PEM__"
+            op read 'op://tuist/Tuist Automation GitHub App/private-key'
+            echo "__OP_PEM__"
+          } >> "$GITHUB_ENV"
       - name: Mint a GitHub App token
         id: app-token
         if: steps.resolve.outputs.changed == 'true'
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.TUIST_AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.TUIST_AUTOMATION_APP_PRIVATE_KEY }}
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_PRIVATE_KEY }}
       - name: Open pull request
         id: pr
         if: steps.resolve.outputs.changed == 'true'
