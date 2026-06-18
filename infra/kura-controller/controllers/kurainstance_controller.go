@@ -348,7 +348,7 @@ func (r *KuraInstanceReconciler) deleteLegacyServiceIfExists(ctx context.Context
 
 func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
-	if instance.Spec.PublicHost == "" {
+	if instance.Spec.Private || instance.Spec.PublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -383,7 +383,7 @@ func (r *KuraInstanceReconciler) reconcilePublicIngress(ctx context.Context, ins
 
 func (r *KuraInstanceReconciler) reconcileGRPCIngress(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	ingress := &networkingv1.Ingress{ObjectMeta: metav1.ObjectMeta{Name: grpcServiceName(instance), Namespace: instance.Namespace}}
-	if instance.Spec.GRPCPublicHost == "" {
+	if instance.Spec.Private || instance.Spec.GRPCPublicHost == "" {
 		if err := r.Delete(ctx, ingress); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -617,10 +617,14 @@ func podOrdinal(podName, instanceName string) (int, bool) {
 }
 
 // reconcilePublicCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public HTTPS. No-ops when either
-// GRPCClusterIssuer or spec.publicHost is unset. cert-manager must be
-// installed in the cluster before --grpc-cluster-issuer is set.
+// the regional Kura ingress that terminates public HTTPS. No-ops when the
+// instance is private, GRPCClusterIssuer is unset, or spec.publicHost is unset.
+// cert-manager must be installed in the cluster before --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Spec.Private {
+		return nil
+	}
+
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(publicTLSSecretName(instance))
@@ -657,10 +661,15 @@ func (r *KuraInstanceReconciler) reconcilePublicCertificate(ctx context.Context,
 }
 
 // reconcileGRPCCertificate provisions a cert-manager Certificate for
-// the regional Kura ingress that terminates public gRPC. No-ops when either
-// GRPCClusterIssuer or spec.grpcPublicHost is unset. cert-manager must
-// be installed in the cluster before --grpc-cluster-issuer is set.
+// the regional Kura ingress that terminates public gRPC. No-ops when the
+// instance is private, GRPCClusterIssuer is unset, or spec.grpcPublicHost is
+// unset. cert-manager must be installed in the cluster before
+// --grpc-cluster-issuer is set.
 func (r *KuraInstanceReconciler) reconcileGRPCCertificate(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Spec.Private {
+		return nil
+	}
+
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK())
 	cert.SetName(grpcTLSSecretName(instance))

@@ -978,6 +978,67 @@ func TestKuraInstanceReconcileSkipsGRPCWhenHostUnset(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcileSkipsPublicResourcesWhenPrivate(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:  "tuist",
+			TenantID:       "tuist",
+			Region:         "eu",
+			Image:          "ghcr.io/tuist/kura:0.5.2",
+			PublicHost:     "tuist-eu-1.kura.tuist.dev",
+			GRPCPublicHost: "grpc.tuist-eu-1.kura.tuist.dev",
+			Private:        true,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client:            fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme:            scheme,
+		GRPCClusterIssuer: "letsencrypt-prod",
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, ingress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no public Ingress for private instance, got %v", err)
+	}
+
+	grpcIngress := &networkingv1.Ingress{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcServiceName(instance), Namespace: instance.Namespace}, grpcIngress); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Ingress for private instance, got %v", err)
+	}
+
+	publicCert := &unstructured.Unstructured{}
+	publicCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: publicTLSSecretName(instance), Namespace: instance.Namespace}, publicCert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no public Certificate for private instance, got %v", err)
+	}
+
+	grpcCert := &unstructured.Unstructured{}
+	grpcCert.SetGroupVersionKind(certificateGVK())
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: grpcTLSSecretName(instance), Namespace: instance.Namespace}, grpcCert); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected no gRPC Certificate for private instance, got %v", err)
+	}
+
+	sts := &appsv1.StatefulSet{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
+		t.Fatalf("expected private instance StatefulSet to be created: %v", err)
+	}
+}
+
 func TestKuraInstanceReconcilePreservesExistingStatefulSetVolumeClaimTemplateAndExpandsPVCs(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
