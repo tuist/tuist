@@ -76,10 +76,13 @@ jobs:
             } catch (error) {
               if (error.status === 404) {
                 console.log(`User ${context.payload.pull_request.user.login} is NOT a member of @tuist/engineering`);
-                core.setOutput('is-member', 'false');
               } else {
-                throw error;
+                // Don't let a transient GitHub API error (e.g. 403 rate-limit) fail the
+                // whole workflow. Fail safe: treat the author as a non-member so the
+                // privileged device-build/share steps skip rather than the PR going red.
+                console.log(`Could not resolve team membership (${error.status} ${error.message}); treating as non-member`);
               }
+              core.setOutput('is-member', 'false');
             }
   app-build:
     name: Build
