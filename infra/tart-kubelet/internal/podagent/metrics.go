@@ -50,8 +50,28 @@ var guestDiskUsagePercent = prometheus.NewGaugeVec(
 	[]string{"vm"},
 )
 
+// podProvisionDelaySeconds is wall-clock from a Pod's creation
+// timestamp to the moment this node begins provisioning its VM (the
+// first reconcile that runs `tart pull`/`clone` for it). It isolates
+// the gap that was previously invisible: a scheduled Pod can sit
+// Pending for minutes before tart-kubelet even starts its VM, and
+// nothing measured it — vmBootDurationSeconds starts at clone, and no
+// event was emitted before Running. A rising p90 here is the
+// "pods stranded before boot" signal that the boot histogram can't see.
+//
+// Pool label from the Pod's `tuist.dev/runner-pool` label, same as the
+// boot histogram, for per-pool breakdowns.
+var podProvisionDelaySeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_pod_provision_delay_seconds",
+		Help:    "Wall-clock from Pod creation to the start of its VM provisioning (first tart pull/clone).",
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+	},
+	[]string{"pool"},
+)
+
 func init() {
-	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent)
+	metrics.Registry.MustRegister(vmBootDurationSeconds, guestDiskUsagePercent, podProvisionDelaySeconds)
 }
 
 // RecordGuestDiskUsage publishes a VM's guest root-volume usage percent.

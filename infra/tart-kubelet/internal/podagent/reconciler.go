@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -78,6 +79,13 @@ type Reconciler struct {
 	// GC reclaims disk when a Tart pull errors with no-space. Optional
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
+
+	// Recorder emits Pod Events (e.g. "CreatingVM") so the
+	// Scheduled→Running gap — previously a silent dead zone with no
+	// events between the scheduler placing the Pod and the VM getting
+	// an IP — is visible in `kubectl describe`. Optional; nil skips
+	// event emission.
+	Recorder record.EventRecorder
 }
 
 // MetricsScrapeAnnotation is the pod annotation that tells
@@ -188,9 +196,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			}
 			return ctrl.Result{}, fmt.Errorf("add finalizer: %w", err)
 		}
-		// Patch landed; let the watch fire the next reconcile with
-		// the updated object so we don't risk acting on a stale copy.
-		return ctrl.Result{}, nil
+		// Patch landed. Requeue explicitly instead of relying solely on
+		// the watch to re-fire: a missed or delayed watch event would
+		// otherwise leave the Pod Pending with no VM and nothing to
+		// re-trigger provisioning until the informer's resync (hours) —
+		// the stranded-Pending failure mode seen in prod.
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// If a previous reconcile recorded a RunHandle and the
@@ -266,6 +277,20 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 
 	if existing := r.Store.Get(pod.Namespace, pod.Name); existing != nil {
 		return nil
+	}
+
+	// First time we provision this Pod's VM. Record the gap from Pod
+	// creation to provisioning start — the previously-unmeasured window
+	// where a scheduled Pod sits Pending before its VM is even started
+	// (the prod bottleneck) — and emit a matching event so the
+	// Scheduled→Running gap is no longer a silent dead zone.
+	pool := pod.Labels["tuist.dev/runner-pool"]
+	if pool == "" {
+		pool = "unknown"
+	}
+	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
+	if r.Recorder != nil {
+		r.Recorder.Event(pod, corev1.EventTypeNormal, "CreatingVM", "starting Tart VM provisioning (clone + run)")
 	}
 
 	c := pod.Spec.Containers[0]
